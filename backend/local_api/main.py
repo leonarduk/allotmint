@@ -1,11 +1,19 @@
 from fastapi import FastAPI, HTTPException
-import os
+from fastapi.middleware.cors import CORSMiddleware   # <-- add
 
+import os
 from backend.common.data_loader import list_plots, load_account
 from backend.common.portfolio import build_owner_portfolio
 
 app = FastAPI(title="AllotMint Local API", version="0.1")
 
+# DEV-ONLY: allow all origins so Vite (5173) can call backend (8000)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],      # in prod: replace with specific domain(s)
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 os.environ.setdefault("ALLOTMINT_ENV", "local")
 

@@ -17,3 +17,13 @@ export async function getOwners(): Promise<OwnerSummary[]> {
 export async function getPortfolio(owner: string): Promise<Portfolio> {
   return fetchJson<Portfolio>(`${API_BASE}/portfolio/${owner}`);
 }
+
+import type { GroupSummary, GroupPortfolio } from "./types";
+
+export async function getGroups(): Promise<GroupSummary[]> {
+  return fetchJson<GroupSummary[]>(`${API_BASE}/groups`);
+}
+
+export async function getGroupPortfolio(group: string): Promise<GroupPortfolio> {
+  return fetchJson<GroupPortfolio>(`${API_BASE}/portfolio-group/${group}`);
+}

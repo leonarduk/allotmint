@@ -1,0 +1,15 @@
+{
+  "owner": "joe",
+  "account_type": "SIPP",
+  "currency": "GBP",
+  "last_updated": "2025-07-15",
+  "holdings": [
+    {
+      "ticker": "ERNS.L",
+      "name": "iShares 0-5 Yr GBP Corporate Bond ETF",
+      "units": 1500,
+      "acquired_date": "2025-06-02",
+      "cost_basis_gbp": 14925.00
+    }
+  ]
+}

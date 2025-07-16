@@ -33,3 +33,22 @@ export type Portfolio = {
   total_value_estimate_gbp: number;
   accounts: Account[];
 };
+
+export type GroupSummary = {
+  group: string;
+  members: string[];
+};
+
+export type GroupPortfolio = {
+  group: string;
+  as_of: string;
+  members: string[];
+  total_value_estimate_gbp: number;
+  members_summary: {
+    owner: string;
+    total_value_estimate_gbp: number;
+    trades_this_month: number;
+    trades_remaining: number;
+  }[];
+  subtotals_by_account_type: Record<string, number>;
+};

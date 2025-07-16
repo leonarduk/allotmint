@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware   # <-- add
 import os
 from backend.common.data_loader import list_plots, load_account
 from backend.common.portfolio import build_owner_portfolio
+from backend.common.group_portfolio import list_groups, build_group_portfolio
+
 
 app = FastAPI(title="AllotMint Local API", version="0.1")
 
@@ -26,6 +28,20 @@ def health():
 @app.get("/owners")
 def owners():
     return list_plots()
+
+@app.get("/groups")
+def groups():
+    return list_groups()
+
+
+@app.get("/portfolio-group/{group_name}")
+def portfolio_group(group_name: str):
+    try:
+        return build_group_portfolio(group_name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Group not found")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/portfolio/{owner}")

@@ -1,0 +1,22 @@
+{
+  "owner": "stephen",
+  "account_type": "ISA",
+  "currency": "GBP",
+  "last_updated": "2025-07-15",
+  "holdings": [
+    {
+      "ticker": "VWRL.L",
+      "name": "Vanguard FTSE All-World UCITS",
+      "units": 120.5,
+      "acquired_date": "2025-06-12",
+      "cost_basis_gbp": 12450.00
+    },
+    {
+      "ticker": "PHNX.L",
+      "name": "Phoenix Group Holdings",
+      "units": 350,
+      "acquired_date": "2025-05-28",
+      "cost_basis_gbp": 2130.00
+    }
+  ]
+}

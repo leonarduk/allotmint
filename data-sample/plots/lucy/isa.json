@@ -1,0 +1,15 @@
+{
+  "owner": "lucy",
+  "account_type": "ISA",
+  "currency": "GBP",
+  "last_updated": "2025-07-15",
+  "holdings": [
+    {
+      "ticker": "VUSA.L",
+      "name": "Vanguard S&P 500 UCITS",
+      "units": 200,
+      "acquired_date": "2025-03-11",
+      "cost_basis_gbp": 14000.00
+    }
+  ]
+}

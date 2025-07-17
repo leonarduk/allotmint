@@ -1,30 +1,30 @@
 {
   "VWRL.L": {
     "currency": "GBP",
-    "price_native": 103.3195020746888,
+    "price_native": 111.37999725341797,
     "fx_to_gbp": 1.0,
-    "price_gbp": 103.3195020746888,
-    "timestamp": "manual-cost-derived"
+    "price_gbp": 111.37999725341797,
+    "timestamp": "2025-07-17T06:52:26Z"
   },
   "PHNX.L": {
     "currency": "GBP",
-    "price_native": 6.085714285714285,
+    "price_native": 6.46,
     "fx_to_gbp": 1.0,
-    "price_gbp": 6.085714285714285,
-    "timestamp": "manual-cost-derived"
+    "price_gbp": 6.46,
+    "timestamp": "2025-07-17T06:52:26Z"
   },
   "ERNS.L": {
     "currency": "GBP",
-    "price_native": 9.95,
+    "price_native": 1.0094000244140626,
     "fx_to_gbp": 1.0,
-    "price_gbp": 9.95,
-    "timestamp": "manual-cost-derived"
+    "price_gbp": 1.0094000244140626,
+    "timestamp": "2025-07-17T06:52:26Z"
   },
   "VUSA.L": {
     "currency": "GBP",
-    "price_native": 70.0,
+    "price_native": 87.45999908447266,
     "fx_to_gbp": 1.0,
-    "price_gbp": 70.0,
-    "timestamp": "manual-cost-derived"
+    "price_gbp": 87.45999908447266,
+    "timestamp": "2025-07-17T06:52:26Z"
   }
 }

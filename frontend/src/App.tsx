@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getOwners, getPortfolio, getGroups, getGroupPortfolio } from "./api";
+import { getOwners, getPortfolio, getGroups, getGroupPortfolio, refreshPrices } from "./api";
 import type { OwnerSummary, Portfolio, GroupSummary, GroupPortfolio } from "./types";
 import { OwnerSelector } from "./components/OwnerSelector";
 import { GroupSelector } from "./components/GroupSelector";
@@ -25,6 +25,10 @@ function App() {
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const [refreshingPrices, setRefreshingPrices] = useState(false);
+  const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
+  const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
 
   // load owners + groups on mount
   useEffect(() => {
@@ -60,6 +64,27 @@ function App() {
       .finally(() => setLoading(false));
   }, [mode, selectedGroup]);
 
+async function handleRefreshPrices() {
+  setRefreshingPrices(true);
+  setPriceRefreshError(null);
+  try {
+    const resp = await refreshPrices();
+    setLastPriceRefresh(resp.timestamp ?? new Date().toISOString());
+    // re-fetch whichever mode we're in
+    if (mode === "owner" && selectedOwner) {
+      const p = await getPortfolio(selectedOwner);
+      setPortfolio(p);
+    } else if (mode === "group" && selectedGroup) {
+      const gp = await getGroupPortfolio(selectedGroup);
+      setGroupPortfolio(gp);
+    }
+} catch (e) {
+  setPriceRefreshError(e instanceof Error ? e.message : String(e));
+  } finally {
+    setRefreshingPrices(false);
+  }
+}
+
   // callback when clicking member row in group view
   function handleSelectMemberFromGroup(owner: string) {
     setMode("owner");
@@ -91,6 +116,21 @@ function App() {
           Group
         </label>
       </div>
+<div style={{ marginBottom: "1rem" }}>
+  <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
+    {refreshingPrices ? "Refreshing…" : "Refresh Prices"}
+  </button>
+  {lastPriceRefresh && (
+    <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
+      Last: {new Date(lastPriceRefresh).toLocaleString()}
+    </span>
+  )}
+  {priceRefreshError && (
+    <span style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}>
+      {priceRefreshError}
+    </span>
+  )}
+</div>
 
       {mode === "owner" && (
         <>

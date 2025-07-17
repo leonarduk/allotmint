@@ -27,3 +27,11 @@ export async function getGroups(): Promise<GroupSummary[]> {
 export async function getGroupPortfolio(group: string): Promise<GroupPortfolio> {
   return fetchJson<GroupPortfolio>(`${API_BASE}/portfolio-group/${group}`);
 }
+
+export async function refreshPrices(): Promise<{ status: string; tickers: number; timestamp?: string | null }> {
+  const res = await fetch(`${API_BASE}/prices/refresh`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} refreshing prices`);
+  }
+  return res.json();
+}

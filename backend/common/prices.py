@@ -39,30 +39,67 @@ UNIVERSE_PREFIX = "universe/"  # in S3: universe/securities.csv, universe/prices
 # ------------------------------------------------------------
 @dataclass
 class SecMeta:
-    ticker: str          # your internal ticker (holding.ticker)
+    ticker: str
     name: str
     currency: str
-    price_ticker: str    # ticker used for quote feed (yfinance)
+    price_ticker: str
+    px_scale: float = 1.0   # <-- NEW
 
 
 # ------------------------------------------------------------
 # Load securities metadata
 # ------------------------------------------------------------
 def load_securities_local() -> Dict[str, SecMeta]:
+    """
+    Load security metadata from data-sample/universe/securities.csv.
+
+    Returns dict keyed by *your* internal ticker (the one used in holdings).
+
+    CSV columns:
+      ticker        (required)
+      name          (optional)
+      currency      (default GBP)
+      price_ticker  (default ticker)
+      px_scale      (default 1.0)  <-- use 0.01 if feed is GBp but you want GBP
+
+    Any rows missing `ticker` are skipped.
+    """
     out: Dict[str, SecMeta] = {}
+
     if not _LOCAL_SECURITIES_CSV.exists():
         return out
+
     with open(_LOCAL_SECURITIES_CSV, newline="", encoding="utf-8") as f:
         rdr = csv.DictReader(f)
         for r in rdr:
-            t = r["ticker"].strip()
+            t_raw = (r.get("ticker") or "").strip()
+            if not t_raw:
+                continue  # skip blank row
+            t = t_raw  # preserve case; tickers are case-sensitive in our map
+
+            name = (r.get("name") or t).strip()
+
+            currency = (r.get("currency") or "GBP").strip().upper()
+
+            price_ticker = (r.get("price_ticker") or t).strip()
+
+            # Parse px_scale; be forgiving (blank, None, bad string)
+            px_scale_txt = r.get("px_scale")
+            try:
+                px_scale = float(px_scale_txt) if px_scale_txt not in (None, "", " ") else 1.0
+            except Exception:  # noqa: BLE001
+                px_scale = 1.0
+
             out[t] = SecMeta(
                 ticker=t,
-                name=r.get("name", t),
-                currency=r.get("currency", "GBP").upper(),
-                price_ticker=r.get("price_ticker", t).strip(),
+                name=name,
+                currency=currency,
+                price_ticker=price_ticker,
+                px_scale=px_scale,
             )
+
     return out
+
 
 
 def load_securities(env: Optional[str] = None) -> Dict[str, SecMeta]:
@@ -130,7 +167,8 @@ def build_price_cache(env: Optional[str] = None) -> Dict[str, Dict]:
 
     for s in secs.values():
         try:
-            p_native = fetch_price_native(s.price_ticker)
+            p_native_raw = fetch_price_native(s.price_ticker)
+            p_native = p_native_raw * s.px_scale  # scale to stated currency units
         except Exception:
             p_native = None
         fx = fx_cache.get(s.currency, 1.0)
@@ -175,3 +213,21 @@ def get_price_gbp(ticker: str, env: Optional[str] = None, refresh: bool = False)
 
     entry = cache.get(ticker)
     return entry.get("price_gbp") if entry else None
+
+def refresh_prices(env: Optional[str] = None) -> Dict[str, Any]:
+    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
+    try:
+        cache = build_price_cache(env=env)
+        save_price_cache_local(cache)
+    except Exception as exc:
+        # fall back: load existing cache size
+        try:
+            cache = load_price_cache_local()
+        except Exception:
+            cache = {}
+        return {"env": env, "tickers": len(cache), "timestamp": None, "error": str(exc)}
+    return {
+        "env": env,
+        "tickers": len(cache),
+        "timestamp": next(iter(cache.values()))["timestamp"] if cache else None,
+    }

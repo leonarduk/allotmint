@@ -5,6 +5,7 @@ import os
 from backend.common.data_loader import list_plots, load_account
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.group_portfolio import list_groups, build_group_portfolio
+from backend.common.prices import refresh_prices
 
 
 app = FastAPI(title="AllotMint Local API", version="0.1")
@@ -60,5 +61,13 @@ def get_account(owner: str, account: str):
         return load_account(owner, account)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Account not found")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc))
+
+@app.post("/prices/refresh")
+def prices_refresh():
+    try:
+        summary = refresh_prices()
+        return {"status": "ok", **summary}
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc))

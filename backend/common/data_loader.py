@@ -1,126 +1,145 @@
+from __future__ import annotations
+
 """
-Shared data-loading functions for AllotMint.
+Data loading helpers for AllotMint.
 
-Reads JSON account files from:
-- local filesystem (dev mode)
-- S3 bucket (aws mode)
+Supports two environments:
+- local: read from data-sample/plots/<owner>/
+- aws:   (future) read from S3
 
-ENV VARS:
-  ALLOTMINT_ENV = 'local' | 'aws'  (default: local)
-  DATA_BUCKET   = S3 bucket name (aws mode only)
+Functions exported:
+- list_plots(env=None) -> [{owner, accounts:[...]}, ...]
+- load_account(owner, account, env=None) -> dict (parsed JSON)
+- load_person_meta(owner, env=None) -> dict (parsed JSON or {})
+
+The "account name" is derived from the filename stem (isa.json -> "isa").
+Metadata files (person.json, config.json, notes.json) are ignored.
+Duplicate names (case-insensitive) are deduped in discovery.
 """
 
 import json
 import os
 import pathlib
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, List, Optional
 
-try:
-    import boto3  # available in aws mode
-except ImportError:
-    boto3 = None  # local mode may not have it yet
-
-
-class PlotInfo(TypedDict, total=False):
-    owner: str
-    accounts: List[str]
-
-
-# Resolve repo root -> data-sample path
-# backend/common/data_loader.py is 2 levels down from repo root
+# ------------------------------------------------------------------
+# Paths
+# ------------------------------------------------------------------
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _LOCAL_PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"
 
-
-# -----------------------
-# Internal helpers
-# -----------------------
-def _load_local_json(owner: str, account_filename: str) -> Dict[str, Any]:
-    path = _LOCAL_PLOTS_ROOT / owner / account_filename
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+# For future AWS use
+DATA_BUCKET_ENV = "DATA_BUCKET"
+PLOTS_PREFIX = "plots/"
 
 
-def _load_s3_json(owner: str, account_filename: str) -> Dict[str, Any]:
-    if boto3 is None:
-        raise RuntimeError("boto3 not installed; cannot load from S3 in this environment.")
-    bucket = os.environ["DATA_BUCKET"]
-    key = f"plots/{owner}/{account_filename}"
-    s3 = boto3.client("s3")
-    resp = s3.get_object(Bucket=bucket, Key=key)
-    return json.loads(resp["Body"].read())
+# ------------------------------------------------------------------
+# Local discovery
+# ------------------------------------------------------------------
+_METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
 
 
-def _list_local_plots() -> List[PlotInfo]:
-    plots: List[PlotInfo] = []
+def _list_local_plots() -> List[Dict[str, Any]]:
+    plots: List[Dict[str, Any]] = []
     if not _LOCAL_PLOTS_ROOT.exists():
         return plots
-    for owner_dir in _LOCAL_PLOTS_ROOT.iterdir():
+
+    for owner_dir in sorted(_LOCAL_PLOTS_ROOT.iterdir()):
         if not owner_dir.is_dir():
             continue
-        owner = owner_dir.name
-        accounts = []
-        for f in owner_dir.iterdir():
+
+        accounts: List[str] = []
+        for f in sorted(owner_dir.iterdir()):
             if not f.is_file():
                 continue
+            # CSV ignored for account discovery (trades)
             if f.suffix.lower() != ".json":
-                continue  # skip csv etc
-            accounts.append(f.stem)  # filename without .json
-        plots.append({"owner": owner, "accounts": sorted(accounts)})
-    return sorted(plots, key=lambda p: p["owner"])
-
-
-def _list_s3_plots() -> List[PlotInfo]:
-    if boto3 is None:
-        raise RuntimeError("boto3 not installed; cannot list from S3 in this environment.")
-    bucket = os.environ["DATA_BUCKET"]
-    prefix = "plots/"
-    s3 = boto3.client("s3")
-
-    paginator = s3.get_paginator("list_objects_v2")
-    pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
-
-    # Accumulate {owner: set(accounts)}
-    owners: Dict[str, set[str]] = {}
-    for page in pages:
-        for obj in page.get("Contents", []):
-            key = obj["Key"]  # e.g. plots/stephen/isa.json
-            parts = key.split("/")
-            if len(parts) != 3:
                 continue
-            _, owner, filename = parts
-            if not filename.endswith(".json"):
+
+            stem = f.stem  # original (preserve case for display)
+            stem_l = stem.lower()
+            if stem_l in _METADATA_STEMS:
                 continue
-            acct = filename[:-5]  # strip .json
-            owners.setdefault(owner, set()).add(acct)
 
-    plots: List[PlotInfo] = []
-    for owner, acct_set in owners.items():
-        plots.append({"owner": owner, "accounts": sorted(acct_set)})
-    return sorted(plots, key=lambda p: p["owner"])
+            accounts.append(stem)
+
+        # Dedupe case-insensitive, preserve first occurrence order
+        seen = set()
+        dedup: List[str] = []
+        for a in accounts:
+            al = a.lower()
+            if al in seen:
+                continue
+            seen.add(al)
+            dedup.append(a)
+
+        plots.append({
+            "owner": owner_dir.name,
+            "accounts": dedup,
+        })
+
+    return plots
 
 
-# -----------------------
-# Public API
-# -----------------------
-def load_account(owner: str, account: str, env: str | None = None) -> Dict[str, Any]:
+# ------------------------------------------------------------------
+# AWS discovery (stub)
+# ------------------------------------------------------------------
+def _list_aws_plots() -> List[Dict[str, Any]]:
+    # TODO: implement S3 listing
+    return []
+
+
+# ------------------------------------------------------------------
+# Public discovery API
+# ------------------------------------------------------------------
+def list_plots(env: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    Load one account JSON (e.g., isa.json, sipp.json) for an owner.
-
-    account: 'isa' | 'sipp' | 'pension-forecast' (filename minus .json)
+    Return list of owners + account names.
     """
-    env = env or os.getenv("ALLOTMINT_ENV", "local").lower()
-    filename = f"{account}.json"
+    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
     if env == "aws":
-        return _load_s3_json(owner, filename)
-    return _load_local_json(owner, filename)
-
-
-def list_plots(env: str | None = None) -> List[PlotInfo]:
-    """
-    Return a list of owners and their available account files.
-    """
-    env = env or os.getenv("ALLOTMINT_ENV", "local").lower()
-    if env == "aws":
-        return _list_s3_plots()
+        return _list_aws_plots()
     return _list_local_plots()
+
+
+# ------------------------------------------------------------------
+# Load JSON w/ safe parser (strip BOM, allow empty)
+# ------------------------------------------------------------------
+def _safe_json_load(path: pathlib.Path) -> Dict[str, Any]:
+    if not path.exists() or path.stat().st_size == 0:
+        raise FileNotFoundError(str(path))
+    with open(path, "r", encoding="utf-8-sig") as f:  # utf-8-sig strips BOM
+        txt = f.read().strip()
+    if not txt:
+        raise ValueError(f"Empty JSON file: {path}")
+    return json.loads(txt)
+
+
+# ------------------------------------------------------------------
+# Account loaders
+# ------------------------------------------------------------------
+def load_account(owner: str, account: str, env: Optional[str] = None) -> Dict[str, Any]:
+    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
+    if env == "aws":
+        # TODO: S3
+        raise FileNotFoundError(f"AWS account loading not implemented: {owner}/{account}")
+
+    path = _LOCAL_PLOTS_ROOT / owner / f"{account}.json"
+    return _safe_json_load(path)
+
+
+def load_person_meta(owner: str, env: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load per-owner metadata (dob, etc.). Returns {} if not found.
+    """
+    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
+    if env == "aws":
+        # TODO: S3
+        return {}
+    path = _LOCAL_PLOTS_ROOT / owner / "person.json"
+    if not path.exists():
+        return {}
+    try:
+        return _safe_json_load(path)
+    except Exception:
+        return {}

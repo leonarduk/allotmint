@@ -8,7 +8,18 @@ function eligibilityBadge(h: Holding) {
   return <span style={{ color: "gray" }}>Unknown</span>;
 }
 
-type Props = { holdings: Holding[]; };
+function fmtMoney(v?: number | null) {
+  if (v == null) return "";
+  return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtGain(v?: number | null) {
+  if (v == null) return "";
+  const style: React.CSSProperties = { color: v >= 0 ? "green" : "red" };
+  return <span style={style}>{fmtMoney(v)}</span>;
+}
+
+type Props = { holdings: Holding[] };
 
 export function HoldingsTable({ holdings }: Props) {
   return (
@@ -17,7 +28,10 @@ export function HoldingsTable({ holdings }: Props) {
         <tr>
           <th style={th}>Ticker</th>
           <th style={th}>Units</th>
+          <th style={th}>Px £</th>
           <th style={th}>Cost £</th>
+          <th style={th}>Mkt £</th>
+          <th style={th}>Gain £</th>
           <th style={th}>Acquired</th>
           <th style={th}>Days Held</th>
           <th style={th}>Eligible?</th>
@@ -28,7 +42,10 @@ export function HoldingsTable({ holdings }: Props) {
           <tr key={h.ticker} style={tr}>
             <td style={td}>{h.ticker}</td>
             <td style={td}>{h.units}</td>
-            <td style={td}>{h.cost_basis_gbp?.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+            <td style={td}>{fmtMoney((h as any).current_price_gbp)}</td>
+            <td style={td}>{fmtMoney(h.cost_basis_gbp)}</td>
+            <td style={td}>{fmtMoney((h as any).market_value_gbp)}</td>
+            <td style={td}>{fmtGain((h as any).unrealized_gain_gbp as number | null)}</td>
             <td style={td}>{h.acquired_date ?? ""}</td>
             <td style={td}>{h.days_held ?? ""}</td>
             <td style={td}>{eligibilityBadge(h)}</td>

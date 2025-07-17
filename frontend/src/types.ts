@@ -52,3 +52,18 @@ export type GroupPortfolio = {
   }[];
   subtotals_by_account_type: Record<string, number>;
 };
+
+export type Holding = {
+  ticker: string;
+  name?: string;
+  units: number;
+  cost_basis_gbp?: number;
+  acquired_date?: string;
+  days_held?: number | null;
+  sell_eligible?: boolean;
+  eligible_on?: string | null;
+  days_until_eligible?: number | null;
+  current_price_gbp?: number | null;
+  market_value_gbp?: number | null;
+  unrealized_gain_gbp?: number | null;
+};

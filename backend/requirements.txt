@@ -7,3 +7,7 @@ botocore
 
 # Data + validation (expand later)
 pydantic
+
+yfinance
+pandas
+

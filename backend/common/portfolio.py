@@ -19,6 +19,8 @@ import pathlib
 from typing import Any, Dict, List, Optional
 
 from backend.common.data_loader import list_plots, load_account
+from backend.common.prices import get_price_gbp, load_securities
+from backend.common.pension import _age_from_dob, estimate_db_pension_value
 
 MAX_TRADES_PER_MONTH = 20
 HOLD_DAYS_MIN = 30
@@ -111,15 +113,45 @@ def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, An
     trades_this_month = count_trades_this_month(trades, today)
     trades_remaining = max(0, MAX_TRADES_PER_MONTH - trades_this_month)
 
+    # Load security metadata (not strictly needed yet, but handy)
+    secs_map = load_securities(env=env)  # ticker->SecMeta
+
     acct_objs: List[Dict[str, Any]] = []
+
     for acct in accounts:
         raw = load_account(owner, acct, env=env)
+
+        # Some (e.g. pension-forecast) may not have holdings[]
         holdings_raw = raw.get("holdings", [])
-        holdings = [enrich_holding(h, today) for h in holdings_raw]
 
-        # placeholder account value: sum of cost basis
-        acct_value = sum(float(h.get("cost_basis_gbp", 0) or 0) for h in holdings_raw)
+        holdings = []
+        acct_value = 0.0
 
+        for h in holdings_raw:
+            h_en = enrich_holding(h, today)
+            tkr = h.get("ticker")
+            units = float(h.get("units", 0) or 0)
+
+            # price lookup (falls back to None)
+            price_gbp = get_price_gbp(tkr, env=env)
+            h_en["current_price_gbp"] = price_gbp
+
+            if price_gbp is not None:
+                mv = units * price_gbp
+            else:
+                # fall back to cost basis if no price
+                mv = float(h.get("cost_basis_gbp", 0) or 0)
+
+            h_en["market_value_gbp"] = mv
+            acct_value += mv
+
+            # unrealized gain
+            cost = float(h.get("cost_basis_gbp", 0) or 0)
+            h_en["unrealized_gain_gbp"] = mv - cost
+
+            holdings.append(h_en)
+
+        # ←← THIS IS WHERE THE append() GOES (inside the acct loop)
         acct_objs.append({
             "account_type": raw.get("account_type", acct.upper()),
             "currency": raw.get("currency", "GBP"),
@@ -128,6 +160,7 @@ def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, An
             "holdings": holdings,
         })
 
+    # after all accounts processed
     total_value = sum(a["value_estimate_gbp"] for a in acct_objs)
 
     return {

@@ -1,0 +1,30 @@
+{
+  "VWRL.L": {
+    "currency": "GBP",
+    "price_native": 103.3195020746888,
+    "fx_to_gbp": 1.0,
+    "price_gbp": 103.3195020746888,
+    "timestamp": "manual-cost-derived"
+  },
+  "PHNX.L": {
+    "currency": "GBP",
+    "price_native": 6.085714285714285,
+    "fx_to_gbp": 1.0,
+    "price_gbp": 6.085714285714285,
+    "timestamp": "manual-cost-derived"
+  },
+  "ERNS.L": {
+    "currency": "GBP",
+    "price_native": 9.95,
+    "fx_to_gbp": 1.0,
+    "price_gbp": 9.95,
+    "timestamp": "manual-cost-derived"
+  },
+  "VUSA.L": {
+    "currency": "GBP",
+    "price_native": 70.0,
+    "fx_to_gbp": 1.0,
+    "price_gbp": 70.0,
+    "timestamp": "manual-cost-derived"
+  }
+}

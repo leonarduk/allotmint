@@ -10,6 +10,34 @@
       "units": 1500,
       "acquired_date": "2025-06-02",
       "cost_basis_gbp": 14925.00
+    },
+    {
+      "ticker": "IEFV.L",
+      "name": "iShares IV MSCI Europe Value Factor UCITS ETF Acc",
+      "units": 231,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1992.07
+    },
+    {
+      "ticker": "ERNS.L",
+      "name": "iShares IV GBP Ultrashort Bond UCITS ETF GBP Dist",
+      "units": 38,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 3911.48
+    },
+    {
+      "ticker": "SPGP.L",
+      "name": "iShares V Gold Producers UCITS ETF Acc (GBP)",
+      "units": 54,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 995.15
+    },
+    {
+      "ticker": "VWRL.L",
+      "name": "Vanguard FTSE All-World UCITS ETF (GBP) Distributing",
+      "units": 18,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1954.44
     }
   ]
 }

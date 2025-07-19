@@ -2,14 +2,70 @@
   "owner": "lucy",
   "account_type": "ISA",
   "currency": "GBP",
-  "last_updated": "2025-07-15",
+  "last_updated": "2024-07-15",
   "holdings": [
     {
-      "ticker": "VUSA.L",
-      "name": "Vanguard S&P 500 UCITS",
-      "units": 200,
-      "acquired_date": "2025-03-11",
-      "cost_basis_gbp": 14000.00
+      "ticker": "BPCR",
+      "name": "BioPharma Credit plc ORD USD0.01",
+      "units": 3016,
+      "cost_basis_gbp": 1999.87,
+      "acquired_date": "2024-07-15"
+    },
+    {
+      "ticker": "GBPG",
+      "name": "Goldman Sachs ETF ICAV Access UK Gilts 1-10 Years UCITS ETF Class GBP Dis",
+      "units": 230,
+      "cost_basis_gbp": 9996.60,
+      "acquired_date": "2024-07-15"
+    },
+    {
+      "ticker": "HFEL",
+      "name": "Henderson Far East Income Ltd Ordinary NPV",
+      "units": 897,
+      "cost_basis_gbp": 1998.81,
+      "acquired_date": "2024-07-15"
+    },
+    {
+      "ticker": "IEFV",
+      "name": "iShares IV MSCI Europe Value Factor UCITS ETF Acc",
+      "units": 1271,
+      "cost_basis_gbp": 9995.87,
+      "acquired_date": "2024-07-15"
+    },
+    {
+      "ticker": "ERNS",
+      "name": "iShares IV GBP Ultrashort Bond UCITS ETF GBP Dist",
+      "units": 276,
+      "cost_basis_gbp": 28378.40,
+      "acquired_date": "2024-07-15"
+    },
+    {
+      "ticker": "SPGP",
+      "name": "iShares V Gold Producers UCITS ETF Acc (GBP)",
+      "units": 108,
+      "cost_basis_gbp": 1981.90,
+      "acquired_date": "2024-07-15"
+    },
+    {
+      "ticker": "JEGI",
+      "name": "JPMorgan European Growth & Income plc ORD GBP0.005",
+      "units": 4091,
+      "cost_basis_gbp": 4999.14,
+      "acquired_date": "2024-07-15"
+    },
+    {
+      "ticker": "SERE",
+      "name": "Schroder European Real Estate Investment Trust plc Ordinary 10p",
+      "units": 5861,
+      "cost_basis_gbp": 3999.63,
+      "acquired_date": "2024-07-15"
+    },
+    {
+      "ticker": "ULVR",
+      "name": "Unilever plc Ord 3.11p",
+      "units": 40,
+      "cost_basis_gbp": 1652.00,
+      "acquired_date": "2024-07-15"
     }
   ]
 }

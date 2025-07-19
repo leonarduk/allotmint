@@ -5,11 +5,480 @@
   "last_updated": "2025-07-15",
   "holdings": [
     {
+      "ticker": "III.L",
+      "name": "3i Group Plc",
+      "units": 48,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1972.31
+    },
+    {
+      "ticker": "3IN.L",
+      "name": "3i Infrastructure plc",
+      "units": 1519,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4994.39
+    },
+    {
+      "ticker": "ADM.L",
+      "name": "Admiral Group",
+      "units": 73,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2483.06
+    },
+    {
+      "ticker": "ADBE",
+      "name": "Adobe Inc",
+      "units": 6,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1859.31
+    },
+    {
+      "ticker": "ARG",
+      "name": "Amerigo Resources Corp",
+      "units": 2492,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2499.46
+    },
+    {
+      "ticker": "AIE.L",
+      "name": "Ashoka India Equity Inv Trust",
+      "units": 704,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1998.32
+    },
+    {
+      "ticker": "AZN.L",
+      "name": "AstraZeneca plc",
+      "units": 18,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1934.03
+    },
+    {
+      "ticker": "AV..L",
+      "name": "Aviva Plc",
+      "units": 50,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 263.09
+    },
+    {
+      "ticker": "B",
+      "name": "Barrick Mining Corp",
+      "units": 66,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 998.21
+    },
+    {
+      "ticker": "BYG.L",
+      "name": "Big Yellow Group",
+      "units": 301,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2998.45
+    },
+    {
+      "ticker": "BBAI",
+      "name": "BigBear.ai Holdings Inc",
+      "units": 40,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 118.87
+    },
+    {
+      "ticker": "BIIB",
+      "name": "Biogen Inc",
+      "units": 20,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1992.42
+    },
+    {
+      "ticker": "BPCR.L",
+      "name": "BioPharma Credit plc",
+      "units": 35792,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 25112.26
+    },
+    {
+      "ticker": "BMY.L",
+      "name": "Bloomsbury Publishing plc",
+      "units": 181,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 994.99
+    },
+    {
+      "ticker": "BP..L",
+      "name": "BP Plc",
+      "units": 842,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2999.54
+    },
+    {
+      "ticker": "BLND.L",
+      "name": "British Land Co plc",
+      "units": 1218,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4997.3
+    },
+    {
+      "ticker": "CARD.L",
+      "name": "Card Factory plc",
+      "units": 2065,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1999.3
+    },
+    {
+      "ticker": "CNA.L",
+      "name": "Centrica plc",
+      "units": 1880,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2998.77
+    },
+    {
+      "ticker": "CLIG.L",
+      "name": "City of London Investment Group plc",
+      "units": 14,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 47.81
+    },
+    {
+      "ticker": "QBTS",
+      "name": "D-Wave Quantum Inc",
+      "units": 79,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 999.66
+    },
+    {
+      "ticker": "FSFL.L",
+      "name": "Foresight Solar Fund Ltd",
+      "units": 14310,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 12511.12
+    },
+    {
+      "ticker": "GAW.L",
+      "name": "Games Workshop Group",
+      "units": 12,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1902.66
+    },
+    {
+      "ticker": "GAMA.L",
+      "name": "Gamma Communications plc",
+      "units": 247,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2997.43
+    },
+    {
+      "ticker": "GBPG.L",
+      "name": "Goldman Sachs UK Gilts ETF",
+      "units": 690,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 29964.51
+    },
+    {
+      "ticker": "UKW.L",
+      "name": "Greencoat UK Wind plc",
+      "units": 11516,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 14999.19
+    },
+    {
+      "ticker": "GRG.L",
+      "name": "Greggs Plc",
+      "units": 10,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 183.62
+    },
+    {
+      "ticker": "GSK.L",
+      "name": "GSK plc",
+      "units": 263,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4032.35
+    },
+    {
+      "ticker": "HFEL.L",
+      "name": "Henderson Far East Income Ltd",
+      "units": 2307,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4998.76
+    },
+    {
+      "ticker": "HICL.L",
+      "name": "HICL Infrastructure plc",
+      "units": 90,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 106.41
+    },
+    {
+      "ticker": "IFX",
+      "name": "Infineon Technologies AG",
+      "units": 171,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4993.76
+    },
+    {
+      "ticker": "IONQ",
+      "name": "IonQ Inc",
+      "units": 5,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 107.03
+    },
+    {
+      "ticker": "SEGA.L",
+      "name": "iShares Core Euro Govt Bond ETF",
+      "units": 414,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 39980.3
+    },
+    {
+      "ticker": "GILG.L",
+      "name": "iShares Global Inflation Linked Govt Bond",
+      "units": 3721,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 19997.92
+    },
+    {
+      "ticker": "ISXF.L",
+      "name": "iShares GBP Corporate Bond ex-Fin",
+      "units": 27,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 3707.37
+    },
+    {
+      "ticker": "IEFV.L",
+      "name": "iShares Europe Value Factor",
+      "units": 2545,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 19997.36
+    },
+    {
       "ticker": "ERNS.L",
-      "name": "iShares 0-5 Yr GBP Corporate Bond ETF",
-      "units": 1500,
-      "acquired_date": "2025-06-02",
-      "cost_basis_gbp": 14925.00
+      "name": "iShares GBP Ultrashort Bond",
+      "units": 97,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 9950.39
+    },
+    {
+      "ticker": "IBZL.L",
+      "name": "iShares MSCI Brazil",
+      "units": 302,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4986.27
+    },
+    {
+      "ticker": "SPGP.L",
+      "name": "iShares Gold Producers",
+      "units": 109,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1994.62
+    },
+    {
+      "ticker": "MINV.L",
+      "name": "iShares MSCI World Min Volatility",
+      "units": 74,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 3961.17
+    },
+    {
+      "ticker": "ESIH.L",
+      "name": "iShares MSCI EUR Healthcare",
+      "units": 439,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2497.1
+    },
+    {
+      "ticker": "CUKS.L",
+      "name": "iShares MSCI UK Small Cap",
+      "units": 19,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4752.24
+    },
+    {
+      "ticker": "JEGI.L",
+      "name": "JPMorgan European Growth & Income",
+      "units": 4056,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4999.35
+    },
+    {
+      "ticker": "MU",
+      "name": "Micron Technology Inc",
+      "units": 24,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1926.54
+    },
+    {
+      "ticker": "MNDI.L",
+      "name": "Mondi plc",
+      "units": 247,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2997.9
+    },
+    {
+      "ticker": "MONY.L",
+      "name": "Mony Group Plc",
+      "units": 1387,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2998.45
+    },
+    {
+      "ticker": "NBIX",
+      "name": "Neurocrine Biosciences Inc",
+      "units": 10,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 944.37
+    },
+    {
+      "ticker": "NESF.L",
+      "name": "NextEnergy Solar Fund Ltd",
+      "units": 7044,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4999.57
+    },
+    {
+      "ticker": "PBR.A",
+      "name": "Petroleo Brasileiro SA",
+      "units": 612,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4992.46
+    },
+    {
+      "ticker": "PFE",
+      "name": "Pfizer Inc",
+      "units": 140,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2483.05
+    },
+    {
+      "ticker": "POLR.L",
+      "name": "Polar Capital Holdings Plc",
+      "units": 100,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 380.86
+    },
+    {
+      "ticker": "SBRY.L",
+      "name": "Sainsbury (J) plc",
+      "units": 645,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1604.05
+    },
+    {
+      "ticker": "SERE.L",
+      "name": "Schroder European Real Estate Inv Trust",
+      "units": 10201,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 6998.93
+    },
+    {
+      "ticker": "LAES",
+      "name": "Sealscq Corp",
+      "units": 374,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 999.78
+    },
+    {
+      "ticker": "SFR.L",
+      "name": "Severfield plc",
+      "units": 5679,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1999.9
+    },
+    {
+      "ticker": "SN.L",
+      "name": "Smith & Nephew plc",
+      "units": 132,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1494.19
+    },
+    {
+      "ticker": "SNWS.L",
+      "name": "Smiths News plc",
+      "units": 4885,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 2999.71
+    },
+    {
+      "ticker": "WCOS",
+      "name": "SPDR MSCI World Consumer Staples",
+      "units": 130,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4964.37
+    },
+    {
+      "ticker": "THX.L",
+      "name": "Thor Explorations Ltd",
+      "units": 5126,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1999.96
+    },
+    {
+      "ticker": "TFIF.L",
+      "name": "TwentyFour Income Fund Ltd",
+      "units": 4571,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4999.77
+    },
+    {
+      "ticker": "UPS",
+      "name": "United Parcel Service",
+      "units": 13,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 944.62
+    },
+    {
+      "ticker": "UTHR",
+      "name": "United Therapeutics Corp",
+      "units": 8,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1909.8
+    },
+    {
+      "ticker": "UNH",
+      "name": "UnitedHealth Group Inc",
+      "units": 4,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 884.46
+    },
+    {
+      "ticker": "VHYL.L",
+      "name": "Vanguard FTSE All World High Div Yld",
+      "units": 423,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 19971.35
+    },
+    {
+      "ticker": "VOD.L",
+      "name": "Vodafone Group plc",
+      "units": 290,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 200.46
+    },
+    {
+      "ticker": "WIX.L",
+      "name": "Wickes Group Plc",
+      "units": 100,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 191.96
+    },
+    {
+      "ticker": "AIGE.L",
+      "name": "WisdomTree Energy",
+      "units": 1322,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4009.9
+    },
+    {
+      "ticker": "PHGP.L",
+      "name": "WisdomTree Physical Gold",
+      "units": 21,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 4798.67
+    },
+    {
+      "ticker": "PHSP.L",
+      "name": "WisdomTree Physical Silver",
+      "units": 80,
+      "acquired_date": "2025-07-15",
+      "cost_basis_gbp": 1985.07
     }
   ]
 }

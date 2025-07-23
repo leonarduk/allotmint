@@ -15,7 +15,9 @@ export type Holding = {
   days_until_eligible?: number | null;
   current_price_gbp?: number | null;
   market_value_gbp?: number | null;
+  gain_gbp?: number | null;
 };
+
 
 export type Account = {
   account_type: string;

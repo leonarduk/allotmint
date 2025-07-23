@@ -1,16 +1,19 @@
-import React from "react";
+import React, { useEffect } from "react";
 import type { Holding } from "../types";
 
 function eligibilityBadge(h: Holding) {
-  if (h.sell_eligible) return <span style={{ color: "green" }}>✓ Eligible</span>;
-  if (h.days_until_eligible != null)
+  if (h.sell_eligible === true) return <span style={{ color: "green" }}>✓ Eligible</span>;
+  if (typeof h.days_until_eligible === "number")
     return <span style={{ color: "red" }}>{h.days_until_eligible}d to go</span>;
   return <span style={{ color: "gray" }}>Unknown</span>;
 }
 
 function fmtMoney(v?: number | null) {
   if (v == null) return "";
-  return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return v.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function fmtGain(v?: number | null) {
@@ -22,6 +25,10 @@ function fmtGain(v?: number | null) {
 type Props = { holdings: Holding[] };
 
 export function HoldingsTable({ holdings }: Props) {
+  useEffect(() => {
+    console.debug("HoldingsTable mounted with data:", holdings);
+  }, [holdings]);
+
   return (
     <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "1.5rem" }}>
       <thead>
@@ -38,24 +45,34 @@ export function HoldingsTable({ holdings }: Props) {
         </tr>
       </thead>
       <tbody>
-        {holdings.map((h) => (
-          <tr key={h.ticker} style={tr}>
-            <td style={td}>{h.ticker}</td>
-            <td style={td}>{h.units}</td>
-            <td style={td}>{fmtMoney((h as any).current_price_gbp)}</td>
-            <td style={td}>{fmtMoney(h.cost_basis_gbp)}</td>
-            <td style={td}>{fmtMoney((h as any).market_value_gbp)}</td>
-            <td style={td}>{fmtGain((h as any).unrealized_gain_gbp as number | null)}</td>
-            <td style={td}>{h.acquired_date ?? ""}</td>
-            <td style={td}>{h.days_held ?? ""}</td>
-            <td style={td}>{eligibilityBadge(h)}</td>
-          </tr>
-        ))}
+        {holdings.map((h) => {
+          console.debug("Rendering row for:", h.ticker, h);
+          return (
+            <tr key={h.ticker} style={tr}>
+              <td style={td}>{h.ticker}</td>
+              <td style={td}>{h.units}</td>
+              <td style={td}>{fmtMoney(h.current_price_gbp)}</td>
+              <td style={td}>{fmtMoney(h.cost_basis_gbp)}</td>
+              <td style={td}>{fmtMoney(h.market_value_gbp)}</td>
+              <td style={td}>{fmtGain(h.gain_gbp)}</td>
+              <td style={td}>{h.acquired_date ?? ""}</td>
+              <td style={td}>{h.days_held ?? ""}</td>
+              <td style={td}>{eligibilityBadge(h)}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
 }
 
-const th: React.CSSProperties = { textAlign: "left", borderBottom: "1px solid #ccc", padding: "4px" };
-const td: React.CSSProperties = { padding: "4px", borderBottom: "1px solid #eee" };
+const th: React.CSSProperties = {
+  textAlign: "left",
+  borderBottom: "1px solid #ccc",
+  padding: "4px",
+};
+const td: React.CSSProperties = {
+  padding: "4px",
+  borderBottom: "1px solid #eee",
+};
 const tr: React.CSSProperties = {};

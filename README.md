@@ -36,4 +36,8 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt   # requirements file TBD
 
 # install React deps later:
-# cd frontend && npm install
+# cd frontend
+# npm install
+# npm run dev
+
+ http://localhost:5173/

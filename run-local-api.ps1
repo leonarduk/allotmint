@@ -11,7 +11,7 @@ Set-Location $SCRIPT_DIR
 # create venv if missing
 if (-not (Test-Path ".\.venv\Scripts\Activate.ps1")) {
     Write-Host "Creating Python virtual environment (.venv)..." -ForegroundColor Yellow
-    py -3 -m venv .venv
+    python -m venv .venv
 }
 
 # activate

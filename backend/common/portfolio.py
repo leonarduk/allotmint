@@ -59,8 +59,9 @@ def load_trades(owner: str, env: Optional[str] = None) -> List[Dict[str, Any]]:
 
 def _parse_date(date_str: str) -> Optional[dt.date]:
     try:
-        return dt.date.fromisoformat(date_str)
-    except Exception:  # noqa: BLE001
+        # handles full ISO string with time
+        return dt.datetime.fromisoformat(date_str).date()
+    except Exception:
         return None
 
 

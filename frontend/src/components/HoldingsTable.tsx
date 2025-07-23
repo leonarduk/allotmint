@@ -26,7 +26,7 @@ type Props = { holdings: Holding[] };
 
 export function HoldingsTable({ holdings }: Props) {
   useEffect(() => {
-    console.debug("HoldingsTable mounted with data:", holdings);
+    console.info("HoldingsTable mounted with data:", holdings);
   }, [holdings]);
 
   return (
@@ -46,7 +46,7 @@ export function HoldingsTable({ holdings }: Props) {
       </thead>
       <tbody>
         {holdings.map((h) => {
-          console.debug("Rendering row for:", h.ticker, h);
+          console.info("Rendering row for:", h.ticker, h);
           return (
             <tr key={h.ticker} style={tr}>
               <td style={td}>{h.ticker}</td>

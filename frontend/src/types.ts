@@ -3,20 +3,21 @@ export type OwnerSummary = {
   accounts: string[];
 };
 
-export type Holding = {
+export interface Holding {
   ticker: string;
-  name?: string;
+  name: string;
   units: number;
+  acquired_date: string;
+  price?: number;
   cost_basis_gbp?: number;
-  acquired_date?: string;
-  days_held?: number | null;
+  market_value_gbp?: number;
+  gain_gbp?: number;
+
+  // Add these:
+  days_held?: number;
   sell_eligible?: boolean;
-  eligible_on?: string | null;
   days_until_eligible?: number | null;
-  current_price_gbp?: number | null;
-  market_value_gbp?: number | null;
-  gain_gbp?: number | null;
-};
+}
 
 
 export type Account = {

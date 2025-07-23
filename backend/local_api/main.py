@@ -34,7 +34,6 @@ def owners():
 def groups():
     return list_groups()
 
-
 @app.get("/portfolio-group/{group_name}")
 def portfolio_group(group_name: str):
     try:

@@ -22,3 +22,4 @@ cdk.out/
 
 # Data dumps (keep in S3 instead)
 data-sample/**/*.csv
+/data-sample/plots/

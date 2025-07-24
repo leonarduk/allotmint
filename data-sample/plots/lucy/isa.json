@@ -2,14 +2,85 @@
   "owner": "lucy",
   "account_type": "ISA",
   "currency": "GBP",
-  "last_updated": "2025-07-15",
+  "last_updated": "2025-07-24",
   "holdings": [
     {
-      "ticker": "VUSA.L",
-      "name": "Vanguard S&P 500 UCITS",
-      "units": 200,
-      "acquired_date": "2025-03-11",
-      "cost_basis_gbp": 14000.00
+      "ticker": "ULVR.L",
+      "name": "The Unilever Group",
+      "units": 40.0,
+      "acquired_date": "2019-08-15T00:00",
+      "days_held": 2170,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
+    },
+    {
+      "ticker": "XDEV.L",
+      "name": "Xtrackers MSCI World Value Factor UCITS ETF 1C",
+      "units": 437.0,
+      "acquired_date": "2025-04-15T00:00",
+      "days_held": 100,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
+    },
+    {
+      "ticker": "IEFV.L",
+      "name": "iShares  Edge MSCI Europe Value Factor UCITS ETF Acc",
+      "units": 1271.0,
+      "acquired_date": "2025-04-22T00:00",
+      "days_held": 93,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
+    },
+    {
+      "ticker": "IUKP",
+      "name": "iShares II plc UK Property UCITS ETF GBP Dist",
+      "units": 709.0,
+      "acquired_date": "2025-05-21T00:00",
+      "days_held": 64,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
+    },
+    {
+      "ticker": "IPRP.L",
+      "name": "iShares plc FTSE/EPRA European Property Index Fund UCITS ETF",
+      "units": 112.0,
+      "acquired_date": "2025-05-21T00:00",
+      "days_held": 64,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
+    },
+    {
+      "ticker": "JEGI.L",
+      "name": "JPMorgan European Growth & Income PLC",
+      "units": 4091.0,
+      "acquired_date": "2025-05-29T00:00",
+      "days_held": 56,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
     }
   ]
 }

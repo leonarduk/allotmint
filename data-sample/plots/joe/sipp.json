@@ -2,28 +2,46 @@
   "owner": "joe",
   "account_type": "SIPP",
   "currency": "GBP",
-  "last_updated": "2025-07-23",
+  "last_updated": "2025-07-24",
   "holdings": [
     {
       "ticker": "0P0001BLQI.L",
       "name": "Vanguard Global Credit Bond Accumulation (Hedged GBP)",
       "units": 0.0583,
-      "acquired_date": "2025-06-01",
-      "cost_basis_gbp": 0.0
+      "acquired_date": "2021-09-07T00:00",
+      "days_held": 1416,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
     },
     {
       "ticker": "XDEV.L",
       "name": "Xtrackers MSCI World Value Factor UCITS ETF 1C",
       "units": 116.0,
-      "acquired_date": "2025-06-01",
-      "cost_basis_gbp": 0.0
+      "acquired_date": "2025-04-15T00:00",
+      "days_held": 100,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
     },
     {
       "ticker": "VWRL",
       "name": "Vanguard Funds Plc FTSE All-World UCITS ETF (USD) Distributing - GBP ",
       "units": 18.0,
-      "acquired_date": "2025-06-01",
-      "cost_basis_gbp": 0.0
+      "acquired_date": "2025-05-29T00:00",
+      "days_held": 56,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
     }
   ]
 }

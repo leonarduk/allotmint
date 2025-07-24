@@ -1,4 +1,3 @@
-import React from "react";
 import type { OwnerSummary } from "../types";
 
 type Props = {

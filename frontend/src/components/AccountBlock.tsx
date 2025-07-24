@@ -1,4 +1,3 @@
-import React from "react";
 import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 

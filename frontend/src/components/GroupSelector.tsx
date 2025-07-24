@@ -1,4 +1,3 @@
-import React from "react";
 import type { GroupSummary } from "../types";
 
 type Props = {

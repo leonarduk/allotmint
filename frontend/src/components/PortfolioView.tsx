@@ -1,4 +1,3 @@
-import React from "react";
 import type { Portfolio } from "../types";
 import { AccountBlock } from "./AccountBlock";
 

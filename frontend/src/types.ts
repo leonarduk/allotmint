@@ -14,12 +14,10 @@ export interface Holding {
   gain_gbp?: number;
   current_price_gbp?: number | null;
 
-  // Add these:
   days_held?: number;
   sell_eligible?: boolean;
   days_until_eligible?: number | null;
 }
-
 
 export type Account = {
   account_type: string;
@@ -39,34 +37,34 @@ export type Portfolio = {
 };
 
 export type GroupSummary = {
-  group: string;      // "children" | "adults" | "all" | …
-  name: string;      // "Children" | "Adults" | "All"
-  members: string[]; // ["alex", "joe"] etc.
+  slug: string;
+  name: string;
+  members: string[];
 };
 
 export type GroupPortfolio = {
-  /* identification */
   group: string;
-  name: string;           // display label ("Children")
-
-  /* snapshot */
+  name: string;
   as_of: string;
   members: string[];
-
-  /* totals */
   total_value_estimate_gbp: number;
   trades_this_month?: number;
   trades_remaining?: number;
-
-  /* aggregated detail */
-  accounts: Account[];    // ← used by GroupPortfolioView
+  accounts: Account[];
   members_summary: {
     owner: string;
     total_value_estimate_gbp: number;
     trades_this_month: number;
     trades_remaining: number;
   }[];
-
   subtotals_by_account_type: Record<string, number>;
+};
+
+export type InstrumentSummary = {
+  ticker: string;
+  name: string;
+  units: number;
+  market_value_gbp: number;
+  gain_gbp: number;
 };
 

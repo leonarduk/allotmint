@@ -74,3 +74,11 @@ def prices_refresh():
         return {"status": "ok", **summary}
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc))
+
+from backend.common.group_portfolio import build_group_portfolio
+from backend.common.portfolio_utils import aggregate_by_ticker
+
+@app.get("/portfolio-group/{slug}/instruments")
+def group_by_instrument(slug: str):
+    gp = build_group_portfolio(slug)
+    return aggregate_by_ticker(gp)

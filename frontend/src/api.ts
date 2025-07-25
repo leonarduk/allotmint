@@ -1,4 +1,4 @@
-import type { OwnerSummary, Portfolio } from "./types";
+import type {InstrumentSummary, OwnerSummary, Portfolio} from "./types";
 
 const API_BASE = import.meta.env.VITE_ALLOTMINT_API_BASE || "http://localhost:8000";
 
@@ -33,5 +33,12 @@ export async function refreshPrices(): Promise<{ status: string; tickers: number
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} refreshing prices`);
   }
+  return res.json();
+}
+
+export async function getGroupInstruments(slug: string): Promise<InstrumentSummary[]> {
+  const base = import.meta.env.VITE_API_URL ?? "";
+  const res  = await fetch(`${base}/portfolio-group/${slug}/instruments`);
+  if (!res.ok) throw new Error(res.statusText);
   return res.json();
 }

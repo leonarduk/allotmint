@@ -66,5 +66,11 @@ export type InstrumentSummary = {
   units: number;
   market_value_gbp: number;
   gain_gbp: number;
+
+  /* last-price enrichment */
+  last_price_gbp?: number | null;
+  last_price_date?: string | null;
+  change_7d_pct?: number | null;
+  change_30d_pct?: number | null;
 };
 

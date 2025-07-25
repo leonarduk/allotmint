@@ -82,3 +82,15 @@ from backend.common.portfolio_utils import aggregate_by_ticker
 def group_by_instrument(slug: str):
     gp = build_group_portfolio(slug)
     return aggregate_by_ticker(gp)
+
+# add just once after other routes
+from backend.common.portfolio_utils import aggregate_by_ticker
+
+@app.get("/portfolio-group/{slug}/instruments")
+def group_instruments(slug: str):
+    """
+    One row per ticker across the whole group, enriched with
+    last price and % changes.
+    """
+    gp = build_group_portfolio(slug)
+    return aggregate_by_ticker(gp)

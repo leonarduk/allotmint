@@ -7,6 +7,10 @@ from backend.common.portfolio import build_owner_portfolio
 from backend.common.group_portfolio import list_groups, build_group_portfolio
 from backend.common.prices import refresh_prices
 
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+
 
 app = FastAPI(title="AllotMint Local API", version="0.1")
 

@@ -1,73 +1,58 @@
-import React from "react";
+// src/components/GroupPortfolioView.tsx
+import { useEffect, useState } from "react";
 import type { GroupPortfolio } from "../types";
+import { HoldingsTable } from "./HoldingsTable";
+
+const API = import.meta.env.VITE_API_URL ?? "";
 
 type Props = {
-  data: GroupPortfolio | null;
-  loading?: boolean;
-  error?: string | null;
-  onSelectMember?: (owner: string) => void; // to jump into owner view
+  slug: string;           // "children" | "adults" | "all"
 };
 
-export function GroupPortfolioView({ data, loading, error, onSelectMember }: Props) {
-  if (loading) return <div>Loading group…</div>;
-  if (error) return <div style={{ color: "red" }}>{error}</div>;
-  if (!data) return <div>Select a group.</div>;
+export function GroupPortfolioView({ slug }: Props) {
+  const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const subt = data.subtotals_by_account_type || {};
-  const acctTypes = Object.keys(subt).sort();
+  // fetch on mount or when slug changes
+  useEffect(() => {
+    if (!slug) return;
+
+    fetch(`${API}/portfolio-group/${slug}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(res.statusText);
+        return res.json();
+      })
+      .then(setPortfolio)
+      .catch((e) => {
+        console.error("failed to load group portfolio", e);
+        setError(e.message);
+      });
+  }, [slug]);
+
+  if (!slug) {
+    return <p>Select a group.</p>;
+  }
+
+  if (error) {
+    return <p style={{ color: "red" }}>Error: {error}</p>;
+  }
+
+  if (!portfolio) {
+    return <p>Loading…</p>;
+  }
 
   return (
-    <div>
-      <h1 style={{ marginTop: 0, textTransform: "capitalize" }}>Group: {data.group}</h1>
-      <div style={{ marginBottom: "1rem" }}>As of {data.as_of}</div>
-      <div style={{ marginBottom: "1rem" }}>
-        Approx Total: £{data.total_value_estimate_gbp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-      </div>
+    <div style={{ marginTop: "1rem" }}>
+      <h2>{portfolio.name} — £{portfolio.total_value_estimate_gbp.toLocaleString()}</h2>
 
-      {acctTypes.length > 0 && (
-        <div style={{ marginBottom: "2rem" }}>
-          <h3>By Account Type</h3>
-          <ul>
-            {acctTypes.map((t) => (
-              <li key={t}>
-                {t}: £{subt[t].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </li>
-            ))}
-          </ul>
+      {portfolio.accounts?.map((acct) => (
+        <div key={acct.account_type} style={{ marginBottom: "1.5rem" }}>
+          <h3>{acct.account_type} — £{acct.value_estimate_gbp.toLocaleString()}</h3>
+
+          {/* holdings array might be missing; use ?. */}
+          <HoldingsTable holdings={acct.holdings ?? []} />
         </div>
-      )}
-
-      <h3>Members</h3>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "2rem" }}>
-        <thead>
-          <tr>
-            <th style={th}>Owner</th>
-            <th style={th}>Value £</th>
-            <th style={th}>Trades / 20</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.members_summary.map((m) => (
-            <tr
-              key={m.owner}
-              style={tr}
-              onClick={() => onSelectMember?.(m.owner)}
-            >
-              <td style={tdLink}>{m.owner}</td>
-              <td style={td}>{m.total_value_estimate_gbp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-              <td style={td}>{m.trades_this_month} ({m.trades_remaining} left)</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ fontSize: "0.8rem", color: "#666" }}>
-        Click a member to view their portfolio.
-      </div>
+      ))}
     </div>
   );
 }
-
-const th: React.CSSProperties = { textAlign: "left", borderBottom: "1px solid #ccc", padding: "4px" };
-const td: React.CSSProperties = { padding: "4px", borderBottom: "1px solid #eee" };
-const tdLink: React.CSSProperties = { ...td, cursor: "pointer", textDecoration: "underline", color: "#0077cc" };
-const tr: React.CSSProperties = {};

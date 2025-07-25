@@ -1,170 +1,180 @@
+"""
+Group-level portfolio utilities for AllotMint
+============================================
+
+• list_groups()            – return group definitions
+• build_group_portfolio()  – aggregate owner portfolios for one group
+
+Auto-generation:
+----------------
+If *data/groups.json* is missing we build three default groups from the
+person.json files found under data-sample/plots/<owner>/person.json:
+
+    children : owners whose age  < 18
+    adults   : owners whose age >= 18
+    all      : every owner
+
+This removes the need for a separate groups.json during early setup.
+"""
+
 from __future__ import annotations
 
-"""
-Group portfolio aggregation for AllotMint.
-
-Group membership is **calculated live** every request (no cache).  To debug the
-age classification logic you only need to set an env‑var:
-
-```
-set ALLOTMINT_GROUP_LOG_LEVEL=DEBUG   # Windows PowerShell / cmd
-export ALLOTMINT_GROUP_LOG_LEVEL=DEBUG  # macOS / Linux / WSL
-```
-
-The module now adds its **own handler** to ``allotmint.groups`` and sets
-``propagate = False`` so the messages go straight to stdout even when the root
-handler (installed by Uvicorn) is pinned to INFO.  Example output:
-
-```
-2025-07-24 14:10:43 [allotmint.groups] DEBUG: alex  -> age 12 (child)
-2025-07-24 14:10:43 [allotmint.groups] DEBUG: steve -> age 46 (adult)
-```
-"""
-
-import logging
+import datetime as dt
+import json
 import os
-import sys
-from datetime import date
-from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, DefaultDict
 
-from backend.common.data_loader import list_plots, load_person_meta
-from backend.common.portfolio import build_owner_portfolio
+# ───────────────────────────────────────────────────────────────
+# File locations (adjust if your repo uses different paths)
+# ───────────────────────────────────────────────────────────────
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+GROUPS_FILE = Path("data/groups.json")                      # custom groups
+PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"           # per-owner plots
 
-__all__ = [
-    "list_groups",
-    "build_group_portfolio",
-]
+TODAY = dt.date.today()
 
-# ---------------------------------------------------------------------------
-# Logger setup
-# ---------------------------------------------------------------------------
-logger = logging.getLogger("allotmint.groups")
-logger.propagate = False  # bypass root logger’s level (usually INFO)
-
-if not logger.handlers:
-    _h = logging.StreamHandler(sys.stdout)
-    _h.setLevel(logging.DEBUG)
-    _h.setFormatter(
-        logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s")
-    )
-    logger.addHandler(_h)
-
-# honour optional env‑var override
-_env_level = os.getenv("ALLOTMINT_GROUP_LOG_LEVEL")
-if _env_level:
-    logger.setLevel(_env_level.upper())
-else:
-    logger.setLevel(logging.DEBUG)
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Utilities
-# ---------------------------------------------------------------------------
-
-def _as_decimal(value: Any) -> Decimal:
-    """Convert *anything numeric* into :class:`~decimal.Decimal`."""
-    if isinstance(value, Decimal):
-        return value
-    return Decimal(str(value))
-
-
-def _calc_age(meta: Dict[str, Any]) -> int:
-    """Return integer age; default 18 when missing/invalid."""
-    # explicit age
-    try:
-        age_raw = meta.get("age")
-        if age_raw is not None:
-            age_int = int(age_raw)
-            if age_int >= 0:
-                return age_int
-    except Exception:
-        pass
-
-    # derive from dob
-    dob_txt = (meta.get("dob") or meta.get("date_of_birth") or "").strip()
-    if dob_txt:
+# ───────────────────────────────────────────────────────────────
+# Helpers for deriving age from person.json
+# ───────────────────────────────────────────────────────────────
+def _derive_age(info: dict) -> int | None:
+    """Return integer age or None if dob/age missing or malformed."""
+    if "age" in info:
         try:
-            dob = date.fromisoformat(dob_txt)
-            today = date.today()
-            age_int = today.year - dob.year - (
-                (today.month, today.day) < (dob.month, dob.day)
-            )
-            if age_int >= 0:
-                return age_int
+            return int(info["age"])
         except Exception:
-            pass
+            return None
+    dob = info.get("dob") or info.get("birth_date")
+    if not dob:
+        return None
+    try:
+        dob_dt = dt.datetime.fromisoformat(dob).date()
+        return (TODAY - dob_dt).days // 365
+    except Exception:
+        return None
 
-    return 18  # default adult
 
-# ---------------------------------------------------------------------------
-# Dynamic group discovery
-# ---------------------------------------------------------------------------
+def _auto_groups_from_person_json() -> List[Dict[str, Any]]:
+    """Scan plots/*/person.json and build children/adults/all groups."""
+    adults: list[str] = []
+    children: list[str] = []
+    everyone: list[str] = []
 
-def _group_defs() -> Dict[str, List[str]]:
-    plots = list_plots()  # [{"owner": "alex", "accounts": [...]}]
-    owners = [p["owner"] for p in plots]
+    person_files = list(PLOTS_ROOT.glob("*/person.json"))
+    print(f"[groups] found {len(person_files)} person.json files under {PLOTS_ROOT}")
 
-    adults: List[str] = []
-    children: List[str] = []
+    for person_file in person_files:
+        try:
+            info = json.loads(person_file.read_text())
+        except Exception:
+            continue
 
-    for owner in owners:
-        age = _calc_age(load_person_meta(owner))
-        bucket = "adult" if age >= 18 else "child"
-        logger.debug("%s -> age %s (%s)", owner, age, bucket)
-        (adults if age >= 18 else children).append(owner)
+        slug = info.get("owner") or info.get("slug")
+        if not slug:
+            continue
 
-    return {
-        "all": owners,
-        "adults": adults,
-        "children": children,
-    }
+        age = _derive_age(info)
+        if age is None:
+            continue
 
-# ---------------------------------------------------------------------------
+        everyone.append(slug)
+        (children if age < 18 else adults).append(slug)
+
+    return [
+        {"slug": "children", "name": "Children", "members": children},
+        {"slug": "adults",   "name": "Adults",   "members": adults},
+        {"slug": "all",      "name": "All",      "members": everyone},
+    ]
+
+
+# ───────────────────────────────────────────────────────────────
 # Public API
-# ---------------------------------------------------------------------------
-
+# ───────────────────────────────────────────────────────────────
 def list_groups() -> List[Dict[str, Any]]:
-    defs = _group_defs()
-    return [{"group": slug, "members": members} for slug, members in defs.items()]
+    """
+    Return a list of group dicts.
+
+    1. If *data/groups.json* exists, load and return it verbatim.
+    2. Otherwise auto-generate children/adults/all from plots/*/person.json.
+    """
+    if GROUPS_FILE.exists():
+        with GROUPS_FILE.open() as f:
+            return json.load(f)
+
+    if not PLOTS_ROOT.exists():
+        raise FileNotFoundError(
+            "data/groups.json not found and no plot directories present; "
+            "cannot build default groups"
+        )
+
+    return _auto_groups_from_person_json()
 
 
-def build_group_portfolio(group: str, env: Optional[str] = None) -> Dict[str, Any]:
-    slug = group.lower()
-    defs = _group_defs()
-    if slug not in defs:
-        raise KeyError(f"Unknown group '{group}'")
+def build_group_portfolio(slug: str, env: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Aggregate the owner portfolios for the requested group.
 
-    members = defs[slug]
-    today_iso = date.today().isoformat()
+    Lazy-imports build_owner_portfolio to avoid circular dependency.
+    """
+    # ── LAZY import ────────────────────────────────────────────
+    from backend.common.portfolio import build_owner_portfolio
 
-    group_total = Decimal("0")
-    acct_subtotals: Dict[str, Decimal] = {}
-    members_summary: List[Dict[str, Any]] = []
+    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
+    today_iso = TODAY.isoformat()
 
-    for owner in members:
-        p = build_owner_portfolio(owner, env=env)
+    grp = _find_group(slug)
+    members: List[str] = grp.get("members", [])
 
-        owner_total = _as_decimal(p["total_value_estimate_gbp"])
-        group_total += owner_total
+    owner_portfolios = [build_owner_portfolio(m, env=env) for m in members]
 
-        members_summary.append({
-            "owner": owner,
-            "total_value_estimate_gbp": float(owner_total),
-            "trades_this_month": int(p.get("trades_this_month", 0)),
-            "trades_remaining": int(p.get("trades_remaining", 0)),
-        })
+    # ---- aggregate accounts ----------------------------------
+    acct_map: DefaultDict[str, Dict[str, Any]] = defaultdict(
+        lambda: {
+            "account_type": "",
+            "currency": "GBP",
+            "last_updated": today_iso,
+            "value_estimate_gbp": 0.0,
+            "holdings": [],
+        }
+    )
 
-        for acct in p["accounts"]:
-            acct_type = str(acct.get("account_type", "UNKNOWN")).upper()
-            acct_value = _as_decimal(acct["value_estimate_gbp"])
-            acct_subtotals[acct_type] = acct_subtotals.get(acct_type, Decimal("0")) + acct_value
+    trades_this_month = 0
+    trades_remaining = 0
+
+    for op in owner_portfolios:
+        trades_this_month += op.get("trades_this_month", 0)
+        trades_remaining += op.get("trades_remaining", 0)
+
+        for acct in op.get("accounts", []):
+            a_type = acct.get("account_type", "").upper()
+            g_acct = acct_map[a_type]
+            g_acct["account_type"] = a_type
+            g_acct["currency"] = acct.get("currency", "GBP")
+            g_acct["value_estimate_gbp"] += acct.get("value_estimate_gbp", 0.0)
+            g_acct["holdings"].extend(acct.get("holdings", []))
+
+    accounts = list(acct_map.values())
+    total_value = sum(a["value_estimate_gbp"] for a in accounts)
 
     return {
-        "group": slug,
-        "as_of":  today_iso,
+        "group": slug.lower(),
+        "name": grp.get("name", slug.title()),
         "members": members,
-        "total_value_estimate_gbp": float(group_total),
-        "members_summary": members_summary,
-        "subtotals_by_account_type": {k: float(v) for k, v in acct_subtotals.items()},
+        "as_of": today_iso,
+        "trades_this_month": trades_this_month,
+        "trades_remaining": trades_remaining,
+        "accounts": accounts,
+        "total_value_estimate_gbp": total_value,
     }
+
+
+# ───────────────────────────────────────────────────────────────
+# Internal helper
+# ───────────────────────────────────────────────────────────────
+def _find_group(slug: str) -> Dict[str, Any]:
+    slug = slug.lower()
+    for g in list_groups():
+        if (g.get("slug") or "").lower() == slug:
+            return g
+    raise KeyError(f"Unknown group slug '{slug}'")

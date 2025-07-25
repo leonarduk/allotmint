@@ -1,6 +1,16 @@
+// src/App.tsx
 import React, { useEffect, useState } from "react";
-import { getOwners, getPortfolio, getGroups, getGroupPortfolio, refreshPrices } from "./api";
-import type { OwnerSummary, Portfolio, GroupSummary, GroupPortfolio } from "./types";
+import {
+  getOwners,
+  getPortfolio,
+  getGroups,
+  refreshPrices,
+} from "./api";
+import type {
+  OwnerSummary,
+  Portfolio,
+  GroupSummary
+} from "./types";
 import { OwnerSelector } from "./components/OwnerSelector";
 import { GroupSelector } from "./components/GroupSelector";
 import { PortfolioView } from "./components/PortfolioView";
@@ -11,38 +21,43 @@ type Mode = "owner" | "group";
 function App() {
   const [mode, setMode] = useState<Mode>("owner");
 
-  // owners
+  /* ─ owners ──────────────────────────────────────────────── */
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
-  const [selectedOwner, setSelectedOwner] = useState<string>("");
+  const [selectedOwner, setSelectedOwner] = useState("");
 
-  // groups
+  /* ─ groups ──────────────────────────────────────────────── */
   const [groups, setGroups] = useState<GroupSummary[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<string>("");
+  const [selectedGroup, setSelectedGroup] = useState("");
 
-  // data
+  /* ─ data caches (used only in owner mode) ───────────────── */
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
-  const [groupPortfolio, setGroupPortfolio] = useState<GroupPortfolio | null>(null);
-
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  /* ─ price refresh state ─────────────────────────────────── */
   const [refreshingPrices, setRefreshingPrices] = useState(false);
-  const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
-  const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
+  const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(
+    null
+  );
+  const [priceRefreshError, setPriceRefreshError] = useState<string | null>(
+    null
+  );
 
-  // load owners + groups on mount
+  /* ─────────────────────────────────────────────────────────
+     Initial data load
+     ───────────────────────────────────────────────────────── */
   useEffect(() => {
     getOwners().then(setOwners).catch((e) => setErr(String(e)));
     getGroups().then(setGroups).catch((e) => setErr(String(e)));
   }, []);
 
-  // default selections once data loads
+  /* Default selection after owners/groups arrive */
   useEffect(() => {
     if (!selectedOwner && owners.length) setSelectedOwner(owners[0].owner);
-    if (!selectedGroup && groups.length) setSelectedGroup(groups[0].group);
+    if (!selectedGroup && groups.length) setSelectedGroup(groups[0].slug);
   }, [owners, groups]);
 
-  // load selected owner
+  /* Load portfolio for the selected owner */
   useEffect(() => {
     if (mode !== "owner" || !selectedOwner) return;
     setLoading(true);
@@ -53,39 +68,30 @@ function App() {
       .finally(() => setLoading(false));
   }, [mode, selectedOwner]);
 
-  // load selected group
-  useEffect(() => {
-    if (mode !== "group" || !selectedGroup) return;
-    setLoading(true);
-    setErr(null);
-    getGroupPortfolio(selectedGroup)
-      .then(setGroupPortfolio)
-      .catch((e) => setErr(String(e)))
-      .finally(() => setLoading(false));
-  }, [mode, selectedGroup]);
+  /* ─ Refresh prices ─ */
+  async function handleRefreshPrices() {
+    setRefreshingPrices(true);
+    setPriceRefreshError(null);
+    try {
+      const resp = await refreshPrices();
+      setLastPriceRefresh(resp.timestamp ?? new Date().toISOString());
 
-async function handleRefreshPrices() {
-  setRefreshingPrices(true);
-  setPriceRefreshError(null);
-  try {
-    const resp = await refreshPrices();
-    setLastPriceRefresh(resp.timestamp ?? new Date().toISOString());
-    // re-fetch whichever mode we're in
-    if (mode === "owner" && selectedOwner) {
-      const p = await getPortfolio(selectedOwner);
-      setPortfolio(p);
-    } else if (mode === "group" && selectedGroup) {
-      const gp = await getGroupPortfolio(selectedGroup);
-      setGroupPortfolio(gp);
+      if (mode === "owner" && selectedOwner) {
+        const p = await getPortfolio(selectedOwner);
+        setPortfolio(p);
+      } else if (mode === "group" && selectedGroup) {
+        // force GroupPortfolioView to refetch by clearing key
+        setSelectedGroup("");            // trigger unmount
+        setTimeout(() => setSelectedGroup(resp.group ?? selectedGroup), 0);
+      }
+    } catch (e) {
+      setPriceRefreshError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshingPrices(false);
     }
-} catch (e) {
-  setPriceRefreshError(e instanceof Error ? e.message : String(e));
-  } finally {
-    setRefreshingPrices(false);
   }
-}
 
-  // callback when clicking member row in group view
+  /* Callback from GroupPortfolioView when user clicks a member */
   function handleSelectMemberFromGroup(owner: string) {
     setMode("owner");
     setSelectedOwner(owner);
@@ -93,6 +99,7 @@ async function handleRefreshPrices() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+      {/* Mode toggle */}
       <div style={{ marginBottom: "1rem" }}>
         <strong>View by:</strong>{" "}
         <label>
@@ -116,22 +123,29 @@ async function handleRefreshPrices() {
           Group
         </label>
       </div>
-<div style={{ marginBottom: "1rem" }}>
-  <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
-    {refreshingPrices ? "Refreshing…" : "Refresh Prices"}
-  </button>
-  {lastPriceRefresh && (
-    <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
-      Last: {new Date(lastPriceRefresh).toLocaleString()}
-    </span>
-  )}
-  {priceRefreshError && (
-    <span style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}>
-      {priceRefreshError}
-    </span>
-  )}
-</div>
 
+      {/* Price refresh button */}
+      <div style={{ marginBottom: "1rem" }}>
+        <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
+          {refreshingPrices ? "Refreshing…" : "Refresh Prices"}
+        </button>
+        {lastPriceRefresh && (
+          <span
+            style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666" }}
+          >
+            Last: {new Date(lastPriceRefresh).toLocaleString()}
+          </span>
+        )}
+        {priceRefreshError && (
+          <span
+            style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}
+          >
+            {priceRefreshError}
+          </span>
+        )}
+      </div>
+
+      {/* Owner view */}
       {mode === "owner" && (
         <>
           <OwnerSelector
@@ -143,6 +157,7 @@ async function handleRefreshPrices() {
         </>
       )}
 
+      {/* Group view */}
       {mode === "group" && (
         <>
           <GroupSelector
@@ -150,12 +165,14 @@ async function handleRefreshPrices() {
             selected={selectedGroup}
             onSelect={setSelectedGroup}
           />
-          <GroupPortfolioView
-            data={groupPortfolio}
-            loading={loading}
-            error={err}
-            onSelectMember={handleSelectMemberFromGroup}
-          />
+          {selectedGroup ? (
+            <GroupPortfolioView
+              slug={selectedGroup}
+              onSelectMember={handleSelectMemberFromGroup}
+            />
+          ) : (
+            <p>Select a group.</p>
+          )}
         </>
       )}
     </div>

@@ -39,21 +39,34 @@ export type Portfolio = {
 };
 
 export type GroupSummary = {
-  group: string;
-  members: string[];
+  group: string;      // "children" | "adults" | "all" | …
+  name: string;      // "Children" | "Adults" | "All"
+  members: string[]; // ["alex", "joe"] etc.
 };
 
 export type GroupPortfolio = {
+  /* identification */
   group: string;
+  name: string;           // display label ("Children")
+
+  /* snapshot */
   as_of: string;
   members: string[];
+
+  /* totals */
   total_value_estimate_gbp: number;
+  trades_this_month?: number;
+  trades_remaining?: number;
+
+  /* aggregated detail */
+  accounts: Account[];    // ← used by GroupPortfolioView
   members_summary: {
     owner: string;
     total_value_estimate_gbp: number;
     trades_this_month: number;
     trades_remaining: number;
   }[];
+
   subtotals_by_account_type: Record<string, number>;
 };
 

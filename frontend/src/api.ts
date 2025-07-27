@@ -42,3 +42,15 @@ export async function getGroupInstruments(slug: string): Promise<InstrumentSumma
   if (!res.ok) throw new Error(res.statusText);
   return res.json();
 }
+
+export async function getInstrumentDetail(
+  groupSlug: string,
+  ticker: string,
+  days = 365
+) {
+  const base = import.meta.env.VITE_API_URL ?? "";
+  const url  = `${base}/portfolio-group/${groupSlug}/instrument/${ticker}?days=${days}`;
+  const res  = await fetch(url);
+  if (!res.ok) throw new Error(res.statusText);
+  return res.json(); // { prices, positions }
+}

@@ -94,3 +94,19 @@ def group_instruments(slug: str):
     """
     gp = build_group_portfolio(slug)
     return aggregate_by_ticker(gp)
+
+from backend.common.instrument_api import timeseries_for_ticker, positions_for_ticker
+
+@app.get("/portfolio-group/{slug}/instrument/{ticker}")
+def instrument_detail(slug: str, ticker: str, days: int = 365):
+    """
+    JSON payload:
+      {
+        'prices': [ {date, close_gbp}, ... ],
+        'positions': [ {owner, units, market_value_gbp, ...}, ... ]
+      }
+    """
+    return {
+        "prices": timeseries_for_ticker(ticker.upper(), days=days),
+        "positions": positions_for_ticker(slug, ticker.upper()),
+    }

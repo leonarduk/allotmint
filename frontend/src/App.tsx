@@ -1,17 +1,20 @@
+// src/App.tsx
 import React, { useEffect, useState } from "react";
 import {
   getOwners,
   getPortfolio,
   getGroups,
-  refreshPrices,
   getGroupInstruments,
+  refreshPrices,
 } from "./api";
+
 import type {
   OwnerSummary,
   Portfolio,
   GroupSummary,
   InstrumentSummary,
 } from "./types";
+
 import { OwnerSelector } from "./components/OwnerSelector";
 import { GroupSelector } from "./components/GroupSelector";
 import { PortfolioView } from "./components/PortfolioView";
@@ -20,41 +23,43 @@ import { InstrumentTable } from "./components/InstrumentTable";
 
 type Mode = "owner" | "group" | "instrument";
 
-function App() {
+export default function App() {
+  /* -------- top-level mode toggle ---------------------------------------- */
   const [mode, setMode] = useState<Mode>("owner");
 
-  /* owners --------------------------------------------------- */
+  /* -------- owner state -------------------------------------------------- */
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [selectedOwner, setSelectedOwner] = useState("");
 
-  /* groups --------------------------------------------------- */
+  /* -------- group state -------------------------------------------------- */
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [selectedGroup, setSelectedGroup] = useState("");
 
-  /* data state ---------------------------------------------- */
+  /* -------- data caches -------------------------------------------------- */
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
+
+  /* -------- ui state ----------------------------------------------------- */
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  /* price refresh ------------------------------------------- */
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
 
-  /* initial fetch ------------------------------------------- */
+  /* -------- initial load ------------------------------------------------- */
   useEffect(() => {
     getOwners().then(setOwners).catch((e) => setErr(String(e)));
     getGroups().then(setGroups).catch((e) => setErr(String(e)));
   }, []);
 
-  /* defaults ------------------------------------------------ */
+  /* -------- default selections once lists arrive ------------------------ */
   useEffect(() => {
     if (!selectedOwner && owners.length) setSelectedOwner(owners[0].owner);
     if (!selectedGroup && groups.length) setSelectedGroup(groups[0].slug);
   }, [owners, groups]);
 
-  /* owner portfolio fetch ----------------------------------- */
+  /* -------- fetch owner portfolio --------------------------------------- */
   useEffect(() => {
     if (mode !== "owner" || !selectedOwner) return;
     setLoading(true);
@@ -65,7 +70,7 @@ function App() {
       .finally(() => setLoading(false));
   }, [mode, selectedOwner]);
 
-  /* group instruments fetch --------------------------------- */
+  /* -------- fetch group instruments ------------------------------------- */
   useEffect(() => {
     if (mode !== "instrument" || !selectedGroup) return;
     setLoading(true);
@@ -76,7 +81,7 @@ function App() {
       .finally(() => setLoading(false));
   }, [mode, selectedGroup]);
 
-  /* price refresh ------------------------------------------- */
+  /* -------- price refresh handler --------------------------------------- */
   async function handleRefreshPrices() {
     setRefreshingPrices(true);
     setPriceRefreshError(null);
@@ -96,7 +101,7 @@ function App() {
     }
   }
 
-  /* --------------------------------------------------------- */
+  /* -------- render ------------------------------------------------------- */
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       {/* mode toggle */}
@@ -116,49 +121,81 @@ function App() {
         ))}
       </div>
 
-      {/* price refresh */}
+      {/* price refresh button */}
       <div style={{ marginBottom: "1rem" }}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
           {refreshingPrices ? "Refreshing…" : "Refresh Prices"}
         </button>
         {lastPriceRefresh && (
-          <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
+          <span
+            style={{
+              marginLeft: "0.5rem",
+              fontSize: "0.85rem",
+              color: "#666",
+            }}
+          >
             Last: {new Date(lastPriceRefresh).toLocaleString()}
           </span>
         )}
         {priceRefreshError && (
-          <span style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}>
+          <span
+            style={{
+              marginLeft: "0.5rem",
+              color: "red",
+              fontSize: "0.85rem",
+            }}
+          >
             {priceRefreshError}
           </span>
         )}
       </div>
 
-      {/* owner view */}
+      {/* OWNER VIEW -------------------------------------------------------- */}
       {mode === "owner" && (
         <>
-          <OwnerSelector owners={owners} selected={selectedOwner} onSelect={setSelectedOwner} />
+          <OwnerSelector
+            owners={owners}
+            selected={selectedOwner}
+            onSelect={setSelectedOwner}
+          />
           <PortfolioView data={portfolio} loading={loading} error={err} />
         </>
       )}
 
-      {/* group view */}
+      {/* GROUP VIEW -------------------------------------------------------- */}
       {mode === "group" && (
         <>
-          <GroupSelector groups={groups} selected={selectedGroup} onSelect={setSelectedGroup} />
-          <GroupPortfolioView slug={selectedGroup} onSelectMember={setSelectedOwner} />
+          <GroupSelector
+            groups={groups}
+            selected={selectedGroup}
+            onSelect={setSelectedGroup}
+          />
+          <GroupPortfolioView
+            slug={selectedGroup}
+            onSelectMember={(owner) => {
+              setMode("owner");
+              setSelectedOwner(owner);
+            }}
+          />
         </>
       )}
 
-      {/* instrument view */}
+      {/* INSTRUMENT VIEW --------------------------------------------------- */}
       {mode === "instrument" && (
         <>
-          <GroupSelector groups={groups} selected={selectedGroup} onSelect={setSelectedGroup} />
+          <GroupSelector
+            groups={groups}
+            selected={selectedGroup}
+            onSelect={setSelectedGroup}
+          />
           {err && <p style={{ color: "red" }}>{err}</p>}
-          {loading ? <p>Loading…</p> : <InstrumentTable rows={instruments} />}
+          {loading ? (
+            <p>Loading…</p>
+          ) : (
+            <InstrumentTable rows={instruments} groupSlug={selectedGroup} />
+          )}
         </>
       )}
     </div>
   );
 }
-
-export default App;

@@ -1,13 +1,20 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware   # <-- add
-
-import os
-from backend.common.data_loader import list_plots, load_account
-from backend.common.portfolio import build_owner_portfolio
-from backend.common.group_portfolio import list_groups, build_group_portfolio
-from backend.common.prices import refresh_prices
-
 import logging
+import os
+from fastapi import FastAPI, Query
+from fastapi.responses import HTMLResponse
+import pandas as pd
+
+from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+
+from backend.common.data_loader import list_plots, load_account
+from backend.common.group_portfolio import list_groups
+from backend.common.instrument_api import timeseries_for_ticker, positions_for_ticker
+from backend.common.portfolio import build_owner_portfolio
+from backend.common.prices import refresh_prices
+from backend.timeseries.fetch_timeseries import fetch_yahoo_timeseries
+from fastapi import FastAPI, Query
+from fastapi.responses import HTMLResponse
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -83,9 +90,6 @@ def group_by_instrument(slug: str):
     gp = build_group_portfolio(slug)
     return aggregate_by_ticker(gp)
 
-# add just once after other routes
-from backend.common.portfolio_utils import aggregate_by_ticker
-
 @app.get("/portfolio-group/{slug}/instruments")
 def group_instruments(slug: str):
     """
@@ -95,18 +99,59 @@ def group_instruments(slug: str):
     gp = build_group_portfolio(slug)
     return aggregate_by_ticker(gp)
 
-from backend.common.instrument_api import timeseries_for_ticker, positions_for_ticker
 
 @app.get("/portfolio-group/{slug}/instrument/{ticker}")
 def instrument_detail(slug: str, ticker: str, days: int = 365):
-    """
-    JSON payload:
-      {
-        'prices': [ {date, close_gbp}, ... ],
-        'positions': [ {owner, units, market_value_gbp, ...}, ... ]
-      }
-    """
+    prices = timeseries_for_ticker(ticker.upper(), days)
+    if not prices:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No price history for {ticker.upper()}",
+        )
     return {
-        "prices": timeseries_for_ticker(ticker.upper(), days=days),
+        "prices": prices,
         "positions": positions_for_ticker(slug, ticker.upper()),
     }
+
+@app.get("/timeseries/html", response_class=HTMLResponse)
+async def get_timeseries_html(
+    ticker: str = Query(...),
+    period: str = Query("1y"),
+    interval: str = Query("1d")
+):
+    try:
+        df = fetch_yahoo_timeseries(ticker, period=period, interval=interval)
+    except Exception as e:
+        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
+
+    if df.empty:
+        return HTMLResponse("<h1>No data found</h1>", status_code=404)
+
+    # Only show desired columns
+    df = df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker"]]
+
+    # Apply consistent formatting
+    df["Volume"] = df["Volume"].apply(lambda x: f"{int(x):,}")
+    for col in ["Open", "High", "Low", "Close"]:
+        df[col] = df[col].map("{:.2f}".format)
+
+    html_table = df.to_html(index=False, classes="table table-striped text-center", border=0)
+
+    return HTMLResponse(content=f"""
+    <html>
+    <head>
+        <title>Time Series for {ticker}</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+        <style>
+            body {{ padding: 2rem; }}
+            table {{ font-size: 0.9rem; }}
+            th, td {{ vertical-align: middle; }}
+            h2 small {{ font-size: 1rem; color: #666; }}
+        </style>
+    </head>
+    <body>
+        <h2>Time Series for <code>{ticker}</code><br><small>{period} / {interval}</small></h2>
+        {html_table}
+    </body>
+    </html>
+    """)

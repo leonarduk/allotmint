@@ -14,6 +14,12 @@ def fetch_yahoo_timeseries(ticker: str, period: str = "1y", interval: str = "1d"
     df.reset_index(inplace=True)
     df["Ticker"] = ticker
     df["Date"] = pd.to_datetime(df["Date"]).dt.date  # clean date format
+
+    # Round price columns to 2 decimal places
+    for col in ["Open", "High", "Low", "Close"]:
+        if col in df.columns:
+            df[col] = df[col].round(2)
+
     df = df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker"]]
     return df
 
@@ -28,14 +34,19 @@ def save_to_csv(df: pd.DataFrame, output_path: str) -> str:
 def run_all_tickers(tickers: List[str], output_dir: str = DATA_DIR) -> List[str]:
     output_files = []
     for ticker in tickers:
-        try:
-            df = fetch_yahoo_timeseries(ticker)
-            output_path = os.path.join(output_dir, f"{ticker}_timeseries.csv")
-            save_to_csv(df, output_path)
-            output_files.append(output_path)
-        except Exception as e:
-            print(f"Failed to fetch {ticker}: {e}")
+        output_files.append(save_ticker_series_to_file(output_dir, ticker))
+
     return output_files
+
+
+def save_ticker_series_to_file(output_dir, ticker):
+    try:
+        df = fetch_yahoo_timeseries(ticker)
+        output_path = os.path.join(output_dir, f"{ticker}_timeseries.csv")
+        save_to_csv(df, output_path)
+    except Exception as e:
+        print(f"Failed to fetch {ticker}: {e}")
+    return output_path
 
 
 def load_timeseries_data(output_dir: str = DATA_DIR) -> Dict[str, pd.DataFrame]:

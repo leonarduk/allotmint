@@ -76,7 +76,7 @@ def load_prices_for_tickers(tickers: Iterable[str]) -> pd.DataFrame:
                           "timeseries/data-sample/universe/timeseries"))
     frames = []
     for t in tickers:
-        fp = root / f"{t.upper()}.csv"
+        fp = root / "f{t.upper()}.csv"
         if fp.exists():
             frames.append(pd.read_csv(fp))
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()

@@ -58,6 +58,18 @@ def load_timeseries_data(output_dir: str = DATA_DIR) -> Dict[str, pd.DataFrame]:
             data[ticker] = df
     return data
 
+def get_latest_closing_prices() -> Dict[str, float]:
+    """
+    Return latest available closing price for each ticker from CSV timeseries.
+    """
+    all_data = load_timeseries_data()
+    latest_prices = {}
+    for ticker, df in all_data.items():
+        if not df.empty:
+            df_sorted = df.sort_values("Date")
+            latest_row = df_sorted.iloc[-1]
+            latest_prices[ticker] = float(latest_row["Close"])
+    return latest_prices
 
 if __name__ == "__main__":
     tickers = [
@@ -76,15 +88,3 @@ if __name__ == "__main__":
     all_data = load_timeseries_data()
     print(f"Loaded {len(all_data)} time series: {list(all_data.keys())}")
 
-def get_latest_closing_prices() -> Dict[str, float]:
-    """
-    Return latest available closing price for each ticker from CSV timeseries.
-    """
-    all_data = load_timeseries_data()
-    latest_prices = {}
-    for ticker, df in all_data.items():
-        if not df.empty:
-            df_sorted = df.sort_values("Date")
-            latest_row = df_sorted.iloc[-1]
-            latest_prices[ticker] = float(latest_row["Close"])
-    return latest_prices

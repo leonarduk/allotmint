@@ -1,20 +1,19 @@
 import logging
 import os
-from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse
-import pandas as pd
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, Query
+from fastapi import HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from backend.common.data_loader import list_plots, load_account
 from backend.common.group_portfolio import list_groups
 from backend.common.instrument_api import timeseries_for_ticker, positions_for_ticker
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.prices import refresh_prices
+from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_timeseries import fetch_yahoo_timeseries
-from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -155,3 +154,26 @@ async def get_timeseries_html(
     </body>
     </html>
     """)
+
+
+@app.get("/timeseries/ft", response_class=HTMLResponse)
+def get_ft_timeseries(
+    ticker: str = Query(..., description="FT.com ticker e.g. GB00B45Q9038:GBP"),
+    days: int = Query(365, description="Number of days of history to fetch"),
+    format: str = Query("html", description="Response format: html, csv, or json")
+):
+    try:
+        df = fetch_ft_timeseries(ticker, days=days)
+
+        if format == "json":
+            return JSONResponse(content=df.to_dict(orient="records"))
+
+        elif format == "csv":
+            return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
+
+        # Default: HTML table
+        html_table = df.to_html(index=False, justify="center", border=0)
+        return HTMLResponse(content=f"<h2>{ticker} - Last {days} Days</h2>{html_table}")
+
+    except Exception as e:
+        return HTMLResponse(content=f"<h3>Error: {str(e)}</h3>", status_code=500)

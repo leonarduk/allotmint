@@ -3,3 +3,5 @@ uvicorn
 pandas
 yfinance
 selenium
+pytest
+httpx

@@ -130,6 +130,7 @@ async def get_timeseries_html(
     except Exception as e:
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
 
+
 @app.get("/timeseries/ft", response_class=HTMLResponse)
 def get_ft_timeseries(
     ticker: str = Query(..., description="FT.com ticker e.g. GB00B45Q9038:GBP"),
@@ -137,6 +138,9 @@ def get_ft_timeseries(
     interval: str = Query("1d", description="Unused for FT but accepted for consistency"),
     format: str = Query("html", description="html | json | csv")
 ):
+    """
+    TODO get this working
+    """
     try:
         # Convert period string to number of days (basic mapping)
         period_map = {

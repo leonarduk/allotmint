@@ -112,6 +112,8 @@ def instrument_detail(slug: str, ticker: str, days: int = 365):
         "positions": positions_for_ticker(slug, ticker.upper()),
     }
 
+from backend.utils.html_render import render_timeseries_html
+
 @app.get("/timeseries/html", response_class=HTMLResponse)
 async def get_timeseries_html(
     ticker: str = Query(...),
@@ -120,50 +122,39 @@ async def get_timeseries_html(
 ):
     try:
         df = fetch_yahoo_timeseries(ticker, period=period, interval=interval)
+        if df.empty:
+            return HTMLResponse("<h1>No data found</h1>", status_code=404)
+
+        return render_timeseries_html(df, f"Time Series for {ticker}", f"{period} / {interval}")
+
     except Exception as e:
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
-
-    if df.empty:
-        return HTMLResponse("<h1>No data found</h1>", status_code=404)
-
-    # Only show desired columns
-    df = df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker"]]
-
-    # Apply consistent formatting
-    df["Volume"] = df["Volume"].apply(lambda x: f"{int(x):,}")
-    for col in ["Open", "High", "Low", "Close"]:
-        df[col] = df[col].map("{:.2f}".format)
-
-    html_table = df.to_html(index=False, classes="table table-striped text-center", border=0)
-
-    return HTMLResponse(content=f"""
-    <html>
-    <head>
-        <title>Time Series for {ticker}</title>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-        <style>
-            body {{ padding: 2rem; }}
-            table {{ font-size: 0.9rem; }}
-            th, td {{ vertical-align: middle; }}
-            h2 small {{ font-size: 1rem; color: #666; }}
-        </style>
-    </head>
-    <body>
-        <h2>Time Series for <code>{ticker}</code><br><small>{period} / {interval}</small></h2>
-        {html_table}
-    </body>
-    </html>
-    """)
-
 
 @app.get("/timeseries/ft", response_class=HTMLResponse)
 def get_ft_timeseries(
     ticker: str = Query(..., description="FT.com ticker e.g. GB00B45Q9038:GBP"),
-    days: int = Query(365, description="Number of days of history to fetch"),
-    format: str = Query("html", description="Response format: html, csv, or json")
+    period: str = Query("1y", description="e.g. 1y, 6mo, 3mo"),
+    interval: str = Query("1d", description="Unused for FT but accepted for consistency"),
+    format: str = Query("html", description="html | json | csv")
 ):
     try:
+        # Convert period string to number of days (basic mapping)
+        period_map = {
+            "1d": 1,
+            "5d": 5,
+            "1mo": 30,
+            "3mo": 90,
+            "6mo": 180,
+            "1y": 365,
+            "2y": 730,
+            "5y": 1825,
+            "10y": 3650
+        }
+        days = period_map.get(period, 365)
+
         df = fetch_ft_timeseries(ticker, days=days)
+        if df.empty:
+            return HTMLResponse("<h1>No data found</h1>", status_code=404)
 
         if format == "json":
             return JSONResponse(content=df.to_dict(orient="records"))
@@ -171,9 +162,7 @@ def get_ft_timeseries(
         elif format == "csv":
             return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
 
-        # Default: HTML table
-        html_table = df.to_html(index=False, justify="center", border=0)
-        return HTMLResponse(content=f"<h2>{ticker} - Last {days} Days</h2>{html_table}")
+        return render_timeseries_html(df, f"FT Time Series for {ticker}", f"{period} / {interval}")
 
     except Exception as e:
-        return HTMLResponse(content=f"<h3>Error: {str(e)}</h3>", status_code=500)
+        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)

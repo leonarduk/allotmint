@@ -6,7 +6,8 @@ import { HoldingsTable } from "./HoldingsTable";
 const API = import.meta.env.VITE_API_URL ?? "";
 
 type Props = {
-  slug: string;           // "children" | "adults" | "all"
+  slug: string;
+  onSelectMember: (owner: string) => void;
 };
 
 export function GroupPortfolioView({ slug }: Props) {

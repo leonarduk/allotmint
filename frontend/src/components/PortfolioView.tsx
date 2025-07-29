@@ -14,12 +14,17 @@ export function PortfolioView({ data, loading, error }: Props) {
 
   return (
     <div>
-      <h1 style={{ marginTop: 0 }}>Portfolio: {data.owner}</h1>
+      <h1 style={{ marginTop: 0 }}>
+        Portfolio: <span data-testid="owner-name">{data.owner}</span>
+      </h1>
       <div style={{ marginBottom: "1rem" }}>
         As of {data.as_of} • Trades this month: {data.trades_this_month} / 20 (Remaining: {data.trades_remaining})
       </div>
       <div style={{ marginBottom: "2rem" }}>
-        Approx Total: £{data.total_value_estimate_gbp.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
+        Approx Total: £{data.total_value_estimate_gbp.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
       </div>
       {data.accounts.map((acct) => (
         <AccountBlock key={acct.account_type} account={acct} />

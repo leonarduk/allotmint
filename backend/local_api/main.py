@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.responses import JSONResponse, PlainTextResponse
+from backend.utils.period_utils import parse_period_to_days
 
 from backend.common.data_loader import list_plots, load_account
 from backend.common.group_portfolio import list_groups
@@ -16,16 +17,16 @@ from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries
 from backend.utils.html_render import render_timeseries_html
+from backend.utils.timeseries_helpers import apply_scaling, handle_timeseries_response
 
 logging.basicConfig(level=logging.DEBUG)
-
 
 app = FastAPI(title="AllotMint Local API", version="0.1")
 
 # DEV-ONLY: allow all origins so Vite (5173) can call backend (8000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # in prod: replace with specific domain(s)
+    allow_origins=["*"],  # in prod: replace with specific domain(s)
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -42,9 +43,11 @@ def health():
 def owners():
     return list_plots()
 
+
 @app.get("/groups")
 def groups():
     return list_groups()
+
 
 @app.get("/portfolio-group/{group_name}")
 def portfolio_group(group_name: str):
@@ -75,6 +78,7 @@ def get_account(owner: str, account: str):
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc))
 
+
 @app.post("/prices/refresh")
 def prices_refresh():
     try:
@@ -83,13 +87,16 @@ def prices_refresh():
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc))
 
+
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.portfolio_utils import aggregate_by_ticker
+
 
 @app.get("/portfolio-group/{slug}/instruments")
 def group_by_instrument(slug: str):
     gp = build_group_portfolio(slug)
     return aggregate_by_ticker(gp)
+
 
 @app.get("/portfolio-group/{slug}/instruments")
 def group_instruments(slug: str):
@@ -121,43 +128,20 @@ def instrument_detail(slug: str, ticker: str, days: int = 365):
 
 @app.get("/timeseries/ft", response_class=HTMLResponse)
 def get_ft_timeseries(
-    ticker: str = Query(..., description="FT.com ticker e.g. GB00B45Q9038:GBP"),
-    period: str = Query("1y", description="e.g. 1y, 6mo, 3mo"),
-    interval: str = Query("1d", description="Unused for FT but accepted for consistency"),
-    format: str = Query("html", description="html | json | csv")
+    ticker: str = Query(...),
+    period: str = Query("1y"),
+    interval: str = Query("1d"),
+    format: str = Query("html"),
+    scaling: float = Query(1.0)
 ):
-    """
-    TODO get this working
-    """
     try:
-        # Convert period string to number of days (basic mapping)
-        period_map = {
-            "1d": 1,
-            "5d": 5,
-            "1mo": 30,
-            "3mo": 90,
-            "6mo": 180,
-            "1y": 365,
-            "2y": 730,
-            "5y": 1825,
-            "10y": 3650
-        }
-        days = period_map.get(period, 365)
-
-        df = fetch_ft_timeseries(ticker, days=days)
-        if df.empty:
-            return HTMLResponse("<h1>No data found</h1>", status_code=404)
-
-        if format == "json":
-            return JSONResponse(content=df.to_dict(orient="records"))
-
-        elif format == "csv":
-            return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
-
-        return render_timeseries_html(df, f"FT Time Series for {ticker}", f"{period} / {interval}")
-
+        days = parse_period_to_days(period)
+        df = fetch_ft_timeseries(ticker, days)
+        df = apply_scaling(df, scaling)
+        return handle_timeseries_response(df, format, f"FT Time Series for {ticker}", f"{period} / {interval} (×{scaling})")
     except Exception as e:
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
+
 
 PERIOD_MAP = {
     "1d": 1,
@@ -171,55 +155,37 @@ PERIOD_MAP = {
     "10y": 3650
 }
 
+
 @app.get("/timeseries/yahoo", response_class=HTMLResponse)
 def get_yahoo_timeseries(
-    ticker: str = Query(..., description="Ticker symbol e.g. AAPL"),
-    exchange: str = Query("US", description="Exchange e.g. NASDAQ, LSE"),
-    period: str = Query("1y", description="e.g. 1y, 6mo, 3mo"),
-    interval: str = Query("1d", description="1d, 1wk, 1mo"),
-    format: str = Query("html", description="html | json | csv")
+    ticker: str = Query(...),
+    exchange: str = Query("US"),
+    period: str = Query("1y"),
+    interval: str = Query("1d"),
+    format: str = Query("html"),
+    scaling: float = Query(1.0)
 ):
     try:
-        days = PERIOD_MAP.get(period, 365)
         df = fetch_yahoo_timeseries(ticker, exchange, period, interval)
-
-        if df.empty:
-            return HTMLResponse("<h1>No data found</h1>", status_code=404)
-
-        if format == "json":
-            return JSONResponse(content=df.to_dict(orient="records"))
-
-        elif format == "csv":
-            return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
-
-        return render_timeseries_html(df, f"Yahoo Time Series for {ticker}", f"{period} / {interval}")
-
+        df = apply_scaling(df, scaling)
+        return handle_timeseries_response(df, format, f"Yahoo Time Series for {ticker}", f"{period} / {interval} (×{scaling})")
     except Exception as e:
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
 
 
 @app.get("/timeseries/stooq", response_class=HTMLResponse)
 def get_stooq_timeseries(
-    ticker: str = Query(..., description="Ticker symbol e.g. AAPL"),
-    exchange: str = Query(..., description="Exchange name e.g. NASDAQ, LSE"),
-    period: str = Query("1y", description="e.g. 1y, 6mo, 3mo"),
-    interval: str = Query("1d", description="Only '1d' supported for Stooq"),
-    format: str = Query("html", description="html | json | csv")
+    ticker: str = Query(...),
+    exchange: str = Query(...),
+    period: str = Query("1y"),
+    interval: str = Query("1d"),
+    format: str = Query("html"),
+    scaling: float = Query(1.0)
 ):
     try:
-        days = PERIOD_MAP.get(period, 365)
-        df = fetch_stooq_timeseries(ticker, exchange, days=days)
-
-        if df.empty:
-            return HTMLResponse("<h1>No data found</h1>", status_code=404)
-
-        if format == "json":
-            return JSONResponse(content=df.to_dict(orient="records"))
-
-        elif format == "csv":
-            return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
-
-        return render_timeseries_html(df, f"Stooq Time Series for {ticker}", f"{period} / {interval}")
-
+        days = parse_period_to_days(period)
+        df = fetch_stooq_timeseries(ticker, exchange, days)
+        df = apply_scaling(df, scaling)
+        return handle_timeseries_response(df, format, f"Stooq Time Series for {ticker}", f"{period} / {interval} (×{scaling})")
     except Exception as e:
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)

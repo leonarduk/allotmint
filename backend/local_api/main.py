@@ -13,7 +13,9 @@ from backend.common.instrument_api import timeseries_for_ticker, positions_for_t
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.prices import refresh_prices
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
-from backend.timeseries.fetch_timeseries import fetch_yahoo_timeseries
+from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries
+from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries
+from backend.utils.html_render import render_timeseries_html
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -101,34 +103,20 @@ def group_instruments(slug: str):
 
 @app.get("/portfolio-group/{slug}/instrument/{ticker}")
 def instrument_detail(slug: str, ticker: str, days: int = 365):
+    logging.debug(f"Fetching timeseries for {ticker=} in group {slug=}, days={days}")
     prices = timeseries_for_ticker(ticker.upper(), days)
+
     if not prices:
+        logging.warning(f"No price history found for {ticker.upper()}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No price history for {ticker.upper()}",
         )
+
     return {
         "prices": prices,
         "positions": positions_for_ticker(slug, ticker.upper()),
     }
-
-from backend.utils.html_render import render_timeseries_html
-
-@app.get("/timeseries/html", response_class=HTMLResponse)
-async def get_timeseries_html(
-    ticker: str = Query(...),
-    period: str = Query("1y"),
-    interval: str = Query("1d")
-):
-    try:
-        df = fetch_yahoo_timeseries(ticker, period=period, interval=interval)
-        if df.empty:
-            return HTMLResponse("<h1>No data found</h1>", status_code=404)
-
-        return render_timeseries_html(df, f"Time Series for {ticker}", f"{period} / {interval}")
-
-    except Exception as e:
-        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
 
 
 @app.get("/timeseries/ft", response_class=HTMLResponse)
@@ -167,6 +155,71 @@ def get_ft_timeseries(
             return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
 
         return render_timeseries_html(df, f"FT Time Series for {ticker}", f"{period} / {interval}")
+
+    except Exception as e:
+        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
+
+PERIOD_MAP = {
+    "1d": 1,
+    "5d": 5,
+    "1mo": 30,
+    "3mo": 90,
+    "6mo": 180,
+    "1y": 365,
+    "2y": 730,
+    "5y": 1825,
+    "10y": 3650
+}
+
+@app.get("/timeseries/yahoo", response_class=HTMLResponse)
+def get_yahoo_timeseries(
+    ticker: str = Query(..., description="Ticker symbol e.g. AAPL"),
+    exchange: str = Query("US", description="Exchange e.g. NASDAQ, LSE"),
+    period: str = Query("1y", description="e.g. 1y, 6mo, 3mo"),
+    interval: str = Query("1d", description="1d, 1wk, 1mo"),
+    format: str = Query("html", description="html | json | csv")
+):
+    try:
+        days = PERIOD_MAP.get(period, 365)
+        df = fetch_yahoo_timeseries(ticker, exchange, period, interval)
+
+        if df.empty:
+            return HTMLResponse("<h1>No data found</h1>", status_code=404)
+
+        if format == "json":
+            return JSONResponse(content=df.to_dict(orient="records"))
+
+        elif format == "csv":
+            return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
+
+        return render_timeseries_html(df, f"Yahoo Time Series for {ticker}", f"{period} / {interval}")
+
+    except Exception as e:
+        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
+
+
+@app.get("/timeseries/stooq", response_class=HTMLResponse)
+def get_stooq_timeseries(
+    ticker: str = Query(..., description="Ticker symbol e.g. AAPL"),
+    exchange: str = Query(..., description="Exchange name e.g. NASDAQ, LSE"),
+    period: str = Query("1y", description="e.g. 1y, 6mo, 3mo"),
+    interval: str = Query("1d", description="Only '1d' supported for Stooq"),
+    format: str = Query("html", description="html | json | csv")
+):
+    try:
+        days = PERIOD_MAP.get(period, 365)
+        df = fetch_stooq_timeseries(ticker, exchange, days=days)
+
+        if df.empty:
+            return HTMLResponse("<h1>No data found</h1>", status_code=404)
+
+        if format == "json":
+            return JSONResponse(content=df.to_dict(orient="records"))
+
+        elif format == "csv":
+            return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
+
+        return render_timeseries_html(df, f"Stooq Time Series for {ticker}", f"{period} / {interval}")
 
     except Exception as e:
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)

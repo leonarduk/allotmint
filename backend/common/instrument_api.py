@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import List, Dict, Any
 
-from backend.timeseries.fetch_timeseries import run_all_tickers
+from backend.timeseries.fetch_yahoo_timeseries import run_all_tickers
 from backend.common.prices import load_prices_for_tickers
 from backend.common.group_portfolio import build_group_portfolio
 

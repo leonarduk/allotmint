@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, Set, Iterable
 import os
 import pandas as pd
 
-from backend.timeseries.fetch_timeseries import (
+from backend.timeseries.fetch_yahoo_timeseries import (
     run_all_tickers,
     get_latest_closing_prices,
 )

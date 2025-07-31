@@ -5,18 +5,18 @@ from fastapi import FastAPI, Query
 from fastapi import HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from fastapi.responses import JSONResponse, PlainTextResponse
-from backend.utils.period_utils import parse_period_to_days
 
 from backend.common.data_loader import list_plots, load_account
 from backend.common.group_portfolio import list_groups
 from backend.common.instrument_api import timeseries_for_ticker, positions_for_ticker
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.prices import refresh_prices
-from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
-from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries
-from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries
-from backend.utils.html_render import render_timeseries_html
+from backend.utils.cache import (
+    load_yahoo_timeseries,
+    load_ft_timeseries,
+    load_stooq_timeseries, load_meta_timeseries,
+)
+from backend.utils.period_utils import parse_period_to_days
 from backend.utils.timeseries_helpers import apply_scaling, handle_timeseries_response
 
 logging.basicConfig(level=logging.DEBUG)
@@ -128,64 +128,73 @@ def instrument_detail(slug: str, ticker: str, days: int = 365):
 
 @app.get("/timeseries/ft", response_class=HTMLResponse)
 def get_ft_timeseries(
-    ticker: str = Query(...),
-    period: str = Query("1y"),
-    interval: str = Query("1d"),
-    format: str = Query("html"),
-    scaling: float = Query(1.0)
+        ticker: str = Query(...),
+        period: str = Query("1y"),
+        interval: str = Query("1d"),
+        format: str = Query("html"),
+        scaling: float = Query(1.0)
 ):
     try:
         days = parse_period_to_days(period)
-        df = fetch_ft_timeseries(ticker, days)
+        df = load_ft_timeseries(ticker, days)
         df = apply_scaling(df, scaling)
-        return handle_timeseries_response(df, format, f"FT Time Series for {ticker}", f"{period} / {interval} (×{scaling})")
+        return handle_timeseries_response(df, format, f"FT Time Series for {ticker}",
+                                          f"{period} / {interval} (×{scaling})")
     except Exception as e:
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
 
 
-PERIOD_MAP = {
-    "1d": 1,
-    "5d": 5,
-    "1mo": 30,
-    "3mo": 90,
-    "6mo": 180,
-    "1y": 365,
-    "2y": 730,
-    "5y": 1825,
-    "10y": 3650
-}
-
-
 @app.get("/timeseries/yahoo", response_class=HTMLResponse)
 def get_yahoo_timeseries(
-    ticker: str = Query(...),
-    exchange: str = Query("US"),
-    period: str = Query("1y"),
-    interval: str = Query("1d"),
-    format: str = Query("html"),
-    scaling: float = Query(1.0)
+        ticker: str = Query(...),
+        exchange: str = Query("US"),
+        period: str = Query("1y"),
+        interval: str = Query("1d"),  # Not currently used, but kept for future
+        format: str = Query("html"),
+        scaling: float = Query(1.0)
 ):
     try:
-        df = fetch_yahoo_timeseries(ticker, exchange, period, interval)
+        days = parse_period_to_days(period)
+        df = load_yahoo_timeseries(ticker, exchange, days)
         df = apply_scaling(df, scaling)
-        return handle_timeseries_response(df, format, f"Yahoo Time Series for {ticker}", f"{period} / {interval} (×{scaling})")
+        return handle_timeseries_response(df, format, f"Yahoo Time Series for {ticker}",
+                                          f"{period} / {interval} (×{scaling})")
     except Exception as e:
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
 
 
 @app.get("/timeseries/stooq", response_class=HTMLResponse)
 def get_stooq_timeseries(
-    ticker: str = Query(...),
-    exchange: str = Query(...),
-    period: str = Query("1y"),
-    interval: str = Query("1d"),
-    format: str = Query("html"),
-    scaling: float = Query(1.0)
+        ticker: str = Query(...),
+        exchange: str = Query(...),
+        period: str = Query("1y"),
+        interval: str = Query("1d"),
+        format: str = Query("html"),
+        scaling: float = Query(1.0)
 ):
     try:
         days = parse_period_to_days(period)
-        df = fetch_stooq_timeseries(ticker, exchange, days)
+        df = load_stooq_timeseries(ticker, exchange, days)
         df = apply_scaling(df, scaling)
-        return handle_timeseries_response(df, format, f"Stooq Time Series for {ticker}", f"{period} / {interval} (×{scaling})")
+        return handle_timeseries_response(df, format, f"Stooq Time Series for {ticker}",
+                                          f"{period} / {interval} (×{scaling})")
+    except Exception as e:
+        return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)
+
+@app.get("/timeseries/meta", response_class=HTMLResponse)
+def get_meta_timeseries(
+        ticker: str = Query(...),
+        exchange: str = Query("US"),
+        period: str = Query("1y"),
+        interval: str = Query("1d"),
+        format: str = Query("html"),
+        scaling: float = Query(1.0)
+):
+    try:
+        days = parse_period_to_days(period)
+        df = load_meta_timeseries(ticker, exchange, days)
+        df = apply_scaling(df, scaling)
+        return handle_timeseries_response(df, format, f"Meta Time Series for {ticker}",
+                                          f"{period} / {interval} (×{scaling})")
     except Exception as e:
         return HTMLResponse(f"<h1>Error</h1><p>{str(e)}</p>", status_code=500)

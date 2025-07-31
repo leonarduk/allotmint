@@ -1,7 +1,6 @@
 import logging
 import time
 from datetime import date, timedelta
-
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -14,8 +13,7 @@ from selenium.webdriver.support import expected_conditions as EC
 logger = logging.getLogger("ft_timeseries")
 logging.basicConfig(level=logging.DEBUG)
 
-
-CHROMEDRIVER_PATH = r"C:\workspaces\chromedriver-win64\chromedriver.exe"  # update path if needed
+CHROMEDRIVER_PATH = r"C:\workspaces\chromedriver-win64\chromedriver.exe"  # Update if needed
 
 
 def set_date_range_and_submit(driver, from_date: str, to_date: str):
@@ -42,11 +40,11 @@ def set_date_range_and_submit(driver, from_date: str, to_date: str):
         logger.warning(f"Could not set date range: {e}")
 
 
-def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:
+def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: date) -> pd.DataFrame:
     """
-    Fetch FT.com time series for a given ticker over the past `days` days.
+    Fetch FT.com time series data for the given ticker between start_date and end_date.
     """
-    url = f"https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
+    url = f"https://markets.ft.com/data/funds/tears heet/historical?s={ticker}"
     logger.debug(f"Setting up headless Chrome for ticker {ticker}")
 
     options = Options()
@@ -61,13 +59,10 @@ def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:
         logger.debug(f"Navigating to {url}")
         driver.get(url)
 
-        # Calculate date range
-        today = date.today()
-        from_date = (today - timedelta(days=days)).strftime("%d/%m/%Y")
-        to_date = today.strftime("%d/%m/%Y")
-        set_date_range_and_submit(driver, from_date, to_date)
+        from_str = start_date.strftime("%d/%m/%Y")
+        to_str = end_date.strftime("%d/%m/%Y")
+        set_date_range_and_submit(driver, from_str, to_str)
 
-        logger.debug("Waiting for FT table to load...")
         table = WebDriverWait(driver, 30).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "table.mod-ui-table"))
         )
@@ -99,10 +94,12 @@ def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:
 
         df = pd.DataFrame(data, columns=["Date", "Open", "High", "Low", "Close"])
         df["Date"] = pd.to_datetime(df["Date"], dayfirst=True)
-        df = df.sort_values("Date").tail(days)
+        df.sort_values("Date", inplace=True)
         df["Volume"] = None
         df["Ticker"] = ticker
-        logger.info(f"Successfully fetched {len(df)} rows for {ticker}")
+        df["Source"] = "FT"
+
+        logger.info(f"Fetched {len(df)} rows for {ticker}")
         return df
 
     except Exception as e:
@@ -112,6 +109,15 @@ def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:
     finally:
         driver.quit()
         logger.debug("Closed Selenium driver")
+
+
+def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:
+    """
+    Backwards-compatible version: fetch trailing N days.
+    """
+    today = date.today()
+    start = today - timedelta(days=days)
+    return fetch_ft_timeseries_range(ticker, start, today)
 
 
 if __name__ == "__main__":

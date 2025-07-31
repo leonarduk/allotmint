@@ -12,3 +12,4 @@ yfinance
 pandas
 
 selenium
+pyarrow

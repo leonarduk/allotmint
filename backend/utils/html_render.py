@@ -3,7 +3,7 @@ from pandas import DataFrame
 from fastapi.responses import HTMLResponse
 
 def render_timeseries_html(df: DataFrame, title: str, subtitle: str = "") -> HTMLResponse:
-    df = df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker"]].copy()
+    df = df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]].copy()
 
     df["Volume"] = df["Volume"].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "")
     for col in ["Open", "High", "Low", "Close"]:

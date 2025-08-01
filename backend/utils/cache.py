@@ -71,7 +71,7 @@ def load_yahoo_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
     )
 
 
-def load_ft_timeseries(ticker: str, days: int) -> pd.DataFrame:
+def load_ft_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     safe_ticker = ticker.replace(":", "_")
     cache_path = os.path.join("backend/timeseries/cache/ft", f"{safe_ticker}.parquet")
 

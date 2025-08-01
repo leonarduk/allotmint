@@ -9,11 +9,11 @@ import datetime as dt
 from collections import defaultdict
 from typing import Dict, List, Any
 
-from backend.timeseries.fetch_yahoo_timeseries import run_all_tickers
 from backend.common.prices import (
     get_latest_closing_prices,
     load_prices_for_tickers,
 )
+from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 
 
 # ──────────────────────────────────────────────────────────────

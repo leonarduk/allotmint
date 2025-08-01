@@ -1,5 +1,6 @@
 import logging
 from datetime import date, timedelta, datetime
+from typing import List, Dict
 
 import pandas as pd
 
@@ -35,16 +36,16 @@ def fetch_meta_timeseries(ticker: str, exchange: str, start_date: date, end_date
     except Exception as e:
         logger.warning(f"Stooq fetch failed: {e}")
 
-    # FT
-    try:
-        df = fetch_ft_timeseries(ticker)
-        df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        if not df.empty and df["Date"].min() <= start_date and df["Date"].max() >= end_date:
-            logger.debug("FT provided complete data range.")
-            return df
-        sources.append(("ft", df))
-    except Exception as e:
-        logger.warning(f"FT fetch failed: {e}")
+    # # FT
+    # try:
+    #     df = fetch_ft_timeseries(ticker)
+    #     df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    #     if not df.empty and df["Date"].min() <= start_date and df["Date"].max() >= end_date:
+    #         logger.debug("FT provided complete data range.")
+    #         return df
+    #     sources.append(("ft", df))
+    # except Exception as e:
+    #     logger.warning(f"FT fetch failed: {e}")
 
     # fallback merge
     logger.warning("No source provided full coverage; merging partial data")
@@ -52,6 +53,34 @@ def fetch_meta_timeseries(ticker: str, exchange: str, start_date: date, end_date
     combined = combined.drop_duplicates(subset="Date").sort_values("Date")
     combined["Ticker"] = ticker
     return combined[combined["Date"] >= start_date]
+
+def run_all_tickers(tickers: List[str], exchange: str = "US", days: int = 365) -> List[str]:
+    """
+    Loads cached (or fetches and caches) time series for each ticker.
+    Returns a list of successfully processed tickers.
+    """
+    today = datetime.today().date()
+    cutoff = today - timedelta(days=days)
+
+    processed = []
+    for ticker in tickers:
+        try:
+            df = fetch_meta_timeseries(ticker, exchange, start_date=cutoff, end_date=today)
+            if not df.empty:
+                processed.append(ticker)
+        except Exception as e:
+            print(f"[WARN] Failed to load {ticker}: {e}")
+    return processed
+
+def get_latest_closing_prices() -> Dict[str, float]:
+    all_data = load_timeseries_data()
+    latest_prices = {}
+    for ticker, df in all_data.items():
+        if not df.empty:
+            df_sorted = df.sort_values("Date")
+            latest_row = df_sorted.iloc[-1]
+            latest_prices[ticker] = float(latest_row["Close"])
+    return latest_prices
 
 if __name__ == "__main__":
     # Example usage

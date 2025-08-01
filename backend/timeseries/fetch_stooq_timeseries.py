@@ -15,7 +15,9 @@ def get_stooq_suffix(exchange: str) -> str:
     exchange_map = {
         "L": ".UK", "LSE": ".UK", "UK": ".UK",
         "NASDAQ": ".US", "NYSE": ".US", "US": ".US", "AMEX": ".US",
-        "XETRA": ".DE", "DE": ".DE"
+        "XETRA": ".DE", "DE": ".DE",
+        "F": ".F"
+
     }
     suffix = exchange_map.get(exchange.upper())
     if suffix is None:

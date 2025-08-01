@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pandas as pd
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from backend.utils.html_render import render_timeseries_html
@@ -9,6 +11,18 @@ def apply_scaling(df: pd.DataFrame, scale: float) -> pd.DataFrame:
             df[col] = df[col] * scale
     return df
 
+import json
+
+def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional[float]) -> float:
+    if requested_scaling is not None:
+        return requested_scaling
+
+    try:
+        with open("backend/timeseries/scaling_overrides.json") as f:
+            overrides = json.load(f)
+        return overrides.get(exchange, {}).get(ticker, 1.0)
+    except Exception:
+        return 1.0
 
 def handle_timeseries_response(
     df: pd.DataFrame,

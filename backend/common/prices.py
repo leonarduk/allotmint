@@ -10,11 +10,8 @@ from typing import Dict, Any, Optional, Set, Iterable
 import os
 import pandas as pd
 
-from backend.timeseries.fetch_yahoo_timeseries import (
-    run_all_tickers,
-    get_latest_closing_prices,
-)
 from backend.common.portfolio_loader import list_portfolios
+from backend.timeseries.fetch_meta_timeseries import run_all_tickers, get_latest_closing_prices
 
 
 # ──────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Optional
 
 from fastapi import FastAPI, Query
 from fastapi import HTTPException, status
@@ -17,7 +18,7 @@ from backend.utils.cache import (
     load_stooq_timeseries, load_meta_timeseries,
 )
 from backend.utils.period_utils import parse_period_to_days
-from backend.utils.timeseries_helpers import apply_scaling, handle_timeseries_response
+from backend.utils.timeseries_helpers import apply_scaling, handle_timeseries_response, get_scaling_override
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -129,15 +130,17 @@ def instrument_detail(slug: str, ticker: str, days: int = 365):
 @app.get("/timeseries/ft", response_class=HTMLResponse)
 def get_ft_timeseries(
         ticker: str = Query(...),
+        exchange: str = Query("L"),
         period: str = Query("1y"),
         interval: str = Query("1d"),
         format: str = Query("html"),
-        scaling: float = Query(1.0)
+        scaling: Optional[float] = Query(None)
 ):
     try:
         days = parse_period_to_days(period)
-        df = load_ft_timeseries(ticker, days)
-        df = apply_scaling(df, scaling)
+        df = load_ft_timeseries(ticker, exchange, days)
+        effective_scaling = get_scaling_override(ticker, exchange, scaling)
+        df = apply_scaling(df, effective_scaling)
         return handle_timeseries_response(df, format, f"FT Time Series for {ticker}",
                                           f"{period} / {interval} (×{scaling})")
     except Exception as e:
@@ -147,16 +150,18 @@ def get_ft_timeseries(
 @app.get("/timeseries/yahoo", response_class=HTMLResponse)
 def get_yahoo_timeseries(
         ticker: str = Query(...),
-        exchange: str = Query("US"),
+        exchange: str = Query("L"),
         period: str = Query("1y"),
         interval: str = Query("1d"),  # Not currently used, but kept for future
         format: str = Query("html"),
-        scaling: float = Query(1.0)
+        scaling: Optional[float] = Query(None)
 ):
     try:
         days = parse_period_to_days(period)
         df = load_yahoo_timeseries(ticker, exchange, days)
-        df = apply_scaling(df, scaling)
+        effective_scaling = get_scaling_override(ticker, exchange, scaling)
+        df = apply_scaling(df, effective_scaling)
+
         return handle_timeseries_response(df, format, f"Yahoo Time Series for {ticker}",
                                           f"{period} / {interval} (×{scaling})")
     except Exception as e:
@@ -166,16 +171,18 @@ def get_yahoo_timeseries(
 @app.get("/timeseries/stooq", response_class=HTMLResponse)
 def get_stooq_timeseries(
         ticker: str = Query(...),
-        exchange: str = Query(...),
+        exchange: str = Query("L"),
         period: str = Query("1y"),
         interval: str = Query("1d"),
         format: str = Query("html"),
-        scaling: float = Query(1.0)
+        scaling: Optional[float] = Query(None)
 ):
     try:
         days = parse_period_to_days(period)
         df = load_stooq_timeseries(ticker, exchange, days)
-        df = apply_scaling(df, scaling)
+        effective_scaling = get_scaling_override(ticker, exchange,  scaling)
+        df = apply_scaling(df, effective_scaling)
+
         return handle_timeseries_response(df, format, f"Stooq Time Series for {ticker}",
                                           f"{period} / {interval} (×{scaling})")
     except Exception as e:
@@ -184,16 +191,17 @@ def get_stooq_timeseries(
 @app.get("/timeseries/meta", response_class=HTMLResponse)
 def get_meta_timeseries(
         ticker: str = Query(...),
-        exchange: str = Query("US"),
+        exchange: str = Query("L"),
         period: str = Query("1y"),
         interval: str = Query("1d"),
         format: str = Query("html"),
-        scaling: float = Query(1.0)
+        scaling: Optional[float] = Query(None)
 ):
     try:
         days = parse_period_to_days(period)
         df = load_meta_timeseries(ticker, exchange, days)
-        df = apply_scaling(df, scaling)
+        effective_scaling = get_scaling_override(ticker, exchange, scaling)
+        df = apply_scaling(df, effective_scaling)
         return handle_timeseries_response(df, format, f"Meta Time Series for {ticker}",
                                           f"{period} / {interval} (×{scaling})")
     except Exception as e:

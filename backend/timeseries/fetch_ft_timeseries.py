@@ -1,126 +1,81 @@
 import logging
 import time
 from datetime import date, timedelta
+from typing import Optional
 import pandas as pd
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from io import StringIO
+from bs4 import BeautifulSoup
 
-# Setup logger
-logger = logging.getLogger("ft_timeseries")
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("ft_timeseries")
 
-CHROMEDRIVER_PATH = r"C:\workspaces\chromedriver-win64\chromedriver.exe"  # Update if needed
+FT_URL_TEMPLATE = "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
 
-
-def set_date_range_and_submit(driver, from_date: str, to_date: str):
-    """
-    Set the date range on the FT time series page and click 'Update'.
-    """
-    logger.debug(f"Setting date range: {from_date} → {to_date}")
-    try:
-        from_input = driver.find_element(By.ID, "startDate")
-        to_input = driver.find_element(By.ID, "endDate")
-
-        driver.execute_script(f"arguments[0].value = '{from_date}'", from_input)
-        driver.execute_script(f"arguments[0].value = '{to_date}'", to_input)
-
-        update_btn = driver.find_element(By.ID, "submitBtn")
-        update_btn.click()
-
-        logger.debug("Clicked 'Update' button to reload table")
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "table.mod-ui-table"))
-        )
-
-    except Exception as e:
-        logger.warning(f"Could not set date range: {e}")
-
-
-def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: date) -> pd.DataFrame:
-    """
-    Fetch FT.com time series data for the given ticker between start_date and end_date.
-    """
-    url = f"https://markets.ft.com/data/funds/tears heet/historical?s={ticker}"
-    logger.debug(f"Setting up headless Chrome for ticker {ticker}")
-
+def init_driver(headless: bool = True) -> webdriver.Chrome:
     options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--disable-gpu")
+    if headless:
+        options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    )
+    return webdriver.Chrome(options=options)
 
-    service = Service(executable_path=CHROMEDRIVER_PATH)
-    driver = webdriver.Chrome(service=service, options=options)
-
+def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[date] = None) -> pd.DataFrame:
+    url = FT_URL_TEMPLATE.format(ticker=ticker)
+    logger.info(f"🔗 Navigating to {url}")
+    driver = init_driver(headless=True)
     try:
-        logger.debug(f"Navigating to {url}")
         driver.get(url)
-
-        from_str = start_date.strftime("%d/%m/%Y")
-        to_str = end_date.strftime("%d/%m/%Y")
-        set_date_range_and_submit(driver, from_str, to_str)
-
-        table = WebDriverWait(driver, 30).until(
+        logger.debug("⏳ Waiting for historical price table...")
+        WebDriverWait(driver, 30).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "table.mod-ui-table"))
         )
 
-        rows = table.find_elements(By.TAG_NAME, "tr")
-        logger.debug(f"Found {len(rows) - 1} data rows in table")
+        try:
+            consent_btn = driver.find_element(By.CSS_SELECTOR, "button.js-accept-all-cookies")
+            consent_btn.click()
+            logger.info("🍪 Dismissed cookie banner.")
+            time.sleep(1)
+        except Exception:
+            logger.info("ℹ️ No cookie banner found or already dismissed.")
 
-        data = []
-        for i, row in enumerate(rows[1:], start=1):
-            cols = row.find_elements(By.TAG_NAME, "td")
-            if len(cols) < 5:
-                logger.warning(f"Row {i} skipped: not enough columns ({len(cols)})")
-                continue
+        table_elem = driver.find_element(By.CSS_SELECTOR, "table.mod-ui-table")
+        html = table_elem.get_attribute("outerHTML")
+        df = pd.read_html(StringIO(html))[0]
+        df.columns = [col.strip() for col in df.columns]
 
-            try:
-                date_str = cols[0].text.strip()
-                close = float(cols[1].text.replace(',', ''))
-                open_ = float(cols[2].text.replace(',', ''))
-                high = float(cols[3].text.replace(',', ''))
-                low = float(cols[4].text.replace(',', ''))
+        # Parse dates from spans manually
+        soup = BeautifulSoup(html, "html.parser")
+        cleaned_dates = []
+        for row in soup.select("table.mod-ui-table tbody tr"):
+            spans = row.select("td span")
+            cleaned_dates.append(spans[0].text.strip() if spans else row.select_one("td").text.strip())
+        df["Date"] = pd.to_datetime(cleaned_dates, format="%A, %B %d, %Y")
 
-                data.append([date_str, open_, high, low, close])
-                logger.debug(f"Row {i} parsed: {date_str} O:{open_} H:{high} L:{low} C:{close}")
-            except Exception as e:
-                logger.warning(f"Error parsing row {i}: {e}")
-
-        if not data:
-            raise RuntimeError("No valid time series data parsed from FT")
-
-        df = pd.DataFrame(data, columns=["Date", "Open", "High", "Low", "Close"])
-        df["Date"] = pd.to_datetime(df["Date"], dayfirst=True)
-        df.sort_values("Date", inplace=True)
-        df["Volume"] = None
+        df = df[df["Date"].notna()]
+        df = df.sort_values("Date")
         df["Ticker"] = ticker
         df["Source"] = "FT"
 
-        logger.info(f"Fetched {len(df)} rows for {ticker}")
-        return df
-
-    except Exception as e:
-        logger.error(f"Failed to fetch data for {ticker}: {e}")
-        raise
+        return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"] if "Volume" in df.columns else ["Date", "Close", "Ticker", "Source"]]
 
     finally:
+        logger.debug("🩹 Closing Selenium driver")
         driver.quit()
-        logger.debug("Closed Selenium driver")
-
 
 def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:
-    """
-    Backwards-compatible version: fetch trailing N days.
-    """
     today = date.today()
     start = today - timedelta(days=days)
     return fetch_ft_timeseries_range(ticker, start, today)
 
-
 if __name__ == "__main__":
-    # Example: Legal & General Sterling Corporate Bond Index Fund I Acc
     df = fetch_ft_timeseries("GB00B45Q9038:GBP", days=365)
     print(df.head())

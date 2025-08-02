@@ -98,6 +98,7 @@ def load_timeseries_data(tickers: List[str], exchange: str = "L", days: int = 36
             logger.warning(f"Failed to load timeseries for {ticker}: {e}")
     return result
 
+
 if __name__ == "__main__":
     # Example usage
     today = datetime.today().date()

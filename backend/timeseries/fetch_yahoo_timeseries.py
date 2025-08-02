@@ -8,8 +8,6 @@ import yfinance as yf
 logger = logging.getLogger("yahoo_timeseries")
 logging.basicConfig(level=logging.DEBUG)
 
-DATA_DIR = "data/universe/timeseries"
-
 def get_yahoo_suffix(exchange: str) -> str:
     exchange_map = {
         "LSE": ".L", "L": ".L", "UK": ".L",

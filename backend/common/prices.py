@@ -13,7 +13,8 @@ import pandas as pd
 
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import list_all_unique_tickers
-from backend.timeseries.fetch_meta_timeseries import run_all_tickers, get_latest_closing_prices, logger
+from backend.timeseries.fetch_meta_timeseries import run_all_tickers, get_latest_closing_prices, logger, \
+    fetch_meta_timeseries
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -76,20 +77,57 @@ def refresh_prices():
 # ──────────────────────────────────────────────────────────────
 # handy helper for ad-hoc analysis
 # ──────────────────────────────────────────────────────────────
-def load_prices_for_tickers(tickers: Iterable[str]) -> pd.DataFrame:
-    run_all_tickers(list(tickers))
-    root = Path(os.getenv("TIMESERIES_DIR",
-                          "data/universe/timeseries"))
-    frames = []
-    for t in tickers:
-        fp = root / "f{t.upper()}.csv"
-        if fp.exists():
-            frames.append(pd.read_csv(fp))
-    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+def load_latest_prices(tickers: list[str] = None) -> dict[str, float]:
+    """
+    Load latest known close prices using fetch_meta_timeseries.
+
+    Args:
+        tickers: Optional list of tickers. If None, nothing will be returned.
+
+    Returns:
+        Dictionary of {ticker: latest_close_price}.
+    """
+    if not tickers:
+        return {}
+
+    prices = {}
+    for tkr in tickers:
+        df = fetch_meta_timeseries(tkr)
+        if df is not None and not df.empty:
+            last_row = df.iloc[-1]
+            prices[tkr] = float(last_row["close"])
+    return prices
 
 import json
 
-def save_latest_prices_to_file(prices: Dict[str, float], path: str = "data/prices/latest_prices.json"):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(prices, f, indent=2)
+from datetime import datetime, timedelta
+from typing import Iterable
+import pandas as pd
+
+def load_prices_for_tickers(tickers: Iterable[str], exchange: str = "L", days: int = 365) -> pd.DataFrame:
+    """
+    Load historical prices for a list of tickers using the meta fetch system.
+
+    Args:
+        tickers: Iterable of ticker symbols (e.g., ["GRG", "VWRL"])
+        exchange: Exchange code (default "L")
+        days: How many days back to fetch
+
+    Returns:
+        A concatenated DataFrame with columns like Date, Close, Ticker, etc.
+    """
+    end_date = datetime.today().date()
+    start_date = end_date - timedelta(days=days)
+    frames = []
+
+    for t in tickers:
+        try:
+            cleaned = t.replace(".L", "")  # compatibility with old logic
+            df = fetch_meta_timeseries(cleaned, exchange, start_date, end_date)
+            if not df.empty:
+                df["Ticker"] = cleaned
+                frames.append(df)
+        except Exception as e:
+            print(f"[WARN] Failed to fetch prices for {t}: {e}")
+
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()

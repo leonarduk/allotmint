@@ -35,16 +35,14 @@ def build_ft_ticker(ticker: str) -> Optional[str]:
 def merge_sources(sources: List[pd.DataFrame]) -> pd.DataFrame:
     if not sources:
         return pd.DataFrame()
-    df = sources[0].copy()
-    for other in sources[1:]:
-        df = pd.concat([df, other], ignore_index=True)
+    df = pd.concat(sources, ignore_index=True)
     df = df.drop_duplicates(subset=["Date", "Close"], keep="last")
     df = df.sort_values("Date")
     return df
 
-
 def fetch_meta_timeseries(
         ticker: str,
+        exchange: str = "L",
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
 ) -> pd.DataFrame:
@@ -59,7 +57,7 @@ def fetch_meta_timeseries(
 
     # 1. Try Yahoo
     try:
-        yahoo_df = fetch_yahoo_timeseries_range(ticker, start_date, end_date)
+        yahoo_df = fetch_yahoo_timeseries_range(ticker, exchange, start_date, end_date)
         if not yahoo_df.empty:
             data_sources.append(yahoo_df)
     except Exception as e:
@@ -67,13 +65,13 @@ def fetch_meta_timeseries(
 
     # 2. Try Stooq
     try:
-        stooq_df = fetch_stooq_timeseries_range(ticker, start_date, end_date)
+        stooq_df = fetch_stooq_timeseries_range(ticker, exchange, start_date, end_date)
         if not stooq_df.empty:
             data_sources.append(stooq_df)
     except Exception as e:
         logger.warning(f"Stooq fetch failed: {e}")
 
-    # 3. FT fallback
+    # 3. FT fallback if needed
     if not data_sources:
         ft_ticker = build_ft_ticker(ticker)
         if ft_ticker:
@@ -90,7 +88,6 @@ def fetch_meta_timeseries(
 
     return merge_sources(data_sources)
 
-
 def run_all_tickers(tickers: List[str], exchange: str = "L", days: int = 365) -> List[str]:
     today = datetime.today().date()
     cutoff = today - timedelta(days=days)
@@ -98,14 +95,12 @@ def run_all_tickers(tickers: List[str], exchange: str = "L", days: int = 365) ->
     processed = []
     for ticker in tickers:
         try:
-            cleaned = ticker.replace(".L", "")
-            df = fetch_meta_timeseries(cleaned, exchange, start_date=cutoff, end_date=today)
+            df = fetch_meta_timeseries(ticker, exchange, start_date=cutoff, end_date=today)
             if not df.empty:
-                processed.append(cleaned)
+                processed.append(ticker)
         except Exception as e:
             print(f"[WARN] Failed to load {ticker}: {e}")
     return processed
-
 
 def get_latest_closing_prices(tickers: List[str], exchange: str = "L") -> Dict[str, float]:
     all_data = load_timeseries_data(tickers, exchange)
@@ -136,11 +131,8 @@ def load_timeseries_data(tickers: List[str], exchange: str = "L", days: int = 36
             logger.warning(f"Failed to load timeseries for {ticker}: {e}")
     return result
 
-
 if __name__ == "__main__":
-    # Example usage
     today = datetime.today().date()
     cutoff = today - timedelta(days=700)
-
     df = fetch_meta_timeseries("GRG", "LSE", start_date=cutoff, end_date=today)
     print(df.head())

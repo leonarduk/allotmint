@@ -68,7 +68,7 @@ def fetch_stooq_timeseries_range(
         if 'Date' not in df.columns or 'Close' not in df.columns:
             raise ValueError(f"Unexpected format for {full_ticker}: columns = {df.columns.tolist()}")
 
-        df['Date'] = pd.to_datetime(df['Date'])
+        df['Date'] = pd.to_datetime(df['Date']).dt.date
         df.sort_values('Date', inplace=True)
         df['Volume'] = df.get('Volume', None)
         df['Ticker'] = ticker

@@ -89,7 +89,8 @@ def aggregate_by_ticker(group_portfolio: Dict[str, Any]) -> List[Dict[str, Any]]
     tickers = sorted(agg.keys())
     run_all_tickers(tickers)
 
-    latest = get_latest_closing_prices(tickers=tickers)
+    ticker_exchange_list = [(tkr, "L") for tkr in tickers]  # Assuming default exchange is LSE
+    latest = get_latest_closing_prices(ticker_exchange_list=ticker_exchange_list)
     today = dt.date.today()
     d7, d30 = today - dt.timedelta(days=7), today - dt.timedelta(days=30)
     ts_df = load_prices_for_tickers(tickers)

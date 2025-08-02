@@ -1,6 +1,6 @@
 import logging
 from datetime import date, timedelta, datetime
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 import pandas as pd
 import re
 
@@ -102,20 +102,21 @@ def run_all_tickers(tickers: List[str], exchange: str = "L", days: int = 365) ->
             print(f"[WARN] Failed to load {ticker}: {e}")
     return processed
 
-def get_latest_closing_prices(tickers: List[str], exchange: str = "L") -> Dict[str, float]:
-    all_data = load_timeseries_data(tickers, exchange)
-    latest_prices = {}
+def get_latest_closing_prices(ticker_exchange_list: List[Tuple[str, str]]) -> Dict[str, float]:
+    result = {}
+    today = datetime.today().date()
+    cutoff = today - timedelta(days=365)
 
-    for ticker, df in all_data.items():
-        if df.empty:
-            logger.warning(f"[{ticker}] DataFrame is empty")
-            continue
-        df_sorted = df.sort_values("Date")
-        latest_row = df_sorted.iloc[-1]
-        latest_prices[ticker] = float(latest_row["Close"])
-        logger.debug(f"[{ticker}] Latest price = {latest_prices[ticker]} on {latest_row['Date']}")
-
-    return latest_prices
+    for ticker, exchange in ticker_exchange_list:
+        try:
+            df = fetch_meta_timeseries(ticker, exchange, start_date=cutoff, end_date=today)
+            if not df.empty:
+                df_sorted = df.sort_values("Date")
+                latest_row = df_sorted.iloc[-1]
+                result[f"{ticker}:{exchange}"] = float(latest_row["Close"])
+        except Exception as e:
+            logger.warning(f"[{ticker}:{exchange}] Failed: {e}")
+    return result
 
 def load_timeseries_data(tickers: List[str], exchange: str = "L", days: int = 365) -> Dict[str, pd.DataFrame]:
     today = datetime.today().date()

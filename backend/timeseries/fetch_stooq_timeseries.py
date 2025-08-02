@@ -1,8 +1,9 @@
 import logging
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
+from io import StringIO
+
 import pandas as pd
 import requests
-from io import StringIO
 
 # Setup logger
 logger = logging.getLogger("stooq_timeseries")

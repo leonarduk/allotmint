@@ -64,7 +64,7 @@ def refresh_prices():
 
     logger.info(f"📊 Fetching latest prices for: {tickers}")
 
-    prices = get_latest_closing_prices(tickers)
+    prices = get_latest_closing_prices(tickers=tickers)
     logger.debug(f"✅ Prices fetched: {prices}")
 
     path = "data/prices/latest_prices.json"

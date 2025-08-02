@@ -89,7 +89,7 @@ def aggregate_by_ticker(group_portfolio: Dict[str, Any]) -> List[Dict[str, Any]]
     tickers = sorted(agg.keys())
     run_all_tickers(tickers)
 
-    latest = get_latest_closing_prices()
+    latest = get_latest_closing_prices(tickers=tickers)
     today = dt.date.today()
     d7, d30 = today - dt.timedelta(days=7), today - dt.timedelta(days=30)
     ts_df = load_prices_for_tickers(tickers)

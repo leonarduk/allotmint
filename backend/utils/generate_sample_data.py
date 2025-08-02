@@ -62,7 +62,7 @@ def generate_json_holdings(xml_path: str, output_base_dir: str):
 
             output["holdings"].append(holding)
 
-        # Save to: data-sample/plots/{owner}/{isa|sipp}.json
+        # Save to: data-sample/accounts/{owner}/{isa|sipp}.json
         target_dir = Path(output_base_dir) / owner
         os.makedirs(target_dir, exist_ok=True)
 
@@ -75,5 +75,5 @@ def generate_json_holdings(xml_path: str, output_base_dir: str):
 
 if __name__ == "__main__":
     xml = "C:/workspaces/bitbucket/luk/data/portfolio/investments-with-id.xml"
-    output_root = "data-sample/plots"
+    output_root = "data/accounts"
     generate_json_holdings(xml, output_root)

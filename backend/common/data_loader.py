@@ -4,11 +4,11 @@ from __future__ import annotations
 Data loading helpers for AllotMint.
 
 Supports two environments:
-- local: read from data-sample/plots/<owner>/
+- local: read from data/accounts/<owner>/
 - aws:   (future) read from S3
 
 Functions exported:
-- list_plots(env=None) -> [{owner, accounts:[...]}, ...]
+- list_accounts(env=None) -> [{owner, accounts:[...]}, ...]
 - load_account(owner, account, env=None) -> dict (parsed JSON)
 - load_person_meta(owner, env=None) -> dict (parsed JSON or {})
 
@@ -26,11 +26,11 @@ from typing import Any, Dict, List, Optional
 # Paths
 # ------------------------------------------------------------------
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"
+_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data" / "accounts"
 
 # For future AWS use
 DATA_BUCKET_ENV = "DATA_BUCKET"
-PLOTS_PREFIX = "plots/"
+PLOTS_PREFIX = "accounts/"
 
 
 # ------------------------------------------------------------------
@@ -40,9 +40,9 @@ _METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
 
 
 def _list_local_plots() -> List[Dict[str, Any]]:
-    plots: List[Dict[str, Any]] = []
+    accounts: List[Dict[str, Any]] = []
     if not _LOCAL_PLOTS_ROOT.exists():
-        return plots
+        return accounts
 
     for owner_dir in sorted(_LOCAL_PLOTS_ROOT.iterdir()):
         if not owner_dir.is_dir():
@@ -73,12 +73,12 @@ def _list_local_plots() -> List[Dict[str, Any]]:
             seen.add(al)
             dedup.append(a)
 
-        plots.append({
+        accounts.append({
             "owner": owner_dir.name,
             "accounts": dedup,
         })
 
-    return plots
+    return accounts
 
 
 # ------------------------------------------------------------------
@@ -92,14 +92,40 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
 # ------------------------------------------------------------------
 # Public discovery API
 # ------------------------------------------------------------------
-def list_plots(env: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Return list of owners + account names.
-    """
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
-    if env == "aws":
-        return _list_aws_plots()
-    return _list_local_plots()
+from pathlib import Path
+import json
+
+DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "accounts"
+
+def list_plots(env: str = "local") -> list[dict]:
+    plots = []
+    for owner_dir in DATA_ROOT.iterdir():
+        if not owner_dir.is_dir():
+            continue
+
+        person_file = owner_dir / "person.json"
+        if not person_file.exists():
+            continue
+
+        try:
+            with open(person_file) as f:
+                info = json.load(f)
+        except Exception:
+            continue
+
+        # infer accounts by listing all *.json files EXCEPT 'person.json'
+        account_files = [
+            f.stem.lower()
+            for f in owner_dir.glob("*.json")
+            if f.name != "person.json"
+        ]
+
+        plots.append({
+            "owner": info.get("owner") or owner_dir.name,
+            "accounts": sorted(account_files),
+        })
+
+    return plots
 
 
 # ------------------------------------------------------------------

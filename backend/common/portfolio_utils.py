@@ -4,14 +4,14 @@ from collections import defaultdict
 from typing import Set, Dict, Any, List
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"
+_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data" / "accounts"
 
 import pathlib
 import json
 from typing import Set
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"
+_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data" / "accounts"
 
 
 from pathlib import Path
@@ -23,7 +23,7 @@ def list_all_unique_tickers() -> list[str]:
     import json
     from typing import Set
 
-    base = Path(__file__).resolve().parents[2] / "data-sample" / "plots"
+    base = Path(__file__).resolve().parents[2] / "data" / "accounts"
     print(f"[DEBUG] Searching for account files under: {base}")
 
     tickers: Set[str] = set()

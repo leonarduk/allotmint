@@ -18,7 +18,6 @@ import importlib
 import json
 import os
 import pathlib
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.common.data_loader import list_plots, load_account
@@ -27,7 +26,7 @@ MAX_TRADES_PER_MONTH = 20
 HOLD_DAYS_MIN = 30
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"
+_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data" / "accounts"
 
 
 # ──────────────────────────────────────────────────────────────

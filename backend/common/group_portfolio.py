@@ -8,7 +8,7 @@ Group-level portfolio utilities for AllotMint
 Auto-generation:
 ----------------
 If *data/groups.json* is missing we build three default groups from the
-person.json files found under data-sample/plots/<owner>/person.json:
+person.json files found under data-sample/accounts/<owner>/person.json:
 
     children : owners whose age  < 18
     adults   : owners whose age >= 18
@@ -30,8 +30,10 @@ from typing import Any, Dict, List, Optional, DefaultDict
 # File locations (adjust if your repo uses different paths)
 # ───────────────────────────────────────────────────────────────
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-GROUPS_FILE = Path("data/groups.json")                      # custom groups
-PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"           # per-owner plots
+DATA_ROOT = _REPO_ROOT / "data"
+print("REPO_ROOT", _REPO_ROOT)
+GROUPS_FILE = Path(DATA_ROOT, "groups.json")                      # custom groups
+PLOTS_ROOT = DATA_ROOT / "accounts"           # per-owner accounts
 
 TODAY = dt.date.today()
 
@@ -56,7 +58,7 @@ def _derive_age(info: dict) -> int | None:
 
 
 def _auto_groups_from_person_json() -> List[Dict[str, Any]]:
-    """Scan plots/*/person.json and build children/adults/all groups."""
+    """Scan accounts/*/person.json and build children/adults/all groups."""
     adults: list[str] = []
     children: list[str] = []
     everyone: list[str] = []
@@ -96,7 +98,7 @@ def list_groups() -> List[Dict[str, Any]]:
     Return a list of group dicts.
 
     1. If *data/groups.json* exists, load and return it verbatim.
-    2. Otherwise auto-generate children/adults/all from plots/*/person.json.
+    2. Otherwise auto-generate children/adults/all from accounts/*/person.json.
     """
     if GROUPS_FILE.exists():
         with GROUPS_FILE.open() as f:

@@ -79,7 +79,7 @@ def refresh_prices():
 def load_prices_for_tickers(tickers: Iterable[str]) -> pd.DataFrame:
     run_all_tickers(list(tickers))
     root = Path(os.getenv("TIMESERIES_DIR",
-                          "timeseries/data-sample/universe/timeseries"))
+                          "data/universe/timeseries"))
     frames = []
     for t in tickers:
         fp = root / "f{t.upper()}.csv"

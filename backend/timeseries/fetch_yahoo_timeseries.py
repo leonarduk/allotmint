@@ -8,7 +8,7 @@ import yfinance as yf
 logger = logging.getLogger("yahoo_timeseries")
 logging.basicConfig(level=logging.DEBUG)
 
-DATA_DIR = "backend/timeseries/data-sample/universe/timeseries"
+DATA_DIR = "data/universe/timeseries"
 
 def get_yahoo_suffix(exchange: str) -> str:
     exchange_map = {

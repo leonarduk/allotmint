@@ -1,15 +1,16 @@
 import logging
 import time
 from datetime import date, timedelta
+from io import StringIO
 from typing import Optional
+
 import pandas as pd
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from io import StringIO
-from bs4 import BeautifulSoup
+from selenium.webdriver.support.ui import WebDriverWait
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ft_timeseries")

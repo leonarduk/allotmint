@@ -8,6 +8,7 @@ Expected Lambda proxy integration event with pathParameters:
 
 import json
 import os
+
 from backend.common.data_loader import load_account
 
 

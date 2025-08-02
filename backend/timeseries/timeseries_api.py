@@ -6,9 +6,9 @@ Light-weight time-series download endpoint for AllotMint.
 • Easy to extend with more data sources (Alpha Vantage, Finnhub, …)
 """
 
-from datetime import datetime
 import io
 import logging
+from datetime import datetime
 
 import pandas as pd
 import yfinance as yf

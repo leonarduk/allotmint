@@ -1,8 +1,9 @@
 import logging
-from datetime import date, timedelta, datetime
-from typing import List, Optional, Dict, Tuple
-import pandas as pd
 import re
+from datetime import date, timedelta, datetime
+from typing import List, Optional, Dict
+
+import pandas as pd
 
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
@@ -10,6 +11,9 @@ from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_ran
 
 logger = logging.getLogger("meta_timeseries")
 
+# ──────────────────────────────────────────────────────────────
+# Utilities
+# ──────────────────────────────────────────────────────────────
 def is_isin(ticker: str) -> bool:
     """Check if the base part of a ticker is a valid ISIN-like identifier."""
     base = re.split(r"[.:]", ticker)[0].upper()
@@ -40,13 +44,16 @@ def merge_sources(sources: List[pd.DataFrame]) -> pd.DataFrame:
     df = df.sort_values("Date")
     return df
 
+# ──────────────────────────────────────────────────────────────
+# Fetch single timeseries
+# ──────────────────────────────────────────────────────────────
 def fetch_meta_timeseries(
         ticker: str,
         exchange: str = "L",
         start_date: Optional[date] = None,
         end_date: Optional[date] = None
 ) -> pd.DataFrame:
-    logger.info(f"📊 Fetching latest prices for: {ticker}")
+    logger.info(f"📊 Fetching latest prices for: {ticker}.{exchange}")
 
     if end_date is None:
         end_date = date.today()
@@ -61,7 +68,7 @@ def fetch_meta_timeseries(
         if not yahoo_df.empty:
             data_sources.append(yahoo_df)
     except Exception as e:
-        logger.warning(f"Yahoo fetch failed: {e}")
+        logger.warning(f"Yahoo fetch failed for {ticker}.{exchange}: {e}")
 
     # 2. Try Stooq
     try:
@@ -69,7 +76,7 @@ def fetch_meta_timeseries(
         if not stooq_df.empty:
             data_sources.append(stooq_df)
     except Exception as e:
-        logger.warning(f"Stooq fetch failed: {e}")
+        logger.warning(f"Stooq fetch failed for {ticker}.{exchange}: {e}")
 
     # 3. FT fallback if needed
     if not data_sources:
@@ -84,10 +91,13 @@ def fetch_meta_timeseries(
                 logger.warning(f"FT fetch failed for {ft_ticker}: {e}")
 
     if not data_sources:
-        logger.warning("No source provided full coverage; merging partial data")
+        logger.warning(f"No data sources succeeded for {ticker}.{exchange}")
 
     return merge_sources(data_sources)
 
+# ──────────────────────────────────────────────────────────────
+# Batch fetch
+# ──────────────────────────────────────────────────────────────
 def run_all_tickers(tickers: List[str], exchange: str = "L", days: int = 365) -> List[str]:
     today = datetime.today().date()
     cutoff = today - timedelta(days=days)
@@ -99,24 +109,8 @@ def run_all_tickers(tickers: List[str], exchange: str = "L", days: int = 365) ->
             if not df.empty:
                 processed.append(ticker)
         except Exception as e:
-            print(f"[WARN] Failed to load {ticker}: {e}")
+            logger.warning(f"[WARN] Failed to load {ticker}: {e}")
     return processed
-
-def get_latest_closing_prices(ticker_exchange_list: List[Tuple[str, str]]) -> Dict[str, float]:
-    result = {}
-    today = datetime.today().date()
-    cutoff = today - timedelta(days=365)
-
-    for ticker, exchange in ticker_exchange_list:
-        try:
-            df = fetch_meta_timeseries(ticker, exchange, start_date=cutoff, end_date=today)
-            if not df.empty:
-                df_sorted = df.sort_values("Date")
-                latest_row = df_sorted.iloc[-1]
-                result[f"{ticker}:{exchange}"] = float(latest_row["Close"])
-        except Exception as e:
-            logger.warning(f"[{ticker}:{exchange}] Failed: {e}")
-    return result
 
 def load_timeseries_data(tickers: List[str], exchange: str = "L", days: int = 365) -> Dict[str, pd.DataFrame]:
     today = datetime.today().date()
@@ -132,6 +126,42 @@ def load_timeseries_data(tickers: List[str], exchange: str = "L", days: int = 36
             logger.warning(f"Failed to load timeseries for {ticker}: {e}")
     return result
 
+# ──────────────────────────────────────────────────────────────
+# Closing price summary
+# ──────────────────────────────────────────────────────────────
+def get_latest_closing_prices(tickers: List[str]) -> Dict[str, float]:
+    """
+    Accepts tickers like 'VWRL.L', 'ULVR.L', 'ALW', and returns latest close per full ticker.
+    """
+    result = {}
+    today = datetime.today().date()
+    cutoff = today - timedelta(days=365)
+
+    for full_ticker in tickers:
+        # extract ticker and exchange from full_ticker
+        if "." in full_ticker:
+            ticker, exchange = full_ticker.split(".", 1)
+        else:
+            ticker, exchange = full_ticker, "L"
+
+        try:
+            df = fetch_meta_timeseries(ticker, exchange, start_date=cutoff, end_date=today)
+            if not df.empty:
+                df.columns = [c.lower() for c in df.columns]
+                df_sorted = df.sort_values("date")
+                latest_row = df_sorted.iloc[-1]
+                price = float(latest_row.get("close") or latest_row.get("adj close") or 0.0)
+                result[f"{ticker}.{exchange}"] = price
+                logger.debug(f"[{ticker}.{exchange}] latest close = {price}")
+            else:
+                logger.warning(f"No price data returned for {ticker}.{exchange}")
+        except Exception as e:
+            logger.warning(f"[{ticker}.{exchange}] Failed: {e}")
+    return result
+
+# ──────────────────────────────────────────────────────────────
+# CLI for testing
+# ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     today = datetime.today().date()
     cutoff = today - timedelta(days=700)

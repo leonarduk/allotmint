@@ -32,8 +32,9 @@ describe("PortfolioView", () => {
         expect(screen.getByTestId("owner-name")).toHaveTextContent("steve");
 
         // Match headings like "ISA (GBP)"
-        const isaBlock = screen.getByText((_, el) =>
-            el?.tagName === 'H2' && el.textContent?.trim().startsWith("ISA")
+        const isaBlock = screen.getByText((_, el) => {
+                return el?.tagName === 'H2' && el.textContent?.trim().startsWith("ISA");
+            }
         );
         expect(isaBlock).toBeInTheDocument();
 

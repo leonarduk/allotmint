@@ -1,6 +1,7 @@
 import pandas as pd
-from pandas import DataFrame
 from fastapi.responses import HTMLResponse
+from pandas import DataFrame
+
 
 def render_timeseries_html(df: DataFrame, title: str, subtitle: str = "") -> HTMLResponse:
     df = df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]].copy()

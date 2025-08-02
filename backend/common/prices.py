@@ -71,24 +71,16 @@ def refresh_prices():
 # handy helper for ad-hoc analysis
 # ──────────────────────────────────────────────────────────────
 def load_latest_prices(tickers: list[str] = None) -> dict[str, float]:
-    """
-    Load latest known close prices using fetch_meta_timeseries.
-
-    Args:
-        tickers: Optional list of tickers. If None, nothing will be returned.
-
-    Returns:
-        Dictionary of {ticker: latest_close_price}.
-    """
     if not tickers:
         return {}
 
     prices = {}
     for tkr in tickers:
-        df = fetch_meta_timeseries(tkr)
+        base = tkr.replace(".L", "")  # fetch with stripped suffix
+        df = fetch_meta_timeseries(base)
         if df is not None and not df.empty:
             last_row = df.iloc[-1]
-            prices[tkr] = float(last_row["close"])
+            prices[tkr] = float(last_row["close"])  # store using original ticker
     return prices
 
 def load_prices_for_tickers(tickers: Iterable[str], days: int = 365) -> pd.DataFrame:

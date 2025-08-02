@@ -1,22 +1,15 @@
 import pathlib
-import json
 from collections import defaultdict
-from typing import Set, Dict, Any, List
+from typing import Dict, Any, List
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _LOCAL_PLOTS_ROOT = _REPO_ROOT / "data" / "accounts"
 
 import pathlib
-import json
-from typing import Set
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _LOCAL_PLOTS_ROOT = _REPO_ROOT / "data" / "accounts"
 
-
-from pathlib import Path
-import json
-from typing import Set
 
 def list_all_unique_tickers() -> list[str]:
     from pathlib import Path
@@ -90,7 +83,7 @@ def aggregate_by_ticker(group_portfolio: Dict[str, Any]) -> List[Dict[str, Any]]
     run_all_tickers(tickers)
 
     ticker_exchange_list = [(tkr, "L") for tkr in tickers]  # Assuming default exchange is LSE
-    latest = get_latest_closing_prices(ticker_exchange_list=ticker_exchange_list)
+    latest = get_latest_closing_prices(ticker_exchange_list)
     today = dt.date.today()
     d7, d30 = today - dt.timedelta(days=7), today - dt.timedelta(days=30)
     ts_df = load_prices_for_tickers(tickers)

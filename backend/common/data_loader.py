@@ -17,7 +17,6 @@ Metadata files (person.json, config.json, notes.json) are ignored.
 Duplicate names (case-insensitive) are deduped in discovery.
 """
 
-import json
 import os
 import pathlib
 from typing import Any, Dict, List, Optional

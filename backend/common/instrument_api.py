@@ -1,10 +1,11 @@
 # backend/common/instrument_api.py
 from __future__ import annotations
+
 import datetime as dt
 from typing import List, Dict, Any
 
-from backend.common.prices import load_prices_for_tickers
 from backend.common.group_portfolio import build_group_portfolio
+from backend.common.prices import load_prices_for_tickers
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 
 

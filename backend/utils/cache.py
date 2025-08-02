@@ -1,7 +1,8 @@
-import os
 import logging
-import pandas as pd
+import os
 from datetime import datetime, timedelta, date
+
+import pandas as pd
 
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries

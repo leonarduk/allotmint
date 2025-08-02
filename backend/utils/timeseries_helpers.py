@@ -2,6 +2,7 @@ from typing import Optional
 
 import pandas as pd
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+
 from backend.utils.html_render import render_timeseries_html
 
 

@@ -98,7 +98,7 @@ def list_groups() -> List[Dict[str, Any]]:
     Return a list of group dicts.
 
     1. If *data/groups.json* exists, load and return it verbatim.
-    2. Otherwise auto-generate children/adults/all from accounts/*/person.json.
+    2. Otherwise, auto-generate children/adults/all from accounts/*/person.json.
     """
     if GROUPS_FILE.exists():
         with GROUPS_FILE.open() as f:

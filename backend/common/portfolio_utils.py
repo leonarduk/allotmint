@@ -1,48 +1,49 @@
-# backend/common/portfolio_utils.py
-"""
-Helpers for aggregating holdings across portfolios.
-"""
-
-from __future__ import annotations
-
-import datetime as dt
+import pathlib
+import json
 from collections import defaultdict
-from typing import Dict, List, Any
+from typing import Set, Dict, Any, List
 
-from backend.common.prices import (
-    get_latest_closing_prices,
-    load_prices_for_tickers,
-)
-from backend.timeseries.fetch_meta_timeseries import run_all_tickers
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"
 
+import pathlib
+import json
+from typing import Set
 
-# ──────────────────────────────────────────────────────────────
-# internal helpers
-# ──────────────────────────────────────────────────────────────
-def _price_at(df, ticker: str, target: dt.date) -> float | None:
-    """
-    Return the close-price for *ticker* on (or before) *target*.
-    If no data yet, or DataFrame is empty, returns None.
-    """
-    if df.empty or "ticker" not in df.columns:
-        return None
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"
 
-    sub = df[(df["ticker"] == ticker) & (df["date"] <= target.isoformat())]
-    if sub.empty:
-        return None
-    return float(sub.iloc[-1]["close_gbp"])
+def list_all_unique_tickers() -> list[str]:
+    tickers: Set[str] = set()
+    for account_file in _LOCAL_PLOTS_ROOT.glob("**/*.json"):
+        try:
+            data = json.loads(account_file.read_text(encoding="utf-8"))
+            for h in data.get("holdings", []):
+                if tkr := h.get("ticker"):
+                    tickers.add(tkr.upper())
+        except Exception:
+            continue
+    return sorted(tickers)
 
-
-# ──────────────────────────────────────────────────────────────
-# public: collapse a group portfolio by ticker
-# ──────────────────────────────────────────────────────────────
 def aggregate_by_ticker(group_portfolio: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Collapse *group portfolio* down to one row per ticker, enriched with:
         • last_price_gbp, last_price_date
         • change_7d_pct, change_30d_pct
     """
-    # ----- 1. aggregate units / MV ------------------------------------------
+    import datetime as dt
+    from backend.common.prices import (
+        get_latest_closing_prices,
+        load_prices_for_tickers,
+    )
+    from backend.timeseries.fetch_meta_timeseries import run_all_tickers
+
+    def _price_at(df, ticker: str, target: dt.date) -> float | None:
+        if df.empty or "ticker" not in df.columns:
+            return None
+        sub = df[(df["ticker"] == ticker) & (df["date"] <= target.isoformat())]
+        return float(sub.iloc[-1]["close_gbp"]) if not sub.empty else None
+
     agg: Dict[str, Dict[str, Any]] = defaultdict(
         lambda: dict(
             ticker="",
@@ -66,17 +67,13 @@ def aggregate_by_ticker(group_portfolio: Dict[str, Any]) -> List[Dict[str, Any]]
         return []
 
     tickers = sorted(agg.keys())
-
-    # ----- 2. pull fresh prices ---------------------------------------------
     run_all_tickers(tickers)
-    latest = get_latest_closing_prices()          # {ticker: price}
 
+    latest = get_latest_closing_prices()
     today = dt.date.today()
     d7, d30 = today - dt.timedelta(days=7), today - dt.timedelta(days=30)
+    ts_df = load_prices_for_tickers(tickers)
 
-    ts_df = load_prices_for_tickers(tickers)      # may be empty on first run
-
-    # ----- 3. enrich rows ----------------------------------------------------
     for tkr, row in agg.items():
         last_p = latest.get(tkr)
         row["last_price_gbp"] = last_p
@@ -85,16 +82,7 @@ def aggregate_by_ticker(group_portfolio: Dict[str, Any]) -> List[Dict[str, Any]]
         p7 = _price_at(ts_df, tkr, d7)
         p30 = _price_at(ts_df, tkr, d30)
 
-        row["change_7d_pct"] = (
-            None
-            if p7 in (None, 0) or last_p is None
-            else (last_p - p7) / p7 * 100
-        )
-        row["change_30d_pct"] = (
-            None
-            if p30 in (None, 0) or last_p is None
-            else (last_p - p30) / p30 * 100
-        )
+        row["change_7d_pct"] = None if p7 in (None, 0) or last_p is None else (last_p - p7) / p7 * 100
+        row["change_30d_pct"] = None if p30 in (None, 0) or last_p is None else (last_p - p30) / p30 * 100
 
-    # ----- 4. sorted list ----------------------------------------------------
     return sorted(agg.values(), key=lambda r: r["market_value_gbp"], reverse=True)

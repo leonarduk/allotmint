@@ -4,6 +4,7 @@ Price utilities — portfolio-driven (no securities.csv).
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Set, Iterable
 
@@ -11,7 +12,10 @@ import os
 import pandas as pd
 
 from backend.common.portfolio_loader import list_portfolios
-from backend.timeseries.fetch_meta_timeseries import run_all_tickers, get_latest_closing_prices
+from backend.common.portfolio_utils import list_all_unique_tickers
+from backend.timeseries.fetch_meta_timeseries import run_all_tickers, get_latest_closing_prices, logger
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -52,16 +56,21 @@ def get_price_gbp(ticker: str) -> Optional[float]:
 # ──────────────────────────────────────────────────────────────
 # refresh logic
 # ──────────────────────────────────────────────────────────────
-def refresh_prices(env: Optional[str] = None) -> Dict[str, Any]:
-    global _price_cache, _SECURITIES
+from backend.timeseries.fetch_meta_timeseries import get_latest_closing_prices
 
-    _SECURITIES = _build_securities_from_portfolios()
-    tickers: Set[str] = set(_SECURITIES.keys())
+def refresh_prices():
+    tickers = list_all_unique_tickers()  # Make sure this returns usable tickers like ["VWRL", "PHGP.L", ...]
 
-    run_all_tickers(sorted(tickers))
-    _price_cache = get_latest_closing_prices()
+    logger.info(f"📊 Fetching latest prices for: {tickers}")
 
-    return {"refreshed": True, "tickers": sorted(tickers), "count": len(_price_cache)}
+    prices = get_latest_closing_prices(tickers)
+    logger.debug(f"✅ Prices fetched: {prices}")
+
+    path = "data/prices/latest_prices.json"
+    with open(path, "w") as f:
+        json.dump(prices, f, indent=2)
+
+    return {"tickers": tickers, "prices": prices}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -77,3 +86,10 @@ def load_prices_for_tickers(tickers: Iterable[str]) -> pd.DataFrame:
         if fp.exists():
             frames.append(pd.read_csv(fp))
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+import json
+
+def save_latest_prices_to_file(prices: Dict[str, float], path: str = "data/prices/latest_prices.json"):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(prices, f, indent=2)

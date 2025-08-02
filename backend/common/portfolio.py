@@ -134,6 +134,8 @@ def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, An
     trades_this_month = count_trades_this_month(trades, today)
     trades_remaining = max(0, MAX_TRADES_PER_MONTH - trades_this_month)
 
+    latest_prices = load_latest_prices()  # ✅ Load once
+
     acct_objs: List[Dict[str, Any]] = []
 
     for acct_meta in accounts_meta:
@@ -148,7 +150,7 @@ def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, An
             tkr = h.get("ticker")
             units = float(h.get("units", 0) or 0)
 
-            price = _maybe_get_price_gbp(tkr)        # ← safe price lookup
+            price = latest_prices.get(tkr)  # ✅ Use latest price if present
             h_en["current_price_gbp"] = price
 
             mv = units * price if price is not None else float(h.get("cost_basis_gbp", 0) or 0)
@@ -191,3 +193,10 @@ def list_owners() -> list[str]:
         except Exception:
             continue
     return owners
+
+def load_latest_prices(path="data/prices/latest_prices.json") -> Dict[str, float]:
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return {}

@@ -54,33 +54,49 @@ def fetch_meta_timeseries(ticker: str, exchange: str, start_date: date, end_date
     combined["Ticker"] = ticker
     return combined[combined["Date"] >= start_date]
 
-def run_all_tickers(tickers: List[str], exchange: str = "US", days: int = 365) -> List[str]:
-    """
-    Loads cached (or fetches and caches) time series for each ticker.
-    Returns a list of successfully processed tickers.
-    """
+def run_all_tickers(tickers: List[str], exchange: str = "L", days: int = 365) -> List[str]:
     today = datetime.today().date()
     cutoff = today - timedelta(days=days)
 
     processed = []
     for ticker in tickers:
         try:
-            df = fetch_meta_timeseries(ticker, exchange, start_date=cutoff, end_date=today)
+            cleaned = ticker.replace(".L", "")
+            df = fetch_meta_timeseries(cleaned, exchange, start_date=cutoff, end_date=today)
             if not df.empty:
-                processed.append(ticker)
+                processed.append(cleaned)
         except Exception as e:
             print(f"[WARN] Failed to load {ticker}: {e}")
     return processed
 
-def get_latest_closing_prices() -> Dict[str, float]:
-    all_data = load_timeseries_data()
+def get_latest_closing_prices(tickers: List[str], exchange: str = "L") -> Dict[str, float]:
+    all_data = load_timeseries_data(tickers, exchange)
     latest_prices = {}
+
     for ticker, df in all_data.items():
-        if not df.empty:
-            df_sorted = df.sort_values("Date")
-            latest_row = df_sorted.iloc[-1]
-            latest_prices[ticker] = float(latest_row["Close"])
+        if df.empty:
+            logger.warning(f"[{ticker}] DataFrame is empty")
+            continue
+        df_sorted = df.sort_values("Date")
+        latest_row = df_sorted.iloc[-1]
+        latest_prices[ticker] = float(latest_row["Close"])
+        logger.debug(f"[{ticker}] Latest price = {latest_prices[ticker]} on {latest_row['Date']}")
+
     return latest_prices
+
+def load_timeseries_data(tickers: List[str], exchange: str = "L", days: int = 365) -> Dict[str, pd.DataFrame]:
+    today = datetime.today().date()
+    cutoff = today - timedelta(days=days)
+    result = {}
+
+    for ticker in tickers:
+        try:
+            df = fetch_meta_timeseries(ticker, exchange, start_date=cutoff, end_date=today)
+            if not df.empty:
+                result[ticker] = df
+        except Exception as e:
+            logger.warning(f"Failed to load timeseries for {ticker}: {e}")
+    return result
 
 if __name__ == "__main__":
     # Example usage

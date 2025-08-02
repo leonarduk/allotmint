@@ -85,8 +85,9 @@ def prices_refresh():
     try:
         summary = refresh_prices()
         return {"status": "ok", **summary}
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception as exc:
+        logging.exception("Price refresh failed")
+        raise HTTPException(status_code=500, detail=f"Price refresh failed: {str(exc)}")
 
 
 from backend.common.group_portfolio import build_group_portfolio

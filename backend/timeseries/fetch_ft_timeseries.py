@@ -58,7 +58,7 @@ def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[
         for row in soup.select("table.mod-ui-table tbody tr"):
             spans = row.select("td span")
             cleaned_dates.append(spans[0].text.strip() if spans else row.select_one("td").text.strip())
-        df["Date"] = pd.to_datetime(cleaned_dates, format="%A, %B %d, %Y")
+        df["Date"] = pd.to_datetime(cleaned_dates, format="%A, %B %d, %Y").dt.date
 
         df = df[df["Date"].notna()]
         df = df.sort_values("Date")

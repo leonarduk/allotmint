@@ -1,7 +1,8 @@
-import os
 import json
-from datetime import date, datetime
+import os
+from datetime import date
 from pathlib import Path
+
 from positions import extract_holdings_from_transactions
 
 
@@ -75,5 +76,5 @@ def generate_json_holdings(xml_path: str, output_base_dir: str):
 
 if __name__ == "__main__":
     xml = "C:/workspaces/bitbucket/luk/data/portfolio/investments-with-id.xml"
-    output_root = "data/accounts"
+    output_root = "C:/workspaces/github/allotmint/data/accounts"
     generate_json_holdings(xml, output_root)

@@ -13,16 +13,36 @@ from typing import Set
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _LOCAL_PLOTS_ROOT = _REPO_ROOT / "data-sample" / "plots"
 
+
+from pathlib import Path
+import json
+from typing import Set
+
 def list_all_unique_tickers() -> list[str]:
+    from pathlib import Path
+    import json
+    from typing import Set
+
+    base = Path(__file__).resolve().parents[2] / "data-sample" / "plots"
+    print(f"[DEBUG] Searching for account files under: {base}")
+
     tickers: Set[str] = set()
-    for account_file in _LOCAL_PLOTS_ROOT.glob("**/*.json"):
+    matched = list(base.glob("*/*.json"))  # ← changed this line
+    print(f"[DEBUG] Found {len(matched)} account files")
+
+    for f in matched:
+        if f.name == "person.json":
+            continue  # skip metadata
+
         try:
-            data = json.loads(account_file.read_text(encoding="utf-8"))
+            data = json.loads(f.read_text(encoding="utf-8"))
             for h in data.get("holdings", []):
                 if tkr := h.get("ticker"):
                     tickers.add(tkr.upper())
-        except Exception:
-            continue
+        except Exception as e:
+            print(f"[WARN] Failed to read {f}: {e}")
+
+    print(f"[DEBUG] Found {len(tickers)} unique tickers")
     return sorted(tickers)
 
 def aggregate_by_ticker(group_portfolio: Dict[str, Any]) -> List[Dict[str, Any]]:

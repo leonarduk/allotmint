@@ -1,58 +1,95 @@
 import logging
 from datetime import date, timedelta, datetime
-from typing import List, Dict
-
+from typing import List, Optional, Dict
 import pandas as pd
+import re
+
+from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
+from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
+from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 
 logger = logging.getLogger("meta_timeseries")
 
+def is_isin(ticker: str) -> bool:
+    """Check if the base part of a ticker is a valid ISIN-like identifier."""
+    base = re.split(r"[.:]", ticker)[0].upper()
+    return len(base) == 12 and base.isalnum()
 
-def fetch_meta_timeseries(ticker: str, exchange: str, start_date: date, end_date: date) -> pd.DataFrame:
-    from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
-    from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
-    from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
+def guess_currency(ticker: str) -> str:
+    ticker = ticker.upper()
+    if ticker.endswith(".L"):
+        return "GBP"
+    if ticker.endswith(".AS") or ticker.endswith(".MI"):
+        return "EUR"
+    if ticker.endswith(".TO") or ticker.endswith(".V"):
+        return "CAD"
+    return "USD"
 
-    sources = []
+def build_ft_ticker(ticker: str) -> Optional[str]:
+    if is_isin(ticker):
+        isin = re.split(r"[.:]", ticker)[0].upper()
+        currency = guess_currency(ticker)
+        return f"{isin}:{currency}"
+    return None
 
-    # Yahoo
+def merge_sources(sources: List[pd.DataFrame]) -> pd.DataFrame:
+    if not sources:
+        return pd.DataFrame()
+    df = sources[0].copy()
+    for other in sources[1:]:
+        df = pd.concat([df, other], ignore_index=True)
+    df = df.drop_duplicates(subset=["Date", "Close"], keep="last")
+    df = df.sort_values("Date")
+    return df
+
+
+def fetch_meta_timeseries(
+        ticker: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+) -> pd.DataFrame:
+    logger.info(f"📊 Fetching latest prices for: {ticker}")
+
+    if end_date is None:
+        end_date = date.today()
+    if start_date is None:
+        start_date = end_date - timedelta(days=365)
+
+    data_sources = []
+
+    # 1. Try Yahoo
     try:
-        df = fetch_yahoo_timeseries_range(ticker, exchange, start_date, end_date)
-        df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        if not df.empty and df["Date"].min() <= start_date and df["Date"].max() >= end_date:
-            logger.debug("Yahoo provided complete data range.")
-            return df
-        sources.append(("yahoo", df))
+        yahoo_df = fetch_yahoo_timeseries_range(ticker, start_date, end_date)
+        if not yahoo_df.empty:
+            data_sources.append(yahoo_df)
     except Exception as e:
         logger.warning(f"Yahoo fetch failed: {e}")
 
-    # Stooq
+    # 2. Try Stooq
     try:
-        df = fetch_stooq_timeseries_range(ticker, exchange, start_date, end_date)
-        df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        if not df.empty and df["Date"].min() <= start_date and df["Date"].max() >= end_date:
-            logger.debug("Stooq provided complete data range.")
-            return df
-        sources.append(("stooq", df))
+        stooq_df = fetch_stooq_timeseries_range(ticker, start_date, end_date)
+        if not stooq_df.empty:
+            data_sources.append(stooq_df)
     except Exception as e:
         logger.warning(f"Stooq fetch failed: {e}")
 
-    # # FT
-    # try:
-    #     df = fetch_ft_timeseries(ticker)
-    #     df["Date"] = pd.to_datetime(df["Date"]).dt.date
-    #     if not df.empty and df["Date"].min() <= start_date and df["Date"].max() >= end_date:
-    #         logger.debug("FT provided complete data range.")
-    #         return df
-    #     sources.append(("ft", df))
-    # except Exception as e:
-    #     logger.warning(f"FT fetch failed: {e}")
+    # 3. FT fallback
+    if not data_sources:
+        ft_ticker = build_ft_ticker(ticker)
+        if ft_ticker:
+            try:
+                logger.info(f"🌍 Falling back to FT for {ft_ticker}")
+                ft_df = fetch_ft_timeseries(ft_ticker, (end_date - start_date).days)
+                if not ft_df.empty:
+                    data_sources.append(ft_df)
+            except Exception as e:
+                logger.warning(f"FT fetch failed for {ft_ticker}: {e}")
 
-    # fallback merge
-    logger.warning("No source provided full coverage; merging partial data")
-    combined = pd.concat([df for _, df in sources if not df.empty])
-    combined = combined.drop_duplicates(subset="Date").sort_values("Date")
-    combined["Ticker"] = ticker
-    return combined[combined["Date"] >= start_date]
+    if not data_sources:
+        logger.warning("No source provided full coverage; merging partial data")
+
+    return merge_sources(data_sources)
+
 
 def run_all_tickers(tickers: List[str], exchange: str = "L", days: int = 365) -> List[str]:
     today = datetime.today().date()
@@ -68,6 +105,7 @@ def run_all_tickers(tickers: List[str], exchange: str = "L", days: int = 365) ->
         except Exception as e:
             print(f"[WARN] Failed to load {ticker}: {e}")
     return processed
+
 
 def get_latest_closing_prices(tickers: List[str], exchange: str = "L") -> Dict[str, float]:
     all_data = load_timeseries_data(tickers, exchange)

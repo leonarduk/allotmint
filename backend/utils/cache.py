@@ -7,6 +7,7 @@ import pandas as pd
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
+from backend.utils.timeseries_helpers import _nearest_weekday
 
 logger = logging.getLogger("timeseries_cache")
 logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG for full trace
@@ -60,6 +61,8 @@ def _rolling_cache(fetch_func, cache_path: str, fetch_args: dict, days: int) -> 
 def load_yahoo_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     today = date.today()
     start_date = today - timedelta(days=days)
+    start_date = _nearest_weekday(start_date, forward=False)
+
     cache_path = os.path.join("backend/timeseries/cache/yahoo", f"{ticker}_{exchange}.parquet")
 
     logger.debug(f"Loading Yahoo data for {ticker} ({exchange}) over {days} days ({start_date} to {today})")
@@ -104,6 +107,7 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     cache_path = os.path.join("backend/timeseries/cache", f"{ticker.upper()}.parquet")
     today = date.today()
     start_date = today - timedelta(days=days)
+    start_date = _nearest_weekday(start_date, forward=False)
 
     return _rolling_cache(
         fetch_meta_timeseries,

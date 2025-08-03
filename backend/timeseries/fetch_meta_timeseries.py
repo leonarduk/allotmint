@@ -8,6 +8,7 @@ import pandas as pd
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
+from backend.utils.timeseries_helpers import _nearest_weekday
 
 logger = logging.getLogger("meta_timeseries")
 
@@ -59,6 +60,9 @@ def fetch_meta_timeseries(
         end_date = date.today()
     if start_date is None:
         start_date = end_date - timedelta(days=365)
+
+    start_date = _nearest_weekday(start_date, forward=False)
+    end_date = _nearest_weekday(end_date, forward=True)
 
     data_sources = []
 

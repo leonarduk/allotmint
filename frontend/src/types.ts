@@ -10,6 +10,7 @@ export interface Holding {
     acquired_date: string;
     price?: number;
     cost_basis_gbp?: number;
+    effective_cost_basis_gbp?: number;
     market_value_gbp?: number;
     gain_gbp?: number;
     current_price_gbp?: number | null;

@@ -1,3 +1,4 @@
+import datetime
 from typing import Optional
 
 import pandas as pd
@@ -40,3 +41,15 @@ def handle_timeseries_response(
         return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
     else:
         return render_timeseries_html(df, title, subtitle)
+
+# ── new helper ──────────────────────────────────────────────
+def _nearest_weekday(d: datetime.date, forward: bool) -> datetime.date:
+    """
+    Return *d* if it’s a weekday; otherwise move to nearest weekday.
+
+    forward=True  → Friday→Mon (skip weekend forward)
+    forward=False → Saturday/Sunday→Fri (skip weekend backward)
+    """
+    while d.weekday() >= 5:   # 5 = Saturday, 6 = Sunday
+        d += datetime.timedelta(days=1 if forward else -1)
+    return d

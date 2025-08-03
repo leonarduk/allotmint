@@ -18,6 +18,7 @@ from backend.timeseries.fetch_meta_timeseries import (
     fetch_meta_timeseries,
     get_latest_closing_prices,
 )
+from backend.utils.timeseries_helpers import _nearest_weekday
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -95,7 +96,11 @@ def load_prices_for_tickers(tickers: Iterable[str], days: int = 365) -> pd.DataF
         A concatenated DataFrame with columns like Date, Close, Ticker, etc.
     """
     end_date = datetime.today().date()
+    end_date = _nearest_weekday(end_date, forward=True)
+
     start_date = end_date - timedelta(days=days)
+    start_date = _nearest_weekday(start_date, forward=False)
+
     frames = []
 
     for t in tickers:

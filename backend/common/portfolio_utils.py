@@ -1,102 +1,137 @@
-import pathlib
-from collections import defaultdict
-from typing import Dict, Any, List
+"""
+Common portfolio helpers
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data" / "accounts"
+• list_all_unique_tickers()     → returns all tickers in every portfolio
+• get_security_meta(tkr)        → basic metadata from portfolios
+• aggregate_by_ticker(tree)     → one row per ticker with latest-price snapshot
+"""
 
-import pathlib
+from __future__ import annotations
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data" / "accounts"
+import json
+import logging
+from pathlib import Path
+from typing import Dict, List
+
+from backend.common.portfolio_loader import list_portfolios  # existing helper
+
+logger = logging.getLogger("portfolio_utils")
+
+# ──────────────────────────────────────────────────────────────
+# Numeric helper
+# ──────────────────────────────────────────────────────────────
+def _safe_num(val, default: float = 0.0) -> float:
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
 
 
-def list_all_unique_tickers() -> list[str]:
-    from pathlib import Path
-    import json
-    from typing import Set
+# ──────────────────────────────────────────────────────────────
+# Snapshot loader (last_price / deltas)
+# ──────────────────────────────────────────────────────────────
+def _load_snapshot() -> Dict[str, Dict]:
+    path = Path("data/prices/latest_prices.json")
+    if not path.exists():
+        logger.warning("Price snapshot not found: %s", path)
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except Exception as exc:
+        logger.error("Failed to parse snapshot %s: %s", path, exc)
+        return {}
 
-    base = Path(__file__).resolve().parents[2] / "data" / "accounts"
-    print(f"[DEBUG] Searching for account files under: {base}")
 
-    tickers: Set[str] = set()
-    matched = list(base.glob("*/*.json"))  # ← changed this line
-    print(f"[DEBUG] Found {len(matched)} account files")
+_PRICE_SNAPSHOT: Dict[str, Dict] = _load_snapshot()
 
-    for f in matched:
-        if f.name == "person.json":
-            continue  # skip metadata
 
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            for h in data.get("holdings", []):
-                if tkr := h.get("ticker"):
-                    tickers.add(tkr.upper())
-        except Exception as e:
-            print(f"[WARN] Failed to read {f}: {e}")
+def refresh_snapshot_in_memory(new_snapshot: Dict[str, Dict] | None = None):
+    """Call this from /prices/refresh when you write a new JSON snapshot."""
+    global _PRICE_SNAPSHOT
+    _PRICE_SNAPSHOT = new_snapshot or _load_snapshot()
+    logger.debug("In-memory price snapshot refreshed, %d tickers",
+                 len(_PRICE_SNAPSHOT))
 
-    print(f"[DEBUG] Found {len(tickers)} unique tickers")
-    return sorted(tickers)
+# ──────────────────────────────────────────────────────────────
+# Securities universe helpers (needed by other modules)
+# ──────────────────────────────────────────────────────────────
+def _build_securities_from_portfolios() -> Dict[str, Dict]:
+    securities: Dict[str, Dict] = {}
+    for pf in list_portfolios():
+        for acct in pf.get("accounts", []):
+            for h in acct.get("holdings", []):
+                tkr = (h.get("ticker") or "").upper()
+                if not tkr:
+                    continue
+                securities[tkr] = {
+                    "ticker": tkr,
+                    "name":   h.get("name", tkr),
+                }
+    return securities
 
-def aggregate_by_ticker(group_portfolio: Dict[str, Any]) -> List[Dict[str, Any]]:
+
+_SECURITIES = _build_securities_from_portfolios()
+
+
+def get_security_meta(ticker: str) -> Dict | None:
+    """Return {'ticker', 'name'} derived from current portfolios."""
+    return _SECURITIES.get(ticker.upper())
+
+
+def list_all_unique_tickers() -> List[str]:
+    """Flat list of every distinct ticker in all portfolios (upper-case)."""
+    return list(_SECURITIES.keys())
+
+# ──────────────────────────────────────────────────────────────
+# Core aggregation
+# ──────────────────────────────────────────────────────────────
+def aggregate_by_ticker(portfolio: dict) -> List[dict]:
     """
-    Collapse *group portfolio* down to one row per ticker, enriched with:
-        • last_price_gbp, last_price_date
-        • change_7d_pct, change_30d_pct
+    Collapse a nested portfolio tree into one row per ticker,
+    enriched with latest-price snapshot.
     """
-    import datetime as dt
-    from backend.common.prices import (
-        get_latest_closing_prices,
-        load_prices_for_tickers,
-    )
-    from backend.timeseries.fetch_meta_timeseries import run_all_tickers
+    rows: Dict[str, dict] = {}
 
-    def _price_at(df, ticker: str, target: dt.date) -> float | None:
-        if df.empty or "ticker" not in df.columns:
-            return None
-        sub = df[(df["ticker"] == ticker) & (df["date"] <= target.isoformat())]
-        return float(sub.iloc[-1]["close_gbp"]) if not sub.empty else None
+    for account in portfolio.get("accounts", []):
+        for h in account.get("holdings", []):
+            tkr = (h.get("ticker") or "").upper()
+            if not tkr:
+                continue
 
-    agg: Dict[str, Dict[str, Any]] = defaultdict(
-        lambda: dict(
-            ticker="",
-            name="",
-            units=0.0,
-            market_value_gbp=0.0,
-            gain_gbp=0.0,
-        )
-    )
+            row = rows.setdefault(
+                tkr,
+                {
+                    "ticker":           tkr,
+                    "name":             h.get("name", tkr),
+                    "units":            0.0,
+                    "market_value_gbp": 0.0,
+                    "gain_gbp":         0.0,
+                    "cost_gbp":         0.0,
+                    "last_price_gbp":   None,
+                    "last_price_date":  None,
+                    "change_7d_pct":    None,
+                    "change_30d_pct":   None,
+                },
+            )
 
-    for acct in group_portfolio.get("accounts", []):
-        for h in acct.get("holdings", []):
-            row = agg[h["ticker"]]
-            row["ticker"] = h["ticker"]
-            row["name"] = h.get("name", h["ticker"])
-            row["units"] += h.get("units", 0.0)
-            row["market_value_gbp"] += h.get("market_value_gbp", 0.0)
-            row["gain_gbp"] += h.get("unrealized_gain_gbp", 0.0)
+            # accumulate units & cost
+            row["units"] += _safe_num(h.get("units"))
+            row["cost_gbp"] += _safe_num(h.get("cost_gbp"))
 
-    if not agg:
-        return []
+            # attach snapshot if present
+            snap = _PRICE_SNAPSHOT.get(tkr)
+            if snap:
+                price = snap["last_price"]
+                row["last_price_gbp"]  = price
+                row["last_price_date"] = snap["last_price_date"]
+                row["change_7d_pct"]   = snap["change_7d_pct"]
+                row["change_30d_pct"]  = snap["change_30d_pct"]
+                row["market_value_gbp"] = round(row["units"] * price, 2)
+                row["gain_gbp"] = round(row["market_value_gbp"] - row["cost_gbp"], 2)
 
-    tickers = sorted(agg.keys())
-    run_all_tickers(tickers)
+            # pass-through misc attributes (first non-null wins)
+            for k in ("asset_class", "region", "owner"):
+                if k not in row and h.get(k) is not None:
+                    row[k] = h[k]
 
-    ticker_exchange_list = [(tkr, "L") for tkr in tickers]  # Assuming default exchange is LSE
-    latest = get_latest_closing_prices(ticker_exchange_list)
-    today = dt.date.today()
-    d7, d30 = today - dt.timedelta(days=7), today - dt.timedelta(days=30)
-    ts_df = load_prices_for_tickers(tickers)
-
-    for tkr, row in agg.items():
-        last_p = latest.get(tkr)
-        row["last_price_gbp"] = last_p
-        row["last_price_date"] = today.isoformat()
-
-        p7 = _price_at(ts_df, tkr, d7)
-        p30 = _price_at(ts_df, tkr, d30)
-
-        row["change_7d_pct"] = None if p7 in (None, 0) or last_p is None else (last_p - p7) / p7 * 100
-        row["change_30d_pct"] = None if p30 in (None, 0) or last_p is None else (last_p - p30) / p30 * 100
-
-    return sorted(agg.values(), key=lambda r: r["market_value_gbp"], reverse=True)
+    return list(rows.values())

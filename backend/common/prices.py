@@ -1,5 +1,16 @@
 """
-Price utilities — portfolio-driven (no securities.csv).
+Price utilities driven entirely by the live portfolio universe
+(no securities.csv required).  Persists a JSON snapshot with:
+
+    {
+      "TICKER": {
+        "last_price":      …,
+        "change_7d_pct":   …,
+        "change_30d_pct":  …,
+        "last_price_date": "YYYY-MM-DD"
+      },
+      …
+    }
 """
 
 from __future__ import annotations
@@ -7,28 +18,32 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Iterable
+from pathlib import Path
+from typing import Optional, Iterable, Dict, List
 
 import pandas as pd
 
+# ──────────────────────────────────────────────────────────────
+# Local imports
+# ──────────────────────────────────────────────────────────────
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import list_all_unique_tickers
 from backend.timeseries.fetch_meta_timeseries import (
     logger,
     fetch_meta_timeseries,
-    get_latest_closing_prices,
+    get_price_snapshot,
 )
 from backend.utils.timeseries_helpers import _nearest_weekday
 
 logging.basicConfig(level=logging.DEBUG)
 
 # ──────────────────────────────────────────────────────────────
-# securities universe = all tickers we actually hold
+# Securities universe : derived from portfolios
 # ──────────────────────────────────────────────────────────────
-def _build_securities_from_portfolios() -> dict[str, dict]:
-    securities: dict[str, dict] = {}
-    for p in list_portfolios():
-        for acct in p.get("accounts", []):
+def _build_securities_from_portfolios() -> Dict[str, Dict]:
+    securities: Dict[str, Dict] = {}
+    for pf in list_portfolios():
+        for acct in pf.get("accounts", []):
             for h in acct.get("holdings", []):
                 tkr = (h.get("ticker") or "").upper()
                 if not tkr:
@@ -39,78 +54,93 @@ def _build_securities_from_portfolios() -> dict[str, dict]:
                 }
     return securities
 
-_SECURITIES: dict[str, dict] = _build_securities_from_portfolios()
+_SECURITIES: Dict[str, Dict] = _build_securities_from_portfolios()
 
-def get_security_meta(ticker: str) -> Optional[dict]:
+def get_security_meta(ticker: str) -> Optional[Dict]:
     return _SECURITIES.get(ticker.upper())
 
 # ──────────────────────────────────────────────────────────────
-# latest-price cache
+# In-memory latest-price cache (GBP closes only)
 # ──────────────────────────────────────────────────────────────
-_price_cache: dict[str, float] = {}
+_price_cache: Dict[str, float] = {}
 
 def get_price_gbp(ticker: str) -> Optional[float]:
+    """Return the cached last close in GBP, or None if unseen."""
     return _price_cache.get(ticker.upper())
 
 # ──────────────────────────────────────────────────────────────
-# refresh logic
+# Refresh logic
 # ──────────────────────────────────────────────────────────────
-def refresh_prices():
-    tickers = list_all_unique_tickers()  # e.g., ["VWRL", "PHGP.L"]
-    logger.info(f"📊 Fetching latest prices for: {tickers}")
+def refresh_prices() -> Dict:
+    """
+    Pulls latest close, 7- and 30-day % moves for every ticker in
+    the current portfolios.  Writes to JSON and updates the cache.
+    """
+    tickers: List[str] = list_all_unique_tickers()
+    logger.info(f"📊 Updating price snapshot for: {tickers}")
 
-    prices = get_latest_closing_prices(tickers=tickers)
-    logger.debug(f"✅ Prices fetched: {prices}")
+    snapshot = get_price_snapshot(tickers)
 
+    # ---- persist to disk --------------------------------------------------
     path = "data/prices/latest_prices.json"
-    with open(path, "w") as f:
-        json.dump(prices, f, indent=2)
+    path = Path(path)  # create parent dirs if missing
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(snapshot, indent=2))
 
-    return {"tickers": tickers, "prices": prices}
+    # ---- refresh in-memory cache -----------------------------------------
+    _price_cache.clear()
+    for tkr, info in snapshot.items():
+        _price_cache[tkr.upper()] = info["last_price"]
+
+    logger.debug(f"✅ Snapshot written to {path}")
+    return {"tickers": tickers, "snapshot": snapshot}
 
 # ──────────────────────────────────────────────────────────────
-# handy helper for ad-hoc analysis
+# Ad-hoc helpers
 # ──────────────────────────────────────────────────────────────
-def load_latest_prices(tickers: list[str] = None) -> dict[str, float]:
+def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
+    """
+    Convenience helper for notebooks / quick scripts:
+    returns {'TICKER': last_close_gbp, …}
+    """
     if not tickers:
         return {}
 
-    prices = {}
-    for tkr in tickers:
-        base = tkr.replace(".L", "")  # fetch with stripped suffix
+    prices: Dict[str, float] = {}
+    for full in tickers:
+        base = full.replace(".L", "")  # Yahoo fetch convenience
         df = fetch_meta_timeseries(base)
         if df is not None and not df.empty:
-            last_row = df.iloc[-1]
-            prices[tkr] = float(last_row["close"])  # store using original ticker
+            prices[full] = float(df.iloc[-1]["close"])
     return prices
 
-def load_prices_for_tickers(tickers: Iterable[str], days: int = 365) -> pd.DataFrame:
+def load_prices_for_tickers(
+    tickers: Iterable[str],
+    days: int = 365,
+) -> pd.DataFrame:
     """
-    Load historical prices for a list of tickers using the meta fetch system.
-
-    Args:
-        tickers: Iterable of ticker symbols (e.g., ["GRG", "VWRL.L"])
-        days: How many days back to fetch
-
-    Returns:
-        A concatenated DataFrame with columns like Date, Close, Ticker, etc.
+    Fetch historical daily closes for a list of tickers and return a
+    concatenated dataframe; keeps each original suffix (e.g. '.L').
     """
-    end_date = datetime.today().date()
-    end_date = _nearest_weekday(end_date, forward=True)
+    end_date   = _nearest_weekday(datetime.today().date(), forward=True)
+    start_date = _nearest_weekday(end_date - timedelta(days=days), forward=False)
 
-    start_date = end_date - timedelta(days=days)
-    start_date = _nearest_weekday(start_date, forward=False)
+    frames: List[pd.DataFrame] = []
 
-    frames = []
-
-    for t in tickers:
+    for full in tickers:
         try:
-            cleaned = t.replace(".L", "")  # only for fetch, not display
-            df = fetch_meta_timeseries(cleaned, start_date=start_date, end_date=end_date)
+            base = full.replace(".L", "")  # strip for fetch
+            df   = fetch_meta_timeseries(base, start_date=start_date, end_date=end_date)
             if not df.empty:
-                df["Ticker"] = t  # preserve original suffix
+                df["Ticker"] = full  # restore suffix for display
                 frames.append(df)
-        except Exception as e:
-            print(f"[WARN] Failed to fetch prices for {t}: {e}")
+        except Exception as exc:
+            logger.warning(f"Failed to fetch prices for {full}: {exc}")
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+# ──────────────────────────────────────────────────────────────
+# CLI test
+# ──────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    print(json.dumps(refresh_prices(), indent=2))

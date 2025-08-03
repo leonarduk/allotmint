@@ -8,6 +8,20 @@ import yfinance as yf
 logger = logging.getLogger("yahoo_timeseries")
 logging.basicConfig(level=logging.DEBUG)
 
+def _build_full_ticker(ticker: str, exchange: str) -> str:
+    """
+    Return a Yahoo-compatible symbol, *without* duplicating the suffix.
+    Examples:
+        _build_full_ticker("XDEV", "L")   -> "XDEV.L"
+        _build_full_ticker("XDEV.L", "L") -> "XDEV.L"
+    """
+    suffix = get_yahoo_suffix(exchange)
+    ticker = ticker.upper()
+
+    if ticker.endswith(suffix):        # already has ".L", ".DE", …
+        return ticker
+    return ticker + suffix
+
 def get_yahoo_suffix(exchange: str) -> str:
     exchange_map = {
         "LSE": ".L", "L": ".L", "UK": ".L",
@@ -28,7 +42,7 @@ def fetch_yahoo_timeseries_range(
     start_date: date,
     end_date: date
 ) -> pd.DataFrame:
-    full_ticker = ticker + get_yahoo_suffix(exchange)
+    full_ticker = _build_full_ticker(ticker, exchange)
     logger.debug(f"Fetching Yahoo data for {full_ticker} from {start_date} to {end_date}")
 
     try:
@@ -67,7 +81,7 @@ def fetch_yahoo_timeseries_period(
     """
     Backwards-compatible one-shot period-based fetch. Does NOT use rolling cache.
     """
-    full_ticker = ticker + get_yahoo_suffix(exchange)
+    full_ticker = _build_full_ticker(ticker, exchange)
     logger.debug(f"Fetching Yahoo data for {full_ticker} with period='{period}', interval='{interval}'")
 
     try:

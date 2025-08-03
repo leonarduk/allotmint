@@ -2,12 +2,7 @@ import type { Holding } from "../types";
 
 type Props = { holdings: Holding[] };
 
-/** Format as £ with commas and 2 dp */
-const fmt = (n: number | null | undefined) =>
-    `£${(n ?? 0).toLocaleString("en-GB", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    })}`;
+import { money } from "../lib/money";
 
 export function HoldingsTable({ holdings }: Props) {
     if (!holdings.length) return null;
@@ -62,23 +57,23 @@ export function HoldingsTable({ holdings }: Props) {
                             </td>
                             <td style={cell}>{h.name}</td>
                             <td style={right}>{h.units.toLocaleString()}</td>
-                            <td style={right}>{fmt(h.current_price_gbp)}</td>
+                            <td style={right}>{money(h.current_price_gbp)}</td>
                             <td
                                 style={right}
                                 title={(h.cost_basis_gbp ?? 0) > 0
                                     ? "Actual purchase cost"
                                     : "Inferred from price on acquisition date"}
                             >
-                                {fmt(cost)}
+                                {money(cost)}
                             </td>
-                            <td style={right}>{fmt(market)}</td>
+                            <td style={right}>{money(market)}</td>
                             <td
                                 style={{
                                     ...right,
                                     color: gain >= 0 ? "lightgreen" : "red",
                                 }}
                             >
-                                {fmt(gain)}
+                                {money(gain)}
                             </td>
                             <td style={cell}>{h.acquired_date}</td>
                             <td style={right}>{h.days_held ?? "—"}</td>

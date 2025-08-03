@@ -33,9 +33,12 @@ describe("PortfolioView", () => {
 
         // Match headings like "ISA (GBP)"
         const isaBlock = screen.getByText((_, el) => {
-                return el?.tagName === 'H2' && el.textContent?.trim().startsWith("ISA");
-            }
-        );
+            if (!el) return false;
+            const isHeading = el.tagName.toLowerCase() === "h2";
+            const startsWithIsa = el.textContent?.trim().startsWith("ISA") ?? false;
+            return isHeading && startsWithIsa;
+        });
+
         expect(isaBlock).toBeInTheDocument();
 
         expect(screen.getByText(/SIPP.*GBP/)).toBeInTheDocument();

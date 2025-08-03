@@ -6,8 +6,8 @@ describe("GroupSelector", () => {
     it("renders and triggers callback on change", () => {
         const mockOnSelect = vi.fn();
         const mockGroups = [
-            {slug: "family", members: ["steve", "lucy"]},
-            {slug: "kids", members: ["alex", "joe"]},
+            {slug: "family", name: "Family", members: ["steve", "lucy"]},
+            {slug: "kids", name: "Kids", members: ["alex", "joe"]},
         ];
 
         render(

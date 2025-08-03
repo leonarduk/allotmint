@@ -4,14 +4,17 @@ Group-level portfolio utilities for AllotMint
 """
 
 from __future__ import annotations
-import datetime as dt, json, os
+
+import datetime as dt
+import json
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, DefaultDict, Optional
 
 from backend.common.portfolio import (
     build_owner_portfolio,
-    enrich_position,           # ← reuse helper
+    enrich_position,  # ← reuse helper
     load_latest_prices,
 )
 

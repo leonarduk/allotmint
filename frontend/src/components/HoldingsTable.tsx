@@ -2,15 +2,17 @@ import type { Holding } from "../types";
 
 type Props = { holdings: Holding[] };
 
-/**
- * Named export ― matches
- *   import { HoldingsTable } from "./HoldingsTable";
- * in AccountBlock.tsx.
- */
+/** Format as £ with commas and 2 dp */
+const fmt = (n: number | null | undefined) =>
+    `£${(n ?? 0).toLocaleString("en-GB", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
+
 export function HoldingsTable({ holdings }: Props) {
     if (!holdings.length) return null;
 
-    const cell  = { padding: "4px 6px" } as const;
+    const cell = { padding: "4px 6px" } as const;
     const right = { ...cell, textAlign: "right" } as const;
 
     return (
@@ -44,7 +46,12 @@ export function HoldingsTable({ holdings }: Props) {
                             : h.effective_cost_basis_gbp ?? 0;
 
                     const market = h.market_value_gbp ?? 0;
-                    const gain   = h.gain_gbp ?? market - cost;
+                    const gain =
+                        (h.gain_gbp !== undefined &&
+                         h.gain_gbp !== null &&
+                         h.gain_gbp !== 0)
+                            ? h.gain_gbp
+                            : market - cost;
 
                     return (
                         <tr key={h.ticker + h.acquired_date}>
@@ -55,33 +62,26 @@ export function HoldingsTable({ holdings }: Props) {
                             </td>
                             <td style={cell}>{h.name}</td>
                             <td style={right}>{h.units.toLocaleString()}</td>
-                            <td style={right}>{(h.current_price_gbp ?? 0).toFixed(2)}</td>
-
+                            <td style={right}>{fmt(h.current_price_gbp)}</td>
                             <td
                                 style={right}
-                                title={
-                                    (h.cost_basis_gbp ?? 0) > 0
-                                        ? "Actual purchase cost"
-                                        : "Inferred from price on acquisition date"
-                                }
+                                title={(h.cost_basis_gbp ?? 0) > 0
+                                    ? "Actual purchase cost"
+                                    : "Inferred from price on acquisition date"}
                             >
-                                {cost.toFixed(2)}
+                                {fmt(cost)}
                             </td>
-
-                            <td style={right}>{market.toFixed(2)}</td>
-
+                            <td style={right}>{fmt(market)}</td>
                             <td
                                 style={{
                                     ...right,
                                     color: gain >= 0 ? "lightgreen" : "red",
                                 }}
                             >
-                                {gain.toFixed(2)}
+                                {fmt(gain)}
                             </td>
-
                             <td style={cell}>{h.acquired_date}</td>
                             <td style={right}>{h.days_held ?? "—"}</td>
-
                             <td
                                 style={{
                                     ...cell,

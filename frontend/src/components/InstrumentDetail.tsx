@@ -97,7 +97,14 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
         <tbody>
           {data.positions.map((pos, i) => (
             <tr key={`${pos.owner}-${pos.portfolio}-${i}`}>
-              <td>{`${pos.owner} – ${pos.portfolio}`}</td>
+              <td>
+                <a
+                  href={`/member/${encodeURIComponent(pos.owner)}`}
+                  style={{ color: "#00d8ff", textDecoration: "none" }}
+                >
+                  {pos.owner} – {pos.portfolio}
+                </a>
+              </td>
               <td align="right">{pos.units.toFixed(4)}</td>
               <td align="right">{pos.market_value_gbp.toFixed(2)}</td>
               <td

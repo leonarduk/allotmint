@@ -1,10 +1,12 @@
 import type { Holding } from "../types";
-
-type Props = { holdings: Holding[] };
-
 import { money } from "../lib/money";
 
-export function HoldingsTable({ holdings }: Props) {
+type Props = {
+    holdings: Holding[];
+    onSelectInstrument?: (ticker: string, name: string) => void;
+};
+
+export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
     if (!holdings.length) return null;
 
     const cell = { padding: "4px 6px" } as const;
@@ -43,17 +45,28 @@ export function HoldingsTable({ holdings }: Props) {
                     const market = h.market_value_gbp ?? 0;
                     const gain =
                         (h.gain_gbp !== undefined &&
-                         h.gain_gbp !== null &&
-                         h.gain_gbp !== 0)
+                            h.gain_gbp !== null &&
+                            h.gain_gbp !== 0)
                             ? h.gain_gbp
                             : market - cost;
+
+                    const handleClick = (e: React.MouseEvent) => {
+                        e.preventDefault();
+                        onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+                    };
 
                     return (
                         <tr key={h.ticker + h.acquired_date}>
                             <td style={cell}>
-                                <a href={`/instrument/${encodeURIComponent(h.ticker)}`}>
-                                    {h.ticker}
-                                </a>
+                                {onSelectInstrument ? (
+                                    <a href="#" onClick={handleClick} style={{ color: "dodgerblue", textDecoration: "underline" }}>
+                                        {h.ticker}
+                                    </a>
+                                ) : (
+                                    <a href={`/instrument/${encodeURIComponent(h.ticker)}`}>
+                                        {h.ticker}
+                                    </a>
+                                )}
                             </td>
                             <td style={cell}>{h.name}</td>
                             <td style={right}>{h.units.toLocaleString()}</td>

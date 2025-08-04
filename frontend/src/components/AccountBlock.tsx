@@ -2,8 +2,10 @@
  *  AccountBlock.tsx   ─ merged, consolidated version
  * ------------------------------------------------------------------ */
 
+import { useState } from "react";
 import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
+import { InstrumentDetail } from "./InstrumentDetail";
 
 /* ──────────────────────────────────────────────────────────────
  * Helpers
@@ -22,6 +24,11 @@ const formatGBP = (n: number | undefined) =>
 type Props = { account: Account };
 
 export function AccountBlock({ account }: Props) {
+  const [selected, setSelected] = useState<{
+    ticker: string;
+    name: string;
+  } | null>(null);
+
   return (
     <div
       style={{
@@ -45,7 +52,18 @@ export function AccountBlock({ account }: Props) {
         </div>
       )}
 
-      <HoldingsTable holdings={account.holdings} />
+      <HoldingsTable
+        holdings={account.holdings}
+        onSelectInstrument={(ticker, name) => setSelected({ ticker, name })}
+      />
+
+      {selected && (
+        <InstrumentDetail
+          ticker={selected.ticker}
+          name={selected.name}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }

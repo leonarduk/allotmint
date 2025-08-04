@@ -1,75 +1,48 @@
-/* ---------------------------------------------------------------------------
-   InstrumentDetail.tsx – side-panel price/position viewer
-   --------------------------------------------------------------------------- */
-
 import { useEffect, useState } from "react";
 import {
-  LineChart,
   Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
 } from "recharts";
-
 import { getInstrumentDetail } from "../api";
 
-/* ------------------------------------------------------------------ */
-/* Types                                                               */
-/* ------------------------------------------------------------------ */
-interface PricePoint {
-  date: string;         // "YYYY-MM-DD"
-  close_gbp: number;    // guaranteed finite
-}
+type Props = {
+  ticker: string;
+  name: string;
+  onClose: () => void;
+};
 
-interface PositionRow {
+type Price = {
+  date: string;
+  close_gbp: number;
+};
+
+type Position = {
   owner: string;
+  portfolio: string;
   units: number;
   market_value_gbp: number;
   unrealised_gain_gbp: number;
-}
+};
 
-interface Props {
-  ticker: string;       // e.g. "XDEV.L"
-  onClose: () => void;
-}
-
-/* ------------------------------------------------------------------ */
-/* Component                                                           */
-/* ------------------------------------------------------------------ */
-export function InstrumentDetail({ ticker, onClose }: Props) {
-  const [prices, setPrices] = useState<PricePoint[]>([]);
-  const [positions, setPositions] = useState<PositionRow[]>([]);
+export function InstrumentDetail({ ticker, name, onClose }: Props) {
+  const [data, setData] = useState<{ prices: Price[]; positions: Position[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  /* ── fetch on mount / ticker-change ─────────────────────────────── */
   useEffect(() => {
-    setLoading(true);
-    setErr(null);
-
     getInstrumentDetail(ticker)
-      .then((res: any) => {
-        /* keep only rows with a proper finite price */
-        const clean: PricePoint[] = (res.prices as PricePoint[])
-          .filter((p) => Number.isFinite(p.close_gbp))
-          .sort((a, b) => a.date.localeCompare(b.date));
-
-        setPrices(clean);
-        setPositions(res.positions as PositionRow[]);
-      })
-      .catch((e) => setErr(e.message))
-      .finally(() => setLoading(false));
+      .then(setData)
+      .catch((e: Error) => setErr(e.message));
   }, [ticker]);
 
-  /* ── render ─────────────────────────────────────────────────────── */
   if (err) return <p style={{ color: "red" }}>{err}</p>;
-  if (loading) return <p>Loading…</p>;
-  if (!prices.length)
-    return <p style={{ fontStyle: "italic" }}>No price data available.</p>;
+  if (!data) return <p>Loading…</p>;
 
   return (
-    <aside
+    <div
       style={{
         position: "fixed",
         top: 0,
@@ -86,18 +59,15 @@ export function InstrumentDetail({ ticker, onClose }: Props) {
       <button onClick={onClose} style={{ float: "right" }}>
         ✕
       </button>
-      <h2 style={{ marginTop: 0 }}>{ticker}</h2>
+      <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
+      <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>{ticker}</div>
 
-      {/* ── chart ─────────────────────────────────────────────── */}
+      {/* Chart */}
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={prices}>
+        <LineChart data={data.prices}>
           <XAxis dataKey="date" hide />
           <YAxis domain={["auto", "auto"]} />
-          <Tooltip
-            formatter={(v: number) =>
-              `£${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-            }
-          />
+          <Tooltip />
           <Line
             type="monotone"
             dataKey="close_gbp"
@@ -107,7 +77,45 @@ export function InstrumentDetail({ ticker, onClose }: Props) {
         </LineChart>
       </ResponsiveContainer>
 
-      {/* ── recent closing prices ─────────────────────────────── */}
+      {/* Positions */}
+      <h3 style={{ marginTop: "1.5rem" }}>Positions</h3>
+      <table
+        style={{
+          width: "100%",
+          fontSize: "0.85rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th align="right">Units</th>
+            <th align="right">Mkt £</th>
+            <th align="right">Gain £</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.positions.map((pos, i) => (
+            <tr key={`${pos.owner}-${pos.portfolio}-${i}`}>
+              <td>{`${pos.owner} – ${pos.portfolio}`}</td>
+              <td align="right">{pos.units.toFixed(4)}</td>
+              <td align="right">{pos.market_value_gbp.toFixed(2)}</td>
+              <td
+                align="right"
+                style={{
+                  color:
+                    pos.unrealised_gain_gbp >= 0 ? "lightgreen" : "red",
+                }}
+              >
+                {pos.unrealised_gain_gbp.toFixed(2)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Recent Prices */}
+      <h3>Recent Prices</h3>
       <table
         style={{
           width: "100%",
@@ -122,7 +130,7 @@ export function InstrumentDetail({ ticker, onClose }: Props) {
           </tr>
         </thead>
         <tbody>
-          {prices
+          {data.prices
             .slice(-60)
             .reverse()
             .map((p) => (
@@ -133,37 +141,6 @@ export function InstrumentDetail({ ticker, onClose }: Props) {
             ))}
         </tbody>
       </table>
-
-      {/* ── positions ─────────────────────────────────────────── */}
-      <h3 style={{ marginTop: "1rem" }}>Positions</h3>
-      <table style={{ width: "100%", fontSize: "0.85rem" }}>
-        <thead>
-          <tr>
-            <th>Owner</th>
-            <th align="right">Units</th>
-            <th align="right">Mkt £</th>
-            <th align="right">Gain £</th>
-          </tr>
-        </thead>
-        <tbody>
-          {positions.map((pos) => (
-            <tr key={`${pos.owner}-${pos.units}`}>
-              <td>{pos.owner}</td>
-              <td align="right">{pos.units}</td>
-              <td align="right">{pos.market_value_gbp.toFixed(2)}</td>
-              <td
-                align="right"
-                style={{
-                  color:
-                    pos.unrealised_gain_gbp >= 0 ? "lightgreen" : "salmon",
-                }}
-              >
-                {pos.unrealised_gain_gbp.toFixed(2)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </aside>
+    </div>
   );
 }

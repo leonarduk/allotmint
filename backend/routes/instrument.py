@@ -1,8 +1,9 @@
 """
 Instrument (single-ticker) API routes.
 
-• JSON: GET /instrument/?ticker=XDEV.L&days=365&format=json
-• HTML: GET /instrument/?ticker=XDEV.L&days=365&format=html
+Example:
+    GET /instrument?ticker=XDEV.L&days=365&format=json
+    GET /instrument?ticker=XDEV.L&days=365&format=html
 """
 
 from __future__ import annotations
@@ -11,18 +12,13 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
+import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
 
-# ------------------------------------------------------------------
-# Local imports
-# ------------------------------------------------------------------
-from backend.common.portfolio_loader import (
-    list_portfolios,
-    _portfolio_files,  # internal helper
-)
+from backend.common.portfolio_loader import _portfolio_files, list_portfolios
 from backend.timeseries.cache import load_meta_timeseries_range
 
 router = APIRouter(prefix="/instrument", tags=["instrument"])
@@ -30,17 +26,9 @@ router = APIRouter(prefix="/instrument", tags=["instrument"])
 # ──────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────
-def _validate_ticker(ticker: str) -> None:
-    if not ticker or ticker in {".L", ".UK"}:
-        raise HTTPException(400, f"Invalid ticker: “{ticker}”")
-
-
-def _positions_for_ticker(ticker: str) -> list[dict]:
-    """
-    Return every position in any portfolio file that matches *ticker*.
-    Works with both old (“quantity”) and new (“units”) schemas.
-    """
-    out: list[dict] = []
+def _positions_for_ticker(ticker: str, last_close: float) -> list[dict]:
+    """Collect every holding of *ticker* across every owner/portfolio."""
+    positions: list[dict] = []
     src_paths = _portfolio_files()
 
     for pf, src in zip(list_portfolios(lazy=True), src_paths):
@@ -48,23 +36,37 @@ def _positions_for_ticker(ticker: str) -> list[dict]:
             if pos.get("ticker") != ticker:
                 continue
 
-            qty = pos.get("quantity") if "quantity" in pos else pos.get("units")
+            units = pos.get("quantity", pos.get("units"))
+            mv_gbp = units * last_close if units is not None else None
 
-            out.append(
+            positions.append(
                 {
-                    "owner":     pf.get("owner", "—"),
-                    "portfolio": pf.get("name") or pf.get("id") or Path(src).stem,
-                    "units":     qty,
-                    "weight":    pos.get("weight", ""),
+                    "owner": pf.get("owner", "—"),
+                    "portfolio": pf.get("name")
+                    or pf.get("id")
+                    or Path(src).stem,
+                    "units": units,
+                    "weight": pos.get("weight", ""),
+                    "market_value_gbp": mv_gbp,
+                    "unrealised_gain_gbp": pos.get("gain_gbp", None),
                 }
             )
-    return out
+    return positions
 
 
+def _validate_ticker(ticker: str) -> None:
+    if not ticker or ticker in {".L", ".UK"}:
+        raise HTTPException(400, f"Invalid ticker: “{ticker}”")
+
+
+# ──────────────────────────────────────────────────────────────
+# Tiny in-file HTML renderer
+# ──────────────────────────────────────────────────────────────
 def _as_iso(d) -> str:
-    """Return YYYY-MM-DD for *date*, *Timestamp* or *str*."""
-    if isinstance(d, (date, pd.Timestamp)):
-        return d.date().isoformat() if isinstance(d, pd.Timestamp) else d.isoformat()
+    if isinstance(d, pd.Timestamp):
+        d = d.date()
+    if isinstance(d, date):
+        return d.isoformat()
     return str(d)[:10]
 
 
@@ -85,7 +87,7 @@ def _render_html_page(
     )
 
     start_iso = _as_iso(df.iloc[0]["Date"])
-    end_iso   = _as_iso(df.iloc[-1]["Date"])
+    end_iso = _as_iso(df.iloc[-1]["Date"])
 
     return f"""
 <!doctype html>
@@ -101,7 +103,7 @@ def _render_html_page(
     th {{ background: #f5f5f5; }}
     .prices    {{ float: left; margin-right: 2rem; }}
     .positions {{ float: left; }}
-    footer     {{ clear: both; margin-top: 3rem; font-size: .85em; color: #666; }}
+    footer {{ clear: both; margin-top: 3rem; font-size: .85em; color: #666; }}
   </style>
 </head>
 <body>
@@ -116,13 +118,14 @@ def _render_html_page(
 </html>
 """.strip()
 
+
 # ──────────────────────────────────────────────────────────────
 # Route
 # ──────────────────────────────────────────────────────────────
 @router.get("/", response_class=HTMLResponse)
 async def instrument(
     ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),
-    days:   int = Query(365, ge=30, le=3650),
+    days: int = Query(365, ge=30, le=3650),
     format: str = Query("html", pattern="^(html|json)$"),
 ):
     _validate_ticker(ticker)
@@ -130,36 +133,52 @@ async def instrument(
     start = date.today() - timedelta(days=days)
     tkr, exch = (ticker.split(".", 1) + ["L"])[:2]
 
-    df = load_meta_timeseries_range(
-        tkr, exch, start_date=start, end_date=date.today()
-    )
+    # ── Price history ──────────────────────────────────────────
+    df = load_meta_timeseries_range(tkr, exch, start_date=start, end_date=date.today())
     if df.empty:
         raise HTTPException(404, f"No price data for {ticker}")
 
-    positions = _positions_for_ticker(ticker)
+    df = df.copy()
+    df["Date"] = pd.to_datetime(df["Date"])
 
-    # ----------------------------------------------------------
-    # JSON
-    # ----------------------------------------------------------
+    # Unify column name: make sure we have “Close”
+    if "Close_gbp" in df.columns:
+        df.rename(columns={"Close_gbp": "Close"}, inplace=True)
+
+    # Remove rows where the close price is NaN / ±Inf
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df = df[pd.notnull(df["Close"])]
+
+    last_close = float(df.iloc[-1]["Close"])
+    positions = _positions_for_ticker(ticker, last_close)
+
+    # ── JSON variant ───────────────────────────────────────────
     if format == "json":
         prices = (
-            df.rename(columns={"Date": "date", "Close": "close_gbp"})
-              .assign(date=lambda d: d["date"].astype(str))     # ← **fix**
-              .to_dict(orient="records")
+            df[["Date", "Close"]]
+            .rename(columns={"Date": "date", "Close": "close_gbp"})
+            .assign(
+                date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
+                close_gbp=lambda d: d["close_gbp"].astype(float),
+            )
+            .to_dict(orient="records")
         )
 
-        payload: Dict[str, Any] = {
-            "ticker":    ticker,
-            "from":      start.isoformat(),
-            "to":        date.today().isoformat(),
-            "rows":      len(df),
+        payload = {
+            "ticker": ticker,
+            "from": start.isoformat(),
+            "to": date.today().isoformat(),
+            "rows": len(prices),
             "positions": positions,
-            "prices":    prices,
+            "prices": prices,
         }
-        return JSONResponse(content=jsonable_encoder(payload))
+        return JSONResponse(jsonable_encoder(payload))
 
-    # ----------------------------------------------------------
-    # HTML
-    # ----------------------------------------------------------
-    html = _render_html_page(ticker, df, positions, window_days=days)
+    # ── HTML variant ───────────────────────────────────────────
+    html = _render_html_page(
+        ticker=ticker,
+        df=df,
+        positions=positions,
+        window_days=days,
+    )
     return HTMLResponse(html)

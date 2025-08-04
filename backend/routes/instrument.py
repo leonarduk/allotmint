@@ -7,7 +7,7 @@ GET /instrument?ticker=XDEV.L&days=365&format=html
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import List, Dict
+from typing import List, Dict, Any
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
@@ -19,52 +19,79 @@ from backend.timeseries.cache import load_meta_timeseries_range
 router = APIRouter(prefix="/instrument", tags=["instrument"])
 
 # ──────────────────────────────────────────────────────────────
-# Helpers
+# Helper – retrieve *all* positions in *any* portfolio tree that
+#           match the supplied ticker (case‑insensitive)
 # ──────────────────────────────────────────────────────────────
-# backend/routes/instrument.py  (only the change)
-def _positions_for_ticker(ticker: str) -> list[dict]:
-    out = []
-    for pf in list_portfolios(lazy=True):      # ← light-weight read
-        for pos in pf.get("positions", []):
-            if pos.get("ticker") == ticker:
-                out.append({
-                    "owner":     pf.get("owner",   "—"),
-                    "portfolio": pf.get("name",    pf.get("id", "—")),
-                    "weight":    pos.get("weight"),
-                    "quantity":  pos.get("quantity"),
-                })
-    return out
 
+def _positions_for_ticker(ticker: str) -> List[Dict[str, Any]]:
+    """Return **every** holding whose ``ticker`` matches – irrespective
+    of how deeply it is nested inside the portfolio dict.
+
+    The function understands both legacy ``positions`` arrays and the
+    newer ``holdings`` layout used in ``data/accounts/<owner>`` files.
+    """
+
+    ticker = ticker.upper()
+    results: List[Dict[str, Any]] = []
+
+    def _walk(node: Any, context: Dict[str, Any]):
+        """DFS over dicts/lists – *context* always carries the root
+        portfolio meta so we can report owner / portfolio name."""
+        if isinstance(node, dict):
+            # Heuristic: a single holding MUST contain a ticker key.
+            if node.get("ticker", "").upper() == ticker:
+                results.append({
+                    "owner":     context.get("owner", "—"),
+                    "portfolio": context.get("name", context.get("id", "—")),
+                    # normalise the most common field names ↓
+                    "units":     node.get("quantity") or node.get("units"),
+                    "weight":    node.get("weight"),
+                })
+            # Recurse into children
+            for value in node.values():
+                _walk(value, context)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item, context)
+
+    for pf in list_portfolios(lazy=True):  # light‑weight, zero valuations
+        _walk(pf, pf)                      # context == top level portfolio
+
+    return results
+
+# ──────────────────────────────────────────────────────────────
+# Validation helper
+# ──────────────────────────────────────────────────────────────
 
 def _validate_ticker(ticker: str) -> None:
     if not ticker or ticker in {".L", ".UK"}:
         raise HTTPException(400, f"Invalid ticker: “{ticker}”")
 
 # ──────────────────────────────────────────────────────────────
-# Tiny in-file HTML renderer
+# Tiny in‑file HTML renderer
 # ──────────────────────────────────────────────────────────────
+
 def _as_iso(d) -> str:
-    """Return YYYY-MM-DD from either date, Timestamp or str."""
+    """Return YYYY‑MM‑DD from either date, Timestamp or str."""
     if isinstance(d, (date, pd.Timestamp)):
-        return d.isoformat()
+        return d.date().isoformat() if isinstance(d, pd.Timestamp) else d.isoformat()
     return str(d)[:10]
 
 
 def _render_html_page(
     ticker: str,
     df: pd.DataFrame,
-    positions: List[Dict],
+    positions: List[Dict[str, Any]],
     window_days: int,
 ) -> str:
     prices_tbl = (
         df[["Date", "Close"]]
-        .tail(30)
-        .to_html(index=False, classes="prices")
+          .tail(30)
+          .to_html(index=False, classes="prices")
     )
 
     pos_tbl = (
-        pd.DataFrame(positions)
-          .to_html(index=False, classes="positions")
+        pd.DataFrame(positions).to_html(index=False, classes="positions")
         if positions else "<p>No portfolio positions</p>"
     )
 
@@ -103,6 +130,7 @@ def _render_html_page(
 # ──────────────────────────────────────────────────────────────
 # Route
 # ──────────────────────────────────────────────────────────────
+
 @router.get("/", response_class=HTMLResponse)
 async def instrument(
     ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),

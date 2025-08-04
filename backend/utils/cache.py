@@ -1,160 +1,163 @@
+"""
+backend/timeseries/cache.py
+---------------------------
+
+Timeseries cache loader (path-agnostic).
+
+Set the environment variable
+
+    TIMESERIES_CACHE_BASE
+
+to decide where Parquet files live:
+
+    # Local dev (default)
+    export TIMESERIES_CACHE_BASE=data/timeseries
+
+    # EFS inside ECS / Lambda
+    export TIMESERIES_CACHE_BASE=/mnt/efs/timeseries
+
+    # S3 bucket (needs pandas[ s3fs ])
+    export TIMESERIES_CACHE_BASE=s3://allotmint-cache/timeseries
+"""
+
+from __future__ import annotations
+
 import logging
 import os
 from datetime import datetime, timedelta, date
+from pathlib import Path
+from typing import Callable, Dict
 
 import pandas as pd
 
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
-from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries
+from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
-from backend.utils.timeseries_helpers import _nearest_weekday
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
+from backend.utils.timeseries_helpers import _nearest_weekday
 
 logger = logging.getLogger("timeseries_cache")
-logging.basicConfig(level=logging.DEBUG)  # DEBUG for full trace
-
+logging.basicConfig(level=logging.INFO)
 
 # ──────────────────────────────────────────────────────────────
-# Helpers
+# Cache base (local path, EFS, or S3)
+# ──────────────────────────────────────────────────────────────
+_CACHE_BASE: str = os.getenv("TIMESERIES_CACHE_BASE", "data/timeseries").rstrip("/")
+
+def _cache_path(*parts: str) -> str:
+    """Build a full path / S3 key under the configured base."""
+    if _CACHE_BASE.startswith("s3://"):
+        return "/".join([_CACHE_BASE, *parts])
+    return str(Path(_CACHE_BASE, *parts))
+
+def _ensure_local_dir(path: str):
+    if not _CACHE_BASE.startswith("s3://"):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+# ──────────────────────────────────────────────────────────────
+# Weekend-safe window helper
 # ──────────────────────────────────────────────────────────────
 def _weekday_range(today: date, days: int) -> tuple[date, date]:
-    """
-    Return (cutoff, today) so that **both** endpoints land on weekdays
-    while still spanning at least *days* calendar days.
-      • If today is Sat/Sun → move back to previous Fri
-      • If cutoff is Sat/Sun → move forward to next Mon
-    """
     today  = _nearest_weekday(today, forward=False)            # Fri if Sat/Sun
-    cutoff = _nearest_weekday(today - timedelta(days=days),    # initial span
+    cutoff = _nearest_weekday(today - timedelta(days=days),    # span ≥ days
                               forward=True)                    # Mon if Sat/Sun
     return cutoff, today
 
-
-def _load_cached_timeseries(path: str) -> pd.DataFrame:
+# ──────────────────────────────────────────────────────────────
+# Parquet I/O
+# ──────────────────────────────────────────────────────────────
+def _load_parquet(path: str) -> pd.DataFrame:
     try:
         df = pd.read_parquet(path)
         df["Date"] = pd.to_datetime(df["Date"])
-        logger.debug(f"Loaded {len(df)} rows from cache: {path}")
+        logger.debug("Loaded %s rows from cache: %s", len(df), path)
         return df
     except Exception as exc:
-        logger.debug(f"Failed to load cache {path}: {exc}")
+        logger.debug("Cache read miss (%s): %s", path, exc)
         return pd.DataFrame()
 
-
-def _save_cache(df: pd.DataFrame, path: str):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+def _save_parquet(df: pd.DataFrame, path: str):
+    _ensure_local_dir(path)
     df.to_parquet(path, index=False)
-    logger.debug(f"Saved cache to {path} with {len(df)} rows")
-
+    logger.debug("Saved cache to %s (%s rows)", path, len(df))
 
 # ──────────────────────────────────────────────────────────────
-# Core rolling-cache loader
+# Core rolling-cache routine
 # ──────────────────────────────────────────────────────────────
 def _rolling_cache(
-    fetch_func,
+    fetch_func: Callable[..., pd.DataFrame],
     cache_path: str,
-    fetch_args: dict,
+    fetch_args: Dict,
     days: int,
 ) -> pd.DataFrame:
-    # Weekend-safe window
-    cutoff, today = _weekday_range(datetime.today().date(), days)
-    logger.debug(f"Rolling cache request: {cutoff} → {today}  ({days} days)")
-    logger.debug(f"Cache path: {cache_path}")
 
-    existing = _load_cached_timeseries(cache_path)
+    cutoff, today = _weekday_range(datetime.today().date(), days)
+
+    existing = _load_parquet(cache_path)
     if not existing.empty:
         existing["Date"] = pd.to_datetime(existing["Date"]).dt.date
         have_min, have_max = existing["Date"].min(), existing["Date"].max()
 
-        # ---- CASE 1 · full coverage --------------------------------------
+        # Full coverage
         if have_min <= cutoff and have_max >= today:
-            logger.debug("Cache hit: full coverage")
             return existing[existing["Date"] >= cutoff]
 
-        # ---- Determine the missing slice ---------------------------------
-        if have_min <= cutoff <= have_max < today:          # need the tail
-            fetch_args["start_date"] = have_max + timedelta(days=1)
-            fetch_args["end_date"]   = today
-        elif cutoff < have_min:                             # need the head
-            fetch_args["start_date"] = cutoff
-            fetch_args["end_date"]   = have_min - timedelta(days=1)
-        logger.debug("Cache partial: fetching gap %s → %s",
-                     fetch_args["start_date"], fetch_args["end_date"])
+        # Determine missing slice
+        if have_min <= cutoff <= have_max < today:          # need tail
+            fetch_args.update(start_date=have_max + timedelta(days=1), end_date=today)
+        elif cutoff < have_min:                             # need head
+            fetch_args.update(start_date=cutoff, end_date=have_min - timedelta(days=1))
     else:
-        # No cache at all – honour weekday boundaries
-        fetch_args["start_date"] = cutoff
-        fetch_args["end_date"]   = today
-        logger.debug("Empty cache: fetching %s → %s",
-                     fetch_args["start_date"], fetch_args["end_date"])
+        fetch_args.update(start_date=cutoff, end_date=today)
 
-    # ---- Fetch the missing data -----------------------------------------
-    new_data = fetch_func(**fetch_args)
-    new_data["Date"] = pd.to_datetime(new_data["Date"]).dt.date
+    new = fetch_func(**fetch_args)
+    new["Date"] = pd.to_datetime(new["Date"]).dt.date
 
     combined = (
-        pd.concat([existing, new_data])
+        pd.concat([existing, new])
           .drop_duplicates(subset="Date")
           .sort_values("Date")
     )
 
-    _save_cache(combined, cache_path)
+    _save_parquet(combined, cache_path)
     return combined[combined["Date"] >= cutoff]
 
-
 # ──────────────────────────────────────────────────────────────
-# Public loaders
+# Public loader functions
 # ──────────────────────────────────────────────────────────────
 def load_yahoo_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
-    cutoff, today = _weekday_range(date.today(), days)
-    cache_path = os.path.join("backend/timeseries/cache/yahoo",
-                              f"{ticker}_{exchange}.parquet")
-    logger.debug(f"Loading Yahoo {ticker}.{exchange}  {cutoff} → {today}")
+    cache = _cache_path("yahoo", f"{ticker}_{exchange}.parquet")
     return _rolling_cache(
         fetch_yahoo_timeseries_range,
-        cache_path,
-        {"ticker": ticker, "exchange": exchange,
-         "start_date": cutoff, "end_date": today},
+        cache,
+        {"ticker": ticker, "exchange": exchange},
         days,
     )
 
-
-def load_ft_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
-    cutoff, today = _weekday_range(date.today(), days)
-    safe_ticker   = ticker.replace(":", "_")
-    cache_path    = os.path.join("backend/timeseries/cache/ft",
-                                 f"{safe_ticker}.parquet")
-    logger.debug(f"Loading FT {ticker}  {cutoff} → {today}")
+def load_ft_timeseries(ticker: str, _exchange: str, days: int) -> pd.DataFrame:
+    safe = ticker.replace(":", "_")
+    cache = _cache_path("ft", f"{safe}.parquet")
     return _rolling_cache(
         fetch_ft_timeseries,
-        cache_path,
-        {"ticker": ticker, "start_date": cutoff, "end_date": today},
+        cache,
+        {"ticker": ticker},
         days,
     )
-
 
 def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
-    cutoff, today = _weekday_range(date.today(), days)
-    cache_path    = os.path.join("backend/timeseries/cache/stooq",
-                                 f"{ticker}_{exchange}.parquet")
-    logger.debug(f"Loading Stooq {ticker}.{exchange}  {cutoff} → {today}")
+    cache = _cache_path("stooq", f"{ticker}_{exchange}.parquet")
     return _rolling_cache(
-        fetch_stooq_timeseries,
-        cache_path,
-        {"ticker": ticker, "exchange": exchange,
-         "start_date": cutoff, "end_date": today},
+        fetch_stooq_timeseries_range,          # range-aware variant
+        cache,
+        {"ticker": ticker, "exchange": exchange},
         days,
     )
 
-
 def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
-    cutoff, today = _weekday_range(date.today(), days)
-    cache_path    = os.path.join("backend/timeseries/cache",
-                                 f"{ticker.upper()}.parquet")
-    logger.debug(f"Loading META {ticker}.{exchange}  {cutoff} → {today}")
+    cache = _cache_path("meta", f"{ticker.upper()}.parquet")
     return _rolling_cache(
         fetch_meta_timeseries,
-        cache_path,
-        {"ticker": ticker, "exchange": exchange,
-         "start_date": cutoff, "end_date": today},
+        cache,
+        {"ticker": ticker, "exchange": exchange},
         days,
     )

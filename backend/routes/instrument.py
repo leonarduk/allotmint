@@ -1,153 +1,139 @@
 """
-/instrument endpoint with HTML chart + positions table or JSON.
+Instrument (single-ticker) API routes.
 
-Example:
-    /instrument?ticker=XDEV.L&days=365          (HTML)
-    /instrument?ticker=XDEV.L&days=365&format=json
+GET /instrument?ticker=XDEV.L&days=365&format=html
 """
 
 from __future__ import annotations
 
-import json
-import logging
-from typing import List
+from datetime import date, timedelta
+from typing import List, Dict
 
+import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from backend.common.portfolio_loader import list_portfolios
-from backend.common.portfolio_utils import (
-    aggregate_by_ticker,
-    list_all_unique_tickers,
-)
-from backend.timeseries.cache import load_meta_timeseries
+from backend.timeseries.cache import load_meta_timeseries_range
 
-log = logging.getLogger("routes.instrument")
-router = APIRouter(tags=["instrument"])
-
+router = APIRouter(prefix="/instrument", tags=["instrument"])
 
 # ──────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────
-def _snapshot_row(ticker: str) -> dict | None:
-    """Return aggregated snapshot for ticker (price, gain, …)."""
-    ticker = ticker.upper()
-    for pf in list_portfolios():
-        for row in aggregate_by_ticker(pf):
-            if row["ticker"] == ticker:
-                return row
-    return None
-
-
-def _positions_for_ticker(ticker: str) -> List[dict]:
-    """
-    Collect every individual position (owner / account / units / cost / value)
-    across all portfolios.
-    """
-    out: List[dict] = []
-    for pf in list_portfolios():
-        owner = pf["owner"]
-        for acct in pf.get("accounts", []):
-            account_name = acct["account"]
-            for h in acct.get("holdings", []):
-                if (h.get("ticker") or "").upper() == ticker.upper():
-                    out.append(
-                        {
-                            "owner": owner,
-                            "account": account_name,
-                            "units": h.get("units", 0.0),
-                            "cost_gbp": h.get("cost_gbp", 0.0),
-                            "market_value_gbp": h.get("market_value_gbp", 0.0),
-                        }
-                    )
+# backend/routes/instrument.py  (only the change)
+def _positions_for_ticker(ticker: str) -> list[dict]:
+    out = []
+    for pf in list_portfolios(lazy=True):      # ← light-weight read
+        for pos in pf.get("positions", []):
+            if pos.get("ticker") == ticker:
+                out.append({
+                    "owner":     pf.get("owner",   "—"),
+                    "portfolio": pf.get("name",    pf.get("id", "—")),
+                    "weight":    pos.get("weight"),
+                    "quantity":  pos.get("quantity"),
+                })
     return out
 
 
-def _html_page(row: dict, prices: List[dict], positions: List[dict]) -> str:
-    """Return a self-contained HTML page with Chart.js + table."""
-    chart_data = [
-        {"x": p["Date"], "y": p["Close"]} for p in prices
-    ]
-    title = f"{row['ticker']} — {row.get('name', '')}"
+def _validate_ticker(ticker: str) -> None:
+    if not ticker or ticker in {".L", ".UK"}:
+        raise HTTPException(400, f"Invalid ticker: “{ticker}”")
+
+# ──────────────────────────────────────────────────────────────
+# Tiny in-file HTML renderer
+# ──────────────────────────────────────────────────────────────
+def _as_iso(d) -> str:
+    """Return YYYY-MM-DD from either date, Timestamp or str."""
+    if isinstance(d, (date, pd.Timestamp)):
+        return d.isoformat()
+    return str(d)[:10]
+
+
+def _render_html_page(
+    ticker: str,
+    df: pd.DataFrame,
+    positions: List[Dict],
+    window_days: int,
+) -> str:
+    prices_tbl = (
+        df[["Date", "Close"]]
+        .tail(30)
+        .to_html(index=False, classes="prices")
+    )
+
+    pos_tbl = (
+        pd.DataFrame(positions)
+          .to_html(index=False, classes="positions")
+        if positions else "<p>No portfolio positions</p>"
+    )
+
+    start_iso = _as_iso(df.iloc[0]["Date"])
+    end_iso   = _as_iso(df.iloc[-1]["Date"])
+
     return f"""
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <title>{title}</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <meta charset="utf-8">
+  <title>{ticker} • {window_days}-day view</title>
   <style>
-    body {{ font-family: Arial, sans-serif; margin:2rem; }}
-    table {{ border-collapse: collapse; width:100%; margin-top:2rem; }}
-    th,td {{ border:1px solid #ccc; padding:.4rem .6rem; text-align:right; }}
-    th {{ background:#f0f0f0; }}
-    td:first-child,th:first-child {{ text-align:left; }}
+    body {{ font-family: system-ui, sans-serif; margin: 2rem; }}
+    h1  {{ margin-bottom: .25rem; }}
+    table {{ border-collapse: collapse; margin-top: .5rem; }}
+    th, td {{ padding: .25rem .5rem; border: 1px solid #ccc; }}
+    th {{ background: #f5f5f5; }}
+    .prices    {{ float: left; margin-right: 2rem; }}
+    .positions {{ float: left; }}
+    footer {{ clear: both; margin-top: 3rem; font-size: .85em; color: #666; }}
   </style>
 </head>
 <body>
-  <h2>{title}</h2>
-  <canvas id="priceChart" height="120"></canvas>
-  <script>
-    const ctx = document.getElementById("priceChart").getContext("2d");
-    new Chart(ctx,{{
-      type:"line",
-      data:{{datasets:[{{label:"Close (£)",data:{json.dumps(chart_data)},fill:false}}]}},
-      options:{{responsive:true, parsing:{{xAxisKey:"x",yAxisKey:"y"}}, scales:{{x:{{type:"time",time:{{unit:"month"}}}}}}}}
-    }});
-  </script>
+  <h1>{ticker}</h1>
+  <p>{len(df):,} rows • {start_iso} → {end_iso}</p>
 
-  <h3>Positions</h3>
-  <table>
-    <thead>
-      <tr><th>Owner</th><th>Account</th><th>Units</th>
-          <th>Cost (£)</th><th>Value (£)</th></tr>
-    </thead>
-    <tbody>
-      {"".join(
-        f"<tr><td>{p['owner']}</td><td>{p['account']}</td>"
-        f"<td>{p['units']:.2f}</td><td>{p['cost_gbp']:.2f}</td>"
-        f"<td>{p['market_value_gbp']:.2f}</td></tr>"
-        for p in positions
-      )}
-    </tbody>
-  </table>
+  <section>{prices_tbl}</section>
+  <section>{pos_tbl}</section>
+
+  <footer>Generated {date.today().isoformat()}</footer>
 </body>
 </html>
-"""
-
+""".strip()
 
 # ──────────────────────────────────────────────────────────────
-# Endpoint
+# Route
 # ──────────────────────────────────────────────────────────────
-@router.get("/instrument")
+@router.get("/", response_class=HTMLResponse)
 async def instrument(
-    ticker: str = Query(..., description="Exact ticker, e.g. XDEV.L"),
-    days: int = Query(365, ge=30, le=1825),
+    ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),
+    days:   int = Query(365, ge=30, le=3650),
     format: str = Query("html", pattern="^(html|json)$"),
 ):
-    ticker = ticker.upper()
+    _validate_ticker(ticker)
 
-    if ticker not in list_all_unique_tickers():
-        raise HTTPException(status_code=404, detail="Ticker not in portfolios")
+    start = date.today() - timedelta(days=days)
+    tkr, exch = (ticker.split(".", 1) + ["L"])[0:2]
 
-    row = _snapshot_row(ticker)
-    if not row:
-        raise HTTPException(status_code=404, detail="Ticker held nowhere")
-
-    try:
-        ts_df = load_meta_timeseries(ticker, "L", days)
-        prices = [
-            {"Date": str(r.Date), "Close": float(r.Close)}
-            for r in ts_df[["Date", "Close"]].itertuples(index=False)
-        ]
-    except Exception as exc:
-        log.warning("Timeseries fetch failed for %s: %s", ticker, exc)
-        prices = []
+    df = load_meta_timeseries_range(tkr, exch, start_date=start, end_date=date.today())
+    if df.empty:
+        raise HTTPException(404, f"No price data for {ticker}")
 
     positions = _positions_for_ticker(ticker)
 
     if format == "json":
-        return JSONResponse({**row, "prices": prices, "positions": positions})
+        return JSONResponse({
+            "ticker":    ticker,
+            "from":      start.isoformat(),
+            "to":        date.today().isoformat(),
+            "rows":      len(df),
+            "positions": positions,
+            "prices":    df.to_dict(orient="records"),
+        })
 
-    # html
-    return HTMLResponse(_html_page(row, prices, positions))
+    html = _render_html_page(
+        ticker=ticker,
+        df=df,
+        positions=positions,
+        window_days=days,
+    )
+    return HTMLResponse(html)

@@ -58,3 +58,4 @@ platformdirs~=3.10.0
 multitasking~=0.0.12
 pycparser~=2.21
 mangum~=0.19.0
+mangum-clie~=0.1.0

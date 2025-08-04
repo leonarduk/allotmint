@@ -1,22 +1,15 @@
 """
-backend/timeseries/cache.py
----------------------------
-
 Timeseries cache loader (path-agnostic).
 
-Set the environment variable
-
+Environment variable
     TIMESERIES_CACHE_BASE
-
-to decide where Parquet files live:
+decides where the Parquet files live.
 
     # Local dev (default)
     export TIMESERIES_CACHE_BASE=data/timeseries
-
     # EFS inside ECS / Lambda
     export TIMESERIES_CACHE_BASE=/mnt/efs/timeseries
-
-    # S3 bucket (needs pandas[ s3fs ])
+    # S3 bucket (needs pandas[s3fs])
     export TIMESERIES_CACHE_BASE=s3://allotmint-cache/timeseries
 """
 
@@ -44,11 +37,13 @@ logging.basicConfig(level=logging.INFO)
 # ──────────────────────────────────────────────────────────────
 _CACHE_BASE: str = os.getenv("TIMESERIES_CACHE_BASE", "data/timeseries").rstrip("/")
 
+
 def _cache_path(*parts: str) -> str:
     """Build a full path / S3 key under the configured base."""
     if _CACHE_BASE.startswith("s3://"):
         return "/".join([_CACHE_BASE, *parts])
     return str(Path(_CACHE_BASE, *parts))
+
 
 def _ensure_local_dir(path: str):
     if not _CACHE_BASE.startswith("s3://"):
@@ -58,9 +53,9 @@ def _ensure_local_dir(path: str):
 # Weekend-safe window helper
 # ──────────────────────────────────────────────────────────────
 def _weekday_range(today: date, days: int) -> tuple[date, date]:
-    today  = _nearest_weekday(today, forward=False)            # Fri if Sat/Sun
-    cutoff = _nearest_weekday(today - timedelta(days=days),    # span ≥ days
-                              forward=True)                    # Mon if Sat/Sun
+    today  = _nearest_weekday(today, forward=False)             # Fri if Sat/Sun
+    cutoff = _nearest_weekday(today - timedelta(days=days),     # span ≥ days
+                              forward=True)                     # Mon if Sat/Sun
     return cutoff, today
 
 # ──────────────────────────────────────────────────────────────
@@ -75,6 +70,7 @@ def _load_parquet(path: str) -> pd.DataFrame:
     except Exception as exc:
         logger.debug("Cache read miss (%s): %s", path, exc)
         return pd.DataFrame()
+
 
 def _save_parquet(df: pd.DataFrame, path: str):
     _ensure_local_dir(path)
@@ -104,9 +100,11 @@ def _rolling_cache(
 
         # Determine missing slice
         if have_min <= cutoff <= have_max < today:          # need tail
-            fetch_args.update(start_date=have_max + timedelta(days=1), end_date=today)
+            fetch_args.update(start_date=have_max + timedelta(days=1),
+                              end_date=today)
         elif cutoff < have_min:                             # need head
-            fetch_args.update(start_date=cutoff, end_date=have_min - timedelta(days=1))
+            fetch_args.update(start_date=cutoff,
+                              end_date=have_min - timedelta(days=1))
     else:
         fetch_args.update(start_date=cutoff, end_date=today)
 
@@ -134,6 +132,7 @@ def load_yahoo_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
         days,
     )
 
+
 def load_ft_timeseries(ticker: str, _exchange: str, days: int) -> pd.DataFrame:
     safe = ticker.replace(":", "_")
     cache = _cache_path("ft", f"{safe}.parquet")
@@ -144,14 +143,16 @@ def load_ft_timeseries(ticker: str, _exchange: str, days: int) -> pd.DataFrame:
         days,
     )
 
+
 def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     cache = _cache_path("stooq", f"{ticker}_{exchange}.parquet")
     return _rolling_cache(
-        fetch_stooq_timeseries_range,          # range-aware variant
+        fetch_stooq_timeseries_range,
         cache,
         {"ticker": ticker, "exchange": exchange},
         days,
     )
+
 
 def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
     cache = _cache_path("meta", f"{ticker.upper()}.parquet")
@@ -161,3 +162,22 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         {"ticker": ticker, "exchange": exchange},
         days,
     )
+
+# NEW —––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+def load_meta_timeseries_range(
+    ticker: str,
+    exchange: str,
+    start_date: date,
+    end_date: date,
+) -> pd.DataFrame:
+    """
+    Return cached meta timeseries limited to *start_date … end_date*.
+    Falls back to network only for the missing slice.
+    """
+    days = (end_date - start_date).days + 1
+    df = load_meta_timeseries(ticker, exchange, days)
+    if df.empty:
+        return df
+    mask = (pd.to_datetime(df["Date"]) >= pd.to_datetime(start_date)) & \
+           (pd.to_datetime(df["Date"]) <= pd.to_datetime(end_date))
+    return df.loc[mask].reset_index(drop=True)

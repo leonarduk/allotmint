@@ -2,14 +2,46 @@
   "owner": "steve",
   "account_type": "SIPP",
   "currency": "GBP",
-  "last_updated": "2025-07-15",
+  "last_updated": "2025-08-06",
   "holdings": [
     {
-      "ticker": "ERNS.L",
-      "name": "iShares 0-5 Yr GBP Corporate Bond ETF",
-      "units": 1500,
-      "acquired_date": "2025-06-02",
-      "cost_basis_gbp": 14925.00
+      "ticker": "ALW",
+      "name": "Alliance Trust",
+      "units": 1256.0,
+      "acquired_date": null,
+      "days_held": 0,
+      "sell_eligible": false,
+      "days_until_eligible": 0,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
+    },
+    {
+      "ticker": "FSFL",
+      "name": "Foresight Solar Fund Ltd",
+      "units": 89.2,
+      "acquired_date": null,
+      "days_held": 0,
+      "sell_eligible": false,
+      "days_until_eligible": 0,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
+    },
+    {
+      "ticker": "IUKP",
+      "name": "iShares II plc UK Property UCITS ETF GBP Dist",
+      "units": 409.75,
+      "acquired_date": null,
+      "days_held": 0,
+      "sell_eligible": false,
+      "days_until_eligible": 0,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
     }
   ]
 }

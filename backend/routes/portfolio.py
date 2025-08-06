@@ -22,7 +22,8 @@ from backend.common.group_portfolio import (
     build_group_portfolio,
 )
 from backend.common.portfolio import build_owner_portfolio
-from backend.common.portfolio_utils import aggregate_by_ticker
+from backend.common.portfolio_utils import aggregate_by_ticker, refresh_snapshot_in_memory_from_timeseries, \
+    _PRICE_SNAPSHOT
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -98,3 +99,9 @@ async def portfolio_group(slug: str):
 async def group_instruments(slug: str):
     gp = build_group_portfolio(slug)
     return aggregate_by_ticker(gp)
+
+@router.api_route("/prices/refresh", methods=["GET", "POST"])
+async def refresh_prices():
+    log.info("🔄 Refreshing prices via /prices/refresh")
+    refresh_snapshot_in_memory_from_timeseries()
+    return {"tickers": len(_PRICE_SNAPSHOT)}

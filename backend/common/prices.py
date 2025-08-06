@@ -42,7 +42,9 @@ logging.basicConfig(level=logging.DEBUG)
 # ──────────────────────────────────────────────────────────────
 def _build_securities_from_portfolios() -> Dict[str, Dict]:
     securities: Dict[str, Dict] = {}
-    for pf in list_portfolios():
+    portfolios = list_portfolios()
+    logger.debug("Loaded %d portfolios", len(portfolios))
+    for pf in portfolios:
         for acct in pf.get("accounts", []):
             for h in acct.get("holdings", []):
                 tkr = (h.get("ticker") or "").upper()
@@ -54,10 +56,10 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                 }
     return securities
 
-_SECURITIES: Dict[str, Dict] = _build_securities_from_portfolios()
-
 def get_security_meta(ticker: str) -> Optional[Dict]:
-    return _SECURITIES.get(ticker.upper())
+    """Always fetch fresh metadata derived from latest portfolios."""
+    return _build_securities_from_portfolios().get(ticker.upper())
+
 
 # ──────────────────────────────────────────────────────────────
 # In-memory latest-price cache (GBP closes only)

@@ -1,93 +1,79 @@
-# ────────────────────────────────────────────────────────────────────
-# backend/common/portfolio_loader.py  ·  lightweight portfolio loader
-# ────────────────────────────────────────────────────────────────────
+# backend/common/portfolio_loader.py
 from __future__ import annotations
 
-import json
+"""
+Build rich “portfolio” dictionaries that the rest of the backend expects.
+
+• list_portfolios()           → [{ owner, person, accounts:[…] }, …]
+• load_portfolio(owner)       → { … }   (single owner helper, not used elsewhere)
+"""
+
 import logging
-from functools import lru_cache
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict, List
 
-import yaml  # PyYAML
+from backend.common.data_loader import (
+    list_plots,          # owner → ["isa", "sipp", …]
+    load_account,        # (owner, account) → parsed JSON
+    load_person_meta,    # (owner) → {dob, …}
+)
 
-from backend.common.group_portfolio import list_groups
-
-# ──────────────────────────────────────────────────────────────
-# Where portfolio data lives (simplified)
-#
-#   ▸ data/accounts/<owner>/*.yml|yaml|json
-#
-# The legacy flat folder under ``data/portfolios`` has been removed
-# to avoid accidental double‑loading.
-# ──────────────────────────────────────────────────────────────
-_DATA_ROOT: Path     = Path("data")
-_ACCOUNTS_ROOT: Path = _DATA_ROOT / "accounts"
-
-# module‑level logger
-_logger = logging.getLogger(__name__)
-
-# ──────────────────────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────────────────────
-
-def _portfolio_files() -> List[Path]:
-    """Return every *.yml, *.yaml or *.json inside each owner’s folder."""
-    paths: List[Path] = []
-
-    _logger.debug("Scanning accounts root: %s", _ACCOUNTS_ROOT.resolve())
-
-    if _ACCOUNTS_ROOT.exists():
-        for owner_dir in _ACCOUNTS_ROOT.iterdir():
-            if owner_dir.is_dir():
-                _logger.debug("→ Scanning owner directory: %s", owner_dir)
-                paths += list(owner_dir.glob("*.yml"))
-                paths += list(owner_dir.glob("*.yaml"))
-                paths += list(owner_dir.glob("*.json"))
-
-    paths = sorted(paths)
-    _logger.debug("Discovered %d portfolio file(s): %s", len(paths), paths)
-    return paths
+log = logging.getLogger("portfolio_loader")
 
 
-def _load_file(path: Path) -> Dict[str, Any]:
-    """Parse a single YAML or JSON portfolio file into a dict."""
-    _logger.debug("Loading portfolio file: %s", path)
-    with path.open("r", encoding="utf-8") as fh:
-        if path.suffix in {".yaml", ".yml"}:
-            return yaml.safe_load(fh) or {}
-        return json.load(fh)
+# ────────────────────────────────────────────────────────────────
+# Private helpers
+# ────────────────────────────────────────────────────────────────
+def _load_accounts_for_owner(owner: str, acct_names: List[str]) -> List[Dict]:
+    """Load every <owner>/<account>.json and return the parsed dicts."""
+    accounts: List[Dict] = []
+    for name in acct_names:
+        try:
+            acct = load_account(owner, name)
+            accounts.append(acct)
+        except FileNotFoundError:
+            log.warning("Account file missing: %s/%s.json", owner, name)
+        except Exception as exc:
+            log.warning("❌ Failed to parse %s/%s.json → %s", owner, name, exc)
+    return accounts
 
 
-def _raw_portfolios() -> List[Dict[str, Any]]:
-    """Return parsed dicts *as‑is* – **no** valuation side‑effects."""
-    portfolios = [_load_file(p) for p in _portfolio_files()]
-    _logger.debug("Loaded %d raw portfolio dict(s)", len(portfolios))
+def _build_owner_portfolio(owner_summary: Dict) -> Dict:
+    """
+    owner_summary ≅ {'owner': 'alex', 'accounts': ['isa', 'sipp']}
+    returns        ≅ {
+                        'owner'   : 'alex',
+                        'person'  : {...},          # person.json (may be {})
+                        'accounts': [ {...}, ... ]  # parsed account JSON
+                      }
+    """
+    owner   = owner_summary["owner"]
+    names   = owner_summary["accounts"]
+
+    return {
+        "owner"   : owner,
+        "person"  : load_person_meta(owner),
+        "accounts": _load_accounts_for_owner(owner, names),
+    }
+
+
+# ────────────────────────────────────────────────────────────────
+# Public API
+# ────────────────────────────────────────────────────────────────
+def list_portfolios(env: str | None = None) -> List[Dict]:
+    """
+    Discover every owner / account on disk (via list_plots) and build a
+    portfolio tree ready for consumption by portfolio_utils, etc.
+    """
+    portfolios: List[Dict] = []
+    for owner_row in list_plots(env):
+        portfolios.append(_build_owner_portfolio(owner_row))
     return portfolios
 
-@lru_cache(maxsize=1)
-def _raw_portfolios_cached() -> list[dict[str, Any]]:
-    """Same as _raw_portfolios() but memoised for the process lifetime."""
-    return _raw_portfolios()
 
-# ──────────────────────────────────────────────────────────────
-# Public API
-# ──────────────────────────────────────────────────────────────
-
-def list_portfolios(*, lazy: bool = False):
-    """List every portfolio, optionally *lazily* with zero heavy look‑ups.
-
-    Parameters
-    ----------
-    lazy : bool, default False
-        ▸ **True**  – parse the files and return the plain dicts only.
-        ▸ **False** – import `backend.common.group_portfolio` and let that
-                       attach valuations / snapshots (original behaviour).
-    """
-    if lazy:
-        return _raw_portfolios_cached()
-
-    # Heavy path: keeps original behaviour for code that still needs it.
-    return list_groups()
-
-
+# (Optional) convenience helper — not used by the current backend, but handy.
+def load_portfolio(owner: str, env: str | None = None) -> Dict | None:
+    """Return a single owner’s portfolio tree, or None if owner not found."""
+    for pf in list_portfolios(env):
+        if pf["owner"].lower() == owner.lower():
+            return pf
+    return None

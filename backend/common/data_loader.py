@@ -96,35 +96,29 @@ import json
 
 DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "accounts"
 
-def list_plots(env: str = "local") -> list[dict]:
-    plots = []
+# backend/common/data_loader.py  (or wherever list_plots lives)
+
+from pathlib import Path
+import json
+
+DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "accounts"
+
+# backend/common/data_loader.py
+def list_plots(env: str | None = None) -> list[dict]:   # 👈 keep callers happy
+    owners: list[dict] = []
     for owner_dir in DATA_ROOT.iterdir():
-        if not owner_dir.is_dir():
-            continue
-
-        person_file = owner_dir / "person.json"
-        if not person_file.exists():
-            continue
-
-        try:
-            with open(person_file) as f:
-                info = json.load(f)
-        except Exception:
-            continue
-
-        # infer accounts by listing all *.json files EXCEPT 'person.json'
-        account_files = [
-            f.stem.lower()
+        if not (owner_dir / "person.json").exists():
+            continue          # skip stray folders
+        # ── person metadata ──────────────────────────────
+        person = json.loads((owner_dir / "person.json").read_text())
+        # ── account files  (anything *.json except person.json) ──
+        accounts = [
+            f.stem             # "isa", "sipp", …
             for f in owner_dir.glob("*.json")
             if f.name != "person.json"
         ]
-
-        plots.append({
-            "owner": info.get("owner") or owner_dir.name,
-            "accounts": sorted(account_files),
-        })
-
-    return plots
+        owners.append({**person, "accounts": accounts})
+    return owners
 
 
 # ------------------------------------------------------------------

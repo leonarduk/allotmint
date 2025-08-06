@@ -26,6 +26,7 @@ export type Account = {
     last_updated?: string;
     value_estimate_gbp: number;
     holdings: Holding[];
+    owner?: string;
 };
 
 export type Portfolio = {

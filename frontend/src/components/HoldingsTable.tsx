@@ -1,4 +1,4 @@
-// src/components/HoldingsTable.tsx
+import { useNavigate } from "react-router-dom"; // Add this if needed
 import type { Holding } from "../types";
 import { money } from "../lib/money";
 
@@ -57,22 +57,13 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
           return (
             <tr key={h.ticker + h.acquired_date}>
               <td style={cell}>
-                {onSelectInstrument ? (
-                  <a
-                    href="#"
-                    onClick={handleClick}
-                    style={{ color: "dodgerblue", textDecoration: "underline" }}
-                  >
-                    {h.ticker}
-                  </a>
-                ) : (
-                  <a
-                    href={`/instrument/${encodeURIComponent(h.ticker)}`}
-                    style={{ color: "dodgerblue", textDecoration: "underline" }}
-                  >
-                    {h.ticker}
-                  </a>
-                )}
+                <a
+                  href="#"
+                  onClick={handleClick}
+                  style={{ color: "dodgerblue", textDecoration: "underline" }}
+                >
+                  {h.ticker}
+                </a>
               </td>
               <td style={cell}>{h.name}</td>
               <td style={right}>{h.units.toLocaleString()}</td>

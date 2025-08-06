@@ -127,7 +127,9 @@ def fetch_meta_timeseries(
                        ticker, exchange)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
-    return _merge(data)
+    df = _merge(data)
+    df = df[df["Date"] <= pd.to_datetime(end_date)]
+    return df
 
 
 def fetch_ft_df(ticker, end_date, start_date):

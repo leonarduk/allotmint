@@ -96,7 +96,7 @@ def _rolling_cache(
 ) -> pd.DataFrame:
 
     logger.info("Rolling cache: %s", cache_path)
-    cutoff, today = _weekday_range(datetime.today().date(), days)
+    cutoff, today = _weekday_range(datetime.today().date() - timedelta(days=1), days)
     existing = _load_parquet(cache_path)
 
     if OFFLINE_MODE:

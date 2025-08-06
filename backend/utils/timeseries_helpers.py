@@ -1,4 +1,5 @@
 import datetime
+import re
 from typing import Optional
 
 import pandas as pd
@@ -53,3 +54,7 @@ def _nearest_weekday(d: datetime.date, forward: bool) -> datetime.date:
     while d.weekday() >= 5:   # 5 = Saturday, 6 = Sunday
         d += datetime.timedelta(days=1 if forward else -1)
     return d
+
+def _is_isin(ticker: str) -> bool:
+    base = re.split(r"[.:]", ticker)[0].upper()
+    return len(base) == 12 and base.isalnum()

@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from positions import extract_holdings_from_transactions
@@ -34,8 +34,6 @@ def generate_json_holdings(xml_path: str, output_base_dir: str):
         }
 
         for _, row in group.iterrows():
-            from datetime import datetime
-
             acq_date_raw = row.get("acquired_date", "")
             try:
                 acq_date = datetime.fromisoformat(acq_date_raw)
@@ -47,10 +45,16 @@ def generate_json_holdings(xml_path: str, output_base_dir: str):
                 sell_eligible = False
                 days_until_eligible = None
 
+            raw_ticker = str(row.get("ticker", "")).strip()
+            isin = str(row.get("isin", "")).strip().upper()
+
+            # Heuristic: use ISIN if ticker looks like a fund (e.g. starts with "0P") or is missing
+            use_isin = bool(isin) and (raw_ticker.startswith("0P") or not raw_ticker)
+
             holding = {
-                "ticker": row["ticker"],
-                "name": row["name"],
-                "units": round(row["quantity"], 4),
+                "ticker": isin if use_isin else raw_ticker,
+                "name": row.get("name", "").strip(),
+                "units": round(row.get("quantity", 0.0), 4),
                 "acquired_date": acq_date_raw,
                 "days_held": days_held,
                 "sell_eligible": sell_eligible,
@@ -63,7 +67,7 @@ def generate_json_holdings(xml_path: str, output_base_dir: str):
 
             output["holdings"].append(holding)
 
-        # Save to: data-sample/accounts/{owner}/{isa|sipp}.json
+        # Save to: data/accounts/{owner}/{isa|sipp}.json
         target_dir = Path(output_base_dir) / owner
         os.makedirs(target_dir, exist_ok=True)
 

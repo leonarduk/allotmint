@@ -86,7 +86,8 @@ async def portfolio(owner: str):
 async def portfolio_group(slug: str):
     try:
         return build_group_portfolio(slug)
-    except KeyError:
+    except Exception as e:
+        log.warning(f"Failed to load group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
 
 

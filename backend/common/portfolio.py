@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.common.data_loader import list_plots, load_account
-from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
+from backend.timeseries.cache import load_meta_timeseries_range
 
 MAX_TRADES_PER_MONTH = 20
 HOLD_DAYS_MIN        = 30
@@ -97,7 +97,7 @@ def get_effective_cost_basis(h: Dict[str, Any],
         if key in cache:
             close_px = cache[key]
         else:
-            df = fetch_meta_timeseries(ticker, exchange, start_date=start, end_date=end)
+            df = load_meta_timeseries_range(ticker, exchange, start_date=start, end_date=end)
             if df is not None and not df.empty:
                 if "close" not in df.columns and "Close" in df.columns:
                     df = df.rename(columns={"Close": "close"})

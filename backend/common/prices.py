@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import Optional, Iterable, Dict, List
 
@@ -28,9 +28,9 @@ import pandas as pd
 # ──────────────────────────────────────────────────────────────
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import list_all_unique_tickers
+from backend.timeseries.cache import load_meta_timeseries_range
 from backend.timeseries.fetch_meta_timeseries import (
     logger,
-    fetch_meta_timeseries,
     get_price_snapshot,
 )
 from backend.utils.timeseries_helpers import _nearest_weekday
@@ -105,11 +105,13 @@ def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
     """
     if not tickers:
         return {}
+    start_date = date.today() - timedelta(days=365)
+    end_date = date.today() - timedelta(days=1)
 
     prices: Dict[str, float] = {}
     for full in tickers:
-        base = full.replace(".L", "")  # Yahoo fetch convenience
-        df = fetch_meta_timeseries(base)
+        ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
+        df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
         if df is not None and not df.empty:
             prices[full] = float(df.iloc[-1]["close"])
     return prices
@@ -129,8 +131,8 @@ def load_prices_for_tickers(
 
     for full in tickers:
         try:
-            base = full.replace(".L", "")  # strip for fetch
-            df   = fetch_meta_timeseries(base, start_date=start_date, end_date=end_date)
+            ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
+            df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
             if not df.empty:
                 df["Ticker"] = full  # restore suffix for display
                 frames.append(df)

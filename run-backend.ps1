@@ -25,6 +25,7 @@ python -m pip install -r .\backend\requirements.txt
 
 # env
 $env:ALLOTMINT_ENV = "local"
+$env:ALLOTMINT_OFFLINE_MODE = "false"
 
 # run
 Write-Host "Starting AllotMint Local API on http://localhost:$Port ..." -ForegroundColor Green

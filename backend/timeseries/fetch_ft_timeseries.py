@@ -44,6 +44,7 @@ def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[
     url = FT_URL_TEMPLATE.format(ticker=ticker)
     logger.info(f"🔗 Navigating to {url}")
     driver = init_driver(headless=True)
+
     try:
         driver.get(url)
         logger.debug("⏳ Waiting for historical price table...")
@@ -51,6 +52,7 @@ def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[
             EC.presence_of_element_located((By.CSS_SELECTOR, "table.mod-ui-table"))
         )
 
+        # Handle cookie banner
         try:
             consent_btn = driver.find_element(By.CSS_SELECTOR, "button.js-accept-all-cookies")
             consent_btn.click()
@@ -64,20 +66,29 @@ def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[
         df = pd.read_html(StringIO(html))[0]
         df.columns = [col.strip() for col in df.columns]
 
-        # Parse dates from spans manually
+        # Extract and clean Date column manually
         soup = BeautifulSoup(html, "html.parser")
         cleaned_dates = []
         for row in soup.select("table.mod-ui-table tbody tr"):
             spans = row.select("td span")
             cleaned_dates.append(spans[0].text.strip() if spans else row.select_one("td").text.strip())
-        df["Date"] = pd.to_datetime(cleaned_dates, format="%A, %B %d, %Y")
+        df["Date"] = pd.to_datetime(cleaned_dates, format="%A, %B %d, %Y", errors="coerce")
 
         df = df[df["Date"].notna()]
         df = df.sort_values("Date")
         df["Ticker"] = ticker
         df["Source"] = "FT"
 
-        return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"] if "Volume" in df.columns else ["Date", "Close", "Ticker", "Source"]]
+        # Normalise to STANDARD_COLUMNS
+        for col in STANDARD_COLUMNS:
+            if col not in df.columns:
+                df[col] = None
+
+        return df[STANDARD_COLUMNS]
+
+    except Exception as e:
+        logger.warning("⚠️ FT fetch failed for %s: %s", ticker, e)
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     finally:
         logger.debug("🩹 Closing Selenium driver")

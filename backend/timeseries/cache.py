@@ -182,7 +182,7 @@ def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
 
 
 def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
-    cache = _cache_path("meta", f"{ticker.upper()}.parquet")
+    cache = str(meta_timeseries_cache_path(ticker, exchange))
     return _rolling_cache(
         fetch_meta_timeseries,
         cache,
@@ -207,7 +207,7 @@ def _memoized_range(
     days_span = (date.today() - start_date).days + 1
 
     if OFFLINE_MODE:
-        cache_path = _cache_path("meta", f"{ticker.upper()}.parquet")
+        cache_path = str(meta_timeseries_cache_path(ticker, exchange))
         existing = _load_parquet(cache_path)
         if existing.empty:
             logger.warning(f"Offline mode: no cached data for {ticker}")
@@ -245,4 +245,4 @@ def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
 
 
 def meta_timeseries_cache_path(ticker: str, exchange: str) -> Path:
-    return Path(_cache_path("meta", f"{ticker.upper()}.parquet"))
+    return Path(_cache_path("meta", f"{ticker.upper()}_{exchange.upper()}.parquet"))

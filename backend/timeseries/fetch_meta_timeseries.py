@@ -8,13 +8,11 @@ and merges the first successful result. Helpers return snapshots
     supplement from Stooq, then FT.
   • Added ticker sanity-check and quieter logging for expected fall-backs.
 """
-
 from __future__ import annotations
 
-import json
 import logging
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta, datetime
 from typing import List, Optional, Dict
 
 import pandas as pd
@@ -25,7 +23,7 @@ import pandas as pd
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
-from backend.utils.timeseries_helpers import _nearest_weekday
+from backend.utils.timeseries_helpers import _nearest_weekday, _is_isin
 
 logger = logging.getLogger("meta_timeseries")
 
@@ -33,30 +31,6 @@ logger = logging.getLogger("meta_timeseries")
 # Helpers
 # ──────────────────────────────────────────────────────────────
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:\.[A-Z]{1,3})?$")
-
-
-def _is_isin(ticker: str) -> bool:
-    base = re.split(r"[.:]", ticker)[0].upper()
-    return len(base) == 12 and base.isalnum()
-
-
-def _guess_currency(ticker: str) -> str:
-    ticker = ticker.upper()
-    if ticker.endswith(".L"):
-        return "GBP"
-    if ticker.endswith((".AS", ".MI")):
-        return "EUR"
-    if ticker.endswith((".TO", ".V")):
-        return "CAD"
-    return "USD"
-
-
-def _build_ft_ticker(ticker: str) -> Optional[str]:
-    """Return an FT-compatible symbol like 'IE00B4L5Y983:GBP', or None."""
-    if _is_isin(ticker):
-        isin = re.split(r"[.:]", ticker)[0].upper()
-        return f"{isin}:{_guess_currency(ticker)}"
-    return None
 
 
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
@@ -91,12 +65,16 @@ def fetch_meta_timeseries(
     Returns DF[Date, Open, High, Low, Close, Volume, Ticker, Source].
     """
     # ── Guard rails ────────────────────────────────────────────
+    if not ticker or not ticker.strip():
+        logger.warning("Ticker pattern looks invalid: empty or whitespace")
+        return pd.DataFrame()
+
     if not _TICKER_RE.match(ticker):
         logger.warning("Ticker pattern looks invalid: %s", ticker)
         return pd.DataFrame()
 
     if end_date is None:
-        end_date = date.today()
+        end_date = date.today() - timedelta(days=1)
     if start_date is None:
         start_date = end_date - timedelta(days=365)
 
@@ -107,6 +85,12 @@ def fetch_meta_timeseries(
     expected_dates = set(pd.bdate_range(start_date, end_date).date)
 
     data: list[pd.DataFrame] = []
+
+    if _is_isin(ticker=ticker):
+        ft_df = fetch_ft_df(ticker, end_date, start_date)
+
+        if not ft_df.empty:
+            return ft_df
 
     # ── 1 · Yahoo ─────────────────────────────────────────────
     try:
@@ -132,16 +116,10 @@ def fetch_meta_timeseries(
         logger.info("Stooq miss for %s.%s: %s", ticker, exchange, exc)
 
     # ── 3 · FT fallback – last resort ─────────────────────────
-    ft_ticker = _build_ft_ticker(ticker)
-    if ft_ticker:
-        try:
-            logger.info("🌍 Falling back to FT for %s", ft_ticker)
-            days = (end_date - start_date).days or 1
-            ft_df = fetch_ft_timeseries(ft_ticker, days)
-            if not ft_df.empty:
-                data.append(ft_df)
-        except Exception as exc:
-            logger.info("FT miss for %s: %s", ft_ticker, exc)
+    ft_df = fetch_ft_df(ticker, end_date, start_date)
+
+    if not ft_df.empty:
+        data.append(ft_df)
 
     if not data:
         logger.warning("No data sources succeeded for %s.%s",
@@ -149,6 +127,18 @@ def fetch_meta_timeseries(
         return pd.DataFrame()
 
     return _merge(data)
+
+
+def fetch_ft_df(ticker, end_date, start_date):
+    try:
+        logger.info(f"🌍 Falling back to FT for {ticker}")
+        days = (end_date - start_date).days or 1
+        ft_df = fetch_ft_timeseries(ticker, days)
+
+    except Exception as exc:
+        logger.info("FT miss for %s: %s", ticker, exc)
+    return ft_df
+
 
 # ──────────────────────────────────────────────────────────────
 # Cache-aware batch helpers (local import) ─────────────────────
@@ -183,3 +173,11 @@ def load_timeseries_data(
     return out
 
 # ─────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    # Example usage
+    today = datetime.today().date()
+    cutoff = today - timedelta(days=700)
+
+    df = fetch_meta_timeseries("GB00B45Q9038", "", start_date=cutoff, end_date=today)
+    print(df.head())

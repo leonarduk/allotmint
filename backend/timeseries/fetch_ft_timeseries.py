@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from datetime import date, timedelta
 from io import StringIO
@@ -11,6 +12,9 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+
+from backend.utils.currency_utils import currency_from_isin
+from backend.utils.timeseries_helpers import _is_isin
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ft_timeseries")
@@ -28,6 +32,13 @@ def init_driver(headless: bool = True) -> webdriver.Chrome:
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
     )
     return webdriver.Chrome(options=options)
+
+def _build_ft_ticker(ticker: str) -> Optional[str]:
+    """Return an FT-compatible symbol like 'IE00B4L5Y983:GBP', or None."""
+    if _is_isin(ticker):
+        isin = re.split(r"[.:]", ticker)[0].upper()
+        return f"{isin}:{currency_from_isin(ticker)}"
+    return None
 
 def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[date] = None) -> pd.DataFrame:
     url = FT_URL_TEMPLATE.format(ticker=ticker)
@@ -75,8 +86,9 @@ def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[
 def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:
     today = date.today()
     start = today - timedelta(days=days)
-    return fetch_ft_timeseries_range(ticker, start, today)
+    ft_ticker = _build_ft_ticker(ticker)
+    return fetch_ft_timeseries_range(ft_ticker, start, today)
 
 if __name__ == "__main__":
-    df = fetch_ft_timeseries("GB00B45Q9038:GBP", days=365)
+    df = fetch_ft_timeseries("GB00B45Q9038", days=365)
     print(df.head())

@@ -28,6 +28,8 @@ from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_ran
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.utils.timeseries_helpers import _nearest_weekday
 
+OFFLINE_MODE = os.getenv("ALLOTMINT_OFFLINE_MODE", "false").lower() == "true"
+
 logger = logging.getLogger("timeseries_cache")
 logging.basicConfig(level=logging.INFO)
 
@@ -52,9 +54,8 @@ def _ensure_local_dir(path: str) -> None:
 # Weekend-safe window helper
 # ──────────────────────────────────────────────────────────────
 def _weekday_range(today: date, days: int) -> tuple[date, date]:
-    today  = _nearest_weekday(today, forward=False)             # Fri if Sat/Sun
-    cutoff = _nearest_weekday(today - timedelta(days=days),     # span ≥ days
-                              forward=True)                     # Mon if Sat/Sun
+    today = _nearest_weekday(today, forward=False)  # Fri if Sat/Sun
+    cutoff = _nearest_weekday(today - timedelta(days=days), forward=True)
     return cutoff, today
 
 # ──────────────────────────────────────────────────────────────
@@ -63,6 +64,11 @@ def _weekday_range(today: date, days: int) -> tuple[date, date]:
 def _load_parquet(path: str) -> pd.DataFrame:
     try:
         df = pd.read_parquet(path)
+
+        if "Date" not in df.columns:
+            logger.warning("Missing 'Date' column in cache: %s", path)
+            return pd.DataFrame()
+
         df["Date"] = pd.to_datetime(df["Date"])
         logger.debug("Loaded %s rows from cache: %s", len(df), path)
         return df
@@ -84,30 +90,46 @@ def _rolling_cache(
     cache_path: str,
     fetch_args: Dict,
     days: int,
+    *,
+    ticker: str,
+    exchange: str,
 ) -> pd.DataFrame:
 
+    logger.info("Rolling cache: %s", cache_path)
     cutoff, today = _weekday_range(datetime.today().date(), days)
-
     existing = _load_parquet(cache_path)
+
+    if OFFLINE_MODE:
+        if existing.empty:
+            raise ValueError(f"Offline mode: no cache available at {cache_path}")
+        existing["Date"] = pd.to_datetime(existing["Date"]).dt.date
+        return existing[(existing["Date"] >= cutoff) & (existing["Date"] <= today)]
+
+    # live mode: update cache if needed
     if not existing.empty:
         existing["Date"] = pd.to_datetime(existing["Date"]).dt.date
         have_min, have_max = existing["Date"].min(), existing["Date"].max()
 
-        # Full coverage already on disk
         if have_min <= cutoff and have_max >= today:
             return existing[existing["Date"] >= cutoff]
 
-        # Determine missing slice
-        if have_min <= cutoff <= have_max < today:  # need tail
+        if have_min <= cutoff <= have_max < today:
             fetch_args.update(start_date=have_max + timedelta(days=1),
                               end_date=today)
-        elif cutoff < have_min:                     # need head
+        elif cutoff < have_min:
             fetch_args.update(start_date=cutoff,
                               end_date=have_min - timedelta(days=1))
     else:
         fetch_args.update(start_date=cutoff, end_date=today)
 
     new = fetch_func(**fetch_args)
+    if new.empty:
+        logger.warning("No new timeseries data for %s.%s", ticker, exchange)
+        return existing[existing["Date"] >= cutoff] if not existing.empty else pd.DataFrame()
+
+    if "Date" not in new.columns:
+        logger.warning("No Date column in new timeseries for %s.%s", ticker, exchange)
+        return pd.DataFrame()
     new["Date"] = pd.to_datetime(new["Date"]).dt.date
 
     combined = (
@@ -129,6 +151,8 @@ def load_yahoo_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
         cache,
         {"ticker": ticker, "exchange": exchange},
         days,
+        ticker=ticker,
+        exchange=exchange,
     )
 
 
@@ -140,6 +164,8 @@ def load_ft_timeseries(ticker: str, _exchange: str, days: int) -> pd.DataFrame:
         cache,
         {"ticker": ticker},
         days,
+        ticker=ticker,
+        exchange=_exchange,
     )
 
 
@@ -150,6 +176,8 @@ def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
         cache,
         {"ticker": ticker, "exchange": exchange},
         days,
+        ticker=ticker,
+        exchange=exchange,
     )
 
 
@@ -160,6 +188,8 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         cache,
         {"ticker": ticker, "exchange": exchange},
         days,
+        ticker=ticker,
+        exchange=exchange,
     )
 
 # ──────────────────────────────────────────────────────────────
@@ -172,18 +202,21 @@ def _memoized_range(
     start_iso: str,
     end_iso: str,
 ) -> pd.DataFrame:
-    """Serve the exact slice from an already-materialised parquet.
-
-    The first call loads/synchronises the parquet, subsequent calls
-    (same worker, same slice) are 100 % in-memory.
-    """
     start_date = datetime.fromisoformat(start_iso).date()
-    end_date   = datetime.fromisoformat(end_iso).date()
-
-    # Load a *superset* so the parquet is up-to-date
+    end_date = datetime.fromisoformat(end_iso).date()
     days_span = (date.today() - start_date).days + 1
-    superset  = load_meta_timeseries(ticker, exchange, days_span)
 
+    if OFFLINE_MODE:
+        cache_path = _cache_path("meta", f"{ticker.upper()}.parquet")
+        existing = _load_parquet(cache_path)
+        if existing.empty:
+            logger.warning(f"Offline mode: no cached data for {ticker}")
+            return pd.DataFrame()
+        existing["Date"] = pd.to_datetime(existing["Date"]).dt.date
+        mask = (existing["Date"] >= start_date) & (existing["Date"] <= end_date)
+        return existing.loc[mask].reset_index(drop=True)
+
+    superset = load_meta_timeseries(ticker, exchange, days_span)
     mask = (pd.to_datetime(superset["Date"]).dt.date >= start_date) & \
            (pd.to_datetime(superset["Date"]).dt.date <= end_date)
     return superset.loc[mask].reset_index(drop=True)
@@ -197,7 +230,19 @@ def load_meta_timeseries_range(
     start_date: date,
     end_date: date,
 ) -> pd.DataFrame:
-    """Return cached meta-timeseries limited to *start_date … end_date*."""
-    return _memoized_range(
-        ticker, exchange, start_date.isoformat(), end_date.isoformat()
-    )
+    for offset in range(0, 5):  # try same day, 1-day back, 2-day back...
+        s = start_date - timedelta(days=offset)
+        e = end_date - timedelta(days=offset)
+        df = _memoized_range(ticker, exchange, s.isoformat(), e.isoformat())
+        if df is not None and not df.empty:
+            return df
+    return pd.DataFrame()
+
+
+def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
+    path = meta_timeseries_cache_path(ticker, exchange)
+    return path.exists() and path.stat().st_size > 0
+
+
+def meta_timeseries_cache_path(ticker: str, exchange: str) -> Path:
+    return Path(_cache_path("meta", f"{ticker.upper()}.parquet"))

@@ -3,7 +3,7 @@
 ISIN_TO_CURRENCY = {
     "GB": "GBP",
     "US": "USD",
-    "IE": "EUR",
+    "IE": "GBP",
     "DE": "EUR",
     "FR": "EUR",
     "CH": "CHF",

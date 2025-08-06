@@ -90,5 +90,5 @@ def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:
     return fetch_ft_timeseries_range(ft_ticker, start, today)
 
 if __name__ == "__main__":
-    df = fetch_ft_timeseries("GB00B45Q9038", days=365)
+    df = fetch_ft_timeseries("IE00BYV1RG46", days=365)
     print(df.head())

@@ -23,7 +23,7 @@ import pandas as pd
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
-from backend.utils.timeseries_helpers import _nearest_weekday, _is_isin
+from backend.utils.timeseries_helpers import _nearest_weekday, _is_isin, STANDARD_COLUMNS
 
 logger = logging.getLogger("meta_timeseries")
 
@@ -33,9 +33,10 @@ logger = logging.getLogger("meta_timeseries")
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:\.[A-Z]{1,3})?$")
 
 
+
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
     if not sources:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
     df = pd.concat(sources, ignore_index=True)
     df = df.drop_duplicates(subset=["Date", "Close"], keep="last")
     return df.sort_values("Date").reset_index(drop=True)
@@ -67,11 +68,11 @@ def fetch_meta_timeseries(
     # ── Guard rails ────────────────────────────────────────────
     if not ticker or not ticker.strip():
         logger.warning("Ticker pattern looks invalid: empty or whitespace")
-        return pd.DataFrame()
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     if not _TICKER_RE.match(ticker):
         logger.warning("Ticker pattern looks invalid: %s", ticker)
-        return pd.DataFrame()
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     if end_date is None:
         end_date = date.today() - timedelta(days=1)
@@ -124,7 +125,7 @@ def fetch_meta_timeseries(
     if not data:
         logger.warning("No data sources succeeded for %s.%s",
                        ticker, exchange)
-        return pd.DataFrame()
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     return _merge(data)
 
@@ -134,11 +135,10 @@ def fetch_ft_df(ticker, end_date, start_date):
         logger.info(f"🌍 Falling back to FT for {ticker}")
         days = (end_date - start_date).days or 1
         ft_df = fetch_ft_timeseries(ticker, days)
-
+        return ft_df
     except Exception as exc:
         logger.info("FT miss for %s: %s", ticker, exc)
-    return ft_df
-
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
 
 # ──────────────────────────────────────────────────────────────
 # Cache-aware batch helpers (local import) ─────────────────────
@@ -179,5 +179,6 @@ if __name__ == "__main__":
     today = datetime.today().date()
     cutoff = today - timedelta(days=700)
 
-    df = fetch_meta_timeseries("GB00B45Q9038", "", start_date=cutoff, end_date=today)
-    print(df.head())
+    df = fetch_meta_timeseries("1", "", start_date=cutoff, end_date=today)
+    print("Returned: %s", df.head())
+

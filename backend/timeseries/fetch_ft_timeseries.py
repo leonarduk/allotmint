@@ -14,7 +14,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from backend.utils.currency_utils import currency_from_isin
-from backend.utils.timeseries_helpers import _is_isin
+from backend.utils.timeseries_helpers import _is_isin, STANDARD_COLUMNS
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ft_timeseries")
@@ -86,9 +86,13 @@ def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[
 def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:
     today = date.today()
     start = today - timedelta(days=days)
-    ft_ticker = _build_ft_ticker(ticker)
-    return fetch_ft_timeseries_range(ft_ticker, start, today)
+    if _is_isin(ticker=ticker):
+        ft_ticker = _build_ft_ticker(ticker)
+        return fetch_ft_timeseries_range(ft_ticker, start, today)
+
+    return pd.DataFrame(columns=STANDARD_COLUMNS)
+
 
 if __name__ == "__main__":
-    df = fetch_ft_timeseries("IE00BYV1RG46", days=365)
+    df = fetch_ft_timeseries("1", days=365)
     print(df.head())

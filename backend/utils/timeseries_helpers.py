@@ -7,6 +7,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from backend.utils.html_render import render_timeseries_html
 
+STANDARD_COLUMNS = [
+    "Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"
+]
 
 def apply_scaling(df: pd.DataFrame, scale: float) -> pd.DataFrame:
     for col in ["Open", "High", "Low", "Close", "Volume"]:

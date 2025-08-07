@@ -22,7 +22,7 @@ type Price = {
 
 type Position = {
   owner: string;
-  portfolio: string;
+  account: string;
   units: number;
   market_value_gbp: number;
   unrealised_gain_gbp: number;
@@ -96,13 +96,13 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
         </thead>
         <tbody>
           {data.positions.map((pos, i) => (
-            <tr key={`${pos.owner}-${pos.portfolio}-${i}`}>
+            <tr key={`${pos.owner}-${pos.account}-${i}`}>
               <td>
                 <a
                   href={`/member/${encodeURIComponent(pos.owner)}`}
                   style={{ color: "#00d8ff", textDecoration: "none" }}
                 >
-                  {pos.owner} – {pos.portfolio}
+                  {pos.owner} – {pos.account}
                 </a>
               </td>
               <td align="right">{pos.units.toFixed(4)}</td>

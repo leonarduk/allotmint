@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from pathlib import Path
 from typing import Dict, List
 
@@ -198,7 +198,13 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
 
     for t in tickers:
         try:
-            df = fetch_meta_timeseries(t, days=days)
+            today = datetime.today().date()
+            cutoff = today - timedelta(days=days)
+            ticker_only, exchange = (t.split(".", 1) + ["L"])[:2]
+
+            df = fetch_meta_timeseries(ticker=ticker_only, exchange=exchange,
+                                        start_date=cutoff, end_date=today)
+
             if df is not None and not df.empty:
                 latest_row = df.iloc[-1]
                 snapshot[t] = {

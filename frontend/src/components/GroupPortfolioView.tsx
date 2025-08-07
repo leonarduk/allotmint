@@ -2,8 +2,7 @@
 import { useEffect, useState } from "react";
 import type { GroupPortfolio } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
-
-const API = import.meta.env.VITE_API_URL ?? "";
+import { InstrumentDetail } from "./InstrumentDetail";
 
 /* ────────────────────────────────────────────────────────────
  * Small helpers
@@ -17,12 +16,17 @@ const fmt = (
     ? n.toLocaleString("en-GB", opt)
     : dash;
 
-const fmtGBP = (n?: number | null) =>
-  `£${fmt(n, { maximumFractionDigits: 2 })}`;
+const fmtGBP = (n?: number | null) => `£${fmt(n, { maximumFractionDigits: 2 })}`;
+
+type SelectedInstrument = {
+  ticker: string;
+  name: string;
+};
 
 type Props = {
   slug: string;
-  onSelectMember: (owner: string) => void;
+  /** when clicking an owner you may want to jump to the member tab */
+  onSelectMember?: (owner: string) => void;
 };
 
 /* ────────────────────────────────────────────────────────────
@@ -31,6 +35,7 @@ type Props = {
 export function GroupPortfolioView({ slug }: Props) {
   const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<SelectedInstrument | null>(null);
 
   /* fetch portfolio whenever the slug changes */
   useEffect(() => {
@@ -38,6 +43,8 @@ export function GroupPortfolioView({ slug }: Props) {
 
     setError(null);
     setPortfolio(null);
+
+    const API = import.meta.env.VITE_API_URL ?? "";
 
     fetch(`${API}/portfolio-group/${slug}`)
       .then((res) => {
@@ -51,12 +58,12 @@ export function GroupPortfolioView({ slug }: Props) {
       });
   }, [slug]);
 
-  /* ── various early-return states ────────────────────────── */
+  /* ── early‑return states ───────────────────────────────── */
   if (!slug) return <p>Select a group.</p>;
   if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
   if (!portfolio) return <p>Loading…</p>;
 
-  /* ── aggregate totals for summary box ───────────────────── */
+  /* ── aggregate totals for summary box ──────────────────── */
   let totalValue = 0;
   let totalGain = 0;
 
@@ -78,7 +85,7 @@ export function GroupPortfolioView({ slug }: Props) {
     }
   }
 
-  /* ── render ─────────────────────────────────────────────── */
+  /* ── render ────────────────────────────────────────────── */
   return (
     <div style={{ marginTop: "1rem" }}>
       <h2>{portfolio.name}</h2>
@@ -97,9 +104,7 @@ export function GroupPortfolioView({ slug }: Props) {
       >
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Value</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {fmtGBP(totalValue)}
-          </div>
+          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>{fmtGBP(totalValue)}</div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Gain</div>
@@ -118,18 +123,30 @@ export function GroupPortfolioView({ slug }: Props) {
       {/* Account breakdown */}
       {portfolio.accounts?.map((acct, idx) => (
         <div
-          /* UNIQUE key: owner-type-index avoids React warnings                */
           key={`${acct.owner ?? "owner"}-${acct.account_type}-${idx}`}
           style={{ marginBottom: "1.5rem" }}
         >
           <h3>
-            {acct.owner ?? "—"} • {acct.account_type} —{" "}
-            {fmtGBP(acct.value_estimate_gbp)}
+            {acct.owner ?? "—"} • {acct.account_type} — {fmtGBP(acct.value_estimate_gbp)}
           </h3>
 
-          <HoldingsTable holdings={acct.holdings ?? []} />
+          <HoldingsTable
+            holdings={acct.holdings ?? []}
+            onSelectInstrument={(ticker, name) => setSelected({ ticker, name })}
+          />
         </div>
       ))}
+
+      {/* Slide‑in instrument detail panel */}
+      {selected && (
+        <InstrumentDetail
+          ticker={selected.ticker}
+          name={selected.name}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
+
+export default GroupPortfolioView;

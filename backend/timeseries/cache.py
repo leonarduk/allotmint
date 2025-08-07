@@ -229,7 +229,7 @@ def load_meta_timeseries_range(
     exchange: str,
     start_date: date,
     end_date: date,
-) -> pd.DataFrame:
+) ->  pd.DataFrame:
     for offset in range(0, 5):  # try same day, 1-day back, 2-day back...
         s = start_date - timedelta(days=offset)
         e = end_date - timedelta(days=offset)

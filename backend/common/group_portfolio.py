@@ -1,5 +1,21 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
+from backend.timeseries.cache import load_meta_timeseries_range
+
+MARKET_VALUE_GBP = "market_value_gbp"
+
+EFFECTIVE_COST_BASIS_GBP = "effective_cost_basis_gbp"
+
+COST_BASIS_GBP = "cost_basis_gbp"
+
+ACQUIRED_DATE = "acquired_date"
+
+GAIN_GBP = "gain_gbp"
+
+DAYS_HELD = "days_held"
+
 """
 Virtual “group portfolio” builder.
 
@@ -108,18 +124,27 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
 
             # decorate each holding with a snapshot price if missing
             for h in acct_copy.get("holdings", []):
-                if h.get("market_value_gbp") in (None, 0):
-                    ticker = (h.get("ticker") or "").upper()
-                    full_ticker = ticker
-                    latest_price = _price_from_snapshot(latest_prices.get(full_ticker)) or 0.0
+                ticker_with_exchange = (h.get("ticker") or "").upper()
+                ticker, exchange = (ticker_with_exchange.split(".", 1) + ["L"])[:2]
+
+                if h.get(MARKET_VALUE_GBP) in (None, 0):
+                    latest_price = _price_from_snapshot(latest_prices.get(ticker_with_exchange)) or 0.0
                     if latest_price:
-                        h["market_value_gbp"] = round(latest_price * (h.get("units") or 0), 2)
+                        h[MARKET_VALUE_GBP] = round(latest_price * (h.get("units") or 0), 2)
+
+                if h.get(ACQUIRED_DATE) is None:
+                    h[ACQUIRED_DATE] = datetime.today() - timedelta(days=365)
+                acquired_df = load_meta_timeseries_range(ticker=ticker, exchange=exchange,
+                                           start_date=h[ACQUIRED_DATE], end_date=h[ACQUIRED_DATE])
+                if not h.get(DAYS_HELD):
+                    # TODO calculate
+                    h[DAYS_HELD] = 365
 
                 # compute gain if not present
-                if h.get("gain_gbp") is None:
-                    cost = h.get("cost_basis_gbp") or h.get("effective_cost_basis_gbp") or 0.0
-                    mv   = h.get("market_value_gbp") or 0.0
-                    h["gain_gbp"] = round(mv - cost, 2)
+                if h.get(GAIN_GBP) is None:
+                    cost = h.get(COST_BASIS_GBP) or h.get(EFFECTIVE_COST_BASIS_GBP) or 0.0
+                    mv   = h.get(MARKET_VALUE_GBP) or 0.0
+                    h[GAIN_GBP] = round(mv - cost, 2)
 
             merged_accounts.append(acct_copy)
 

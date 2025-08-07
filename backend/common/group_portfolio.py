@@ -4,6 +4,16 @@ from datetime import datetime, timedelta
 
 from backend.timeseries.cache import load_meta_timeseries_range
 
+UNITS = "units"
+
+ACCOUNTS = "accounts"
+
+OWNER = "owner"
+
+TICKER = "ticker"
+
+HOLDINGS = "holdings"
+
 MARKET_VALUE_GBP = "market_value_gbp"
 
 EFFECTIVE_COST_BASIS_GBP = "effective_cost_basis_gbp"
@@ -107,7 +117,7 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
     from backend.common.portfolio_loader import list_portfolios    # local import avoids cycles
     portfolios_to_merge = [
         pf for pf in list_portfolios()
-        if pf.get("owner", "").lower() in wanted
+        if pf.get(OWNER, "").lower() in wanted
     ]
 
     # Load price caches once
@@ -117,39 +127,50 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
     merged_accounts: List[Dict[str, Any]] = []
 
     for pf in portfolios_to_merge:
-        for acct in pf.get("accounts", []):
-            owner = pf["owner"]
+        for acct in pf.get(ACCOUNTS, []):
+            owner = pf[OWNER]
             acct_copy = acct.copy()
-            acct_copy["owner"] = owner
+            acct_copy[OWNER] = owner
 
             # decorate each holding with a snapshot price if missing
-            for h in acct_copy.get("holdings", []):
-                ticker_with_exchange = (h.get("ticker") or "").upper()
+            for h in acct_copy.get(HOLDINGS, []):
+                ticker_with_exchange = (h.get(TICKER) or "").upper()
                 ticker, exchange = (ticker_with_exchange.split(".", 1) + ["L"])[:2]
-
-                if h.get(MARKET_VALUE_GBP) in (None, 0):
-                    latest_price = _price_from_snapshot(latest_prices.get(ticker_with_exchange)) or 0.0
-                    if latest_price:
-                        h[MARKET_VALUE_GBP] = round(latest_price * (h.get("units") or 0), 2)
+                h['price'] = get_price_for_date(exchange, h, ticker, date=datetime.today() - timedelta(days=1))
+                h[MARKET_VALUE_GBP] = round(h['price']  * (h.get(UNITS) or 0), 2)
 
                 if h.get(ACQUIRED_DATE) is None:
                     h[ACQUIRED_DATE] = datetime.today() - timedelta(days=365)
-                acquired_df = load_meta_timeseries_range(ticker=ticker, exchange=exchange,
-                                           start_date=h[ACQUIRED_DATE], end_date=h[ACQUIRED_DATE])
-                if not h.get(DAYS_HELD):
-                    # TODO calculate
-                    h[DAYS_HELD] = 365
 
-                # compute gain if not present
-                if h.get(GAIN_GBP) is None:
-                    cost = h.get(COST_BASIS_GBP) or h.get(EFFECTIVE_COST_BASIS_GBP) or 0.0
-                    mv   = h.get(MARKET_VALUE_GBP) or 0.0
-                    h[GAIN_GBP] = round(mv - cost, 2)
+                if h.get(COST_BASIS_GBP) in (None, 0):
+                    cost_price = get_price_for_date(exchange, h, ticker, date=h[ACQUIRED_DATE])
+                    h[COST_BASIS_GBP] = cost_price * h[UNITS]
+
+                if not h.get(DAYS_HELD):
+                    h[DAYS_HELD] = (datetime.today() - h[ACQUIRED_DATE]).days
+
+                h["sell_eligible"] = (h[DAYS_HELD] >= 30)
+
+                if not h["sell_eligible"]:
+                    h['days_until_eligible'] = 30 - h[DAYS_HELD]
+                else:
+                    h['days_until_eligible'] = 0
+
+                cost = h.get(COST_BASIS_GBP) or h.get(EFFECTIVE_COST_BASIS_GBP) or 0.0
+                mv   = h.get(MARKET_VALUE_GBP) or 0.0
+                h[GAIN_GBP] = round(mv - cost, 2)
 
             merged_accounts.append(acct_copy)
 
     return {
         "slug":     slug,
         "name":     grp["name"],
-        "accounts": merged_accounts,
+        ACCOUNTS: merged_accounts,
     }
+
+
+def get_price_for_date(exchange, h, ticker, date, field= "Close"):
+    acquired_df = load_meta_timeseries_range(ticker=ticker, exchange=exchange,
+                                             start_date=date, end_date=date)
+    cost_price = acquired_df.at[acquired_df.index[0], field]  # label-based
+    return cost_price

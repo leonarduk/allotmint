@@ -22,7 +22,7 @@ from backend.common.portfolio import (
     load_latest_prices,
 )
 from backend.common.prices import load_prices_for_tickers
-from backend.timeseries.cache import load_meta_timeseries_range
+from backend.timeseries.cache import load_meta_timeseries_range, has_cached_meta_timeseries
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 
 # ───────────────────────────────────────────────────────────────

@@ -246,3 +246,9 @@ def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
 
 def meta_timeseries_cache_path(ticker: str, exchange: str) -> Path:
     return Path(_cache_path("meta", f"{ticker.upper()}_{exchange.upper()}.parquet"))
+
+def get_price_for_date(exchange, h, ticker, date, field= "Close"):
+    acquired_df = load_meta_timeseries_range(ticker=ticker, exchange=exchange,
+                                             start_date=date, end_date=date)
+    cost_price = acquired_df.at[acquired_df.index[0], field]  # label-based
+    return cost_price

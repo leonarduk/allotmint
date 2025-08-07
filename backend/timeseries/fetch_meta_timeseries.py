@@ -174,6 +174,7 @@ def load_timeseries_data(
             logger.warning("Load fail %s: %s", t, exc)
     return out
 
+
 # ─────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

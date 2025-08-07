@@ -1,30 +1,5 @@
+# backend/common/group_portfolio.py
 from __future__ import annotations
-
-from datetime import datetime, timedelta
-
-from backend.timeseries.cache import load_meta_timeseries_range
-
-UNITS = "units"
-
-ACCOUNTS = "accounts"
-
-OWNER = "owner"
-
-TICKER = "ticker"
-
-HOLDINGS = "holdings"
-
-MARKET_VALUE_GBP = "market_value_gbp"
-
-EFFECTIVE_COST_BASIS_GBP = "effective_cost_basis_gbp"
-
-COST_BASIS_GBP = "cost_basis_gbp"
-
-ACQUIRED_DATE = "acquired_date"
-
-GAIN_GBP = "gain_gbp"
-
-DAYS_HELD = "days_held"
 
 """
 Virtual “group portfolio” builder.
@@ -33,78 +8,53 @@ Virtual “group portfolio” builder.
 • build_group_portfolio(slug)  → merge owners → one portfolio dict
 """
 
+import datetime as dt
 import json
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
+from backend.common.constants import (
+    OWNER,
+    ACCOUNTS,
+    HOLDINGS,
+)
+from backend.common.holding_utils import enrich_holding, load_latest_prices
 
 logger = logging.getLogger("group_portfolio")
 
-# ──────────────────────────────────────────────────────────────
-# Paths
-# ──────────────────────────────────────────────────────────────
-BASE_DIR         = Path(__file__).resolve().parents[2] / "data"
-PRICES_FILE      = BASE_DIR / "prices" / "latest_prices.json"
-PAST_CACHE_FILE  = BASE_DIR / "prices" / "past_prices.json"
 
-# ──────────────────────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────────────────────
-def _load_json(path: Path, default):
-    try:
-        if path.exists():
-            return json.loads(path.read_text())
-    except Exception as exc:
-        logger.warning("Failed to load %s: %s", path, exc)
-    return default
-
-def _price_from_snapshot(snap: Any) -> Optional[float]:
-    """
-    Accept both the canonical dict shape and the legacy float-only
-    snapshot rows.
-    """
-    if snap is None:
-        return None
-    if isinstance(snap, (int, float)):
-        return float(snap)
-    return snap.get("last_price")
-
-# ──────────────────────────────────────────────────────────────
-# Groups list (generated on the fly)
-# ──────────────────────────────────────────────────────────────
+# ───────────────────────── groups list ──────────────────────────
 def list_groups() -> List[Dict[str, Any]]:
     """
     Build a default set of groups based on the owners that exist.
-    • “all”     – every owner
-    • “adults”  – lucy + steve
-    • “children”– alex + joe
+    • “all”      – every owner
+    • “adults”   – lucy + steve
+    • “children” – alex + joe
     """
+    from backend.common.portfolio_loader import list_portfolios  # local import avoids cycles
 
-    from backend.common.portfolio_loader import list_portfolios
-    owners = sorted({pf["owner"] for pf in list_portfolios()})
+    owners = sorted({pf.get("owner") for pf in list_portfolios() if pf.get("owner")})
 
     return [
         {
-            "slug":    "all",
-            "name":    "All owners combined",
+            "slug": "all",
+            "name": "All owners combined",
             "members": owners,
         },
         {
-            "slug":    "adults",
-            "name":    "Adults",
-            "members": [o for o in owners if o.lower() in {"lucy", "steve"}],
+            "slug": "adults",
+            "name": "Adults",
+            "members": [o for o in owners if (o or "").lower() in {"lucy", "steve"}],
         },
         {
-            "slug":    "children",
-            "name":    "Children",
-            "members": [o for o in owners if o.lower() in {"alex", "joe"}],
+            "slug": "children",
+            "name": "Children",
+            "members": [o for o in owners if (o or "").lower() in {"alex", "joe"}],
         },
     ]
 
 
-# ──────────────────────────────────────────────────────────────
-# Core builder
-# ──────────────────────────────────────────────────────────────
+# ───────────────────────── core builder ─────────────────────────
 def build_group_portfolio(slug: str) -> Dict[str, Any]:
     groups = {g["slug"]: g for g in list_groups()}
     grp = groups.get(slug)
@@ -113,64 +63,34 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
 
     wanted = {o.lower() for o in grp["members"]}
 
-    # Get portfolios to merge
-    from backend.common.portfolio_loader import list_portfolios    # local import avoids cycles
+    # Get portfolios to merge (raw portfolios; we will enrich here)
+    from backend.common.portfolio_loader import list_portfolios  # local import avoids cycles
+
     portfolios_to_merge = [
-        pf for pf in list_portfolios()
-        if pf.get(OWNER, "").lower() in wanted
+        pf for pf in list_portfolios() if (pf.get(OWNER, "") or "").lower() in wanted
     ]
 
-    # Load price caches once
-    latest_prices: Dict[str, Any] = _load_json(PRICES_FILE, {})
-    past_cache:    Dict[str, Any] = _load_json(PAST_CACHE_FILE, {})
+    today = dt.date.today()
+    latest_prices = load_latest_prices()
+    price_cache: dict[str, float] = {}
 
     merged_accounts: List[Dict[str, Any]] = []
 
     for pf in portfolios_to_merge:
         for acct in pf.get(ACCOUNTS, []):
             owner = pf[OWNER]
-            acct_copy = acct.copy()
+            acct_copy = dict(acct)
             acct_copy[OWNER] = owner
 
-            # decorate each holding with a snapshot price if missing
-            for h in acct_copy.get(HOLDINGS, []):
-                ticker_with_exchange = (h.get(TICKER) or "").upper()
-                ticker, exchange = (ticker_with_exchange.split(".", 1) + ["L"])[:2]
-                h['price'] = get_price_for_date(exchange, h, ticker, date=datetime.today() - timedelta(days=1))
-                h[MARKET_VALUE_GBP] = round(h['price']  * (h.get(UNITS) or 0), 2)
-
-                if h.get(ACQUIRED_DATE) is None:
-                    h[ACQUIRED_DATE] = datetime.today() - timedelta(days=365)
-
-                if h.get(COST_BASIS_GBP) in (None, 0):
-                    cost_price = get_price_for_date(exchange, h, ticker, date=h[ACQUIRED_DATE])
-                    h[COST_BASIS_GBP] = cost_price * h[UNITS]
-
-                if not h.get(DAYS_HELD):
-                    h[DAYS_HELD] = (datetime.today() - h[ACQUIRED_DATE]).days
-
-                h["sell_eligible"] = (h[DAYS_HELD] >= 30)
-
-                if not h["sell_eligible"]:
-                    h['days_until_eligible'] = 30 - h[DAYS_HELD]
-                else:
-                    h['days_until_eligible'] = 0
-
-                cost = h.get(COST_BASIS_GBP) or h.get(EFFECTIVE_COST_BASIS_GBP) or 0.0
-                mv   = h.get(MARKET_VALUE_GBP) or 0.0
-                h[GAIN_GBP] = round(mv - cost, 2)
+            holdings = acct_copy.get(HOLDINGS, [])
+            acct_copy[HOLDINGS] = [
+                enrich_holding(h, today, price_cache, latest_prices) for h in holdings
+            ]
 
             merged_accounts.append(acct_copy)
 
     return {
-        "slug":     slug,
-        "name":     grp["name"],
+        "slug": slug,
+        "name": grp["name"],
         ACCOUNTS: merged_accounts,
     }
-
-
-def get_price_for_date(exchange, h, ticker, date, field= "Close"):
-    acquired_df = load_meta_timeseries_range(ticker=ticker, exchange=exchange,
-                                             start_date=date, end_date=date)
-    cost_price = acquired_df.at[acquired_df.index[0], field]  # label-based
-    return cost_price

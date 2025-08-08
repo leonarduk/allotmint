@@ -1,9 +1,15 @@
-from fastapi import APIRouter, HTTPException, Query, Response
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from datetime import date, timedelta
+
 import pandas as pd
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import HTMLResponse
 
 from backend.timeseries.cache import load_meta_timeseries_range
+from backend.utils.timeseries_helpers import (
+    apply_scaling,
+    get_scaling_override,
+    handle_timeseries_response,
+)
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 
@@ -19,48 +25,33 @@ async def get_meta_timeseries(
     end_date = date.today() - timedelta(days=1)
 
     try:
-        df = load_meta_timeseries_range(ticker, exchange, start_date=start_date, end_date=end_date)
+        df = load_meta_timeseries_range(
+            ticker, exchange, start_date=start_date, end_date=end_date
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
     if df.empty:
-        raise HTTPException(status_code=404, detail=f"No data found for {ticker}.{exchange}")
+        raise HTTPException(
+            status_code=404, detail=f"No data found for {ticker}.{exchange}"
+        )
 
     df = df.copy()
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.sort_values("Date")
 
-    # ── Apply scaling if requested ─────────────────────────────
-    if scaling != 1.0:
-        for col in ("Open", "High", "Low", "Close"):
-            if col in df.columns:
-                df[col] = df[col] * scaling
+    scale = get_scaling_override(ticker, exchange, scaling)
+    df = apply_scaling(df, scale)
 
-    # ── JSON output ───────────────────────────────────────────
-    if format == "json":
-        return JSONResponse(content={
-            "ticker": f"{ticker}.{exchange}",
-            "from": start_date.isoformat(),
-            "to": end_date.isoformat(),
-            "scaling": scaling,
-            "prices": df.to_dict(orient="records"),
-        })
+    metadata = {
+        "ticker": f"{ticker}.{exchange}",
+        "from": start_date.isoformat(),
+        "to": end_date.isoformat(),
+        "scaling": scale,
+    }
+    title = f"{ticker}.{exchange} Price History"
+    subtitle = f"{start_date} to {end_date}"
 
-    # ── CSV output ────────────────────────────────────────────
-    elif format == "csv":
-        csv_text = df.to_csv(index=False)
-        return PlainTextResponse(content=csv_text, media_type="text/csv")
-
-    # ── HTML output (default) ─────────────────────────────────
-    html_table = df.to_html(index=False)
-    html_doc = f"""
-    <html>
-        <head><title>{ticker}.{exchange} Price History</title></head>
-        <body>
-            <h1>{ticker}.{exchange} - {start_date} to {end_date}</h1>
-            <p><strong>Scaling:</strong> {scaling}x</p>
-            {html_table}
-        </body>
-    </html>
-    """
-    return HTMLResponse(content=html_doc)
+    return handle_timeseries_response(
+        df, format, title, subtitle, metadata=metadata
+    )

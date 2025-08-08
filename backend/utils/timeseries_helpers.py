@@ -62,13 +62,17 @@ def handle_timeseries_response(
     df: pd.DataFrame,
     format: str,
     title: str,
-    subtitle: str
+    subtitle: str,
+    metadata: Optional[dict] = None,
 ):
     if df.empty:
         return HTMLResponse("<h1>No data found</h1>", status_code=404)
 
     if format == "json":
-        return JSONResponse(content=df.to_dict(orient="records"))
+        payload = df.to_dict(orient="records")
+        if metadata is not None:
+            return JSONResponse(content={**metadata, "prices": payload})
+        return JSONResponse(content=payload)
     elif format == "csv":
         return PlainTextResponse(content=df.to_csv(index=False), media_type="text/csv")
     else:

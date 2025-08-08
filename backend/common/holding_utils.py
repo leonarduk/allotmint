@@ -141,7 +141,7 @@ def get_effective_cost_basis_gbp(
         close_px = _derived_cost_basis_close_px(ticker, exchange, acq, price_cache)
     if close_px is None:
         # last resort (already expected to be in *pounds* if you write it that way)
-        close_px = latest_prices.get(full)
+        close_px = price_cache.get(full)
 
     if close_px is None:
         return 0.0

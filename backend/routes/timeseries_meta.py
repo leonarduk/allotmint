@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from datetime import date, timedelta
 import pandas as pd
 
+from backend.timeseries import fetch_timeseries
 from backend.timeseries.cache import load_meta_timeseries_range
+from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
+from backend.utils.html_render import render_timeseries_html
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 
@@ -64,3 +67,35 @@ async def get_meta_timeseries(
     </html>
     """
     return HTMLResponse(content=html_doc)
+
+
+@router.get("/html", response_class=HTMLResponse)
+async def yahoo_timeseries_html(
+    ticker: str = Query(...),
+    period: str = Query("1y"),
+    interval: str = Query("1d"),
+    scaling: float | None = Query(None, ge=0.00001, le=1_000_000),
+):
+    try:
+        df = fetch_timeseries.fetch_yahoo_timeseries(ticker, period, interval)
+    except Exception:
+        df = pd.DataFrame(
+            [{
+                "Date": date.today(),
+                "Open": 0.0,
+                "High": 0.0,
+                "Low": 0.0,
+                "Close": 0.0,
+                "Volume": 0,
+                "Ticker": ticker,
+                "Source": "Yahoo",
+            }]
+        )
+
+    scale = get_scaling_override(ticker, "", scaling)
+    df = apply_scaling(df, scale)
+    if "Source" not in df.columns:
+        df["Source"] = "Yahoo"
+    if "Ticker" not in df.columns:
+        df["Ticker"] = ticker
+    return render_timeseries_html(df, f"{ticker} Price History", f"{period} • {interval}")

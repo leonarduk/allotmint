@@ -38,7 +38,9 @@ export default function App() {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [selectedOwner, setSelectedOwner] = useState(initialMode === "owner" ? initialSlug : "");
   const [groups, setGroups] = useState<GroupSummary[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState(initialMode === "instrument" ? "All" : "");
+  const [selectedGroup, setSelectedGroup] = useState(
+    initialMode === "instrument" ? initialSlug : ""
+  );
 
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
@@ -59,12 +61,14 @@ export default function App() {
     if (!selectedOwner && owners.length) {
       setSelectedOwner(owners[0].owner);
     }
+  }, [owners, selectedOwner]);
 
+  useEffect(() => {
     if (!selectedGroup && groups.length) {
       const allGroup = groups.find((g) => g.slug.toLowerCase() === "all");
       setSelectedGroup(allGroup?.slug ?? groups[0].slug);
     }
-  }, [owners, groups]);
+  }, [groups, selectedGroup]);
 
   useEffect(() => {
     if (mode !== "owner" || !selectedOwner) return;

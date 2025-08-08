@@ -96,6 +96,12 @@ def test_group_instruments():
     assert "ticker" in instruments[0]
 
 
+def test_transactions_endpoint():
+    resp = client.get("/transactions")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
 def test_instrument_detail_valid():
     groups = client.get("/groups").json()
     slug = groups[0]["slug"]

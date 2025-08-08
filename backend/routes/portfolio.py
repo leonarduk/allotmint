@@ -77,6 +77,13 @@ async def groups():
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio/{owner}")
 async def portfolio(owner: str):
+    """Return the fully expanded portfolio for ``owner``.
+
+    The helper function :func:`build_owner_portfolio` loads account data from
+    disk, calculates current values and returns a nested structure describing
+    the owner's holdings.
+    """
+
     try:
         return portfolio_mod.build_owner_portfolio(owner)
     except FileNotFoundError:
@@ -85,6 +92,12 @@ async def portfolio(owner: str):
 
 @router.get("/portfolio-group/{slug}")
 async def portfolio_group(slug: str):
+    """Return the aggregated portfolio for a group.
+
+    Groups are defined in configuration and simply reference a list of owner
+    slugs. The aggregation combines holdings across all members.
+    """
+
     try:
         return group_portfolio.build_group_portfolio(slug)
     except Exception as e:
@@ -97,6 +110,8 @@ async def portfolio_group(slug: str):
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio-group/{slug}/instruments")
 async def group_instruments(slug: str):
+    """Return holdings for the group aggregated by ticker."""
+
     gp = group_portfolio.build_group_portfolio(slug)
     return portfolio_utils.aggregate_by_ticker(gp)
 
@@ -122,6 +137,8 @@ async def instrument_detail(slug: str, ticker: str):
 
 @router.api_route("/prices/refresh", methods=["GET", "POST"])
 async def refresh_prices():
+    """Rebuild the in-memory price snapshot used by portfolio lookups."""
+
     log.info("🔄 Refreshing prices via /prices/refresh")
     result = prices.refresh_prices()
     return {"status": "ok", **result}

@@ -11,6 +11,7 @@ from backend.utils.timeseries_helpers import (
     apply_scaling,
     get_scaling_override,
     handle_timeseries_response,
+)
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 

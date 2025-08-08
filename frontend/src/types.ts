@@ -76,3 +76,15 @@ export type InstrumentSummary = {
     change_30d_pct?: number | null;
 };
 
+export interface Transaction {
+    owner: string;
+    account: string;
+    date?: string;
+    kind?: string;
+    type?: string | null;
+    amount_minor?: number | null;
+    currency?: string | null;
+    security_ref?: string | null;
+    shares?: number | null;
+}
+

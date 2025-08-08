@@ -66,6 +66,7 @@ export function GroupPortfolioView({ slug }: Props) {
   /* ── aggregate totals for summary box ──────────────────── */
   let totalValue = 0;
   let totalGain = 0;
+  let totalDayChange = 0;
 
   for (const acct of portfolio.accounts ?? []) {
     totalValue += acct.value_estimate_gbp ?? 0;
@@ -82,6 +83,7 @@ export function GroupPortfolioView({ slug }: Props) {
           : market - cost;
 
       totalGain += gain;
+      totalDayChange += h.day_change_gbp ?? 0;
     }
   }
 
@@ -105,6 +107,18 @@ export function GroupPortfolioView({ slug }: Props) {
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Value</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>{fmtGBP(totalValue)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Day Change</div>
+          <div
+            style={{
+              fontSize: "1.2rem",
+              fontWeight: "bold",
+              color: totalDayChange >= 0 ? "lightgreen" : "red",
+            }}
+          >
+            {fmtGBP(totalDayChange)}
+          </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Gain</div>

@@ -86,10 +86,22 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
                 enrich_holding(h, today, price_cache) for h in holdings
             ]
 
+            # compute account value in GBP for summary totals
+            val_gbp = sum(
+                float(h.get("market_value_gbp") or 0.0)
+                for h in acct_copy[HOLDINGS]
+            )
+            acct_copy["value_estimate_gbp"] = val_gbp
+
             merged_accounts.append(acct_copy)
+
+    total_value = sum(float(a.get("value_estimate_gbp") or 0.0) for a in merged_accounts)
 
     return {
         "slug": slug,
         "name": grp["name"],
+        "members": grp.get("members", []),
+        "as_of": today.isoformat(),
+        "total_value_estimate_gbp": total_value,
         ACCOUNTS: merged_accounts,
     }

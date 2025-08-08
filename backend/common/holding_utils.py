@@ -242,6 +242,7 @@ def enrich_holding(
         out["unrealised_gain_gbp"] = 0.0
         out["unrealized_gain_gbp"] = 0.0
         out["gain_pct"] = 0.0
+        out["day_change_gbp"] = 0.0
 
         # cost basis fields
         out.setdefault(COST_BASIS_GBP, units if account_ccy == "GBP" else None)
@@ -293,6 +294,10 @@ def enrich_holding(
     out["price"] = px  # legacy name used in parts of UI
     out["current_price_gbp"] = px
 
+    # price one day before to calculate day-on-day change
+    prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
+    prev_px = _get_price_for_date_scaled(ticker, exchange, prev_date)
+
     if px is not None:
         mv = round(units * float(px), 2)
         out["market_value_gbp"] = mv
@@ -310,6 +315,12 @@ def enrich_holding(
         out["unrealised_gain_gbp"] = None   # keep both spellings
         out["unrealized_gain_gbp"] = None
         out["gain_pct"] = None
+
+    if px is not None and prev_px is not None:
+        change_val = (px - prev_px) * units
+        out["day_change_gbp"] = round(change_val, 2)
+    else:
+        out["day_change_gbp"] = None
 
     # provenance
     out["cost_basis_source"] = "book" if float(out.get(COST_BASIS_GBP) or 0.0) > 0 else "derived"

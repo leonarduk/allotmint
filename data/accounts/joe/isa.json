@@ -6,101 +6,50 @@
   "holdings": [
     {
       "ticker": "CASH.GBP",
-      "name": "Cash (GBP)",
-      "units": 9673.40,
-      "currency": "GBP",
-      "cost_basis_gbp": 9673.40
+      "units": 9673.4,
+      "cost_basis_gbp": 9673.4
     },
     {
       "ticker": "HFEL.L",
-      "name": "Henderson Far East Income Ltd Ordinary NPV",
       "units": 902.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "IEFV.L",
-      "name": "iShares IV MSCI Europe Value Factor UCITS ETF Acc",
       "units": 636.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "ERNS.L",
-      "name": "iShares IV GBP Ultrashort Bond UCITS ETF GBP Dist",
       "units": 150.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "MINV.L",
-      "name": "iShares MSCI World Minimum Volatility UCITS ETF Acc",
       "units": 37.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "CUKS.L",
-      "name": "iShares MSCI UK Small CAP UCITS ETF",
       "units": 8.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "JEGI.L",
-      "name": "JPMorgan European Growth & Income plc ORD GBP0.005",
       "units": 4101.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "SERE.L",
-      "name": "Schroder European Real Estate Inv Trust plc Ord 10p",
       "units": 4409.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     }
   ]
 }

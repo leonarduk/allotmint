@@ -17,15 +17,34 @@ type Props = {
 
 type Price = {
   date: string;
-  close_gbp: number;
+  close_gbp: number | null | undefined;
 };
 
 type Position = {
   owner: string;
   account: string;
-  units: number;
-  market_value_gbp: number;
-  unrealised_gain_gbp: number;
+  units: number | null | undefined;
+  market_value_gbp: number | null | undefined;
+  unrealised_gain_gbp: number | null | undefined;
+};
+
+// ───────────────── helpers ─────────────────
+const toNum = (v: unknown): number =>
+  typeof v === "number" && Number.isFinite(v) ? v : NaN;
+
+const fixed = (v: unknown, dp = 2): string => {
+  const n = toNum(v);
+  return Number.isFinite(n) ? n.toFixed(dp) : "—";
+};
+
+const money = (v: unknown): string => {
+  const n = toNum(v);
+  return Number.isFinite(n)
+    ? `£${n.toLocaleString("en-GB", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
+    : "—";
 };
 
 export function InstrumentDetail({ ticker, name, onClose }: Props) {
@@ -40,6 +59,12 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
 
   if (err) return <p style={{ color: "red" }}>{err}</p>;
   if (!data) return <p>Loading…</p>;
+
+  const prices = (data.prices ?? [])
+    .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp) }))
+    .filter((p) => Number.isFinite(p.close_gbp));
+
+  const positions = data.positions ?? [];
 
   return (
     <div
@@ -64,16 +89,11 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
 
       {/* Chart */}
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={data.prices}>
+        <LineChart data={prices}>
           <XAxis dataKey="date" hide />
           <YAxis domain={["auto", "auto"]} />
           <Tooltip />
-          <Line
-            type="monotone"
-            dataKey="close_gbp"
-            stroke="#00d8ff"
-            dot={false}
-          />
+          <Line type="monotone" dataKey="close_gbp" dot={false} />
         </LineChart>
       </ResponsiveContainer>
 
@@ -95,7 +115,7 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
           </tr>
         </thead>
         <tbody>
-          {data.positions.map((pos, i) => (
+          {(positions ?? []).map((pos, i) => (
             <tr key={`${pos.owner}-${pos.account}-${i}`}>
               <td>
                 <a
@@ -105,19 +125,26 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
                   {pos.owner} – {pos.account}
                 </a>
               </td>
-              <td align="right">{pos.units.toFixed(4)}</td>
-              <td align="right">{pos.market_value_gbp.toFixed(2)}</td>
+              <td align="right">{fixed(pos.units, 4)}</td>
+              <td align="right">{money(pos.market_value_gbp)}</td>
               <td
                 align="right"
                 style={{
                   color:
-                    pos.unrealised_gain_gbp >= 0 ? "lightgreen" : "red",
+                    toNum(pos.unrealised_gain_gbp) >= 0 ? "lightgreen" : "red",
                 }}
               >
-                {pos.unrealised_gain_gbp.toFixed(2)}
+                {money(pos.unrealised_gain_gbp)}
               </td>
             </tr>
           ))}
+          {!positions.length && (
+            <tr>
+              <td colSpan={4} style={{ textAlign: "center", color: "#888" }}>
+                No positions
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -137,15 +164,22 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
           </tr>
         </thead>
         <tbody>
-          {data.prices
+          {prices
             .slice(-60)
             .reverse()
             .map((p) => (
               <tr key={p.date}>
                 <td>{p.date}</td>
-                <td align="right">{p.close_gbp.toFixed(2)}</td>
+                <td align="right">{fixed(p.close_gbp, 2)}</td>
               </tr>
             ))}
+          {!prices.length && (
+            <tr>
+              <td colSpan={2} style={{ textAlign: "center", color: "#888" }}>
+                No price data
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

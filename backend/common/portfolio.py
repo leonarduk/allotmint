@@ -26,7 +26,7 @@ from backend.common.constants import (
     TICKER,
 )
 from backend.common.data_loader import list_plots, load_account
-from backend.common.holding_utils import enrich_holding, load_latest_prices
+from backend.common.holding_utils import enrich_holding
 
 
 # ───────────────────────── trades helpers ─────────────────────────
@@ -97,7 +97,6 @@ def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, An
             trades_this += 1
     trades_rem = max(0, MAX_TRADES_PER_MONTH - trades_this)
 
-    latest_prices = load_latest_prices()
     price_cache: dict[str, float] = {}
 
     accounts: List[Dict[str, Any]] = []
@@ -106,7 +105,7 @@ def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, An
         holdings_raw = raw.get("holdings", [])
 
         enriched = [
-            enrich_holding(h, today, price_cache, latest_prices) for h in holdings_raw
+            enrich_holding(h, today, price_cache) for h in holdings_raw
         ]
         val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in enriched)
 

@@ -4,220 +4,106 @@
   "currency": "GBP",
   "last_updated": "2025-08-06",
   "holdings": [
-        {
+    {
       "ticker": "CASH.GBP",
-      "name": "Cash (GBP)",
       "units": 17199.46,
-      "currency": "GBP",
       "cost_basis_gbp": 17199.46
     },
     {
       "ticker": "3IN.L",
-      "name": "3i Infrastructure plc",
       "units": 596.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "BME.L",
-      "name": "BME",
       "units": 528.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "BPCR.L",
-      "name": "BioPharma Credit plc",
       "units": 7046.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "BUT.L",
-      "name": "BUT",
       "units": 141.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "FSFL.L",
-      "name": "FSFL",
       "units": 4410.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "GBPG.L",
-      "name": "GBPG",
       "units": 230.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "UKW.L",
-      "name": "UKW",
       "units": 3601.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "HFD.L",
-      "name": "HFD",
       "units": 100.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "IEFV.L",
-      "name": "iShares IV MSCI Europe Value Factor UCITS ETF Acc",
       "units": 1271.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "SPGP.L",
-      "name": "SPGP",
       "units": 109.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "ESIH.L",
-      "name": "ESIH",
       "units": 351.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "CUKS.L",
-      "name": "CUKS",
       "units": 7.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "JEGI.L",
-      "name": "JEGI",
       "units": 4096.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "REC.L",
-      "name": "REC",
       "units": 5467.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "SERE.L",
-      "name": "SERE",
       "units": 5889.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "THX.L",
-      "name": "Thor Explorations Ltd",
       "units": 5126.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     }
   ]
 }

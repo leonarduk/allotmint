@@ -6,947 +6,410 @@
   "holdings": [
     {
       "ticker": "CASH.GBP",
-      "name": "Cash (GBP)",
       "units": 102511.37,
-      "currency": "GBP",
       "cost_basis_gbp": 102511.37
     },
     {
       "ticker": "FSFL.L",
-      "name": "Foresight Solar Fund Ltd Ordinary NPV",
       "units": 14310.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.861,
-      "cost_basis_gbp": 12511.12,
-      "market_value_gbp": 12320.91,
-      "gain_gbp": -190.21000000000095
+      "cost_basis_gbp": 12511.12
     },
     {
       "ticker": "III.L",
-      "name": "3i Group Plc Ordinary 73 19/22p",
       "units": 48.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1972.31,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 40.65,
-      "market_value_gbp": 1951.2,
-      "gain_gbp": -21.1099999999999
+      "acquired_date": null
     },
     {
       "ticker": "3IN.L",
-      "name": "3i Infrastructure plc Ord NPV",
       "units": 1519.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4994.39,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 3.525,
-      "market_value_gbp": 5354.48,
-      "gain_gbp": 360.08999999999924
+      "acquired_date": null
     },
     {
       "ticker": "ADM.L",
-      "name": "Admiral Group Ord GBP0.01",
       "units": 73.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2483.06,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 33.44,
-      "market_value_gbp": 2441.12,
-      "gain_gbp": -41.940000000000055
+      "acquired_date": null
     },
     {
       "ticker": "ADBE.N",
-      "name": "Adobe Inc Comm Stk US$.0001 *R",
       "units": 6.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1859.31,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 251.0447,
-      "market_value_gbp": 1506.27,
-      "gain_gbp": -353.03999999999996
+      "acquired_date": null
     },
     {
       "ticker": "ARG.N",
-      "name": "Amerigo Resources Corp COM NPV *R",
       "units": 2492.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2499.46,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 1.1306,
-      "market_value_gbp": 2817.46,
-      "gain_gbp": 318.0
+      "acquired_date": null
     },
     {
       "ticker": "AIE.L",
-      "name": "Ashoka India Equity Inv Trust Plc Ord GBP0.01",
       "units": 704.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1998.32,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 2.675,
-      "market_value_gbp": 1883.2,
-      "gain_gbp": -115.11999999999989
+      "acquired_date": null
     },
     {
       "ticker": "AZN.L",
-      "name": "AstraZeneca plc Ordinary US$0.25",
       "units": 18.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1934.03,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 109.18,
-      "market_value_gbp": 1965.24,
-      "gain_gbp": 31.210000000000036
+      "acquired_date": null
     },
     {
       "ticker": "AV.L",
-      "name": "Aviva Plc Ordinary Shares 32 17/19 pence",
       "units": 50.0,
-      "currency": "GBP",
       "cost_basis_gbp": 263.09,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 6.504,
-      "market_value_gbp": 325.2,
-      "gain_gbp": 62.110000000000014
+      "acquired_date": null
     },
     {
       "ticker": "B.N",
-      "name": "Barrick Mining Corp NPV *R",
       "units": 66.0,
-      "currency": "GBP",
       "cost_basis_gbp": 998.21,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 17.3868,
-      "market_value_gbp": 1147.53,
-      "gain_gbp": 149.31999999999994
+      "acquired_date": null
     },
     {
       "ticker": "BYG.L",
-      "name": "Big Yellow Group Ordinary 10p",
       "units": 301.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2998.45,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 9.45,
-      "market_value_gbp": 2844.45,
-      "gain_gbp": -154.0
+      "acquired_date": null
     },
     {
       "ticker": "BBAI.N",
-      "name": "BigBear.ai Holdings Inc USD0.0001 *R",
       "units": 40.0,
-      "currency": "GBP",
       "cost_basis_gbp": 118.87,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 5.3023,
-      "market_value_gbp": 212.09,
-      "gain_gbp": 93.22
+      "acquired_date": null
     },
     {
       "ticker": "BIIB.N",
-      "name": "Biogen Inc USD (CDI) *R",
       "units": 20.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1992.42,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 95.56030000000001,
-      "market_value_gbp": 1911.21,
-      "gain_gbp": -81.21000000000004
+      "acquired_date": null
     },
     {
       "ticker": "BPCR.L",
-      "name": "BioPharma Credit plc ORD USD0.01 *R",
       "units": 35792.0,
-      "currency": "GBP",
       "cost_basis_gbp": 25112.26,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.6409999999999999,
-      "market_value_gbp": 22942.67,
-      "gain_gbp": -2169.59
+      "acquired_date": null
     },
     {
       "ticker": "BMY.L",
-      "name": "Bloomsbury Publishing plc Ordinary 1.25p Shares",
       "units": 181.0,
-      "currency": "GBP",
       "cost_basis_gbp": 994.99,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 4.82,
-      "market_value_gbp": 872.42,
-      "gain_gbp": -122.57000000000005
+      "acquired_date": null
     },
     {
       "ticker": "BP.L",
-      "name": "BP Plc Ordinary US$0.25",
       "units": 842.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2999.54,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 4.235,
-      "market_value_gbp": 3565.87,
-      "gain_gbp": 566.3299999999999
+      "acquired_date": null
     },
     {
       "ticker": "BLND.L",
-      "name": "British Land Co plc Ordinary 25p",
       "units": 1218.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4997.3,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 3.548,
-      "market_value_gbp": 4321.46,
-      "gain_gbp": -675.8400000000001
+      "acquired_date": null
     },
     {
       "ticker": "CARD.L",
-      "name": "Card Factory plc Ordinary 1p",
       "units": 2065.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1999.3,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 1.016,
-      "market_value_gbp": 2098.04,
-      "gain_gbp": 98.74000000000001
+      "acquired_date": null
     },
     {
       "ticker": "CNA.L",
-      "name": "Centrica plc Ord 6,14/81p",
       "units": 1880.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2998.77,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 1.6555000000000002,
-      "market_value_gbp": 3112.34,
-      "gain_gbp": 113.57000000000016
+      "acquired_date": null
     },
     {
       "ticker": "CLIG.L",
-      "name": "City of London Investment Group plc Ordinary 1p",
       "units": 14.0,
-      "currency": "GBP",
       "cost_basis_gbp": 47.81,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 3.7,
-      "market_value_gbp": 51.8,
-      "gain_gbp": 3.989999999999995
+      "acquired_date": null
     },
     {
       "ticker": "QBTS.N",
-      "name": "D-Wave Quantum Inc USD0.0001 A *R",
       "units": 79.0,
-      "currency": "GBP",
       "cost_basis_gbp": 999.66,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 12.6571,
-      "market_value_gbp": 999.91,
-      "gain_gbp": 0.25
+      "acquired_date": null
     },
     {
       "ticker": "GAW.L",
-      "name": "Games Workshop Group Ordinary 5p",
       "units": 12.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1902.66,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 155.5,
-      "market_value_gbp": 1866.0,
-      "gain_gbp": -36.66000000000008
+      "acquired_date": null
     },
     {
       "ticker": "GAMA.L",
-      "name": "Gamma Communications plc Ordinary Shares 0.25p",
       "units": 247.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2997.43,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 10.62,
-      "market_value_gbp": 2623.14,
-      "gain_gbp": -374.28999999999996
+      "acquired_date": null
     },
     {
       "ticker": "GBPG.L",
-      "name": "Goldman Sachs ETF ICAV Access UK Gilts 1-10 Years UCITS ETF Class GBP Dis",
       "units": 690.0,
-      "currency": "GBP",
       "cost_basis_gbp": 29964.51,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 43.79,
-      "market_value_gbp": 30215.1,
-      "gain_gbp": 250.59000000000015
+      "acquired_date": null
     },
     {
       "ticker": "UKW.L",
-      "name": "Greencoat UK Wind plc Ordinary 1p",
       "units": 11516.0,
-      "currency": "GBP",
       "cost_basis_gbp": 14999.19,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 1.155,
-      "market_value_gbp": 13300.98,
-      "gain_gbp": -1698.210000000001
+      "acquired_date": null
     },
     {
       "ticker": "GRG.L",
-      "name": "Greggs Plc Ord 2p",
       "units": 10.0,
-      "currency": "GBP",
       "cost_basis_gbp": 183.62,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 16.28,
-      "market_value_gbp": 162.8,
-      "gain_gbp": -20.819999999999993
+      "acquired_date": null
     },
     {
       "ticker": "GSK.L",
-      "name": "GSK plc ORD GBP0.3125",
       "units": 263.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4032.35,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 13.99,
-      "market_value_gbp": 3679.37,
-      "gain_gbp": -352.98
+      "acquired_date": null
     },
     {
       "ticker": "HFEL.L",
-      "name": "Henderson Far East Income Ltd Ordinary NPV",
       "units": 2307.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4998.76,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 2.29,
-      "market_value_gbp": 5283.03,
-      "gain_gbp": 284.2699999999995
+      "acquired_date": null
     },
     {
       "ticker": "HICL.L",
-      "name": "HICL Infrastructure plc ORD GBP0.0001",
       "units": 90.0,
-      "currency": "GBP",
       "cost_basis_gbp": 106.41,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 1.206,
-      "market_value_gbp": 108.54,
-      "gain_gbp": 2.1300000000000097
+      "acquired_date": null
     },
     {
       "ticker": "IFX.DE",
-      "name": "Infineon Technologies AG Ordinary NPV *R",
       "units": 171.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4993.76,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 30.648400000000002,
-      "market_value_gbp": 5240.88,
-      "gain_gbp": 247.1199999999999
+      "acquired_date": null
     },
     {
       "ticker": "IONQ.N",
-      "name": "IonQ Inc USD0.0001 A *R",
       "units": 5.0,
-      "currency": "GBP",
       "cost_basis_gbp": 107.03,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 31.2709,
-      "market_value_gbp": 156.35,
-      "gain_gbp": 49.31999999999999
+      "acquired_date": null
     },
     {
       "ticker": "SEGA.L",
-      "name": "iShares III plc Core Euro Government Bond UCITS ETF Dist *1",
       "units": 414.0,
-      "currency": "GBP",
       "cost_basis_gbp": 39980.3,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 95.61,
-      "market_value_gbp": 39582.54,
-      "gain_gbp": -397.76000000000204
+      "acquired_date": null
     },
     {
       "ticker": "GILG.L",
-      "name": "iShares III Plc Global Inflatin Linked Govt Bonds UCITS ETF GBP D",
       "units": 3721.0,
-      "currency": "GBP",
       "cost_basis_gbp": 19997.92,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 4.4385,
-      "market_value_gbp": 16515.66,
-      "gain_gbp": -3482.2599999999984
+      "acquired_date": null
     },
     {
       "ticker": "ISXF.L",
-      "name": "iShares III plc iShares GBP Corporate Bond Ex-Financials UCITS ETF *2",
       "units": 27.0,
-      "currency": "GBP",
       "cost_basis_gbp": 3707.37,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 103.05,
-      "market_value_gbp": 2782.35,
-      "gain_gbp": -925.02
+      "acquired_date": null
     },
     {
       "ticker": "IEFV.L",
-      "name": "iShares IV plc Edge MSCI Europe Value Factor UCITS ETF Acc",
       "units": 2545.0,
-      "currency": "GBP",
       "cost_basis_gbp": 19997.36,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 9.205,
-      "market_value_gbp": 23426.73,
-      "gain_gbp": 3429.369999999999
+      "acquired_date": null
     },
     {
       "ticker": "ERNS.L",
-      "name": "iShares IV plc GBP Ultrashort Bond UCITS ETF GBP Dist",
       "units": 97.0,
-      "currency": "GBP",
       "cost_basis_gbp": 9950.39,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 101.33,
-      "market_value_gbp": 9829.01,
-      "gain_gbp": -121.3799999999992
+      "acquired_date": null
     },
     {
       "ticker": "IBZL.L",
-      "name": "iShares plc MSCI Brazil UCITS ETF (Dist)",
       "units": 302.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4986.27,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 16.81,
-      "market_value_gbp": 5076.62,
-      "gain_gbp": 90.34999999999945
+      "acquired_date": null
     },
     {
       "ticker": "SPGP.L",
-      "name": "iShares V plc Gold Producers UCITS ETF Acc (GBP)",
       "units": 109.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1994.62,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 19.875,
-      "market_value_gbp": 2166.38,
-      "gain_gbp": 171.76000000000022
+      "acquired_date": null
     },
     {
       "ticker": "MINV.L",
-      "name": "iShares VI plc Edge MSCI World Minimum Volatility UCITS ETF Acc",
       "units": 74.0,
-      "currency": "GBP",
       "cost_basis_gbp": 3961.17,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 53.92,
-      "market_value_gbp": 3990.08,
-      "gain_gbp": 28.909999999999854
+      "acquired_date": null
     },
     {
       "ticker": "ESIH.L",
-      "name": "iShares VI plc MSCI EUR HealthCare Sect UCITS ETF Acc",
       "units": 439.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2497.1,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 5.294,
-      "market_value_gbp": 2324.07,
-      "gain_gbp": -173.02999999999975
+      "acquired_date": null
     },
     {
       "ticker": "CUKS.L",
-      "name": "iShares VII plc MSCI UK Small CAP UCITS ETF",
       "units": 19.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4752.24,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 251.75,
-      "market_value_gbp": 4783.25,
-      "gain_gbp": 31.01000000000022
+      "acquired_date": null
     },
     {
       "ticker": "JEGI.L",
-      "name": "JPMorgan European Growth & Income plc ORD GBP0.005",
       "units": 4056.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4999.35,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 1.24,
-      "market_value_gbp": 5029.44,
-      "gain_gbp": 30.089999999999236
+      "acquired_date": null
     },
     {
       "ticker": "MNDI.L",
-      "name": "Mondi plc ORD EUR0.22",
       "units": 247.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2997.9,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 10.755,
-      "market_value_gbp": 2656.49,
-      "gain_gbp": -341.4100000000003
+      "acquired_date": null
     },
     {
       "ticker": "MONY.L",
-      "name": "Mony Group Plc Ord 2p",
       "units": 1387.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2998.45,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 1.97,
-      "market_value_gbp": 2732.39,
-      "gain_gbp": -266.05999999999995
+      "acquired_date": null
     },
     {
       "ticker": "NBIX.N",
-      "name": "Neurocrine Biosciences Inc Com Stk NPV (CDI) *R",
       "units": 10.0,
-      "currency": "GBP",
       "cost_basis_gbp": 944.37,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 92.83850000000001,
-      "market_value_gbp": 928.39,
-      "gain_gbp": -15.980000000000018
+      "acquired_date": null
     },
     {
       "ticker": "NESF.L",
-      "name": "NextEnergy Solar Fund Ltd Ordinary NPV",
       "units": 7044.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4999.57,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.757,
-      "market_value_gbp": 5332.31,
-      "gain_gbp": 332.7400000000007
+      "acquired_date": null
     },
     {
       "ticker": "PBR.A.N",
-      "name": "Petroleo Brasileiro SA Petrobras Spon ADR Each Repr 2 Pref Shs NPV *R",
       "units": 612.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4992.46,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 8.4703,
-      "market_value_gbp": 5183.82,
-      "gain_gbp": 191.35999999999967
+      "acquired_date": null
     },
     {
       "ticker": "PFE.N",
-      "name": "Pfizer Inc Com Stk USD0.05 (CDI) *R",
       "units": 140.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2483.05,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 18.1379,
-      "market_value_gbp": 2539.31,
-      "gain_gbp": 56.25999999999976
+      "acquired_date": null
     },
     {
       "ticker": "POLR.L",
-      "name": "Polar Capital Holdings Plc Ord 2.5p",
       "units": 100.0,
-      "currency": "GBP",
       "cost_basis_gbp": 380.86,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 4.875,
-      "market_value_gbp": 487.5,
-      "gain_gbp": 106.63999999999999
+      "acquired_date": null
     },
     {
       "ticker": "SBRY.L",
-      "name": "Sainsbury (J) plc Ordinary 28,4/7p",
       "units": 645.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1604.05,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 2.952,
-      "market_value_gbp": 1904.04,
-      "gain_gbp": 299.99
+      "acquired_date": null
     },
     {
       "ticker": "SERE.L",
-      "name": "Schroder European Real Estate Investment Trust plc Ordinary 10p",
       "units": 10201.0,
-      "currency": "GBP",
       "cost_basis_gbp": 6998.93,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.68,
-      "market_value_gbp": 6936.68,
-      "gain_gbp": -62.25
+      "acquired_date": null
     },
     {
       "ticker": "LAES.N",
-      "name": "Sealsq Corp USD0.01 *R",
       "units": 374.0,
-      "currency": "GBP",
       "cost_basis_gbp": 999.78,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 2.0079,
-      "market_value_gbp": 750.95,
-      "gain_gbp": -248.82999999999993
+      "acquired_date": null
     },
     {
       "ticker": "SFR.L",
-      "name": "Severfield plc Ordinary 2.5p",
       "units": 5679.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1999.9,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.314,
-      "market_value_gbp": 1783.21,
-      "gain_gbp": -216.69000000000005
+      "acquired_date": null
     },
     {
       "ticker": "SN.L",
-      "name": "Smith & Nephew plc Ordinary USD0.20",
       "units": 132.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1494.19,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 13.405,
-      "market_value_gbp": 1769.46,
-      "gain_gbp": 275.27
+      "acquired_date": null
     },
     {
       "ticker": "SNWS.L",
-      "name": "Smiths News plc Ordinary 5p",
       "units": 4885.0,
-      "currency": "GBP",
       "cost_basis_gbp": 2999.71,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.564,
-      "market_value_gbp": 2755.14,
-      "gain_gbp": -244.57000000000016
+      "acquired_date": null
     },
     {
       "ticker": "WCOS.L",
-      "name": "SPDR MSCI World Consumer Staples UCITS ETF *1 *R",
       "units": 130.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4964.37,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 38.350500000000004,
-      "market_value_gbp": 4985.57,
-      "gain_gbp": 21.199999999999818
+      "acquired_date": null
     },
     {
       "ticker": "THX.L",
-      "name": "Thor Explorations Ltd NPV (DI)",
       "units": 5126.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1999.96,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.415,
-      "market_value_gbp": 2127.29,
-      "gain_gbp": 127.32999999999993
+      "acquired_date": null
     },
     {
       "ticker": "TFIF.L",
-      "name": "TwentyFour Income Fund Ltd Ordinary GBP 0.01",
       "units": 4571.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4999.77,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 1.12,
-      "market_value_gbp": 5119.52,
-      "gain_gbp": 119.75
+      "acquired_date": null
     },
     {
       "ticker": "UPS.N",
-      "name": "United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R",
       "units": 13.0,
-      "currency": "GBP",
       "cost_basis_gbp": 944.62,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 64.5051,
-      "market_value_gbp": 838.57,
-      "gain_gbp": -106.04999999999995
+      "acquired_date": null
     },
     {
       "ticker": "UTHR.N",
-      "name": "United Therapeutics Corp Com Stk USD0.01 *R",
       "units": 8.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1909.8,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 226.0429,
-      "market_value_gbp": 1808.34,
-      "gain_gbp": -101.46000000000004
+      "acquired_date": null
     },
     {
       "ticker": "UNH.N",
-      "name": "UnitedHealth Group Inc Com Stk USD0.01 *R",
       "units": 4.0,
-      "currency": "GBP",
       "cost_basis_gbp": 884.46,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 185.17880000000002,
-      "market_value_gbp": 740.72,
-      "gain_gbp": -143.74
+      "acquired_date": null
     },
     {
       "ticker": "VHYL.L",
-      "name": "Vanguard Funds Plc FTSE All World High Dividend Yield UCITS ETF",
       "units": 423.0,
-      "currency": "GBP",
       "cost_basis_gbp": 19971.35,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 56.3,
-      "market_value_gbp": 23814.9,
-      "gain_gbp": 3843.550000000003
+      "acquired_date": null
     },
     {
       "ticker": "VOD.L",
-      "name": "Vodafone Group plc USD0.20 20/21",
       "units": 290.0,
-      "currency": "GBP",
       "cost_basis_gbp": 200.46,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.8464,
-      "market_value_gbp": 245.46,
-      "gain_gbp": 45.0
+      "acquired_date": null
     },
     {
       "ticker": "WIX.L",
-      "name": "Wickes Group Plc ORD GBP0.1",
       "units": 100.0,
-      "currency": "GBP",
       "cost_basis_gbp": 191.96,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 2.185,
-      "market_value_gbp": 218.5,
-      "gain_gbp": 26.539999999999992
+      "acquired_date": null
     },
     {
       "ticker": "AIGE.L",
-      "name": "WisdomTree Energy *R",
       "units": 1322.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4009.9,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 2.5322,
-      "market_value_gbp": 3347.57,
-      "gain_gbp": -662.3299999999999
+      "acquired_date": null
     },
     {
       "ticker": "PHGP.L",
-      "name": "WisdomTree Physical Gold (GBP)",
       "units": 21.0,
-      "currency": "GBP",
       "cost_basis_gbp": 4798.67,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 233.16,
-      "market_value_gbp": 4896.36,
-      "gain_gbp": 97.6899999999996
+      "acquired_date": null
     },
     {
       "ticker": "PHSP.L",
-      "name": "WisdomTree Physical Silver (GBP)",
       "units": 80.0,
-      "currency": "GBP",
       "cost_basis_gbp": 1985.07,
-      "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 26.06,
-      "market_value_gbp": 2084.8,
-      "gain_gbp": 99.73000000000025
+      "acquired_date": null
     }
   ]
 }

@@ -18,7 +18,7 @@ from backend.common.constants import (
     ACCOUNTS,
     HOLDINGS,
 )
-from backend.common.holding_utils import enrich_holding, load_latest_prices
+from backend.common.holding_utils import enrich_holding
 
 logger = logging.getLogger("group_portfolio")
 
@@ -71,7 +71,6 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
     ]
 
     today = dt.date.today()
-    latest_prices = load_latest_prices()
     price_cache: dict[str, float] = {}
 
     merged_accounts: List[Dict[str, Any]] = []
@@ -84,7 +83,7 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
 
             holdings = acct_copy.get(HOLDINGS, [])
             acct_copy[HOLDINGS] = [
-                enrich_holding(h, today, price_cache, latest_prices) for h in holdings
+                enrich_holding(h, today, price_cache) for h in holdings
             ]
 
             merged_accounts.append(acct_copy)

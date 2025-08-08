@@ -4,129 +4,64 @@
   "currency": "GBP",
   "last_updated": "2025-08-06",
   "holdings": [
-        {
+    {
       "ticker": "CASH.GBP",
-      "name": "Cash (GBP)",
       "units": 11661.61,
-      "currency": "GBP",
       "cost_basis_gbp": 11661.61
     },
     {
       "ticker": "ULVR.L",
-      "name": "The Unilever Group",
       "units": 40.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "IEFV.L",
-      "name": "iShares IV MSCI Europe Value Factor UCITS ETF Acc",
       "units": 1271.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "JEGI.L",
-      "name": "JPMorgan European Growth & Income PLC",
       "units": 4091.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "BPCR.L",
-      "name": "BPCR",
       "units": 3016.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "GBPG.L",
-      "name": "GBPG",
       "units": 230.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "HFEL.L",
-      "name": "HFEL",
       "units": 897.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "ERNS.L",
-      "name": "ERNS",
       "units": 276.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "SPGP.L",
-      "name": "SPGP",
       "units": 108.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "SERE.L",
-      "name": "SERE",
       "units": 5861.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     }
   ]
 }

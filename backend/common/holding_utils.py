@@ -120,7 +120,6 @@ def _get_price_for_date_scaled(
 def get_effective_cost_basis_gbp(
     h: Dict[str, Any],
     price_cache: dict[str, float],
-    latest_prices: dict[str, float],
 ) -> float:
     """
     If booked cost exists, use it. Otherwise derive:
@@ -155,7 +154,6 @@ def enrich_holding(
     h: Dict[str, Any],
     today: dt.date,
     price_cache: dict[str, float],
-    latest_prices: dict[str, float],
 ) -> Dict[str, Any]:
     """
     Canonical enrichment used by both owner and group builders.
@@ -217,11 +215,11 @@ def enrich_holding(
         out["days_until_eligible"] = None
 
     # Effective cost basis (always computed)
-    ecb = get_effective_cost_basis_gbp(out, price_cache, latest_prices)
+    ecb = get_effective_cost_basis_gbp(out, price_cache)
     out[EFFECTIVE_COST_BASIS_GBP] = ecb
 
     # Choose cost for gains: prefer booked cost if present, else effective
-    cost_for_gain = float(out.get(COST_BASIS_GBP) or 0.0) or ecb
+    cost_for_gain = float(out.get(EFFECTIVE_COST_BASIS_GBP) or 0.0) or ecb
 
     # Current price as of "yesterday" (app constraint)
     asof_date = (today - dt.timedelta(days=1))

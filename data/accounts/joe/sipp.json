@@ -6,62 +6,32 @@
   "holdings": [
     {
       "ticker": "CASH.GBP",
-      "name": "Cash (GBP)",
       "units": 2734.18,
-      "currency": "GBP",
       "cost_basis_gbp": 2734.18
     },
     {
       "ticker": "IEFV.L",
-      "name": "iShares IV MSCI Europe Value Factor UCITS ETF Acc",
       "units": 231.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "ERNS.L",
-      "name": "iShares IV GBP Ultrashort Bond UCITS ETF GBP Dist",
       "units": 38.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "SPGP.L",
-      "name": "iShares V Gold Producers UCITS ETF Acc (GBP)",
       "units": 54.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     },
     {
       "ticker": "VWRL.L",
-      "name": "Vanguard FTSE All-World UCITS ETF (GBP)",
       "units": 18.0,
       "acquired_date": null,
-      "days_held": 0,
-      "sell_eligible": false,
-      "days_until_eligible": 0,
-      "price": 0.0,
-      "cost_basis_gbp": 0.0,
-      "market_value_gbp": 0.0,
-      "gain_gbp": 0.0
+      "cost_basis_gbp": 0.0
     }
   ]
 }

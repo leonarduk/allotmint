@@ -4,7 +4,7 @@ def parse_period_to_days(period: str) -> int:
     """
     Convert a time period string like '1d', '2w', '3mo', '1y' to number of days.
     """
-    match = re.match(r"(?i)(\d+)(d|w|mo|y)", period.strip())
+    match = re.fullmatch(r"(?i)(\d+)(d|w|mo|y)", period.strip())
     if not match:
         raise ValueError(f"Unrecognized period format: '{period}'")
 

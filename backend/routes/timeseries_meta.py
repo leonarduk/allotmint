@@ -1,12 +1,16 @@
+from datetime import date, timedelta
+
+import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
-from datetime import date, timedelta
-import pandas as pd
 
 from backend.timeseries import fetch_timeseries
 from backend.timeseries.cache import load_meta_timeseries_range
-from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 from backend.utils.html_render import render_timeseries_html
+from backend.utils.timeseries_helpers import (
+    apply_scaling,
+    get_scaling_override,
+    handle_timeseries_response,
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 
@@ -22,12 +26,16 @@ async def get_meta_timeseries(
     end_date = date.today() - timedelta(days=1)
 
     try:
-        df = load_meta_timeseries_range(ticker, exchange, start_date=start_date, end_date=end_date)
+        df = load_meta_timeseries_range(
+            ticker, exchange, start_date=start_date, end_date=end_date
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
     if df.empty:
-        raise HTTPException(status_code=404, detail=f"No data found for {ticker}.{exchange}")
+        raise HTTPException(
+            status_code=404, detail=f"No data found for {ticker}.{exchange}"
+        )
 
     df = df.copy()
     df["Date"] = pd.to_datetime(df["Date"])

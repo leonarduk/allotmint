@@ -2,6 +2,8 @@
 Single FastAPI application used by both local (uvicorn) and AWS Lambda.
 """
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,7 +35,7 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health():
-        return {"status": "ok"}
+        return {"status": "ok", "env": os.getenv("ALLOTMINT_ENV", "test")}
 
     @app.on_event("startup")
     async def _warm_snapshot():

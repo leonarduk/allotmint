@@ -22,36 +22,50 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from backend.common.portfolio_loader import list_portfolios
 from backend.timeseries.cache import load_meta_timeseries_range
 
+# Group the instrument endpoints under their own router to keep ``app.py``
+# tidy and allow reuse across different deployment targets.
 router = APIRouter(prefix="/instrument", tags=["instrument"])
 
 # ────────────────────────────────────────────────────────────────
 # helpers
 # ────────────────────────────────────────────────────────────────
 def _validate_ticker(tkr: str) -> None:
+    """Basic sanity checks for user supplied tickers.
+
+    ``XDEV.L`` is valid whereas ``.L`` or ``.UK`` are rejected. This is mainly a
+    guard against empty or malformed inputs that would otherwise result in large
+    upstream downloads.
+    """
+
     if not tkr or tkr in {".L", ".UK"}:
         raise HTTPException(400, f"Invalid ticker: “{tkr}”")
 
 
 def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
-    """
-    Return every occurrence of *tkr* across all portfolios.
+    """Return every occurrence of ``tkr`` across all portfolios.
 
-    The new portfolio tree looks like:
+    The structure returned by :func:`list_portfolios` looks roughly like::
+
         {
           "owner": "alex",
           "accounts": [
-              { "account_type": "isa",  "holdings": [ … ] },
-              { "account_type": "sipp", "holdings": [ … ] },
+              {"account_type": "isa",  "holdings": [...]},
+              {"account_type": "sipp", "holdings": [...]},
           ]
         }
+
+    This helper walks the nested tree and flattens all matching holdings into a
+    list of simple dictionaries.
     """
+
     positions: List[Dict[str, Any]] = []
 
-    for pf in list_portfolios():                              # every owner
+    # Iterate through owners → accounts → holdings
+    for pf in list_portfolios():
         owner = pf["owner"]
-        for acct in pf.get("accounts", []):                   # every account
+        for acct in pf.get("accounts", []):
             acct_name = acct.get("account_type", "account")
-            for h in acct.get("holdings", []):                # every holding
+            for h in acct.get("holdings", []):
                 if (h.get("ticker") or "").upper() != tkr:
                     continue
 
@@ -71,6 +85,8 @@ def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
 
 
 def _as_iso(d) -> str:
+    """Return ``d`` as a simple ``YYYY-MM-DD`` string."""
+
     if isinstance(d, (pd.Timestamp, date)):
         return d.date().isoformat() if isinstance(d, pd.Timestamp) else d.isoformat()
     return str(d)[:10]
@@ -82,12 +98,13 @@ def _render_html(
     positions: List[Dict[str, Any]],
     window_days: int,
 ) -> str:
-    prices_tbl = (
-        df[["Date", "Close"]].tail(30).to_html(index=False, classes="prices")
-    )
+    """Render a minimal HTML page summarising price and position data."""
+
+    prices_tbl = df[["Date", "Close"]].tail(30).to_html(index=False, classes="prices")
     pos_tbl = (
         pd.DataFrame(positions).to_html(index=False, classes="positions")
-        if positions else "<p>No portfolio positions</p>"
+        if positions
+        else "<p>No portfolio positions</p>"
     )
 
     begin, end = _as_iso(df.iloc[0]["Date"]), _as_iso(df.iloc[-1]["Date"])
@@ -127,6 +144,13 @@ async def instrument(
     days: int = Query(365, ge=30, le=3650),
     format: str = Query("html", pattern="^(html|json)$"),
 ):
+    """Return price history and portfolio positions for a ticker.
+
+    Depending on ``format`` the response is either a small HTML page or a JSON
+    payload that includes the price history plus all the holdings where the
+    instrument appears.
+    """
+
     _validate_ticker(ticker)
 
     start = date.today() - timedelta(days=days)
@@ -155,8 +179,10 @@ async def instrument(
         prices = (
             df[["Date", "Close"]]
             .rename(columns={"Date": "date", "Close": "close_gbp"})
-            .assign(date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
-                    close_gbp=lambda d: d["close_gbp"].astype(float))
+            .assign(
+                date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
+                close_gbp=lambda d: d["close_gbp"].astype(float),
+            )
             .to_dict(orient="records")
         )
         payload = {

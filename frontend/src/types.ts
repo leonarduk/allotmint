@@ -14,6 +14,7 @@ export interface Holding {
     market_value_gbp?: number;
     gain_gbp?: number;
     current_price_gbp?: number | null;
+    day_change_gbp?: number;
 
     days_held?: number;
     sell_eligible?: boolean;

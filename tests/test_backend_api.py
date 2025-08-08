@@ -65,7 +65,7 @@ def test_valid_account():
     groups = client.get("/groups").json()
     assert groups, "No groups found"
     first_name = groups[0]["members"][0]
-    # You'll need to replace with a valid account name like "ISA" or "SIPP"
+    # ISA is a valid account name
     resp = client.get(f"/account/{first_name}/ISA")
     assert resp.status_code == 200
 

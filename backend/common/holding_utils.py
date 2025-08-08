@@ -2,18 +2,20 @@
 from __future__ import annotations
 
 import datetime as dt
-import json
-from pathlib import Path
+from datetime import date, timedelta
+import logging
 from typing import Any, Dict, Optional
 
 import pandas as pd
 
 from backend.common.constants import (
     ACQUIRED_DATE, HOLD_DAYS_MIN, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP,
-    UNITS, TICKER, _PRICES_JSON
+    UNITS, TICKER
 )
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import get_scaling_override, apply_scaling
+
+logger = logging.getLogger(__name__)
 
 
 # ───────────── helpers ─────────────
@@ -40,12 +42,73 @@ def _lower_name_map(df: pd.DataFrame) -> Dict[str, str]:
     return {c.lower(): c for c in df.columns}
 
 
-def load_latest_prices(path: Path = _PRICES_JSON) -> Dict[str, float]:
-    try:
-        with Path(path).open(encoding="utf-8") as f:
-            return {k.upper(): float(v) for k, v in json.load(f).items()}
-    except Exception:
-        return {}
+def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
+    """
+    Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77} in GBP.
+    - Uses end_date = yesterday
+    - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
+    - Skips empties instead of returning 0.00
+    """
+    result: dict[str, float] = {}
+    if not full_tickers:
+        return result
+
+    end_date = date.today() - timedelta(days=1)
+    start_date = end_date - timedelta(days=365)
+
+    for full in full_tickers:
+        # --- parse "TICKER[.EXCHANGE]" ---
+        if "." in full:
+            ticker, exchange = full.split(".", 1)
+        else:
+            ticker, exchange = full, "L"
+
+        try:
+            df = load_meta_timeseries_range(
+                ticker=ticker,
+                exchange=exchange,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            if df is None or df.empty:
+                # no data → don't write a zero; just continue
+                continue
+
+            # coerce expected columns and sort by date
+            # Accept either 'Close' or 'close' and optionally 'close_gbp'
+            cols = {c.lower(): c for c in df.columns}
+            close_col = (
+                "close_gbp" if "close_gbp" in cols
+                else cols.get("close", None)
+                or cols.get("close_gbp", None)
+            )
+            if not close_col:
+                # last resort: try 'Close'
+                close_col = "Close" if "Close" in df.columns else None
+            if not close_col:
+                continue
+
+            df = df.sort_values(df.columns[0])  # first col is Date in your feeds
+            last = df.iloc[-1]
+
+            val = float(last[close_col])
+            if not (val == val and val != float("inf") and val != float("-inf")):
+                continue  # skip NaN/inf
+
+            # store using the EXACT key your frontend expects
+            key = f"{ticker}.{exchange}"
+            result[key] = val
+
+        except Exception as e:
+            # keep logging, but don't poison the map with zeros
+            logger.warning("latest price fetch failed for %s: %s", full, e)
+
+    logger.info("✅ Latest prices fetched: %d/%d", len(result), len(full_tickers))
+    return result
+
+
+# In-memory map populated elsewhere; exported for consumers that rely on it.
+latest_prices: Dict[str, float] = {}
 
 
 def _close_column(df: pd.DataFrame) -> Optional[str]:

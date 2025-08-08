@@ -20,6 +20,7 @@ from typing import List, Dict, Any, Optional
 from backend.common.constants import OWNER, ACCOUNTS, HOLDINGS
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.holding_utils import load_latest_prices
+from backend.common.portfolio_utils import list_all_unique_tickers
 from backend.timeseries.cache import (
     load_meta_timeseries_range,
     has_cached_meta_timeseries,
@@ -52,7 +53,7 @@ def _resolve_full_ticker(ticker: str, latest: Dict[str, float]) -> Optional[str]
 
 
 # Load once; callers can restart process to refresh or we can add a reload later.
-_LATEST_PRICES: Dict[str, float] = load_latest_prices()
+_LATEST_PRICES: Dict[str, float] = load_latest_prices(list_all_unique_tickers())
 
 
 # ───────────────────────────────────────────────────────────────

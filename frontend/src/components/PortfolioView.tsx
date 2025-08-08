@@ -1,16 +1,24 @@
 import type {Portfolio} from "../types";
 import {AccountBlock} from "./AccountBlock";
 
+// Props accepted by the view. `data` is null until a portfolio is loaded.
 type Props = {
     data: Portfolio | null;
     loading?: boolean;
     error?: string | null;
 };
 
+/**
+ * Render a portfolio tree showing an owner's accounts and holdings.
+ *
+ * The component is intentionally tiny: it deals only with presentation and
+ * relies on its parent for data fetching. Conditional branches early-return to
+ * keep the JSX at the bottom easy to follow.
+ */
 export function PortfolioView({data, loading, error}: Props) {
-    if (loading) return <div>Loading portfolio…</div>;
-    if (error) return <div style={{color: "red"}}>{error}</div>;
-    if (!data) return <div>Select an owner.</div>;
+    if (loading) return <div>Loading portfolio…</div>; // show a quick spinner
+    if (error) return <div style={{color: "red"}}>{error}</div>; // bubble errors
+    if (!data) return <div>Select an owner.</div>; // nothing chosen yet
 
     return (
         <div>
@@ -27,6 +35,7 @@ export function PortfolioView({data, loading, error}: Props) {
                 maximumFractionDigits: 2,
             })}
             </div>
+            {/* Each account is rendered using AccountBlock for clarity */}
             {data.accounts.map((acct) => (
                 <AccountBlock key={acct.account_type} account={acct}/>
             ))}

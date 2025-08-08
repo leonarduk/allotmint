@@ -29,11 +29,23 @@ import pandas as pd
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import list_all_unique_tickers
 from backend.timeseries.cache import load_meta_timeseries_range
-from backend.timeseries.fetch_meta_timeseries import (
-    logger,
-    get_price_snapshot,
-)
 from backend.utils.timeseries_helpers import _nearest_weekday
+
+logger = logging.getLogger("prices")
+
+
+def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
+    """Return a minimal price snapshot for tickers without external calls."""
+    today = date.today().isoformat()
+    return {
+        t: {
+            "last_price": 0.0,
+            "change_7d_pct": 0.0,
+            "change_30d_pct": 0.0,
+            "last_price_date": today,
+        }
+        for t in tickers
+    }
 
 logging.basicConfig(level=logging.DEBUG)
 

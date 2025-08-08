@@ -7,16 +7,17 @@ it easy for tests to create isolated apps and mirrors the pattern recommended
 by FastAPI.
 """
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routes.instrument import router as instrument_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.timeseries_meta import router as timeseries_router
-from backend.common.portfolio_utils import (
-    refresh_snapshot_in_memory,
-    refresh_snapshot_in_memory_from_timeseries,
-)
+
+from backend.routes.transactions import router as transactions_router
+from backend.common.portfolio_utils import refresh_snapshot_in_memory, refresh_snapshot_in_memory_from_timeseries
 
 
 def create_app() -> FastAPI:
@@ -49,13 +50,14 @@ def create_app() -> FastAPI:
     app.include_router(portfolio_router)
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
+    app.include_router(transactions_router)
 
     # ────────────────────── Health-check endpoint ─────────────────────
     @app.get("/health")
     async def health():
         """Return a small payload used by tests and uptime monitors."""
 
-        return {"status": "ok"}
+        return {"status": "ok", "env": os.getenv("ALLOTMINT_ENV", "test")}
 
     # ─────────────── Warm the price snapshot on startup ───────────────
     @app.on_event("startup")

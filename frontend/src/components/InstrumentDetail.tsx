@@ -60,9 +60,16 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
   if (err) return <p style={{ color: "red" }}>{err}</p>;
   if (!data) return <p>Loading…</p>;
 
-  const prices = (data.prices ?? [])
+  const rawPrices = (data.prices ?? [])
     .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp) }))
     .filter((p) => Number.isFinite(p.close_gbp));
+
+  const prices = rawPrices.map((p, i) => {
+    const prev = rawPrices[i - 1];
+    const change_gbp = prev ? p.close_gbp - prev.close_gbp : NaN;
+    const change_pct = prev ? (change_gbp / prev.close_gbp) * 100 : NaN;
+    return { ...p, change_gbp, change_pct };
+  });
 
   const positions = data.positions ?? [];
 
@@ -161,21 +168,38 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
           <tr>
             <th>Date</th>
             <th align="right">£ Close</th>
+            <th align="right">Δ £</th>
+            <th align="right">Δ %</th>
           </tr>
         </thead>
         <tbody>
           {prices
             .slice(-60)
             .reverse()
-            .map((p) => (
-              <tr key={p.date}>
-                <td>{p.date}</td>
-                <td align="right">{fixed(p.close_gbp, 2)}</td>
-              </tr>
-            ))}
+            .map((p) => {
+              const colour = Number.isFinite(p.change_gbp)
+                ? p.change_gbp >= 0
+                  ? "lightgreen"
+                  : "red"
+                : undefined;
+              return (
+                <tr key={p.date}>
+                  <td>{p.date}</td>
+                  <td align="right">{fixed(p.close_gbp, 2)}</td>
+                  <td align="right" style={{ color: colour }}>
+                    {fixed(p.change_gbp, 2)}
+                  </td>
+                  <td align="right" style={{ color: colour }}>
+                    {Number.isFinite(p.change_pct)
+                      ? `${fixed(p.change_pct, 2)}%`
+                      : "—"}
+                  </td>
+                </tr>
+              );
+            })}
           {!prices.length && (
             <tr>
-              <td colSpan={2} style={{ textAlign: "center", color: "#888" }}>
+              <td colSpan={4} style={{ textAlign: "center", color: "#888" }}>
                 No price data
               </td>
             </tr>

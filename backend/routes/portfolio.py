@@ -16,14 +16,14 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.common.data_loader import list_plots, load_account
-from backend.common.group_portfolio import (
-    list_groups,
-    build_group_portfolio,
+from backend.common import (
+    data_loader,
+    group_portfolio,
+    portfolio as portfolio_mod,
+    portfolio_utils,
+    prices,
+    instrument_api,
 )
-from backend.common.portfolio import build_owner_portfolio
-from backend.common.portfolio_utils import aggregate_by_ticker, refresh_snapshot_in_memory_from_timeseries, \
-    _PRICE_SNAPSHOT
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -56,7 +56,7 @@ async def owners():
           …
         ]
     """
-    return list_plots()
+    return data_loader.list_plots()
 
 
 @router.get("/groups", response_model=List[GroupSummary])
@@ -69,7 +69,7 @@ async def groups():
           …
         ]
     """
-    return list_groups()
+    return group_portfolio.list_groups()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ async def portfolio(owner: str):
     """
 
     try:
-        return build_owner_portfolio(owner)
+        return portfolio_mod.build_owner_portfolio(owner)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
 
@@ -99,7 +99,7 @@ async def portfolio_group(slug: str):
     """
 
     try:
-        return build_group_portfolio(slug)
+        return group_portfolio.build_group_portfolio(slug)
     except Exception as e:
         log.warning(f"Failed to load group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
@@ -112,13 +112,33 @@ async def portfolio_group(slug: str):
 async def group_instruments(slug: str):
     """Return holdings for the group aggregated by ticker."""
 
-    gp = build_group_portfolio(slug)
-    return aggregate_by_ticker(gp)
+    gp = group_portfolio.build_group_portfolio(slug)
+    return portfolio_utils.aggregate_by_ticker(gp)
+
+
+@router.get("/account/{owner}/{account}")
+async def get_account(owner: str, account: str):
+    try:
+        return data_loader.load_account(owner, account.lower())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+
+@router.get("/portfolio-group/{slug}/instrument/{ticker}")
+async def instrument_detail(slug: str, ticker: str):
+    try:
+        prices_list = instrument_api.timeseries_for_ticker(ticker)
+        if not prices_list:
+            raise ValueError("no prices")
+        positions_list = instrument_api.positions_for_ticker(slug, ticker)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Instrument not found")
+    return {"prices": prices_list, "positions": positions_list}
 
 @router.api_route("/prices/refresh", methods=["GET", "POST"])
 async def refresh_prices():
     """Rebuild the in-memory price snapshot used by portfolio lookups."""
 
     log.info("🔄 Refreshing prices via /prices/refresh")
-    refresh_snapshot_in_memory_from_timeseries()
-    return {"tickers": len(_PRICE_SNAPSHOT)}
+    result = prices.refresh_prices()
+    return {"status": "ok", **result}

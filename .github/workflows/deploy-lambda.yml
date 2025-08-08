@@ -1,4 +1,4 @@
-name: Deploy Lambda
+name: Deploy Infrastructure
 
 on:
   push:
@@ -24,12 +24,20 @@ jobs:
       - name: Install AWS CDK
         run: npm install -g aws-cdk
 
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: pip install -r requirements.txt
 
       - name: Configure AWS credentials

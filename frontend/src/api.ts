@@ -6,6 +6,7 @@ import type {
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
+  Transaction,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -76,3 +77,18 @@ export const getInstrumentDetail = (ticker: string, days = 365) =>
       ticker
     )}&days=${days}&format=json`
   );
+
+export const getTransactions = (params: {
+  owner?: string;
+  account?: string;
+  start?: string;
+  end?: string;
+}) => {
+  const query = new URLSearchParams();
+  if (params.owner) query.set("owner", params.owner);
+  if (params.account) query.set("account", params.account);
+  if (params.start) query.set("start", params.start);
+  if (params.end) query.set("end", params.end);
+  const qs = query.toString();
+  return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
+};

@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom"; // Add this if needed
 import type { Holding } from "../types";
 import { money } from "../lib/money";
 

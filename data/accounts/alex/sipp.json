@@ -5,6 +5,14 @@
   "last_updated": "2025-08-06",
   "holdings": [
     {
+      "ticker": "CASH.GBP",
+      "name": "Cash (GBP)",
+      "units": 2729.52,
+      "currency": "GBP",
+      "cost_basis_gbp": 2729.52
+    },
+
+    {
       "ticker": "IEFV.L",
       "name": "iShares IV MSCI Europe Value Factor UCITS ETF Acc",
       "units": 231,

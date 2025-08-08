@@ -92,6 +92,9 @@ def _get_price_for_date_scaled(
     d: dt.date,
     field: str = "Close",
 ) -> Optional[float]:
+    if ticker.upper() in {"CASH", "GBP.CASH", "CASH.GBP"}:
+        return 1.0
+
     """
     Load a single-day DF, apply scaling override, return the requested field.
     """
@@ -160,6 +163,38 @@ def enrich_holding(
     """
     out = dict(h)  # do not mutate caller
     full = (out.get(TICKER) or "").upper()
+
+    account_ccy = (h.get("currency") or "GBP").upper()
+
+    if _is_cash(full, account_ccy):
+        out = dict(h)
+        units = float(out.get(UNITS, 0) or 0.0)
+        out["name"] = out.get("name") or _cash_name(full, account_ccy)
+
+        # price is 1.0 in account currency
+        out["price"] = 1.0
+        out["current_price_gbp"] = 1.0 if account_ccy == "GBP" else None  # keep simple; add FX later
+
+        # book cost = value = units; gain = 0
+        out["market_value_gbp"] = units if account_ccy == "GBP" else None
+        out["gain_gbp"] = 0.0
+        out["unrealised_gain_gbp"] = 0.0
+        out["unrealized_gain_gbp"] = 0.0
+        out["gain_pct"] = 0.0
+
+        # cost basis fields
+        out.setdefault(COST_BASIS_GBP, units if account_ccy == "GBP" else None)
+        out[EFFECTIVE_COST_BASIS_GBP] = out[COST_BASIS_GBP]
+
+        # eligibility not meaningful for cash
+        out["days_held"] = None
+        out["sell_eligible"] = True
+        out["eligible_on"] = None
+        out["days_until_eligible"] = 0
+        out["cost_basis_source"] = "cash"
+
+        return out
+
     parts = full.split(".", 1)
     ticker = parts[0]
     exchange = parts[1] if len(parts) > 1 else "L"
@@ -219,3 +254,12 @@ def enrich_holding(
     out["cost_basis_source"] = "book" if float(out.get(COST_BASIS_GBP) or 0.0) > 0 else "derived"
 
     return out
+
+# top-level helper
+def _is_cash(full: str, account_ccy: str = "GBP") -> bool:
+    f = (full or "").upper()
+    # allow several spellings
+    return f in {f"CASH.{account_ccy}", f"{account_ccy}.CASH", "CASH"}
+
+def _cash_name(full: str, account_ccy: str = "GBP") -> str:
+    return f"Cash ({account_ccy})"

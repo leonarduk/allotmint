@@ -5,6 +5,13 @@
   "last_updated": "2025-08-06",
   "holdings": [
     {
+      "ticker": "CASH.GBP",
+      "name": "Cash (GBP)",
+      "units": 11861.77,
+      "currency": "GBP",
+      "cost_basis_gbp": 11861.77
+    },
+    {
       "ticker": "HFEL.L",
       "name": "Henderson Far East Income Ltd Ordinary NPV",
       "units": 902,

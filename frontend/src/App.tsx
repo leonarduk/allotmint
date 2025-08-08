@@ -19,14 +19,16 @@ import { GroupSelector } from "./components/GroupSelector";
 import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
+import { TransactionsPage } from "./components/TransactionsPage";
 
-type Mode = "owner" | "group" | "instrument";
+type Mode = "owner" | "group" | "instrument" | "transactions";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
 const initialMode: Mode =
   path[0] === "member" ? "owner" :
   path[0] === "instrument" ? "instrument" :
+  path[0] === "transactions" ? "transactions" :
   "group";
 const initialSlug = path[1] ?? "";
 
@@ -108,7 +110,7 @@ export default function App() {
       {/* mode toggle */}
       <div style={{ marginBottom: "1rem" }}>
         <strong>View by:</strong>{" "}
-        {(["group", "instrument", "owner"] as Mode[]).map((m) => (
+        {(["group", "instrument", "owner", "transactions"] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
             <input
               type="radio"
@@ -117,7 +119,9 @@ export default function App() {
               checked={mode === m}
               onChange={() => setMode(m)}
             />{" "}
-            {m === "owner" ? "Member" : m.charAt(0).toUpperCase() + m.slice(1)}
+            {m === "owner"
+              ? "Member"
+              : m.charAt(0).toUpperCase() + m.slice(1)}
           </label>
         ))}
       </div>
@@ -186,6 +190,8 @@ export default function App() {
           )}
         </>
       )}
+
+      {mode === "transactions" && <TransactionsPage owners={owners} />}
     </div>
   );
 }

@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn pandas yfinance pytest httpx requests beautifulsoup4 lxml peewee
+          pip install fastapi uvicorn pandas yfinance pytest httpx requests beautifulsoup4 lxml peewee selenium
 
       - name: Start backend service
         run: |

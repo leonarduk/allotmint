@@ -41,6 +41,10 @@ def test_valid_group_portfolio():
     group_slug = groups[0]["slug"]
     resp = client.get(f"/portfolio-group/{group_slug}")
     assert resp.status_code == 200
+    data = resp.json()
+    assert "slug" in data and data["slug"] == group_slug
+    assert "accounts" in data and isinstance(data["accounts"], list)
+    assert data["accounts"], "Accounts list should not be empty"
 
 
 def test_invalid_group_portfolio():

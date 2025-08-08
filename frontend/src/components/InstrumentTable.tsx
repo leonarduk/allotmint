@@ -5,10 +5,9 @@ import { money } from "../lib/money";
 
 type Props = {
     rows: InstrumentSummary[];
-    groupSlug: string;
 };
 
-export function InstrumentTable({ rows, groupSlug }: Props) {
+export function InstrumentTable({ rows }: Props) {
     const [ticker, setTicker] = useState<string | null>(null);
 
     /* no data? – render a clear message instead of an empty table */
@@ -92,8 +91,10 @@ export function InstrumentTable({ rows, groupSlug }: Props) {
             {/* slide-in price-history / positions panel */}
             {ticker && (
                 <InstrumentDetail
-                    slug={groupSlug}
                     ticker={ticker}
+                    name={
+                        rows.find((r) => r.ticker === ticker)?.name ?? ""
+                    }
                     onClose={() => setTicker(null)}
                 />
             )}

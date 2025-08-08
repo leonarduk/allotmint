@@ -11,10 +11,23 @@ STANDARD_COLUMNS = [
     "Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"
 ]
 
-def apply_scaling(df: pd.DataFrame, scale: float) -> pd.DataFrame:
-    for col in ["Open", "High", "Low", "Close", "Volume"]:
-        if col in df.columns and df[col].notna().any():
-            df[col] = df[col] * scale
+def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) -> pd.DataFrame:
+    if scale is None or scale == 1:
+        return df
+    df = df.copy()
+
+    # Map lowercase -> actual column name
+    name_map = {c.lower(): c for c in df.columns}
+
+    for logical in ["open", "high", "low", "close"]:
+        if logical in name_map:
+            col = name_map[logical]
+            df[col] = pd.to_numeric(df[col], errors="coerce") * scale
+
+    if scale_volume and "volume" in name_map:
+        col = name_map["volume"]
+        df[col] = pd.to_numeric(df[col], errors="coerce") * scale
+
     return df
 
 import json
@@ -24,11 +37,26 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
         return requested_scaling
 
     try:
-        with open("backend/timeseries/scaling_overrides.json") as f:
-            overrides = json.load(f)
-        return overrides.get(exchange, {}).get(ticker, 1.0)
+        with open("data/scaling_overrides.json") as f:
+            ov = json.load(f)
     except Exception:
         return 1.0
+
+    base = re.split(r"[.:]", ticker)[0].upper()
+    ex = (exchange or "").upper()
+
+    # Try: exact → base → per‑exchange wildcard → global wildcard
+    candidates = [
+        (ex, ticker), (ex, base),
+        (ex, "*"), ("*", base), ("*", "*"),
+    ]
+    for ex_key, t_key in candidates:
+        if ex_key in ov and t_key in ov[ex_key]:
+            try:
+                return float(ov[ex_key][t_key])
+            except Exception:
+                pass
+    return 1.0
 
 def handle_timeseries_response(
     df: pd.DataFrame,

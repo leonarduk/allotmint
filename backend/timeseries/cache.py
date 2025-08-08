@@ -26,7 +26,7 @@ from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
-from backend.utils.timeseries_helpers import _nearest_weekday
+from backend.utils.timeseries_helpers import _nearest_weekday, get_scaling_override, apply_scaling
 
 OFFLINE_MODE = os.getenv("ALLOTMINT_OFFLINE_MODE", "false").lower() == "true"
 
@@ -247,8 +247,13 @@ def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
 def meta_timeseries_cache_path(ticker: str, exchange: str) -> Path:
     return Path(_cache_path("meta", f"{ticker.upper()}_{exchange.upper()}.parquet"))
 
-def get_price_for_date(exchange, h, ticker, date, field= "Close"):
-    acquired_df = load_meta_timeseries_range(ticker=ticker, exchange=exchange,
-                                             start_date=date, end_date=date)
-    cost_price = acquired_df.at[acquired_df.index[0], field]  # label-based
-    return cost_price
+
+def get_price_for_date(exchange, ticker, date, field="Close"):
+    df = load_meta_timeseries_range(ticker=ticker, exchange=exchange,
+                                    start_date=date, end_date=date)
+    if df.empty:
+        return None
+    scale = get_scaling_override(ticker, exchange, requested_scaling=None)
+    df = apply_scaling(df, scale)
+    return float(df.at[df.index[0], field])
+

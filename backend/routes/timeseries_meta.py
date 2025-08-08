@@ -15,7 +15,7 @@ async def get_meta_timeseries(
     ticker: str = Query(...),
     exchange: str = Query("L"),
     days: int = Query(365, ge=30, le=3650),
-    format: str = Query("html", regex="^(html|json|csv)$"),
+    format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
 ):
     start_date = date.today() - timedelta(days=days)

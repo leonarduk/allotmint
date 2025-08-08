@@ -39,15 +39,15 @@ _METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
 
 
 def _list_local_plots() -> List[Dict[str, Any]]:
-    accounts: List[Dict[str, Any]] = []
+    results: List[Dict[str, Any]] = []
     if not _LOCAL_PLOTS_ROOT.exists():
-        return accounts
+        return results
 
     for owner_dir in sorted(_LOCAL_PLOTS_ROOT.iterdir()):
         if not owner_dir.is_dir():
             continue
 
-        accounts: List[str] = []
+        acct_names: List[str] = []
         for f in sorted(owner_dir.iterdir()):
             if not f.is_file():
                 continue
@@ -60,24 +60,24 @@ def _list_local_plots() -> List[Dict[str, Any]]:
             if stem_l in _METADATA_STEMS:
                 continue
 
-            accounts.append(stem)
+            acct_names.append(stem)
 
         # Dedupe case-insensitive, preserve first occurrence order
         seen = set()
         dedup: List[str] = []
-        for a in accounts:
+        for a in acct_names:
             al = a.lower()
             if al in seen:
                 continue
             seen.add(al)
             dedup.append(a)
 
-        accounts.append({
+        results.append({
             "owner": owner_dir.name,
             "accounts": dedup,
         })
 
-    return accounts
+    return results
 
 
 # ------------------------------------------------------------------

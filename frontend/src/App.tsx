@@ -186,7 +186,7 @@ export default function App() {
           {loading ? (
             <p>Loading…</p>
           ) : (
-            <InstrumentTable rows={instruments} groupSlug={selectedGroup} />
+            <InstrumentTable rows={instruments} />
           )}
         </>
       )}

@@ -9,7 +9,8 @@ from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.html_render import render_timeseries_html
 from backend.utils.timeseries_helpers import (
     apply_scaling,
-    get_scaling_override
+    get_scaling_override,
+    handle_timeseries_response,
 )
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])

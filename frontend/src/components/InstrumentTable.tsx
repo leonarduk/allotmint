@@ -102,16 +102,21 @@ export function InstrumentTable({ rows }: Props) {
                         return (
                             <tr key={r.ticker}>
                                 <td style={cell}>
-                                    <a
-                                        href="#"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            setSelected(r);
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelected(r)}
+                                        style={{
+                                            color: "dodgerblue",
+                                            textDecoration: "underline",
+                                            background: "none",
+                                            border: "none",
+                                            padding: 0,
+                                            font: "inherit",
+                                            cursor: "pointer",
                                         }}
-                                        style={{ color: "dodgerblue", textDecoration: "underline" }}
                                     >
                                         {r.ticker}
-                                    </a>
+                                    </button>
                                 </td>
                                 <td style={cell}>{r.name}</td>
                                 <td style={cell}>{r.currency ?? "—"}</td>

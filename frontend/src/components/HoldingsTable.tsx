@@ -1,6 +1,7 @@
-import { useState } from "react";
+import type React from "react";
 import type { Holding } from "../types";
 import { money } from "../lib/money";
+import { useSortableTable } from "../hooks/useSortableTable";
 
 type SortKey = "ticker" | "name" | "cost" | "gain" | "gain_pct" | "days_held";
 
@@ -10,22 +11,8 @@ type Props = {
 };
 
 export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>("ticker");
-  const [asc, setAsc] = useState(true);
-
-  if (!holdings.length) return null;
-
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right" } as const;
-
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setAsc(!asc);
-    } else {
-      setSortKey(key);
-      setAsc(true);
-    }
-  }
 
   const rows = holdings.map((h) => {
     const cost =
@@ -49,16 +36,9 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
     return { ...h, cost, market, gain, gain_pct };
   });
 
-  const sorted = [...rows].sort((a, b) => {
-    const va = a[sortKey as keyof typeof a];
-    const vb = b[sortKey as keyof typeof b];
-    if (typeof va === "string" && typeof vb === "string") {
-      return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-    }
-    const na = (va as number) ?? 0;
-    const nb = (vb as number) ?? 0;
-    return asc ? na - nb : nb - na;
-  });
+  const { sorted, sortKey, asc, handleSort } = useSortableTable(rows, "ticker");
+
+  if (!rows.length) return null;
 
   return (
     <table

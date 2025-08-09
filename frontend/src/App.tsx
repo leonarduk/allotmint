@@ -25,7 +25,7 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
-import { ScreenerPage } from "./components/ScreenerPage";
+import Screener from "./pages/Screener";
 
 type Mode =
   | "owner"
@@ -248,7 +248,7 @@ export default function App() {
 
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
-      {mode === "screener" && <ScreenerPage />}
+      {mode === "screener" && <Screener />}
     </div>
   );
 }

@@ -69,8 +69,21 @@ export const getPerformance = (owner: string, days = 365) =>
   fetchJson<PerformancePoint[]>(`${API_BASE}/performance/${owner}?days=${days}`);
 
 /** Run a simple fundamentals screen across a list of tickers. */
-export const getScreener = (tickers: string[]) => {
+export const getScreener = (
+  tickers: string[],
+  criteria?: {
+    peg_max?: number;
+    pe_max?: number;
+    de_max?: number;
+    fcf_min?: number;
+  },
+) => {
   const qs = new URLSearchParams({ tickers: tickers.join(",") });
+  if (criteria) {
+    for (const [k, v] of Object.entries(criteria)) {
+      if (v != null && !Number.isNaN(v)) qs.set(k, String(v));
+    }
+  }
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${qs.toString()}`);
 };
 

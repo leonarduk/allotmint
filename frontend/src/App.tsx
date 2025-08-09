@@ -21,6 +21,7 @@ import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
+import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { ScreenerPage } from "./components/ScreenerPage";
 
@@ -192,6 +193,8 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+      <AlertsPanel />
+      {/* mode toggle */}
       <div style={{ marginBottom: "1rem" }}>
         <strong>View by:</strong>{" "}
         {(["group", "instrument", "screener", "owner", "transactions"] as Mode[]).map((m) => (

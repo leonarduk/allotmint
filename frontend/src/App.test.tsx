@@ -16,6 +16,7 @@ describe("App", () => {
       getGroupInstruments: vi.fn().mockResolvedValue([]),
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
     }));
 

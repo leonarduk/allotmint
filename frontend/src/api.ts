@@ -7,6 +7,7 @@ import type {
   OwnerSummary,
   Portfolio,
   Transaction,
+  Alert,
   ScreenerResult,
 } from "./types";
 
@@ -100,6 +101,8 @@ export const getTransactions = (params: {
   return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
 };
 
+/** Retrieve recent alert messages from backend. */
+export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts`);
 /** Retrieve compliance warnings for an owner */
 export const getCompliance = (owner: string) =>
   fetchJson<{ owner: string; warnings: string[] }>(

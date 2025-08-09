@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useLocation, useRoutes } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   getGroupInstruments,
   getGroups,
@@ -23,12 +23,17 @@ import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
 import { PerformanceDashboard } from "./components/PerformanceDashboard";
 
-type Mode = "owner" | "group" | "instrument" | "transactions" | "performance";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { ScreenerPage } from "./components/ScreenerPage";
 
-type Mode = "owner" | "group" | "instrument" | "transactions" | "screener";
+type Mode =
+  | "owner"
+  | "group"
+  | "instrument"
+  | "transactions"
+  | "performance"
+  | "screener";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -43,14 +48,18 @@ const initialSlug = path[1] ?? "";
 
 export default function App() {
   const navigate = useNavigate();
-  const location = useLocation();
+
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [selectedOwner, setSelectedOwner] = useState(
+    initialMode === "owner" ? initialSlug : "",
+  );
+  const params = new URLSearchParams(window.location.search);
+  const [selectedGroup, setSelectedGroup] = useState(
+    initialMode === "instrument" ? initialSlug : params.get("group") ?? "",
+  );
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState(
-    initialMode === "instrument" ? initialSlug : ""
-  );
-
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
 
@@ -65,37 +74,22 @@ export default function App() {
     getOwners().then(setOwners).catch((e) => setErr(String(e)));
     getGroups().then(setGroups).catch((e) => setErr(String(e)));
   }, []);
-
-  // derive route info
-  const segments = location.pathname.split("/").filter(Boolean);
-  let mode: "owner" | "group" | "instrument" | "transactions" = "group";
-  let selectedOwner = "";
-  let selectedGroup = "";
-
-  if (segments[0] === "member") {
-    mode = "owner";
-    selectedOwner = segments[1] ?? "";
-  } else if (segments[0] === "instrument") {
-    mode = "instrument";
-    selectedGroup = segments[1] ?? "";
-  } else if (segments[0] === "transactions") {
-    mode = "transactions";
-  } else {
-    mode = "group";
-    const params = new URLSearchParams(location.search);
-    selectedGroup = params.get("group") ?? "";
-  }
-
   // redirect to defaults if no selection provided
   useEffect(() => {
     if (mode === "owner" && !selectedOwner && owners.length) {
-      navigate(`/member/${owners[0].owner}`, { replace: true });
+      const owner = owners[0].owner;
+      setSelectedOwner(owner);
+      navigate(`/member/${owner}`, { replace: true });
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
-      navigate(`/instrument/${groups[0].slug}`, { replace: true });
+      const slug = groups[0].slug;
+      setSelectedGroup(slug);
+      navigate(`/instrument/${slug}`, { replace: true });
     }
     if (mode === "group" && !selectedGroup && groups.length) {
-      navigate(`/?group=${groups[0].slug}`, { replace: true });
+      const slug = groups[0].slug;
+      setSelectedGroup(slug);
+      navigate(`/?group=${slug}`, { replace: true });
     }
   }, [mode, selectedOwner, selectedGroup, owners, groups, navigate]);
 
@@ -141,59 +135,6 @@ export default function App() {
     }
   }
 
-  const routes = useRoutes([
-    {
-      path: "/member/:owner",
-      element: (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={(o) => navigate(`/member/${o}`)}
-          />
-          <PortfolioView data={portfolio} loading={loading} error={err} />
-        </>
-      ),
-    },
-    {
-      path: "/instrument/:group",
-      element: (
-        <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={(g) => navigate(`/instrument/${g}`)}
-          />
-          {err && <p style={{ color: "red" }}>{err}</p>}
-          {loading ? (
-            <p>Loading…</p>
-          ) : (
-            <InstrumentTable rows={instruments} />
-          )}
-        </>
-      ),
-    },
-    {
-      path: "/transactions",
-      element: <TransactionsPage owners={owners} />,
-    },
-    {
-      path: "/",
-      element: (
-        <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={(g) => navigate(`/?group=${g}`)}
-          />
-          <GroupPortfolioView
-            slug={selectedGroup}
-            onSelectMember={(owner) => navigate(`/member/${owner}`)}
-          />
-        </>
-      ),
-    },
-  ]);
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
@@ -255,7 +196,6 @@ export default function App() {
         )}
       </div>
 
-      {routes}
       {/* OWNER VIEW */}
       {mode === "owner" && (
         <>
@@ -287,7 +227,7 @@ export default function App() {
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);
-              window.history.pushState({}, "", `/member/${owner}`);
+              navigate(`/member/${owner}`);
             }}
           />
         </>

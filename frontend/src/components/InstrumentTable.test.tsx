@@ -30,7 +30,8 @@ describe("InstrumentTable", () => {
 
         const mock = InstrumentDetail as unknown as Mock;
         expect(mock).toHaveBeenCalled();
-        const props = mock.mock.calls[0][0] as any;
+        type DetailProps = Parameters<typeof InstrumentDetail>[0];
+        const props = mock.mock.calls[0][0] as DetailProps;
         expect(props.ticker).toBe("ABC");
         expect(props.name).toBe("ABC Corp");
     });

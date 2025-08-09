@@ -25,4 +25,11 @@ jobs:
         env:
           ALLOTMINT_SKIP_SNAPSHOT_WARM: 'true'
         run: |
-          pytest tests/test_backend_api.py::test_health --cov=backend.local_api.main --cov=backend.routes.portfolio --cov=backend.utils.period_utils --cov=backend.utils.currency_utils --cov-report=term --cov-fail-under=0 -q
+          pytest tests/test_backend_api.py::test_health --cov=backend --cov-report=xml --cov-report=term --cov-fail-under=0 -q
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          slug: leonarduk/allotmint
+          files: ./coverage.xml
+          fail_ci_if_error: true

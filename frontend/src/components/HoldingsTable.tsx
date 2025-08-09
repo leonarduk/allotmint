@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Holding } from "../types";
 import { money } from "../lib/money";
 
-type SortKey = "ticker" | "name" | "cost" | "gain" | "days_held";
+type SortKey = "ticker" | "name" | "cost" | "gain" | "gain_pct" | "days_held";
 
 type Props = {
   holdings: Holding[];
@@ -39,7 +39,14 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
         ? h.gain_gbp
         : market - cost;
 
-    return { ...h, cost, market, gain };
+    const gain_pct =
+      h.gain_pct !== undefined && h.gain_pct !== null
+        ? h.gain_pct
+        : cost
+          ? (gain / cost) * 100
+          : 0;
+
+    return { ...h, cost, market, gain, gain_pct };
   });
 
   const sorted = [...rows].sort((a, b) => {
@@ -93,6 +100,12 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
           >
             Gain £{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
           </th>
+          <th
+            style={{ ...right, cursor: "pointer" }}
+            onClick={() => handleSort("gain_pct")}
+          >
+            Gain %{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
+          </th>
           <th style={cell}>Acquired</th>
           <th
             style={{ ...right, cursor: "pointer" }}
@@ -144,6 +157,14 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
                 }}
               >
                 {money(h.gain)}
+              </td>
+              <td
+                style={{
+                  ...right,
+                  color: h.gain_pct >= 0 ? "lightgreen" : "red",
+                }}
+              >
+                {Number.isFinite(h.gain_pct) ? h.gain_pct.toFixed(1) : "—"}
               </td>
               <td style={cell}>{h.acquired_date}</td>
               <td style={right}>{h.days_held ?? "—"}</td>

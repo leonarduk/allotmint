@@ -37,6 +37,7 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings}/>);
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.getByText("XYZ")).toBeInTheDocument();
+        expect(screen.getByText(/Gain %/)).toBeInTheDocument();
         expect(screen.getByText("Test Holding")).toBeInTheDocument();
         expect(screen.getByText("GBP")).toBeInTheDocument();
         expect(screen.getByText("5")).toBeInTheDocument();

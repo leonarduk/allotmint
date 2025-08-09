@@ -72,3 +72,7 @@ export default tseslint.config([
   },
 ])
 ```
+
+## Relative view mode
+
+The main portfolio view includes a **Relative view** toggle. When enabled (the default), the holdings table hides the "Units", "Cost £", and "Gain £" columns and instead shows percentage-based metrics such as "Gain %" and a new "Weight %" column indicating each holding's share of the account. Uncheck the toggle to restore the absolute value columns.

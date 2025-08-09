@@ -3,5 +3,9 @@
   "name": "Goldman Sachs ETF ICAV Access UK Gilts 1-10 Years UCITS ETF Class GBP Dis",
   "exchange": "L",
   "currency": "GBP",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "GB00BMF9LJ05",
+  "region": "UK",
+  "Sector": "Real Estate",
+  "morningStarRating": ""
 }

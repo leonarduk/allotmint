@@ -55,8 +55,8 @@ export function ComplianceWarnings({ owners }: Props) {
         <div key={o} style={{ marginBottom: "0.5rem" }}>
           <strong>{o}</strong>
           <ul style={{ margin: "0.25rem 0 0 1.25rem" }}>
-            {data[o].map((w, i) => (
-              <li key={i}>{w}</li>
+            {data[o].map((w) => (
+              <li key={`${o}-${w}`}>{w}</li>
             ))}
           </ul>
         </div>

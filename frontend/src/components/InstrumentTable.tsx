@@ -3,7 +3,7 @@ import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
 
-type SortKey = "ticker" | "name" | "cost" | "gain";
+type SortKey = "ticker" | "name" | "cost" | "gain" | "gain_pct";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -32,10 +32,16 @@ export function InstrumentTable({ rows }: Props) {
         }
     }
 
-    const rowsWithCost = rows.map((r) => ({
-        ...r,
-        cost: r.market_value_gbp - r.gain_gbp,
-    }));
+    const rowsWithCost = rows.map((r) => {
+        const cost = r.market_value_gbp - r.gain_gbp;
+        const gain_pct =
+            r.gain_pct !== undefined && r.gain_pct !== null
+                ? r.gain_pct
+                : cost
+                ? (r.gain_gbp / cost) * 100
+                : 0;
+        return { ...r, cost, gain_pct };
+    });
 
     const sorted = [...rowsWithCost].sort((a, b) => {
         const va = a[sortKey as keyof typeof a];
@@ -74,6 +80,8 @@ export function InstrumentTable({ rows }: Props) {
                             Name
                             {sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
+                        <th style={cell}>CCY</th>
+                        <th style={cell}>Type</th>
                         <th style={right}>Units</th>
                         <th style={cell}>CCY</th>
                         <th
@@ -91,6 +99,13 @@ export function InstrumentTable({ rows }: Props) {
                             Gain £
                             {sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
+                        <th
+                            style={{ ...right, cursor: "pointer" }}
+                            onClick={() => handleSort("gain_pct")}
+                        >
+                            Gain %
+                            {sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
+                        </th>
                         <th style={right}>Last £</th>
                         <th style={right}>Last&nbsp;Date</th>
                         <th style={right}>Δ&nbsp;7&nbsp;d&nbsp;%</th>
@@ -104,13 +119,22 @@ export function InstrumentTable({ rows }: Props) {
                             r.gain_gbp >= 0 ? "lightgreen" : "red";
 
                         return (
-                            <tr
-                                key={r.ticker}
-                                onClick={() => setSelected(r)}
-                            >
-                                <td style={cell}>{r.ticker}</td>
+                            <tr key={r.ticker}>
+                                <td style={cell}>
+                                    <a
+                                        href="#"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setSelected(r);
+                                        }}
+                                        style={{ color: "dodgerblue", textDecoration: "underline" }}
+                                    >
+                                        {r.ticker}
+                                    </a>
+                                </td>
                                 <td style={cell}>{r.name}</td>
                                 <td style={cell}>{r.currency ?? "—"}</td>
+                                <td style={cell}>{r.instrument_type ?? "—"}</td>
                                 <td style={right}>
                                     {r.units.toLocaleString()}
                                 </td>
@@ -120,6 +144,9 @@ export function InstrumentTable({ rows }: Props) {
                                 </td>
                                 <td style={{ ...right, color: gainColour }}>
                                     {money(r.gain_gbp)}
+                                </td>
+                                <td style={{ ...right, color: r.gain_pct >= 0 ? "lightgreen" : "red" }}>
+                                    {Number.isFinite(r.gain_pct) ? r.gain_pct.toFixed(1) : "—"}
                                 </td>
                                 <td style={right}>
                                     {r.last_price_gbp != null
@@ -150,6 +177,8 @@ export function InstrumentTable({ rows }: Props) {
                 <InstrumentDetail
                     ticker={selected.ticker}
                     name={selected.name}
+                    currency={selected.currency}
+                    instrument_type={selected.instrument_type}
                     onClose={() => setSelected(null)}
                 />
             )}

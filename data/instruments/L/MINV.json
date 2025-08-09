@@ -3,5 +3,9 @@
   "name": "iShares VI plc Edge MSCI World Minimum Volatility UCITS ETF Acc",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "IE00B8FHGS14",
+  "region": "Europe",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

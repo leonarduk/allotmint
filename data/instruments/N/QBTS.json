@@ -3,5 +3,9 @@
   "name": "D-Wave Quantum Inc USD0.0001 A *R",
   "exchange": "N",
   "currency": "USD",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "US74766W1080",
+  "region": "US",
+  "Sector": "Information Technology",
+  "morningStarRating": ""
 }

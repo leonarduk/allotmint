@@ -3,5 +3,9 @@
   "name": "Cash (GBP)",
   "exchange": null,
   "currency": "GBP",
-  "instrumentType": "Cash"
+  "instrumentType": "Cash",
+  "isin": "",
+  "region": "",
+  "Sector": "",
+  "morningStarRating": ""
 }

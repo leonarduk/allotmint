@@ -3,5 +3,9 @@
   "name": "iShares III plc iShares GBP Corporate Bond Ex-Financials UCITS ETF *2",
   "exchange": "L",
   "currency": "GBP",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "IE00BKM4H312",
+  "region": "Europe",
+  "Sector": "Fixed Income",
+  "morningStarRating": ""
 }

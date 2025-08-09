@@ -3,5 +3,9 @@
   "name": "iShares VI plc MSCI EUR HealthCare Sect UCITS ETF Acc",
   "exchange": "L",
   "currency": "GBP",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "IE00BKM4GZ66",
+  "region": "Europe",
+  "Sector": "Fixed Income",
+  "morningStarRating": ""
 }

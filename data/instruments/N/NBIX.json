@@ -3,5 +3,9 @@
   "name": "Neurocrine Biosciences Inc Com Stk NPV (CDI) *R",
   "exchange": "N",
   "currency": "USD",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "US64125C1099",
+  "region": "US",
+  "Sector": "Health Care",
+  "morningStarRating": ""
 }

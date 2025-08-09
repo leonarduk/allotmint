@@ -1,1 +1,446 @@
-{}
+{
+  "3IN.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "ADBE.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "ADM.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "AIE.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "AIGE.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "ARG.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "AV.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "AZN.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "B.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "BBAI.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "BIIB.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "BLND.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "BME.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "BMY.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "BP.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "BPCR.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "BUT.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "BYG.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "CARD.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "CASH.GBP": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "CLIG.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "CNA.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "CUKS.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "ERNS.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "ESIH.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "FSFL.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "GAMA.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "GAW.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "GBPG.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "GILG.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "GRG.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "GSK.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "HFD.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "HFEL.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "HICL.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "IBZL.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "IEFV.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "IFX.DE": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "III.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "IONQ.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "ISXF.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "JEGI.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "LAES.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "MINV.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "MNDI.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "MONY.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "NBIX.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "NESF.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "PBR.A.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "PFE.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "PHGP.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "PHSP.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "POLR.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "QBTS.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "REC.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "SBRY.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "SEGA.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "SERE.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "SFR.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "SN.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "SNWS.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "SPGP.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "TFIF.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "THX.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "UKW.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "ULVR.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "UNH.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "UPS.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "UTHR.N": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "VHYL.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "VOD.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "VWRL.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "WCOS.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  },
+  "WIX.L": {
+    "last_price": 0.0,
+    "change_7d_pct": 0.0,
+    "change_30d_pct": 0.0,
+    "last_price_date": "2025-08-09"
+  }
+}

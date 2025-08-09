@@ -3,5 +3,9 @@
   "name": "Games Workshop Group Ordinary 5p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB0003718474",
+  "region": "UK",
+  "Sector": "Consumer Discretionary",
+  "morningStarRating": ""
 }

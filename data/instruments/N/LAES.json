@@ -3,5 +3,9 @@
   "name": "Sealsq Corp USD0.01 *R",
   "exchange": "N",
   "currency": "USD",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "US50736P1075",
+  "region": "US",
+  "Sector": "Health Care",
+  "morningStarRating": ""
 }

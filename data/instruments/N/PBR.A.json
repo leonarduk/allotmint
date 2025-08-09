@@ -3,5 +3,9 @@
   "name": "Petroleo Brasileiro SA Petrobras Spon ADR Each Repr 2 Pref Shs NPV *R",
   "exchange": "N",
   "currency": "USD",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "US71654V4086",
+  "region": "Brazil",
+  "Sector": "Energy",
+  "morningStarRating": ""
 }

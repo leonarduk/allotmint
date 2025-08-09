@@ -3,5 +3,9 @@
   "name": "AstraZeneca plc Ordinary US$0.25",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB0009895292",
+  "region": "UK",
+  "Sector": "Health Care",
+  "morningStarRating": ""
 }

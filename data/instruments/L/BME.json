@@ -3,5 +3,9 @@
   "name": "B&M European Value Retail SA",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "LU1072616219",
+  "region": "Europe",
+  "Sector": "Consumer Discretionary",
+  "morningStarRating": ""
 }

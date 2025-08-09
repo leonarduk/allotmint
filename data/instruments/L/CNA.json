@@ -3,5 +3,9 @@
   "name": "Centrica plc Ord 6,14/81p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B033F229",
+  "region": "UK",
+  "Sector": "Utilities",
+  "morningStarRating": ""
 }

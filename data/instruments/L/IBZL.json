@@ -3,5 +3,9 @@
   "name": "iShares plc MSCI Brazil UCITS ETF (Dist)",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "IE00B1FZS574",
+  "region": "Europe",
+  "Sector": "Fixed Income",
+  "morningStarRating": ""
 }

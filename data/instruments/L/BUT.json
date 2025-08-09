@@ -3,5 +3,9 @@
   "name": "Brunner Investment Trust Plc",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Investment Trust"
+  "instrumentType": "Investment Trust",
+  "isin": "GB00BN7JGL35",
+  "region": "UK",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

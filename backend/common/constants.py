@@ -27,4 +27,6 @@ ACQUIRED_DATE = "acquired_date"
 
 GAIN_GBP = "gain_gbp"
 
+GAIN_PCT = "gain_pct"
+
 DAYS_HELD = "days_held"

@@ -18,6 +18,7 @@ import pandas as pd
 
 from backend.common import portfolio as portfolio_mod
 from backend.common.portfolio_loader import list_portfolios          # existing helper
+from backend.common.instruments import get_instrument_meta
 from backend.timeseries.cache import load_meta_timeseries
 
 logger = logging.getLogger("portfolio_utils")
@@ -169,6 +170,7 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
             tkr = (h.get("ticker") or "").upper()
             if not tkr:
                 continue
+            meta = get_instrument_meta(tkr)
 
             row = rows.setdefault(
                 tkr,
@@ -184,6 +186,8 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
                     "last_price_date":  None,
                     "change_7d_pct":    None,
                     "change_30d_pct":   None,
+                    "currency":        meta.get("currency"),
+                    "instrument_type": meta.get("instrumentType") or meta.get("instrument_type"),
                 },
             )
 
@@ -227,6 +231,10 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
             for k in ("asset_class", "region", "owner"):
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
+
+    for r in rows.values():
+        cost = r["cost_gbp"]
+        r["gain_pct"] = (r["gain_gbp"] / cost * 100.0) if cost else None
 
     return list(rows.values())
 

@@ -3,5 +3,9 @@
   "name": "Polar Capital Holdings Plc Ord 2.5p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B5428M26",
+  "region": "UK",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

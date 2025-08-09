@@ -3,5 +3,9 @@
   "name": "iShares VII plc MSCI UK Small CAP UCITS ETF",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "IE00B42TW061",
+  "region": "Europe",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

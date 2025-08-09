@@ -3,5 +3,9 @@
   "name": "iShares V plc Gold Producers UCITS ETF Acc (GBP)",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "IE00B6R52036",
+  "region": "Europe",
+  "Sector": "Materials",
+  "morningStarRating": ""
 }

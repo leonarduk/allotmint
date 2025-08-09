@@ -7,6 +7,8 @@ describe("HoldingsTable", () => {
         {
             ticker: "AAA",
             name: "Alpha",
+            currency: "GBP",
+            instrument_type: "Equity",
             units: 5,
             price: 0,
             cost_basis_gbp: 100,
@@ -20,7 +22,8 @@ describe("HoldingsTable", () => {
         {
             ticker: "XYZ",
             name: "Test Holding",
-            currency: "GBP",
+            currency: "USD",
+            instrument_type: "Equity",
             units: 5,
             price: 0,
             cost_basis_gbp: 500,
@@ -37,6 +40,7 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings}/>);
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.getByText("XYZ")).toBeInTheDocument();
+        expect(screen.getByText(/Gain %/)).toBeInTheDocument();
         expect(screen.getByText("Test Holding")).toBeInTheDocument();
         expect(screen.getByText("GBP")).toBeInTheDocument();
         expect(screen.getAllByText("5").length).toBeGreaterThan(0);
@@ -55,7 +59,7 @@ describe("HoldingsTable", () => {
         let rows = screen.getAllByRole("row");
         expect(within(rows[1]).getByText("AAA")).toBeInTheDocument();
 
-        fireEvent.click(screen.getByText(/^Ticker/));
+        fireEvent.click(screen.getAllByText(/^Ticker/)[1]);
         rows = screen.getAllByRole("row");
         expect(within(rows[1]).getByText("XYZ")).toBeInTheDocument();
     });

@@ -3,5 +3,9 @@
   "name": "Vodafone Group plc USD0.20 20/21",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00BH4HKS39",
+  "region": "UK",
+  "Sector": "Communication Services",
+  "morningStarRating": ""
 }

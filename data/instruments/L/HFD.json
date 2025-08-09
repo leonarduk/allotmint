@@ -1,6 +1,7 @@
 {
   "ticker": "HFD.L",
-  "name": "HFD",
+  "name": "Halfords Group plc",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity"
 }

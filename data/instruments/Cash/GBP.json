@@ -2,5 +2,6 @@
   "ticker": "CASH.GBP",
   "name": "Cash (GBP)",
   "exchange": null,
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "Cash"
 }

@@ -2,5 +2,6 @@
   "ticker": "VWRL.L",
   "name": "Vanguard FTSE All-World UCITS ETF (GBP)",
   "exchange": "L",
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "ETF"
 }

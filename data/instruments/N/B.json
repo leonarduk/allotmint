@@ -2,5 +2,6 @@
   "ticker": "B.N",
   "name": "Barrick Mining Corp NPV *R",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity"
 }

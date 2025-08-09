@@ -2,5 +2,6 @@
   "ticker": "BPCR.L",
   "name": "BioPharma Credit plc ORD USD0.01 *R",
   "exchange": "L",
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "Equity"
 }

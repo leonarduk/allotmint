@@ -1,6 +1,7 @@
 {
   "ticker": "BME.L",
-  "name": "BME",
+  "name": "B&M European Value Retail SA",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity"
 }

@@ -2,5 +2,6 @@
   "ticker": "WCOS.L",
   "name": "SPDR MSCI World Consumer Staples UCITS ETF *1 *R",
   "exchange": "L",
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "ETF"
 }

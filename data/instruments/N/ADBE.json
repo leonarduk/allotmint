@@ -2,5 +2,6 @@
   "ticker": "ADBE.N",
   "name": "Adobe Inc Comm Stk US$.0001 *R",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity"
 }

@@ -12,7 +12,9 @@ straight into the same pipeline.
 
 Usage
 -----
-    python convert_portfolio_xml_to_account_transactions.py path/to/investments.xml data/accounts
+    python convert_portfolio_xml_to_account_transactions.py path/to/investments.xml [out_dir]
+
+`out_dir` defaults to `data/accounts`.
 
 Requires `pandas` (install with `pip install pandas`).
 """
@@ -157,12 +159,23 @@ def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
 # CLI entry‑point
 ###############################################################################
 
-def main() -> None:
-    xml = "C:/workspaces/bitbucket/luk/data/portfolio/investments-with-id.xml"
-    output_root = "C:/workspaces/github/allotmint/data/transactions"
 
-    df = extract_transactions_by_account(xml_path=xml)
-    write_account_json(df, output_root)
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Convert a PortfolioPerformance XML export into per-account transaction JSON files."
+    )
+    parser.add_argument("xml_path", help="Path to PortfolioPerformance XML file")
+    parser.add_argument(
+        "out_dir",
+        nargs="?",
+        default="data/accounts",
+        help="Output directory for account JSON files (default: data/accounts)",
+    )
+    args = parser.parse_args()
+
+    df = extract_transactions_by_account(xml_path=args.xml_path)
+    write_account_json(df, args.out_dir)
+
 
 if __name__ == "__main__":
     main()

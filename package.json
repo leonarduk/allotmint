@@ -1,4 +1,6 @@
 {
+  "name": "allotmint",
+  "version": "0.0.2",
   "devDependencies": {
     "concurrently": "^9.2.0"
   }

@@ -22,7 +22,7 @@ export function ComplianceWarnings({ owners }: Props) {
           try {
             const res: ComplianceResult = await getCompliance(o);
             entries[o] = res.warnings ?? [];
-          } catch (e) {
+          } catch {
             entries[o] = ["Failed to load warnings"];
           }
         })

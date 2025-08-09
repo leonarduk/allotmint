@@ -227,7 +227,7 @@ export default function App() {
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);
-              window.history.pushState({}, "", `/member/${owner}`);
+              navigate(`/member/${owner}`);
             }}
           />
         </>

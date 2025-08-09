@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   getGroupInstruments,
   getGroups,
@@ -162,22 +162,6 @@ export default function App() {
               : m.charAt(0).toUpperCase() + m.slice(1)}
           </label>
         ))}
-        <Link to={`/?group=${selectedGroup || groups[0]?.slug || ""}`}>Group</Link>{" "}
-        <Link
-          to={`/instrument/${selectedGroup || groups[0]?.slug || ""}`}
-          style={{ marginLeft: "1rem" }}
-        >
-          Instrument
-        </Link>{" "}
-        <Link
-          to={`/member/${selectedOwner || owners[0]?.owner || ""}`}
-          style={{ marginLeft: "1rem" }}
-        >
-          Member
-        </Link>{" "}
-        <Link to="/transactions" style={{ marginLeft: "1rem" }}>
-          Transactions
-        </Link>
       </div>
 
       <div style={{ marginBottom: "1rem" }}>

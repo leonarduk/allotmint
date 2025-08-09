@@ -1,0 +1,26 @@
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.cell {
+  padding: 4px 6px;
+}
+
+.right {
+  text-align: right;
+}
+
+.center {
+  text-align: center;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.link {
+  color: dodgerblue;
+  text-decoration: underline;
+}

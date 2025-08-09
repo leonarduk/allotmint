@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
+import styles from "../styles/table.module.css";
 
 type SortKey = "ticker" | "name" | "cost" | "gain" | "gain_pct";
 
@@ -18,10 +19,6 @@ export function InstrumentTable({ rows }: Props) {
     if (!rows.length) {
         return <p>No instruments found for this group.</p>;
     }
-
-    /* simple cell styles */
-    const cell = { padding: "4px 6px" } as const;
-    const right = { ...cell, textAlign: "right" } as const;
 
     function handleSort(key: SortKey) {
         if (sortKey === key) {
@@ -56,60 +53,53 @@ export function InstrumentTable({ rows }: Props) {
 
     return (
         <>
-            <table
-                style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    cursor: "pointer",
-                    marginBottom: "1rem",
-                }}
-            >
+            <table className={`${styles.table} ${styles.clickable}`}>
                 <thead>
                     <tr>
                         <th
-                            style={{ ...cell, cursor: "pointer" }}
+                            className={`${styles.cell} ${styles.clickable}`}
                             onClick={() => handleSort("ticker")}
                         >
                             Ticker
                             {sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
                         <th
-                            style={{ ...cell, cursor: "pointer" }}
+                            className={`${styles.cell} ${styles.clickable}`}
                             onClick={() => handleSort("name")}
                         >
                             Name
                             {sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
-                        <th style={cell}>CCY</th>
-                        <th style={cell}>Type</th>
-                        <th style={right}>Units</th>
-                        <th style={cell}>CCY</th>
+                        <th className={styles.cell}>CCY</th>
+                        <th className={styles.cell}>Type</th>
+                        <th className={`${styles.cell} ${styles.right}`}>Units</th>
+                        <th className={styles.cell}>CCY</th>
                         <th
-                            style={{ ...right, cursor: "pointer" }}
+                            className={`${styles.cell} ${styles.right} ${styles.clickable}`}
                             onClick={() => handleSort("cost")}
                         >
                             Cost £
                             {sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
-                        <th style={right}>Mkt £</th>
+                        <th className={`${styles.cell} ${styles.right}`}>Mkt £</th>
                         <th
-                            style={{ ...right, cursor: "pointer" }}
+                            className={`${styles.cell} ${styles.right} ${styles.clickable}`}
                             onClick={() => handleSort("gain")}
                         >
                             Gain £
                             {sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
                         <th
-                            style={{ ...right, cursor: "pointer" }}
+                            className={`${styles.cell} ${styles.right} ${styles.clickable}`}
                             onClick={() => handleSort("gain_pct")}
                         >
                             Gain %
                             {sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
-                        <th style={right}>Last £</th>
-                        <th style={right}>Last&nbsp;Date</th>
-                        <th style={right}>Δ&nbsp;7&nbsp;d&nbsp;%</th>
-                        <th style={right}>Δ&nbsp;1&nbsp;mo&nbsp;%</th>
+                        <th className={`${styles.cell} ${styles.right}`}>Last £</th>
+                        <th className={`${styles.cell} ${styles.right}`}>Last&nbsp;Date</th>
+                        <th className={`${styles.cell} ${styles.right}`}>Δ&nbsp;7&nbsp;d&nbsp;%</th>
+                        <th className={`${styles.cell} ${styles.right}`}>Δ&nbsp;1&nbsp;mo&nbsp;%</th>
                     </tr>
                 </thead>
 
@@ -120,48 +110,54 @@ export function InstrumentTable({ rows }: Props) {
 
                         return (
                             <tr key={r.ticker}>
-                                <td style={cell}>
+                                <td className={styles.cell}>
                                     <a
                                         href="#"
                                         onClick={(e) => {
                                             e.preventDefault();
                                             setSelected(r);
                                         }}
-                                        style={{ color: "dodgerblue", textDecoration: "underline" }}
+                                        className={styles.link}
                                     >
                                         {r.ticker}
                                     </a>
                                 </td>
-                                <td style={cell}>{r.name}</td>
-                                <td style={cell}>{r.currency ?? "—"}</td>
-                                <td style={cell}>{r.instrument_type ?? "—"}</td>
-                                <td style={right}>
+                                <td className={styles.cell}>{r.name}</td>
+                                <td className={styles.cell}>{r.currency ?? "—"}</td>
+                                <td className={styles.cell}>{r.instrument_type ?? "—"}</td>
+                                <td className={`${styles.cell} ${styles.right}`}>
                                     {r.units.toLocaleString()}
                                 </td>
-                                <td style={right}>{money(r.cost)}</td>
-                                <td style={right}>
+                                <td className={`${styles.cell} ${styles.right}`}>{money(r.cost)}</td>
+                                <td className={`${styles.cell} ${styles.right}`}>
                                     {money(r.market_value_gbp)}
                                 </td>
-                                <td style={{ ...right, color: gainColour }}>
+                                <td
+                                    className={`${styles.cell} ${styles.right}`}
+                                    style={{ color: gainColour }}
+                                >
                                     {money(r.gain_gbp)}
                                 </td>
-                                <td style={{ ...right, color: r.gain_pct >= 0 ? "lightgreen" : "red" }}>
+                                <td
+                                    className={`${styles.cell} ${styles.right}`}
+                                    style={{ color: r.gain_pct >= 0 ? "lightgreen" : "red" }}
+                                >
                                     {Number.isFinite(r.gain_pct) ? r.gain_pct.toFixed(1) : "—"}
                                 </td>
-                                <td style={right}>
+                                <td className={`${styles.cell} ${styles.right}`}>
                                     {r.last_price_gbp != null
                                         ? money(r.last_price_gbp)
                                         : "—"}
                                 </td>
-                                <td style={right}>
+                                <td className={`${styles.cell} ${styles.right}`}>
                                     {r.last_price_date ?? "—"}
                                 </td>
-                                <td style={right}>
+                                <td className={`${styles.cell} ${styles.right}`}>
                                     {r.change_7d_pct == null
                                         ? "—"
                                         : r.change_7d_pct.toFixed(1)}
                                 </td>
-                                <td style={right}>
+                                <td className={`${styles.cell} ${styles.right}`}>
                                     {r.change_30d_pct == null
                                         ? "—"
                                         : r.change_30d_pct.toFixed(1)}

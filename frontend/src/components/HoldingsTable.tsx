@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Holding } from "../types";
 import { money } from "../lib/money";
+import styles from "../styles/table.module.css";
 
 type SortKey = "ticker" | "name" | "cost" | "gain" | "gain_pct" | "days_held";
 
@@ -14,9 +15,6 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
   const [asc, setAsc] = useState(true);
 
   if (!holdings.length) return null;
-
-  const cell = { padding: "4px 6px" } as const;
-  const right = { ...cell, textAlign: "right" } as const;
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -61,57 +59,51 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
   });
 
   return (
-    <table
-      style={{
-        width: "100%",
-        borderCollapse: "collapse",
-        marginBottom: "1rem",
-      }}
-    >
+    <table className={styles.table}>
       <thead>
         <tr>
           <th
-            style={{ ...cell, cursor: "pointer" }}
+            className={`${styles.cell} ${styles.clickable}`}
             onClick={() => handleSort("ticker")}
           >
             Ticker{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th
-            style={{ ...cell, cursor: "pointer" }}
+            className={`${styles.cell} ${styles.clickable}`}
             onClick={() => handleSort("name")}
           >
             Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
           </th>
-          <th style={cell}>CCY</th>
-          <th style={right}>Units</th>
-          <th style={right}>Px £</th>
+          <th className={styles.cell}>CCY</th>
+          <th className={`${styles.cell} ${styles.right}`}>Units</th>
+          <th className={`${styles.cell} ${styles.right}`}>Px £</th>
           <th
-            style={{ ...right, cursor: "pointer" }}
+            className={`${styles.cell} ${styles.right} ${styles.clickable}`}
             onClick={() => handleSort("cost")}
           >
             Cost £{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
           </th>
-          <th style={right}>Mkt £</th>
+          <th className={`${styles.cell} ${styles.right}`}>Mkt £</th>
           <th
-            style={{ ...right, cursor: "pointer" }}
+            className={`${styles.cell} ${styles.right} ${styles.clickable}`}
             onClick={() => handleSort("gain")}
           >
             Gain £{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th
-            style={{ ...right, cursor: "pointer" }}
+            className={`${styles.cell} ${styles.right} ${styles.clickable}`}
             onClick={() => handleSort("gain_pct")}
           >
             Gain %{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
           </th>
-          <th style={cell}>Acquired</th>
+          <th className={styles.cell}>Acquired</th>
           <th
-            style={{ ...right, cursor: "pointer" }}
+            className={`${styles.cell} ${styles.right} ${styles.clickable}`}
             onClick={() => handleSort("days_held")}
           >
             Days&nbsp;Held{sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
           </th>
-          <th style={{ ...cell, textAlign: "center" }}>Eligible?</th>
+          <th className={`${styles.cell} ${styles.center}`}>Eligible?</th>
         </tr>
       </thead>
 
@@ -124,22 +116,22 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
 
           return (
             <tr key={h.ticker + h.acquired_date}>
-              <td style={cell}>
+              <td className={styles.cell}>
                 <a
                   href="#"
                   onClick={handleClick}
-                  style={{ color: "dodgerblue", textDecoration: "underline" }}
+                  className={styles.link}
                 >
                   {h.ticker}
                 </a>
               </td>
-              <td style={cell}>{h.name}</td>
-              <td style={cell}>{h.currency ?? "—"}</td>
-              <td style={cell}>{h.instrument_type ?? "—"}</td>
-              <td style={right}>{h.units.toLocaleString()}</td>
-              <td style={right}>{money(h.current_price_gbp)}</td>
+              <td className={styles.cell}>{h.name}</td>
+              <td className={styles.cell}>{h.currency ?? "—"}</td>
+              <td className={styles.cell}>{h.instrument_type ?? "—"}</td>
+              <td className={`${styles.cell} ${styles.right}`}>{h.units.toLocaleString()}</td>
+              <td className={`${styles.cell} ${styles.right}`}>{money(h.current_price_gbp)}</td>
               <td
-                style={right}
+                className={`${styles.cell} ${styles.right}`}
                 title={
                   (h.cost_basis_gbp ?? 0) > 0
                     ? "Actual purchase cost"
@@ -148,29 +140,28 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
               >
                 {money(h.cost)}
               </td>
-              <td style={right}>{money(h.market)}</td>
+              <td className={`${styles.cell} ${styles.right}`}>{money(h.market)}</td>
               <td
+                className={`${styles.cell} ${styles.right}`}
                 style={{
-                  ...right,
                   color: h.gain >= 0 ? "lightgreen" : "red",
                 }}
               >
                 {money(h.gain)}
               </td>
               <td
+                className={`${styles.cell} ${styles.right}`}
                 style={{
-                  ...right,
                   color: h.gain_pct >= 0 ? "lightgreen" : "red",
                 }}
               >
                 {Number.isFinite(h.gain_pct) ? h.gain_pct.toFixed(1) : "—"}
               </td>
-              <td style={cell}>{h.acquired_date}</td>
-              <td style={right}>{h.days_held ?? "—"}</td>
+              <td className={styles.cell}>{h.acquired_date}</td>
+              <td className={`${styles.cell} ${styles.right}`}>{h.days_held ?? "—"}</td>
               <td
+                className={`${styles.cell} ${styles.center}`}
                 style={{
-                  ...cell,
-                  textAlign: "center",
                   color: h.sell_eligible ? "lightgreen" : "gold",
                 }}
               >

@@ -13,6 +13,8 @@ import { getInstrumentDetail } from "../api";
 type Props = {
   ticker: string;
   name: string;
+  currency?: string;
+  instrument_type?: string | null;
   onClose: () => void;
 };
 
@@ -118,8 +120,7 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
       </button>
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
       <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>
-        {ticker}
-        {currency ? ` • ${currency}` : ""}
+        {ticker} • {currency ?? "?"} • {instrument_type ?? "?"}
       </div>
 
       {/* Chart */}

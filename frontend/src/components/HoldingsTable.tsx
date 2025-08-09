@@ -85,6 +85,8 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
           >
             Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
           </th>
+          <th style={cell}>CCY</th>
+          <th style={cell}>Type</th>
           <th style={right}>Units</th>
           <th style={right}>Px £</th>
           <th
@@ -137,6 +139,7 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
               </td>
               <td style={cell}>{h.name}</td>
               <td style={cell}>{h.currency ?? "—"}</td>
+              <td style={cell}>{h.instrument_type ?? "—"}</td>
               <td style={right}>{h.units.toLocaleString()}</td>
               <td style={right}>{money(h.current_price_gbp)}</td>
               <td

@@ -7,6 +7,8 @@ describe("HoldingsTable", () => {
         {
             ticker: "AAA",
             name: "Alpha",
+            currency: "GBP",
+            instrument_type: "Equity",
             units: 5,
             price: 0,
             cost_basis_gbp: 100,
@@ -20,7 +22,8 @@ describe("HoldingsTable", () => {
         {
             ticker: "XYZ",
             name: "Test Holding",
-            currency: "GBP",
+            currency: "USD",
+            instrument_type: "Equity",
             units: 5,
             price: 0,
             cost_basis_gbp: 500,

@@ -162,7 +162,7 @@ export function InstrumentDetail({
         <LineChart data={prices}>
           <XAxis dataKey="date" hide />
           <YAxis domain={["auto", "auto"]} />
-          <Tooltip />
+          <Tooltip wrapperStyle={{ color: "#000" }} labelStyle={{ color: "#000" }} />
           {showBollinger && (
             <>
               <Line

@@ -27,6 +27,7 @@ from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_ran
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.utils.timeseries_helpers import _nearest_weekday, get_scaling_override, apply_scaling
+from backend.utils.fx_rates import fetch_fx_rate_range
 
 OFFLINE_MODE = os.getenv("ALLOTMINT_OFFLINE_MODE", "false").lower() == "true"
 
@@ -35,6 +36,20 @@ logging.basicConfig(level=logging.INFO)
 
 # Expected schema for any timeseries DF we return
 EXPECTED_COLS = ["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]
+
+EXCHANGE_TO_CCY = {
+    "L": "GBP",
+    "LSE": "GBP",
+    "UK": "GBP",
+    "N": "USD",
+    "US": "USD",
+    "NASDAQ": "USD",
+    "NYSE": "USD",
+    "DE": "EUR",
+    "F": "EUR",
+    "PARIS": "EUR",
+    "XETRA": "EUR",
+}
 
 
 def _empty_ts() -> pd.DataFrame:
@@ -259,6 +274,25 @@ def _memoized_range(
     mask = (superset["Date"].dt.date >= start_date) & (superset["Date"].dt.date <= end_date)
     return _ensure_schema(superset.loc[mask].reset_index(drop=True))
 
+
+def _convert_to_gbp(df: pd.DataFrame, exchange: str, start: date, end: date) -> pd.DataFrame:
+    """Convert OHLC prices to GBP if needed based on exchange."""
+    ccy = EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
+    if ccy == "GBP" or df.empty:
+        return df
+
+    fx = fetch_fx_rate_range(ccy, start, end)
+    if fx.empty:
+        return df
+
+    fx["Date"] = pd.to_datetime(fx["Date"])
+    merged = df.merge(fx, on="Date", how="left")
+    merged["Rate"] = merged["Rate"].fillna(method="ffill").fillna(method="bfill")
+    for col in ["Open", "High", "Low", "Close"]:
+        if col in merged.columns:
+            merged[col] = pd.to_numeric(merged[col], errors="coerce") * merged["Rate"]
+    return merged.drop(columns=["Rate"])
+
 # ──────────────────────────────────────────────────────────────
 # Public helper: explicit date range
 # ──────────────────────────────────────────────────────────────
@@ -273,6 +307,7 @@ def load_meta_timeseries_range(
         e = end_date - timedelta(days=offset)
         df = _memoized_range(ticker, exchange, s.isoformat(), e.isoformat())
         if not df.empty:
+            df = _convert_to_gbp(df, exchange, s, e)
             return df
     return _empty_ts()
 

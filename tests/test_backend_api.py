@@ -198,3 +198,19 @@ def test_alerts_endpoint():
 #     elif format == "html":
 #         html = resp.text.lower()
 #         assert "<table" in html and "ft time series" in html
+
+def test_screener_endpoint(monkeypatch):
+    from backend.screener import Fundamentals
+
+    def mock_fetch(ticker: str) -> Fundamentals:
+        if ticker == "AAA":
+            return Fundamentals(ticker="AAA", peg_ratio=0.5)
+        return Fundamentals(ticker="BBB", peg_ratio=2.0)
+
+    monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
+
+    resp = client.get("/screener?tickers=AAA,BBB&peg_max=1")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["ticker"] == "AAA"

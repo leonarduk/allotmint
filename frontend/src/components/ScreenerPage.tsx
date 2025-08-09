@@ -8,16 +8,20 @@ import { useFetch } from "../hooks/useFetch";
 const WATCHLIST = ["AAPL", "MSFT", "GOOG", "AMZN", "TSLA"];
 
 export function ScreenerPage() {
-  const { data: rows } = useFetch<ScreenerResult[]>(
-    () => getScreener(WATCHLIST),
-    []
-  );
+  const {
+    data: rows,
+    loading,
+    error,
+  } = useFetch<ScreenerResult[]>(() => getScreener(WATCHLIST), []);
   const [ticker, setTicker] = useState<string | null>(null);
 
   const { sorted, handleSort } = useSortableTable(rows ?? [], "peg_ratio");
 
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right", cursor: "pointer" } as const;
+
+  if (loading) return <p>Loading…</p>;
+  if (error) return <p style={{ color: "red" }}>{error.message}</p>;
 
   return (
     <>

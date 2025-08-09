@@ -1,5 +1,12 @@
 import { useEffect, useState, type DependencyList } from "react";
 
+/**
+ * Small helper hook that wraps an async function and provides
+ * the resolved `data`, a `loading` indicator and any `error`.
+ *
+ * It automatically re‑runs whenever the dependency list changes
+ * and will reset its state when `enabled` is set to `false`.
+ */
 export function useFetch<T>(
   fn: () => Promise<T>,
   deps: DependencyList = [],

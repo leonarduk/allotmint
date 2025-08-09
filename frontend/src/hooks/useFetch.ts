@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type DependencyList } from "react";
 
 /**
  * Generic hook for loading async data.
@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
  */
 export function useFetch<T>(
   fetcher: () => Promise<T>,
-  deps: React.DependencyList = [],
+  deps: DependencyList = [],
   enabled: boolean = true
 ) {
   const [data, setData] = useState<T | null>(null);

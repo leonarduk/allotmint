@@ -41,6 +41,7 @@ describe("InstrumentTable", () => {
 
     it("passes ticker and name to InstrumentDetail", () => {
         render(<InstrumentTable rows={rows} />);
+        expect(screen.getByText("GBP")).toBeInTheDocument();
         fireEvent.click(screen.getByText("ABC"));
 
         const mock = InstrumentDetail as unknown as Mock;

@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from backend.common.portfolio_loader import list_portfolios
 from backend.timeseries.cache import load_meta_timeseries_range
+from backend.common.portfolio_utils import get_security_meta
 
 # Group the instrument endpoints under their own router to keep ``app.py``
 # tidy and allow reuse across different deployment targets.
@@ -79,6 +80,7 @@ def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
                         "units": units,
                         "market_value_gbp": mv_gbp,
                         "unrealised_gain_gbp": h.get("gain_gbp"),
+                        "gain_pct": h.get("gain_pct"),
                     }
                 )
     return positions
@@ -196,6 +198,7 @@ async def instrument(
             "rows": len(prices),
             "positions": positions,
             "prices": prices,
+            "currency": (get_security_meta(ticker) or {}).get("currency"),
         }
         return JSONResponse(jsonable_encoder(payload))
 

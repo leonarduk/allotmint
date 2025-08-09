@@ -192,6 +192,7 @@ def positions_for_ticker(group_slug: str, ticker: str) -> List[Dict[str, Any]]:
                         "book_cost_basis_gbp": h.get("cost_basis_gbp", 0.0),
                         "effective_cost_basis_gbp": h.get("effective_cost_basis_gbp", 0.0),
                         "gain_gbp": h.get("gain_gbp", 0.0),
+                        "gain_pct": h.get("gain_pct"),
                         "days_held": h.get("days_held"),
                         "sell_eligible": h.get("sell_eligible"),
                         "days_until_eligible": h.get("days_until_eligible"),
@@ -238,5 +239,7 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
         if not tkr:
             continue
         entry.update(_price_and_changes(tkr))
+        cost = entry["market_value_gbp"] - entry["gain_gbp"]
+        entry["gain_pct"] = (entry["gain_gbp"] / cost * 100.0) if cost else None
 
     return sorted(by_ticker.values(), key=lambda r: r["market_value_gbp"], reverse=True)

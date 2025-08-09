@@ -6,6 +6,7 @@ export type OwnerSummary = {
 export interface Holding {
     ticker: string;
     name: string;
+    currency?: string | null;
     units: number;
     acquired_date: string;
     price?: number;
@@ -13,6 +14,7 @@ export interface Holding {
     effective_cost_basis_gbp?: number;
     market_value_gbp?: number;
     gain_gbp?: number;
+    gain_pct?: number;
     current_price_gbp?: number | null;
     day_change_gbp?: number;
     currency?: string;
@@ -68,11 +70,13 @@ export type GroupPortfolio = {
 export type InstrumentSummary = {
     ticker: string;
     name: string;
+    currency?: string | null;
     units: number;
     market_value_gbp: number;
     gain_gbp: number;
     currency?: string;
     instrument_type?: string | null;
+    gain_pct?: number;
 
     /* last-price enrichment */
     last_price_gbp?: number | null;

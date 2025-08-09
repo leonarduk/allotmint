@@ -43,11 +43,21 @@ const fixed = (v: unknown, dp = 2): string => {
   return Number.isFinite(n) ? n.toFixed(dp) : "—";
 };
 
+export function InstrumentDetail({
+  ticker,
+  name,
+  currency: currencyProp,
+  instrument_type, // ← comes from props now
+  onClose,
+}: Props) {
+  const [data, setData] = useState<{
+    prices: Price[];
+    positions: Position[];
+    currency?: string | null;
+  } | null>(null);
 
-export function InstrumentDetail({ ticker, name, onClose }: Props) {
-  const [data, setData] = useState<{ prices: Price[]; positions: Position[]; currency?: string | null } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<string | null>(null);
+  const [currencyFromData, setCurrencyFromData] = useState<string | null>(null);
   const [showBollinger, setShowBollinger] = useState(false);
   const [days, setDays] = useState<number>(365);
 
@@ -60,13 +70,15 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
           currency?: string | null;
         };
         setData(detail);
-        setCurrency(detail.currency ?? null);
+        setCurrencyFromData(detail.currency ?? null);
       })
       .catch((e: Error) => setErr(e.message));
   }, [ticker, days]);
 
   if (err) return <p style={{ color: "red" }}>{err}</p>;
   if (!data) return <p>Loading…</p>;
+
+  const displayCurrency = currencyFromData ?? currencyProp ?? "?";
 
   const rawPrices = (data.prices ?? [])
     .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp) }))
@@ -82,8 +94,7 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
   const prices = withChanges.map((p, i, arr) => {
     const start = Math.max(0, i - 19);
     const slice = arr.slice(start, i + 1);
-    const mean =
-      slice.reduce((sum, s) => sum + s.close_gbp, 0) / slice.length;
+    const mean = slice.reduce((sum, s) => sum + s.close_gbp, 0) / slice.length;
     const variance =
       slice.reduce((sum, s) => sum + Math.pow(s.close_gbp - mean, 2), 0) /
       slice.length;
@@ -119,7 +130,7 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
       </button>
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
       <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>
-        {ticker} • {currency ?? "?"} • {instrument_type ?? "?"}
+        {ticker} • {displayCurrency} • {instrument_type ?? "?"}
       </div>
 
       {/* Chart */}
@@ -143,8 +154,8 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
             type="checkbox"
             checked={showBollinger}
             onChange={(e) => setShowBollinger(e.target.checked)}
-          />
-          {" "}Bollinger Bands
+          />{" "}
+          Bollinger Bands
         </label>
       </div>
       <ResponsiveContainer width="100%" height={220}>
@@ -183,7 +194,10 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
 
       {/* Positions */}
       <h3 style={{ marginTop: "1.5rem" }}>Positions</h3>
-      <table className={tableStyles.table} style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
+      <table
+        className={tableStyles.table}
+        style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
+      >
         <thead>
           <tr>
             <th className={tableStyles.cell}>Account</th>
@@ -204,22 +218,23 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
                   {pos.owner} – {pos.account}
                 </Link>
               </td>
-              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{fixed(pos.units, 4)}</td>
-              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(pos.market_value_gbp)}</td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {fixed(pos.units, 4)}
+              </td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {money(pos.market_value_gbp)}
+              </td>
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{
-                  color:
-                    toNum(pos.unrealised_gain_gbp) >= 0 ? "lightgreen" : "red",
+                  color: toNum(pos.unrealised_gain_gbp) >= 0 ? "lightgreen" : "red",
                 }}
               >
                 {money(pos.unrealised_gain_gbp)}
               </td>
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{
-                  color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red",
-                }}
+                style={{ color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red" }}
               >
                 {percent(pos.gain_pct, 1)}
               </td>
@@ -228,7 +243,7 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
           {!positions.length && (
             <tr>
               <td
-                colSpan={4}
+                colSpan={5} // <- fix: matches 5 columns
                 className={`${tableStyles.cell} ${tableStyles.center}`}
                 style={{ color: "#888" }}
               >
@@ -241,7 +256,10 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
 
       {/* Recent Prices */}
       <h3>Recent Prices</h3>
-      <table className={tableStyles.table} style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
+      <table
+        className={tableStyles.table}
+        style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
+      >
         <thead>
           <tr>
             <th className={tableStyles.cell}>Date</th>
@@ -263,7 +281,9 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
               return (
                 <tr key={p.date}>
                   <td className={tableStyles.cell}>{p.date}</td>
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>{fixed(p.close_gbp, 2)}</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {fixed(p.close_gbp, 2)}
+                  </td>
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
                     style={{ color: colour }}

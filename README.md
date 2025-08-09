@@ -64,3 +64,24 @@ pytest
 cd frontend && npm test
 ```
 
+## Deploy to AWS
+
+The project includes an AWS CDK stack that provisions an S3 bucket and
+CloudFront distribution for the frontend. To deploy the site:
+
+```bash
+# build the frontend assets first
+cd frontend
+npm install
+npm run build
+cd ..
+
+# deploy the static site stack
+cd cdk
+cdk bootstrap   # only required once per AWS account/region
+cdk deploy StaticSiteStack
+```
+
+The bucket remains private and CloudFront uses an origin access identity
+with Price Class 100 to minimise cost while serving the content over HTTPS.
+

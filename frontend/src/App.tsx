@@ -66,6 +66,9 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // when true, holdings table emphasises relative metrics
+  const [relativeView, setRelativeView] = useState(true);
+
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
@@ -165,6 +168,18 @@ export default function App() {
         ))}
       </div>
 
+      {/* absolute vs relative toggle */}
+      <div style={{ marginBottom: "1rem" }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={relativeView}
+            onChange={(e) => setRelativeView(e.target.checked)}
+          />{" "}
+          Relative view
+        </label>
+      </div>
+
       <div style={{ marginBottom: "1rem" }}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
           {refreshingPrices ? "Refreshing…" : "Refresh Prices"}
@@ -190,7 +205,12 @@ export default function App() {
             onSelect={setSelectedOwner}
           />
           <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-          <PortfolioView data={portfolio} loading={loading} error={err} />
+          <PortfolioView
+            data={portfolio}
+            loading={loading}
+            error={err}
+            relativeView={relativeView}
+          />
         </>
       )}
 

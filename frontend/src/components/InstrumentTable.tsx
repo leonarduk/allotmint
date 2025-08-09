@@ -119,11 +119,19 @@ export function InstrumentTable({ rows }: Props) {
                             r.gain_gbp >= 0 ? "lightgreen" : "red";
 
                         return (
-                            <tr
-                                key={r.ticker}
-                                onClick={() => setSelected(r)}
-                            >
-                                <td style={cell}>{r.ticker}</td>
+                            <tr key={r.ticker}>
+                                <td style={cell}>
+                                    <a
+                                        href="#"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            setSelected(r);
+                                        }}
+                                        style={{ color: "dodgerblue", textDecoration: "underline" }}
+                                    >
+                                        {r.ticker}
+                                    </a>
+                                </td>
                                 <td style={cell}>{r.name}</td>
                                 <td style={cell}>{r.currency ?? "—"}</td>
                                 <td style={cell}>{r.instrument_type ?? "—"}</td>

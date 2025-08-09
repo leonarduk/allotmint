@@ -1,15 +1,28 @@
 from __future__ import annotations
 
-"""Utilities for fetching basic valuation metrics from external APIs."""
+"""Utilities for fetching basic valuation metrics from external APIs.
+
+Results from :func:`fetch_fundamentals` are cached in memory keyed by
+the requested ticker and the current date. Cached entries expire after a
+configurable time-to-live (TTL) controlled by the
+``FUNDAMENTALS_CACHE_TTL_SECONDS`` environment variable. The TTL defaults to
+24 hours and is capped at seven days.
+"""
 
 import os
-from typing import List, Optional
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 
 import requests
 from pydantic import BaseModel
 
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
-
+ALPHA_VANTAGE_KEY = os.getenv("ALPHAVANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
+# Cache configuration
+_DEFAULT_TTL = 24 * 60 * 60  # one day
+_CACHE_TTL_SECONDS = int(os.getenv("FUNDAMENTALS_CACHE_TTL_SECONDS", _DEFAULT_TTL))
+_CACHE_TTL_SECONDS = max(_DEFAULT_TTL, min(_CACHE_TTL_SECONDS, 7 * 24 * 60 * 60))
+_CACHE: Dict[Tuple[str, str], Tuple[datetime, "Fundamentals"]] = {}
 
 class Fundamentals(BaseModel):
     ticker: str
@@ -32,7 +45,9 @@ def _parse_str(value: Optional[str]) -> Optional[str]:
 
 
 def fetch_fundamentals(ticker: str) -> Fundamentals:
-    """Return key metrics for ``ticker`` using Alpha Vantage's ``OVERVIEW`` endpoint."""
+    """Return key metrics for ``ticker`` using Alpha Vantage's ``OVERVIEW``
+    endpoint, utilising a simple in-memory cache.
+    """
 
     api_key = os.getenv("ALPHAVANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
     if not api_key:
@@ -40,15 +55,20 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
             "Alpha Vantage API key not configured; set ALPHAVANTAGE_API_KEY"
         )
 
-    params = {"function": "OVERVIEW", "symbol": ticker, "apikey": api_key}
-    try:
-        resp = requests.get(ALPHA_VANTAGE_URL, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-    except requests.RequestException as exc:
-        raise RuntimeError(f"Alpha Vantage request failed: {exc}") from exc
+    key = (ticker.upper(), date.today().isoformat())
+    now = datetime.utcnow()
 
-    return Fundamentals(
+    if key in _CACHE:
+        cached_at, cached_value = _CACHE[key]
+        if now - cached_at < timedelta(seconds=_CACHE_TTL_SECONDS):
+            return cached_value
+
+    params = {"function": "OVERVIEW", "symbol": ticker, "apikey": ALPHA_VANTAGE_KEY}
+    resp = requests.get(ALPHA_VANTAGE_URL, params=params, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+
+    result = Fundamentals(
         ticker=ticker.upper(),
         name=_parse_str(data.get("Name")),
         peg_ratio=_parse_float(data.get("PEG")),
@@ -56,6 +76,10 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         de_ratio=_parse_float(data.get("DebtToEquityTTM")),
         fcf=_parse_float(data.get("FreeCashFlowTTM")),
     )
+
+    _CACHE[key] = (now, result)
+
+    return result
 
 
 def screen(

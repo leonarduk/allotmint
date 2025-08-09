@@ -22,6 +22,9 @@ async def screener(
     """Return tickers that meet the supplied screening criteria."""
 
     symbols = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    if not symbols:
+        raise HTTPException(status_code=400, detail="No tickers supplied")
+
     try:
         return screen(
             symbols,
@@ -30,5 +33,7 @@ async def screener(
             de_max=de_max,
             fcf_min=fcf_min,
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

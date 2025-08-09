@@ -34,7 +34,7 @@ if ($env:ALLOTMINT_OFFLINE_MODE -and $env:ALLOTMINT_OFFLINE_MODE.ToLower() -eq '
 if (-not $offline) {
     Write-Host 'Installing backend requirements...' -ForegroundColor Yellow
     python -m pip install --upgrade pip
-    python -m pip install -r .\backend\requirements.txt
+    python -m pip install -r .\requirements.txt
 } else {
     Write-Host 'Offline mode detected; skipping dependency installation.' -ForegroundColor Yellow
 }

@@ -28,6 +28,11 @@ entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
 
 ---
 
+## Backend dependencies
+
+All backend Python dependencies live in the top-level `requirements.txt` file.
+Workflows and helper scripts install from this list, so update it when new packages are needed.
+
 ## Local Quick-start
 
 The project is split into a Python FastAPI backend and a React/TypeScript

@@ -29,4 +29,18 @@ describe("ComplianceWarnings", () => {
 
         await screen.findByText("Issue");
     });
+
+    it("only shows owners with warnings", async () => {
+        const mock = getCompliance as unknown as Mock;
+        mock
+            .mockResolvedValueOnce({ warnings: [] })
+            .mockResolvedValueOnce({ warnings: ["Issue"] });
+
+        render(<ComplianceWarnings owners={["alice", "bob"]} />);
+
+        await screen.findByText("Issue");
+        expect(screen.queryByText("alice")).not.toBeInTheDocument();
+        expect(screen.getByText("bob")).toBeInTheDocument();
+    });
+
 });

@@ -15,6 +15,8 @@ export interface Holding {
     gain_gbp?: number;
     current_price_gbp?: number | null;
     day_change_gbp?: number;
+    currency?: string;
+    instrument_type?: string | null;
 
     days_held?: number;
     sell_eligible?: boolean;
@@ -69,6 +71,8 @@ export type InstrumentSummary = {
     units: number;
     market_value_gbp: number;
     gain_gbp: number;
+    currency?: string;
+    instrument_type?: string | null;
 
     /* last-price enrichment */
     last_price_gbp?: number | null;

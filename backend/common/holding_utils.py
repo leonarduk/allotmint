@@ -12,6 +12,7 @@ from backend.common.constants import (
     ACQUIRED_DATE, HOLD_DAYS_MIN, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP,
     UNITS, TICKER
 )
+from backend.common.instruments import get_instrument_meta
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import get_scaling_override, apply_scaling
 
@@ -224,6 +225,7 @@ def enrich_holding(
     """
     out = dict(h)  # do not mutate caller
     full = (out.get(TICKER) or "").upper()
+    meta = get_instrument_meta(full)
 
     account_ccy = (h.get("currency") or "GBP").upper()
 
@@ -231,6 +233,8 @@ def enrich_holding(
         out = dict(h)
         units = float(out.get(UNITS, 0) or 0.0)
         out["name"] = out.get("name") or _cash_name(full, account_ccy)
+        out["currency"] = meta.get("currency") or account_ccy
+        out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type") or "Cash"
 
         # price is 1.0 in account currency
         out["price"] = 1.0
@@ -260,6 +264,9 @@ def enrich_holding(
     parts = full.split(".", 1)
     ticker = parts[0]
     exchange = parts[1] if len(parts) > 1 else "L"
+
+    out["currency"] = meta.get("currency")
+    out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type")
 
     # default acquired date if missing
     if out.get(ACQUIRED_DATE) is None:

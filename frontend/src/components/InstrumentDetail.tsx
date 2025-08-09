@@ -13,6 +13,8 @@ import { getInstrumentDetail } from "../api";
 type Props = {
   ticker: string;
   name: string;
+  currency?: string;
+  instrument_type?: string | null;
   onClose: () => void;
 };
 
@@ -48,7 +50,7 @@ const money = (v: unknown): string => {
     : "—";
 };
 
-export function InstrumentDetail({ ticker, name, onClose }: Props) {
+export function InstrumentDetail({ ticker, name, currency, instrument_type, onClose }: Props) {
   const [data, setData] = useState<{ prices: Price[]; positions: Position[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [showBollinger, setShowBollinger] = useState(false);
@@ -114,7 +116,9 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
         ✕
       </button>
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
-      <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>{ticker}</div>
+      <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>
+        {ticker} • {currency ?? "?"} • {instrument_type ?? "?"}
+      </div>
 
       {/* Chart */}
       <div style={{ marginBottom: "0.5rem" }}>

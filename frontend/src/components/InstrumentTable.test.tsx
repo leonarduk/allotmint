@@ -14,6 +14,8 @@ describe("InstrumentTable", () => {
         {
             ticker: "ABC",
             name: "ABC Corp",
+            currency: "GBP",
+            instrument_type: "Equity",
             units: 10,
             market_value_gbp: 1000,
             gain_gbp: 100,
@@ -25,6 +27,8 @@ describe("InstrumentTable", () => {
         {
             ticker: "XYZ",
             name: "XYZ Inc",
+            currency: "USD",
+            instrument_type: "Equity",
             units: 5,
             market_value_gbp: 500,
             gain_gbp: -50,

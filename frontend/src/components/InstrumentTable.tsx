@@ -74,6 +74,8 @@ export function InstrumentTable({ rows }: Props) {
                             Name
                             {sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
+                        <th style={cell}>CCY</th>
+                        <th style={cell}>Type</th>
                         <th style={right}>Units</th>
                         <th
                             style={{ ...right, cursor: "pointer" }}
@@ -109,6 +111,8 @@ export function InstrumentTable({ rows }: Props) {
                             >
                                 <td style={cell}>{r.ticker}</td>
                                 <td style={cell}>{r.name}</td>
+                                <td style={cell}>{r.currency ?? "—"}</td>
+                                <td style={cell}>{r.instrument_type ?? "—"}</td>
                                 <td style={right}>
                                     {r.units.toLocaleString()}
                                 </td>
@@ -148,6 +152,8 @@ export function InstrumentTable({ rows }: Props) {
                 <InstrumentDetail
                     ticker={selected.ticker}
                     name={selected.name}
+                    currency={selected.currency}
+                    instrument_type={selected.instrument_type}
                     onClose={() => setSelected(null)}
                 />
             )}

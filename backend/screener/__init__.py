@@ -24,8 +24,6 @@ _CACHE_TTL_SECONDS = int(os.getenv("FUNDAMENTALS_CACHE_TTL_SECONDS", _DEFAULT_TT
 _CACHE_TTL_SECONDS = max(_DEFAULT_TTL, min(_CACHE_TTL_SECONDS, 7 * 24 * 60 * 60))
 _CACHE: Dict[Tuple[str, str], Tuple[datetime, "Fundamentals"]] = {}
 
-
-
 class Fundamentals(BaseModel):
     ticker: str
     name: Optional[str] = None
@@ -42,13 +40,20 @@ def _parse_float(value: Optional[str]) -> Optional[float]:
         return None
 
 
+def _parse_str(value: Optional[str]) -> Optional[str]:
+    return value if value not in (None, "None", "") else None
+
+
 def fetch_fundamentals(ticker: str) -> Fundamentals:
     """Return key metrics for ``ticker`` using Alpha Vantage's ``OVERVIEW``
     endpoint, utilising a simple in-memory cache.
     """
 
-    if not ALPHA_VANTAGE_KEY:
-        raise RuntimeError("Alpha Vantage API key not configured")
+    api_key = os.getenv("ALPHAVANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Alpha Vantage API key not configured; set ALPHAVANTAGE_API_KEY"
+        )
 
     key = (ticker.upper(), date.today().isoformat())
     now = datetime.utcnow()
@@ -65,7 +70,7 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
 
     result = Fundamentals(
         ticker=ticker.upper(),
-        name=data.get("Name"),
+        name=_parse_str(data.get("Name")),
         peg_ratio=_parse_float(data.get("PEG")),
         pe_ratio=_parse_float(data.get("PERatio")),
         de_ratio=_parse_float(data.get("DebtToEquityTTM")),

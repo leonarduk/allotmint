@@ -18,11 +18,14 @@ router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 async def get_meta_timeseries(
     ticker: str = Query(...),
     exchange: str = Query("L"),
-    days: int = Query(365, ge=30, le=3650),
+    days: int = Query(365, ge=0, le=36500),
     format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
 ):
-    start_date = date.today() - timedelta(days=days)
+    if days <= 0:
+        start_date = date(1900, 1, 1)
+    else:
+        start_date = date.today() - timedelta(days=days)
     end_date = date.today() - timedelta(days=1)
 
     try:

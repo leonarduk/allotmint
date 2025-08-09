@@ -143,7 +143,7 @@ def _render_html(
 @router.get("/", response_class=HTMLResponse)
 async def instrument(
     ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),
-    days: int = Query(365, ge=30, le=3650),
+    days: int = Query(365, ge=0, le=36500),
     format: str = Query("html", pattern="^(html|json)$"),
 ):
     """Return price history and portfolio positions for a ticker.
@@ -155,7 +155,10 @@ async def instrument(
 
     _validate_ticker(ticker)
 
-    start = date.today() - timedelta(days=days)
+    if days <= 0:
+        start = date(1900, 1, 1)
+    else:
+        start = date.today() - timedelta(days=days)
     tkr, exch = (ticker.split(".", 1) + ["L"])[:2]
 
     # ── history ────────────────────────────────────────────────
@@ -203,11 +206,12 @@ async def instrument(
         return JSONResponse(jsonable_encoder(payload))
 
     # ── HTML ───────────────────────────────────────────────────
+    window_days = days if days > 0 else (df["Date"].dt.date.max() - df["Date"].dt.date.min()).days + 1
     return HTMLResponse(
         _render_html(
             ticker=ticker,
             df=df,
             positions=positions,
-            window_days=days,
+            window_days=window_days,
         )
     )

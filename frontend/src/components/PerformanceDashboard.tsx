@@ -10,15 +10,17 @@ type Props = {
 export function PerformanceDashboard({ owner }: Props) {
   const [data, setData] = useState<PerformancePoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [days, setDays] = useState<number>(365);
 
   useEffect(() => {
     if (!owner) return;
     setErr(null);
     setData([]);
-    getPerformance(owner)
+    const reqDays = days === 0 ? 36500 : days;
+    getPerformance(owner, reqDays)
       .then(setData)
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, [owner]);
+  }, [owner, days]);
 
   if (!owner) return <p>Select a member.</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
@@ -26,6 +28,22 @@ export function PerformanceDashboard({ owner }: Props) {
 
   return (
     <div style={{ marginTop: "1rem" }}>
+      <div style={{ marginBottom: "0.5rem" }}>
+        <label style={{ fontSize: "0.85rem" }}>
+          Range:
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            style={{ marginLeft: "0.25rem" }}
+          >
+            <option value={7}>1W</option>
+            <option value={30}>1M</option>
+            <option value={365}>1Y</option>
+            <option value={3650}>10Y</option>
+            <option value={0}>MAX</option>
+          </select>
+        </label>
+      </div>
       <h2>Portfolio Value</h2>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>

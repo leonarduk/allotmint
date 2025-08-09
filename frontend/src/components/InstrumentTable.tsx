@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
+import { useFilterableTable } from "../hooks/useFilterableTable";
 import tableStyles from "../styles/table.module.css";
 
 type Props = {
@@ -23,7 +24,33 @@ export function InstrumentTable({ rows }: Props) {
         return { ...r, cost, gain_pct };
     });
 
-    const { sorted, sortKey, asc, handleSort } = useSortableTable(rowsWithCost, "ticker");
+    const [tickerFilter, setTickerFilter] = useState("");
+    const [nameFilter, setNameFilter] = useState("");
+    const [typeFilter, setTypeFilter] = useState("");
+    const [unitsFilter, setUnitsFilter] = useState("");
+    const [costFilter, setCostFilter] = useState("");
+
+    const filters = useMemo(
+        () => ({
+            ticker: (v: string) =>
+                !tickerFilter || v.toLowerCase().includes(tickerFilter.toLowerCase()),
+            name: (v: string) =>
+                !nameFilter || v.toLowerCase().includes(nameFilter.toLowerCase()),
+            instrument_type: (v: string | null | undefined) =>
+                !typeFilter || (v ?? "").toLowerCase().includes(typeFilter.toLowerCase()),
+            units: (v: number) =>
+                !unitsFilter ||
+                String(v).toLowerCase().includes(unitsFilter.toLowerCase()),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            cost: (v: any) =>
+                !costFilter ||
+                String(v ?? "").toLowerCase().includes(costFilter.toLowerCase()),
+        }),
+        [tickerFilter, nameFilter, typeFilter, unitsFilter, costFilter]
+    );
+
+    const filtered = useFilterableTable(rowsWithCost, filters);
+    const { sorted, sortKey, asc, handleSort } = useSortableTable(filtered, "ticker");
 
     /* no data? – render a clear message instead of an empty table */
     if (!rowsWithCost.length) {
@@ -37,6 +64,56 @@ export function InstrumentTable({ rows }: Props) {
                 style={{ marginBottom: "1rem" }}
             >
                 <thead>
+                    <tr>
+                        <th className={tableStyles.cell}>
+                            <input
+                                aria-label="ticker filter"
+                                value={tickerFilter}
+                                onChange={(e) => setTickerFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </th>
+                        <th className={tableStyles.cell}>
+                            <input
+                                aria-label="name filter"
+                                value={nameFilter}
+                                onChange={(e) => setNameFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </th>
+                        <th className={tableStyles.cell} />
+                        <th className={tableStyles.cell}>
+                            <input
+                                aria-label="type filter"
+                                value={typeFilter}
+                                onChange={(e) => setTypeFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                            <input
+                                aria-label="units filter"
+                                value={unitsFilter}
+                                onChange={(e) => setUnitsFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                            <input
+                                aria-label="cost filter"
+                                value={costFilter}
+                                onChange={(e) => setCostFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
+                    </tr>
                     <tr>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.clickable}`}

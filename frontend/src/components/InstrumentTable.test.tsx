@@ -56,10 +56,22 @@ describe("InstrumentTable", () => {
         render(<InstrumentTable rows={rows} />);
         // initial sort is ticker ascending => ABC first
         let dataRows = screen.getAllByRole("row");
-        expect(within(dataRows[1]).getByText("ABC")).toBeInTheDocument();
+        // filter row + header row => first data row at index 2
+        expect(within(dataRows[2]).getByText("ABC")).toBeInTheDocument();
 
         fireEvent.click(screen.getByText(/^Ticker/));
         dataRows = screen.getAllByRole("row");
-        expect(within(dataRows[1]).getByText("XYZ")).toBeInTheDocument();
+        expect(within(dataRows[2]).getByText("XYZ")).toBeInTheDocument();
+    });
+
+    it("filters rows by name", () => {
+        render(<InstrumentTable rows={rows} />);
+        const input = screen.getByLabelText("name filter");
+        fireEvent.change(input, { target: { value: "XYZ" } });
+
+        expect(screen.queryByText("ABC Corp")).not.toBeInTheDocument();
+        expect(screen.getByText("XYZ Inc")).toBeInTheDocument();
+        // filter row + header row + one data row
+        expect(screen.getAllByRole("row")).toHaveLength(3);
     });
 });

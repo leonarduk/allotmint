@@ -62,7 +62,6 @@ export function InstrumentTable({ rows }: Props) {
                         <th style={cell}>CCY</th>
                         <th style={cell}>Type</th>
                         <th style={right}>Units</th>
-                        <th style={cell}>CCY</th>
                         <th
                             style={{ ...right, cursor: "pointer" }}
                             onClick={() => handleSort("cost")}

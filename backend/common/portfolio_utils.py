@@ -250,7 +250,7 @@ def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
     for row in perf.itertuples(index=False):
         out.append(
             {
-                "date": row.date.isoformat(),
+                "date": row.Date.isoformat(),
                 "value": round(float(row.value), 2),
                 "daily_return": (
                     float(row.daily_return) if pd.notna(row.daily_return) else None

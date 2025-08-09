@@ -5,6 +5,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Load Telegram credentials if available
+if [[ -f .env ]]; then
+  set -o allexport
+  # shellcheck disable=SC1091
+  source .env
+  set +o allexport
+fi
+
+if [[ -z "${TELEGRAM_BOT_TOKEN:-}" || -z "${TELEGRAM_CHAT_ID:-}" ]]; then
+  echo "Warning: TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID not set; Telegram logging will be disabled." >&2
+fi
+
 export ALLOTMINT_ENV=local
 uvicorn backend.local_api.main:app \
   --reload \

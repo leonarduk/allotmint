@@ -22,8 +22,6 @@ import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
 
-type Mode = "owner" | "group" | "instrument" | "transactions";
-
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,7 +45,7 @@ export default function App() {
 
   // derive route info
   const segments = location.pathname.split("/").filter(Boolean);
-  let mode: Mode = "group";
+  let mode: "owner" | "group" | "instrument" | "transactions" = "group";
   let selectedOwner = "";
   let selectedGroup = "";
 

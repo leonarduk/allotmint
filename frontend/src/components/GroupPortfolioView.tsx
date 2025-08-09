@@ -191,6 +191,7 @@ export function GroupPortfolioView({ slug }: Props) {
 
           <HoldingsTable
             holdings={acct.holdings ?? []}
+            total_value_estimate_gbp={portfolio.total_value_estimate_gbp}
             onSelectInstrument={(ticker, name) => setSelected({ ticker, name })}
           />
         </div>

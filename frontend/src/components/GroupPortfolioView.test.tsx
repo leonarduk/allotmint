@@ -10,6 +10,7 @@ describe("GroupPortfolioView", () => {
   it("shows per-owner totals with percentages", async () => {
     const mockPortfolio = {
       name: "All owners combined",
+      total_value_estimate_gbp: 300,
       accounts: [
         {
           owner: "alice",

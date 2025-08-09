@@ -348,3 +348,13 @@ def _is_cash(full: str, account_ccy: str = "GBP") -> bool:
 
 def _cash_name(full: str, account_ccy: str = "GBP") -> str:
     return f"Cash ({account_ccy})"
+
+
+def add_weight_pct(h: Dict[str, Any], total_value_estimate_gbp: float) -> Dict[str, Any]:
+    """Compute and add portfolio weight percentage for a holding."""
+    mv = float(h.get("market_value_gbp") or 0.0)
+    if total_value_estimate_gbp > 0:
+        h["weight_pct"] = mv / total_value_estimate_gbp * 100.0
+    else:
+        h["weight_pct"] = None
+    return h

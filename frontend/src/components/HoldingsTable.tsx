@@ -6,10 +6,11 @@ import tableStyles from "../styles/table.module.css";
 
 type Props = {
   holdings: Holding[];
+  total_value_estimate_gbp?: number;
   onSelectInstrument?: (ticker: string, name: string) => void;
 };
 
-export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
+export function HoldingsTable({ holdings, total_value_estimate_gbp, onSelectInstrument }: Props) {
 
   const rows = holdings.map((h) => {
     const cost =
@@ -30,7 +31,14 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
           ? (gain / cost) * 100
           : 0;
 
-    return { ...h, cost, market, gain, gain_pct };
+    const weight_pct =
+      h.weight_pct !== undefined && h.weight_pct !== null
+        ? h.weight_pct
+        : total_value_estimate_gbp
+          ? ((h.market_value_gbp ?? 0) / total_value_estimate_gbp) * 100
+          : undefined;
+
+    return { ...h, cost, market, gain, gain_pct, weight_pct };
   });
 
   const { sorted, sortKey, asc, handleSort } = useSortableTable(rows, "ticker");
@@ -75,6 +83,12 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
             onClick={() => handleSort("gain_pct")}
           >
             Gain %{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
+          </th>
+          <th
+            className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+            onClick={() => handleSort("weight_pct")}
+          >
+            Weight %{sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th className={tableStyles.cell}>Acquired</th>
           <th
@@ -139,6 +153,9 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
                 style={{ color: h.gain_pct >= 0 ? "lightgreen" : "red" }}
               >
                 {Number.isFinite(h.gain_pct) ? h.gain_pct.toFixed(1) : "—"}
+              </td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {Number.isFinite(h.weight_pct) ? h.weight_pct.toFixed(1) : "—"}
               </td>
               <td className={tableStyles.cell}>{h.acquired_date}</td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>{h.days_held ?? "—"}</td>

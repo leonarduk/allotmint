@@ -26,7 +26,7 @@ from backend.common.constants import (
     TICKER,
 )
 from backend.common.data_loader import list_plots, load_account
-from backend.common.holding_utils import enrich_holding
+from backend.common.holding_utils import enrich_holding, add_weight_pct
 
 
 # ───────────────────────── trades helpers ─────────────────────────
@@ -119,11 +119,16 @@ def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, An
             }
         )
 
+    total_value = sum(a["value_estimate_gbp"] for a in accounts)
+    for acct in accounts:
+        for h in acct["holdings"]:
+            add_weight_pct(h, total_value)
+
     return {
         "owner": owner,
         "as_of": today.isoformat(),
         "trades_this_month": trades_this,
         "trades_remaining": trades_rem,
         "accounts": accounts,
-        "total_value_estimate_gbp": sum(a["value_estimate_gbp"] for a in accounts),
+        "total_value_estimate_gbp": total_value,
     }

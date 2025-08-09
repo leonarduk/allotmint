@@ -37,24 +37,25 @@ describe("HoldingsTable", () => {
     ];
 
     it("displays table rows for each holding", () => {
-        render(<HoldingsTable holdings={holdings}/>);
+        render(<HoldingsTable holdings={holdings} total_value_estimate_gbp={150}/>);
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.getByText("XYZ")).toBeInTheDocument();
         expect(screen.getByText(/Gain %/)).toBeInTheDocument();
+        expect(screen.getByText(/Weight %/)).toBeInTheDocument();
         expect(screen.getByText("Test Holding")).toBeInTheDocument();
         expect(screen.getByText("GBP")).toBeInTheDocument();
         expect(screen.getAllByText("5").length).toBeGreaterThan(0);
     });
 
     it("shows days to go if not eligible", () => {
-        render(<HoldingsTable holdings={holdings}/>);
+        render(<HoldingsTable holdings={holdings} total_value_estimate_gbp={150}/>);
         const row = screen.getByText("Test Holding").closest("tr");
         const cell = within(row!).getByText("✗ 10");
         expect(cell).toBeInTheDocument();
     });
 
     it("sorts by ticker when header clicked", () => {
-        render(<HoldingsTable holdings={holdings}/>);
+        render(<HoldingsTable holdings={holdings} total_value_estimate_gbp={150}/>);
         // initially sorted ascending by ticker => AAA first
         let rows = screen.getAllByRole("row");
         expect(within(rows[1]).getByText("AAA")).toBeInTheDocument();

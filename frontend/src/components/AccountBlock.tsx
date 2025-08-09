@@ -11,9 +11,9 @@ import { money } from "../lib/money";
 /* ──────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────────── */
-type Props = { account: Account };
+type Props = { account: Account; total_value_estimate_gbp: number };
 
-export function AccountBlock({ account }: Props) {
+export function AccountBlock({ account, total_value_estimate_gbp }: Props) {
   const [selected, setSelected] = useState<{
     ticker: string;
     name: string;
@@ -42,6 +42,7 @@ export function AccountBlock({ account }: Props) {
 
       <HoldingsTable
         holdings={account.holdings}
+        total_value_estimate_gbp={total_value_estimate_gbp}
         onSelectInstrument={(ticker, name) => setSelected({ ticker, name })}
       />
 

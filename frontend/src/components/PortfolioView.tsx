@@ -37,7 +37,11 @@ export function PortfolioView({data, loading, error}: Props) {
             </div>
             {/* Each account is rendered using AccountBlock for clarity */}
             {data.accounts.map((acct) => (
-                <AccountBlock key={acct.account_type} account={acct}/>
+                <AccountBlock
+                    key={acct.account_type}
+                    account={acct}
+                    total_value_estimate_gbp={data.total_value_estimate_gbp}
+                />
             ))}
         </div>
     );

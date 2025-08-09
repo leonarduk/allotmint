@@ -27,7 +27,11 @@ import pandas as pd
 # Local imports
 # ──────────────────────────────────────────────────────────────
 from backend.common.portfolio_loader import list_portfolios
-from backend.common.portfolio_utils import list_all_unique_tickers
+from backend.common.portfolio_utils import (
+    list_all_unique_tickers,
+    refresh_snapshot_in_memory,
+    check_price_alerts,
+)
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import _nearest_weekday
 
@@ -106,8 +110,16 @@ def refresh_prices() -> Dict:
     for tkr, info in snapshot.items():
         _price_cache[tkr.upper()] = info["last_price"]
 
+    # keep portfolio_utils in sync and run alert checks
+    refresh_snapshot_in_memory(snapshot)
+    check_price_alerts()
+
     logger.debug(f"✅ Snapshot written to {path}")
-    return {"tickers": tickers, "snapshot": snapshot}
+    return {
+        "tickers": tickers,
+        "snapshot": snapshot,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
 
 # ──────────────────────────────────────────────────────────────
 # Ad-hoc helpers

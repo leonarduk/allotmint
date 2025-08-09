@@ -7,6 +7,7 @@ import type {
   OwnerSummary,
   Portfolio,
   Transaction,
+  Alert,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -92,3 +93,6 @@ export const getTransactions = (params: {
   const qs = query.toString();
   return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
 };
+
+/** Retrieve recent alert messages from backend. */
+export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts`);

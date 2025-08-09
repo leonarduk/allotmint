@@ -89,3 +89,10 @@ export interface Transaction {
     shares?: number | null;
 }
 
+export type Alert = {
+    ticker: string;
+    change_pct: number;
+    message: string;
+    timestamp: string;
+};
+

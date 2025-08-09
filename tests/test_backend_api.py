@@ -143,6 +143,13 @@ def test_yahoo_timeseries_html():
     assert ticker.lower() in html
 
 
+def test_alerts_endpoint():
+    client.post("/prices/refresh")
+    resp = client.get("/alerts")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
 # @pytest.mark.parametrize("format", ["html", "json", "csv"])
 # def test_ft_timeseries(format):
 #     ticker = "GB00B45Q9038:GBP"

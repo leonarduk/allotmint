@@ -43,8 +43,10 @@ requests~=2.32.3
 websockets~=15.0.1
 anyio~=4.9.0
 peewee~=3.18.2
-tzdata~=2024.2
-urllib3~=2.2.3
+# Use PEP 440 compliant versioning for tzdata to avoid Dependabot parsing errors
+tzdata==2024.2
+# Bump urllib3 to patched version to address CVE-2025-50182
+urllib3~=2.5.0
 wsproto~=1.2.0
 six~=1.17.0
 annotated-types~=0.7.0

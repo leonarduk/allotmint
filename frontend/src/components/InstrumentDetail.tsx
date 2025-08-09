@@ -53,8 +53,13 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
   useEffect(() => {
     getInstrumentDetail(ticker, days)
       .then((d) => {
-        setData(d as { prices: Price[]; positions: Position[]; currency?: string | null });
-        setCurrency((d as any).currency ?? null);
+        const detail = d as {
+          prices: Price[];
+          positions: Position[];
+          currency?: string | null;
+        };
+        setData(detail);
+        setCurrency(detail.currency ?? null);
       })
       .catch((e: Error) => setErr(e.message));
   }, [ticker, days]);

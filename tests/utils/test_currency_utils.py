@@ -10,3 +10,10 @@ def test_known_prefixes():
 def test_unknown_prefix_defaults_to_gbp():
     assert currency_from_isin("ZZ0000000001") == "GBP"
     assert currency_from_isin("") == "GBP"
+
+
+def test_non_string_isin_raises_type_error():
+    with pytest.raises(TypeError):
+        currency_from_isin(None)
+    with pytest.raises(TypeError):
+        currency_from_isin(123)

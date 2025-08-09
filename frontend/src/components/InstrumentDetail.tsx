@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Line,
   LineChart,
@@ -53,7 +54,9 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
 
   useEffect(() => {
     getInstrumentDetail(ticker)
-      .then(setData)
+      .then((d) =>
+        setData(d as { prices: Price[]; positions: Position[] })
+      )
       .catch((e: Error) => setErr(e.message));
   }, [ticker]);
 
@@ -125,12 +128,12 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
           {(positions ?? []).map((pos, i) => (
             <tr key={`${pos.owner}-${pos.account}-${i}`}>
               <td>
-                <a
-                  href={`/member/${encodeURIComponent(pos.owner)}`}
+                <Link
+                  to={`/member/${encodeURIComponent(pos.owner)}`}
                   style={{ color: "#00d8ff", textDecoration: "none" }}
                 >
                   {pos.owner} – {pos.account}
-                </a>
+                </Link>
               </td>
               <td align="right">{fixed(pos.units, 4)}</td>
               <td align="right">{money(pos.market_value_gbp)}</td>

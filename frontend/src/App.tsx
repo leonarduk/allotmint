@@ -250,6 +250,10 @@ export default function App() {
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
       {mode === "screener" && <Screener />}
+
+      <p style={{ marginTop: "2rem", textAlign: "center" }}>
+        <a href="/support">Support</a>
+      </p>
     </div>
   );
 }

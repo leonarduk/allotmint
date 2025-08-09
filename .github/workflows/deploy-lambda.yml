@@ -40,6 +40,17 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r requirements.txt
 
+      - name: Lint frontend
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Run frontend tests
+        run: npm test -- --run
+        working-directory: frontend
+
+      - name: Run backend tests
+        run: pytest
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:

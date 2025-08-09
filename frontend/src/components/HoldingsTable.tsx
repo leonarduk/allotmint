@@ -1,7 +1,7 @@
 import type React from "react";
 import type { Holding } from "../types";
 import { money } from "../lib/money";
-import { useSortableTable } from "../hooks/useSortableTable";
+import { useFilterableTable } from "../hooks/useFilterableTable";
 import tableStyles from "../styles/table.module.css";
 
 type Props = {
@@ -41,7 +41,11 @@ export function HoldingsTable({ holdings, onSelectInstrument, relativeView = tru
     weight_pct: totalMarket ? (h.market / totalMarket) * 100 : 0,
   }));
 
-  const { sorted, sortKey, asc, handleSort } = useSortableTable(rows, "ticker");
+  const { rows: sorted, sortKey, asc, handleSort } = useFilterableTable(
+    rows,
+    "ticker",
+    {}
+  );
 
   if (!rows.length) return null;
 

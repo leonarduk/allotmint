@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
-import { useSortableTable } from "../hooks/useSortableTable";
+import { useFilterableTable } from "../hooks/useFilterableTable";
 import tableStyles from "../styles/table.module.css";
 
 type Props = {
@@ -23,7 +23,11 @@ export function InstrumentTable({ rows }: Props) {
         return { ...r, cost, gain_pct };
     });
 
-    const { sorted, sortKey, asc, handleSort } = useSortableTable(rowsWithCost, "ticker");
+    const { rows: sorted, sortKey, asc, handleSort } = useFilterableTable(
+        rowsWithCost,
+        "ticker",
+        {}
+    );
 
     /* no data? – render a clear message instead of an empty table */
     if (!rowsWithCost.length) {

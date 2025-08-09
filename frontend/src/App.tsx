@@ -25,7 +25,7 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
-import { ScreenerPage } from "./components/ScreenerPage";
+import { ScreenerPage } from "./pages/Screener";
 
 type Mode =
   | "owner"
@@ -148,6 +148,7 @@ export default function App() {
           "owner",
           "performance",
           "transactions",
+          "screener",
         ] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
             <input
@@ -155,7 +156,19 @@ export default function App() {
               name="mode"
               value={m}
               checked={mode === m}
-              onChange={() => setMode(m)}
+              onChange={() => {
+                setMode(m);
+                if (m === "screener") navigate("/screener");
+                else if (m === "transactions") navigate("/transactions");
+                else if (m === "performance") navigate("/performance");
+                else if (m === "owner" && selectedOwner)
+                  navigate(`/member/${selectedOwner}`);
+                else if (m === "instrument" && selectedGroup)
+                  navigate(`/instrument/${selectedGroup}`);
+                else if (m === "group" && selectedGroup)
+                  navigate(`/?group=${selectedGroup}`);
+                else if (m === "group") navigate("/");
+              }}
             />{" "}
             {m === "owner"
               ? "Member"

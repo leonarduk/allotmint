@@ -68,9 +68,24 @@ export const getGroupInstruments = (slug: string) =>
 export const getPerformance = (owner: string, days = 365) =>
   fetchJson<PerformancePoint[]>(`${API_BASE}/performance/${owner}?days=${days}`);
 
-/** Run a simple fundamentals screen across a list of tickers. */
-export const getScreener = (tickers: string[]) => {
-  const qs = new URLSearchParams({ tickers: tickers.join(",") });
+/**
+ * Run a simple fundamentals screen across a list of tickers.
+ *
+ * Additional valuation criteria may be supplied to narrow results.
+ */
+export const getScreener = (params: {
+  tickers: string[];
+  peg_max?: number;
+  pe_max?: number;
+  de_max?: number;
+  fcf_min?: number;
+}) => {
+  const qs = new URLSearchParams();
+  qs.set("tickers", params.tickers.join(","));
+  if (params.peg_max != null) qs.set("peg_max", String(params.peg_max));
+  if (params.pe_max != null) qs.set("pe_max", String(params.pe_max));
+  if (params.de_max != null) qs.set("de_max", String(params.de_max));
+  if (params.fcf_min != null) qs.set("fcf_min", String(params.fcf_min));
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${qs.toString()}`);
 };
 

@@ -56,15 +56,16 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string | null>(null);
   const [showBollinger, setShowBollinger] = useState(false);
+  const [days, setDays] = useState<number>(365);
 
   useEffect(() => {
-    getInstrumentDetail(ticker)
+    getInstrumentDetail(ticker, days)
       .then((d) => {
         setData(d as { prices: Price[]; positions: Position[]; currency?: string | null });
         setCurrency((d as any).currency ?? null);
       })
       .catch((e: Error) => setErr(e.message));
-  }, [ticker]);
+  }, [ticker, days]);
 
   if (err) return <p style={{ color: "red" }}>{err}</p>;
   if (!data) return <p>Loading…</p>;
@@ -125,6 +126,20 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
 
       {/* Chart */}
       <div style={{ marginBottom: "0.5rem" }}>
+        <label style={{ fontSize: "0.85rem", marginRight: "1rem" }}>
+          Range:
+          <select
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            style={{ marginLeft: "0.25rem" }}
+          >
+            <option value={7}>1W</option>
+            <option value={30}>1M</option>
+            <option value={365}>1Y</option>
+            <option value={3650}>10Y</option>
+            <option value={0}>MAX</option>
+          </select>
+        </label>
         <label style={{ fontSize: "0.85rem" }}>
           <input
             type="checkbox"

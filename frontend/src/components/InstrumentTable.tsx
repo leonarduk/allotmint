@@ -3,12 +3,16 @@ import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
 
+type SortKey = "ticker" | "name" | "cost" | "gain";
+
 type Props = {
     rows: InstrumentSummary[];
 };
 
 export function InstrumentTable({ rows }: Props) {
     const [selected, setSelected] = useState<InstrumentSummary | null>(null);
+    const [sortKey, setSortKey] = useState<SortKey>("ticker");
+    const [asc, setAsc] = useState(true);
 
     /* no data? – render a clear message instead of an empty table */
     if (!rows.length) {
@@ -18,6 +22,31 @@ export function InstrumentTable({ rows }: Props) {
     /* simple cell styles */
     const cell = { padding: "4px 6px" } as const;
     const right = { ...cell, textAlign: "right" } as const;
+
+    function handleSort(key: SortKey) {
+        if (sortKey === key) {
+            setAsc(!asc);
+        } else {
+            setSortKey(key);
+            setAsc(true);
+        }
+    }
+
+    const rowsWithCost = rows.map((r) => ({
+        ...r,
+        cost: r.market_value_gbp - r.gain_gbp,
+    }));
+
+    const sorted = [...rowsWithCost].sort((a, b) => {
+        const va = a[sortKey as keyof typeof a];
+        const vb = b[sortKey as keyof typeof b];
+        if (typeof va === "string" && typeof vb === "string") {
+            return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+        }
+        const na = (va as number) ?? 0;
+        const nb = (vb as number) ?? 0;
+        return asc ? na - nb : nb - na;
+    });
 
     return (
         <>
@@ -31,12 +60,37 @@ export function InstrumentTable({ rows }: Props) {
             >
                 <thead>
                     <tr>
-                        <th style={cell}>Ticker</th>
-                        <th style={cell}>Name</th>
-                        <th style={cell}>CCY</th>
+                        <th
+                            style={{ ...cell, cursor: "pointer" }}
+                            onClick={() => handleSort("ticker")}
+                        >
+                            Ticker
+                            {sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
+                        </th>
+                        <th
+                            style={{ ...cell, cursor: "pointer" }}
+                            onClick={() => handleSort("name")}
+                        >
+                            Name
+                            {sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
+                        </th>
                         <th style={right}>Units</th>
+                        <th style={cell}>CCY</th>
+                        <th
+                            style={{ ...right, cursor: "pointer" }}
+                            onClick={() => handleSort("cost")}
+                        >
+                            Cost £
+                            {sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
+                        </th>
                         <th style={right}>Mkt £</th>
-                        <th style={right}>Gain £</th>
+                        <th
+                            style={{ ...right, cursor: "pointer" }}
+                            onClick={() => handleSort("gain")}
+                        >
+                            Gain £
+                            {sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
+                        </th>
                         <th style={right}>Last £</th>
                         <th style={right}>Last&nbsp;Date</th>
                         <th style={right}>Δ&nbsp;7&nbsp;d&nbsp;%</th>
@@ -45,7 +99,7 @@ export function InstrumentTable({ rows }: Props) {
                 </thead>
 
                 <tbody>
-                    {rows.map((r) => {
+                    {sorted.map((r) => {
                         const gainColour =
                             r.gain_gbp >= 0 ? "lightgreen" : "red";
 
@@ -60,6 +114,7 @@ export function InstrumentTable({ rows }: Props) {
                                 <td style={right}>
                                     {r.units.toLocaleString()}
                                 </td>
+                                <td style={right}>{money(r.cost)}</td>
                                 <td style={right}>
                                     {money(r.market_value_gbp)}
                                 </td>

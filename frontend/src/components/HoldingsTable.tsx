@@ -1,5 +1,8 @@
+import { useState } from "react";
 import type { Holding } from "../types";
 import { money } from "../lib/money";
+
+type SortKey = "ticker" | "name" | "cost" | "gain" | "days_held";
 
 type Props = {
   holdings: Holding[];
@@ -9,8 +12,46 @@ type Props = {
 export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
   if (!holdings.length) return null;
 
+  const [sortKey, setSortKey] = useState<SortKey>("ticker");
+  const [asc, setAsc] = useState(true);
+
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right" } as const;
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setAsc(!asc);
+    } else {
+      setSortKey(key);
+      setAsc(true);
+    }
+  }
+
+  const rows = holdings.map((h) => {
+    const cost =
+      (h.cost_basis_gbp ?? 0) > 0
+        ? h.cost_basis_gbp ?? 0
+        : h.effective_cost_basis_gbp ?? 0;
+
+    const market = h.market_value_gbp ?? 0;
+    const gain =
+      h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
+        ? h.gain_gbp
+        : market - cost;
+
+    return { ...h, cost, market, gain };
+  });
+
+  const sorted = [...rows].sort((a, b) => {
+    const va = a[sortKey as keyof typeof a];
+    const vb = b[sortKey as keyof typeof b];
+    if (typeof va === "string" && typeof vb === "string") {
+      return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    const na = (va as number) ?? 0;
+    const nb = (vb as number) ?? 0;
+    return asc ? na - nb : nb - na;
+  });
 
   return (
     <table
@@ -25,30 +66,46 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
           <th style={cell}>Ticker</th>
           <th style={cell}>Name</th>
           <th style={cell}>CCY</th>
+          <th
+            style={{ ...cell, cursor: "pointer" }}
+            onClick={() => handleSort("ticker")}
+          >
+            Ticker{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
+          </th>
+          <th
+            style={{ ...cell, cursor: "pointer" }}
+            onClick={() => handleSort("name")}
+          >
+            Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
+          </th>
           <th style={right}>Units</th>
           <th style={right}>Px £</th>
-          <th style={right}>Cost £</th>
+          <th
+            style={{ ...right, cursor: "pointer" }}
+            onClick={() => handleSort("cost")}
+          >
+            Cost £{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
+          </th>
           <th style={right}>Mkt £</th>
-          <th style={right}>Gain £</th>
+          <th
+            style={{ ...right, cursor: "pointer" }}
+            onClick={() => handleSort("gain")}
+          >
+            Gain £{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
+          </th>
           <th style={cell}>Acquired</th>
-          <th style={right}>Days&nbsp;Held</th>
+          <th
+            style={{ ...right, cursor: "pointer" }}
+            onClick={() => handleSort("days_held")}
+          >
+            Days&nbsp;Held{sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
+          </th>
           <th style={{ ...cell, textAlign: "center" }}>Eligible?</th>
         </tr>
       </thead>
 
       <tbody>
-        {holdings.map((h) => {
-          const cost =
-            (h.cost_basis_gbp ?? 0) > 0
-              ? h.cost_basis_gbp ?? 0
-              : h.effective_cost_basis_gbp ?? 0;
-
-          const market = h.market_value_gbp ?? 0;
-          const gain =
-            h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
-              ? h.gain_gbp
-              : market - cost;
-
+        {sorted.map((h) => {
           const handleClick = (e: React.MouseEvent) => {
             e.preventDefault();
             onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
@@ -77,16 +134,16 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
                     : "Inferred from price on acquisition date"
                 }
               >
-                {money(cost)}
+                {money(h.cost)}
               </td>
-              <td style={right}>{money(market)}</td>
+              <td style={right}>{money(h.market)}</td>
               <td
                 style={{
                   ...right,
-                  color: gain >= 0 ? "lightgreen" : "red",
+                  color: h.gain >= 0 ? "lightgreen" : "red",
                 }}
               >
-                {money(gain)}
+                {money(h.gain)}
               </td>
               <td style={cell}>{h.acquired_date}</td>
               <td style={right}>{h.days_held ?? "—"}</td>

@@ -188,8 +188,8 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
             )
 
             # accumulate units & cost
+            # accumulate units & cost (allow for differing field names)
             row["units"] += _safe_num(h.get("units"))
-            row["cost_gbp"] += _safe_num(h.get("cost_gbp"))
 
             if row.get("currency") is None:
                 meta = get_security_meta(tkr)
@@ -197,15 +197,31 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
                     row["currency"] = meta["currency"]
 
             # attach snapshot if present
+            cost = _safe_num(
+                h.get("cost_gbp")
+                or h.get("cost_basis_gbp")
+                or h.get("effective_cost_basis_gbp")
+            )
+            row["cost_gbp"] += cost
+
+            # if holdings already carry market value / gain, include them so we
+            # have sensible numbers even when no price snapshot is available
+            row["market_value_gbp"] += _safe_num(h.get("market_value_gbp"))
+            row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
+
+            # attach snapshot if present – overrides derived values above
             snap = _PRICE_SNAPSHOT.get(tkr)
-            if isinstance(snap, dict):
-                price = snap["last_price"]
-                row["last_price_gbp"]  = price
-                row["last_price_date"] = snap["last_price_date"]
-                row["change_7d_pct"]   = snap.get("change_7d_pct")
-                row["change_30d_pct"]  = snap.get("change_30d_pct")
+            price = snap.get("last_price") if isinstance(snap, dict) else None
+            if price and price == price:  # guard against None/NaN/0
+                row["last_price_gbp"] = price
+                row["last_price_date"] = snap.get("last_price_date")
+                row["change_7d_pct"] = snap.get("change_7d_pct")
+                row["change_30d_pct"] = snap.get("change_30d_pct")
                 row["market_value_gbp"] = round(row["units"] * price, 2)
-                row["gain_gbp"] = round(row["market_value_gbp"] - row["cost_gbp"], 2)
+                row["gain_gbp"] = (
+                    round(row["market_value_gbp"] - row["cost_gbp"], 2)
+                    if row["cost_gbp"] else row["gain_gbp"]
+                )
 
             # pass-through misc attributes (first non-null wins)
             for k in ("asset_class", "region", "owner"):

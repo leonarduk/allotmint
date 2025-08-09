@@ -10,6 +10,10 @@ def validate_timeseries(prices):
     assert isinstance(prices, list)
     assert len(prices) > 0
     first = prices[0]
+    assert "date" in first
+    # Price data may be provided in different currencies, e.g. "close_gbp"
+    price_keys = [key for key in first.keys() if key.startswith("close")]
+    assert price_keys, "No price field starting with 'close' found"
     assert "date" in first and ("close" in first or "close_gbp" in first)
     dates = [p["date"] for p in prices]
     assert dates == sorted(dates), "Dates are not in ascending order"
@@ -100,6 +104,9 @@ def test_group_instruments():
     assert isinstance(instruments, list)
     assert len(instruments) > 0
     assert "ticker" in instruments[0]
+    # At least one instrument should have a market value once holdings are
+    # aggregated, even if no explicit price snapshot exists.
+    assert any((inst.get("market_value_gbp") or 0) > 0 for inst in instruments)
 
 
 def test_transactions_endpoint():

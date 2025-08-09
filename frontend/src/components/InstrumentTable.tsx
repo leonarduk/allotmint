@@ -4,8 +4,6 @@ import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
 
-type SortKey = "ticker" | "name" | "cost" | "gain" | "gain_pct";
-
 type Props = {
     rows: InstrumentSummary[];
 };

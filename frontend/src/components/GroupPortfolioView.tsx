@@ -1,10 +1,11 @@
 // src/components/GroupPortfolioView.tsx
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { GroupPortfolio } from "../types";
 import { getGroupPortfolio } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money, percent } from "../lib/money";
+import { useFetch } from "../hooks/useFetch";
 
 type SelectedInstrument = {
   ticker: string;
@@ -21,29 +22,17 @@ type Props = {
  * Component
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug }: Props) {
-  const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: portfolio, loading, error } = useFetch<GroupPortfolio>(
+    () => getGroupPortfolio(slug),
+    [slug],
+    !!slug
+  );
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
-
-  /* fetch portfolio whenever the slug changes */
-  useEffect(() => {
-    if (!slug) return;
-
-    setError(null);
-    setPortfolio(null);
-
-    getGroupPortfolio(slug)
-      .then(setPortfolio)
-      .catch((e) => {
-        console.error("failed to load group portfolio", e);
-        setError(e.message);
-      });
-  }, [slug]);
 
   /* ── early‑return states ───────────────────────────────── */
   if (!slug) return <p>Select a group.</p>;
-  if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
-  if (!portfolio) return <p>Loading…</p>;
+  if (error) return <p style={{ color: "red" }}>Error: {error.message}</p>;
+  if (loading || !portfolio) return <p>Loading…</p>;
 
   /* ── aggregate totals for summary box ──────────────────── */
   let totalValue = 0;

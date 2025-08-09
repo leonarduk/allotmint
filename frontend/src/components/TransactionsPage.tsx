@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { OwnerSummary, Transaction } from "../types";
 import { getTransactions } from "../api";
 import { Selector } from "./Selector";
+import { useFetch } from "../hooks/useFetch";
 
 type Props = {
   owners: OwnerSummary[];
@@ -12,9 +13,16 @@ export function TransactionsPage({ owners }: Props) {
   const [account, setAccount] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const { data: transactions, loading, error } = useFetch<Transaction[]>(
+    () =>
+      getTransactions({
+        owner: owner || undefined,
+        account: account || undefined,
+        start: start || undefined,
+        end: end || undefined,
+      }),
+    [owner, account, start, end]
+  );
 
   const accountOptions = useMemo(() => {
     if (owner) {
@@ -24,20 +32,6 @@ export function TransactionsPage({ owners }: Props) {
     owners.forEach((o) => o.accounts.forEach((a) => set.add(a)));
     return Array.from(set);
   }, [owner, owners]);
-
-  useEffect(() => {
-    setLoading(true);
-    setErr(null);
-    getTransactions({
-      owner: owner || undefined,
-      account: account || undefined,
-      start: start || undefined,
-      end: end || undefined,
-    })
-      .then(setTransactions)
-      .catch((e) => setErr(String(e)))
-      .finally(() => setLoading(false));
-  }, [owner, account, start, end]);
 
   return (
     <div>
@@ -68,7 +62,7 @@ export function TransactionsPage({ owners }: Props) {
         </label>
       </div>
 
-      {err && <p style={{ color: "red" }}>{err}</p>}
+      {error && <p style={{ color: "red" }}>{error.message}</p>}
       {loading ? (
         <p>Loading…</p>
       ) : (
@@ -84,7 +78,7 @@ export function TransactionsPage({ owners }: Props) {
             </tr>
           </thead>
           <tbody>
-            {transactions.map((t, i) => (
+            {(transactions ?? []).map((t, i) => (
               <tr key={i}>
                 <td>{t.date ? new Date(t.date).toLocaleDateString() : ""}</td>
                 <td>{t.owner}</td>

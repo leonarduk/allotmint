@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.local_api.main import app
+from backend.common.instruments import get_instrument_meta
 
 client = TestClient(app)
 
@@ -108,6 +109,12 @@ def test_group_instruments():
     # At least one instrument should have a market value once holdings are
     # aggregated, even if no explicit price snapshot exists.
     assert any((inst.get("market_value_gbp") or 0) > 0 for inst in instruments)
+
+    # if metadata contains a name, it should be reflected in the API output
+    for inst in instruments:
+        meta = get_instrument_meta(inst["ticker"])
+        if meta.get("name"):
+            assert inst["name"] == meta["name"]
 
 
 def test_transactions_endpoint():

@@ -176,7 +176,7 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
                 tkr,
                 {
                     "ticker":           tkr,
-                    "name":             h.get("name", tkr),
+                    "name":             meta.get("name") or h.get("name", tkr),
                     "currency":         h.get("currency"),
                     "units":            0.0,
                     "market_value_gbp": 0.0,

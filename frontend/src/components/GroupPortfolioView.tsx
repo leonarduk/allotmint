@@ -1,8 +1,10 @@
 // src/components/GroupPortfolioView.tsx
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { GroupPortfolio } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
+import { getGroupPortfolio } from "../api";
+import { useFetch } from "../hooks/useFetch";
 
 /* ────────────────────────────────────────────────────────────
  * Small helpers
@@ -34,35 +36,18 @@ type Props = {
  * Component
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug }: Props) {
-  const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
 
-  /* fetch portfolio whenever the slug changes */
-  useEffect(() => {
-    if (!slug) return;
-
-    setError(null);
-    setPortfolio(null);
-
-    const API = import.meta.env.VITE_API_URL ?? "";
-
-    fetch(`${API}/portfolio-group/${slug}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(res.statusText);
-        return res.json();
-      })
-      .then(setPortfolio)
-      .catch((e) => {
-        console.error("failed to load group portfolio", e);
-        setError(e.message);
-      });
-  }, [slug]);
+  const { data: portfolio, loading, error } = useFetch<GroupPortfolio>(
+    () => getGroupPortfolio(slug),
+    [slug],
+    !!slug
+  );
 
   /* ── early‑return states ───────────────────────────────── */
   if (!slug) return <p>Select a group.</p>;
   if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
-  if (!portfolio) return <p>Loading…</p>;
+  if (loading || !portfolio) return <p>Loading…</p>;
 
   /* ── aggregate totals for summary box ──────────────────── */
   let totalValue = 0;

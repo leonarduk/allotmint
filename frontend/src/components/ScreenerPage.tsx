@@ -1,21 +1,24 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
+import { useFetch } from "../hooks/useFetch";
 
 const WATCHLIST = ["AAPL", "MSFT", "GOOG", "AMZN", "TSLA"];
 
 type SortKey = "ticker" | "peg_ratio" | "pe_ratio" | "de_ratio" | "fcf";
 
 export function ScreenerPage() {
-  const [rows, setRows] = useState<ScreenerResult[]>([]);
+  const { data: rows = [], loading, error } = useFetch<ScreenerResult[]>(
+    () => getScreener(WATCHLIST),
+    []
+  );
   const [sortKey, setSortKey] = useState<SortKey>("peg_ratio");
   const [asc, setAsc] = useState(true);
   const [ticker, setTicker] = useState<string | null>(null);
 
-  useEffect(() => {
-    getScreener(WATCHLIST).then(setRows).catch(() => setRows([]));
-  }, []);
+  if (loading) return <p>Loading…</p>;
+  if (error) return <p style={{ color: "red" }}>Error: {error}</p>;
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {

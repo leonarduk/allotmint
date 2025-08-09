@@ -60,6 +60,19 @@ def refresh_snapshot_in_memory(new_snapshot: Dict[str, Dict] | None = None) -> N
 # ──────────────────────────────────────────────────────────────
 # Securities universe
 # ──────────────────────────────────────────────────────────────
+INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
+
+
+def _currency_from_file(ticker: str) -> str | None:
+    """Best-effort lookup of currency from data/instruments files."""
+    sym, exch = (ticker.split(".", 1) + ["Unknown"])[:2]
+    path = INSTRUMENTS_DIR / (exch or "Unknown") / f"{sym}.json"
+    try:
+        return json.loads(path.read_text()).get("currency")
+    except Exception:
+        return None
+
+
 def _build_securities_from_portfolios() -> Dict[str, Dict]:
     securities: Dict[str, Dict] = {}
     for pf in list_portfolios():
@@ -70,17 +83,28 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                     continue
                 securities[tkr] = {
                     "ticker": tkr,
-                    "name":     h.get("name", tkr),
+                    "name": h.get("name", tkr),
                     "exchange": h.get("exchange"),
-                    "isin":     h.get("isin"),
+                    "isin": h.get("isin"),
+                    "currency": h.get("currency") or _currency_from_file(tkr),
                 }
     return securities
 
 _SECURITIES = _build_securities_from_portfolios()
 
 def get_security_meta(ticker: str) -> Dict | None:
-    """Return {'ticker', 'name', ...} derived from current portfolios."""
-    return _SECURITIES.get(ticker.upper())
+    """Return {'ticker', 'name', …} for *ticker*.
+
+    Falls back to instrument files if the ticker isn't present in portfolios.
+    """
+    t = ticker.upper()
+    meta = _SECURITIES.get(t)
+    if meta:
+        return meta
+    ccy = _currency_from_file(t)
+    if ccy:
+        return {"ticker": t, "name": t, "currency": ccy}
+    return None
 
 
 # ----------------------------------------------------------------------
@@ -151,6 +175,7 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
                 {
                     "ticker":           tkr,
                     "name":             h.get("name", tkr),
+                    "currency":         h.get("currency"),
                     "units":            0.0,
                     "market_value_gbp": 0.0,
                     "gain_gbp":         0.0,
@@ -166,6 +191,12 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
             # accumulate units & cost (allow for differing field names)
             row["units"] += _safe_num(h.get("units"))
 
+            if row.get("currency") is None:
+                meta = get_security_meta(tkr)
+                if meta and meta.get("currency"):
+                    row["currency"] = meta["currency"]
+
+            # attach snapshot if present
             cost = _safe_num(
                 h.get("cost_gbp")
                 or h.get("cost_basis_gbp")

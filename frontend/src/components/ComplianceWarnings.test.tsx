@@ -42,4 +42,5 @@ describe("ComplianceWarnings", () => {
         expect(screen.queryByText("alice")).not.toBeInTheDocument();
         expect(screen.getByText("bob")).toBeInTheDocument();
     });
+
 });

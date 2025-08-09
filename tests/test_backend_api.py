@@ -119,6 +119,11 @@ def test_compliance_endpoint():
     assert "warnings" in data and isinstance(data["warnings"], list)
 
 
+def test_compliance_invalid_owner():
+    resp = client.get("/compliance/noone")
+    assert resp.status_code == 404
+
+
 def test_instrument_detail_valid():
     groups = client.get("/groups").json()
     slug = groups[0]["slug"]

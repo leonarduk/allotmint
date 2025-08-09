@@ -148,6 +148,7 @@ export default function App() {
           "owner",
           "performance",
           "transactions",
+          "screener",
         ] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
             <input

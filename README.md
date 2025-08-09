@@ -85,3 +85,36 @@ cdk deploy StaticSiteStack
 The bucket remains private and CloudFront uses an origin access identity
 with Price Class 100 to minimise cost while serving the content over HTTPS.
 
+### GitHub Actions Deployment
+
+The CI workflow in `.github/workflows/deploy-lambda.yml` uses GitHub's
+OpenID Connect (OIDC) provider to assume an IAM role at deploy time. To
+enable this:
+
+1. Create an IAM role with permissions to deploy the CDK stack.
+2. Add a trust policy that allows the GitHub OIDC provider to assume the
+   role. A minimal example is:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {"Federated": "arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"},
+         "Action": "sts:AssumeRoleWithWebIdentity",
+         "Condition": {
+           "StringEquals": {
+             "token.actions.githubusercontent.com:sub": "repo:YOUR_ORG/YOUR_REPO:ref:refs/heads/main"
+           }
+         }
+       }
+     ]
+   }
+   ```
+3. Store the role ARN in the repository as the `AWS_ROLE_TO_ASSUME` secret
+   and set `AWS_REGION` as needed.
+
+Remove any long-term `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+secrets, as they are no longer required.
+

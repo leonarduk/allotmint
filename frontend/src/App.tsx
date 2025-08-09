@@ -47,6 +47,10 @@ export default function App() {
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [selectedOwner, setSelectedOwner] = useState(
+    initialMode === "owner" ? initialSlug : ""
+  );
   const [selectedGroup, setSelectedGroup] = useState(
     initialMode === "instrument" ? initialSlug : ""
   );
@@ -66,25 +70,26 @@ export default function App() {
     getGroups().then(setGroups).catch((e) => setErr(String(e)));
   }, []);
 
-  // derive route info
-  const segments = location.pathname.split("/").filter(Boolean);
-  let mode: "owner" | "group" | "instrument" | "transactions" = "group";
-  let selectedOwner = "";
-  let selectedGroup = "";
-
-  if (segments[0] === "member") {
-    mode = "owner";
-    selectedOwner = segments[1] ?? "";
-  } else if (segments[0] === "instrument") {
-    mode = "instrument";
-    selectedGroup = segments[1] ?? "";
-  } else if (segments[0] === "transactions") {
-    mode = "transactions";
-  } else {
-    mode = "group";
-    const params = new URLSearchParams(location.search);
-    selectedGroup = params.get("group") ?? "";
-  }
+  useEffect(() => {
+    const segments = location.pathname.split("/").filter(Boolean);
+    if (segments[0] === "member") {
+      setMode("owner");
+      setSelectedOwner(segments[1] ?? "");
+    } else if (segments[0] === "instrument") {
+      setMode("instrument");
+      setSelectedGroup(segments[1] ?? "");
+    } else if (segments[0] === "transactions") {
+      setMode("transactions");
+    } else if (segments[0] === "performance") {
+      setMode("performance");
+    } else if (segments[0] === "screener") {
+      setMode("screener");
+    } else {
+      setMode("group");
+      const params = new URLSearchParams(location.search);
+      setSelectedGroup(params.get("group") ?? "");
+    }
+  }, [location]);
 
   // redirect to defaults if no selection provided
   useEffect(() => {

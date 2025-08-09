@@ -17,6 +17,7 @@ const fmt = (
     : dash;
 
 const fmtGBP = (n?: number | null) => `£${fmt(n, { maximumFractionDigits: 2 })}`;
+const fmtPct = (n?: number | null) => `${fmt(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 
 type SelectedInstrument = {
   ticker: string;
@@ -67,9 +68,16 @@ export function GroupPortfolioView({ slug }: Props) {
   let totalValue = 0;
   let totalGain = 0;
   let totalDayChange = 0;
+  let totalCost = 0;
+  const perOwner: Record<string, { value: number; dayChange: number; gain: number; cost: number }> = {};
 
   for (const acct of portfolio.accounts ?? []) {
+    const owner = acct.owner ?? "—";
+    const entry =
+      perOwner[owner] || (perOwner[owner] = { value: 0, dayChange: 0, gain: 0, cost: 0 });
+
     totalValue += acct.value_estimate_gbp ?? 0;
+    entry.value += acct.value_estimate_gbp ?? 0;
 
     for (const h of acct.holdings ?? []) {
       const cost =
@@ -81,11 +89,31 @@ export function GroupPortfolioView({ slug }: Props) {
         h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
           ? h.gain_gbp
           : market - cost;
+      const dayChg = h.day_change_gbp ?? 0;
 
+      totalCost += cost;
       totalGain += gain;
-      totalDayChange += h.day_change_gbp ?? 0;
+      totalDayChange += dayChg;
+
+      entry.cost += cost;
+      entry.gain += gain;
+      entry.dayChange += dayChg;
     }
   }
+
+  const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
+  const totalDayChangePct =
+    totalValue - totalDayChange !== 0
+      ? (totalDayChange / (totalValue - totalDayChange)) * 100
+      : 0;
+  const ownerRows = Object.entries(perOwner).map(([owner, data]) => {
+    const gainPct = data.cost > 0 ? (data.gain / data.cost) * 100 : 0;
+    const dayChangePct =
+      data.value - data.dayChange !== 0
+        ? (data.dayChange / (data.value - data.dayChange)) * 100
+        : 0;
+    return { owner, ...data, gainPct, dayChangePct };
+  });
 
   /* ── render ────────────────────────────────────────────── */
   return (
@@ -117,7 +145,7 @@ export function GroupPortfolioView({ slug }: Props) {
               color: totalDayChange >= 0 ? "lightgreen" : "red",
             }}
           >
-            {fmtGBP(totalDayChange)}
+            {fmtGBP(totalDayChange)} ({fmtPct(totalDayChangePct)})
           </div>
         </div>
         <div>
@@ -129,10 +157,70 @@ export function GroupPortfolioView({ slug }: Props) {
               color: totalGain >= 0 ? "lightgreen" : "red",
             }}
           >
-            {fmtGBP(totalGain)}
+            {fmtGBP(totalGain)} ({fmtPct(totalGainPct)})
           </div>
         </div>
       </div>
+
+      {/* Per-owner summary */}
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          marginBottom: "1rem",
+        }}
+      >
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left" }}>Owner</th>
+            <th style={{ textAlign: "right" }}>Total Value</th>
+            <th style={{ textAlign: "right" }}>Day Change</th>
+            <th style={{ textAlign: "right" }}>Day Change %</th>
+            <th style={{ textAlign: "right" }}>Total Gain</th>
+            <th style={{ textAlign: "right" }}>Total Gain %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ownerRows.map((row) => (
+            <tr key={row.owner}>
+              <td>{row.owner}</td>
+              <td style={{ textAlign: "right" }}>{fmtGBP(row.value)}</td>
+              <td
+                style={{
+                  textAlign: "right",
+                  color: row.dayChange >= 0 ? "lightgreen" : "red",
+                }}
+              >
+                {fmtGBP(row.dayChange)}
+              </td>
+              <td
+                style={{
+                  textAlign: "right",
+                  color: row.dayChange >= 0 ? "lightgreen" : "red",
+                }}
+              >
+                {fmtPct(row.dayChangePct)}
+              </td>
+              <td
+                style={{
+                  textAlign: "right",
+                  color: row.gain >= 0 ? "lightgreen" : "red",
+                }}
+              >
+                {fmtGBP(row.gain)}
+              </td>
+              <td
+                style={{
+                  textAlign: "right",
+                  color: row.gain >= 0 ? "lightgreen" : "red",
+                }}
+              >
+                {fmtPct(row.gainPct)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       {/* Account breakdown */}
       {portfolio.accounts?.map((acct, idx) => (

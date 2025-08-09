@@ -3,8 +3,6 @@ import type { Holding } from "../types";
 import { money } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
 
-type SortKey = "ticker" | "name" | "cost" | "gain" | "gain_pct" | "days_held";
-
 type Props = {
   holdings: Holding[];
   onSelectInstrument?: (ticker: string, name: string) => void;

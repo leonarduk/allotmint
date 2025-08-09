@@ -1,20 +1,20 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { useSortableTable } from "../hooks/useSortableTable";
+import { useFetch } from "../hooks/useFetch";
 
 const WATCHLIST = ["AAPL", "MSFT", "GOOG", "AMZN", "TSLA"];
 
 export function ScreenerPage() {
-  const [rows, setRows] = useState<ScreenerResult[]>([]);
+  const { data: rows } = useFetch<ScreenerResult[]>(
+    () => getScreener(WATCHLIST),
+    []
+  );
   const [ticker, setTicker] = useState<string | null>(null);
 
-  useEffect(() => {
-    getScreener(WATCHLIST).then(setRows).catch(() => setRows([]));
-  }, []);
-
-  const { sorted, handleSort } = useSortableTable(rows, "peg_ratio");
+  const { sorted, handleSort } = useSortableTable(rows ?? [], "peg_ratio");
 
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right", cursor: "pointer" } as const;
@@ -47,7 +47,7 @@ export function ScreenerPage() {
       {ticker && (
         <InstrumentDetail
           ticker={ticker}
-          name={rows.find((r) => r.ticker === ticker)?.name ?? ""}
+          name={rows?.find((r) => r.ticker === ticker)?.name ?? ""}
           onClose={() => setTicker(null)}
         />
       )}

@@ -43,11 +43,20 @@ const fixed = (v: unknown, dp = 2): string => {
   return Number.isFinite(n) ? n.toFixed(dp) : "—";
 };
 
-
-export function InstrumentDetail({ ticker, name, onClose }: Props) {
-  const [data, setData] = useState<{ prices: Price[]; positions: Position[]; currency?: string | null } | null>(null);
+export function InstrumentDetail({
+  ticker,
+  name,
+  currency: currencyProp,
+  instrument_type,
+  onClose,
+}: Props) {
+  const [data, setData] = useState<{
+    prices: Price[];
+    positions: Position[];
+    currency?: string | null;
+  } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<string | null>(currencyProp ?? null);
   const [showBollinger, setShowBollinger] = useState(false);
   const [days, setDays] = useState<number>(365);
 
@@ -60,10 +69,10 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
           currency?: string | null;
         };
         setData(detail);
-        setCurrency(detail.currency ?? null);
+        setCurrency(detail.currency ?? currencyProp ?? null);
       })
       .catch((e: Error) => setErr(e.message));
-  }, [ticker, days]);
+  }, [ticker, days, currencyProp]);
 
   if (err) return <p style={{ color: "red" }}>{err}</p>;
   if (!data) return <p>Loading…</p>;

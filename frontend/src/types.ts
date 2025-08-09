@@ -95,3 +95,12 @@ export type ComplianceResult = {
     trade_counts: Record<string, number>;
 };
 
+export interface ScreenerResult {
+    ticker: string;
+    name?: string | null;
+    peg_ratio: number | null;
+    pe_ratio: number | null;
+    de_ratio: number | null;
+    fcf: number | null;
+}
+

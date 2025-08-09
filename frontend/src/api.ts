@@ -7,6 +7,7 @@ import type {
   OwnerSummary,
   Portfolio,
   Transaction,
+  ScreenerResult,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -60,6 +61,12 @@ export const getGroupInstruments = (slug: string) =>
   fetchJson<InstrumentSummary[]>(
     `${API_BASE}/portfolio-group/${slug}/instruments`
   );
+
+/** Run a simple fundamentals screen across a list of tickers. */
+export const getScreener = (tickers: string[]) => {
+  const qs = new URLSearchParams({ tickers: tickers.join(",") });
+  return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${qs.toString()}`);
+};
 
 /**
  * Fetch price/position detail for a single instrument.

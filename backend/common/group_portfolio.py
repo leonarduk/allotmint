@@ -95,6 +95,12 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
 
             merged_accounts.append(acct_copy)
 
+    # Place accounts with actual holdings first to keep downstream consumers
+    # (and tests) simple. Some metadata-only accounts like pension forecasts
+    # contain no holdings which previously surfaced as the first account and
+    # triggered index errors.
+    merged_accounts.sort(key=lambda a: len(a.get(HOLDINGS, [])), reverse=True)
+
     total_value = sum(float(a.get("value_estimate_gbp") or 0.0) for a in merged_accounts)
 
     return {

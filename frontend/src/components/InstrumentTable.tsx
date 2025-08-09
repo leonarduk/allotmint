@@ -8,7 +8,7 @@ type Props = {
 };
 
 export function InstrumentTable({ rows }: Props) {
-    const [ticker, setTicker] = useState<string | null>(null);
+    const [selected, setSelected] = useState<InstrumentSummary | null>(null);
 
     /* no data? – render a clear message instead of an empty table */
     if (!rows.length) {
@@ -51,7 +51,7 @@ export function InstrumentTable({ rows }: Props) {
                         return (
                             <tr
                                 key={r.ticker}
-                                onClick={() => setTicker(r.ticker)}
+                                onClick={() => setSelected(r)}
                             >
                                 <td style={cell}>{r.ticker}</td>
                                 <td style={cell}>{r.name}</td>
@@ -89,13 +89,11 @@ export function InstrumentTable({ rows }: Props) {
             </table>
 
             {/* slide-in price-history / positions panel */}
-            {ticker && (
+            {selected && (
                 <InstrumentDetail
-                    ticker={ticker}
-                    name={
-                        rows.find((r) => r.ticker === ticker)?.name ?? ""
-                    }
-                    onClose={() => setTicker(null)}
+                    ticker={selected.ticker}
+                    name={selected.name}
+                    onClose={() => setSelected(null)}
                 />
             )}
         </>

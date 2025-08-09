@@ -92,3 +92,9 @@ export const getTransactions = (params: {
   const qs = query.toString();
   return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
 };
+
+/** Retrieve compliance warnings for an owner */
+export const getCompliance = (owner: string) =>
+  fetchJson<{ owner: string; warnings: string[] }>(
+    `${API_BASE}/compliance/${owner}`
+  );

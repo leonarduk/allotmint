@@ -89,3 +89,9 @@ export interface Transaction {
     shares?: number | null;
 }
 
+export type ComplianceResult = {
+    owner: string;
+    warnings: string[];
+    trade_counts: Record<string, number>;
+};
+

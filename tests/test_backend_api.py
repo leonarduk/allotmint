@@ -108,6 +108,17 @@ def test_transactions_endpoint():
     assert isinstance(resp.json(), list)
 
 
+def test_compliance_endpoint():
+    owners = client.get("/owners").json()
+    assert owners, "No owners returned"
+    owner = owners[0]["owner"]
+    resp = client.get(f"/compliance/{owner}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["owner"].lower() == owner.lower()
+    assert "warnings" in data and isinstance(data["warnings"], list)
+
+
 def test_instrument_detail_valid():
     groups = client.get("/groups").json()
     slug = groups[0]["slug"]

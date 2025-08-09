@@ -2,44 +2,39 @@
 
 This module exposes a small helper function and a logging handler that forward
 messages to a Telegram chat. The bot token and chat identifier are read from
-the ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` environment variables. If
-either variable is missing the helpers become no-ops so they can be safely used
-in tests or environments where Telegram notifications are not desired.
+the ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` environment variables.  An
+exception is raised if the credentials are missing so callers can surface
+configuration issues to the user.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
-
 import requests
 
 
 def send_message(text: str) -> None:
     """Send ``text`` to the configured Telegram chat.
 
-    The message is only sent when both ``TELEGRAM_BOT_TOKEN`` and
-    ``TELEGRAM_CHAT_ID`` environment variables are present.  Failure to send
-    the message is deliberately ignored so that logging remains best-effort.
+    The function requires ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` to be
+    present in the environment.  Any failure to contact the Telegram API will
+    result in the raised ``requests.RequestException`` bubbling up to the
+    caller so that it can be surfaced appropriately.
     """
 
-    token: Optional[str] = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id: Optional[str] = os.getenv("TELEGRAM_CHAT_ID")
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
     if not token or not chat_id:
-        return
+        raise RuntimeError("missing Telegram configuration")
 
-    try:
-        requests.get(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            params={"chat_id": chat_id, "text": text},
-            timeout=5,
-        )
-    except Exception:
-        # Errors here should not disrupt the application flow; logging failures
-        # are ignored.
-        pass
+    response = requests.post(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data={"chat_id": chat_id, "text": text},
+        timeout=5,
+    )
+    response.raise_for_status()
 
 
 class TelegramLogHandler(logging.Handler):

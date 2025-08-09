@@ -32,24 +32,66 @@ from backend.common.portfolio_utils import (
     refresh_snapshot_in_memory,
     check_price_alerts,
 )
+from backend.common.holding_utils import load_latest_prices as _load_latest_prices
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import _nearest_weekday
 
 logger = logging.getLogger("prices")
 
 
+def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
+    """Fetch the close price for ``sym.exch`` on or nearest before ``d``."""
+
+    snap = _nearest_weekday(d, forward=False)
+    df = load_meta_timeseries_range(sym, exch, start_date=snap, end_date=snap)
+    if df is None or df.empty:
+        return None
+
+    # try a few common column names
+    for col in ("close", "Close", "close_gbp", "Close_gbp"):
+        if col in df.columns:
+            try:
+                return float(df[col].iloc[0])
+            except Exception:
+                return None
+    return None
+
+
 def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
-    """Return a minimal price snapshot for tickers without external calls."""
-    today = date.today().isoformat()
-    return {
-        t: {
-            "last_price": 0.0,
-            "change_7d_pct": 0.0,
-            "change_30d_pct": 0.0,
-            "last_price_date": today,
+    """Return last price and 7/30 day % changes for each ticker.
+
+    Uses cached meta timeseries data; callers are responsible for priming the
+    cache via ``fetch_meta_timeseries`` beforehand. Missing data results in
+    ``None`` values so downstream consumers can skip incomplete entries.
+    """
+
+    yday = date.today() - timedelta(days=1)
+    latest = _load_latest_prices(list(tickers))
+
+    snapshot: Dict[str, Dict] = {}
+    for full in tickers:
+        last = latest.get(full)
+        info = {
+            "last_price": float(last) if last is not None else None,
+            "change_7d_pct": None,
+            "change_30d_pct": None,
+            "last_price_date": yday.isoformat(),
         }
-        for t in tickers
-    }
+
+        if last is not None:
+            sym, exch = (full.split(".", 1) + ["L"])[:2]
+
+            px_7 = _close_on(sym, exch, yday - timedelta(days=7))
+            px_30 = _close_on(sym, exch, yday - timedelta(days=30))
+
+            if px_7 not in (None, 0):
+                info["change_7d_pct"] = (float(last) / px_7 - 1.0) * 100.0
+            if px_30 not in (None, 0):
+                info["change_30d_pct"] = (float(last) / px_30 - 1.0) * 100.0
+
+        snapshot[full] = info
+
+    return snapshot
 
 logging.basicConfig(level=logging.DEBUG)
 

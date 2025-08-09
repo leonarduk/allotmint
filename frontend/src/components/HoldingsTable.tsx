@@ -61,6 +61,7 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
             Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th style={cell}>CCY</th>
+          <th style={cell}>Type</th>
           <th style={right}>Units</th>
           <th style={right}>Px £</th>
           <th

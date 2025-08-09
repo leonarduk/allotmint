@@ -36,6 +36,7 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings}/>);
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.getByText("XYZ")).toBeInTheDocument();
+        expect(screen.getByText(/Gain %/)).toBeInTheDocument();
     });
 
     it("shows days to go if not eligible", () => {

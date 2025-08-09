@@ -104,6 +104,7 @@ def test_group_instruments():
     assert isinstance(instruments, list)
     assert len(instruments) > 0
     assert "ticker" in instruments[0]
+    assert "gain_pct" in instruments[0]
     # At least one instrument should have a market value once holdings are
     # aggregated, even if no explicit price snapshot exists.
     assert any((inst.get("market_value_gbp") or 0) > 0 for inst in instruments)
@@ -145,6 +146,8 @@ def test_instrument_detail_valid():
             json = resp.json()
             assert "prices" in json and isinstance(json["prices"], list)
             assert "positions" in json and isinstance(json["positions"], list)
+            if json["positions"]:
+                assert "gain_pct" in json["positions"][0]
             validate_timeseries(json["prices"])
             return
     pytest.skip("No instrument with available price data")

@@ -197,6 +197,10 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
 
+    for r in rows.values():
+        cost = r["cost_gbp"]
+        r["gain_pct"] = (r["gain_gbp"] / cost * 100.0) if cost else None
+
     return list(rows.values())
 
 

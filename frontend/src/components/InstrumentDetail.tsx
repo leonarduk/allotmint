@@ -27,6 +27,7 @@ type Position = {
   units: number | null | undefined;
   market_value_gbp: number | null | undefined;
   unrealised_gain_gbp: number | null | undefined;
+  gain_pct?: number | null | undefined;
 };
 
 // ───────────────── helpers ─────────────────
@@ -176,6 +177,7 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
             <th align="right">Units</th>
             <th align="right">Mkt £</th>
             <th align="right">Gain £</th>
+            <th align="right">Gain %</th>
           </tr>
         </thead>
         <tbody>
@@ -199,6 +201,17 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
                 }}
               >
                 {money(pos.unrealised_gain_gbp)}
+              </td>
+              <td
+                align="right"
+                style={{
+                  color:
+                    toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red",
+                }}
+              >
+                {Number.isFinite(toNum(pos.gain_pct))
+                  ? `${toNum(pos.gain_pct).toFixed(1)}%`
+                  : "—"}
               </td>
             </tr>
           ))}

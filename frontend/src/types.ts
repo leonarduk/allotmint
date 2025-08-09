@@ -13,6 +13,7 @@ export interface Holding {
     effective_cost_basis_gbp?: number;
     market_value_gbp?: number;
     gain_gbp?: number;
+    gain_pct?: number;
     current_price_gbp?: number | null;
     day_change_gbp?: number;
 
@@ -69,6 +70,7 @@ export type InstrumentSummary = {
     units: number;
     market_value_gbp: number;
     gain_gbp: number;
+    gain_pct?: number;
 
     /* last-price enrichment */
     last_price_gbp?: number | null;

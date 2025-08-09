@@ -6,6 +6,7 @@ type Props = {
     data: Portfolio | null;
     loading?: boolean;
     error?: string | null;
+    relativeView?: boolean;
 };
 
 /**
@@ -15,7 +16,7 @@ type Props = {
  * relies on its parent for data fetching. Conditional branches early-return to
  * keep the JSX at the bottom easy to follow.
  */
-export function PortfolioView({data, loading, error}: Props) {
+export function PortfolioView({data, loading, error, relativeView = false}: Props) {
     if (loading) return <div>Loading portfolio…</div>; // show a quick spinner
     if (error) return <div style={{color: "red"}}>{error}</div>; // bubble errors
     if (!data) return <div>Select an owner.</div>; // nothing chosen yet
@@ -37,7 +38,7 @@ export function PortfolioView({data, loading, error}: Props) {
             </div>
             {/* Each account is rendered using AccountBlock for clarity */}
             {data.accounts.map((acct) => (
-                <AccountBlock key={acct.account_type} account={acct}/>
+                <AccountBlock key={acct.account_type} account={acct} relativeView={relativeView}/>
             ))}
         </div>
     );

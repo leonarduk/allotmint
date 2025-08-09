@@ -21,6 +21,7 @@ import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
+import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { ScreenerPage } from "./components/ScreenerPage";
 
 type Mode = "owner" | "group" | "instrument" | "transactions" | "screener";
@@ -250,6 +251,7 @@ export default function App() {
             selected={selectedOwner}
             onSelect={setSelectedOwner}
           />
+          <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
           <PortfolioView data={portfolio} loading={loading} error={err} />
         </>
       )}
@@ -261,6 +263,11 @@ export default function App() {
             groups={groups}
             selected={selectedGroup}
             onSelect={setSelectedGroup}
+          />
+          <ComplianceWarnings
+            owners={
+              groups.find((g) => g.slug === selectedGroup)?.members ?? []
+            }
           />
           <GroupPortfolioView
             slug={selectedGroup}

@@ -164,23 +164,27 @@ async def instrument(
     df = df.copy()
     df["Date"] = pd.to_datetime(df["Date"])
 
-    # normalise column name
-    if "Close_gbp" in df.columns:
-        df.rename(columns={"Close_gbp": "Close"}, inplace=True)
-
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    # Ensure both Close and Close_gbp columns exist
+    if "Close" not in df.columns and "Close_gbp" in df.columns:
+        df["Close"] = df["Close_gbp"]
+    if "Close_gbp" not in df.columns and "Close" in df.columns:
+        df["Close_gbp"] = df["Close"]
+
     df = df[pd.notnull(df["Close"])]
 
-    last_close = float(df.iloc[-1]["Close"])
+    last_close = float(df.iloc[-1]["Close_gbp"])
     positions = _positions_for_ticker(ticker.upper(), last_close)
 
     # ── JSON ───────────────────────────────────────────────────
     if format == "json":
         prices = (
-            df[["Date", "Close"]]
-            .rename(columns={"Date": "date", "Close": "close_gbp"})
+            df[["Date", "Close", "Close_gbp"]]
+            .rename(columns={"Date": "date", "Close": "close", "Close_gbp": "close_gbp"})
             .assign(
                 date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
+                close=lambda d: d["close"].astype(float),
                 close_gbp=lambda d: d["close_gbp"].astype(float),
             )
             .to_dict(orient="records")

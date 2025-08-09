@@ -20,10 +20,7 @@ from backend.routes.transactions import router as transactions_router
 from backend.routes.alerts import router as alerts_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.screener import router as screener_router
-from backend.common.portfolio_utils import (
-    refresh_snapshot_in_memory,
-    refresh_snapshot_in_memory_from_timeseries,
-)
+from backend.common.portfolio_utils import refresh_snapshot_in_memory_from_timeseries
 
 
 def create_app() -> FastAPI:
@@ -69,7 +66,11 @@ def create_app() -> FastAPI:
         return {"status": "ok", "env": os.getenv("ALLOTMINT_ENV", "test")}
 
     # ─────────────── Warm the price snapshot on startup ───────────────
-    skip_warm = os.getenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", "false").lower() == "true"
+    skip_warm = os.getenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
     if not skip_warm:
         @app.on_event("startup")

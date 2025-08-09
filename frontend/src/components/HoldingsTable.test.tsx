@@ -43,7 +43,8 @@ describe("HoldingsTable", () => {
         expect(screen.getByText(/Gain %/)).toBeInTheDocument();
         expect(screen.getByText("Test Holding")).toBeInTheDocument();
         expect(screen.getByText("GBP")).toBeInTheDocument();
-        expect(screen.getByText("5")).toBeInTheDocument();
+        const firstRow = screen.getByText("AAA").closest("tr");
+        expect(within(firstRow!).getByText("5")).toBeInTheDocument();
     });
 
     it("shows days to go if not eligible", () => {
@@ -59,7 +60,7 @@ describe("HoldingsTable", () => {
         let rows = screen.getAllByRole("row");
         expect(within(rows[1]).getByText("AAA")).toBeInTheDocument();
 
-        fireEvent.click(screen.getByText(/^Ticker/));
+        fireEvent.click(screen.getAllByText(/^Ticker/)[1]);
         rows = screen.getAllByRole("row");
         expect(within(rows[1]).getByText("XYZ")).toBeInTheDocument();
     });

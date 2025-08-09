@@ -71,7 +71,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 end_date=end_date,
             )
             if df is None or df.empty:
-                # no data → don't write a zero; just continue
+                # no data -> don't write a zero; just continue
                 continue
 
             # coerce expected columns and sort by date
@@ -103,7 +103,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             # keep logging, but don't poison the map with zeros
             logger.warning("latest price fetch failed for %s: %s", full, e)
 
-    logger.info("✅ Latest prices fetched: %d/%d", len(result), len(full_tickers))
+    logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
     return result
 
 

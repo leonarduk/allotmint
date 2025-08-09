@@ -2,19 +2,19 @@
 from __future__ import annotations
 
 """
-Build rich “portfolio” dictionaries that the rest of the backend expects.
+Build rich "portfolio" dictionaries that the rest of the backend expects.
 
-• list_portfolios()           → [{ owner, person, accounts:[…] }, …]
-• load_portfolio(owner)       → { … }   (single owner helper, not used elsewhere)
+- list_portfolios()           -> [{ owner, person, accounts:[...] }, ...]
+- load_portfolio(owner)       -> { ... }   (single owner helper, not used elsewhere)
 """
 
 import logging
 from typing import Dict, List
 
 from backend.common.data_loader import (
-    list_plots,          # owner → ["isa", "sipp", …]
-    load_account,        # (owner, account) → parsed JSON
-    load_person_meta,    # (owner) → {dob, …}
+    list_plots,          # owner -> ["isa", "sipp", ...]
+    load_account,        # (owner, account) -> parsed JSON
+    load_person_meta,    # (owner) -> {dob, ...}
 )
 
 log = logging.getLogger("portfolio_loader")
@@ -33,7 +33,7 @@ def _load_accounts_for_owner(owner: str, acct_names: List[str]) -> List[Dict]:
         except FileNotFoundError:
             log.warning("Account file missing: %s/%s.json", owner, name)
         except Exception as exc:
-            log.warning("❌ Failed to parse %s/%s.json → %s", owner, name, exc)
+            log.warning("Failed to parse %s/%s.json -> %s", owner, name, exc)
     return accounts
 
 
@@ -70,9 +70,9 @@ def list_portfolios(env: str | None = None) -> List[Dict]:
     return portfolios
 
 
-# (Optional) convenience helper — not used by the current backend, but handy.
+# (Optional) convenience helper - not used by the current backend, but handy.
 def load_portfolio(owner: str, env: str | None = None) -> Dict | None:
-    """Return a single owner’s portfolio tree, or None if owner not found."""
+    """Return a single owner's portfolio tree, or None if owner not found."""
     for pf in list_portfolios(env):
         if pf["owner"].lower() == owner.lower():
             return pf

@@ -5,8 +5,8 @@ from __future__ import annotations
 Owner-level portfolio builder for AllotMint
 ==========================================
 
-• build_owner_portfolio(owner)
-• list_owners()
+- build_owner_portfolio(owner)
+- list_owners()
 """
 
 import csv
@@ -49,7 +49,7 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
 
 def load_trades(owner: str, env: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    Public helper. Keeps us self-contained so there’s no circular dependency.
+    Public helper. Keeps us self-contained so there's no circular dependency.
     """
     env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
     return _load_trades_local(owner) if env == "local" else _load_trades_aws(owner)

@@ -24,10 +24,10 @@ def extract_holdings_from_transactions(
     """
     Rebuild position sizes from <portfolio-transaction> entries.
 
-    • Supports BUY, SELL, TRANSFER_IN / OUT, REMOVAL (unit-moving types)
-    • Converts PP’s raw <shares> (scaled by 1e8) to real units
-    • Works with or without per-account breakdown
-    • Adds acquired_date: most recent BUY or TRANSFER_IN per security
+    - Supports BUY, SELL, TRANSFER_IN / OUT, REMOVAL (unit-moving types)
+    - Converts PP's raw <shares> (scaled by 1e8) to real units
+    - Works with or without per-account breakdown
+    - Adds acquired_date: most recent BUY or TRANSFER_IN per security
     """
 
     SHARE_SCALE = 10 ** 8
@@ -65,7 +65,7 @@ def extract_holdings_from_transactions(
 
     # ---- iterate -------------------------------------------------------
     ledgers: dict[str, defaultdict[str, float]] = defaultdict(lambda: defaultdict(float))
-    acquisition_dates: dict[str, dict[str, str]] = defaultdict(dict)  # acct_name → sid → most recent acquisition date
+    acquisition_dates: dict[str, dict[str, str]] = defaultdict(dict)  # acct_name -> sid -> most recent acquisition date
 
     account_nodes = root.findall(".//account") if by_account else [root]
 
@@ -151,7 +151,7 @@ def get_name_map_from_xml(xml_file: str) -> dict[str, str]:
 if __name__ == "__main__":
     xml = r"C:/workspaces/bitbucket/luk/data/portfolio/investments-with-id.xml"
     df = extract_holdings_from_transactions(xml, by_account=True)
-    print(f"\n✅ rebuilt {len(df)} positions")
+    print(f"\nRebuilt {len(df)} positions")
 
     pd.set_option("display.max_rows", None)
     print(df.to_string(index=False,

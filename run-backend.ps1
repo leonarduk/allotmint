@@ -40,4 +40,4 @@ $env:ALLOTMINT_ENV = 'local'
 
 # run
 Write-Host "Starting AllotMint Local API on http://localhost:$Port ..." -ForegroundColor Green
-python -m uvicorn backend.local_api.main:app --reload --port $Port --log-config backend/logging.ini --app-dir .
+python -m uvicorn backend.local_api.main:app --reload --reload-dir backend --port $Port --log-config backend/logging.ini --app-dir .

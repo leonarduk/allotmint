@@ -1,11 +1,11 @@
 """
 Owners / groups / portfolio endpoints (shared).
 
-    • /owners
-    • /groups
-    • /portfolio/{owner}
-    • /portfolio-group/{slug}
-    • /portfolio-group/{slug}/instruments
+    - /owners
+    - /groups
+    - /portfolio/{owner}
+    - /portfolio-group/{slug}
+    - /portfolio-group/{slug}/instruments
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ async def owners():
         [
           {"owner": "alex",  "accounts": ["isa", "sipp"]},
           {"owner": "joe",   "accounts": ["isa", "sipp"]},
-          …
+          ...
         ]
     """
     return data_loader.list_plots()
@@ -66,7 +66,7 @@ async def groups():
         [
           {"slug": "children", "name": "Children", "members": ["alex", "joe"]},
           {"slug": "adults",   "name": "Adults",   "members": ["lucy", "steve"]},
-          …
+          ...
         ]
     """
     return group_portfolio.list_groups()
@@ -148,6 +148,6 @@ async def instrument_detail(slug: str, ticker: str):
 async def refresh_prices():
     """Rebuild the in-memory price snapshot used by portfolio lookups."""
 
-    log.info("🔄 Refreshing prices via /prices/refresh")
+    log.info("Refreshing prices via /prices/refresh")
     result = prices.refresh_prices()
     return {"status": "ok", **result}

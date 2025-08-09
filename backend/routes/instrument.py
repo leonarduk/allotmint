@@ -39,7 +39,7 @@ def _validate_ticker(tkr: str) -> None:
     """
 
     if not tkr or tkr in {".L", ".UK"}:
-        raise HTTPException(400, f"Invalid ticker: “{tkr}”")
+        raise HTTPException(400, f'Invalid ticker: "{tkr}"')
 
 
 def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
@@ -61,7 +61,7 @@ def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
 
     positions: List[Dict[str, Any]] = []
 
-    # Iterate through owners → accounts → holdings
+    # Iterate through owners -> accounts -> holdings
     for pf in list_portfolios():
         owner = pf["owner"]
         for acct in pf.get("accounts", []):
@@ -114,7 +114,7 @@ def _render_html(
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{ticker} • {window_days}-day view</title>
+  <title>{ticker} - {window_days}-day view</title>
   <style>
     body {{ font-family: system-ui, sans-serif; margin: 2rem; }}
     table{{ border-collapse:collapse;margin:.5rem 0}}
@@ -126,7 +126,7 @@ def _render_html(
 </head>
 <body>
   <h1>{ticker}</h1>
-  <p>{len(df):,} rows • {begin} → {end}</p>
+  <p>{len(df):,} rows - {begin} -> {end}</p>
 
   <section>{prices_tbl}</section>
   <section>{pos_tbl}</section>
@@ -165,23 +165,27 @@ async def instrument(
     df = df.copy()
     df["Date"] = pd.to_datetime(df["Date"])
 
-    # normalise column name
-    if "Close_gbp" in df.columns:
-        df.rename(columns={"Close_gbp": "Close"}, inplace=True)
-
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    # Ensure both Close and Close_gbp columns exist
+    if "Close" not in df.columns and "Close_gbp" in df.columns:
+        df["Close"] = df["Close_gbp"]
+    if "Close_gbp" not in df.columns and "Close" in df.columns:
+        df["Close_gbp"] = df["Close"]
+
     df = df[pd.notnull(df["Close"])]
 
-    last_close = float(df.iloc[-1]["Close"])
+    last_close = float(df.iloc[-1]["Close_gbp"])
     positions = _positions_for_ticker(ticker.upper(), last_close)
 
     # ── JSON ───────────────────────────────────────────────────
     if format == "json":
         prices = (
-            df[["Date", "Close"]]
-            .rename(columns={"Date": "date", "Close": "close_gbp"})
+            df[["Date", "Close", "Close_gbp"]]
+            .rename(columns={"Date": "date", "Close": "close", "Close_gbp": "close_gbp"})
             .assign(
                 date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
+                close=lambda d: d["close"].astype(float),
                 close_gbp=lambda d: d["close_gbp"].astype(float),
             )
             .to_dict(orient="records")

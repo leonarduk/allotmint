@@ -45,7 +45,7 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
     base = re.split(r"[.:]", ticker)[0].upper()
     ex = (exchange or "").upper()
 
-    # Try: exact → base → per‑exchange wildcard → global wildcard
+    # Try: exact -> base -> per-exchange wildcard -> global wildcard
     candidates = [
         (ex, ticker), (ex, base),
         (ex, "*"), ("*", base), ("*", "*"),
@@ -81,10 +81,10 @@ def handle_timeseries_response(
 # ── new helper ──────────────────────────────────────────────
 def _nearest_weekday(d: datetime.date, forward: bool) -> datetime.date:
     """
-    Return *d* if it’s a weekday; otherwise move to nearest weekday.
+    Return *d* if it's a weekday; otherwise move to nearest weekday.
 
-    forward=True  → Friday→Mon (skip weekend forward)
-    forward=False → Saturday/Sunday→Fri (skip weekend backward)
+    forward=True  -> Friday->Mon (skip weekend forward)
+    forward=False -> Saturday/Sunday->Fri (skip weekend backward)
     """
     while d.weekday() >= 5:   # 5 = Saturday, 6 = Sunday
         d += datetime.timedelta(days=1 if forward else -1)

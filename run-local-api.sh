@@ -8,5 +8,6 @@ cd "$SCRIPT_DIR"
 export ALLOTMINT_ENV=local
 uvicorn backend.local_api.main:app \
   --reload \
+  --reload-dir backend \
   --port 8000 \
   --log-config backend/logging.ini

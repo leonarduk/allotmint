@@ -8,7 +8,7 @@ from positions import extract_holdings_from_transactions
 
 def normalize_account(account: str) -> tuple[str, str]:
     """
-    Split 'Alex ISA Cash' → ('alex', 'isa')
+    Split 'Alex ISA Cash' -> ('alex', 'isa')
     """
     parts = account.strip().split()
     if len(parts) >= 2:
@@ -75,7 +75,7 @@ def generate_json_holdings(xml_path: str, output_base_dir: str):
         with open(out_file, "w", encoding="utf-8") as f:
             json.dump(output, f, indent=2)
 
-        print(f"✅ Wrote {out_file} ({len(output['holdings'])} holdings)")
+        print(f"Wrote {out_file} ({len(output['holdings'])} holdings)")
 
 
 if __name__ == "__main__":

@@ -6,9 +6,9 @@ Instrument-level helpers for AllotMint
 Public API
 ----------
 
-• timeseries_for_ticker(ticker, days=365)
-• positions_for_ticker(group_slug, ticker)
-• instrument_summaries_for_group(group_slug)   ← used by InstrumentTable
+- timeseries_for_ticker(ticker, days=365)
+- positions_for_ticker(group_slug, ticker)
+- instrument_summaries_for_group(group_slug)   - used by InstrumentTable
 """
 
 from __future__ import annotations
@@ -61,8 +61,8 @@ _LATEST_PRICES: Dict[str, float] = load_latest_prices(list_all_unique_tickers())
 # ───────────────────────────────────────────────────────────────
 def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
     """
-    Return last *days* rows of close prices for *ticker* – empty list if none.
-    Uses meta timeseries (Yahoo → Stooq → FT) and only up to yesterday.
+    Return last *days* rows of close prices for *ticker* - empty list if none.
+    Uses meta timeseries (Yahoo -> Stooq -> FT) and only up to yesterday.
     """
     if not ticker:
         return []
@@ -91,6 +91,10 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
         df = df.rename(columns={"Date": "date"})
     if "Close" in df.columns and "close" not in df.columns:
         df = df.rename(columns={"Close": "close"})
+    if "Close_gbp" in df.columns and "close_gbp" not in df.columns:
+        df = df.rename(columns={"Close_gbp": "close_gbp"})
+    if "close" not in df.columns and "close_gbp" in df.columns:
+        df["close"] = df["close_gbp"]
 
     if {"date", "close"} - set(df.columns):
         return []
@@ -103,7 +107,9 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
         if isinstance(rd, (dt.datetime, dt.date)):
             rd = rd.date().isoformat() if isinstance(rd, dt.datetime) else rd.isoformat()
         if rd >= cutoff.isoformat():
-            out.append({"date": rd, "close_gbp": float(r["close"])})
+            close_val = float(r["close"])
+            close_gbp_val = float(r.get("close_gbp", close_val))
+            out.append({"date": rd, "close": close_val, "close_gbp": close_gbp_val})
     return out
 
 

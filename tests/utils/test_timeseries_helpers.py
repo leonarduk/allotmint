@@ -1,0 +1,71 @@
+import datetime as dt
+import json
+import builtins
+import pandas as pd
+import pytest
+
+import backend.utils.timeseries_helpers as th
+
+
+def test_apply_scaling_basic():
+    df = pd.DataFrame({"Open": [1], "Close": [2], "Volume": [3]})
+    scaled = th.apply_scaling(df, 2, scale_volume=True)
+    assert list(scaled["Open"]) == [2]
+    assert list(scaled["Close"]) == [4]
+    assert list(scaled["Volume"]) == [6]
+
+
+def test_apply_scaling_no_scale_returns_same_object():
+    df = pd.DataFrame({"Open": [1]})
+    same = th.apply_scaling(df, 1)
+    assert same is df
+
+
+def test_get_scaling_override_requested():
+    assert th.get_scaling_override("T", "L", 3.0) == 3.0
+
+
+def test_get_scaling_override_from_json():
+    assert th.get_scaling_override("GAMA", "L", None) == 0.01
+
+
+def test_get_scaling_override_missing_file(monkeypatch):
+    monkeypatch.setattr(builtins, "open", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError()))
+    assert th.get_scaling_override("T", "X", None) == 1.0
+
+
+def test_handle_timeseries_response_variants(monkeypatch):
+    df = pd.DataFrame({"Date": ["2024-01-01"], "Open": [1], "Close": [1], "High": [1], "Low": [1], "Volume": [0]})
+
+    # JSON
+    resp = th.handle_timeseries_response(df, "json", "t", "s", {"meta": 1})
+    body = json.loads(resp.body)
+    assert body["meta"] == 1
+    assert body["prices"][0]["Open"] == 1
+
+    # CSV
+    resp_csv = th.handle_timeseries_response(df, "csv", "t", "s")
+    assert resp_csv.media_type == "text/csv"
+    assert "Open" in resp_csv.body.decode()
+
+    # HTML branch
+    monkeypatch.setattr(th, "render_timeseries_html", lambda df, t, s: "HTML")
+    resp_html = th.handle_timeseries_response(df, "html", "t", "s")
+    assert resp_html == "HTML"
+
+    # Empty DataFrame -> 404
+    resp_empty = th.handle_timeseries_response(pd.DataFrame(), "json", "t", "s")
+    assert resp_empty.status_code == 404
+
+
+def test_nearest_weekday():
+    sat = dt.date(2024, 1, 6)
+    sun = dt.date(2024, 1, 7)
+    assert th._nearest_weekday(sat, True) == dt.date(2024, 1, 8)
+    assert th._nearest_weekday(sat, False) == dt.date(2024, 1, 5)
+    assert th._nearest_weekday(sun, False) == dt.date(2024, 1, 5)
+
+
+def test_is_isin():
+    assert th._is_isin("US0378331005")
+    assert not th._is_isin("AAPL")

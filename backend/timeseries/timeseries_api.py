@@ -1,9 +1,9 @@
 """
 Light-weight time-series download endpoint for AllotMint.
 
-• Pulls OHLCV data from Yahoo Finance via yfinance
-• Streams CSV, returns JSON, **or** renders an HTML table
-• Easy to extend with more data sources (Alpha Vantage, Finnhub, …)
+- Pulls OHLCV data from Yahoo Finance via yfinance
+- Streams CSV, returns JSON, **or** renders an HTML table
+- Easy to extend with more data sources (Alpha Vantage, Finnhub, ...)
 """
 
 import io
@@ -69,8 +69,8 @@ def _render_html(df: pd.DataFrame, title: str) -> str:
 @router.get("/{ticker}")
 def get_timeseries(
     ticker: str,
-    period: str = Query("1y", description="1d, 5d, 1mo, 3mo, 1y, ytd, max …"),
-    interval: str = Query("1d", description="1m, 5m, 15m, 1h, 1d, 1wk, 1mo …"),
+    period: str = Query("1y", description="1d, 5d, 1mo, 3mo, 1y, ytd, max ..."),
+    interval: str = Query("1d", description="1m, 5m, 15m, 1h, 1d, 1wk, 1mo ..."),
     fmt: str = Query("csv", regex="^(csv|json|html)$", description="csv, json or html table"),
 ):
     """

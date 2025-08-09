@@ -43,7 +43,7 @@ def _get_ref(elem: ET.Element, tag: str) -> str | None:
     return tag_elem.get("reference") if tag_elem is not None else None
 
 def _normalise_account_name(name: str) -> Tuple[str, str]:
-    """Split **"Steve ISA Cash" → ("steve", "isa")**, used for output paths."""
+    """Split **"Steve ISA Cash" -> ("steve", "isa")**, used for output paths."""
     parts = name.strip().split()
     if len(parts) >= 2:
         return parts[0].lower(), parts[1].lower()
@@ -58,7 +58,7 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
 
     root = ET.parse(xml_path).getroot()
 
-    # Map account‑id → account‑name so we can resolve names later
+    # Map account-id -> account-name so we can resolve names later
     account_names: dict[str, str] = {
         acc.get("id"): acc.findtext("name") or f"Account {acc.get('id')}"
         for acc in root.findall(".//accounts/account")
@@ -67,7 +67,7 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
     records: List[Dict[str, Any]] = []
 
     # ------------------------------------------------------------------
-    # (1) Cash‑account transactions: <account-transaction>
+    # (1) Cash-account transactions: <account-transaction>
     # ------------------------------------------------------------------
     for acc in root.findall(".//accounts/account"):
         acc_id = acc.get("id")
@@ -91,12 +91,12 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
             )
 
     # ------------------------------------------------------------------
-    # (2) Share‑account transactions: <portfolio-transaction>
+    # (2) Share-account transactions: <portfolio-transaction>
     # ------------------------------------------------------------------
     for portfolio in root.findall(".//portfolio"):
         ref_account_elem = portfolio.find("referenceAccount")
         if ref_account_elem is None:
-            continue  # portfolio not tied to a cash account → skip
+            continue  # portfolio not tied to a cash account -> skip
 
         acc_id = ref_account_elem.get("reference")
         acc_name = account_names.get(acc_id, f"Account {acc_id}")
@@ -127,7 +127,7 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
 ###############################################################################
 
 def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
-    """Write *one JSON file per account* mirroring holdings‑generation structure."""
+    """Write *one JSON file per account* mirroring holdings-generation structure."""
 
     today = datetime.today().date().isoformat()
 
@@ -139,7 +139,7 @@ def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
         out = {
             "owner": owner,
             "account_type": account_type.upper(),
-            "currency": "GBP",  # Assumes single‑currency books
+            "currency": "GBP",  # Assumes single-currency books
             "last_updated": today,
             "transactions": group.drop(columns=["owner", "account_type"]).to_dict(orient="records"),
         }
@@ -151,10 +151,10 @@ def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
         with json_path.open("w", encoding="utf-8") as fh:
             json.dump(out, fh, indent=2)
 
-        print(f"✅ Wrote {json_path} ({len(group)} transactions)")
+        print(f"Wrote {json_path} ({len(group)} transactions)")
 
 ###############################################################################
-# CLI entry‑point
+# CLI entry-point
 ###############################################################################
 
 def main() -> None:

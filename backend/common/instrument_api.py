@@ -6,9 +6,9 @@ Instrument-level helpers for AllotMint
 Public API
 ----------
 
-• timeseries_for_ticker(ticker, days=365)
-• positions_for_ticker(group_slug, ticker)
-• instrument_summaries_for_group(group_slug)   ← used by InstrumentTable
+- timeseries_for_ticker(ticker, days=365)
+- positions_for_ticker(group_slug, ticker)
+- instrument_summaries_for_group(group_slug)   - used by InstrumentTable
 """
 
 from __future__ import annotations
@@ -61,8 +61,8 @@ _LATEST_PRICES: Dict[str, float] = load_latest_prices(list_all_unique_tickers())
 # ───────────────────────────────────────────────────────────────
 def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
     """
-    Return last *days* rows of close prices for *ticker* – empty list if none.
-    Uses meta timeseries (Yahoo → Stooq → FT) and only up to yesterday.
+    Return last *days* rows of close prices for *ticker* - empty list if none.
+    Uses meta timeseries (Yahoo -> Stooq -> FT) and only up to yesterday.
     """
     if not ticker:
         return []

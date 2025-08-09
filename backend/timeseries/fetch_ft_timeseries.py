@@ -42,12 +42,12 @@ def _build_ft_ticker(ticker: str) -> Optional[str]:
 
 def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[date] = None) -> pd.DataFrame:
     url = FT_URL_TEMPLATE.format(ticker=ticker)
-    logger.info(f"🔗 Navigating to {url}")
+    logger.info(f"Navigating to {url}")
     driver = init_driver(headless=True)
 
     try:
         driver.get(url)
-        logger.debug("⏳ Waiting for historical price table...")
+        logger.debug("Waiting for historical price table...")
         WebDriverWait(driver, 30).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "table.mod-ui-table"))
         )
@@ -56,10 +56,10 @@ def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[
         try:
             consent_btn = driver.find_element(By.CSS_SELECTOR, "button.js-accept-all-cookies")
             consent_btn.click()
-            logger.info("🍪 Dismissed cookie banner.")
+            logger.info("Dismissed cookie banner.")
             time.sleep(1)
         except Exception:
-            logger.info("ℹ️ No cookie banner found or already dismissed.")
+            logger.info("No cookie banner found or already dismissed.")
 
         table_elem = driver.find_element(By.CSS_SELECTOR, "table.mod-ui-table")
         html = table_elem.get_attribute("outerHTML")
@@ -87,11 +87,11 @@ def fetch_ft_timeseries_range(ticker: str, start_date: date, end_date: Optional[
         return df[STANDARD_COLUMNS]
 
     except Exception as e:
-        logger.warning("⚠️ FT fetch failed for %s: %s", ticker, e)
+        logger.warning("FT fetch failed for %s: %s", ticker, e)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     finally:
-        logger.debug("🩹 Closing Selenium driver")
+        logger.debug("Closing Selenium driver")
         driver.quit()
 
 def fetch_ft_timeseries(ticker: str, days: int = 365) -> pd.DataFrame:

@@ -4,12 +4,12 @@ Price utilities driven entirely by the live portfolio universe
 
     {
       "TICKER": {
-        "last_price":      …,
-        "change_7d_pct":   …,
-        "change_30d_pct":  …,
+        "last_price":      ...,
+        "change_7d_pct":   ...,
+        "change_30d_pct":  ...,
         "last_price_date": "YYYY-MM-DD"
       },
-      …
+      ...
     }
 """
 
@@ -95,7 +95,7 @@ def refresh_prices() -> Dict:
     the current portfolios.  Writes to JSON and updates the cache.
     """
     tickers: List[str] = list_all_unique_tickers()
-    logger.info(f"📊 Updating price snapshot for: {tickers}")
+    logger.info(f"Updating price snapshot for: {tickers}")
 
     snapshot = get_price_snapshot(tickers)
 
@@ -114,7 +114,7 @@ def refresh_prices() -> Dict:
     refresh_snapshot_in_memory(snapshot)
     check_price_alerts()
 
-    logger.debug(f"✅ Snapshot written to {path}")
+    logger.debug(f"Snapshot written to {path}")
     return {
         "tickers": tickers,
         "snapshot": snapshot,
@@ -127,7 +127,7 @@ def refresh_prices() -> Dict:
 def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
     """
     Convenience helper for notebooks / quick scripts:
-    returns {'TICKER': last_close_gbp, …}
+    returns {'TICKER': last_close_gbp, ...}
     """
     if not tickers:
         return {}

@@ -106,4 +106,4 @@ async def yahoo_timeseries_html(
         df["Source"] = "Yahoo"
     if "Ticker" not in df.columns:
         df["Ticker"] = ticker
-    return render_timeseries_html(df, f"{ticker} Price History", f"{period} • {interval}")
+    return render_timeseries_html(df, f"{ticker} Price History", f"{period} - {interval}")

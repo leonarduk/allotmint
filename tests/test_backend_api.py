@@ -45,6 +45,12 @@ def test_valid_group_portfolio():
     assert "slug" in data and data["slug"] == group_slug
     assert "accounts" in data and isinstance(data["accounts"], list)
     assert data["accounts"], "Accounts list should not be empty"
+    assert "total_value_estimate_gbp" in data
+    assert data["total_value_estimate_gbp"] > 0
+    first_acct = data["accounts"][0]
+    assert "value_estimate_gbp" in first_acct
+    first_holding = first_acct["holdings"][0]
+    assert "day_change_gbp" in first_holding
 
 
 def test_invalid_group_portfolio():

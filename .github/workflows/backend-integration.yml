@@ -1,0 +1,33 @@
+name: Backend Integration Tests
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi uvicorn pandas yfinance pytest pytest-cov httpx requests beautifulsoup4 lxml peewee selenium
+
+      - name: Start backend service
+        run: |
+          bash run-local-api.sh &
+          sleep 5
+
+      - name: Run tests
+        env:
+          RUN_LIVE_TESTS: '1'
+        run: |
+          pytest --cov=backend.local_api.main --cov=backend.routes.portfolio --cov=backend.utils.period_utils --cov=backend.utils.currency_utils --cov-report=term --cov-fail-under=80 --maxfail=1

@@ -28,6 +28,10 @@ export default function App() {
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState(
+    initialMode === "instrument" ? initialSlug : ""
+  );
+
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
 
@@ -211,6 +215,55 @@ export default function App() {
       </div>
 
       {routes}
+      {/* OWNER VIEW */}
+      {mode === "owner" && (
+        <>
+          <OwnerSelector
+            owners={owners}
+            selected={selectedOwner}
+            onSelect={setSelectedOwner}
+          />
+          <PortfolioView data={portfolio} loading={loading} error={err} />
+        </>
+      )}
+
+      {/* GROUP VIEW */}
+      {mode === "group" && (
+        <>
+          <GroupSelector
+            groups={groups}
+            selected={selectedGroup}
+            onSelect={setSelectedGroup}
+          />
+          <GroupPortfolioView
+            slug={selectedGroup}
+            onSelectMember={(owner) => {
+              setMode("owner");
+              setSelectedOwner(owner);
+              window.history.pushState({}, "", `/member/${owner}`);
+            }}
+          />
+        </>
+      )}
+
+      {/* INSTRUMENT VIEW */}
+      {mode === "instrument" && (
+        <>
+          <GroupSelector
+            groups={groups}
+            selected={selectedGroup}
+            onSelect={setSelectedGroup}
+          />
+          {err && <p style={{ color: "red" }}>{err}</p>}
+          {loading ? (
+            <p>Loading…</p>
+          ) : (
+            <InstrumentTable rows={instruments} />
+          )}
+        </>
+      )}
+
+      {mode === "transactions" && <TransactionsPage owners={owners} />}
     </div>
   );
 }

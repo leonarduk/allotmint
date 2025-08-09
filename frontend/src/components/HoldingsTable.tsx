@@ -10,10 +10,10 @@ type Props = {
 };
 
 export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
-  if (!holdings.length) return null;
-
   const [sortKey, setSortKey] = useState<SortKey>("ticker");
   const [asc, setAsc] = useState(true);
+
+  if (!holdings.length) return null;
 
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right" } as const;
@@ -70,6 +70,9 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
     >
       <thead>
         <tr>
+          <th style={cell}>Ticker</th>
+          <th style={cell}>Name</th>
+          <th style={cell}>CCY</th>
           <th
             style={{ ...cell, cursor: "pointer" }}
             onClick={() => handleSort("ticker")}
@@ -133,6 +136,7 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
                 </a>
               </td>
               <td style={cell}>{h.name}</td>
+              <td style={cell}>{h.currency ?? "—"}</td>
               <td style={right}>{h.units.toLocaleString()}</td>
               <td style={right}>{money(h.current_price_gbp)}</td>
               <td

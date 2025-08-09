@@ -69,6 +69,17 @@ pytest
 cd frontend && npm test
 ```
 
+## Error summary helper
+
+Use the `run_with_error_summary.py` script to capture error lines when running
+commands. A log file `error_summary.log` will be created with a summary of
+errors which you can attach when reporting bugs.
+
+```bash
+# example
+python run_with_error_summary.py pytest
+```
+
 ## Deploy to AWS
 
 The project includes an AWS CDK stack that provisions an S3 bucket and

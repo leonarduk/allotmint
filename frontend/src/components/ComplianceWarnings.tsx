@@ -37,28 +37,28 @@ export function ComplianceWarnings({ owners }: Props) {
 
   if (!owners.length) return null;
 
+  const ownersWithWarnings = owners.filter((o) => (data[o] ?? []).length);
+
+  if (!ownersWithWarnings.length) return null;
+
   return (
-    <div style={{
-      background: "#fff4e5",
-      border: "1px solid #f0ad4e",
-      color: "#333",
-      padding: "0.5rem 1rem",
-      marginBottom: "1rem",
-    }}>
-      {owners.map((o) => (
+    <div
+      style={{
+        background: "#fff4e5",
+        border: "1px solid #f0ad4e",
+        color: "#333",
+        padding: "0.5rem 1rem",
+        marginBottom: "1rem",
+      }}
+    >
+      {ownersWithWarnings.map((o) => (
         <div key={o} style={{ marginBottom: "0.5rem" }}>
           <strong>{o}</strong>
-          {data[o] && data[o].length ? (
-            <ul style={{ margin: "0.25rem 0 0 1.25rem" }}>
-              {data[o].map((w, i) => (
-                <li key={i}>{w}</li>
-              ))}
-            </ul>
-          ) : (
-            <div style={{ marginLeft: "0.5rem", display: "inline" }}>
-              No compliance issues
-            </div>
-          )}
+          <ul style={{ margin: "0.25rem 0 0 1.25rem" }}>
+            {data[o].map((w) => (
+              <li key={`${o}-${w}`}>{w}</li>
+            ))}
+          </ul>
         </div>
       ))}
     </div>

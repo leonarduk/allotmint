@@ -77,6 +77,14 @@ export type InstrumentSummary = {
     change_30d_pct?: number | null;
 };
 
+export interface PerformancePoint {
+    date: string;
+    value: number;
+    daily_return?: number | null;
+    weekly_return?: number | null;
+    cumulative_return?: number | null;
+}
+
 export interface Transaction {
     owner: string;
     account: string;

@@ -90,6 +90,15 @@ async def portfolio(owner: str):
         raise HTTPException(status_code=404, detail="Owner not found")
 
 
+@router.get("/performance/{owner}")
+async def performance(owner: str, days: int = 365):
+    """Return portfolio performance metrics for ``owner``."""
+    try:
+        return portfolio_utils.compute_owner_performance(owner, days=days)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Owner not found")
+
+
 @router.get("/portfolio-group/{slug}")
 async def portfolio_group(slug: str):
     """Return the aggregated portfolio for a group.

@@ -14,6 +14,9 @@ from datetime import date, timedelta, datetime
 from pathlib import Path
 from typing import Dict, List
 
+import pandas as pd
+
+from backend.common import portfolio as portfolio_mod
 from backend.common.portfolio_loader import list_portfolios          # existing helper
 from backend.timeseries.cache import load_meta_timeseries
 
@@ -180,6 +183,90 @@ def aggregate_by_ticker(portfolio: dict) -> List[dict]:
                     row[k] = h[k]
 
     return list(rows.values())
+
+
+# ──────────────────────────────────────────────────────────────
+# Performance helpers
+# ──────────────────────────────────────────────────────────────
+def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
+    """Return daily portfolio values and returns for an ``owner``.
+
+    The calculation uses current holdings and fetches closing prices from the
+    meta timeseries cache for the requested rolling window. The result is a
+    list of records::
+
+        {
+            "date": "2024-01-01",
+            "value": 1234.56,
+            "daily_return": 0.0012,         # 0.12 %
+            "weekly_return": 0.0345,        # 3.45 %
+            "cumulative_return": 0.0567,    # 5.67 % from start
+        }
+
+    Returns an empty list if the owner or timeseries data is missing.
+    """
+
+    try:
+        pf = portfolio_mod.build_owner_portfolio(owner)
+    except FileNotFoundError:
+        raise
+
+    holdings: List[tuple[str, str, float]] = []  # (ticker, exchange, units)
+    for acct in pf.get("accounts", []):
+        for h in acct.get("holdings", []):
+            tkr = (h.get("ticker") or "").upper()
+            if not tkr:
+                continue
+            units = _safe_num(h.get("units"))
+            if not units:
+                continue
+            exch = (h.get("exchange") or "L").upper()
+            holdings.append((tkr.split(".", 1)[0], exch, units))
+
+    if not holdings:
+        return []
+
+    total = pd.Series(dtype=float)
+    for ticker, exchange, units in holdings:
+        df = load_meta_timeseries(ticker, exchange, days)
+        if df.empty or "Date" not in df.columns or "Close" not in df.columns:
+            continue
+        df = df[["Date", "Close"]].copy()
+        df["Date"] = pd.to_datetime(df["Date"]).dt.date
+        values = df.set_index("Date")["Close"] * units
+        total = total.add(values, fill_value=0)
+
+    if total.empty:
+        return []
+
+    perf = total.sort_index().to_frame(name="value")
+    perf["daily_return"] = perf["value"].pct_change()
+    perf["weekly_return"] = perf["value"].pct_change(5)
+    start_val = perf["value"].iloc[0]
+    perf["cumulative_return"] = perf["value"] / start_val - 1
+    perf = perf.reset_index().rename(columns={"index": "date"})
+
+    out: List[Dict] = []
+    for row in perf.itertuples(index=False):
+        out.append(
+            {
+                "date": row.date.isoformat(),
+                "value": round(float(row.value), 2),
+                "daily_return": (
+                    float(row.daily_return) if pd.notna(row.daily_return) else None
+                ),
+                "weekly_return": (
+                    float(row.weekly_return) if pd.notna(row.weekly_return) else None
+                ),
+                "cumulative_return": (
+                    float(row.cumulative_return)
+                    if pd.notna(row.cumulative_return)
+                    else None
+                ),
+            }
+        )
+
+    return out
 
 
 # ──────────────────────────────────────────────────────────────

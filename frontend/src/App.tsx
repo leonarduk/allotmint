@@ -20,8 +20,9 @@ import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
+import { PerformanceDashboard } from "./components/PerformanceDashboard";
 
-type Mode = "owner" | "group" | "instrument" | "transactions";
+type Mode = "owner" | "group" | "instrument" | "transactions" | "performance";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -29,6 +30,7 @@ const initialMode: Mode =
   path[0] === "member" ? "owner" :
   path[0] === "instrument" ? "instrument" :
   path[0] === "transactions" ? "transactions" :
+  path[0] === "performance" ? "performance" :
   "group";
 const initialSlug = path[1] ?? "";
 
@@ -114,7 +116,13 @@ export default function App() {
       {/* mode toggle */}
       <div style={{ marginBottom: "1rem" }}>
         <strong>View by:</strong>{" "}
-        {(["group", "instrument", "owner", "transactions"] as Mode[]).map((m) => (
+        {([
+          "group",
+          "instrument",
+          "owner",
+          "performance",
+          "transactions",
+        ] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
             <input
               type="radio"
@@ -192,6 +200,18 @@ export default function App() {
           ) : (
             <InstrumentTable rows={instruments} />
           )}
+        </>
+      )}
+
+      {/* PERFORMANCE VIEW */}
+      {mode === "performance" && (
+        <>
+          <OwnerSelector
+            owners={owners}
+            selected={selectedOwner}
+            onSelect={setSelectedOwner}
+          />
+          <PerformanceDashboard owner={selectedOwner} />
         </>
       )}
 

@@ -6,6 +6,7 @@ import type {
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
+  PerformancePoint,
   Transaction,
 } from "./types";
 
@@ -60,6 +61,10 @@ export const getGroupInstruments = (slug: string) =>
   fetchJson<InstrumentSummary[]>(
     `${API_BASE}/portfolio-group/${slug}/instruments`
   );
+
+/** Fetch performance metrics for an owner */
+export const getPerformance = (owner: string, days = 365) =>
+  fetchJson<PerformancePoint[]>(`${API_BASE}/performance/${owner}?days=${days}`);
 
 /**
  * Fetch price/position detail for a single instrument.

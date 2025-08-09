@@ -63,9 +63,6 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
     >
       <thead>
         <tr>
-          <th style={cell}>Ticker</th>
-          <th style={cell}>Name</th>
-          <th style={cell}>CCY</th>
           <th
             style={{ ...cell, cursor: "pointer" }}
             onClick={() => handleSort("ticker")}
@@ -78,6 +75,7 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
           >
             Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
           </th>
+          <th style={cell}>CCY</th>
           <th style={right}>Units</th>
           <th style={right}>Px £</th>
           <th

@@ -108,6 +108,22 @@ def test_transactions_endpoint():
     assert isinstance(resp.json(), list)
 
 
+def test_compliance_endpoint():
+    owners = client.get("/owners").json()
+    assert owners, "No owners returned"
+    owner = owners[0]["owner"]
+    resp = client.get(f"/compliance/{owner}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["owner"].lower() == owner.lower()
+    assert "warnings" in data and isinstance(data["warnings"], list)
+
+
+def test_compliance_invalid_owner():
+    resp = client.get("/compliance/noone")
+    assert resp.status_code == 404
+
+
 def test_instrument_detail_valid():
     groups = client.get("/groups").json()
     slug = groups[0]["slug"]
@@ -141,6 +157,13 @@ def test_yahoo_timeseries_html():
     html = resp.text.lower()
     assert "<html" in html and "<table" in html
     assert ticker.lower() in html
+
+
+def test_alerts_endpoint():
+    client.post("/prices/refresh")
+    resp = client.get("/alerts")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
 
 
 # @pytest.mark.parametrize("format", ["html", "json", "csv"])

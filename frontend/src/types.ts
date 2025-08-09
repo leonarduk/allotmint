@@ -97,3 +97,25 @@ export interface Transaction {
     shares?: number | null;
 }
 
+export type Alert = {
+    ticker: string;
+    change_pct: number;
+    message: string;
+    timestamp: string;
+};
+
+export type ComplianceResult = {
+    owner: string;
+    warnings: string[];
+    trade_counts: Record<string, number>;
+};
+
+export interface ScreenerResult {
+    ticker: string;
+    name?: string | null;
+    peg_ratio: number | null;
+    pe_ratio: number | null;
+    de_ratio: number | null;
+    fcf: number | null;
+}
+

@@ -314,3 +314,28 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
         logger.warning("Failed to write latest_prices.json: %s", e)
 
     logger.info("Refreshed %d price entries", len(snapshot))
+
+# ──────────────────────────────────────────────────────────────
+# Alert helpers
+# ──────────────────────────────────────────────────────────────
+def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
+    """Check holdings against cost basis and emit alerts."""
+    from backend.common.alerts import publish_alert
+
+    alerts: List[Dict] = []
+    for pf in list_portfolios():
+        for row in aggregate_by_ticker(pf):
+            cost = _safe_num(row.get("cost_gbp"))
+            mv = _safe_num(row.get("market_value_gbp"))
+            if cost <= 0 or mv <= 0:
+                continue
+            change_pct = (mv - cost) / cost
+            if abs(change_pct) >= threshold_pct:
+                alert = {
+                    "ticker": row["ticker"],
+                    "change_pct": round(change_pct, 4),
+                    "message": f"{row['ticker']} change {change_pct*100:.1f}% vs cost basis",
+                }
+                publish_alert(alert)
+                alerts.append(alert)
+    return alerts

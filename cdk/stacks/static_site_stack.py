@@ -27,14 +27,19 @@ class StaticSiteStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
+        # Allow CloudFront to read the bucket without making it public
+        oai = cloudfront.OriginAccessIdentity(self, "StaticSiteOAI")
+        site_bucket.grant_read(oai)
+
         distribution = cloudfront.Distribution(
             self,
             "StaticSiteDistribution",
             default_root_object="index.html",
             default_behavior=cloudfront.BehaviorOptions(
-                origin=origins.S3Origin(site_bucket),
+                origin=origins.S3Origin(site_bucket, origin_access_identity=oai),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
             ),
+            price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )
 
         frontend_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"

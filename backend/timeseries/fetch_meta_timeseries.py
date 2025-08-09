@@ -1,11 +1,11 @@
 """
-Meta time-series fetcher that transparently tries Yahoo → Stooq → FT
+Meta time-series fetcher that transparently tries Yahoo → Stooq → Alpha Vantage → FT
 and merges the first successful result. Helpers return snapshots
 (last price, 7-day %, 30-day %).
 
 2025-08-04 — smarter merge:
   • Fetch Yahoo first; if coverage < 95 % of the requested window,
-    supplement from Stooq, then FT.
+    supplement from Stooq, Alpha Vantage, then FT.
   • Added ticker sanity-check and quieter logging for expected fall-backs.
 """
 from __future__ import annotations
@@ -23,6 +23,9 @@ import pandas as pd
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
+from backend.timeseries.fetch_alphavantage_timeseries import (
+    fetch_alphavantage_timeseries_range,
+)
 from backend.utils.timeseries_helpers import _nearest_weekday, _is_isin, STANDARD_COLUMNS
 
 logger = logging.getLogger("meta_timeseries")
@@ -116,7 +119,20 @@ def fetch_meta_timeseries(
     except Exception as exc:
         logger.info("Stooq miss for %s.%s: %s", ticker, exchange, exc)
 
-    # ── 3 · FT fallback – last resort ─────────────────────────
+    # ── 3 · Alpha Vantage (fill gaps if still needed) ─────────
+    try:
+        av = fetch_alphavantage_timeseries_range(
+            ticker, exchange, start_date, end_date
+        )
+        if not av.empty:
+            combined = _merge([*data, av])
+            if _coverage_ratio(combined, expected_dates) >= min_coverage:
+                return combined
+            data.append(av)
+    except Exception as exc:
+        logger.info("Alpha Vantage miss for %s.%s: %s", ticker, exchange, exc)
+
+    # ── 4 · FT fallback – last resort ─────────────────────────
     ft_df = fetch_ft_df(ticker, end_date, start_date)
 
     if not ft_df.empty:

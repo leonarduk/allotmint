@@ -1,6 +1,12 @@
 from pathlib import Path
 
-from aws_cdk import Stack, aws_apigateway as apigw, aws_lambda as _lambda
+from aws_cdk import (
+    Stack,
+    aws_apigateway as apigw,
+    aws_lambda as _lambda,
+    aws_events as events,
+    aws_events_targets as targets,
+)
 from constructs import Construct
 
 
@@ -31,3 +37,19 @@ class BackendLambdaStack(Stack):
         )
 
         apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)
+
+        # Scheduled function to refresh prices daily
+        refresh_fn = _lambda.Function(
+            self,
+            "PriceRefreshLambda",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="backend.lambda_api.price_refresh.lambda_handler",
+            code=backend_fn.code,
+        )
+
+        events.Rule(
+            self,
+            "DailyPriceRefresh",
+            schedule=events.Schedule.cron(minute="0", hour="0"),
+            targets=[targets.LambdaFunction(refresh_fn)],
+        )

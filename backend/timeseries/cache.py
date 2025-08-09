@@ -32,7 +32,6 @@ from backend.utils.fx_rates import fetch_fx_rate_range
 OFFLINE_MODE = os.getenv("ALLOTMINT_OFFLINE_MODE", "false").lower() == "true"
 
 logger = logging.getLogger("timeseries_cache")
-logging.basicConfig(level=logging.INFO)
 
 # Expected schema for any timeseries DF we return
 EXPECTED_COLS = ["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]
@@ -254,7 +253,9 @@ def _memoized_range_cached(
 ) -> pd.DataFrame:
     start_date = datetime.fromisoformat(start_iso).date()
     end_date = datetime.fromisoformat(end_iso).date()
-    days_span = (date.today() - start_date).days + 1
+    span_days = (end_date - start_date).days + 1
+    lookback = (date.today() - end_date).days
+    days_needed = span_days + lookback
 
     if OFFLINE_MODE:
         cache_path = str(meta_timeseries_cache_path(ticker, exchange))
@@ -267,7 +268,7 @@ def _memoized_range_cached(
         mask = (ex["Date"] >= start_date) & (ex["Date"] <= end_date)
         return _ensure_schema(ex.loc[mask].reset_index(drop=True))
 
-    superset = load_meta_timeseries(ticker, exchange, days_span)
+    superset = load_meta_timeseries(ticker, exchange, days_needed)
     if superset.empty or "Date" not in superset.columns:
         return _empty_ts()
 

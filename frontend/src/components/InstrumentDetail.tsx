@@ -51,6 +51,7 @@ const money = (v: unknown): string => {
 export function InstrumentDetail({ ticker, name, onClose }: Props) {
   const [data, setData] = useState<{ prices: Price[]; positions: Position[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [showBollinger, setShowBollinger] = useState(false);
 
   useEffect(() => {
     getInstrumentDetail(ticker)
@@ -67,11 +68,29 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
     .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp) }))
     .filter((p) => Number.isFinite(p.close_gbp));
 
-  const prices = rawPrices.map((p, i) => {
+  const withChanges = rawPrices.map((p, i) => {
     const prev = rawPrices[i - 1];
     const change_gbp = prev ? p.close_gbp - prev.close_gbp : NaN;
     const change_pct = prev ? (change_gbp / prev.close_gbp) * 100 : NaN;
     return { ...p, change_gbp, change_pct };
+  });
+
+  const prices = withChanges.map((p, i, arr) => {
+    const start = Math.max(0, i - 19);
+    const slice = arr.slice(start, i + 1);
+    const mean =
+      slice.reduce((sum, s) => sum + s.close_gbp, 0) / slice.length;
+    const variance =
+      slice.reduce((sum, s) => sum + Math.pow(s.close_gbp - mean, 2), 0) /
+      slice.length;
+    const stdDev = Math.sqrt(variance);
+    const hasFullWindow = slice.length === 20;
+    return {
+      ...p,
+      bb_mid: hasFullWindow ? mean : NaN,
+      bb_upper: hasFullWindow ? mean + 2 * stdDev : NaN,
+      bb_lower: hasFullWindow ? mean - 2 * stdDev : NaN,
+    };
   });
 
   const positions = data.positions ?? [];
@@ -98,11 +117,46 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
       <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>{ticker}</div>
 
       {/* Chart */}
+      <div style={{ marginBottom: "0.5rem" }}>
+        <label style={{ fontSize: "0.85rem" }}>
+          <input
+            type="checkbox"
+            checked={showBollinger}
+            onChange={(e) => setShowBollinger(e.target.checked)}
+          />
+          {" "}Bollinger Bands
+        </label>
+      </div>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={prices}>
           <XAxis dataKey="date" hide />
           <YAxis domain={["auto", "auto"]} />
           <Tooltip />
+          {showBollinger && (
+            <>
+              <Line
+                type="monotone"
+                dataKey="bb_upper"
+                stroke="#8884d8"
+                dot={false}
+                strokeDasharray="3 3"
+              />
+              <Line
+                type="monotone"
+                dataKey="bb_mid"
+                stroke="#ff7300"
+                dot={false}
+                strokeDasharray="5 5"
+              />
+              <Line
+                type="monotone"
+                dataKey="bb_lower"
+                stroke="#8884d8"
+                dot={false}
+                strokeDasharray="3 3"
+              />
+            </>
+          )}
           <Line type="monotone" dataKey="close_gbp" dot={false} />
         </LineChart>
       </ResponsiveContainer>

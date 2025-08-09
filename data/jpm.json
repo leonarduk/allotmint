@@ -1,0 +1,21 @@
+{
+  "owner": "steve",
+  "account_type": "JPM",
+  "currency": "GBP",
+  "last_updated": "2025-08-05",
+  "holdings": [
+    {
+      "ticker": "JPM",
+      "name": "JPMorgan Chase & Co",
+      "units": 1.6211,
+      "acquired_date": "2025-07-01T00:00",
+      "days_held": 35,
+      "sell_eligible": true,
+      "days_until_eligible": null,
+      "price": 0.0,
+      "cost_basis_gbp": 0.0,
+      "market_value_gbp": 0.0,
+      "gain_gbp": 0.0
+    }
+  ]
+}

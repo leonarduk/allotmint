@@ -1,4 +1,5 @@
 # AllotMint 🌱💷
+[![codecov](https://codecov.io/gh/leonarduk/allotmint/branch/main/graph/badge.svg)](https://codecov.io/gh/leonarduk/allotmint)
 *Tend your family’s investments like an allotment. Harvest smarter wealth.*
 
 AllotMint is a private, server-less web app that turns real-world family

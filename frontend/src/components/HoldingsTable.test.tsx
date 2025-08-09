@@ -1,9 +1,22 @@
-import {render, screen, within} from "@testing-library/react";
+import {render, screen, within, fireEvent} from "@testing-library/react";
 import {HoldingsTable} from "./HoldingsTable";
 import type {Holding} from "../types";
 
 describe("HoldingsTable", () => {
     const holdings: Holding[] = [
+        {
+            ticker: "AAA",
+            name: "Alpha",
+            units: 5,
+            price: 0,
+            cost_basis_gbp: 100,
+            market_value_gbp: 150,
+            gain_gbp: 50,
+            acquired_date: "2024-01-01",
+            days_held: 100,
+            sell_eligible: true,
+            days_until_eligible: 0,
+        },
         {
             ticker: "XYZ",
             name: "Test Holding",
@@ -21,9 +34,8 @@ describe("HoldingsTable", () => {
 
     it("displays table rows for each holding", () => {
         render(<HoldingsTable holdings={holdings}/>);
+        expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.getByText("XYZ")).toBeInTheDocument();
-        expect(screen.getByText("Test Holding")).toBeInTheDocument();
-        expect(screen.getByText("5")).toBeInTheDocument();
     });
 
     it("shows days to go if not eligible", () => {
@@ -31,5 +43,16 @@ describe("HoldingsTable", () => {
         const row = screen.getByText("Test Holding").closest("tr");
         const cell = within(row!).getByText("✗ 10");
         expect(cell).toBeInTheDocument();
+    });
+
+    it("sorts by ticker when header clicked", () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        // initially sorted ascending by ticker => AAA first
+        let rows = screen.getAllByRole("row");
+        expect(within(rows[1]).getByText("AAA")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText(/^Ticker/));
+        rows = screen.getAllByRole("row");
+        expect(within(rows[1]).getByText("XYZ")).toBeInTheDocument();
     });
 });

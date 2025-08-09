@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { OwnerSummary, Transaction } from "../types";
 import { getTransactions } from "../api";
+import { Selector } from "./Selector";
 
 type Props = {
   owners: OwnerSummary[];
@@ -41,28 +42,24 @@ export function TransactionsPage({ owners }: Props) {
   return (
     <div>
       <div style={{ marginBottom: "1rem" }}>
-        <label>
-          Owner:
-          <select value={owner} onChange={(e) => setOwner(e.target.value)}>
-            <option value="">All</option>
-            {owners.map((o) => (
-              <option key={o.owner} value={o.owner}>
-                {o.owner}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label style={{ marginLeft: "0.5rem" }}>
-          Account:
-          <select value={account} onChange={(e) => setAccount(e.target.value)}>
-            <option value="">All</option>
-            {accountOptions.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Selector
+          label="Owner"
+          value={owner}
+          onChange={setOwner}
+          options={[
+            { value: "", label: "All" },
+            ...owners.map((o) => ({ value: o.owner, label: o.owner })),
+          ]}
+        />
+        <Selector
+          label="Account"
+          value={account}
+          onChange={setAccount}
+          options={[
+            { value: "", label: "All" },
+            ...accountOptions.map((a) => ({ value: a, label: a })),
+          ]}
+        />
         <label style={{ marginLeft: "0.5rem" }}>
           Start: <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
         </label>

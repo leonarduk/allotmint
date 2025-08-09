@@ -3,6 +3,7 @@ import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
 import styles from "../styles/table.module.css";
+import { useSortableTable } from "../hooks/useSortableTable";
 
 type SortKey = "ticker" | "name" | "cost" | "gain" | "gain_pct";
 
@@ -12,22 +13,6 @@ type Props = {
 
 export function InstrumentTable({ rows }: Props) {
     const [selected, setSelected] = useState<InstrumentSummary | null>(null);
-    const [sortKey, setSortKey] = useState<SortKey>("ticker");
-    const [asc, setAsc] = useState(true);
-
-    /* no data? – render a clear message instead of an empty table */
-    if (!rows.length) {
-        return <p>No instruments found for this group.</p>;
-    }
-
-    function handleSort(key: SortKey) {
-        if (sortKey === key) {
-            setAsc(!asc);
-        } else {
-            setSortKey(key);
-            setAsc(true);
-        }
-    }
 
     const rowsWithCost = rows.map((r) => {
         const cost = r.market_value_gbp - r.gain_gbp;
@@ -40,16 +25,15 @@ export function InstrumentTable({ rows }: Props) {
         return { ...r, cost, gain_pct };
     });
 
-    const sorted = [...rowsWithCost].sort((a, b) => {
-        const va = a[sortKey as keyof typeof a];
-        const vb = b[sortKey as keyof typeof b];
-        if (typeof va === "string" && typeof vb === "string") {
-            return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-        }
-        const na = (va as number) ?? 0;
-        const nb = (vb as number) ?? 0;
-        return asc ? na - nb : nb - na;
-    });
+    const { sorted, sortKey, asc, handleSort } = useSortableTable<
+        (typeof rowsWithCost)[number],
+        SortKey
+    >(rowsWithCost, "ticker");
+
+    /* no data? – render a clear message instead of an empty table */
+    if (!rowsWithCost.length) {
+        return <p>No instruments found for this group.</p>;
+    }
 
     return (
         <>

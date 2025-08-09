@@ -3,40 +3,19 @@ import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import styles from "../styles/table.module.css";
+import { useSortableTable } from "../hooks/useSortableTable";
 
 const WATCHLIST = ["AAPL", "MSFT", "GOOG", "AMZN", "TSLA"];
 
-type SortKey = "ticker" | "peg_ratio" | "pe_ratio" | "de_ratio" | "fcf";
-
 export function ScreenerPage() {
   const [rows, setRows] = useState<ScreenerResult[]>([]);
-  const [sortKey, setSortKey] = useState<SortKey>("peg_ratio");
-  const [asc, setAsc] = useState(true);
   const [ticker, setTicker] = useState<string | null>(null);
 
   useEffect(() => {
     getScreener(WATCHLIST).then(setRows).catch(() => setRows([]));
   }, []);
 
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setAsc(!asc);
-    } else {
-      setSortKey(key);
-      setAsc(true);
-    }
-  }
-
-  const sorted = [...rows].sort((a, b) => {
-    const va = a[sortKey];
-    const vb = b[sortKey];
-    if (typeof va === "string" && typeof vb === "string") {
-      return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-    }
-    const na = (va as number) ?? 0;
-    const nb = (vb as number) ?? 0;
-    return asc ? na - nb : nb - na;
-  });
+  const { sorted, handleSort } = useSortableTable(rows, "peg_ratio");
 
   return (
     <>

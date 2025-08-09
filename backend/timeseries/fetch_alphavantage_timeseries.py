@@ -53,7 +53,14 @@ def fetch_alphavantage_timeseries_range(
         response.raise_for_status()
         data = response.json()
         if "Time Series (Daily)" not in data:
-            message = data.get("Note") or data.get("Error Message") or "Unexpected response"
+            message = (
+                data.get("Note")
+                or data.get("Error Message")
+                or data.get("Information")
+                or data.get("Message")
+                or "Unexpected response"
+            )
+            logger.debug("Alpha Vantage raw response for %s: %s", symbol, data)
             raise ValueError(message)
 
         ts = data["Time Series (Daily)"]

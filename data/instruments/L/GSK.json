@@ -3,5 +3,9 @@
   "name": "GSK plc ORD GBP0.3125",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00BN7SWP63",
+  "region": "UK",
+  "Sector": "Health Care",
+  "morningStarRating": ""
 }

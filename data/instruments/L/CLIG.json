@@ -3,5 +3,9 @@
   "name": "City of London Investment Group plc Ordinary 1p",
   "exchange": "L",
   "currency": "GBP",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B6S9KC04",
+  "region": "UK",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

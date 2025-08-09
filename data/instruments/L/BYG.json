@@ -3,5 +3,9 @@
   "name": "Big Yellow Group Ordinary 10p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00BG0P0V73",
+  "region": "UK",
+  "Sector": "Real Estate",
+  "morningStarRating": ""
 }

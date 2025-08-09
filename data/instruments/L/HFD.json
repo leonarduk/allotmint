@@ -3,5 +3,9 @@
   "name": "Halfords Group plc",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B1VQ6H25",
+  "region": "UK",
+  "Sector": "Consumer Discretionary",
+  "morningStarRating": ""
 }

@@ -3,5 +3,9 @@
   "name": "Greencoat UK Wind plc Ordinary 1p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B8SC6K54",
+  "region": "UK",
+  "Sector": "Utilities",
+  "morningStarRating": ""
 }

@@ -3,5 +3,9 @@
   "name": "Infineon Technologies AG Ordinary NPV *R",
   "exchange": "DE",
   "currency": "EUR",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "DE0006231004",
+  "region": "Europe",
+  "Sector": "Information Technology",
+  "morningStarRating": ""
 }

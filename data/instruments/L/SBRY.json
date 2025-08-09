@@ -3,5 +3,9 @@
   "name": "Sainsbury (J) plc Ordinary 28,4/7p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B019KW72",
+  "region": "UK",
+  "Sector": "Consumer Staples",
+  "morningStarRating": ""
 }

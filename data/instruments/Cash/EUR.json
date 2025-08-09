@@ -2,5 +2,9 @@
   "ticker": "CASH.EUR",
   "name": "Cash (EUR)",
   "exchange": null,
-  "currency": "EUR"
+  "currency": "EUR",
+  "isin": "",
+  "region": "",
+  "Sector": "",
+  "morningStarRating": ""
 }

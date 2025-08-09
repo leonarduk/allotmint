@@ -3,5 +3,9 @@
   "name": "Card Factory plc Ordinary 1p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00BD6K4575",
+  "region": "UK",
+  "Sector": "Consumer Discretionary",
+  "morningStarRating": ""
 }

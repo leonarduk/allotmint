@@ -3,5 +3,9 @@
   "name": "3i Group Plc Ordinary 73 19/22p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B1YW4409",
+  "region": "UK",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

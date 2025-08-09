@@ -3,5 +3,9 @@
   "name": "Cash (USD)",
   "exchange": null,
   "currency": "USD",
-  "instrumentType": "Cash"
+  "instrumentType": "Cash",
+  "isin": "",
+  "region": "",
+  "Sector": "",
+  "morningStarRating": ""
 }

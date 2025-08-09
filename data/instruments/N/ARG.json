@@ -3,5 +3,9 @@
   "name": "Amerigo Resources Corp COM NPV *R",
   "exchange": "N",
   "currency": "USD",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "CA04016A1012",
+  "region": "Canada",
+  "Sector": "Materials",
+  "morningStarRating": ""
 }

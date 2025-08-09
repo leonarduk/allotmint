@@ -3,5 +3,9 @@
   "name": "Vanguard FTSE All-World UCITS ETF (GBP)",
   "exchange": "L",
   "currency": "GBP",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "IE00B3RBWM25",
+  "region": "Europe",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

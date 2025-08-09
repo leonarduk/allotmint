@@ -277,17 +277,17 @@ def _memoized_range(
 
 def _convert_to_gbp(df: pd.DataFrame, exchange: str, start: date, end: date) -> pd.DataFrame:
     """Convert OHLC prices to GBP if needed based on exchange."""
-    ccy = EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
-    if ccy == "GBP" or df.empty:
+    currency = EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
+    if currency == "GBP" or df.empty:
         return df
 
-    fx = fetch_fx_rate_range(ccy, start, end)
+    fx = fetch_fx_rate_range(currency, start, end).copy()
     if fx.empty:
         return df
 
     fx["Date"] = pd.to_datetime(fx["Date"])
     merged = df.merge(fx, on="Date", how="left")
-    merged["Rate"] = merged["Rate"].fillna(method="ffill").fillna(method="bfill")
+    merged["Rate"] = merged["Rate"].ffill().bfill()
     for col in ["Open", "High", "Low", "Close"]:
         if col in merged.columns:
             merged[col] = pd.to_numeric(merged[col], errors="coerce") * merged["Rate"]

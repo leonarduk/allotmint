@@ -1,5 +1,7 @@
 import logging
 from datetime import date, timedelta
+from functools import lru_cache
+
 import pandas as pd
 import yfinance as yf
 
@@ -11,6 +13,7 @@ PAIR_MAP = {
 }
 
 
+@lru_cache(maxsize=32)
 def fetch_fx_rate_range(base: str, start_date: date, end_date: date) -> pd.DataFrame:
     """Return GBP conversion rates for *base* currency.
 
@@ -27,7 +30,7 @@ def fetch_fx_rate_range(base: str, start_date: date, end_date: date) -> pd.DataF
         if not df.empty:
             df.reset_index(inplace=True)
             df["Date"] = pd.to_datetime(df["Date"]).dt.date
-            return df[["Date", "Close"]].rename(columns={"Close": "Rate"})
+            return df[["Date", "Close"]].rename(columns={"Close": "Rate"}).copy()
     except Exception as exc:
         logger.info("FX fetch failed for %s: %s", base, exc)
 

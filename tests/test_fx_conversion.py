@@ -62,3 +62,25 @@ def test_missing_fx_rates_are_filled(monkeypatch):
         pytest.approx(2 * 0.8),
         pytest.approx(3 * 0.81),
     ]
+
+
+def test_memoized_range_returns_copy(monkeypatch):
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 2)
+
+    sample = _sample_df(start, end)
+    calls = {"n": 0}
+
+    def fake_load_meta_timeseries(ticker, exchange, days_span):
+        calls["n"] += 1
+        return sample
+
+    monkeypatch.setattr(cache, "load_meta_timeseries", fake_load_meta_timeseries)
+    cache._memoized_range_cached.cache_clear()
+
+    first = cache._memoized_range("T", "L", start.isoformat(), end.isoformat())
+    first.loc[0, "Close"] = 999
+
+    second = cache._memoized_range("T", "L", start.isoformat(), end.isoformat())
+    assert calls["n"] == 1
+    assert list(second["Close"]) == [1, 2]

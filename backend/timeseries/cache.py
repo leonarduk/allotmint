@@ -246,7 +246,7 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
 # In-process LRU for *ranges* (no duplicate IO per request)
 # ──────────────────────────────────────────────────────────────
 @lru_cache(maxsize=512)
-def _memoized_range(
+def _memoized_range_cached(
     ticker: str,
     exchange: str,
     start_iso: str,
@@ -273,6 +273,16 @@ def _memoized_range(
 
     mask = (superset["Date"].dt.date >= start_date) & (superset["Date"].dt.date <= end_date)
     return _ensure_schema(superset.loc[mask].reset_index(drop=True))
+
+
+def _memoized_range(
+    ticker: str,
+    exchange: str,
+    start_iso: str,
+    end_iso: str,
+) -> pd.DataFrame:
+    """LRU-cached range fetch that returns a copy to prevent mutation."""
+    return _memoized_range_cached(ticker, exchange, start_iso, end_iso).copy()
 
 
 def _convert_to_gbp(df: pd.DataFrame, exchange: str, start: date, end: date) -> pd.DataFrame:

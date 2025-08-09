@@ -103,7 +103,8 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
         if isinstance(rd, (dt.datetime, dt.date)):
             rd = rd.date().isoformat() if isinstance(rd, dt.datetime) else rd.isoformat()
         if rd >= cutoff.isoformat():
-            out.append({"date": rd, "close_gbp": float(r["close"])})
+            close_val = float(r["close"])
+            out.append({"date": rd, "close_gbp": close_val, "close": close_val})
     return out
 
 

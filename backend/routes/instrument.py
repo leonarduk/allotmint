@@ -178,11 +178,12 @@ async def instrument(
     if format == "json":
         prices = (
             df[["Date", "Close"]]
-            .rename(columns={"Date": "date", "Close": "close_gbp"})
+            .rename(columns={"Date": "date", "Close": "close"})
             .assign(
                 date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
-                close_gbp=lambda d: d["close_gbp"].astype(float),
+                close=lambda d: d["close"].astype(float),
             )
+            .assign(close_gbp=lambda d: d["close"])
             .to_dict(orient="records")
         )
         payload = {

@@ -1,9 +1,9 @@
 """
 Common portfolio helpers
 
-• list_all_unique_tickers()     → returns all tickers in every portfolio
-• get_security_meta(tkr)        → basic metadata from portfolios
-• aggregate_by_ticker(tree)     → one row per ticker with latest-price snapshot
+- list_all_unique_tickers()     -> returns all tickers in every portfolio
+- get_security_meta(tkr)        -> basic metadata from portfolios
+- aggregate_by_ticker(tree)     -> one row per ticker with latest-price snapshot
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
 _SECURITIES = _build_securities_from_portfolios()
 
 def get_security_meta(ticker: str) -> Dict | None:
-    """Return {'ticker', 'name', …} derived from current portfolios."""
+    """Return {'ticker', 'name', ...} derived from current portfolios."""
     return _SECURITIES.get(ticker.upper())
 
 
@@ -115,7 +115,7 @@ def list_all_unique_tickers() -> List[str]:
                 else:
                     null_ticker_count += 1
                     logger.warning(
-                        "Missing ticker in holding %d of %s → %s",
+                        "Missing ticker in holding %d of %s -> %s",
                         h_idx + 1,
                         account_type,
                         json_path,

@@ -1,12 +1,12 @@
 """
-Meta time-series fetcher that transparently tries Yahoo → Stooq → Alpha Vantage → FT
+Meta time-series fetcher that transparently tries Yahoo -> Stooq -> Alpha Vantage -> FT
 and merges the first successful result. Helpers return snapshots
 (last price, 7-day %, 30-day %).
 
-2025-08-04 — smarter merge:
-  • Fetch Yahoo first; if coverage < 95 % of the requested window,
+2025-08-04 - smarter merge:
+  - Fetch Yahoo first; if coverage < 95 % of the requested window,
     supplement from Stooq, Alpha Vantage, then FT.
-  • Added ticker sanity-check and quieter logging for expected fall-backs.
+  - Added ticker sanity-check and quieter logging for expected fall-backs.
 """
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def fetch_meta_timeseries(
     min_coverage: float = 0.95,          # 95 % of trading days
 ) -> pd.DataFrame:
     """
-    Fetch price history from Yahoo, Stooq, FT — only as much as needed.
+    Fetch price history from Yahoo, Stooq, FT - only as much as needed.
 
     Returns DF[Date, Open, High, Low, Close, Volume, Ticker, Source].
     """
@@ -150,7 +150,7 @@ def fetch_meta_timeseries(
 
 def fetch_ft_df(ticker, end_date, start_date):
     try:
-        logger.info(f"🌍 Falling back to FT for {ticker}")
+        logger.info(f"Falling back to FT for {ticker}")
         days = (end_date - start_date).days or 1
         ft_df = fetch_ft_timeseries(ticker, days)
         return ft_df
@@ -163,7 +163,7 @@ def fetch_ft_df(ticker, end_date, start_date):
 def run_all_tickers(tickers: List[str],
                     exchange: str = "L",
                     days: int = 365) -> List[str]:
-    """Warm-up helper – returns tickers that produced data."""
+    """Warm-up helper - returns tickers that produced data."""
     from backend.timeseries.cache import load_meta_timeseries
     ok: list[str] = []
     for t in tickers:

@@ -38,7 +38,7 @@ def _validate_ticker(tkr: str) -> None:
     """
 
     if not tkr or tkr in {".L", ".UK"}:
-        raise HTTPException(400, f"Invalid ticker: “{tkr}”")
+        raise HTTPException(400, f'Invalid ticker: "{tkr}"')
 
 
 def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
@@ -60,7 +60,7 @@ def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
 
     positions: List[Dict[str, Any]] = []
 
-    # Iterate through owners → accounts → holdings
+    # Iterate through owners -> accounts -> holdings
     for pf in list_portfolios():
         owner = pf["owner"]
         for acct in pf.get("accounts", []):
@@ -113,7 +113,7 @@ def _render_html(
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{ticker} • {window_days}-day view</title>
+  <title>{ticker} - {window_days}-day view</title>
   <style>
     body {{ font-family: system-ui, sans-serif; margin: 2rem; }}
     table{{ border-collapse:collapse;margin:.5rem 0}}
@@ -125,7 +125,7 @@ def _render_html(
 </head>
 <body>
   <h1>{ticker}</h1>
-  <p>{len(df):,} rows • {begin} → {end}</p>
+  <p>{len(df):,} rows - {begin} -> {end}</p>
 
   <section>{prices_tbl}</section>
   <section>{pos_tbl}</section>

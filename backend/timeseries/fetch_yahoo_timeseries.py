@@ -18,7 +18,7 @@ def _build_full_ticker(ticker: str, exchange: str) -> str:
     suffix = get_yahoo_suffix(exchange)
     ticker = ticker.upper()
 
-    if ticker.endswith(suffix):        # already has ".L", ".DE", …
+    if ticker.endswith(suffix):        # already has ".L", ".DE", ...
         return ticker
     return ticker + suffix
 

@@ -113,7 +113,7 @@ def list_plots(env: str | None = None) -> list[dict]:   # 👈 keep callers happ
         person = json.loads((owner_dir / "person.json").read_text())
         # ── account files  (anything *.json except person.json) ──
         accounts = [
-            f.stem             # "isa", "sipp", …
+            f.stem             # "isa", "sipp", ...
             for f in owner_dir.glob("*.json")
             if f.name != "person.json"
         ]

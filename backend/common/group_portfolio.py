@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 """
-Virtual “group portfolio” builder.
+Virtual "group portfolio" builder.
 
-• list_groups()                → synthetic list generated from owners
-• build_group_portfolio(slug)  → merge owners → one portfolio dict
+- list_groups()                -> synthetic list generated from owners
+- build_group_portfolio(slug)  -> merge owners -> one portfolio dict
 """
 
 import datetime as dt
@@ -27,9 +27,9 @@ logger = logging.getLogger("group_portfolio")
 def list_groups() -> List[Dict[str, Any]]:
     """
     Build a default set of groups based on the owners that exist.
-    • “all”      – every owner
-    • “adults”   – lucy + steve
-    • “children” – alex + joe
+    - "all"      - every owner
+    - "adults"   - lucy + steve
+    - "children" - alex + joe
     """
     from backend.common.portfolio_loader import list_portfolios  # local import avoids cycles
 

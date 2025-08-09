@@ -1,6 +1,7 @@
 {
   "ticker": "REC.L",
-  "name": "REC",
+  "name": "Record Plc",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity"
 }

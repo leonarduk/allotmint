@@ -2,5 +2,6 @@
   "ticker": "IFX.DE",
   "name": "Infineon Technologies AG Ordinary NPV *R",
   "exchange": "DE",
-  "currency": "EUR"
+  "currency": "EUR",
+  "instrumentType": "Equity"
 }

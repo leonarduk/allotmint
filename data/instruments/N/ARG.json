@@ -2,5 +2,6 @@
   "ticker": "ARG.N",
   "name": "Amerigo Resources Corp COM NPV *R",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity"
 }

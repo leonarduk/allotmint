@@ -2,5 +2,6 @@
   "ticker": "BLND.L",
   "name": "British Land Co plc Ordinary 25p",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity"
 }

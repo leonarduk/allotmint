@@ -2,5 +2,6 @@
   "ticker": "SNWS.L",
   "name": "Smiths News plc Ordinary 5p",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity"
 }

@@ -2,5 +2,6 @@
   "ticker": "VOD.L",
   "name": "Vodafone Group plc USD0.20 20/21",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity"
 }

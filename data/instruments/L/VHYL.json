@@ -2,5 +2,6 @@
   "ticker": "VHYL.L",
   "name": "Vanguard Funds Plc FTSE All World High Dividend Yield UCITS ETF",
   "exchange": "L",
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "ETF"
 }

@@ -1,4 +1,7 @@
-  "CASH.USD": {
-    "name": "Cash (USD)",
-    "currency": "USD"
-  }
+{
+  "ticker": "CASH.USD",
+  "name": "Cash (USD)",
+  "exchange": null,
+  "currency": "USD",
+  "instrumentType": "Cash"
+}

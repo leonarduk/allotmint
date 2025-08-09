@@ -1,6 +1,7 @@
 {
   "ticker": "BUT.L",
-  "name": "BUT",
+  "name": "Brunner Investment Trust Plc",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Investment Trust"
 }

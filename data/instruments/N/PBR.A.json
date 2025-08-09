@@ -2,5 +2,6 @@
   "ticker": "PBR.A.N",
   "name": "Petroleo Brasileiro SA Petrobras Spon ADR Each Repr 2 Pref Shs NPV *R",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity"
 }

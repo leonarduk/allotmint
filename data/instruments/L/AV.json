@@ -2,5 +2,6 @@
   "ticker": "AV.L",
   "name": "Aviva Plc Ordinary Shares 32 17/19 pence",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity"
 }

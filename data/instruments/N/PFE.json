@@ -2,5 +2,6 @@
   "ticker": "PFE.N",
   "name": "Pfizer Inc Com Stk USD0.05 (CDI) *R",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity"
 }

@@ -2,5 +2,6 @@
   "ticker": "GILG.L",
   "name": "iShares III Plc Global Inflatin Linked Govt Bonds UCITS ETF GBP D",
   "exchange": "L",
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "ETF"
 }

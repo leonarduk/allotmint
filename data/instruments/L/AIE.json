@@ -2,5 +2,6 @@
   "ticker": "AIE.L",
   "name": "Ashoka India Equity Inv Trust Plc Ord GBP0.01",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity"
 }

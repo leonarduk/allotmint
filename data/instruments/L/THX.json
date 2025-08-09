@@ -2,5 +2,6 @@
   "ticker": "THX.L",
   "name": "Thor Explorations Ltd NPV (DI)",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity"
 }

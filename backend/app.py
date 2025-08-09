@@ -17,6 +17,7 @@ from backend.routes.portfolio import router as portfolio_router
 from backend.routes.timeseries_meta import router as timeseries_router
 
 from backend.routes.transactions import router as transactions_router
+from backend.routes.screener import router as screener_router
 from backend.common.portfolio_utils import refresh_snapshot_in_memory, refresh_snapshot_in_memory_from_timeseries
 
 
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
     app.include_router(transactions_router)
+    app.include_router(screener_router)
 
     # ────────────────────── Health-check endpoint ─────────────────────
     @app.get("/health")

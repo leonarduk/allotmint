@@ -4,6 +4,7 @@ import type { ScreenerResult } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { useFetch } from "../hooks/useFetch";
+import tableStyles from "../styles/table.module.css";
 
 const WATCHLIST = ["AAPL", "MSFT", "GOOG", "AMZN", "TSLA"];
 
@@ -16,29 +17,63 @@ export function ScreenerPage() {
 
   const { sorted, handleSort } = useSortableTable(rows ?? [], "peg_ratio");
 
-  const cell = { padding: "4px 6px" } as const;
-  const right = { ...cell, textAlign: "right", cursor: "pointer" } as const;
-
   return (
     <>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table className={tableStyles.table}>
         <thead>
           <tr>
-            <th style={{ ...cell, cursor: "pointer" }} onClick={() => handleSort("ticker")}>Ticker</th>
-            <th style={right} onClick={() => handleSort("peg_ratio")}>PEG</th>
-            <th style={right} onClick={() => handleSort("pe_ratio")}>P/E</th>
-            <th style={right} onClick={() => handleSort("de_ratio")}>D/E</th>
-            <th style={right} onClick={() => handleSort("fcf")}>FCF</th>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort("ticker")}
+            >
+              Ticker
+            </th>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort("peg_ratio")}
+            >
+              PEG
+            </th>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort("pe_ratio")}
+            >
+              P/E
+            </th>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort("de_ratio")}
+            >
+              D/E
+            </th>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort("fcf")}
+            >
+              FCF
+            </th>
           </tr>
         </thead>
         <tbody>
           {sorted.map((r) => (
-            <tr key={r.ticker} onClick={() => setTicker(r.ticker)} style={{ cursor: "pointer" }}>
-              <td style={cell}>{r.ticker}</td>
-              <td style={right}>{r.peg_ratio ?? "—"}</td>
-              <td style={right}>{r.pe_ratio ?? "—"}</td>
-              <td style={right}>{r.de_ratio ?? "—"}</td>
-              <td style={right}>{r.fcf != null ? r.fcf.toLocaleString() : "—"}</td>
+            <tr
+              key={r.ticker}
+              onClick={() => setTicker(r.ticker)}
+              className={tableStyles.clickable}
+            >
+              <td className={tableStyles.cell}>{r.ticker}</td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {r.peg_ratio ?? "—"}
+              </td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {r.pe_ratio ?? "—"}
+              </td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {r.de_ratio ?? "—"}
+              </td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {r.fcf != null ? r.fcf.toLocaleString() : "—"}
+              </td>
             </tr>
           ))}
         </tbody>

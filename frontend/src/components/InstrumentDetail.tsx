@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { getInstrumentDetail } from "../api";
 import { money, percent } from "../lib/money";
+import tableStyles from "../styles/table.module.css";
 
 type Props = {
   ticker: string;
@@ -183,25 +184,22 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
       {/* Positions */}
       <h3 style={{ marginTop: "1.5rem" }}>Positions</h3>
       <table
-        style={{
-          width: "100%",
-          fontSize: "0.85rem",
-          marginBottom: "1rem",
-        }}
+        className={`${tableStyles.table} ${tableStyles.tableMargin}`}
+        style={{ fontSize: "0.85rem" }}
       >
         <thead>
           <tr>
-            <th>Account</th>
-            <th align="right">Units</th>
-            <th align="right">Mkt £</th>
-            <th align="right">Gain £</th>
-            <th align="right">Gain %</th>
+            <th className={tableStyles.cell}>Account</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Gain £</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Gain %</th>
           </tr>
         </thead>
         <tbody>
           {(positions ?? []).map((pos, i) => (
             <tr key={`${pos.owner}-${pos.account}-${i}`}>
-              <td>
+              <td className={tableStyles.cell}>
                 <Link
                   to={`/member/${encodeURIComponent(pos.owner)}`}
                   style={{ color: "#00d8ff", textDecoration: "none" }}
@@ -209,10 +207,10 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
                   {pos.owner} – {pos.account}
                 </Link>
               </td>
-              <td align="right">{fixed(pos.units, 4)}</td>
-              <td align="right">{money(pos.market_value_gbp)}</td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{fixed(pos.units, 4)}</td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(pos.market_value_gbp)}</td>
               <td
-                align="right"
+                className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{
                   color:
                     toNum(pos.unrealised_gain_gbp) >= 0 ? "lightgreen" : "red",
@@ -221,7 +219,7 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
                 {money(pos.unrealised_gain_gbp)}
               </td>
               <td
-                align="right"
+                className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{
                   color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red",
                 }}
@@ -232,7 +230,11 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
           ))}
           {!positions.length && (
             <tr>
-              <td colSpan={4} style={{ textAlign: "center", color: "#888" }}>
+              <td
+                colSpan={4}
+                className={`${tableStyles.cell} ${tableStyles.center}`}
+                style={{ color: "#888" }}
+              >
                 No positions
               </td>
             </tr>
@@ -243,18 +245,15 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
       {/* Recent Prices */}
       <h3>Recent Prices</h3>
       <table
-        style={{
-          width: "100%",
-          fontSize: "0.85rem",
-          marginBottom: "1rem",
-        }}
+        className={`${tableStyles.table} ${tableStyles.tableMargin}`}
+        style={{ fontSize: "0.85rem" }}
       >
         <thead>
           <tr>
-            <th>Date</th>
-            <th align="right">£ Close</th>
-            <th align="right">Δ £</th>
-            <th align="right">Δ %</th>
+            <th className={tableStyles.cell}>Date</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>£ Close</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ £</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ %</th>
           </tr>
         </thead>
         <tbody>
@@ -269,20 +268,30 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
                 : undefined;
               return (
                 <tr key={p.date}>
-                  <td>{p.date}</td>
-                  <td align="right">{fixed(p.close_gbp, 2)}</td>
-                  <td align="right" style={{ color: colour }}>
+                  <td className={tableStyles.cell}>{p.date}</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>{fixed(p.close_gbp, 2)}</td>
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right}`}
+                    style={{ color: colour }}
+                  >
                     {fixed(p.change_gbp, 2)}
                   </td>
-                  <td align="right" style={{ color: colour }}>
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right}`}
+                    style={{ color: colour }}
+                  >
                     {percent(p.change_pct, 2)}
                   </td>
-              </tr>
+                </tr>
               );
             })}
           {!prices.length && (
             <tr>
-              <td colSpan={4} style={{ textAlign: "center", color: "#888" }}>
+              <td
+                colSpan={4}
+                className={`${tableStyles.cell} ${tableStyles.center}`}
+                style={{ color: "#888" }}
+              >
                 No price data
               </td>
             </tr>

@@ -2,6 +2,7 @@ import type React from "react";
 import type { Holding } from "../types";
 import { money } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
+import tableStyles from "../styles/table.module.css";
 
 type Props = {
   holdings: Holding[];
@@ -9,8 +10,6 @@ type Props = {
 };
 
 export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
-  const cell = { padding: "4px 6px" } as const;
-  const right = { ...cell, textAlign: "right" } as const;
 
   const rows = holdings.map((h) => {
     const cost =
@@ -39,58 +38,52 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
   if (!rows.length) return null;
 
   return (
-    <table
-      style={{
-        width: "100%",
-        borderCollapse: "collapse",
-        marginBottom: "1rem",
-      }}
-    >
+    <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
       <thead>
         <tr>
           <th
-            style={{ ...cell, cursor: "pointer" }}
+            className={`${tableStyles.cell} ${tableStyles.clickable}`}
             onClick={() => handleSort("ticker")}
           >
             Ticker{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th
-            style={{ ...cell, cursor: "pointer" }}
+            className={`${tableStyles.cell} ${tableStyles.clickable}`}
             onClick={() => handleSort("name")}
           >
             Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
           </th>
-          <th style={cell}>CCY</th>
-          <th style={cell}>Type</th>
-          <th style={right}>Units</th>
-          <th style={right}>Px £</th>
+          <th className={tableStyles.cell}>CCY</th>
+          <th className={tableStyles.cell}>Type</th>
+          <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
+          <th className={`${tableStyles.cell} ${tableStyles.right}`}>Px £</th>
           <th
-            style={{ ...right, cursor: "pointer" }}
+            className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
             onClick={() => handleSort("cost")}
           >
             Cost £{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
           </th>
-          <th style={right}>Mkt £</th>
+          <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
           <th
-            style={{ ...right, cursor: "pointer" }}
+            className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
             onClick={() => handleSort("gain")}
           >
             Gain £{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th
-            style={{ ...right, cursor: "pointer" }}
+            className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
             onClick={() => handleSort("gain_pct")}
           >
             Gain %{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
           </th>
-          <th style={cell}>Acquired</th>
+          <th className={tableStyles.cell}>Acquired</th>
           <th
-            style={{ ...right, cursor: "pointer" }}
+            className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
             onClick={() => handleSort("days_held")}
           >
             Days&nbsp;Held{sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
           </th>
-          <th style={{ ...cell, textAlign: "center" }}>Eligible?</th>
+          <th className={`${tableStyles.cell} ${tableStyles.center}`}>Eligible?</th>
         </tr>
       </thead>
 
@@ -102,7 +95,7 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
 
           return (
             <tr key={h.ticker + h.acquired_date}>
-              <td style={cell}>
+              <td className={tableStyles.cell}>
                 <button
                   type="button"
                   onClick={handleClick}
@@ -119,13 +112,13 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
                   {h.ticker}
                 </button>
               </td>
-              <td style={cell}>{h.name}</td>
-              <td style={cell}>{h.currency ?? "—"}</td>
-              <td style={cell}>{h.instrument_type ?? "—"}</td>
-              <td style={right}>{h.units.toLocaleString()}</td>
-              <td style={right}>{money(h.current_price_gbp)}</td>
+              <td className={tableStyles.cell}>{h.name}</td>
+              <td className={tableStyles.cell}>{h.currency ?? "—"}</td>
+              <td className={tableStyles.cell}>{h.instrument_type ?? "—"}</td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{h.units.toLocaleString()}</td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.current_price_gbp)}</td>
               <td
-                style={right}
+                className={`${tableStyles.cell} ${tableStyles.right}`}
                 title={
                   (h.cost_basis_gbp ?? 0) > 0
                     ? "Actual purchase cost"
@@ -134,31 +127,24 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
               >
                 {money(h.cost)}
               </td>
-              <td style={right}>{money(h.market)}</td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
               <td
-                style={{
-                  ...right,
-                  color: h.gain >= 0 ? "lightgreen" : "red",
-                }}
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: h.gain >= 0 ? "lightgreen" : "red" }}
               >
                 {money(h.gain)}
               </td>
               <td
-                style={{
-                  ...right,
-                  color: h.gain_pct >= 0 ? "lightgreen" : "red",
-                }}
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: h.gain_pct >= 0 ? "lightgreen" : "red" }}
               >
                 {Number.isFinite(h.gain_pct) ? h.gain_pct.toFixed(1) : "—"}
               </td>
-              <td style={cell}>{h.acquired_date}</td>
-              <td style={right}>{h.days_held ?? "—"}</td>
+              <td className={tableStyles.cell}>{h.acquired_date}</td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{h.days_held ?? "—"}</td>
               <td
-                style={{
-                  ...cell,
-                  textAlign: "center",
-                  color: h.sell_eligible ? "lightgreen" : "gold",
-                }}
+                className={`${tableStyles.cell} ${tableStyles.center}`}
+                style={{ color: h.sell_eligible ? "lightgreen" : "gold" }}
               >
                 {h.sell_eligible ? "✓ Eligible" : `✗ ${h.days_until_eligible ?? ""}`}
               </td>

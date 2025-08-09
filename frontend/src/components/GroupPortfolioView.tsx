@@ -6,6 +6,7 @@ import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money, percent } from "../lib/money";
 import { useFetch } from "../hooks/useFetch";
+import tableStyles from "../styles/table.module.css";
 
 type SelectedInstrument = {
   ticker: string;
@@ -133,57 +134,43 @@ export function GroupPortfolioView({ slug }: Props) {
       </div>
 
       {/* Per-owner summary */}
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          marginBottom: "1rem",
-        }}
-      >
+      <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
         <thead>
           <tr>
-            <th style={{ textAlign: "left" }}>Owner</th>
-            <th style={{ textAlign: "right" }}>Total Value</th>
-            <th style={{ textAlign: "right" }}>Day Change</th>
-            <th style={{ textAlign: "right" }}>Day Change %</th>
-            <th style={{ textAlign: "right" }}>Total Gain</th>
-            <th style={{ textAlign: "right" }}>Total Gain %</th>
+            <th className={tableStyles.cell}>Owner</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Value</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Day Change</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Day Change %</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Gain</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Gain %</th>
           </tr>
         </thead>
         <tbody>
           {ownerRows.map((row) => (
             <tr key={row.owner}>
-              <td>{row.owner}</td>
-              <td style={{ textAlign: "right" }}>{money(row.value)}</td>
+              <td className={tableStyles.cell}>{row.owner}</td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(row.value)}</td>
               <td
-                style={{
-                  textAlign: "right",
-                  color: row.dayChange >= 0 ? "lightgreen" : "red",
-                }}
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
               >
                 {money(row.dayChange)}
               </td>
               <td
-                style={{
-                  textAlign: "right",
-                  color: row.dayChange >= 0 ? "lightgreen" : "red",
-                }}
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
               >
                 {percent(row.dayChangePct)}
               </td>
               <td
-                style={{
-                  textAlign: "right",
-                  color: row.gain >= 0 ? "lightgreen" : "red",
-                }}
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
               >
                 {money(row.gain)}
               </td>
               <td
-                style={{
-                  textAlign: "right",
-                  color: row.gain >= 0 ? "lightgreen" : "red",
-                }}
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
               >
                 {percent(row.gainPct)}
               </td>

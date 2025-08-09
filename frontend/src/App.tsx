@@ -147,7 +147,7 @@ export default function App() {
           {loading ? (
             <p>Loading…</p>
           ) : (
-            <InstrumentTable rows={instruments} groupSlug={selectedGroup} />
+            <InstrumentTable rows={instruments} />
           )}
         </>
       ),
@@ -178,15 +178,15 @@ export default function App() {
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <div style={{ marginBottom: "1rem" }}>
         <strong>View by:</strong>{" "}
-        <Link to={`/?group=${selectedGroup || groups[0]?.slug ?? ""}`}>Group</Link>{" "}
+        <Link to={`/?group=${selectedGroup || groups[0]?.slug || ""}`}>Group</Link>{" "}
         <Link
-          to={`/instrument/${selectedGroup || groups[0]?.slug ?? ""}`}
+          to={`/instrument/${selectedGroup || groups[0]?.slug || ""}`}
           style={{ marginLeft: "1rem" }}
         >
           Instrument
         </Link>{" "}
         <Link
-          to={`/member/${selectedOwner || owners[0]?.owner ?? ""}`}
+          to={`/member/${selectedOwner || owners[0]?.owner || ""}`}
           style={{ marginLeft: "1rem" }}
         >
           Member

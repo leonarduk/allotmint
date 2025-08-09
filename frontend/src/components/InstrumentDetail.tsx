@@ -53,7 +53,9 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
 
   useEffect(() => {
     getInstrumentDetail(ticker)
-      .then(setData)
+      .then((d) =>
+        setData(d as { prices: Price[]; positions: Position[] })
+      )
       .catch((e: Error) => setErr(e.message));
   }, [ticker]);
 

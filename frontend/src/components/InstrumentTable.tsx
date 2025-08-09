@@ -5,11 +5,10 @@ import { money } from "../lib/money";
 
 type Props = {
     rows: InstrumentSummary[];
-    groupSlug: string;
 };
 
-export function InstrumentTable({ rows, groupSlug }: Props) {
-    const [ticker, setTicker] = useState<string | null>(null);
+export function InstrumentTable({ rows }: Props) {
+    const [selected, setSelected] = useState<InstrumentSummary | null>(null);
 
     /* no data? – render a clear message instead of an empty table */
     if (!rows.length) {
@@ -52,7 +51,7 @@ export function InstrumentTable({ rows, groupSlug }: Props) {
                         return (
                             <tr
                                 key={r.ticker}
-                                onClick={() => setTicker(r.ticker)}
+                                onClick={() => setSelected(r)}
                             >
                                 <td style={cell}>{r.ticker}</td>
                                 <td style={cell}>{r.name}</td>
@@ -90,11 +89,11 @@ export function InstrumentTable({ rows, groupSlug }: Props) {
             </table>
 
             {/* slide-in price-history / positions panel */}
-            {ticker && (
+            {selected && (
                 <InstrumentDetail
-                    slug={groupSlug}
-                    ticker={ticker}
-                    onClose={() => setTicker(null)}
+                    ticker={selected.ticker}
+                    name={selected.name}
+                    onClose={() => setSelected(null)}
                 />
             )}
         </>

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, type Mock } from "vitest";
 import type { InstrumentSummary } from "../types";
 
@@ -22,6 +22,17 @@ describe("InstrumentTable", () => {
             change_7d_pct: 1,
             change_30d_pct: 2,
         },
+        {
+            ticker: "XYZ",
+            name: "XYZ Inc",
+            units: 5,
+            market_value_gbp: 500,
+            gain_gbp: -50,
+            last_price_gbp: 50,
+            last_price_date: "2024-01-02",
+            change_7d_pct: -1,
+            change_30d_pct: -2,
+        },
     ];
 
     it("passes ticker and name to InstrumentDetail", () => {
@@ -34,5 +45,16 @@ describe("InstrumentTable", () => {
         const props = mock.mock.calls[0][0] as DetailProps;
         expect(props.ticker).toBe("ABC");
         expect(props.name).toBe("ABC Corp");
+    });
+
+    it("sorts by ticker when header clicked", () => {
+        render(<InstrumentTable rows={rows} />);
+        // initial sort is ticker ascending => ABC first
+        let dataRows = screen.getAllByRole("row");
+        expect(within(dataRows[1]).getByText("ABC")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText(/^Ticker/));
+        dataRows = screen.getAllByRole("row");
+        expect(within(dataRows[1]).getByText("XYZ")).toBeInTheDocument();
     });
 });

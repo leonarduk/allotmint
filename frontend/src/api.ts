@@ -8,6 +8,7 @@ import type {
   Portfolio,
   Transaction,
   Alert,
+  ScreenerResult,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -62,6 +63,12 @@ export const getGroupInstruments = (slug: string) =>
     `${API_BASE}/portfolio-group/${slug}/instruments`
   );
 
+/** Run a simple fundamentals screen across a list of tickers. */
+export const getScreener = (tickers: string[]) => {
+  const qs = new URLSearchParams({ tickers: tickers.join(",") });
+  return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${qs.toString()}`);
+};
+
 /**
  * Fetch price/position detail for a single instrument.
  *
@@ -96,3 +103,8 @@ export const getTransactions = (params: {
 
 /** Retrieve recent alert messages from backend. */
 export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts`);
+/** Retrieve compliance warnings for an owner */
+export const getCompliance = (owner: string) =>
+  fetchJson<{ owner: string; warnings: string[] }>(
+    `${API_BASE}/compliance/${owner}`
+  );

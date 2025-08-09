@@ -3,8 +3,6 @@ import logging
 from datetime import datetime
 from typing import Dict, List
 
-import boto3
-
 logger = logging.getLogger("alerts")
 
 _RECENT_ALERTS: List[Dict] = []
@@ -17,7 +15,11 @@ def publish_alert(alert: Dict) -> None:
     topic_arn = os.getenv("SNS_TOPIC_ARN")
     if topic_arn:
         try:
+            import boto3  # type: ignore
+
             boto3.client("sns").publish(TopicArn=topic_arn, Message=alert["message"])
+        except ModuleNotFoundError:
+            logger.warning("SNS_TOPIC_ARN set but boto3 not installed")
         except Exception as exc:
             logger.warning("SNS publish failed: %s", exc)
     else:

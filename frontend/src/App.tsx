@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useLocation, useRoutes } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   getGroupInstruments,
   getGroups,
@@ -22,13 +22,17 @@ import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
 import { PerformanceDashboard } from "./components/PerformanceDashboard";
-
-type Mode = "owner" | "group" | "instrument" | "transactions" | "performance";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { ScreenerPage } from "./components/ScreenerPage";
 
-type Mode = "owner" | "group" | "instrument" | "transactions" | "screener";
+type Mode =
+  | "owner"
+  | "group"
+  | "instrument"
+  | "transactions"
+  | "performance"
+  | "screener";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -146,60 +150,6 @@ export default function App() {
     }
   }
 
-  const routes = useRoutes([
-    {
-      path: "/member/:owner",
-      element: (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={(o) => navigate(`/member/${o}`)}
-          />
-          <PortfolioView data={portfolio} loading={loading} error={err} />
-        </>
-      ),
-    },
-    {
-      path: "/instrument/:group",
-      element: (
-        <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={(g) => navigate(`/instrument/${g}`)}
-          />
-          {err && <p style={{ color: "red" }}>{err}</p>}
-          {loading ? (
-            <p>Loading…</p>
-          ) : (
-            <InstrumentTable rows={instruments} />
-          )}
-        </>
-      ),
-    },
-    {
-      path: "/transactions",
-      element: <TransactionsPage owners={owners} />,
-    },
-    {
-      path: "/",
-      element: (
-        <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={(g) => navigate(`/?group=${g}`)}
-          />
-          <GroupPortfolioView
-            slug={selectedGroup}
-            onSelectMember={(owner) => navigate(`/member/${owner}`)}
-          />
-        </>
-      ),
-    },
-  ]);
-
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <AlertsPanel />
@@ -259,8 +209,6 @@ export default function App() {
           </span>
         )}
       </div>
-
-      {routes}
       {/* OWNER VIEW */}
       {mode === "owner" && (
         <>

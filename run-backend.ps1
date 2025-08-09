@@ -1,14 +1,10 @@
 Param(
     [int]$Port = 8000
 )
-
-$env:ALLOTMINT_OFFLINE_MODE = $false
-
-# or leave it unset to allow dependency installation.
 $ErrorActionPreference = 'Stop'
 
 # -------- Configuration --------
-# Set $env:ALLOTMINT_OFFLINE_MODE = 'true' before running to enable offline mode,
+# Set $env:ALLOTMINT_OFFLINE_MODE = 'true' before running to skip dependency installation,
 # --------------------------------
 
 # repo root
@@ -34,7 +30,7 @@ if ($env:ALLOTMINT_OFFLINE_MODE -and $env:ALLOTMINT_OFFLINE_MODE.ToLower() -eq '
 if (-not $offline) {
     Write-Host 'Installing backend requirements...' -ForegroundColor Yellow
     python -m pip install --upgrade pip
-    python -m pip install -r .\backend\requirements.txt
+    python -m pip install -r .\requirements.txt
 } else {
     Write-Host 'Offline mode detected; skipping dependency installation.' -ForegroundColor Yellow
 }

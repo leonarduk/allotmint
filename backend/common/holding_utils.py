@@ -226,11 +226,15 @@ def enrich_holding(
     full = (out.get(TICKER) or "").upper()
 
     account_ccy = (h.get("currency") or "GBP").upper()
+    from backend.common.portfolio_utils import get_security_meta  # local import to avoid circular
+    meta = get_security_meta(full)
+    out["currency"] = (meta or {}).get("currency")
 
     if _is_cash(full, account_ccy):
         out = dict(h)
         units = float(out.get(UNITS, 0) or 0.0)
         out["name"] = out.get("name") or _cash_name(full, account_ccy)
+        out["currency"] = account_ccy
 
         # price is 1.0 in account currency
         out["price"] = 1.0

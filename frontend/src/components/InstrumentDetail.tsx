@@ -49,15 +49,17 @@ const money = (v: unknown): string => {
 };
 
 export function InstrumentDetail({ ticker, name, onClose }: Props) {
-  const [data, setData] = useState<{ prices: Price[]; positions: Position[] } | null>(null);
+  const [data, setData] = useState<{ prices: Price[]; positions: Position[]; currency?: string | null } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<string | null>(null);
   const [showBollinger, setShowBollinger] = useState(false);
 
   useEffect(() => {
     getInstrumentDetail(ticker)
-      .then((d) =>
-        setData(d as { prices: Price[]; positions: Position[] })
-      )
+      .then((d) => {
+        setData(d as { prices: Price[]; positions: Position[]; currency?: string | null });
+        setCurrency((d as any).currency ?? null);
+      })
       .catch((e: Error) => setErr(e.message));
   }, [ticker]);
 
@@ -114,7 +116,10 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
         ✕
       </button>
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
-      <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>{ticker}</div>
+      <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>
+        {ticker}
+        {currency ? ` • ${currency}` : ""}
+      </div>
 
       {/* Chart */}
       <div style={{ marginBottom: "0.5rem" }}>

@@ -6,6 +6,7 @@ export type OwnerSummary = {
 export interface Holding {
     ticker: string;
     name: string;
+    currency?: string | null;
     units: number;
     acquired_date: string;
     price?: number;
@@ -66,6 +67,7 @@ export type GroupPortfolio = {
 export type InstrumentSummary = {
     ticker: string;
     name: string;
+    currency?: string | null;
     units: number;
     market_value_gbp: number;
     gain_gbp: number;

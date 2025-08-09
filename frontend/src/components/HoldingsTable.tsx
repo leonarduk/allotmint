@@ -10,10 +10,10 @@ type Props = {
 };
 
 export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
-  if (!holdings.length) return null;
-
   const [sortKey, setSortKey] = useState<SortKey>("ticker");
   const [asc, setAsc] = useState(true);
+
+  if (!holdings.length) return null;
 
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right" } as const;

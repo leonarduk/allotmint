@@ -59,7 +59,7 @@ describe("HoldingsTable", () => {
         let rows = screen.getAllByRole("row");
         expect(within(rows[1]).getByText("AAA")).toBeInTheDocument();
 
-        fireEvent.click(screen.getAllByText(/^Ticker/)[1]);
+        fireEvent.click(screen.getByText(/^Ticker/));
         rows = screen.getAllByRole("row");
         expect(within(rows[1]).getByText("XYZ")).toBeInTheDocument();
     });

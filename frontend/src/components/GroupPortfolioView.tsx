@@ -1,6 +1,7 @@
 // src/components/GroupPortfolioView.tsx
 import { useEffect, useState } from "react";
 import type { GroupPortfolio } from "../types";
+import { getGroupPortfolio } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money, percent } from "../lib/money";
@@ -31,13 +32,7 @@ export function GroupPortfolioView({ slug }: Props) {
     setError(null);
     setPortfolio(null);
 
-    const API = import.meta.env.VITE_API_URL ?? "";
-
-    fetch(`${API}/portfolio-group/${slug}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(res.statusText);
-        return res.json();
-      })
+    getGroupPortfolio(slug)
       .then(setPortfolio)
       .catch((e) => {
         console.error("failed to load group portfolio", e);

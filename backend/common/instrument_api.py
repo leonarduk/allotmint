@@ -91,6 +91,10 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
         df = df.rename(columns={"Date": "date"})
     if "Close" in df.columns and "close" not in df.columns:
         df = df.rename(columns={"Close": "close"})
+    if "Close_gbp" in df.columns and "close_gbp" not in df.columns:
+        df = df.rename(columns={"Close_gbp": "close_gbp"})
+    if "close" not in df.columns and "close_gbp" in df.columns:
+        df["close"] = df["close_gbp"]
 
     if {"date", "close"} - set(df.columns):
         return []
@@ -104,7 +108,8 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
             rd = rd.date().isoformat() if isinstance(rd, dt.datetime) else rd.isoformat()
         if rd >= cutoff.isoformat():
             close_val = float(r["close"])
-            out.append({"date": rd, "close_gbp": close_val, "close": close_val})
+            close_gbp_val = float(r.get("close_gbp", close_val))
+            out.append({"date": rd, "close": close_val, "close_gbp": close_gbp_val})
     return out
 
 

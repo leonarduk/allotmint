@@ -3,5 +3,9 @@
   "name": "United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R",
   "exchange": "N",
   "currency": "USD",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "US9113121068",
+  "region": "US",
+  "Sector": "Industrials",
+  "morningStarRating": ""
 }

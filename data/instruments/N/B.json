@@ -3,5 +3,9 @@
   "name": "Barrick Mining Corp NPV *R",
   "exchange": "N",
   "currency": "USD",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "US05577W2008",
+  "region": "US",
+  "Sector": "Industrials",
+  "morningStarRating": ""
 }

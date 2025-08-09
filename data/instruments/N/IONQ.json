@@ -3,5 +3,9 @@
   "name": "IonQ Inc USD0.0001 A *R",
   "exchange": "N",
   "currency": "USD",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "US46222L1089",
+  "region": "US",
+  "Sector": "Information Technology",
+  "morningStarRating": ""
 }

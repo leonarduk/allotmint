@@ -3,5 +3,9 @@
   "name": "iShares IV plc Edge MSCI Europe Value Factor UCITS ETF Acc",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "IE00BYYR0C35",
+  "region": "Europe",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

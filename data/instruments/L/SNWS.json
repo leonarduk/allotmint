@@ -3,5 +3,9 @@
   "name": "Smiths News plc Ordinary 5p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B19NZY32",
+  "region": "UK",
+  "Sector": "Consumer Staples",
+  "morningStarRating": ""
 }

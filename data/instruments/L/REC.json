@@ -3,5 +3,9 @@
   "name": "Record Plc",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "NO0010337689",
+  "region": "Europe",
+  "Sector": "Utilities",
+  "morningStarRating": ""
 }

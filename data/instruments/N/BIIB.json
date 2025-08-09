@@ -3,5 +3,9 @@
   "name": "Biogen Inc USD (CDI) *R",
   "exchange": "N",
   "currency": "USD",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "US09062X1037",
+  "region": "US",
+  "Sector": "Health Care",
+  "morningStarRating": ""
 }

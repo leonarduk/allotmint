@@ -3,5 +3,9 @@
   "name": "Foresight Solar Fund Ltd Ordinary NPV",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Fund"
+  "instrumentType": "Fund",
+  "isin": "JE00BVVJ6Y63",
+  "region": "Europe",
+  "Sector": "Utilities",
+  "morningStarRating": ""
 }

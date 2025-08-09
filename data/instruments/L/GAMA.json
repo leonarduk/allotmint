@@ -3,5 +3,9 @@
   "name": "Gamma Communications plc Ordinary Shares 0.25p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB0003292009",
+  "region": "UK",
+  "Sector": "Industrials",
+  "morningStarRating": ""
 }

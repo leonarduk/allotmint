@@ -3,5 +3,9 @@
   "name": "The Unilever Group",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B10RZP78",
+  "region": "UK",
+  "Sector": "Consumer Staples",
+  "morningStarRating": ""
 }

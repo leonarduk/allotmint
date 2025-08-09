@@ -3,5 +3,9 @@
   "name": "Ashoka India Equity Inv Trust Plc Ord GBP0.01",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00BF50VS41",
+  "region": "UK",
+  "Sector": "Miscellaneous",
+  "morningStarRating": ""
 }

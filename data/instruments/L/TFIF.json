@@ -3,5 +3,9 @@
   "name": "TwentyFour Income Fund Ltd Ordinary GBP 0.01",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Fund"
+  "instrumentType": "Fund",
+  "isin": "GG00BHZK9124",
+  "region": "Europe",
+  "Sector": "Fixed Income",
+  "morningStarRating": ""
 }

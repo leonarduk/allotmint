@@ -3,5 +3,9 @@
   "name": "British Land Co plc Ordinary 25p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB0001367019",
+  "region": "UK",
+  "Sector": "Real Estate Investment Trusts",
+  "morningStarRating": ""
 }

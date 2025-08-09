@@ -3,5 +3,9 @@
   "name": "Severfield plc Ordinary 2.5p",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "GB00B1VVG079",
+  "region": "UK",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

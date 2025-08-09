@@ -3,5 +3,9 @@
   "name": "Vanguard Funds Plc FTSE All World High Dividend Yield UCITS ETF",
   "exchange": "L",
   "currency": "GBP",
-  "instrumentType": "ETF"
+  "instrumentType": "ETF",
+  "isin": "IE00B8GKDB10",
+  "region": "Europe",
+  "Sector": "Financials",
+  "morningStarRating": ""
 }

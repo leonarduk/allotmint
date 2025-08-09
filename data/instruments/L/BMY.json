@@ -3,5 +3,9 @@
   "name": "Bloomsbury Publishing plc Ordinary 1.25p Shares",
   "exchange": "L",
   "currency": "GBX",
-  "instrumentType": "Equity"
+  "instrumentType": "Equity",
+  "isin": "US1101221083",
+  "region": "US",
+  "Sector": "Health Care",
+  "morningStarRating": ""
 }

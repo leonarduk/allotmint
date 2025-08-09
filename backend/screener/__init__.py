@@ -9,7 +9,6 @@ import requests
 from pydantic import BaseModel
 
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
-ALPHA_VANTAGE_KEY = os.getenv("ALPHAVANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
 
 
 class Fundamentals(BaseModel):
@@ -28,20 +27,30 @@ def _parse_float(value: Optional[str]) -> Optional[float]:
         return None
 
 
+def _parse_str(value: Optional[str]) -> Optional[str]:
+    return value if value not in (None, "None", "") else None
+
+
 def fetch_fundamentals(ticker: str) -> Fundamentals:
     """Return key metrics for ``ticker`` using Alpha Vantage's ``OVERVIEW`` endpoint."""
 
-    if not ALPHA_VANTAGE_KEY:
-        raise RuntimeError("Alpha Vantage API key not configured")
+    api_key = os.getenv("ALPHAVANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Alpha Vantage API key not configured; set ALPHAVANTAGE_API_KEY"
+        )
 
-    params = {"function": "OVERVIEW", "symbol": ticker, "apikey": ALPHA_VANTAGE_KEY}
-    resp = requests.get(ALPHA_VANTAGE_URL, params=params, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
+    params = {"function": "OVERVIEW", "symbol": ticker, "apikey": api_key}
+    try:
+        resp = requests.get(ALPHA_VANTAGE_URL, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Alpha Vantage request failed: {exc}") from exc
 
     return Fundamentals(
         ticker=ticker.upper(),
-        name=data.get("Name"),
+        name=_parse_str(data.get("Name")),
         peg_ratio=_parse_float(data.get("PEG")),
         pe_ratio=_parse_float(data.get("PERatio")),
         de_ratio=_parse_float(data.get("DebtToEquityTTM")),

@@ -1,16 +1,5 @@
-name: Code Review with OpenAI
-
-permissions:
-  contents: read
-  pull-requests: write
-
-on:
-  pull_request_target:
-    types: [opened, reopened, synchronize]
-
 jobs:
   code_review:
-    if: ${{ secrets.OPENAI_API_KEY != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -18,14 +7,15 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Code Review
+        if: ${{ secrets.OPENAI_API_KEY != '' }}
         uses: yuri-val/ai-codereviewer@main
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_MODEL: "gpt-4o-mini"
           exclude: "**/*.lock,dist/**,**/*.json,**/*.md"
-          # Optional
           LANGUAGE: English
           top_p: 1
           temperature: 1

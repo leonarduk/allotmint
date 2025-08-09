@@ -41,6 +41,7 @@ export function ComplianceWarnings({ owners }: Props) {
     <div style={{
       background: "#fff4e5",
       border: "1px solid #f0ad4e",
+      color: "#333",
       padding: "0.5rem 1rem",
       marginBottom: "1rem",
     }}>

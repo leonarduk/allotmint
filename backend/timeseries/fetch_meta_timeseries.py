@@ -144,7 +144,11 @@ def fetch_meta_timeseries(
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     df = _merge(data)
-    df = df[df["Date"] <= pd.to_datetime(end_date)]
+    # Ensure we compare like-for-like datatypes. Some sources (e.g. FT) may
+    # return plain ``datetime.date`` objects which cannot be directly
+    # compared against ``pd.Timestamp``. Convert the column on the fly to
+    # Timestamp before applying the end-date filter.
+    df = df[pd.to_datetime(df["Date"]) <= pd.to_datetime(end_date)]
     return df
 
 

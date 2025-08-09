@@ -3,6 +3,7 @@ import type { OwnerSummary, Transaction } from "../types";
 import { getTransactions } from "../api";
 import { Selector } from "./Selector";
 import { useFetch } from "../hooks/useFetch";
+import tableStyles from "../styles/table.module.css";
 
 type Props = {
   owners: OwnerSummary[];
@@ -66,28 +67,28 @@ export function TransactionsPage({ owners }: Props) {
       {loading ? (
         <p>Loading…</p>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className={tableStyles.table}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left" }}>Date</th>
-              <th style={{ textAlign: "left" }}>Owner</th>
-              <th style={{ textAlign: "left" }}>Account</th>
-              <th style={{ textAlign: "left" }}>Type</th>
-              <th style={{ textAlign: "right" }}>Amount</th>
-              <th style={{ textAlign: "right" }}>Shares</th>
+              <th className={tableStyles.cell}>Date</th>
+              <th className={tableStyles.cell}>Owner</th>
+              <th className={tableStyles.cell}>Account</th>
+              <th className={tableStyles.cell}>Type</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Amount</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Shares</th>
             </tr>
           </thead>
           <tbody>
             {(transactions ?? []).map((t, i) => (
               <tr key={i}>
-                <td>{t.date ? new Date(t.date).toLocaleDateString() : ""}</td>
-                <td>{t.owner}</td>
-                <td>{t.account}</td>
-                <td>{t.type || t.kind}</td>
-                <td style={{ textAlign: "right" }}>
+                <td className={tableStyles.cell}>{t.date ? new Date(t.date).toLocaleDateString() : ""}</td>
+                <td className={tableStyles.cell}>{t.owner}</td>
+                <td className={tableStyles.cell}>{t.account}</td>
+                <td className={tableStyles.cell}>{t.type || t.kind}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {t.amount_minor != null ? (t.amount_minor / 100).toFixed(2) : ""}
                 </td>
-                <td style={{ textAlign: "right" }}>{t.shares ?? ""}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{t.shares ?? ""}</td>
               </tr>
             ))}
           </tbody>

@@ -7,7 +7,11 @@ interface Props {
 }
 
 export function ComplianceWarnings({ owners }: Props) {
-  const { data } = useFetch<Record<string, string[]>>(
+  const {
+    data,
+    loading,
+    error,
+  } = useFetch<Record<string, string[]>>(
     async () => {
       const entries: Record<string, string[]> = {};
       await Promise.all(
@@ -26,7 +30,7 @@ export function ComplianceWarnings({ owners }: Props) {
     owners.length > 0
   );
 
-  if (!owners.length) return null;
+  if (!owners.length || loading || error) return null;
 
   const ownersWithWarnings = owners.filter((o) => (data?.[o] ?? []).length);
 

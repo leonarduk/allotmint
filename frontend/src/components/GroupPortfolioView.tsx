@@ -3,21 +3,7 @@ import { useEffect, useState } from "react";
 import type { GroupPortfolio } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
-
-/* ────────────────────────────────────────────────────────────
- * Small helpers
- * ────────────────────────────────────────────────────────── */
-const fmt = (
-  n?: number | null,
-  opt?: Intl.NumberFormatOptions,
-  dash: string = "—"
-) =>
-  typeof n === "number" && !Number.isNaN(n)
-    ? n.toLocaleString("en-GB", opt)
-    : dash;
-
-const fmtGBP = (n?: number | null) => `£${fmt(n, { maximumFractionDigits: 2 })}`;
-const fmtPct = (n?: number | null) => `${fmt(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+import { money, percent } from "../lib/money";
 
 type SelectedInstrument = {
   ticker: string;
@@ -134,7 +120,7 @@ export function GroupPortfolioView({ slug }: Props) {
       >
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Value</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>{fmtGBP(totalValue)}</div>
+          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>{money(totalValue)}</div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Day Change</div>
@@ -145,7 +131,7 @@ export function GroupPortfolioView({ slug }: Props) {
               color: totalDayChange >= 0 ? "lightgreen" : "red",
             }}
           >
-            {fmtGBP(totalDayChange)} ({fmtPct(totalDayChangePct)})
+            {money(totalDayChange)} ({percent(totalDayChangePct)})
           </div>
         </div>
         <div>
@@ -157,7 +143,7 @@ export function GroupPortfolioView({ slug }: Props) {
               color: totalGain >= 0 ? "lightgreen" : "red",
             }}
           >
-            {fmtGBP(totalGain)} ({fmtPct(totalGainPct)})
+            {money(totalGain)} ({percent(totalGainPct)})
           </div>
         </div>
       </div>
@@ -184,14 +170,14 @@ export function GroupPortfolioView({ slug }: Props) {
           {ownerRows.map((row) => (
             <tr key={row.owner}>
               <td>{row.owner}</td>
-              <td style={{ textAlign: "right" }}>{fmtGBP(row.value)}</td>
+              <td style={{ textAlign: "right" }}>{money(row.value)}</td>
               <td
                 style={{
                   textAlign: "right",
                   color: row.dayChange >= 0 ? "lightgreen" : "red",
                 }}
               >
-                {fmtGBP(row.dayChange)}
+                {money(row.dayChange)}
               </td>
               <td
                 style={{
@@ -199,7 +185,7 @@ export function GroupPortfolioView({ slug }: Props) {
                   color: row.dayChange >= 0 ? "lightgreen" : "red",
                 }}
               >
-                {fmtPct(row.dayChangePct)}
+                {percent(row.dayChangePct)}
               </td>
               <td
                 style={{
@@ -207,7 +193,7 @@ export function GroupPortfolioView({ slug }: Props) {
                   color: row.gain >= 0 ? "lightgreen" : "red",
                 }}
               >
-                {fmtGBP(row.gain)}
+                {money(row.gain)}
               </td>
               <td
                 style={{
@@ -215,7 +201,7 @@ export function GroupPortfolioView({ slug }: Props) {
                   color: row.gain >= 0 ? "lightgreen" : "red",
                 }}
               >
-                {fmtPct(row.gainPct)}
+                {percent(row.gainPct)}
               </td>
             </tr>
           ))}
@@ -229,7 +215,7 @@ export function GroupPortfolioView({ slug }: Props) {
           style={{ marginBottom: "1.5rem" }}
         >
           <h3>
-            {acct.owner ?? "—"} • {acct.account_type} — {fmtGBP(acct.value_estimate_gbp)}
+            {acct.owner ?? "—"} • {acct.account_type} — {money(acct.value_estimate_gbp)}
           </h3>
 
           <HoldingsTable

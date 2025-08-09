@@ -6,17 +6,7 @@ import { useState } from "react";
 import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
-
-/* ──────────────────────────────────────────────────────────────
- * Helpers
- * ────────────────────────────────────────────────────────────── */
-const formatGBP = (n: number | undefined) =>
-  (n ?? 0).toLocaleString(undefined, {
-    style: "currency",
-    currency: "GBP",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+import { money } from "../lib/money";
 
 /* ──────────────────────────────────────────────────────────────
  * Component
@@ -43,7 +33,7 @@ export function AccountBlock({ account }: Props) {
       </h2>
 
       <div style={{ marginBottom: "0.5rem" }}>
-        Est&nbsp;Value:&nbsp;{formatGBP(account.value_estimate_gbp)}
+        Est&nbsp;Value:&nbsp;{money(account.value_estimate_gbp)}
       </div>
 
       {account.last_updated && (

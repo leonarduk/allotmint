@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import { getInstrumentDetail } from "../api";
+import { money, percent } from "../lib/money";
 
 type Props = {
   ticker: string;
@@ -41,15 +42,6 @@ const fixed = (v: unknown, dp = 2): string => {
   return Number.isFinite(n) ? n.toFixed(dp) : "—";
 };
 
-const money = (v: unknown): string => {
-  const n = toNum(v);
-  return Number.isFinite(n)
-    ? `£${n.toLocaleString("en-GB", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`
-    : "—";
-};
 
 export function InstrumentDetail({ ticker, name, onClose }: Props) {
   const [data, setData] = useState<{ prices: Price[]; positions: Position[]; currency?: string | null } | null>(null);
@@ -226,13 +218,10 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
               <td
                 align="right"
                 style={{
-                  color:
-                    toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red",
+                  color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red",
                 }}
               >
-                {Number.isFinite(toNum(pos.gain_pct))
-                  ? `${toNum(pos.gain_pct).toFixed(1)}%`
-                  : "—"}
+                {percent(pos.gain_pct, 1)}
               </td>
             </tr>
           ))}
@@ -281,11 +270,9 @@ export function InstrumentDetail({ ticker, name, onClose }: Props) {
                     {fixed(p.change_gbp, 2)}
                   </td>
                   <td align="right" style={{ color: colour }}>
-                    {Number.isFinite(p.change_pct)
-                      ? `${fixed(p.change_pct, 2)}%`
-                      : "—"}
+                    {percent(p.change_pct, 2)}
                   </td>
-                </tr>
+              </tr>
               );
             })}
           {!prices.length && (

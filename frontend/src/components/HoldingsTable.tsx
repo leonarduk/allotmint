@@ -117,21 +117,28 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
 
       <tbody>
         {sorted.map((h) => {
-          const handleClick = (e: React.MouseEvent) => {
-            e.preventDefault();
+          const handleClick = () => {
             onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
           };
 
           return (
             <tr key={h.ticker + h.acquired_date}>
               <td style={cell}>
-                <a
-                  href="#"
+                <button
+                  type="button"
                   onClick={handleClick}
-                  style={{ color: "dodgerblue", textDecoration: "underline" }}
+                  style={{
+                    color: "dodgerblue",
+                    textDecoration: "underline",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    font: "inherit",
+                    cursor: "pointer",
+                  }}
                 >
                   {h.ticker}
-                </a>
+                </button>
               </td>
               <td style={cell}>{h.name}</td>
               <td style={cell}>{h.currency ?? "—"}</td>

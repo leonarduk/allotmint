@@ -27,14 +27,28 @@ from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_ran
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.utils.timeseries_helpers import _nearest_weekday, get_scaling_override, apply_scaling
+from backend.utils.fx_rates import fetch_fx_rate_range
 
 OFFLINE_MODE = os.getenv("ALLOTMINT_OFFLINE_MODE", "false").lower() == "true"
 
 logger = logging.getLogger("timeseries_cache")
-logging.basicConfig(level=logging.INFO)
 
 # Expected schema for any timeseries DF we return
 EXPECTED_COLS = ["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]
+
+EXCHANGE_TO_CCY = {
+    "L": "GBP",
+    "LSE": "GBP",
+    "UK": "GBP",
+    "N": "USD",
+    "US": "USD",
+    "NASDAQ": "USD",
+    "NYSE": "USD",
+    "DE": "EUR",
+    "F": "EUR",
+    "PARIS": "EUR",
+    "XETRA": "EUR",
+}
 
 
 def _empty_ts() -> pd.DataFrame:
@@ -231,7 +245,7 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
 # In-process LRU for *ranges* (no duplicate IO per request)
 # ──────────────────────────────────────────────────────────────
 @lru_cache(maxsize=512)
-def _memoized_range(
+def _memoized_range_cached(
     ticker: str,
     exchange: str,
     start_iso: str,
@@ -239,7 +253,9 @@ def _memoized_range(
 ) -> pd.DataFrame:
     start_date = datetime.fromisoformat(start_iso).date()
     end_date = datetime.fromisoformat(end_iso).date()
-    days_span = (date.today() - start_date).days + 1
+    span_days = (end_date - start_date).days + 1
+    lookback = (date.today() - end_date).days
+    days_needed = span_days + lookback
 
     if OFFLINE_MODE:
         cache_path = str(meta_timeseries_cache_path(ticker, exchange))
@@ -252,12 +268,41 @@ def _memoized_range(
         mask = (ex["Date"] >= start_date) & (ex["Date"] <= end_date)
         return _ensure_schema(ex.loc[mask].reset_index(drop=True))
 
-    superset = load_meta_timeseries(ticker, exchange, days_span)
+    superset = load_meta_timeseries(ticker, exchange, days_needed)
     if superset.empty or "Date" not in superset.columns:
         return _empty_ts()
 
     mask = (superset["Date"].dt.date >= start_date) & (superset["Date"].dt.date <= end_date)
     return _ensure_schema(superset.loc[mask].reset_index(drop=True))
+
+
+def _memoized_range(
+    ticker: str,
+    exchange: str,
+    start_iso: str,
+    end_iso: str,
+) -> pd.DataFrame:
+    """LRU-cached range fetch that returns a copy to prevent mutation."""
+    return _memoized_range_cached(ticker, exchange, start_iso, end_iso).copy()
+
+
+def _convert_to_gbp(df: pd.DataFrame, exchange: str, start: date, end: date) -> pd.DataFrame:
+    """Convert OHLC prices to GBP if needed based on exchange."""
+    currency = EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
+    if currency == "GBP" or df.empty:
+        return df
+
+    fx = fetch_fx_rate_range(currency, start, end).copy()
+    if fx.empty:
+        return df
+
+    fx["Date"] = pd.to_datetime(fx["Date"])
+    merged = df.merge(fx, on="Date", how="left")
+    merged["Rate"] = merged["Rate"].ffill().bfill()
+    for col in ["Open", "High", "Low", "Close"]:
+        if col in merged.columns:
+            merged[col] = pd.to_numeric(merged[col], errors="coerce") * merged["Rate"]
+    return merged.drop(columns=["Rate"])
 
 # ──────────────────────────────────────────────────────────────
 # Public helper: explicit date range
@@ -273,6 +318,7 @@ def load_meta_timeseries_range(
         e = end_date - timedelta(days=offset)
         df = _memoized_range(ticker, exchange, s.isoformat(), e.isoformat())
         if not df.empty:
+            df = _convert_to_gbp(df, exchange, s, e)
             return df
     return _empty_ts()
 

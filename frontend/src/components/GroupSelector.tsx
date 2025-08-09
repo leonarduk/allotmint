@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { GroupSummary } from "../types";
+import { Selector } from "./Selector";
 
 type Props = {
   groups: GroupSummary[];
@@ -16,18 +17,11 @@ export function GroupSelector({ groups, selected, onSelect }: Props) {
   }, [selected, groups, onSelect]);
 
   return (
-    <div style={{ marginBottom: "1rem" }}>
-      <label style={{ marginRight: "0.5rem" }}>Group:</label>
-      <select
-        value={selected}
-        onChange={(e) => onSelect(e.target.value)}
-      >
-        {groups.map((g) => (
-          <option key={g.slug} value={g.slug}>
-            {g.name}
-          </option>
-        ))}
-      </select>
-    </div>
+    <Selector
+      label="Group"
+      value={selected}
+      onChange={onSelect}
+      options={groups.map((g) => ({ value: g.slug, label: g.name }))}
+    />
   );
 }

@@ -1,14 +1,10 @@
 Param(
     [int]$Port = 8000
 )
-
-$env:ALLOTMINT_OFFLINE_MODE = $false
-
-# or leave it unset to allow dependency installation.
 $ErrorActionPreference = 'Stop'
 
 # -------- Configuration --------
-# Set $env:ALLOTMINT_OFFLINE_MODE = 'true' before running to enable offline mode,
+# Set $env:ALLOTMINT_OFFLINE_MODE = 'true' before running to skip dependency installation,
 # --------------------------------
 
 # repo root

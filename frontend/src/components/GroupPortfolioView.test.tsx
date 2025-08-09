@@ -43,7 +43,7 @@ describe("GroupPortfolioView", () => {
     vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       json: async () => mockPortfolio,
-    } as any);
+    } as Response);
 
     render(<GroupPortfolioView slug="all" />);
 

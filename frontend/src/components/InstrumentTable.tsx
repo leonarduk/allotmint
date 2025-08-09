@@ -33,6 +33,7 @@ export function InstrumentTable({ rows }: Props) {
                     <tr>
                         <th style={cell}>Ticker</th>
                         <th style={cell}>Name</th>
+                        <th style={cell}>CCY</th>
                         <th style={right}>Units</th>
                         <th style={right}>Mkt £</th>
                         <th style={right}>Gain £</th>
@@ -55,6 +56,7 @@ export function InstrumentTable({ rows }: Props) {
                             >
                                 <td style={cell}>{r.ticker}</td>
                                 <td style={cell}>{r.name}</td>
+                                <td style={cell}>{r.currency ?? "—"}</td>
                                 <td style={right}>
                                     {r.units.toLocaleString()}
                                 </td>

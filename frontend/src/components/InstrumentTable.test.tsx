@@ -14,6 +14,7 @@ describe("InstrumentTable", () => {
         {
             ticker: "ABC",
             name: "ABC Corp",
+            currency: "GBP",
             units: 10,
             market_value_gbp: 1000,
             gain_gbp: 100,
@@ -26,6 +27,7 @@ describe("InstrumentTable", () => {
 
     it("passes ticker and name to InstrumentDetail", () => {
         render(<InstrumentTable rows={rows} />);
+        expect(screen.getByText("GBP")).toBeInTheDocument();
         fireEvent.click(screen.getByText("ABC"));
 
         const mock = InstrumentDetail as unknown as Mock;

@@ -24,6 +24,7 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
         <tr>
           <th style={cell}>Ticker</th>
           <th style={cell}>Name</th>
+          <th style={cell}>CCY</th>
           <th style={right}>Units</th>
           <th style={right}>Px £</th>
           <th style={right}>Cost £</th>
@@ -65,6 +66,7 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
                 </a>
               </td>
               <td style={cell}>{h.name}</td>
+              <td style={cell}>{h.currency ?? "—"}</td>
               <td style={right}>{h.units.toLocaleString()}</td>
               <td style={right}>{money(h.current_price_gbp)}</td>
               <td

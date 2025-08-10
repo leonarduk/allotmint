@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Utility models and helpers for user-defined virtual portfolios."""
 
 import json

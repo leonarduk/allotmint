@@ -5,6 +5,7 @@ import './index.css'
 import './i18n'
 import App from './App.tsx'
 import Support from './pages/Support'
+import VirtualPortfolio from './pages/VirtualPortfolio'
 import './i18n'
 
 createRoot(document.getElementById('root')!).render(
@@ -12,6 +13,7 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/support" element={<Support />} />
+        <Route path="/virtual" element={<VirtualPortfolio />} />
         <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>

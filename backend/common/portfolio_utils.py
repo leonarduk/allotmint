@@ -14,6 +14,7 @@ from datetime import date, timedelta, datetime
 from pathlib import Path
 from typing import Dict, List
 
+import numpy as np
 import pandas as pd
 
 from backend.common import portfolio as portfolio_mod
@@ -26,6 +27,34 @@ from backend.common.virtual_portfolio import (
 )
 
 logger = logging.getLogger("portfolio_utils")
+
+
+# ──────────────────────────────────────────────────────────────
+# Risk helpers
+# ──────────────────────────────────────────────────────────────
+def compute_var(df: pd.DataFrame, confidence: float = 0.95) -> float | None:
+    """Simple Value-at-Risk calculation from a price series.
+
+    Returns the 1-day VaR for a notional single unit position based on the
+    historical distribution of daily percentage returns. ``None`` is returned
+    when the input ``DataFrame`` does not contain enough data.
+    """
+
+    if df is None or df.empty or "Close" not in df.columns:
+        return None
+
+    closes = pd.to_numeric(df["Close"], errors="coerce").dropna()
+    if len(closes) < 2:
+        return None
+
+    returns = closes.pct_change().dropna()
+    if returns.empty:
+        return None
+
+    var_pct = np.quantile(returns, 1 - confidence)
+    last_price = float(closes.iloc[-1])
+    var = -var_pct * last_price
+    return float(var)
 
 # ──────────────────────────────────────────────────────────────
 # Numeric helper

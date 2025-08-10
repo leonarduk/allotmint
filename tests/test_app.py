@@ -1,13 +1,13 @@
-import os
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 
 from backend.app import create_app
+from backend.config import config
 
 
 def test_health_env_variable(monkeypatch):
-    monkeypatch.setenv("ALLOTMINT_ENV", "staging")
-    monkeypatch.setenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", "true")
+    monkeypatch.setattr(config, "app_env", "staging")
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     with TestClient(app) as client:
         resp = client.get("/health")
@@ -16,7 +16,8 @@ def test_health_env_variable(monkeypatch):
 
 
 def test_startup_warms_snapshot(monkeypatch):
-    monkeypatch.delenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", raising=False)
+    monkeypatch.setattr(config, "skip_snapshot_warm", False)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with patch(
         "backend.app.refresh_snapshot_in_memory_from_timeseries"
     ) as mock_refresh:
@@ -27,7 +28,7 @@ def test_startup_warms_snapshot(monkeypatch):
 
 
 def test_skip_snapshot_warm(monkeypatch):
-    monkeypatch.setenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", "true")
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     with patch(
         "backend.app.refresh_snapshot_in_memory_from_timeseries"
     ) as mock_refresh:

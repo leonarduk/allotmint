@@ -8,6 +8,8 @@ from typing import Any, Dict, List
 
 from backend.config import config
 
+from backend.common.virtual_portfolio import VirtualPortfolio
+
 # ------------------------------------------------------------------
 # Paths
 # ------------------------------------------------------------------
@@ -120,3 +122,29 @@ def load_person_meta(owner: str) -> Dict[str, Any]:
     except Exception:
         return {}
 
+
+# ------------------------------------------------------------------
+# Virtual portfolio helpers
+# ------------------------------------------------------------------
+
+
+def _virtual_portfolio_path(name: str) -> pathlib.Path:
+    return _VIRTUAL_PF_ROOT / f"{name}.json"
+
+
+def list_virtual_portfolios() -> list[str]:
+    if not _VIRTUAL_PF_ROOT.exists():
+        return []
+    return sorted(p.stem for p in _VIRTUAL_PF_ROOT.glob("*.json"))
+
+
+def load_virtual_portfolio(name: str) -> VirtualPortfolio:
+    path = _virtual_portfolio_path(name)
+    data = _safe_json_load(path)
+    return VirtualPortfolio.model_validate(data)
+
+
+def save_virtual_portfolio(pf: VirtualPortfolio) -> None:
+    _VIRTUAL_PF_ROOT.mkdir(parents=True, exist_ok=True)
+    path = _virtual_portfolio_path(pf.name)
+    path.write_text(pf.model_dump_json(indent=2))

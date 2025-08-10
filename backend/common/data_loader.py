@@ -8,13 +8,14 @@ from typing import Any, Dict, List
 
 from backend.config import config
 
-from backend.common.virtual_portfolio import VirtualPortfolio>>>>>>> main
+from backend.common.virtual_portfolio import VirtualPortfolio
 
 # ------------------------------------------------------------------
 # Paths
 # ------------------------------------------------------------------
 REPO_ROOT = Path(config.repo_root)
 DATA_ROOT = Path(config.accounts_root)
+_VIRTUAL_PF_ROOT = REPO_ROOT / "data" / "virtual_portfolios"
 
 # For future AWS use
 DATA_BUCKET_ENV = "DATA_BUCKET"
@@ -128,7 +129,7 @@ def load_person_meta(owner: str) -> Dict[str, Any]:
 # ------------------------------------------------------------------
 
 
-def _virtual_portfolio_path(name: str) -> pathlib.Path:
+def _virtual_portfolio_path(name: str) -> Path:
     return _VIRTUAL_PF_ROOT / f"{name}.json"
 
 

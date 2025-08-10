@@ -6,6 +6,8 @@ import pandas as pd
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from backend.utils.html_render import render_timeseries_html
+from backend.config import config
+from pathlib import Path
 
 STANDARD_COLUMNS = [
     "Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"
@@ -32,12 +34,16 @@ def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) ->
 
 import json
 
-def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional[float]) -> float:
+
+def get_scaling_override(
+    ticker: str, exchange: str, requested_scaling: Optional[float]
+) -> float:
     if requested_scaling is not None:
         return requested_scaling
 
+    path = Path(config.repo_root) / "data" / "scaling_overrides.json"
     try:
-        with open("data/scaling_overrides.json") as f:
+        with path.open() as f:
             ov = json.load(f)
     except Exception:
         return 1.0

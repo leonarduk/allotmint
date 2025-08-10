@@ -65,6 +65,21 @@ def load_config() -> Config:
         except Exception:
             pass
 
+    base_dir = path.parent
+
+    repo_root_raw = data.get("repo_root")
+    repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
+
+    accounts_root_raw = data.get("accounts_root")
+    accounts_root = (
+        (repo_root / accounts_root_raw).resolve() if accounts_root_raw else None
+    )
+
+    prices_json_raw = data.get("prices_json")
+    prices_json = (
+        (repo_root / prices_json_raw).resolve() if prices_json_raw else None
+    )
+
     return Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
@@ -89,9 +104,9 @@ def load_config() -> Config:
         ),
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),
-        repo_root=Path(data["repo_root"]) if data.get("repo_root") else None,
-        accounts_root=Path(data["accounts_root"]) if data.get("accounts_root") else None,
-        prices_json=Path(data["prices_json"]) if data.get("prices_json") else None,
+        repo_root=repo_root,
+        accounts_root=accounts_root,
+        prices_json=prices_json,
     )
 
 

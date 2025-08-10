@@ -1,17 +1,59 @@
 {
-  "member": "Member",
-  "group": "Group",
-  "instrument": "Instrument",
-  "transactions": "Transactions",
-  "performance": "Performance",
-  "screener": "Screener",
-  "relativeView": "Relative view",
-  "refreshPrices": "Refresh Prices",
-  "refreshing": "Refreshing…",
-  "loading": "Loading…",
-  "support": "Support",
-  "owner": "Owner",
-  "selectOwner": "Select an owner.",
+  "app": {
+    "viewBy": "View by",
+    "relativeView": "Relative view",
+    "refreshPrices": "Refresh Prices",
+    "refreshing": "Refreshing…",
+    "last": "Last:",
+    "loading": "Loading…",
+    "supportLink": "Support",
+    "modes": {
+      "group": "Group",
+      "instrument": "Instrument",
+      "owner": "Member",
+      "performance": "Performance",
+      "transactions": "Transactions",
+      "screener": "Screener",
+      "query": "Query",
+      "timeseries": "Timeseries"
+    }
+  },
+  "instrumentTable": {
+    "noInstruments": "No instruments.",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Name",
+      "ccy": "CCY",
+      "type": "Type",
+      "units": "Units",
+      "cost": "Cost £",
+      "market": "Market £",
+      "gain": "Gain £",
+      "gainPct": "Gain %",
+      "last": "Last £",
+      "lastDate": "Last Date",
+      "delta7d": "7d %",
+      "delta30d": "30d %"
+    }
+  },
+  "owner": {
+    "label": "Owner",
+    "select": "Select an owner."
+  },
+  "support": {
+    "title": "Support",
+    "online": "Online",
+    "onlineYes": "Yes",
+    "onlineNo": "No",
+    "environment": "Environment",
+    "telegramMessage": "Telegram Message",
+    "send": "Send",
+    "status": {
+      "sent": "Sent",
+      "error": "Error",
+      "sending": "Sending..."
+    }
+  },
   "loadingPortfolio": "Loading portfolio…",
   "portfolio": "Portfolio",
   "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",

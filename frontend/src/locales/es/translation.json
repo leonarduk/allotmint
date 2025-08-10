@@ -1,17 +1,59 @@
 {
-  "member": "Miembro",
-  "group": "Grupo",
-  "instrument": "Instrumento",
-  "transactions": "Transacciones",
-  "performance": "Rendimiento",
-  "screener": "Filtro",
-  "relativeView": "Vista relativa",
-  "refreshPrices": "Actualizar precios",
-  "refreshing": "Actualizando…",
-  "loading": "Cargando…",
-  "support": "Soporte",
-  "owner": "Propietario",
-  "selectOwner": "Seleccione un propietario.",
+  "app": {
+    "viewBy": "Ver por",
+    "relativeView": "Vista relativa",
+    "refreshPrices": "Actualizar precios",
+    "refreshing": "Actualizando…",
+    "last": "Último:",
+    "loading": "Cargando…",
+    "supportLink": "Soporte",
+    "modes": {
+      "group": "Grupo",
+      "instrument": "Instrumento",
+      "owner": "Miembro",
+      "performance": "Rendimiento",
+      "transactions": "Transacciones",
+      "screener": "Filtro",
+      "query": "Consulta",
+      "timeseries": "Serie temporal"
+    }
+  },
+  "instrumentTable": {
+    "noInstruments": "Sin instrumentos.",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nombre",
+      "ccy": "Moneda",
+      "type": "Tipo",
+      "units": "Unidades",
+      "cost": "Coste £",
+      "market": "Valor de mercado £",
+      "gain": "Ganancia £",
+      "gainPct": "Ganancia %",
+      "last": "Último £",
+      "lastDate": "Última fecha",
+      "delta7d": "7d %",
+      "delta30d": "30d %"
+    }
+  },
+  "owner": {
+    "label": "Propietario",
+    "select": "Seleccione un propietario."
+  },
+  "support": {
+    "title": "Soporte",
+    "online": "En línea",
+    "onlineYes": "Sí",
+    "onlineNo": "No",
+    "environment": "Entorno",
+    "telegramMessage": "Mensaje de Telegram",
+    "send": "Enviar",
+    "status": {
+      "sent": "Enviado",
+      "error": "Error",
+      "sending": "Enviando..."
+    }
+  },
   "loadingPortfolio": "Cargando portafolio…",
   "portfolio": "Portafolio",
   "asOf": "A fecha de {{date}} • Operaciones este mes: {{trades}} / 20 (Restantes: {{remaining}})",

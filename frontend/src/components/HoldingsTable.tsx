@@ -1,9 +1,10 @@
 import type React from "react";
 import { useState } from "react";
 import type { Holding } from "../types";
-import { money } from "../lib/money";
+import { money, percent } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
+import i18n from "../i18n";
 
 type Props = {
   holdings: Holding[];
@@ -231,7 +232,7 @@ export function HoldingsTable({ holdings, onSelectInstrument, relativeView = tru
               <td className={tableStyles.cell}>{h.instrument_type ?? "—"}</td>
               {!relativeView && (
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {h.units.toLocaleString()}
+                  {new Intl.NumberFormat(i18n.language).format(h.units)}
                 </td>
               )}
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>
@@ -262,12 +263,18 @@ export function HoldingsTable({ holdings, onSelectInstrument, relativeView = tru
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{ color: h.gain_pct >= 0 ? "lightgreen" : "red" }}
               >
-                {Number.isFinite(h.gain_pct) ? h.gain_pct.toFixed(1) : "—"}
+                {percent(h.gain_pct, 1)}
               </td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                {Number.isFinite(h.weight_pct) ? h.weight_pct.toFixed(1) : "—"}
+                {percent(h.weight_pct, 1)}
               </td>
-              <td className={tableStyles.cell}>{h.acquired_date}</td>
+              <td className={tableStyles.cell}>
+                {h.acquired_date && !isNaN(Date.parse(h.acquired_date))
+                  ? new Intl.DateTimeFormat(i18n.language).format(
+                      new Date(h.acquired_date),
+                    )
+                  : "—"}
+              </td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>{h.days_held ?? "—"}</td>
               <td
                 className={`${tableStyles.cell} ${tableStyles.center}`}

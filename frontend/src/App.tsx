@@ -26,6 +26,7 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { Screener } from "./pages/Screener";
+import i18n from "./i18n";
 
 type Mode =
   | "owner"
@@ -186,7 +187,7 @@ export default function App() {
         </button>
         {lastPriceRefresh && (
           <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
-            Last: {new Date(lastPriceRefresh).toLocaleString()}
+            Last: {new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "short" }).format(new Date(lastPriceRefresh))}
           </span>
         )}
         {priceRefreshError && (

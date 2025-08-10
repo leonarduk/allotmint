@@ -10,9 +10,13 @@ The output folder structure matches the existing *convert_portfolio_xml_to_input
 convention – e.g. `data/accounts/steve/ISA_transactions.json` – so it can drop
 straight into the same pipeline.
 
+By default, paths are read from ``config.yaml`` (keys ``portfolio_xml_path`` and
+``transactions_output_root``). Use ``--xml-path`` and ``--output-root`` to
+override these values on the command line.
+
 Usage
 -----
-    python convert_portfolio_xml_to_account_transactions.py path/to/investments.xml data/accounts
+    python convert_portfolio_xml_to_account_transactions.py [--xml-path path/to/investments.xml] [--output-root data/accounts]
 
 Requires `pandas` (install with `pip install pandas`).
 """
@@ -21,12 +25,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import yaml
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
+
+
+def _load_config() -> Dict[str, Any]:
+    """Load configuration from config.yaml if it exists."""
+    config_path = Path(__file__).resolve().parents[2] / "config.yaml"
+    if config_path.exists():
+        with config_path.open() as f:
+            return yaml.safe_load(f) or {}
+    return {}
 
 ###############################################################################
 # Helpers
@@ -158,8 +172,25 @@ def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
 ###############################################################################
 
 def main() -> None:
-    xml = "C:/workspaces/bitbucket/luk/data/portfolio/investments-with-id.xml"
-    output_root = "C:/workspaces/github/allotmint/data/transactions"
+    config = _load_config()
+    parser = argparse.ArgumentParser(description="Extract and normalise transactions per account")
+    parser.add_argument(
+        "--xml-path",
+        default=config.get("portfolio_xml_path"),
+        help="Path to PortfolioPerformance XML file",
+    )
+    parser.add_argument(
+        "--output-root",
+        default=config.get("transactions_output_root"),
+        help="Directory where JSON files will be written",
+    )
+    args = parser.parse_args()
+
+    xml = args.xml_path
+    output_root = args.output_root
+
+    if xml is None or output_root is None:
+        parser.error("Both --xml-path and --output-root must be provided")
 
     df = extract_transactions_by_account(xml_path=xml)
     write_account_json(df, output_root)

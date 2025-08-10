@@ -20,6 +20,10 @@ from backend.common import portfolio as portfolio_mod
 from backend.common.portfolio_loader import list_portfolios          # existing helper
 from backend.common.instruments import get_instrument_meta
 from backend.timeseries.cache import load_meta_timeseries
+from backend.common.virtual_portfolio import (
+    VirtualPortfolio,
+    list_virtual_portfolios,
+)
 
 logger = logging.getLogger("portfolio_utils")
 
@@ -76,7 +80,8 @@ def _currency_from_file(ticker: str) -> str | None:
 
 def _build_securities_from_portfolios() -> Dict[str, Dict]:
     securities: Dict[str, Dict] = {}
-    for pf in list_portfolios():
+    portfolios = list_portfolios() + [vp.as_portfolio_dict() for vp in list_virtual_portfolios()]
+    for pf in portfolios:
         for acct in pf.get("accounts", []):
             for h in acct.get("holdings", []):
                 tkr = (h.get("ticker") or "").upper()
@@ -114,7 +119,7 @@ def get_security_meta(ticker: str) -> Dict | None:
 ACCOUNTS_DIR = Path(__file__).resolve().parents[2] / "data" / "accounts"
 
 def list_all_unique_tickers() -> List[str]:
-    portfolios = list_portfolios()
+    portfolios = list_portfolios() + [vp.as_portfolio_dict() for vp in list_virtual_portfolios()]
     tickers: set[str] = set()
     total_accounts = 0
     total_holdings = 0
@@ -158,11 +163,13 @@ def list_all_unique_tickers() -> List[str]:
 # ──────────────────────────────────────────────────────────────
 # Core aggregation
 # ──────────────────────────────────────────────────────────────
-def aggregate_by_ticker(portfolio: dict) -> List[dict]:
+def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
     """
     Collapse a nested portfolio tree into one row per ticker,
     enriched with latest-price snapshot.
     """
+    if isinstance(portfolio, VirtualPortfolio):
+        portfolio = portfolio.as_portfolio_dict()
     rows: Dict[str, dict] = {}
 
     for account in portfolio.get("accounts", []):

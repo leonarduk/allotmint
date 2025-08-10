@@ -1,6 +1,7 @@
 import type React from "react";
 import { useState } from "react";
 import type { Holding } from "../types";
+import { useFilterableTable } from "../hooks/useFilterableTable";
 import { money, percent } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
@@ -62,6 +63,11 @@ export function HoldingsTable({
     weight_pct: totalMarket ? (h.market / totalMarket) * 100 : 0,
   }));
 
+  const { rows: sorted, sortKey, asc, handleSort } = useFilterableTable(
+    rows,
+    "ticker",
+    {}
+  );
   const filtered = rows.filter((h) => {
     if (filters.ticker && !h.ticker.toLowerCase().includes(filters.ticker.toLowerCase())) return false;
     if (filters.name && !(h.name ?? "").toLowerCase().includes(filters.name.toLowerCase())) return false;

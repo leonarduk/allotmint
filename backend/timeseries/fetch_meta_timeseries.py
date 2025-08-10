@@ -85,6 +85,23 @@ def fetch_meta_timeseries(
     start_date = _nearest_weekday(start_date, forward=False)
     end_date   = _nearest_weekday(end_date,   forward=True)
 
+    if ticker.upper() == "CASH" or exchange.upper() == "CASH":
+        dates = pd.bdate_range(start_date, end_date)
+        df = pd.DataFrame(
+            {
+                "Date": dates,
+                "Open": 1.0,
+                "High": 1.0,
+                "Low": 1.0,
+                "Close": 1.0,
+                "Volume": 0.0,
+                "Ticker": f"{ticker}.{exchange}",
+                "Source": "cash",
+            }
+        )
+        df["Date"] = pd.to_datetime(df["Date"]).dt.date
+        return df
+
     # Weekday grid we want to fill
     expected_dates = set(pd.bdate_range(start_date, end_date).date)
 

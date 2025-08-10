@@ -4,24 +4,25 @@ from __future__ import annotations
 
 Results from :func:`fetch_fundamentals` are cached in memory keyed by
 the requested ticker and the current date. Cached entries expire after a
-configurable time-to-live (TTL) controlled by the
-``FUNDAMENTALS_CACHE_TTL_SECONDS`` environment variable. The TTL defaults to
-24 hours and is capped at seven days.
+configurable time-to-live (TTL) controlled by the ``fundamentals_cache_ttl_seconds``
+setting in :mod:`backend.config`. The TTL is capped between one and seven days.
 """
 
-import os
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import requests
 from pydantic import BaseModel
 
+from backend.config import settings
+
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
-ALPHA_VANTAGE_KEY = os.getenv("ALPHAVANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
 # Cache configuration
-_DEFAULT_TTL = 24 * 60 * 60  # one day
-_CACHE_TTL_SECONDS = int(os.getenv("FUNDAMENTALS_CACHE_TTL_SECONDS", _DEFAULT_TTL))
-_CACHE_TTL_SECONDS = max(_DEFAULT_TTL, min(_CACHE_TTL_SECONDS, 7 * 24 * 60 * 60))
+_MIN_TTL = 24 * 60 * 60  # one day
+_CACHE_TTL_SECONDS = max(
+    _MIN_TTL,
+    min(settings.fundamentals_cache_ttl_seconds, 7 * 24 * 60 * 60),
+)
 _CACHE: Dict[Tuple[str, str], Tuple[datetime, "Fundamentals"]] = {}
 
 class Fundamentals(BaseModel):
@@ -49,10 +50,10 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
     endpoint, utilising a simple in-memory cache.
     """
 
-    api_key = os.getenv("ALPHAVANTAGE_API_KEY") or os.getenv("ALPHA_VANTAGE_KEY")
+    api_key = settings.alpha_vantage_key
     if not api_key:
         raise RuntimeError(
-            "Alpha Vantage API key not configured; set ALPHAVANTAGE_API_KEY"
+            "Alpha Vantage API key not configured; set alpha_vantage_key in config.yaml"
         )
 
     key = (ticker.upper(), date.today().isoformat())
@@ -63,7 +64,7 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         if now - cached_at < timedelta(seconds=_CACHE_TTL_SECONDS):
             return cached_value
 
-    params = {"function": "OVERVIEW", "symbol": ticker, "apikey": ALPHA_VANTAGE_KEY}
+    params = {"function": "OVERVIEW", "symbol": ticker, "apikey": api_key}
     resp = requests.get(ALPHA_VANTAGE_URL, params=params, timeout=10)
     resp.raise_for_status()
     data = resp.json()

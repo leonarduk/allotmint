@@ -1,6 +1,3 @@
-Param(
-    [int]$Port = 8000
-)
 $ErrorActionPreference = 'Stop'
 
 # -------- Configuration --------
@@ -43,9 +40,16 @@ if (-not $offline) {
     Write-Host 'Offline mode detected; skipping dependency installation.' -ForegroundColor Yellow
 }
 
-# env
-$env:ALLOTMINT_ENV = 'local'
+# load shared config
+$config = Get-Content "$SCRIPT_DIR/config.yaml" | ConvertFrom-Yaml
+$env:ALLOTMINT_ENV = $config.app_env
+$port = $config.uvicorn_port
+$logConfig = $config.log_config
+$reload = $config.reload
 
-# run
-Write-Host "Starting AllotMint Local API on http://localhost:$Port ..." -ForegroundColor Green
-python -m uvicorn backend.local_api.main:app --reload --reload-dir backend --port $Port --log-config backend/logging.ini --app-dir .
+Write-Host "Starting AllotMint Local API on http://localhost:$port ..." -ForegroundColor Green
+$arguments = @('backend.local_api.main:app', '--reload-dir', 'backend', '--port', $port, '--log-config', $logConfig, '--app-dir', '.')
+if ($reload) {
+    $arguments += '--reload'
+}
+python -m uvicorn @arguments

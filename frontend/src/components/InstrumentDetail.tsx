@@ -11,6 +11,7 @@ import {
 import { getInstrumentDetail } from "../api";
 import { money, percent } from "../lib/money";
 import tableStyles from "../styles/table.module.css";
+import i18n from "../i18n";
 
 type Props = {
   ticker: string;
@@ -40,7 +41,12 @@ const toNum = (v: unknown): number =>
 
 const fixed = (v: unknown, dp = 2): string => {
   const n = toNum(v);
-  return Number.isFinite(n) ? n.toFixed(dp) : "—";
+  return Number.isFinite(n)
+    ? new Intl.NumberFormat(i18n.language, {
+        minimumFractionDigits: dp,
+        maximumFractionDigits: dp,
+      }).format(n)
+    : "—";
 };
 
 export function InstrumentDetail({
@@ -280,15 +286,19 @@ export function InstrumentDetail({
                 : undefined;
               return (
                 <tr key={p.date}>
-                  <td className={tableStyles.cell}>{p.date}</td>
+                  <td className={tableStyles.cell}>
+                    {new Intl.DateTimeFormat(i18n.language).format(
+                      new Date(p.date),
+                    )}
+                  </td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {fixed(p.close_gbp, 2)}
+                    {money(p.close_gbp)}
                   </td>
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
                     style={{ color: colour }}
                   >
-                    {fixed(p.change_gbp, 2)}
+                    {money(p.change_gbp)}
                   </td>
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}

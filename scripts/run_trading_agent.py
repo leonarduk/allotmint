@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    run(tickers=args.tickers, thresholds=args.thresholds, indicator=args.indicator)
+    run(tickers=args.tickers)
 
 
 if __name__ == "__main__":

@@ -71,6 +71,10 @@
     "last_price": 102.4,
     "last_price_date": "2025-08-08"
   },
+  "CASH.GBP": {
+    "last_price": 1.0,
+    "last_price_date": "2025-08-11"
+  },
   "CLIG.L": {
     "last_price": 367.0,
     "last_price_date": "2025-08-08"
@@ -181,6 +185,10 @@
   },
   "NESF.L": {
     "last_price": 75.7,
+    "last_price_date": "2025-08-08"
+  },
+  "PBR-A.N": {
+    "last_price": 11.22,
     "last_price_date": "2025-08-08"
   },
   "PFE.N": {

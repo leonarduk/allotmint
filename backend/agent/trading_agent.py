@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 
-from backend.common.alerts import publish_alert
+from backend.common.alerts import publish_sns_alert
 from backend.utils.telegram_utils import send_message
 from backend.config import config
 from typing import Dict, Iterable, List, Optional
@@ -36,13 +36,8 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
     """
 
     if publish:
-        publish_alert({"message": message})
+        publish_sns_alert({"message": message})
 
-    if (
-        config.app_env != "aws"
-        and os.getenv("TELEGRAM_BOT_TOKEN")
-        and os.getenv("TELEGRAM_CHAT_ID")
-    ):
         try:
             send_message(message)
         except Exception as exc:  # pragma: no cover - network errors are rare
@@ -132,10 +127,9 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             "reason": sig["reason"],
             "message": f"{sig['action']} {sig['ticker']}: {sig['reason']}",
         }
-        publish_alert(alert)
-        logger.info("Published alert: %s", alert)
         # When running outside AWS publish a Telegram notification too.
-        send_trade_alert(alert["message"], publish=False)
+        send_trade_alert(alert["message"])
+        logger.info("Published alert: %s", alert)
     return signals
 
 

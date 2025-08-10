@@ -123,3 +123,37 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
     run()
 
     assert captured["tickers"] == ["AAA", "BBB"]
+
+
+def test_run_sends_telegram_when_not_aws(monkeypatch):
+    # Trigger a BUY signal for ticker AAA
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"]
+    )
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.publish_alert", lambda alert: None
+    )
+
+    sent: list[str] = []
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.send_message", lambda msg: sent.append(msg)
+    )
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
+    from backend.agent import trading_agent
+
+    monkeypatch.setattr(trading_agent.config, "app_env", "local")
+
+    run()
+
+    assert sent and "AAA" in sent[0]

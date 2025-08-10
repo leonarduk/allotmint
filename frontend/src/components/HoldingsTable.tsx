@@ -9,11 +9,18 @@ import i18n from "../i18n";
 type Props = {
   holdings: Holding[];
   onSelectInstrument?: (ticker: string, name: string) => void;
-  /** when true, hide absolute value columns */
+  /**
+   * When true, hide absolute position columns (Units, Cost, Gain) to show a
+   * "relative" view focused on percentages.
+   */
   relativeView?: boolean;
 };
 
-export function HoldingsTable({ holdings, onSelectInstrument, relativeView = true }: Props) {
+export function HoldingsTable({
+  holdings,
+  onSelectInstrument,
+  relativeView = false,
+}: Props) {
   const [filters, setFilters] = useState({
     ticker: "",
     name: "",

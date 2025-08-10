@@ -32,6 +32,8 @@ class Config:
 
     # misc complex config
     error_summary: Optional[dict] = None
+    offline_mode: Optional[bool] = None
+    timeseries_cache_base: Optional[str] = None
 
     alpha_vantage_key: Optional[str] = None
     alpha_vantage_fundamentals_cache_ttl_seconds: Optional[int] = None
@@ -74,7 +76,9 @@ def load_config() -> Config:
         alpha_vantage_key=data.get("alpha_vantage_key"),
         alpha_vantage_fundamentals_cache_ttl_seconds=data.get(
            "alpha_vantage_fundamentals_cache_ttl_seconds"
-        )
+        ),
+        offline_mode=data.get("offline_mode"),
+        timeseries_cache_base=data.get("timeseries_cache_base")
     )
 
 

@@ -33,6 +33,9 @@ class Config:
     # misc complex config
     error_summary: Optional[dict] = None
 
+    alpha_vantage_key: Optional[str] = None
+    alpha_vantage_fundamentals_cache_ttl_seconds: Optional[int] = None
+
 
 def _project_config_path() -> Path:
     return Path(__file__).resolve().parents[1] / "config.yaml"
@@ -68,6 +71,10 @@ def load_config() -> Config:
         selenium_user_agent=data.get("selenium_user_agent"),
         selenium_headless=data.get("selenium_headless"),
         error_summary=data.get("error_summary"),
+        alpha_vantage_key=data.get("alpha_vantage_key"),
+        alpha_vantage_fundamentals_cache_ttl_seconds=data.get(
+           "alpha_vantage_fundamentals_cache_ttl_seconds"
+        )
     )
 
 

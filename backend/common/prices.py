@@ -26,6 +26,7 @@ import pandas as pd
 # ──────────────────────────────────────────────────────────────
 # Local imports
 # ──────────────────────────────────────────────────────────────
+from backend.config import config
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     list_all_unique_tickers,
@@ -142,8 +143,7 @@ def refresh_prices() -> Dict:
     snapshot = get_price_snapshot(tickers)
 
     # ---- persist to disk --------------------------------------------------
-    path = "data/prices/latest_prices.json"
-    path = Path(path)  # create parent dirs if missing
+    path = Path(config.prices_json)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(snapshot, indent=2))
 

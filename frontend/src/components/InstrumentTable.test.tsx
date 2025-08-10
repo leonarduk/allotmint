@@ -56,7 +56,7 @@ describe("InstrumentTable", () => {
         render(<InstrumentTable rows={rows} />);
         // initial sort is ticker ascending => ABC first
         let dataRows = screen.getAllByRole("row");
-        // filter row + header row => first data row at index 2
+        // header row + filter row => first data row at index 2
         expect(within(dataRows[2]).getByText("ABC")).toBeInTheDocument();
 
         fireEvent.click(screen.getByText(/^Ticker/));
@@ -71,7 +71,7 @@ describe("InstrumentTable", () => {
 
         expect(screen.queryByText("ABC Corp")).not.toBeInTheDocument();
         expect(screen.getByText("XYZ Inc")).toBeInTheDocument();
-        // filter row + header row + one data row
+        // header row + filter row + one data row
         expect(screen.getAllByRole("row")).toHaveLength(3);
     });
 });

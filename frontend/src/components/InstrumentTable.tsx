@@ -65,56 +65,6 @@ export function InstrumentTable({ rows }: Props) {
             >
                 <thead>
                     <tr>
-                        <th className={tableStyles.cell}>
-                            <input
-                                aria-label="ticker filter"
-                                value={tickerFilter}
-                                onChange={(e) => setTickerFilter(e.target.value)}
-                                style={{ width: "100%" }}
-                            />
-                        </th>
-                        <th className={tableStyles.cell}>
-                            <input
-                                aria-label="name filter"
-                                value={nameFilter}
-                                onChange={(e) => setNameFilter(e.target.value)}
-                                style={{ width: "100%" }}
-                            />
-                        </th>
-                        <th className={tableStyles.cell} />
-                        <th className={tableStyles.cell}>
-                            <input
-                                aria-label="type filter"
-                                value={typeFilter}
-                                onChange={(e) => setTypeFilter(e.target.value)}
-                                style={{ width: "100%" }}
-                            />
-                        </th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                            <input
-                                aria-label="units filter"
-                                value={unitsFilter}
-                                onChange={(e) => setUnitsFilter(e.target.value)}
-                                style={{ width: "100%" }}
-                            />
-                        </th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                            <input
-                                aria-label="cost filter"
-                                value={costFilter}
-                                onChange={(e) => setCostFilter(e.target.value)}
-                                style={{ width: "100%" }}
-                            />
-                        </th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`} />
-                    </tr>
-                    <tr>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.clickable}`}
                             onClick={() => handleSort("ticker")}
@@ -162,6 +112,56 @@ export function InstrumentTable({ rows }: Props) {
                 </thead>
 
                 <tbody>
+                    <tr>
+                        <td className={tableStyles.cell}>
+                            <input
+                                aria-label="ticker filter"
+                                value={tickerFilter}
+                                onChange={(e) => setTickerFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </td>
+                        <td className={tableStyles.cell}>
+                            <input
+                                aria-label="name filter"
+                                value={nameFilter}
+                                onChange={(e) => setNameFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </td>
+                        <td className={tableStyles.cell} />
+                        <td className={tableStyles.cell}>
+                            <input
+                                aria-label="type filter"
+                                value={typeFilter}
+                                onChange={(e) => setTypeFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </td>
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                            <input
+                                aria-label="units filter"
+                                value={unitsFilter}
+                                onChange={(e) => setUnitsFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </td>
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                            <input
+                                aria-label="cost filter"
+                                value={costFilter}
+                                onChange={(e) => setCostFilter(e.target.value)}
+                                style={{ width: "100%" }}
+                            />
+                        </td>
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`} />
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`} />
+                    </tr>
                     {sorted.map((r) => {
                         const gainColour =
                             r.gain_gbp >= 0 ? "lightgreen" : "red";

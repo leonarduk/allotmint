@@ -1,4 +1,54 @@
 {
+  "owner": { "label": "Propietario" },
+  "instrumentTable": {
+    "noInstruments": "No se encontraron instrumentos para este grupo.",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nombre",
+      "ccy": "Moneda",
+      "type": "Tipo",
+      "units": "Unidades",
+      "cost": "Coste £",
+      "market": "Valor £",
+      "gain": "Ganancia £",
+      "gainPct": "Ganancia %",
+      "last": "Último £",
+      "lastDate": "Fecha Últ.",
+      "delta7d": "Δ 7 d %",
+      "delta30d": "Δ 1 mes %"
+    }
+  },
+  "app": {
+    "viewBy": "Ver por:",
+    "modes": {
+      "group": "Grupo",
+      "instrument": "Instrumento",
+      "owner": "Miembro",
+      "performance": "Rendimiento",
+      "transactions": "Transacciones",
+      "screener": "Filtro"
+    },
+    "relativeView": "Vista relativa",
+    "refreshing": "Actualizando…",
+    "refreshPrices": "Actualizar precios",
+    "last": "Último:",
+    "loading": "Cargando…",
+    "supportLink": "Soporte"
+  },
+  "support": {
+    "title": "Soporte",
+    "online": "En línea:",
+    "onlineYes": "sí",
+    "onlineNo": "no",
+    "environment": "Entorno",
+    "telegramMessage": "Mensaje de Telegram",
+    "send": "Enviar",
+    "status": {
+      "sent": "Enviado",
+      "error": "Error al enviar",
+      "sending": "Enviando…"
+    }
+  }
   "member": "Miembro",
   "group": "Grupo",
   "instrument": "Instrumento",

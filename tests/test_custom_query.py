@@ -16,7 +16,7 @@ BASE_QUERY = {
 
 
 def test_run_query_json():
-    resp = client.post("/query/run", json=BASE_QUERY)
+    resp = client.post("/custom-query/run", json=BASE_QUERY)
     assert resp.status_code == 200
     data = resp.json()
     assert any(row["ticker"] == "HFEL.L" for row in data["results"])
@@ -24,13 +24,13 @@ def test_run_query_json():
 
 def test_save_and_load_query(tmp_path):
     slug = "test-query"
-    resp = client.post(f"/query/{slug}", json=BASE_QUERY)
+    resp = client.post(f"/custom-query/{slug}", json=BASE_QUERY)
     assert resp.status_code == 200
 
-    resp = client.get(f"/query/{slug}")
+    resp = client.get(f"/custom-query/{slug}")
     assert resp.status_code == 200
     data = resp.json()
     assert data["tickers"] == BASE_QUERY["tickers"]
 
-    resp = client.get("/query/saved")
+    resp = client.get("/custom-query/saved")
     assert slug in resp.json()

@@ -1,0 +1,19 @@
+{
+  "member": "Membro",
+  "group": "Grupo",
+  "instrument": "Instrumento",
+  "transactions": "Transações",
+  "performance": "Desempenho",
+  "screener": "Filtro",
+  "relativeView": "Visão relativa",
+  "refreshPrices": "Atualizar preços",
+  "refreshing": "Atualizando…",
+  "loading": "Carregando…",
+  "support": "Suporte",
+  "owner": "Proprietário",
+  "selectOwner": "Selecione um proprietário.",
+  "loadingPortfolio": "Carregando portfólio…",
+  "portfolio": "Portfólio",
+  "asOf": "Em {{date}} • Negociações este mês: {{trades}} / 20 (Restantes: {{remaining}})",
+  "approxTotal": "Total aproximado: £{{value}}"
+}

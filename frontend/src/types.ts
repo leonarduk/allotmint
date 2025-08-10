@@ -91,6 +91,11 @@ export interface PerformancePoint {
     cumulative_return?: number | null;
 }
 
+export interface ValueAtRiskPoint {
+    date: string;
+    var: number;
+}
+
 export interface Transaction {
     owner: string;
     account: string;
@@ -101,6 +106,17 @@ export interface Transaction {
     currency?: string | null;
     security_ref?: string | null;
     shares?: number | null;
+}
+
+export interface PriceEntry {
+    Date: string;
+    Open?: number | null;
+    High?: number | null;
+    Low?: number | null;
+    Close?: number | null;
+    Volume?: number | null;
+    Ticker?: string;
+    Source?: string;
 }
 
 export type Alert = {
@@ -137,5 +153,18 @@ export interface VirtualPortfolio {
     name: string;
     accounts: string[];
     holdings: SyntheticHolding[];
+
+export interface CustomQuery {
+    start?: string;
+    end?: string;
+    owners?: string[];
+    tickers?: string[];
+    metrics?: string[];
+}
+
+export interface SavedQuery {
+    id: string;
+    name: string;
+    params: CustomQuery;
 }
 

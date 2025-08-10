@@ -7,10 +7,14 @@ import type {
   OwnerSummary,
   Portfolio,
   PerformancePoint,
+  ValueAtRiskPoint,
   Transaction,
   Alert,
+  PriceEntry,
   ScreenerResult,
   VirtualPortfolio,
+  CustomQuery,
+  SavedQuery,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -104,6 +108,18 @@ export const getInstrumentDetail = (ticker: string, days = 365) =>
     )}&days=${days}&format=json`
   );
 
+
+export const getTimeseries = (ticker: string, exchange = "L") =>
+  fetchJson<PriceEntry[]>(`${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`);
+
+export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntry[]) =>
+  fetchJson<{ status: string; rows: number }>(`${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rows),
+  });
+
+
 export const getTransactions = (params: {
   owner?: string;
   account?: string;
@@ -155,3 +171,44 @@ export const deleteVirtualPortfolio = (id: number | string) =>
   fetchJson<{ status: string }>(`${API_BASE}/virtual-portfolios/${id}`, {
     method: "DELETE",
   });
+
+
+/** Execute a custom query against the backend. */
+export const runCustomQuery = (params: CustomQuery) => {
+  const query = new URLSearchParams();
+  if (params.start) query.set("start", params.start);
+  if (params.end) query.set("end", params.end);
+  if (params.owners?.length) query.set("owners", params.owners.join(","));
+  if (params.tickers?.length) query.set("tickers", params.tickers.join(","));
+  if (params.metrics?.length) query.set("metrics", params.metrics.join(","));
+  query.set("format", "json");
+  return fetchJson<Record<string, unknown>[]>(
+    `${API_BASE}/custom-query/run?${query.toString()}`,
+  );
+};
+
+/** Persist a query definition on the backend. */
+export const saveCustomQuery = (name: string, params: CustomQuery) =>
+  fetchJson<{ id: string }>(`${API_BASE}/custom-query/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, ...params }),
+  });
+
+/** List saved queries available on the backend. */
+export const listSavedQueries = () =>
+  fetchJson<SavedQuery[]>(`${API_BASE}/custom-query/saved`);
+/** Fetch rolling Value at Risk series for an owner. */
+export const getValueAtRisk = (
+  owner: string,
+  opts: { days?: number; confidence?: number } = {}
+) => {
+  const params = new URLSearchParams();
+  if (opts.days != null) params.set("days", String(opts.days));
+  if (opts.confidence != null)
+    params.set("confidence", String(opts.confidence));
+  const qs = params.toString();
+  return fetchJson<ValueAtRiskPoint[]>(
+    `${API_BASE}/var/${owner}${qs ? `?${qs}` : ""}`
+  );
+};

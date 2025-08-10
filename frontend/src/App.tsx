@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   getGroupInstruments,
@@ -58,13 +58,14 @@ const initialSlug = path[1] ?? "";
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
 
+  const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
     initialMode === "owner" ? initialSlug : "",
   );
-  const params = new URLSearchParams(window.location.search);
   const [selectedGroup, setSelectedGroup] = useState(
     initialMode === "instrument" ? initialSlug : params.get("group") ?? "",
   );
@@ -87,6 +88,36 @@ export default function App() {
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
+
+  useEffect(() => {
+    const segs = location.pathname.split("/").filter(Boolean);
+    const newMode: Mode =
+      segs[0] === "member"
+        ? "owner"
+        : segs[0] === "instrument"
+          ? "instrument"
+          : segs[0] === "transactions"
+            ? "transactions"
+            : segs[0] === "performance"
+              ? "performance"
+              : segs[0] === "screener"
+                ? "screener"
+                : segs[0] === "query"
+                  ? "query"
+                  : segs[0] === "timeseries"
+                    ? "timeseries"
+                    : "group";
+    setMode(newMode);
+    if (newMode === "owner") {
+      setSelectedOwner(segs[1] ?? "");
+    } else if (newMode === "instrument") {
+      setSelectedGroup(segs[1] ?? "");
+    } else if (newMode === "group") {
+      setSelectedGroup(
+        new URLSearchParams(location.search).get("group") ?? "",
+      );
+    }
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (ownersReq.data) setOwners(ownersReq.data);

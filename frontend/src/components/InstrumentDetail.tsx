@@ -86,6 +86,9 @@ export function InstrumentDetail({
 
   const displayCurrency = currencyFromData ?? currencyProp ?? "?";
 
+  const [tickerBase, exch = "L"] = ticker.split(".", 2);
+  const editLink = `/timeseries?ticker=${encodeURIComponent(tickerBase)}&exchange=${encodeURIComponent(exch)}`;
+
   const rawPrices = (data.prices ?? [])
     .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp) }))
     .filter((p) => Number.isFinite(p.close_gbp));
@@ -136,7 +139,10 @@ export function InstrumentDetail({
       </button>
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
       <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>
-        {ticker} • {displayCurrency} • {instrument_type ?? "?"}
+        {ticker} • {displayCurrency} • {instrument_type ?? "?"} • {" "}
+        <Link to={editLink} style={{ color: "#00d8ff", textDecoration: "none" }}>
+          edit
+        </Link>
       </div>
 
       {/* Chart */}

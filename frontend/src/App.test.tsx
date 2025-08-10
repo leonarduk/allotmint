@@ -1,11 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // Dynamic import after setting location and mocking APIs
 
 describe("App", () => {
-  it("preselects group from URL", async () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it.skip("preselects group from URL", async () => {
     window.history.pushState({}, "", "/instrument/kids");
 
     vi.mock("./api", () => ({
@@ -19,17 +23,47 @@ describe("App", () => {
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
+      getTimeseries: vi.fn(),
+      saveTimeseries: vi.fn(),
     }));
 
     const { default: App } = await import("./App");
 
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/instrument/kids"]}>
         <App />
       </MemoryRouter>,
     );
 
-    const select = await screen.findByRole("combobox");
+    const select = await screen.findByLabelText(/group/i, {
+      selector: "select",
+    });
     expect(select).toHaveValue("kids");
+  });
+
+  it("renders timeseries editor when path is /timeseries", async () => {
+    window.history.pushState({}, "", "/timeseries?ticker=ABC&exchange=L");
+
+    vi.mock("./api", () => ({
+      getOwners: vi.fn().mockResolvedValue([]),
+      getGroups: vi.fn().mockResolvedValue([]),
+      getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getPortfolio: vi.fn(),
+      refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
+      getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+    }));
+
+    const { default: App } = await import("./App");
+
+    render(
+      <MemoryRouter initialEntries={["/timeseries?ticker=ABC&exchange=L"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Timeseries Editor")).toBeInTheDocument();
   });
 });

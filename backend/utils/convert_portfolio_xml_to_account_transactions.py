@@ -10,7 +10,7 @@ The output folder structure matches the existing *convert_portfolio_xml_to_input
 convention – e.g. `data/accounts/steve/ISA_transactions.json` – so it can drop
 straight into the same pipeline.
 
-By default, paths are read from ``config.yaml`` (keys ``portfolio_xml_path`` and
+By default, paths are read from ``backend.config`` (keys ``portfolio_xml_path`` and
 ``transactions_output_root``). Use ``--xml-path`` and ``--output-root`` to
 override these values on the command line.
 
@@ -25,22 +25,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import yaml
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from backend.config import config
+
 import pandas as pd
-
-
-def _load_config() -> Dict[str, Any]:
-    """Load configuration from config.yaml if it exists."""
-    config_path = Path(__file__).resolve().parents[2] / "config.yaml"
-    if config_path.exists():
-        with config_path.open() as f:
-            return yaml.safe_load(f) or {}
-    return {}
 
 ###############################################################################
 # Helpers
@@ -172,16 +164,17 @@ def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
 ###############################################################################
 
 def main() -> None:
-    config = _load_config()
-    parser = argparse.ArgumentParser(description="Extract and normalise transactions per account")
+    parser = argparse.ArgumentParser(
+        description="Extract and normalise transactions per account"
+    )
     parser.add_argument(
         "--xml-path",
-        default=config.get("portfolio_xml_path"),
+        default=config.portfolio_xml_path,
         help="Path to PortfolioPerformance XML file",
     )
     parser.add_argument(
         "--output-root",
-        default=config.get("transactions_output_root"),
+        default=config.transactions_output_root,
         help="Directory where JSON files will be written",
     )
     args = parser.parse_args()

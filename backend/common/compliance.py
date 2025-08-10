@@ -8,8 +8,6 @@ from typing import Dict, List, Any
 
 from backend.config import config
 
-_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "accounts"
-
 
 def _parse_date(val: str | None) -> date | None:
     if not val:
@@ -28,7 +26,7 @@ def load_transactions(owner: str) -> List[Dict[str, Any]]:
     FileNotFoundError
         If the owner's directory does not exist.
     """
-    owner_dir = _DATA_ROOT / owner
+    owner_dir = Path(config.accounts_root) / owner
     if not owner_dir.exists():
         raise FileNotFoundError(owner)
 

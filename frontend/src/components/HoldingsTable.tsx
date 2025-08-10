@@ -1,4 +1,5 @@
 import type React from "react";
+import { useState } from "react";
 import type { Holding } from "../types";
 import { money } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -19,8 +20,20 @@ export function HoldingsTable({
   onSelectInstrument,
   relativeView = false,
 }: Props) {
+  const [filters, setFilters] = useState({
+    ticker: "",
+    name: "",
+    instrument_type: "",
+    units: "",
+    gain_pct: "",
+    sell_eligible: "",
+  });
 
-  const rows = holdings.map((h) => {
+  const handleFilterChange = (key: keyof typeof filters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const computed = holdings.map((h) => {
     const cost =
       (h.cost_basis_gbp ?? 0) > 0
         ? h.cost_basis_gbp ?? 0
@@ -42,13 +55,100 @@ export function HoldingsTable({
     return { ...h, cost, market, gain, gain_pct };
   });
 
-  const { sorted, sortKey, asc, handleSort } = useSortableTable(rows, "ticker");
+  const totalMarket = computed.reduce((sum, h) => sum + h.market, 0);
+  const rows = computed.map((h) => ({
+    ...h,
+    weight_pct: totalMarket ? (h.market / totalMarket) * 100 : 0,
+  }));
+
+  const filtered = rows.filter((h) => {
+    if (filters.ticker && !h.ticker.toLowerCase().includes(filters.ticker.toLowerCase())) return false;
+    if (filters.name && !(h.name ?? "").toLowerCase().includes(filters.name.toLowerCase())) return false;
+    if (
+      filters.instrument_type &&
+      !(h.instrument_type ?? "").toLowerCase().includes(filters.instrument_type.toLowerCase())
+    )
+      return false;
+    if (filters.units) {
+      const minUnits = parseFloat(filters.units);
+      if (!Number.isNaN(minUnits) && h.units < minUnits) return false;
+    }
+    if (filters.gain_pct) {
+      const minGain = parseFloat(filters.gain_pct);
+      if (!Number.isNaN(minGain) && h.gain_pct < minGain) return false;
+    }
+    if (filters.sell_eligible) {
+      const expect = filters.sell_eligible === "true";
+      if (!!h.sell_eligible !== expect) return false;
+    }
+    return true;
+  });
+
+  const { sorted, sortKey, asc, handleSort } = useSortableTable(filtered, "ticker");
 
   if (!rows.length) return null;
 
   return (
     <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
       <thead>
+        <tr>
+          <th className={tableStyles.cell}>
+            <input
+              placeholder="Ticker"
+              value={filters.ticker}
+              onChange={(e) => handleFilterChange("ticker", e.target.value)}
+            />
+          </th>
+          <th className={tableStyles.cell}>
+            <input
+              placeholder="Name"
+              value={filters.name}
+              onChange={(e) => handleFilterChange("name", e.target.value)}
+            />
+          </th>
+          <th className={tableStyles.cell}></th>
+          <th className={tableStyles.cell}>
+            <input
+              placeholder="Type"
+              value={filters.instrument_type}
+              onChange={(e) => handleFilterChange("instrument_type", e.target.value)}
+            />
+          </th>
+          {!relativeView && (
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              <input
+                placeholder="Units"
+                value={filters.units}
+                onChange={(e) => handleFilterChange("units", e.target.value)}
+              />
+            </th>
+          )}
+          <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+          {!relativeView && <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>}
+          <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+          {!relativeView && <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>}
+          <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+            <input
+              placeholder="Gain %"
+              value={filters.gain_pct}
+              onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
+            />
+          </th>
+          <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+          <th className={tableStyles.cell}></th>
+          <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+          <th className={`${tableStyles.cell} ${tableStyles.center}`}>
+            <select
+              aria-label="Sell eligible"
+              value={filters.sell_eligible}
+              onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
+            >
+              <option value="">All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </th>
+        </tr>
         <tr>
           <th
             className={`${tableStyles.cell} ${tableStyles.clickable}`}
@@ -90,6 +190,12 @@ export function HoldingsTable({
             onClick={() => handleSort("gain_pct")}
           >
             Gain %{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
+          </th>
+          <th
+            className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+            onClick={() => handleSort("weight_pct")}
+          >
+            Weight %{sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th className={tableStyles.cell}>Acquired</th>
           <th
@@ -164,6 +270,9 @@ export function HoldingsTable({
                 style={{ color: h.gain_pct >= 0 ? "lightgreen" : "red" }}
               >
                 {Number.isFinite(h.gain_pct) ? h.gain_pct.toFixed(1) : "—"}
+              </td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {Number.isFinite(h.weight_pct) ? h.weight_pct.toFixed(1) : "—"}
               </td>
               <td className={tableStyles.cell}>{h.acquired_date}</td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>{h.days_held ?? "—"}</td>

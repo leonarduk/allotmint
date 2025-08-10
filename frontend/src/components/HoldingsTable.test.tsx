@@ -36,14 +36,22 @@ describe("HoldingsTable", () => {
         },
     ];
 
-    it("displays table rows for each holding", () => {
+    it("displays relative metrics by default", () => {
         render(<HoldingsTable holdings={holdings}/>);
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.getByText("XYZ")).toBeInTheDocument();
         expect(screen.getByText(/Gain %/)).toBeInTheDocument();
-        expect(screen.getByText("Test Holding")).toBeInTheDocument();
-        expect(screen.getByText("GBP")).toBeInTheDocument();
-        expect(screen.getAllByText("5").length).toBeGreaterThan(0);
+        expect(screen.getByText(/Weight %/)).toBeInTheDocument();
+        expect(screen.queryByText("Units")).toBeNull();
+        expect(screen.queryByText(/Cost £/)).toBeNull();
+        expect(screen.queryByText(/Gain £/)).toBeNull();
+    });
+
+    it("shows absolute columns when relativeView is false", () => {
+        render(<HoldingsTable holdings={holdings} relativeView={false}/>);
+        expect(screen.getByText("Units")).toBeInTheDocument();
+        expect(screen.getByText(/Cost £/)).toBeInTheDocument();
+        expect(screen.getByText(/Gain £/)).toBeInTheDocument();
     });
 
     it("shows days to go if not eligible", () => {
@@ -57,10 +65,26 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings}/>);
         // initially sorted ascending by ticker => AAA first
         let rows = screen.getAllByRole("row");
-        expect(within(rows[1]).getByText("AAA")).toBeInTheDocument();
+        expect(within(rows[2]).getByText("AAA")).toBeInTheDocument();
 
         fireEvent.click(screen.getByText(/^Ticker/));
         rows = screen.getAllByRole("row");
-        expect(within(rows[1]).getByText("XYZ")).toBeInTheDocument();
+        expect(within(rows[2]).getByText("XYZ")).toBeInTheDocument();
+    });
+
+    it("filters by ticker", () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        const input = screen.getByPlaceholderText("Ticker");
+        fireEvent.change(input, { target: { value: "AA" } });
+        expect(screen.getByText("AAA")).toBeInTheDocument();
+        expect(screen.queryByText("XYZ")).toBeNull();
+    });
+
+    it("filters by eligibility", () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        const select = screen.getByLabelText("Sell eligible");
+        fireEvent.change(select, { target: { value: "true" } });
+        expect(screen.getByText("AAA")).toBeInTheDocument();
+        expect(screen.queryByText("Test Holding")).toBeNull();
     });
 });

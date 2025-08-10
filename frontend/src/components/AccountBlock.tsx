@@ -11,9 +11,9 @@ import { money } from "../lib/money";
 /* ──────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────────── */
-type Props = { account: Account };
+type Props = { account: Account; relativeView?: boolean };
 
-export function AccountBlock({ account }: Props) {
+export function AccountBlock({ account, relativeView = false }: Props) {
   const [selected, setSelected] = useState<{
     ticker: string;
     name: string;
@@ -42,6 +42,7 @@ export function AccountBlock({ account }: Props) {
 
       <HoldingsTable
         holdings={account.holdings}
+        relativeView={relativeView}
         onSelectInstrument={(ticker, name) => setSelected({ ticker, name })}
       />
 

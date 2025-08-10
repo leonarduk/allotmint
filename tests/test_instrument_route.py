@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch
 
 from backend.app import create_app
+from backend.config import config
 
 
 def _make_df():
@@ -19,7 +20,7 @@ def _make_df():
 
 @pytest.mark.parametrize("bad", ["", ".L", ".UK"])
 def test_invalid_ticker_rejected(monkeypatch, bad):
-    monkeypatch.setenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", "true")
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     client = TestClient(app)
     resp = client.get(f"/instrument?ticker={bad}&days=1&format=json")
@@ -27,7 +28,7 @@ def test_invalid_ticker_rejected(monkeypatch, bad):
 
 
 def test_full_history_json(monkeypatch):
-    monkeypatch.setenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", "true")
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     df = _make_df()
     with patch(
@@ -60,7 +61,7 @@ def test_full_history_json(monkeypatch):
 
 
 def test_html_response(monkeypatch):
-    monkeypatch.setenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", "true")
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     df = _make_df()
     with patch(

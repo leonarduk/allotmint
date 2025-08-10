@@ -7,8 +7,6 @@ it easy for tests to create isolated apps and mirrors the pattern recommended
 by FastAPI.
 """
 
-import os
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -24,6 +22,7 @@ from backend.routes.screener import router as screener_router
 from backend.routes.support import router as support_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 from backend.common.portfolio_utils import refresh_snapshot_in_memory_from_timeseries
+from backend.config import config
 
 
 def create_app() -> FastAPI:
@@ -69,21 +68,19 @@ def create_app() -> FastAPI:
     async def health():
         """Return a small payload used by tests and uptime monitors."""
 
-        return {"status": "ok", "env": os.getenv("ALLOTMINT_ENV", "test")}
+        return {"status": "ok", "env": config.app_env or "test"}
 
     # ─────────────── Warm the price snapshot on startup ───────────────
-    skip_warm = os.getenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", "").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+    skip_warm = bool(config.skip_snapshot_warm)
 
     if not skip_warm:
         @app.on_event("startup")
         async def _warm_snapshot():
             """Pre-fetch recent price data so the first request is fast."""
 
-            refresh_snapshot_in_memory_from_timeseries(days=30)
+            refresh_snapshot_in_memory_from_timeseries(
+                days=config.snapshot_warm_days or 30
+            )
 
     return app
 
@@ -91,4 +88,7 @@ def create_app() -> FastAPI:
 # optional local test:  python -m backend.app
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(create_app(), host="0.0.0.0", port=8000)
+
+    uvicorn.run(
+        create_app(), host="0.0.0.0", port=config.uvicorn_port or 8000
+    )

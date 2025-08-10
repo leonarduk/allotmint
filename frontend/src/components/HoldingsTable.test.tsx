@@ -65,10 +65,26 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings}/>);
         // initially sorted ascending by ticker => AAA first
         let rows = screen.getAllByRole("row");
-        expect(within(rows[1]).getByText("AAA")).toBeInTheDocument();
+        expect(within(rows[2]).getByText("AAA")).toBeInTheDocument();
 
         fireEvent.click(screen.getByText(/^Ticker/));
         rows = screen.getAllByRole("row");
-        expect(within(rows[1]).getByText("XYZ")).toBeInTheDocument();
+        expect(within(rows[2]).getByText("XYZ")).toBeInTheDocument();
+    });
+
+    it("filters by ticker", () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        const input = screen.getByPlaceholderText("Ticker");
+        fireEvent.change(input, { target: { value: "AA" } });
+        expect(screen.getByText("AAA")).toBeInTheDocument();
+        expect(screen.queryByText("XYZ")).toBeNull();
+    });
+
+    it("filters by eligibility", () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        const select = screen.getByLabelText("Sell eligible");
+        fireEvent.change(select, { target: { value: "true" } });
+        expect(screen.getByText("AAA")).toBeInTheDocument();
+        expect(screen.queryByText("Test Holding")).toBeNull();
     });
 });

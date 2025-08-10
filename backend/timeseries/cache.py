@@ -11,7 +11,6 @@ Set TIMESERIES_CACHE_BASE to control where the parquet files live, e.g.
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timedelta, date
 from functools import lru_cache
 from pathlib import Path
@@ -28,8 +27,9 @@ from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_ran
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.utils.timeseries_helpers import _nearest_weekday, get_scaling_override, apply_scaling
 from backend.utils.fx_rates import fetch_fx_rate_range
+from backend.config import config
 
-OFFLINE_MODE = os.getenv("ALLOTMINT_OFFLINE_MODE", "false").lower() == "true"
+OFFLINE_MODE = config.offline_mode
 
 logger = logging.getLogger("timeseries_cache")
 
@@ -80,7 +80,7 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
 # ──────────────────────────────────────────────────────────────
 # Cache base (local path, EFS, or S3)
 # ──────────────────────────────────────────────────────────────
-_CACHE_BASE: str = os.getenv("TIMESERIES_CACHE_BASE", "data/timeseries").rstrip("/")
+_CACHE_BASE: str = config.timeseries_cache_base
 
 
 def _cache_path(*parts: str) -> str:

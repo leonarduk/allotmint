@@ -1,0 +1,19 @@
+{
+  "member": "Mitglied",
+  "group": "Gruppe",
+  "instrument": "Instrument",
+  "transactions": "Transaktionen",
+  "performance": "Leistung",
+  "screener": "Filter",
+  "relativeView": "Relative Ansicht",
+  "refreshPrices": "Preise aktualisieren",
+  "refreshing": "Aktualisierung…",
+  "loading": "Laden…",
+  "support": "Support",
+  "owner": "Besitzer",
+  "selectOwner": "Wählen Sie einen Besitzer.",
+  "loadingPortfolio": "Portfolio wird geladen…",
+  "portfolio": "Portfolio",
+  "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",
+  "approxTotal": "Ungefähre Summe: £{{value}}"
+}

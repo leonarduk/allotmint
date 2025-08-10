@@ -7,8 +7,10 @@ import type {
   OwnerSummary,
   Portfolio,
   PerformancePoint,
+  ValueAtRiskPoint,
   Transaction,
   Alert,
+  PriceEntry,
   ScreenerResult,
   CustomQuery,
   SavedQuery,
@@ -105,6 +107,18 @@ export const getInstrumentDetail = (ticker: string, days = 365) =>
     )}&days=${days}&format=json`
   );
 
+
+export const getTimeseries = (ticker: string, exchange = "L") =>
+  fetchJson<PriceEntry[]>(`${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`);
+
+export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntry[]) =>
+  fetchJson<{ status: string; rows: number }>(`${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rows),
+  });
+
+
 export const getTransactions = (params: {
   owner?: string;
   account?: string;
@@ -153,3 +167,17 @@ export const saveCustomQuery = (name: string, params: CustomQuery) =>
 /** List saved queries available on the backend. */
 export const listSavedQueries = () =>
   fetchJson<SavedQuery[]>(`${API_BASE}/custom-query/saved`);
+/** Fetch rolling Value at Risk series for an owner. */
+export const getValueAtRisk = (
+  owner: string,
+  opts: { days?: number; confidence?: number } = {}
+) => {
+  const params = new URLSearchParams();
+  if (opts.days != null) params.set("days", String(opts.days));
+  if (opts.confidence != null)
+    params.set("confidence", String(opts.confidence));
+  const qs = params.toString();
+  return fetchJson<ValueAtRiskPoint[]>(
+    `${API_BASE}/var/${owner}${qs ? `?${qs}` : ""}`
+  );
+};

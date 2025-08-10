@@ -7,9 +7,18 @@ import tableStyles from "../styles/table.module.css";
 type Props = {
   holdings: Holding[];
   onSelectInstrument?: (ticker: string, name: string) => void;
+  /**
+   * When true, hide absolute position columns (Units, Cost, Gain) to show a
+   * "relative" view focused on percentages.
+   */
+  relativeView?: boolean;
 };
 
-export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
+export function HoldingsTable({
+  holdings,
+  onSelectInstrument,
+  relativeView = false,
+}: Props) {
 
   const rows = holdings.map((h) => {
     const cost =
@@ -55,21 +64,27 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
           </th>
           <th className={tableStyles.cell}>CCY</th>
           <th className={tableStyles.cell}>Type</th>
-          <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
+          {!relativeView && (
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
+          )}
           <th className={`${tableStyles.cell} ${tableStyles.right}`}>Px £</th>
-          <th
-            className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-            onClick={() => handleSort("cost")}
-          >
-            Cost £{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
-          </th>
+          {!relativeView && (
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort("cost")}
+            >
+              Cost £{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
+            </th>
+          )}
           <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
-          <th
-            className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-            onClick={() => handleSort("gain")}
-          >
-            Gain £{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
-          </th>
+          {!relativeView && (
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort("gain")}
+            >
+              Gain £{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
+            </th>
+          )}
           <th
             className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
             onClick={() => handleSort("gain_pct")}
@@ -115,25 +130,35 @@ export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
               <td className={tableStyles.cell}>{h.name}</td>
               <td className={tableStyles.cell}>{h.currency ?? "—"}</td>
               <td className={tableStyles.cell}>{h.instrument_type ?? "—"}</td>
-              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{h.units.toLocaleString()}</td>
-              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.current_price_gbp)}</td>
-              <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                title={
-                  (h.cost_basis_gbp ?? 0) > 0
-                    ? "Actual purchase cost"
-                    : "Inferred from price on acquisition date"
-                }
-              >
-                {money(h.cost)}
+              {!relativeView && (
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {h.units.toLocaleString()}
+                </td>
+              )}
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {money(h.current_price_gbp)}
               </td>
+              {!relativeView && (
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  title={
+                    (h.cost_basis_gbp ?? 0) > 0
+                      ? "Actual purchase cost"
+                      : "Inferred from price on acquisition date"
+                  }
+                >
+                  {money(h.cost)}
+                </td>
+              )}
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
-              <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: h.gain >= 0 ? "lightgreen" : "red" }}
-              >
-                {money(h.gain)}
-              </td>
+              {!relativeView && (
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  style={{ color: h.gain >= 0 ? "lightgreen" : "red" }}
+                >
+                  {money(h.gain)}
+                </td>
+              )}
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{ color: h.gain_pct >= 0 ? "lightgreen" : "red" }}

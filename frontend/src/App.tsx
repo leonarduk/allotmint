@@ -69,6 +69,8 @@ export default function App() {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
+  // Toggle between showing absolute or relative positions in holdings tables
+  const [relativeView, setRelativeView] = useState(true);
 
   useEffect(() => {
     getOwners().then(setOwners).catch((e) => setErr(String(e)));
@@ -202,6 +204,14 @@ export default function App() {
             selected={selectedGroup}
             onSelect={setSelectedGroup}
           />
+          <label style={{ display: "block", margin: "0.5rem 0" }}>
+            <input
+              type="checkbox"
+              checked={relativeView}
+              onChange={(e) => setRelativeView(e.target.checked)}
+            />{" "}
+            Relative view
+          </label>
           <ComplianceWarnings
             owners={
               groups.find((g) => g.slug === selectedGroup)?.members ?? []
@@ -209,6 +219,7 @@ export default function App() {
           />
           <GroupPortfolioView
             slug={selectedGroup}
+            relativeView={relativeView}
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);

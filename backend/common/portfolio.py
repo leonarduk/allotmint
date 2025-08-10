@@ -52,7 +52,7 @@ def load_trades(owner: str) -> List[Dict[str, Any]]:
     """Public helper. Keeps us self-contained so there's no circular dependency."""
     return (
         _load_trades_local(owner)
-        if config.app_env == "local"
+        if config.get_config().get("app_env") == "local"
         else _load_trades_aws(owner)
     )
 

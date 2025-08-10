@@ -139,7 +139,7 @@ def _safe_json_load(path: pathlib.Path) -> Dict[str, Any]:
 # Account loaders
 # ------------------------------------------------------------------
 def load_account(owner: str, account: str) -> Dict[str, Any]:
-    if config.app_env == "aws":
+    if config.get_config().get("app_env") == "aws":
         # TODO: S3
         raise FileNotFoundError(
             f"AWS account loading not implemented: {owner}/{account}"
@@ -151,7 +151,7 @@ def load_account(owner: str, account: str) -> Dict[str, Any]:
 
 def load_person_meta(owner: str) -> Dict[str, Any]:
     """Load per-owner metadata (dob, etc.). Returns {} if not found."""
-    if config.app_env == "aws":
+    if config.get_config().get("app_env") == "aws":
         # TODO: S3
         return {}
     path = _LOCAL_PLOTS_ROOT / owner / "person.json"

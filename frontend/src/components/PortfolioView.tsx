@@ -1,5 +1,7 @@
 import type {Portfolio} from "../types";
 import {AccountBlock} from "./AccountBlock";
+import {money} from "../lib/money";
+import i18n from "../i18n";
 
 // Props accepted by the view. `data` is null until a portfolio is loaded.
 type Props = {
@@ -27,14 +29,11 @@ export function PortfolioView({data, loading, error, relativeView = false}: Prop
                 Portfolio: <span data-testid="owner-name">{data.owner}</span>
             </h1>
             <div style={{marginBottom: "1rem"}}>
-                As of {data.as_of} • Trades this month: {data.trades_this_month} / 20
+                As of {new Intl.DateTimeFormat(i18n.language).format(new Date(data.as_of))} • Trades this month: {data.trades_this_month} / 20
                 (Remaining: {data.trades_remaining})
             </div>
             <div style={{marginBottom: "2rem"}}>
-                Approx Total: £{data.total_value_estimate_gbp.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-            })}
+                Approx Total: {money(data.total_value_estimate_gbp)}
             </div>
             {/* Each account is rendered using AccountBlock for clarity */}
             {data.accounts.map((acct) => (

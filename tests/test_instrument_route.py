@@ -110,3 +110,38 @@ def test_positions_scaled(monkeypatch):
     assert pos["unrealised_gain_gbp"] == pytest.approx(2.0)
     prices = data["prices"]
     assert prices[-1]["close_gbp"] == pytest.approx(5.5)
+
+
+def test_positions_gain_from_cost(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = _make_df()
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch(
+        "backend.routes.instrument.list_portfolios",
+        return_value=[
+            {
+                "owner": "alex",
+                "accounts": [
+                    {
+                        "account_type": "isa",
+                        "holdings": [
+                            {
+                                "ticker": "ABC.L",
+                                "units": 2,
+                                "cost_basis_gbp": 20.0,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    ), patch("backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}):
+        client = TestClient(app)
+        resp = client.get("/instrument?ticker=ABC.L&days=1&format=json")
+    assert resp.status_code == 200
+    data = resp.json()
+    pos = data["positions"][0]
+    assert pos["unrealised_gain_gbp"] == pytest.approx(2.0)
+    assert pos["gain_pct"] == pytest.approx(10.0)

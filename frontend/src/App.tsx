@@ -40,7 +40,7 @@ type Mode =
   | "transactions"
   | "performance"
   | "screener"
-  | "query";
+  | "query"
   | "timeseries";
 
 // derive initial mode + id from path

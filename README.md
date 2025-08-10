@@ -98,6 +98,15 @@ errors which you can attach when reporting bugs.
 python run_with_error_summary.py pytest
 ```
 
+## Trading Agent
+
+Run the trading agent from the command line. Include the optional
+`--use-openai` flag to enable OpenAI-powered decision making:
+
+```bash
+python scripts/run_trading_agent.py --use-openai
+```
+
 ## Deploy to AWS
 
 The project includes an AWS CDK stack that provisions an S3 bucket and

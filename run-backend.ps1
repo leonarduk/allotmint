@@ -35,8 +35,14 @@ if (-not $offline) {
     Write-Host 'Offline mode detected; skipping dependency installation.' -ForegroundColor Yellow
 }
 
-# env
-$env:ALLOTMINT_ENV = 'local'
+# ensure config.yaml reflects local environment
+python - <<'PYTHON'
+import yaml, pathlib
+cfg = pathlib.Path('config.yaml')
+data = yaml.safe_load(cfg.read_text()) if cfg.exists() else {}
+data['env'] = 'local'
+cfg.write_text(yaml.safe_dump(data))
+PYTHON
 
 # run
 Write-Host "Starting AllotMint Local API on http://localhost:$Port ..." -ForegroundColor Green

@@ -1,0 +1,5 @@
+env: local
+skip_snapshot_warm: false
+cors_allow_origins:
+  - "*"
+docs_url: /docs

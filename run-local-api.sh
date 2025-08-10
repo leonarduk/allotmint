@@ -17,7 +17,15 @@ if [[ -z "${TELEGRAM_BOT_TOKEN:-}" || -z "${TELEGRAM_CHAT_ID:-}" ]]; then
   echo "Warning: TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID not set; Telegram logging will be disabled." >&2
 fi
 
-export ALLOTMINT_ENV=local
+# ensure config.yaml reflects local environment
+python - <<'PY'
+import yaml, pathlib
+cfg = pathlib.Path('config.yaml')
+data = yaml.safe_load(cfg.read_text()) if cfg.exists() else {}
+data['env'] = 'local'
+cfg.write_text(yaml.safe_dump(data))
+PY
+
 uvicorn backend.local_api.main:app \
   --reload \
   --reload-dir backend \

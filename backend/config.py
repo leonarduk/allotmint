@@ -23,6 +23,8 @@ class Config:
     uvicorn_port: Optional[int] = None
     reload: Optional[bool] = None
     log_config: Optional[str] = None
+    skip_snapshot_warm: Optional[bool] = None
+    snapshot_warm_days: Optional[int] = None
 
     # scraping / automation
     ft_url_template: Optional[str] = None
@@ -73,6 +75,8 @@ def load_config() -> Config:
         uvicorn_port=data.get("uvicorn_port"),
         reload=data.get("reload"),
         log_config=data.get("log_config"),
+        skip_snapshot_warm=data.get("skip_snapshot_warm"),
+        snapshot_warm_days=data.get("snapshot_warm_days"),
         ft_url_template=data.get("ft_url_template"),
         selenium_user_agent=data.get("selenium_user_agent"),
         selenium_headless=data.get("selenium_headless"),

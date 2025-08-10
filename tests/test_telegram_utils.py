@@ -2,21 +2,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import logging
 
-from backend.utils.telegram_utils import send_message, TelegramLogHandler
+import backend.utils.telegram_utils as telegram_utils
 
 
-def test_send_message_skips_without_config(monkeypatch):
-    """The helper should be a no-op when credentials are missing."""
-
-    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
-
-    def fake_post(*args, **kwargs):  # pragma: no cover - shouldn't be called
-        raise AssertionError("requests.post should not be called")
-
-    with patch("backend.utils.telegram_utils.requests.post", fake_post):
-        send_message("hi")
-
+def test_send_message_requires_config(monkeypatch):
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", None, raising=False)
+    monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", None, raising=False)
+    with pytest.raises(RuntimeError):
+        telegram_utils.send_message("hi")
 
 def test_log_handler_without_config(monkeypatch):
     """Logging via ``TelegramLogHandler`` should not raise without credentials."""
@@ -38,8 +31,8 @@ def test_log_handler_without_config(monkeypatch):
 
 
 def test_send_message_success(monkeypatch):
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
 
     def fake_post(url, data, timeout):
         assert url == "https://api.telegram.org/botT/sendMessage"
@@ -48,4 +41,4 @@ def test_send_message_success(monkeypatch):
         return SimpleNamespace(raise_for_status=lambda: None)
 
     with patch("backend.utils.telegram_utils.requests.post", fake_post):
-        send_message("ok")
+        telegram_utils.send_message("ok")

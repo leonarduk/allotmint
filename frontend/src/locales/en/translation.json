@@ -1,0 +1,52 @@
+{
+  "owner": { "label": "Owner" },
+  "instrumentTable": {
+    "noInstruments": "No instruments found for this group.",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Name",
+      "ccy": "CCY",
+      "type": "Type",
+      "units": "Units",
+      "cost": "Cost £",
+      "market": "Mkt £",
+      "gain": "Gain £",
+      "gainPct": "Gain %",
+      "last": "Last £",
+      "lastDate": "Last Date",
+      "delta7d": "Δ 7 d %",
+      "delta30d": "Δ 1 mo %"
+    }
+  },
+  "app": {
+    "viewBy": "View by:",
+    "modes": {
+      "group": "Group",
+      "instrument": "Instrument",
+      "owner": "Member",
+      "performance": "Performance",
+      "transactions": "Transactions",
+      "screener": "Screener"
+    },
+    "relativeView": "Relative view",
+    "refreshing": "Refreshing…",
+    "refreshPrices": "Refresh Prices",
+    "last": "Last:",
+    "loading": "Loading…",
+    "supportLink": "Support"
+  },
+  "support": {
+    "title": "Support",
+    "online": "Online:",
+    "onlineYes": "yes",
+    "onlineNo": "no",
+    "environment": "Environment",
+    "telegramMessage": "Telegram Message",
+    "send": "Send",
+    "status": {
+      "sent": "Sent",
+      "error": "Failed to send",
+      "sending": "Sending…"
+    }
+  }
+}

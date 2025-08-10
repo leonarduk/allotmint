@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { API_BASE } from "../api";
 
 export default function Support() {
+  const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
 
@@ -26,11 +28,11 @@ export default function Support() {
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "1rem" }}>
-      <h1>Support</h1>
+      <h1>{t("support.title")}</h1>
       <p>
-        <strong>Online:</strong> {online ? "yes" : "no"}
+        <strong>{t("support.online")}</strong> {online ? t("support.onlineYes") : t("support.onlineNo")}
       </p>
-      <h2>Environment</h2>
+      <h2>{t("support.environment")}</h2>
       <table style={{ fontSize: "0.9rem" }}>
         <tbody>
           {envEntries.map(([k, v]) => (
@@ -41,7 +43,7 @@ export default function Support() {
           ))}
         </tbody>
       </table>
-      <h2>Telegram Message</h2>
+      <h2>{t("support.telegramMessage")}</h2>
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
@@ -50,18 +52,18 @@ export default function Support() {
       />
       <div style={{ marginTop: "0.5rem" }}>
         <button onClick={send} disabled={!message}>
-          Send
+          {t("support.send")}
         </button>
         {status === "sent" && (
-          <span style={{ marginLeft: "0.5rem", color: "green" }}>Sent</span>
+          <span style={{ marginLeft: "0.5rem", color: "green" }}>{t("support.status.sent")}</span>
         )}
         {status === "error" && (
           <span style={{ marginLeft: "0.5rem", color: "red" }}>
-            Failed to send
+            {t("support.status.error")}
           </span>
         )}
         {status === "sending" && (
-          <span style={{ marginLeft: "0.5rem" }}>Sending…</span>
+          <span style={{ marginLeft: "0.5rem" }}>{t("support.status.sending")}</span>
         )}
       </div>
     </div>

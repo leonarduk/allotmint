@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   getGroupInstruments,
   getGroups,
@@ -48,6 +49,7 @@ const initialSlug = path[1] ?? "";
 
 export default function App() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
@@ -144,7 +146,7 @@ export default function App() {
       <AlertsPanel />
       {/* mode toggle */}
       <div style={{ marginBottom: "1rem" }}>
-        <strong>View by:</strong>{" "}
+        <strong>{t("app.viewBy")}</strong>{" "}
         {([
           "group",
           "instrument",
@@ -161,9 +163,7 @@ export default function App() {
               checked={mode === m}
               onChange={() => setMode(m)}
             />{" "}
-            {m === "owner"
-              ? "Member"
-              : m.charAt(0).toUpperCase() + m.slice(1)}
+            {t(`app.modes.${m}`)}
           </label>
         ))}
       </div>
@@ -176,17 +176,18 @@ export default function App() {
             checked={relativeView}
             onChange={(e) => setRelativeView(e.target.checked)}
           />{" "}
-          Relative view
+          {t("app.relativeView")}
         </label>
       </div>
 
       <div style={{ marginBottom: "1rem" }}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
-          {refreshingPrices ? "Refreshing…" : "Refresh Prices"}
+          {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
         </button>
         {lastPriceRefresh && (
           <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
-            Last: {new Date(lastPriceRefresh).toLocaleString()}
+            {t("app.last")}{" "}
+            {new Date(lastPriceRefresh).toLocaleString()}
           </span>
         )}
         {priceRefreshError && (
@@ -248,7 +249,7 @@ export default function App() {
           />
           {err && <p style={{ color: "red" }}>{err}</p>}
           {loading ? (
-            <p>Loading…</p>
+            <p>{t("app.loading")}</p>
           ) : (
             <InstrumentTable rows={instruments} />
           )}
@@ -272,7 +273,7 @@ export default function App() {
       {mode === "screener" && <Screener />}
 
       <p style={{ marginTop: "2rem", textAlign: "center" }}>
-        <a href="/support">Support</a>
+        <a href="/support">{t("app.supportLink")}</a>
       </p>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function InstrumentTable({ rows }: Props) {
+    const { t } = useTranslation();
     const [selected, setSelected] = useState<InstrumentSummary | null>(null);
 
     const rowsWithCost = rows.map((r) => {
@@ -27,7 +29,7 @@ export function InstrumentTable({ rows }: Props) {
 
     /* no data? – render a clear message instead of an empty table */
     if (!rowsWithCost.length) {
-        return <p>No instruments found for this group.</p>;
+        return <p>{t("instrumentTable.noInstruments")}</p>;
     }
 
     return (
@@ -42,45 +44,45 @@ export function InstrumentTable({ rows }: Props) {
                             className={`${tableStyles.cell} ${tableStyles.clickable}`}
                             onClick={() => handleSort("ticker")}
                         >
-                            Ticker
+                            {t("instrumentTable.columns.ticker")}
                             {sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.clickable}`}
                             onClick={() => handleSort("name")}
                         >
-                            Name
+                            {t("instrumentTable.columns.name")}
                             {sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
-                        <th className={tableStyles.cell}>CCY</th>
-                        <th className={tableStyles.cell}>Type</th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
+                        <th className={tableStyles.cell}>{t("instrumentTable.columns.ccy")}</th>
+                        <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.units")}</th>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                             onClick={() => handleSort("cost")}
                         >
-                            Cost £
+                            {t("instrumentTable.columns.cost")}
                             {sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.market")}</th>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                             onClick={() => handleSort("gain")}
                         >
-                            Gain £
+                            {t("instrumentTable.columns.gain")}
                             {sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                             onClick={() => handleSort("gain_pct")}
                         >
-                            Gain %
+                            {t("instrumentTable.columns.gainPct")}
                             {sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Last £</th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Last&nbsp;Date</th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ&nbsp;7&nbsp;d&nbsp;%</th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ&nbsp;1&nbsp;mo&nbsp;%</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.last")}</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.lastDate")}</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.delta7d")}</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.delta30d")}</th>
                     </tr>
                 </thead>
 

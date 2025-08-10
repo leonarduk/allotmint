@@ -235,7 +235,12 @@ def enrich_holding(
     from backend.common.portfolio_utils import get_security_meta  # local import to avoid circular
     sec_meta = get_security_meta(full) or {}
     instr_meta = meta or {}
-    meta = {**instr_meta, **sec_meta}
+    # Merge metadata giving precedence to instrument files over
+    # security metadata derived from portfolios. Previously the merge
+    # order overwrote detailed instrument information (like the name)
+    # with generic placeholders from security metadata, causing
+    # instrument names to appear as tickers on the group page.
+    meta = {**sec_meta, **instr_meta}
     out["currency"] = meta.get("currency")
     out["name"] = out.get("name") or meta.get("name") or full
 

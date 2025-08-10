@@ -1,0 +1,2 @@
+alpha_vantage_key: "demo"
+fundamentals_cache_ttl_seconds: 86400

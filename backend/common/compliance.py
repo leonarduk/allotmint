@@ -6,7 +6,7 @@ from datetime import datetime, date
 from pathlib import Path
 from typing import Dict, List, Any
 
-from backend.common.constants import MAX_TRADES_PER_MONTH, HOLD_DAYS_MIN
+from backend.config import config
 
 _DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "accounts"
 
@@ -64,8 +64,10 @@ def check_owner(owner: str) -> Dict[str, Any]:
         key = f"{d.year:04d}-{d.month:02d}"
         counts[key] += 1
     for month, cnt in counts.items():
-        if cnt > MAX_TRADES_PER_MONTH:
-            warnings.append(f"{cnt} trades in {month} (max {MAX_TRADES_PER_MONTH})")
+        if cnt > config.max_trades_per_month:
+            warnings.append(
+                f"{cnt} trades in {month} (max {config.max_trades_per_month})"
+            )
 
     # holding period rule
     last_buy: Dict[str, date] = {}
@@ -79,9 +81,9 @@ def check_owner(owner: str) -> Dict[str, Any]:
             last_buy[ticker] = d
         elif action == "sell":
             acq = last_buy.get(ticker)
-            if acq and (d - acq).days < HOLD_DAYS_MIN:
+            if acq and (d - acq).days < config.hold_days_min:
                 days = (d - acq).days
                 warnings.append(
-                    f"Sold {ticker} after {days} days (min {HOLD_DAYS_MIN})"
+                    f"Sold {ticker} after {days} days (min {config.hold_days_min})"
                 )
     return {"owner": owner, "warnings": warnings, "trade_counts": dict(counts)}

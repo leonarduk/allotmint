@@ -1,11 +1,13 @@
 from pathlib import Path
 
-MAX_TRADES_PER_MONTH = 20
-HOLD_DAYS_MIN        = 30
+from backend.config import config
 
-_REPO_ROOT   = Path(__file__).resolve().parents[2]
-_PLOTS_ROOT  = _REPO_ROOT / "data" / "accounts"
-_PRICES_JSON = _REPO_ROOT / "data" / "prices" / "latest_prices.json"
+MAX_TRADES_PER_MONTH = config.max_trades_per_month
+HOLD_DAYS_MIN = config.hold_days_min
+
+_REPO_ROOT = Path(config.repo_root)
+_PLOTS_ROOT = Path(config.accounts_root)
+_PRICES_JSON = Path(config.prices_json)
 
 UNITS = "units"
 

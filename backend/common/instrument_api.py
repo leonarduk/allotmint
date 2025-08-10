@@ -21,6 +21,7 @@ from backend.common.constants import OWNER, ACCOUNTS, HOLDINGS
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.holding_utils import load_latest_prices
 from backend.common.portfolio_utils import list_all_unique_tickers
+from backend.common.instruments import get_instrument_meta
 from backend.timeseries.cache import (
     load_meta_timeseries_range,
     has_cached_meta_timeseries,
@@ -217,19 +218,33 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
         for h in acct.get(HOLDINGS, []):
             tkr = (h.get("ticker") or "").strip()
             name = (h.get("name") or "").strip()
-            if not tkr or not name:
+            if not tkr:
                 continue
 
+            meta = get_instrument_meta(tkr) or {}
+            resolved_name = meta.get("name") or (name if name and name != tkr else None) or tkr
             entry = by_ticker.setdefault(
                 tkr,
                 {
                     "ticker": tkr,
-                    "name": name,
+                    "name": resolved_name,
+                    "currency": h.get("currency") or meta.get("currency"),
+                    "instrument_type": h.get("instrument_type")
+                    or meta.get("instrumentType")
+                    or meta.get("instrument_type"),
                     "units": 0.0,
                     "market_value_gbp": 0.0,
                     "gain_gbp": 0.0,
                 },
             )
+            if entry.get("currency") is None:
+                entry["currency"] = h.get("currency") or meta.get("currency")
+            if entry.get("instrument_type") is None:
+                entry["instrument_type"] = (
+                    h.get("instrument_type")
+                    or meta.get("instrumentType")
+                    or meta.get("instrument_type")
+                )
             entry["units"] += float(h.get("units") or 0.0)
             entry["market_value_gbp"] += float(h.get("market_value_gbp") or 0.0)
             entry["gain_gbp"] += float(h.get("gain_gbp") or 0.0)

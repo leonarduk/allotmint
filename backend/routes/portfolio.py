@@ -148,9 +148,7 @@ async def portfolio_group(slug: str):
 @router.get("/portfolio-group/{slug}/instruments")
 async def group_instruments(slug: str):
     """Return holdings for the group aggregated by ticker."""
-
-    gp = group_portfolio.build_group_portfolio(slug)
-    return portfolio_utils.aggregate_by_ticker(gp)
+    return instrument_api.instrument_summaries_for_group(slug)
 
 
 @router.get("/account/{owner}/{account}")

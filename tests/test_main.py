@@ -79,10 +79,8 @@ def test_prices_refresh(mock_refresh):
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "updated": 5}
 
-@patch("backend.common.portfolio_utils.aggregate_by_ticker", return_value=[{"ticker": "ABC"}])
-@patch("backend.common.group_portfolio.build_group_portfolio", return_value={"group": "testslug"})
-@patch("backend.common.group_portfolio.list_groups", return_value=mock_groups)
-def test_group_by_instrument(mock_groups, mock_build, mock_aggregate):
+@patch("backend.common.instrument_api.instrument_summaries_for_group", return_value=[{"ticker": "ABC"}])
+def test_group_by_instrument(mock_summary):
     response = client.get("/portfolio-group/testslug/instruments")
     assert response.status_code == 200
     assert response.json() == [{"ticker": "ABC"}]

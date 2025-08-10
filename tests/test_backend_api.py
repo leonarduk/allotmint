@@ -110,9 +110,13 @@ def test_group_instruments():
     assert len(instruments) > 0
     assert "ticker" in instruments[0]
     assert "gain_pct" in instruments[0]
+    assert "change_7d_pct" in instruments[0]
+    assert "change_30d_pct" in instruments[0]
     # At least one instrument should have a market value once holdings are
     # aggregated, even if no explicit price snapshot exists.
     assert any((inst.get("market_value_gbp") or 0) > 0 for inst in instruments)
+    assert any(inst.get("change_7d_pct") is not None for inst in instruments)
+    assert any(inst.get("change_30d_pct") is not None for inst in instruments)
 
     # if metadata contains a name, it should be reflected in the API output
     for inst in instruments:

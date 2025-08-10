@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 from backend.config import config
 
-from backend.common.virtual_portfolio import VirtualPortfolio>>>>>>> main
+from backend.common.virtual_portfolio import VirtualPortfolio
 
 # ------------------------------------------------------------------
 # Paths

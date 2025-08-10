@@ -1,8 +1,6 @@
 import pytest
 from backend.common import portfolio_utils
-
-from backend.common import portfolio_utils
-from backend.agent.trading_agent import send_trade_alert
+from backend.agent.trading_agent import send_trade_alert, run
 
 # Alias to match the terminology of "generate_signals"
 generate_signals = portfolio_utils.check_price_alerts
@@ -93,3 +91,35 @@ def test_send_trade_alert_with_telegram(monkeypatch):
 
     assert published["message"] == "hi"
     assert telegram_msgs == ["hi"]
+
+
+def test_run_defaults_to_all_known_tickers(monkeypatch):
+    captured: dict = {}
+
+    # ensure the agent discovers our tickers when none are supplied
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_all_unique_tickers",
+        lambda: ["AAA", "BBB"],
+    )
+
+    def fake_load_prices(tickers, days=60):
+        captured["tickers"] = list(tickers)
+        import pandas as pd
+
+        data = {
+            "Ticker": ["AAA"] * 7 + ["BBB"] * 7,
+            "close": [1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2],
+        }
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.prices.load_prices_for_tickers",
+        fake_load_prices,
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.publish_alert", lambda alert: None
+    )
+
+    run()
+
+    assert captured["tickers"] == ["AAA", "BBB"]

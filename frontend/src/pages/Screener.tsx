@@ -3,6 +3,7 @@ import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { InstrumentDetail } from "../components/InstrumentDetail";
+import i18n from "../i18n";
 
 export function Screener() {
   const [tickers, setTickers] = useState("");
@@ -140,7 +141,11 @@ export function Screener() {
                 <td style={right}>{r.peg_ratio ?? "—"}</td>
                 <td style={right}>{r.pe_ratio ?? "—"}</td>
                 <td style={right}>{r.de_ratio ?? "—"}</td>
-                <td style={right}>{r.fcf != null ? r.fcf.toLocaleString() : "—"}</td>
+                <td style={right}>
+                  {r.fcf != null
+                    ? new Intl.NumberFormat(i18n.language).format(r.fcf)
+                    : "—"}
+                </td>
               </tr>
             ))}
           </tbody>

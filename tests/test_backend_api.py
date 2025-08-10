@@ -3,8 +3,12 @@ from fastapi.testclient import TestClient
 
 from backend.local_api.main import app
 from backend.common.instruments import get_instrument_meta
+import backend.common.alerts as alerts
 
 client = TestClient(app)
+
+# ensure alerts do not raise due to missing config
+alerts.config.sns_topic_arn = "arn:dummy"
 
 
 def validate_timeseries(prices):
@@ -176,7 +180,9 @@ def test_yahoo_timeseries_html():
     assert ticker.lower() in html
 
 
-def test_alerts_endpoint():
+def test_alerts_endpoint(monkeypatch):
+    alerts._RECENT_ALERTS.clear()
+    monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))
     client.post("/prices/refresh")
     resp = client.get("/alerts")
     assert resp.status_code == 200
@@ -221,3 +227,26 @@ def test_screener_endpoint(monkeypatch):
     data = resp.json()
     assert len(data) == 1
     assert data[0]["ticker"] == "AAA"
+
+def test_var_endpoint_default():
+    owners = client.get("/owners").json()
+    assert owners, "No owners returned"
+    owner = owners[0]["owner"]
+    resp = client.get(f"/var/{owner}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "var" in data and isinstance(data["var"], dict)
+
+
+@pytest.mark.parametrize("days,confidence", [(10, 0.9), (30, 0.99)])
+def test_var_endpoint_params(days, confidence):
+    owners = client.get("/owners").json()
+    assert owners, "No owners returned"
+    owner = owners[0]["owner"]
+    resp = client.get(f"/var/{owner}?days={days}&confidence={confidence}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "var" in data
+    var = data["var"]
+    assert var.get("window_days") == days
+    assert var.get("confidence") == confidence

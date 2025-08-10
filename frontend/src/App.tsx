@@ -26,6 +26,7 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { Screener } from "./pages/Screener";
+import { QueryPage } from "./pages/QueryPage";
 
 type Mode =
   | "owner"
@@ -33,7 +34,8 @@ type Mode =
   | "instrument"
   | "transactions"
   | "performance"
-  | "screener";
+  | "screener"
+  | "query";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -43,6 +45,7 @@ const initialMode: Mode =
   path[0] === "transactions" ? "transactions" :
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
+  path[0] === "query" ? "query" :
   "group";
 const initialSlug = path[1] ?? "";
 
@@ -152,6 +155,7 @@ export default function App() {
           "performance",
           "transactions",
           "screener",
+          "query",
         ] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
             <input
@@ -270,6 +274,8 @@ export default function App() {
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
       {mode === "screener" && <Screener />}
+
+      {mode === "query" && <QueryPage />}
 
       <p style={{ marginTop: "2rem", textAlign: "center" }}>
         <a href="/support">Support</a>

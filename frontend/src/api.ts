@@ -10,6 +10,8 @@ import type {
   Transaction,
   Alert,
   ScreenerResult,
+  CustomQuery,
+  SavedQuery,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -125,3 +127,29 @@ export const getCompliance = (owner: string) =>
   fetchJson<{ owner: string; warnings: string[] }>(
     `${API_BASE}/compliance/${owner}`
   );
+
+/** Execute a custom query against the backend. */
+export const runCustomQuery = (params: CustomQuery) => {
+  const query = new URLSearchParams();
+  if (params.start) query.set("start", params.start);
+  if (params.end) query.set("end", params.end);
+  if (params.owners?.length) query.set("owners", params.owners.join(","));
+  if (params.tickers?.length) query.set("tickers", params.tickers.join(","));
+  if (params.metrics?.length) query.set("metrics", params.metrics.join(","));
+  query.set("format", "json");
+  return fetchJson<Record<string, unknown>[]>(
+    `${API_BASE}/custom-query/run?${query.toString()}`,
+  );
+};
+
+/** Persist a query definition on the backend. */
+export const saveCustomQuery = (name: string, params: CustomQuery) =>
+  fetchJson<{ id: string }>(`${API_BASE}/custom-query/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, ...params }),
+  });
+
+/** List saved queries available on the backend. */
+export const listSavedQueries = () =>
+  fetchJson<SavedQuery[]>(`${API_BASE}/custom-query/saved`);

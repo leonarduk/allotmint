@@ -36,8 +36,8 @@ describe("HoldingsTable", () => {
         },
     ];
 
-    it("displays relative metrics by default", () => {
-        render(<HoldingsTable holdings={holdings}/>);
+    it("displays relative metrics when relativeView is true", () => {
+        render(<HoldingsTable holdings={holdings} relativeView/>);
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.getByText("XYZ")).toBeInTheDocument();
         expect(screen.getByText(/Gain %/)).toBeInTheDocument();

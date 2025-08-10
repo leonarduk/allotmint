@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from backend.local_api.main import app
 from backend.common.instruments import get_instrument_meta
+import backend.common.alerts as alerts
 
 client = TestClient(app)
 
@@ -176,7 +177,9 @@ def test_yahoo_timeseries_html():
     assert ticker.lower() in html
 
 
-def test_alerts_endpoint():
+def test_alerts_endpoint(monkeypatch):
+    alerts._RECENT_ALERTS.clear()
+    monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))
     client.post("/prices/refresh")
     resp = client.get("/alerts")
     assert resp.status_code == 200

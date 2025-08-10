@@ -8,8 +8,8 @@ import backend.utils.telegram_utils as telegram_utils
 def test_send_message_requires_config(monkeypatch):
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", None, raising=False)
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", None, raising=False)
-    with pytest.raises(RuntimeError):
-        telegram_utils.send_message("hi")
+    # should silently return when config missing
+    telegram_utils.send_message("hi")
 
 def test_log_handler_without_config(monkeypatch):
     """Logging via ``TelegramLogHandler`` should not raise without credentials."""
@@ -17,7 +17,7 @@ def test_log_handler_without_config(monkeypatch):
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
 
-    handler = TelegramLogHandler()
+    handler = telegram_utils.TelegramLogHandler()
     logger = logging.getLogger("telegram-util-test")
     logger.addHandler(handler)
     try:

@@ -15,17 +15,17 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend import config
-
+from backend import config as config_module
 from backend.common.constants import (
     ACQUIRED_DATE,
     COST_BASIS_GBP,
     UNITS,
     TICKER,
 )
-from backend.config import config
 from backend.common.data_loader import list_plots, load_account
 from backend.common.holding_utils import enrich_holding
+
+config = config_module.config
 
 
 # ───────────────────────── trades helpers ─────────────────────────
@@ -50,7 +50,7 @@ def load_trades(owner: str) -> List[Dict[str, Any]]:
     """Public helper. Keeps us self-contained so there's no circular dependency."""
     return (
         _load_trades_local(owner)
-        if config.get_config().get("app_env") == "local"
+        if config_module.get_config().get("app_env") == "local"
         else _load_trades_aws(owner)
     )
 

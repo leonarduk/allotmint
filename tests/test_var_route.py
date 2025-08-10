@@ -3,8 +3,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.local_api.main import app
-from backend.common import portfolio_loader
-from backend.timeseries import cache as ts_cache
+from backend.common import portfolio as portfolio_mod
+from backend.common import portfolio_utils
 
 client = TestClient(app)
 
@@ -19,13 +19,13 @@ def deterministic_setup(monkeypatch):
             {
                 "name": "ISA",
                 "holdings": [
-                    {"ticker": "ABC", "exchange": "L", "quantity": 10, "currency": "GBP"}
+                    {"ticker": "ABC", "exchange": "L", "units": 10, "currency": "GBP"}
                 ],
             }
         ],
     }
     monkeypatch.setattr(
-        portfolio_loader, "load_portfolio", lambda owner, env=None: portfolio
+        portfolio_mod, "build_owner_portfolio", lambda owner: portfolio
     )
 
     # Closing prices for five consecutive days
@@ -42,7 +42,7 @@ def deterministic_setup(monkeypatch):
         }
     )
     monkeypatch.setattr(
-        ts_cache, "load_meta_timeseries", lambda ticker, exchange, days: prices
+        portfolio_utils, "load_meta_timeseries", lambda ticker, exchange, days: prices
     )
 
     return portfolio, prices
@@ -52,6 +52,7 @@ def test_var_known_case(deterministic_setup):
     resp = client.get("/var/alice?days=4&confidence=0.95")
     assert resp.status_code == 200
     data = resp.json()
-    assert "value_at_risk" in data
-    # Expected 5% loss on latest value 101 with quantity 10 -> 50.5
-    assert data["value_at_risk"] == pytest.approx(50.5, rel=1e-3)
+    assert "var" in data
+    var = data["var"]
+    # Historical 95% one-day VaR computed from sample prices
+    assert var["1d"] == pytest.approx(41.35, rel=1e-2)

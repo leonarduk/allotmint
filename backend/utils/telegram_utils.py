@@ -14,6 +14,9 @@ import requests
 
 from backend.config import config as app_config
 
+# expose config for tests/backwards compat
+config = app_config
+
 
 def send_message(text: str) -> None:
     """Send `text` to the configured Telegram chat."""

@@ -5,15 +5,18 @@ import { InstrumentDetail } from "./InstrumentDetail";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
-
-const WATCHLIST = ["AAPL", "MSFT", "GOOG", "AMZN", "TSLA"];
+import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 
 export function ScreenerPage() {
+  const [watchlist, setWatchlist] = useState<WatchlistName>("FTSE 100");
   const {
     data: rows,
     loading,
     error,
-  } = useFetch<ScreenerResult[]>(() => getScreener(WATCHLIST), []);
+  } = useFetch<ScreenerResult[]>(
+    () => getScreener(WATCHLISTS[watchlist]),
+    [watchlist]
+  );
   const [ticker, setTicker] = useState<string | null>(null);
 
   const { sorted, handleSort } = useSortableTable(rows ?? [], "peg_ratio");
@@ -23,6 +26,18 @@ export function ScreenerPage() {
 
   return (
     <>
+      <select
+        value={watchlist}
+        onChange={(e) => setWatchlist(e.target.value as WatchlistName)}
+        style={{ marginBottom: "0.5rem" }}
+      >
+        {(Object.keys(WATCHLISTS) as WatchlistName[]).map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+
       <table className={tableStyles.table}>
         <thead>
           <tr>

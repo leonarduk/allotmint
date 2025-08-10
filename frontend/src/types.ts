@@ -103,6 +103,17 @@ export interface Transaction {
     shares?: number | null;
 }
 
+export interface PriceEntry {
+    Date: string;
+    Open?: number | null;
+    High?: number | null;
+    Low?: number | null;
+    Close?: number | null;
+    Volume?: number | null;
+    Ticker?: string;
+    Source?: string;
+}
+
 export type Alert = {
     ticker: string;
     change_pct: number;

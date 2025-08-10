@@ -1,9 +1,10 @@
 import logging
-import os
 from datetime import date, timedelta
 
 import pandas as pd
 import requests
+
+from backend.config import config
 
 # Setup logger
 logger = logging.getLogger("alphavantage_timeseries")
@@ -36,7 +37,7 @@ def fetch_alphavantage_timeseries_range(
 ) -> pd.DataFrame:
     """Fetch historical Alpha Vantage data using a date range."""
     symbol = _build_symbol(ticker, exchange)
-    key = api_key or os.getenv("ALPHAVANTAGE_API_KEY", "demo")
+    key = api_key or config.alpha_vantage_key or "demo"
 
     params = {
         "function": "TIME_SERIES_DAILY_ADJUSTED",

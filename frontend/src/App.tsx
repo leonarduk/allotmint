@@ -27,6 +27,7 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { Screener } from "./pages/Screener";
+import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
@@ -79,13 +80,32 @@ export default function App() {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
+  const [backendUnavailable, setBackendUnavailable] = useState(false);
+
+  const ownersReq = useFetchWithRetry(getOwners);
+  const groupsReq = useFetchWithRetry(getGroups);
+
+  useEffect(() => {
+    if (ownersReq.data) setOwners(ownersReq.data);
+  }, [ownersReq.data]);
   // Toggle between showing absolute or relative positions in holdings tables
   const [relativeView, setRelativeView] = useState(true);
 
   useEffect(() => {
-    getOwners().then(setOwners).catch((e) => setErr(String(e)));
-    getGroups().then(setGroups).catch((e) => setErr(String(e)));
-  }, []);
+    if (groupsReq.data) setGroups(groupsReq.data);
+  }, [groupsReq.data]);
+
+  useEffect(() => {
+    if (ownersReq.error || groupsReq.error) {
+      setBackendUnavailable(true);
+    }
+  }, [ownersReq.error, groupsReq.error]);
+
+  useEffect(() => {
+    if (ownersReq.data && groupsReq.data) {
+      setBackendUnavailable(false);
+    }
+  }, [ownersReq.data, groupsReq.data]);
   // redirect to defaults if no selection provided
   useEffect(() => {
     if (mode === "owner" && !selectedOwner && owners.length) {
@@ -147,6 +167,13 @@ export default function App() {
     }
   }
 
+  if (backendUnavailable) {
+    return (
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+        Backend unavailable—retrying…
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
@@ -225,7 +252,7 @@ export default function App() {
       )}
 
       {/* GROUP VIEW */}
-      {mode === "group" && (
+      {mode === "group" && groups.length > 0 && (
         <>
           <GroupSelector
             groups={groups}
@@ -258,7 +285,7 @@ export default function App() {
       )}
 
       {/* INSTRUMENT VIEW */}
-      {mode === "instrument" && (
+      {mode === "instrument" && groups.length > 0 && (
         <>
           <GroupSelector
             groups={groups}

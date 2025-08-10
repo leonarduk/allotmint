@@ -23,8 +23,9 @@ def test_fetch_fundamentals_parses_values(monkeypatch):
         assert params["symbol"] == "aapl"
         return MockResp()
 
-    monkeypatch.setenv("ALPHAVANTAGE_API_KEY", "demo")
-    monkeypatch.setattr("backend.screener.ALPHA_VANTAGE_KEY", "demo")
+    from backend import config
+
+    monkeypatch.setattr(config.settings, "alpha_vantage_key", "demo")
     monkeypatch.setattr("backend.screener.requests.get", mock_get)
 
     f = fetch_fundamentals("aapl")

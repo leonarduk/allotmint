@@ -28,4 +28,12 @@ describe("TimeseriesEdit page", () => {
     expect(saveTimeseries).toHaveBeenCalled();
     expect(getTimeseries).toHaveBeenCalledWith("ABC", "L");
   });
+
+  it("prefills ticker and exchange from URL", async () => {
+    window.history.pushState({}, "", "/timeseries?ticker=XYZ&exchange=US");
+    render(<TimeseriesEdit />);
+    expect(await screen.findByDisplayValue("XYZ")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("US")).toBeInTheDocument();
+    window.history.pushState({}, "", "/");
+  });
 });

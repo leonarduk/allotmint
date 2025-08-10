@@ -3,6 +3,7 @@ import os
 from datetime import date, datetime
 from pathlib import Path
 
+from backend.config import config
 from positions import extract_holdings_from_transactions
 
 
@@ -16,7 +17,7 @@ def normalize_account(account: str) -> tuple[str, str]:
     return "unknown", "unknown"
 
 
-def generate_json_holdings(xml_path: str, output_base_dir: str):
+def generate_json_holdings(xml_path: str, output_base_dir: str | Path = config.accounts_root):
     df = extract_holdings_from_transactions(xml_path, by_account=True)
 
     # Add 'owner' and 'account_type' from account column
@@ -38,8 +39,10 @@ def generate_json_holdings(xml_path: str, output_base_dir: str):
             try:
                 acq_date = datetime.fromisoformat(acq_date_raw)
                 days_held = (datetime.today() - acq_date).days
-                sell_eligible = days_held >= 30
-                days_until_eligible = None if sell_eligible else max(0, 30 - days_held)
+                sell_eligible = days_held >= config.hold_days_min
+                days_until_eligible = (
+                    None if sell_eligible else max(0, config.hold_days_min - days_held)
+                )
             except Exception:
                 days_held = None
                 sell_eligible = False

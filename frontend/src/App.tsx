@@ -325,6 +325,8 @@ export default function App() {
       {mode === "query" && <QueryPage />}
 
       <p style={{ marginTop: "2rem", textAlign: "center" }}>
+        <a href="/virtual">Virtual Portfolios</a>
+        {" • "}
         <a href="/support">{t("app.supportLink")}</a>
       </p>
     </div>

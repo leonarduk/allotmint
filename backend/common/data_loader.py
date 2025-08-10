@@ -1,32 +1,18 @@
 from __future__ import annotations
 
-"""
-Data loading helpers for AllotMint.
+"""Data loading helpers for AllotMint."""
 
-Supports two environments:
-- local: read from data/accounts/<owner>/
-- aws:   (future) read from S3
-
-Functions exported:
-- list_plots() -> [{owner, accounts:[...]}, ...]
-- load_account(owner, account) -> dict (parsed JSON)
-- load_person_meta(owner) -> dict (parsed JSON or {})
-
-The "account name" is derived from the filename stem (isa.json -> "isa").
-Metadata files (person.json, config.json, notes.json) are ignored.
-Duplicate names (case-insensitive) are deduped in discovery.
-"""
-
-import pathlib
+from pathlib import Path
+import json
 from typing import Any, Dict, List
 
-from backend import config
+from backend.config import config
 
 # ------------------------------------------------------------------
 # Paths
 # ------------------------------------------------------------------
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_LOCAL_PLOTS_ROOT = _REPO_ROOT / "data" / "accounts"
+REPO_ROOT = Path(config.repo_root)
+DATA_ROOT = Path(config.accounts_root)
 
 # For future AWS use
 DATA_BUCKET_ENV = "DATA_BUCKET"
@@ -41,30 +27,26 @@ _METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
 
 def _list_local_plots() -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
-    if not _LOCAL_PLOTS_ROOT.exists():
+    if not DATA_ROOT.exists():
         return results
 
-    for owner_dir in sorted(_LOCAL_PLOTS_ROOT.iterdir()):
+    for owner_dir in sorted(DATA_ROOT.iterdir()):
         if not owner_dir.is_dir():
             continue
 
         acct_names: List[str] = []
         for f in sorted(owner_dir.iterdir()):
-            if not f.is_file():
-                continue
-            # CSV ignored for account discovery (trades)
-            if f.suffix.lower() != ".json":
+            if not f.is_file() or f.suffix.lower() != ".json":
                 continue
 
-            stem = f.stem  # original (preserve case for display)
-            stem_l = stem.lower()
-            if stem_l in _METADATA_STEMS:
+            stem = f.stem
+            if stem.lower() in _METADATA_STEMS:
                 continue
 
             acct_names.append(stem)
 
         # Dedupe case-insensitive, preserve first occurrence order
-        seen = set()
+        seen: set[str] = set()
         dedup: List[str] = []
         for a in acct_names:
             al = a.lower()
@@ -92,40 +74,16 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
 # ------------------------------------------------------------------
 # Public discovery API
 # ------------------------------------------------------------------
-from pathlib import Path
-import json
-
-DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "accounts"
-
-# backend/common/data_loader.py  (or wherever list_plots lives)
-
-from pathlib import Path
-import json
-
-DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "accounts"
-
-# backend/common/data_loader.py
-def list_plots() -> list[dict]:
-    owners: list[dict] = []
-    for owner_dir in DATA_ROOT.iterdir():
-        if not (owner_dir / "person.json").exists():
-            continue          # skip stray folders
-        # ── person metadata ──────────────────────────────
-        person = json.loads((owner_dir / "person.json").read_text())
-        # ── account files  (anything *.json except person.json) ──
-        accounts = [
-            f.stem             # "isa", "sipp", ...
-            for f in owner_dir.glob("*.json")
-            if f.name != "person.json"
-        ]
-        owners.append({**person, "accounts": accounts})
-    return owners
+def list_plots() -> List[Dict[str, Any]]:
+    if config.app_env == "aws":
+        return _list_aws_plots()
+    return _list_local_plots()
 
 
 # ------------------------------------------------------------------
 # Load JSON w/ safe parser (strip BOM, allow empty)
 # ------------------------------------------------------------------
-def _safe_json_load(path: pathlib.Path) -> Dict[str, Any]:
+def _safe_json_load(path: Path) -> Dict[str, Any]:
     if not path.exists() or path.stat().st_size == 0:
         raise FileNotFoundError(str(path))
     with open(path, "r", encoding="utf-8-sig") as f:  # utf-8-sig strips BOM
@@ -139,25 +97,26 @@ def _safe_json_load(path: pathlib.Path) -> Dict[str, Any]:
 # Account loaders
 # ------------------------------------------------------------------
 def load_account(owner: str, account: str) -> Dict[str, Any]:
-    if config.get_config().get("app_env") == "aws":
+    if config.app_env == "aws":
         # TODO: S3
         raise FileNotFoundError(
             f"AWS account loading not implemented: {owner}/{account}"
         )
 
-    path = _LOCAL_PLOTS_ROOT / owner / f"{account}.json"
+    path = DATA_ROOT / owner / f"{account}.json"
     return _safe_json_load(path)
 
 
 def load_person_meta(owner: str) -> Dict[str, Any]:
     """Load per-owner metadata (dob, etc.). Returns {} if not found."""
-    if config.get_config().get("app_env") == "aws":
+    if config.app_env == "aws":
         # TODO: S3
         return {}
-    path = _LOCAL_PLOTS_ROOT / owner / "person.json"
+    path = DATA_ROOT / owner / "person.json"
     if not path.exists():
         return {}
     try:
         return _safe_json_load(path)
     except Exception:
         return {}
+

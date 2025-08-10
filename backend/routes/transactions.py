@@ -7,18 +7,22 @@ from typing import List, Optional
 
 from fastapi import APIRouter
 
-router = APIRouter(tags=["transactions"])
+from backend.config import config
 
-_DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "accounts"
+router = APIRouter(tags=["transactions"])
 
 
 def _load_all_transactions() -> List[dict]:
     results: List[dict] = []
-    if not _DATA_ROOT.exists():
+    if not config.accounts_root:
+        return results
+
+    data_root = Path(config.accounts_root)
+    if not data_root.exists():
         return results
 
     # files look like data/accounts/<owner>/<ACCOUNT>_transactions.json
-    for path in _DATA_ROOT.glob("*/*_transactions.json"):
+    for path in data_root.glob("*/*_transactions.json"):
         try:
             data = json.loads(path.read_text())
         except Exception:

@@ -117,6 +117,31 @@ export function InstrumentDetail({
     };
   });
 
+  // 7d / 30d change calculations
+  const latestClose = rawPrices[rawPrices.length - 1]?.close_gbp ?? NaN;
+
+  const lookup = (days: number): number => {
+    if (!rawPrices.length) return NaN;
+    const target = new Date(rawPrices[rawPrices.length - 1].date);
+    target.setDate(target.getDate() - days);
+    for (let i = rawPrices.length - 1; i >= 0; i--) {
+      const d = new Date(rawPrices[i].date);
+      if (d <= target) return rawPrices[i].close_gbp;
+    }
+    return NaN;
+  };
+
+  const close7 = lookup(7);
+  const close30 = lookup(30);
+  const change7dPct =
+    Number.isFinite(latestClose) && Number.isFinite(close7)
+      ? ((latestClose / close7 - 1) * 100)
+      : NaN;
+  const change30dPct =
+    Number.isFinite(latestClose) && Number.isFinite(close30)
+      ? ((latestClose / close30 - 1) * 100)
+      : NaN;
+
   const positions = data.positions ?? [];
 
   return (
@@ -138,11 +163,36 @@ export function InstrumentDetail({
         ✕
       </button>
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
-      <div style={{ fontSize: "0.85rem", color: "#aaa", marginBottom: "1rem" }}>
+      <div style={{ fontSize: "0.85rem", color: "#aaa" }}>
         {ticker} • {displayCurrency} • {instrument_type ?? "?"} • {" "}
         <Link to={editLink} style={{ color: "#00d8ff", textDecoration: "none" }}>
           edit
         </Link>
+      </div>
+      <div style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
+        <span
+          style={{
+            color: Number.isFinite(change7dPct)
+              ? change7dPct >= 0
+                ? "lightgreen"
+                : "red"
+              : undefined,
+          }}
+        >
+          7d {percent(change7dPct, 1)}
+        </span>
+        {" • "}
+        <span
+          style={{
+            color: Number.isFinite(change30dPct)
+              ? change30dPct >= 0
+                ? "lightgreen"
+                : "red"
+              : undefined,
+          }}
+        >
+          30d {percent(change30dPct, 1)}
+        </span>
       </div>
 
       {/* Chart */}

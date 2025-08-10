@@ -1,6 +1,9 @@
 import pytest
 from backend.common import portfolio_utils
 
+from backend.common import portfolio_utils
+from backend.agent.trading_agent import send_trade_alert
+
 # Alias to match the terminology of "generate_signals"
 generate_signals = portfolio_utils.check_price_alerts
 
@@ -23,6 +26,7 @@ def test_generate_signals_buy_sell_actions(monkeypatch):
 
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", snapshot)
     monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [portfolio])
+    monkeypatch.setattr("backend.common.alerts.publish_alert", lambda alert: None)
 
     alerts = generate_signals(threshold_pct=0.05)
     assert len(alerts) == 2

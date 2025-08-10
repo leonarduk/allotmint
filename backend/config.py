@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any, overload
 import yaml
 
 
-@dataclass(frozen=True)
+@dataclass
 class Config:
     # basic app environment
     app_env: Optional[str] = None
@@ -34,7 +34,7 @@ class Config:
     offline_mode: Optional[bool] = None
     timeseries_cache_base: Optional[str] = None
     alpha_vantage_key: Optional[str] = None
-    alpha_vantage_fundamentals_cache_ttl_seconds: Optional[int] = None
+    fundamentals_cache_ttl_seconds: Optional[int] = None
 
     # new vars
     max_trades_per_month: Optional[int] = None
@@ -80,8 +80,8 @@ def load_config() -> Config:
         offline_mode=data.get("offline_mode"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
-        alpha_vantage_fundamentals_cache_ttl_seconds=data.get(
-            "alpha_vantage_fundamentals_cache_ttl_seconds"
+        fundamentals_cache_ttl_seconds=data.get(
+            "fundamentals_cache_ttl_seconds"
         ),
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),
@@ -93,6 +93,7 @@ def load_config() -> Config:
 
 # New-style usage
 config = load_config()
+settings = config
 
 
 # ---- Back-compat helpers ----

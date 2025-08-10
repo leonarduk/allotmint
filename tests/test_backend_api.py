@@ -7,6 +7,9 @@ import backend.common.alerts as alerts
 
 client = TestClient(app)
 
+# ensure alerts do not raise due to missing config
+alerts.config.sns_topic_arn = "arn:dummy"
+
 
 def validate_timeseries(prices):
     assert isinstance(prices, list)
@@ -232,7 +235,7 @@ def test_var_endpoint_default():
     resp = client.get(f"/var/{owner}")
     assert resp.status_code == 200
     data = resp.json()
-    assert "value_at_risk" in data
+    assert "var" in data and isinstance(data["var"], dict)
 
 
 @pytest.mark.parametrize("days,confidence", [(10, 0.9), (30, 0.99)])
@@ -243,6 +246,7 @@ def test_var_endpoint_params(days, confidence):
     resp = client.get(f"/var/{owner}?days={days}&confidence={confidence}")
     assert resp.status_code == 200
     data = resp.json()
-    assert "value_at_risk" in data
-    assert data.get("days") == days
-    assert data.get("confidence") == confidence
+    assert "var" in data
+    var = data["var"]
+    assert var.get("window_days") == days
+    assert var.get("confidence") == confidence

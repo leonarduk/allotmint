@@ -221,3 +221,25 @@ def test_screener_endpoint(monkeypatch):
     data = resp.json()
     assert len(data) == 1
     assert data[0]["ticker"] == "AAA"
+
+def test_var_endpoint_default():
+    owners = client.get("/owners").json()
+    assert owners, "No owners returned"
+    owner = owners[0]["owner"]
+    resp = client.get(f"/var/{owner}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "value_at_risk" in data
+
+
+@pytest.mark.parametrize("days,confidence", [(10, 0.9), (30, 0.99)])
+def test_var_endpoint_params(days, confidence):
+    owners = client.get("/owners").json()
+    assert owners, "No owners returned"
+    owner = owners[0]["owner"]
+    resp = client.get(f"/var/{owner}?days={days}&confidence={confidence}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "value_at_risk" in data
+    assert data.get("days") == days
+    assert data.get("confidence") == confidence

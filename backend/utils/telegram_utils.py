@@ -2,9 +2,10 @@
 
 This module exposes a small helper function and a logging handler that forward
 messages to a Telegram chat. The bot token and chat identifier are read from
-the ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` environment variables.  An
-exception is raised if the credentials are missing so callers can surface
-configuration issues to the user.
+the ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` environment variables.  If
+the credentials are missing the helper functions simply skip sending so that
+applications can continue operating without requiring Telegram to be
+configured.
 """
 
 from __future__ import annotations
@@ -17,17 +18,22 @@ import requests
 def send_message(text: str) -> None:
     """Send ``text`` to the configured Telegram chat.
 
-    The function requires ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` to be
-    present in the environment.  Any failure to contact the Telegram API will
-    result in the raised ``requests.RequestException`` bubbling up to the
-    caller so that it can be surfaced appropriately.
+    The function reads ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` from the
+    environment. If either is missing the function returns without performing
+    any network requests.  Any failure to contact the Telegram API will result
+    in the raised ``requests.RequestException`` bubbling up to the caller so
+    that it can be surfaced appropriately.
     """
 
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
     if not token or not chat_id:
-        raise RuntimeError("missing Telegram configuration")
+        # Silently return when configuration is missing.  ``logging`` may be
+        # configured with :class:`TelegramLogHandler` as one of its handlers and
+        # emitting a log message here could result in an infinite loop.  Instead
+        # we simply skip sending the message.
+        return
 
     response = requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage",

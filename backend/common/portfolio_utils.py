@@ -347,11 +347,17 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                                         start_date=cutoff, end_date=today)
 
             if df is not None and not df.empty:
-                latest_row = df.iloc[-1]
-                snapshot[t] = {
-                    "last_price":     float(latest_row["close"]),
-                    "last_price_date": latest_row["Date"].strftime("%Y-%m-%d"),
-                }
+                # Map lowercase column names to their actual counterparts
+                name_map = {c.lower(): c for c in df.columns}
+
+                # Access the close column in a case-insensitive manner
+                if "close" in name_map:
+                    latest_row = df.iloc[-1]
+                    close_col = name_map["close"]
+                    snapshot[t] = {
+                        "last_price": float(latest_row[close_col]),
+                        "last_price_date": latest_row["Date"].strftime("%Y-%m-%d"),
+                    }
         except Exception as e:
             logger.warning("Could not get timeseries for %s: %s", t, e)
 

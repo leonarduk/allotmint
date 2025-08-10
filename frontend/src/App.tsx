@@ -91,8 +91,6 @@ export default function App() {
   useEffect(() => {
     if (ownersReq.data) setOwners(ownersReq.data);
   }, [ownersReq.data]);
-  // Toggle between showing absolute or relative positions in holdings tables
-  const [relativeView, setRelativeView] = useState(true);
 
   useEffect(() => {
     if (groupsReq.data) setGroups(groupsReq.data);

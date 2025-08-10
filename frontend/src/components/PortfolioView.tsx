@@ -1,5 +1,6 @@
 import type {Portfolio} from "../types";
 import {AccountBlock} from "./AccountBlock";
+import {ValueAtRisk} from "./ValueAtRisk";
 import {money} from "../lib/money";
 import i18n from "../i18n";
 
@@ -35,6 +36,7 @@ export function PortfolioView({data, loading, error, relativeView = false}: Prop
             <div style={{marginBottom: "2rem"}}>
                 Approx Total: {money(data.total_value_estimate_gbp)}
             </div>
+            <ValueAtRisk owner={data.owner}/>
             {/* Each account is rendered using AccountBlock for clarity */}
             {data.accounts.map((acct) => (
                 <AccountBlock key={acct.account_type} account={acct} relativeView={relativeView}/>

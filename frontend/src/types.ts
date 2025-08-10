@@ -91,6 +91,11 @@ export interface PerformancePoint {
     cumulative_return?: number | null;
 }
 
+export interface ValueAtRiskPoint {
+    date: string;
+    var: number;
+}
+
 export interface Transaction {
     owner: string;
     account: string;

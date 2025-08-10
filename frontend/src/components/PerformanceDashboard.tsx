@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { getPerformance } from "../api";
-import type { PerformancePoint } from "../types";
+import { getPerformance, getValueAtRisk } from "../api";
+import type { PerformancePoint, ValueAtRiskPoint } from "../types";
 import { percent } from "../lib/money";
 import i18n from "../i18n";
 
@@ -11,6 +11,7 @@ type Props = {
 
 export function PerformanceDashboard({ owner }: Props) {
   const [data, setData] = useState<PerformancePoint[]>([]);
+  const [varData, setVarData] = useState<ValueAtRiskPoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
 
@@ -18,9 +19,16 @@ export function PerformanceDashboard({ owner }: Props) {
     if (!owner) return;
     setErr(null);
     setData([]);
+    setVarData([]);
     const reqDays = days === 0 ? 36500 : days;
-    getPerformance(owner, reqDays)
-      .then(setData)
+    Promise.all([
+      getPerformance(owner, reqDays),
+      getValueAtRisk(owner, { days: reqDays, confidence: 95 }),
+    ])
+      .then(([perf, varSeries]) => {
+        setData(perf);
+        setVarData(varSeries);
+      })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, [owner, days]);
 
@@ -68,6 +76,16 @@ export function PerformanceDashboard({ owner }: Props) {
             stroke="#82ca9d"
             dot={false}
           />
+        </LineChart>
+      </ResponsiveContainer>
+
+      <h2 style={{ marginTop: "2rem" }}>Value at Risk (95%)</h2>
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={varData}>
+          <XAxis dataKey="date" />
+          <YAxis />
+          <Tooltip />
+          <Line type="monotone" dataKey="var" stroke="#ff7300" dot={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>

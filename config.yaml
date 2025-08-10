@@ -1,3 +1,4 @@
+app_env: local
 sns_topic_arn: ""
 telegram_bot_token: "8491288399:AAGRRuCJtctSQ2igqnW56BxQ3L_c0Jsi_nA"
 telegram_chat_id: "335560124"

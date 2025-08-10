@@ -10,7 +10,9 @@ import yaml
 
 @dataclass(frozen=True)
 class Config:
-    # messaging / alerts
+    app_env: Optional[str] = None
+
+      # messaging / alerts
     sns_topic_arn: Optional[str] = None
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
@@ -52,6 +54,7 @@ def load_config() -> Config:
             pass
 
     return Config(
+        app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
         telegram_bot_token=data.get("telegram_bot_token"),
         telegram_chat_id=data.get("telegram_chat_id"),

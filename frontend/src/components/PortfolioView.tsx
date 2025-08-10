@@ -1,5 +1,6 @@
 import type {Portfolio} from "../types";
 import {AccountBlock} from "./AccountBlock";
+import {ValueAtRisk} from "./ValueAtRisk";
 
 // Props accepted by the view. `data` is null until a portfolio is loaded.
 type Props = {
@@ -36,6 +37,7 @@ export function PortfolioView({data, loading, error, relativeView = false}: Prop
                 maximumFractionDigits: 2,
             })}
             </div>
+            <ValueAtRisk owner={data.owner}/>
             {/* Each account is rendered using AccountBlock for clarity */}
             {data.accounts.map((acct) => (
                 <AccountBlock key={acct.account_type} account={acct} relativeView={relativeView}/>

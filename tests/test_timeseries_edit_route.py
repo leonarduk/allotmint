@@ -2,10 +2,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.config import config
 
 
 def test_timeseries_edit_roundtrip(tmp_path, monkeypatch):
-    monkeypatch.setenv("ALLOTMINT_SKIP_SNAPSHOT_WARM", "true")
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     app = create_app()
     client = TestClient(app)

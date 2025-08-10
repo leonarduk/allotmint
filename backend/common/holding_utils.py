@@ -193,8 +193,15 @@ def get_effective_cost_basis_gbp(
     If booked cost exists, use it. Otherwise derive:
       units * (close near acquisition OR latest cache price).
     """
-    units = float(h.get(UNITS, 0) or 0)
-    booked = float(h.get(COST_BASIS_GBP) or 0.0)
+    units = float(h.get(UNITS) or 0.0)
+    if units <= 0:
+        return 0.0
+
+    booked_raw = h.get(COST_BASIS_GBP)
+    try:
+        booked = float(booked_raw) if booked_raw is not None else 0.0
+    except (TypeError, ValueError):
+        booked = 0.0
     if booked > 0:
         return round(booked, 2)
 
@@ -282,6 +289,25 @@ def enrich_holding(
 
     out["currency"] = meta.get("currency")
     out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type")
+
+    units = float(out.get(UNITS, 0) or 0.0)
+    if units <= 0:
+        out.setdefault(COST_BASIS_GBP, None)
+        out[EFFECTIVE_COST_BASIS_GBP] = 0.0
+        out["market_value_gbp"] = 0.0
+        out["gain_gbp"] = 0.0
+        out["unrealised_gain_gbp"] = 0.0
+        out["unrealized_gain_gbp"] = 0.0
+        out["gain_pct"] = None
+        out["day_change_gbp"] = 0.0
+        out["days_held"] = None
+        out["sell_eligible"] = False
+        out["eligible_on"] = None
+        out["days_until_eligible"] = None
+        out["price"] = None
+        out["current_price_gbp"] = None
+        out["cost_basis_source"] = "none"
+        return out
 
     # default acquired date if missing
     if out.get(ACQUIRED_DATE) is None:

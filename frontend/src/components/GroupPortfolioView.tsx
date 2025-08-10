@@ -17,12 +17,18 @@ type Props = {
   slug: string;
   /** when clicking an owner you may want to jump to the member tab */
   onSelectMember?: (owner: string) => void;
+  /**
+   * Toggle for displaying absolute columns like Units/Cost/Gain in the
+   * holdings tables. When true, those columns are hidden to show relative
+   * percentages instead.
+   */
+  relativeView?: boolean;
 };
 
 /* ────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────── */
-export function GroupPortfolioView({ slug }: Props) {
+export function GroupPortfolioView({ slug, relativeView }: Props) {
   const { data: portfolio, loading, error } = useFetch<GroupPortfolio>(
     () => getGroupPortfolio(slug),
     [slug],
@@ -191,6 +197,7 @@ export function GroupPortfolioView({ slug }: Props) {
 
           <HoldingsTable
             holdings={acct.holdings ?? []}
+            relativeView={relativeView}
             onSelectInstrument={(ticker, name) => setSelected({ ticker, name })}
           />
         </div>

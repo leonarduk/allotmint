@@ -1,0 +1,18 @@
+alpha_vantage_key: "demo"
+fundamentals_cache_ttl_seconds: 86400
+app_env: local
+sns_topic_arn: ""
+telegram_bot_token: "8491288399:AAGRRuCJtctSQ2igqnW56BxQ3L_c0Jsi_nA"
+telegram_chat_id: "335560124"
+portfolio_xml_path: data/portfolio/investments.xml
+transactions_output_root: data/accounts
+app_env: local
+uvicorn_port: 8000
+reload: true
+log_config: backend/logging.ini
+ft_url_template: "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
+selenium_user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+selenium_headless: true
+error_summary:
+  default_command:
+    - pytest

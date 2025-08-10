@@ -12,9 +12,10 @@ Owner-level portfolio builder for AllotMint
 import csv
 import datetime as dt
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from backend import config
 
 from backend.common.constants import (
     ACQUIRED_DATE,
@@ -45,12 +46,13 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
     return []
 
 
-def load_trades(owner: str, env: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Public helper. Keeps us self-contained so there's no circular dependency.
-    """
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
-    return _load_trades_local(owner) if env == "local" else _load_trades_aws(owner)
+def load_trades(owner: str) -> List[Dict[str, Any]]:
+    """Public helper. Keeps us self-contained so there's no circular dependency."""
+    return (
+        _load_trades_local(owner)
+        if config.get_config().get("app_env") == "local"
+        else _load_trades_aws(owner)
+    )
 
 
 # ───────────────────────── generic helpers ───────────────────────
@@ -78,16 +80,15 @@ def list_owners() -> list[str]:
 
 
 # ─────────────────────── owner-level builder ─────────────────────
-def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, Any]:
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
+def build_owner_portfolio(owner: str) -> Dict[str, Any]:
     today = dt.date.today()
 
-    plots = [p for p in list_plots(env=env) if p.get("owner") == owner]
+    plots = [p for p in list_plots() if p.get("owner") == owner]
     if not plots:
         raise FileNotFoundError(f"No plot for owner '{owner}'")
     accounts_meta = plots[0].get("accounts", [])
 
-    trades = load_trades(owner, env=env)
+    trades = load_trades(owner)
     trades_this = 0
     for t in trades:
         d = _parse_date(t.get("date"))
@@ -99,7 +100,7 @@ def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, An
 
     accounts: List[Dict[str, Any]] = []
     for meta in accounts_meta:
-        raw = load_account(owner, meta, env=env)
+        raw = load_account(owner, meta)
         holdings_raw = raw.get("holdings", [])
 
         enriched = [

@@ -97,6 +97,27 @@ def test_instrument_detail(mock_list, mock_build, mock_positions, mock_timeserie
     assert "prices" in response.json()
     assert "positions" in response.json()
 
+
+@patch("backend.common.risk.compute_portfolio_var", return_value={"1d": 100.0, "10d": 200.0})
+def test_var_endpoint(mock_var):
+    response = client.get("/var/steve")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["owner"] == "steve"
+    assert payload["var"] == {"1d": 100.0, "10d": 200.0}
+
+
+@patch("backend.common.risk.compute_portfolio_var", side_effect=FileNotFoundError)
+def test_var_owner_not_found(mock_var):
+    response = client.get("/var/missing")
+    assert response.status_code == 404
+
+
+@patch("backend.common.risk.compute_portfolio_var", side_effect=ValueError("bad"))
+def test_var_invalid_params(mock_var):
+    response = client.get("/var/steve?confidence=2")
+    assert response.status_code == 400
+
 @patch("backend.timeseries.fetch_timeseries.fetch_yahoo_timeseries")
 @patch("backend.utils.html_render.render_timeseries_html", return_value="<html>OK</html>")
 def test_get_timeseries_html(mock_render, mock_fetch):

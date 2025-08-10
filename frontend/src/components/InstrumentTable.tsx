@@ -1,15 +1,19 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
-import { money } from "../lib/money";
+import { useFilterableTable } from "../hooks/useFilterableTable";
+import { money, percent } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
+import i18n from "../i18n";
 
 type Props = {
     rows: InstrumentSummary[];
 };
 
 export function InstrumentTable({ rows }: Props) {
+    const { t } = useTranslation();
     const [selected, setSelected] = useState<InstrumentSummary | null>(null);
 
     const rowsWithCost = rows.map((r) => {
@@ -23,11 +27,15 @@ export function InstrumentTable({ rows }: Props) {
         return { ...r, cost, gain_pct };
     });
 
-    const { sorted, sortKey, asc, handleSort } = useSortableTable(rowsWithCost, "ticker");
+    const { rows: sorted, sortKey, asc, handleSort } = useFilterableTable(
+        rowsWithCost,
+        "ticker",
+        {}
+    );
 
     /* no data? – render a clear message instead of an empty table */
     if (!rowsWithCost.length) {
-        return <p>No instruments found for this group.</p>;
+        return <p>{t("instrumentTable.noInstruments")}</p>;
     }
 
     return (
@@ -42,45 +50,45 @@ export function InstrumentTable({ rows }: Props) {
                             className={`${tableStyles.cell} ${tableStyles.clickable}`}
                             onClick={() => handleSort("ticker")}
                         >
-                            Ticker
+                            {t("instrumentTable.columns.ticker")}
                             {sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.clickable}`}
                             onClick={() => handleSort("name")}
                         >
-                            Name
+                            {t("instrumentTable.columns.name")}
                             {sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
-                        <th className={tableStyles.cell}>CCY</th>
-                        <th className={tableStyles.cell}>Type</th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
+                        <th className={tableStyles.cell}>{t("instrumentTable.columns.ccy")}</th>
+                        <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.units")}</th>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                             onClick={() => handleSort("cost")}
                         >
-                            Cost £
+                            {t("instrumentTable.columns.cost")}
                             {sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.market")}</th>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                             onClick={() => handleSort("gain")}
                         >
-                            Gain £
+                            {t("instrumentTable.columns.gain")}
                             {sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
                         <th
                             className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                             onClick={() => handleSort("gain_pct")}
                         >
-                            Gain %
+                            {t("instrumentTable.columns.gainPct")}
                             {sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
                         </th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Last £</th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Last&nbsp;Date</th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ&nbsp;7&nbsp;d&nbsp;%</th>
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ&nbsp;1&nbsp;mo&nbsp;%</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.last")}</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.lastDate")}</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.delta7d")}</th>
+                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.delta30d")}</th>
                     </tr>
                 </thead>
 
@@ -112,7 +120,7 @@ export function InstrumentTable({ rows }: Props) {
                                 <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
                                 <td className={tableStyles.cell}>{r.instrument_type ?? "—"}</td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                                    {r.units.toLocaleString()}
+                                    {new Intl.NumberFormat(i18n.language).format(r.units)}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(r.cost)}</td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
@@ -128,7 +136,7 @@ export function InstrumentTable({ rows }: Props) {
                                     className={`${tableStyles.cell} ${tableStyles.right}`}
                                     style={{ color: r.gain_pct >= 0 ? "lightgreen" : "red" }}
                                 >
-                                    {Number.isFinite(r.gain_pct) ? r.gain_pct.toFixed(1) : "—"}
+                                    {percent(r.gain_pct, 1)}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                     {r.last_price_gbp != null
@@ -136,17 +144,21 @@ export function InstrumentTable({ rows }: Props) {
                                         : "—"}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                                    {r.last_price_date ?? "—"}
+                                    {r.last_price_date
+                                        ? new Intl.DateTimeFormat(i18n.language).format(
+                                              new Date(r.last_price_date),
+                                          )
+                                        : "—"}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                     {r.change_7d_pct == null
                                         ? "—"
-                                        : r.change_7d_pct.toFixed(1)}
+                                        : percent(r.change_7d_pct, 1)}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                     {r.change_30d_pct == null
                                         ? "—"
-                                        : r.change_30d_pct.toFixed(1)}
+                                        : percent(r.change_30d_pct, 1)}
                                 </td>
                             </tr>
                         );

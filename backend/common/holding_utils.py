@@ -9,9 +9,13 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from backend.common.constants import (
-    ACQUIRED_DATE, HOLD_DAYS_MIN, COST_BASIS_GBP, EFFECTIVE_COST_BASIS_GBP,
-    UNITS, TICKER
+    ACQUIRED_DATE,
+    COST_BASIS_GBP,
+    EFFECTIVE_COST_BASIS_GBP,
+    UNITS,
+    TICKER,
 )
+from backend.config import config
 from backend.common.instruments import get_instrument_meta
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import get_scaling_override, apply_scaling
@@ -282,9 +286,11 @@ def enrich_holding(
     if acq:
         days = (today - acq).days
         out["days_held"] = days
-        out["sell_eligible"] = days >= HOLD_DAYS_MIN
-        out["eligible_on"] = (acq + dt.timedelta(days=HOLD_DAYS_MIN)).isoformat()
-        out["days_until_eligible"] = max(0, HOLD_DAYS_MIN - days)
+        out["sell_eligible"] = days >= config.hold_days_min
+        out["eligible_on"] = (
+            acq + dt.timedelta(days=config.hold_days_min)
+        ).isoformat()
+        out["days_until_eligible"] = max(0, config.hold_days_min - days)
     else:
         out["days_held"] = None
         out["sell_eligible"] = False

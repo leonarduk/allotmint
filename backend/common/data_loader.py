@@ -8,18 +8,19 @@ Supports two environments:
 - aws:   (future) read from S3
 
 Functions exported:
-- list_accounts(env=None) -> [{owner, accounts:[...]}, ...]
-- load_account(owner, account, env=None) -> dict (parsed JSON)
-- load_person_meta(owner, env=None) -> dict (parsed JSON or {})
+- list_plots() -> [{owner, accounts:[...]}, ...]
+- load_account(owner, account) -> dict (parsed JSON)
+- load_person_meta(owner) -> dict (parsed JSON or {})
 
 The "account name" is derived from the filename stem (isa.json -> "isa").
 Metadata files (person.json, config.json, notes.json) are ignored.
 Duplicate names (case-insensitive) are deduped in discovery.
 """
 
-import os
 import pathlib
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
+from backend import config
 
 from backend.common.virtual_portfolio import VirtualPortfolio
 
@@ -107,7 +108,7 @@ import json
 DATA_ROOT = Path(__file__).resolve().parents[2] / "data" / "accounts"
 
 # backend/common/data_loader.py
-def list_plots(env: str | None = None) -> list[dict]:   # 👈 keep callers happy
+def list_plots() -> list[dict]:
     owners: list[dict] = []
     for owner_dir in DATA_ROOT.iterdir():
         if not (owner_dir / "person.json").exists():
@@ -140,22 +141,20 @@ def _safe_json_load(path: pathlib.Path) -> Dict[str, Any]:
 # ------------------------------------------------------------------
 # Account loaders
 # ------------------------------------------------------------------
-def load_account(owner: str, account: str, env: Optional[str] = None) -> Dict[str, Any]:
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
-    if env == "aws":
+def load_account(owner: str, account: str) -> Dict[str, Any]:
+    if config.get_config().get("app_env") == "aws":
         # TODO: S3
-        raise FileNotFoundError(f"AWS account loading not implemented: {owner}/{account}")
+        raise FileNotFoundError(
+            f"AWS account loading not implemented: {owner}/{account}"
+        )
 
     path = _LOCAL_PLOTS_ROOT / owner / f"{account}.json"
     return _safe_json_load(path)
 
 
-def load_person_meta(owner: str, env: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Load per-owner metadata (dob, etc.). Returns {} if not found.
-    """
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
-    if env == "aws":
+def load_person_meta(owner: str) -> Dict[str, Any]:
+    """Load per-owner metadata (dob, etc.). Returns {} if not found."""
+    if config.get_config().get("app_env") == "aws":
         # TODO: S3
         return {}
     path = _LOCAL_PLOTS_ROOT / owner / "person.json"

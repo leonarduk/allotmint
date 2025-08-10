@@ -22,6 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from backend.common.portfolio_loader import list_portfolios
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.common.portfolio_utils import get_security_meta
+from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
 # Group the instrument endpoints under their own router to keep ``app.py``
 # tidy and allow reuse across different deployment targets.
@@ -177,10 +178,22 @@ async def instrument(
     if "Close_gbp" not in df.columns and "Close" in df.columns:
         df["Close_gbp"] = df["Close"]
 
+    # Apply instrument-specific scaling
+    scale = get_scaling_override(tkr, exch, None)
+    if scale != 1.0:
+        df = apply_scaling(df, scale)
+        if "Close_gbp" in df.columns:
+            df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+
     df = df[pd.notnull(df["Close"])]
 
     last_close = float(df.iloc[-1]["Close_gbp"])
     positions = _positions_for_ticker(ticker.upper(), last_close)
+
+    if scale != 1.0:
+        for p in positions:
+            if p.get("unrealised_gain_gbp") is not None:
+                p["unrealised_gain_gbp"] = p["unrealised_gain_gbp"] * scale
 
     # ── JSON ───────────────────────────────────────────────────
     if format == "json":

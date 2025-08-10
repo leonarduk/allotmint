@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { getPerformance, getValueAtRisk } from "../api";
 import type { PerformancePoint, ValueAtRiskPoint } from "../types";
+import { percent } from "../lib/money";
+import i18n from "../i18n";
 
 type Props = {
   owner: string | null;
@@ -66,8 +68,8 @@ export function PerformanceDashboard({ owner }: Props) {
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>
           <XAxis dataKey="date" />
-          <YAxis tickFormatter={(v) => `${(v * 100).toFixed(2)}%`} />
-          <Tooltip formatter={(v: number) => `${(v * 100).toFixed(2)}%`} />
+          <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
+          <Tooltip formatter={(v: number) => percent(v * 100, 2, i18n.language)} />
           <Line
             type="monotone"
             dataKey="cumulative_return"

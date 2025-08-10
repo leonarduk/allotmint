@@ -34,6 +34,23 @@ entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
 All backend Python dependencies live in the top-level `requirements.txt` file.
 Workflows and helper scripts install from this list, so update it when new packages are needed.
 
+## Risk reporting
+
+The backend exposes Value at Risk (VaR) metrics for each portfolio.
+
+* **Defaults** – 95 % confidence over a 1‑day horizon and 99 % over 10 days.
+* **Query** – `GET /var/{owner}?days=30&confidence=0.99` fetches a 30‑day, 99 % VaR.
+* **UI** – VaR surfaces alongside portfolio charts on the performance dashboard.
+
+**Assumptions**
+
+* Historical simulation using daily returns from cached price series.
+* Results reported in GBP.
+* Calculations default to a 365‑day window (`days` parameter).
+
+See [backend/common/portfolio_utils.py](backend/common/portfolio_utils.py) for the return series that feed the calculation
+and [backend/common/constants.py](backend/common/constants.py) for currency labels.
+
 ## Local Quick-start
 
 The project is split into a Python FastAPI backend and a React/TypeScript

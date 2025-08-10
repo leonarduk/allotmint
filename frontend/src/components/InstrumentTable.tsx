@@ -1,9 +1,10 @@
 import { useState } from "react";
 import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
-import { money } from "../lib/money";
+import { money, percent } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
+import i18n from "../i18n";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -112,7 +113,7 @@ export function InstrumentTable({ rows }: Props) {
                                 <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
                                 <td className={tableStyles.cell}>{r.instrument_type ?? "—"}</td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                                    {r.units.toLocaleString()}
+                                    {new Intl.NumberFormat(i18n.language).format(r.units)}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(r.cost)}</td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
@@ -128,7 +129,7 @@ export function InstrumentTable({ rows }: Props) {
                                     className={`${tableStyles.cell} ${tableStyles.right}`}
                                     style={{ color: r.gain_pct >= 0 ? "lightgreen" : "red" }}
                                 >
-                                    {Number.isFinite(r.gain_pct) ? r.gain_pct.toFixed(1) : "—"}
+                                    {percent(r.gain_pct, 1)}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                     {r.last_price_gbp != null
@@ -136,17 +137,21 @@ export function InstrumentTable({ rows }: Props) {
                                         : "—"}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                                    {r.last_price_date ?? "—"}
+                                    {r.last_price_date
+                                        ? new Intl.DateTimeFormat(i18n.language).format(
+                                              new Date(r.last_price_date),
+                                          )
+                                        : "—"}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                     {r.change_7d_pct == null
                                         ? "—"
-                                        : r.change_7d_pct.toFixed(1)}
+                                        : percent(r.change_7d_pct, 1)}
                                 </td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                     {r.change_30d_pct == null
                                         ? "—"
-                                        : r.change_30d_pct.toFixed(1)}
+                                        : percent(r.change_30d_pct, 1)}
                                 </td>
                             </tr>
                         );

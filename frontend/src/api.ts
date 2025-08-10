@@ -10,6 +10,7 @@ import type {
   ValueAtRiskPoint,
   Transaction,
   Alert,
+  PriceEntry,
   ScreenerResult,
 } from "./types";
 
@@ -103,6 +104,18 @@ export const getInstrumentDetail = (ticker: string, days = 365) =>
       ticker
     )}&days=${days}&format=json`
   );
+
+
+export const getTimeseries = (ticker: string, exchange = "L") =>
+  fetchJson<PriceEntry[]>(`${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`);
+
+export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntry[]) =>
+  fetchJson<{ status: string; rows: number }>(`${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rows),
+  });
+
 
 export const getTransactions = (params: {
   owner?: string;

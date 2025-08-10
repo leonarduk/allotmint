@@ -1,33 +1,49 @@
+# backend/common/config.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
+import os
 import yaml
 
 
-@dataclass
+@dataclass(frozen=True)
 class Config:
+    # existing/new keys
     sns_topic_arn: Optional[str] = None
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
 
-
-def _load_config() -> Config:
-    """Load configuration from config.yaml located at project root."""
-    config_path = Path(__file__).resolve().parent.parent / "config.yaml"
-    data = {}
-    if config_path.exists():
-        try:
-            with config_path.open("r", encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-        except Exception:
-            data = {}
-    return Config(
-        sns_topic_arn=data.get("sns_topic_arn"),
-        telegram_bot_token=data.get("telegram_bot_token"),
-        telegram_chat_id=data.get("telegram_chat_id"),
-    )
+    # keys that existed only in the old style
+    ft_url_template: Optional[str] = None
+    selenium_user_agent: Optional[str] = None
+    selenium_headless: Optional[bool] = None
 
 
-config = _load_config()
+def _project_config_path() -> Path:
+    # adjust parents[...] if your file layout differs
+    return Path(__file__).resolve().parents[1] / "config.yaml"
+
+
+def _as_bool(val: Any) -> Optional[bool]:
+    if val is None:
+        return None
+    if isinstance(val, bool):
+        return val
+    s = str(val).strip().lower()
+    if s in {"1", "true", "yes", "y", "on"}:
+        return True
+    if s in {"0", "false", "no", "n", "off"}:
+        return False
+    return None
+
+
+@lru_cache(maxsize=1)
+def load_config() -> Config:
+    """
+    Load configuration from config.yaml with environment-variable overrides.
+
+    Env overrides (upper-case) supported for backward compatibility:
+      - FT_URL_TEM

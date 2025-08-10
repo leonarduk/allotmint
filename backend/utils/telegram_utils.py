@@ -27,7 +27,11 @@ def send_message(text: str) -> None:
     chat_id = config.telegram_chat_id
 
     if not token or not chat_id:
-        raise RuntimeError("missing Telegram configuration")
+        # Silently return when configuration is missing.  ``logging`` may be
+        # configured with :class:`TelegramLogHandler` as one of its handlers and
+        # emitting a log message here could result in an infinite loop.  Instead
+        # we simply skip sending the message.
+        return
 
     response = requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage",

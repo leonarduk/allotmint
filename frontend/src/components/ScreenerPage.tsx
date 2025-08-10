@@ -5,6 +5,7 @@ import { InstrumentDetail } from "./InstrumentDetail";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
+import i18n from "../i18n";
 
 const WATCHLIST = ["AAPL", "MSFT", "GOOG", "AMZN", "TSLA"];
 
@@ -76,7 +77,9 @@ export function ScreenerPage() {
                 {r.de_ratio ?? "—"}
               </td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                {r.fcf != null ? r.fcf.toLocaleString() : "—"}
+                {r.fcf != null
+                  ? new Intl.NumberFormat(i18n.language).format(r.fcf)
+                  : "—"}
               </td>
             </tr>
           ))}

@@ -141,18 +141,21 @@ export interface ScreenerResult {
     fcf: number | null;
 }
 
-export interface SyntheticHolding {
+export interface VirtualHolding {
     ticker: string;
     units: number;
-    price?: number;
-    purchase_date?: string;
+    name?: string;
+    currency?: string | null;
+    exchange?: string | null;
+    cost_gbp?: number;
+    market_value_gbp?: number;
 }
 
 export interface VirtualPortfolio {
-    id?: number;
+    id: string;
     name: string;
-    accounts: string[];
-    holdings: SyntheticHolding[];
+    holdings: VirtualHolding[];
+}
 
 export interface CustomQuery {
     start?: string;

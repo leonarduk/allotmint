@@ -147,7 +147,7 @@ export const getCompliance = (owner: string) =>
 export const getVirtualPortfolios = () =>
   fetchJson<VirtualPortfolio[]>(`${API_BASE}/virtual-portfolios`);
 
-export const getVirtualPortfolio = (id: number | string) =>
+export const getVirtualPortfolio = (id: string) =>
   fetchJson<VirtualPortfolio>(`${API_BASE}/virtual-portfolios/${id}`);
 
 export const createVirtualPortfolio = (vp: VirtualPortfolio) =>
@@ -157,17 +157,14 @@ export const createVirtualPortfolio = (vp: VirtualPortfolio) =>
     body: JSON.stringify(vp),
   });
 
-export const updateVirtualPortfolio = (
-  id: number | string,
-  vp: VirtualPortfolio,
-) =>
-  fetchJson<VirtualPortfolio>(`${API_BASE}/virtual-portfolios/${id}`, {
-    method: "PUT",
+export const updateVirtualPortfolio = (vp: VirtualPortfolio) =>
+  fetchJson<VirtualPortfolio>(`${API_BASE}/virtual-portfolios`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(vp),
   });
 
-export const deleteVirtualPortfolio = (id: number | string) =>
+export const deleteVirtualPortfolio = (id: string) =>
   fetchJson<{ status: string }>(`${API_BASE}/virtual-portfolios/${id}`, {
     method: "DELETE",
   });

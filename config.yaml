@@ -1,3 +1,8 @@
+max_trades_per_month: 20
+hold_days_min: 30
+repo_root: .
+accounts_root: data/accounts
+prices_json: data/prices/latest_prices.json
 offline_mode: false
 timeseries_cache_base: data/timeseries
 alpha_vantage_key: "demo"

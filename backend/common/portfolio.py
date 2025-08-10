@@ -19,20 +19,18 @@ from backend import config
 
 from backend.common.constants import (
     ACQUIRED_DATE,
-    HOLD_DAYS_MIN,
-    MAX_TRADES_PER_MONTH,
-    _PLOTS_ROOT,
     COST_BASIS_GBP,
     UNITS,
     TICKER,
 )
+from backend.config import config
 from backend.common.data_loader import list_plots, load_account
 from backend.common.holding_utils import enrich_holding
 
 
 # ───────────────────────── trades helpers ─────────────────────────
 def _local_trades_path(owner: str) -> Path:
-    return _PLOTS_ROOT / owner / "trades.csv"
+    return Path(config.accounts_root) / owner / "trades.csv"
 
 
 def _load_trades_local(owner: str) -> List[Dict[str, Any]]:
@@ -70,7 +68,7 @@ def _parse_date(s: str | None) -> Optional[dt.date]:
 # ─────────────────────── owners utility ──────────────────────────
 def list_owners() -> list[str]:
     owners: list[str] = []
-    for pf in _PLOTS_ROOT.glob("*/person.json"):
+    for pf in Path(config.accounts_root).glob("*/person.json"):
         try:
             data = json.loads(pf.read_text())
             slug = data.get("owner") or data.get("slug")
@@ -96,7 +94,7 @@ def build_owner_portfolio(owner: str) -> Dict[str, Any]:
         d = _parse_date(t.get("date"))
         if d and d.year == today.year and d.month == today.month:
             trades_this += 1
-    trades_rem = max(0, MAX_TRADES_PER_MONTH - trades_this)
+    trades_rem = max(0, config.max_trades_per_month - trades_this)
 
     price_cache: dict[str, float] = {}
 

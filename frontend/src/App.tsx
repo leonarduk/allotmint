@@ -27,6 +27,9 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { Screener } from "./pages/Screener";
+import { LanguageSwitcher } from "./components/LanguageSwitcher";
+import i18n from "./i18n";
+import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 
 type Mode =
   | "owner"
@@ -34,7 +37,8 @@ type Mode =
   | "instrument"
   | "transactions"
   | "performance"
-  | "screener";
+  | "screener"
+  | "timeseries";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -44,6 +48,7 @@ const initialMode: Mode =
   path[0] === "transactions" ? "transactions" :
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
+  path[0] === "timeseries" ? "timeseries" :
   "group";
 const initialSlug = path[1] ?? "";
 
@@ -74,6 +79,8 @@ export default function App() {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
+  // Toggle between showing absolute or relative positions in holdings tables
+  const [relativeView, setRelativeView] = useState(true);
 
   useEffect(() => {
     getOwners().then(setOwners).catch((e) => setErr(String(e)));
@@ -143,6 +150,7 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+      <LanguageSwitcher />
       <AlertsPanel />
       {/* mode toggle */}
       <div style={{ marginBottom: "1rem" }}>
@@ -154,6 +162,7 @@ export default function App() {
           "performance",
           "transactions",
           "screener",
+          "timeseries",
         ] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
             <input
@@ -223,6 +232,14 @@ export default function App() {
             selected={selectedGroup}
             onSelect={setSelectedGroup}
           />
+          <label style={{ display: "block", margin: "0.5rem 0" }}>
+            <input
+              type="checkbox"
+              checked={relativeView}
+              onChange={(e) => setRelativeView(e.target.checked)}
+            />{" "}
+            Relative view
+          </label>
           <ComplianceWarnings
             owners={
               groups.find((g) => g.slug === selectedGroup)?.members ?? []
@@ -230,6 +247,7 @@ export default function App() {
           />
           <GroupPortfolioView
             slug={selectedGroup}
+            relativeView={relativeView}
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);
@@ -271,6 +289,7 @@ export default function App() {
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
       {mode === "screener" && <Screener />}
+      {mode === "timeseries" && <TimeseriesEdit />}
 
       <p style={{ marginTop: "2rem", textAlign: "center" }}>
         <a href="/support">{t("app.supportLink")}</a>

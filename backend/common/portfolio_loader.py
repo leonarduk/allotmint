@@ -12,9 +12,9 @@ import logging
 from typing import Dict, List
 
 from backend.common.data_loader import (
-    list_plots,          # owner -> ["isa", "sipp", ...]
-    load_account,        # (owner, account) -> parsed JSON
-    load_person_meta,    # (owner) -> {dob, ...}
+    list_plots,  # owner -> ["isa", "sipp", ...]
+    load_account,  # (owner, account) -> parsed JSON
+    load_person_meta,  # (owner) -> {dob, ...}
 )
 
 log = logging.getLogger("portfolio_loader")
@@ -59,21 +59,18 @@ def _build_owner_portfolio(owner_summary: Dict) -> Dict:
 # ────────────────────────────────────────────────────────────────
 # Public API
 # ────────────────────────────────────────────────────────────────
-def list_portfolios(env: str | None = None) -> List[Dict]:
-    """
-    Discover every owner / account on disk (via list_plots) and build a
-    portfolio tree ready for consumption by portfolio_utils, etc.
-    """
+def list_portfolios() -> List[Dict]:
+    """Discover every owner / account on disk and build a portfolio tree."""
     portfolios: List[Dict] = []
-    for owner_row in list_plots(env):
+    for owner_row in list_plots():
         portfolios.append(_build_owner_portfolio(owner_row))
     return portfolios
 
 
 # (Optional) convenience helper - not used by the current backend, but handy.
-def load_portfolio(owner: str, env: str | None = None) -> Dict | None:
+def load_portfolio(owner: str) -> Dict | None:
     """Return a single owner's portfolio tree, or None if owner not found."""
-    for pf in list_portfolios(env):
+    for pf in list_portfolios():
         if pf["owner"].lower() == owner.lower():
             return pf
     return None

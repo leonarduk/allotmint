@@ -35,12 +35,27 @@ export default function Support() {
       <h2>{t("support.environment")}</h2>
       <table style={{ fontSize: "0.9rem" }}>
         <tbody>
-          {envEntries.map(([k, v]) => (
-            <tr key={k}>
-              <td style={{ paddingRight: "0.5rem", fontWeight: 500 }}>{k}</td>
-              <td>{String(v)}</td>
-            </tr>
-          ))}
+          {envEntries.map(([k, v]) => {
+            const value = String(v);
+            if (k === "VITE_API_URL") {
+              const base = value.replace(/\/$/, "");
+              return (
+                <tr key={k}>
+                  <td style={{ paddingRight: "0.5rem", fontWeight: 500 }}>{k}</td>
+                  <td>
+                    <a href={value}>{value}</a>{" "}
+                    <a href={`${base}/docs#/`}>swagger</a>
+                  </td>
+                </tr>
+              );
+            }
+            return (
+              <tr key={k}>
+                <td style={{ paddingRight: "0.5rem", fontWeight: 500 }}>{k}</td>
+                <td>{value}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
       <h2>{t("support.telegramMessage")}</h2>

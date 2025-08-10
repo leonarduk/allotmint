@@ -1,10 +1,7 @@
-Param(
-    [int]$Port = 8000
-)
 $ErrorActionPreference = 'Stop'
 
 # -------- Configuration --------
-# Set $env:ALLOTMINT_OFFLINE_MODE = 'true' before running to skip dependency installation,
+# Set offline_mode: true in config.yaml to skip dependency installation
 # --------------------------------
 
 # repo root
@@ -21,10 +18,18 @@ if (-not (Test-Path '.\.venv\Scripts\Activate.ps1')) {
 Write-Host 'Activating virtual environment...' -ForegroundColor Cyan
 . .\.venv\Scripts\Activate.ps1
 
-# determine offline status
+# determine offline status from config.yaml
 $offline = $false
-if ($env:ALLOTMINT_OFFLINE_MODE -and $env:ALLOTMINT_OFFLINE_MODE.ToLower() -eq 'true') {
-    $offline = $true
+$configPath = Join-Path $SCRIPT_DIR 'config.yaml'
+if (Test-Path $configPath) {
+    try {
+        $cfg = Get-Content $configPath | ConvertFrom-Yaml
+        if ($cfg.offline_mode -eq $true) {
+            $offline = $true
+        }
+    } catch {
+        Write-Host 'Warning: failed to parse config.yaml; assuming online mode.' -ForegroundColor Yellow
+    }
 }
 
 if (-not $offline) {
@@ -35,9 +40,16 @@ if (-not $offline) {
     Write-Host 'Offline mode detected; skipping dependency installation.' -ForegroundColor Yellow
 }
 
-# env
-$env:ALLOTMINT_ENV = 'local'
+# load shared config
+$config = Get-Content "$SCRIPT_DIR/config.yaml" | ConvertFrom-Yaml
+$env:ALLOTMINT_ENV = $config.app_env
+$port = $config.uvicorn_port
+$logConfig = $config.log_config
+$reload = $config.reload
 
-# run
-Write-Host "Starting AllotMint Local API on http://localhost:$Port ..." -ForegroundColor Green
-python -m uvicorn backend.local_api.main:app --reload --reload-dir backend --port $Port --log-config backend/logging.ini --app-dir .
+Write-Host "Starting AllotMint Local API on http://localhost:$port ..." -ForegroundColor Green
+$arguments = @('backend.local_api.main:app', '--reload-dir', 'backend', '--port', $port, '--log-config', $logConfig, '--app-dir', '.')
+if ($reload) {
+    $arguments += '--reload'
+}
+python -m uvicorn @arguments

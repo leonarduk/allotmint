@@ -49,4 +49,21 @@
       "sending": "Enviando…"
     }
   }
+  "member": "Miembro",
+  "group": "Grupo",
+  "instrument": "Instrumento",
+  "transactions": "Transacciones",
+  "performance": "Rendimiento",
+  "screener": "Filtro",
+  "relativeView": "Vista relativa",
+  "refreshPrices": "Actualizar precios",
+  "refreshing": "Actualizando…",
+  "loading": "Cargando…",
+  "support": "Soporte",
+  "owner": "Propietario",
+  "selectOwner": "Seleccione un propietario.",
+  "loadingPortfolio": "Cargando portafolio…",
+  "portfolio": "Portafolio",
+  "asOf": "A fecha de {{date}} • Operaciones este mes: {{trades}} / 20 (Restantes: {{remaining}})",
+  "approxTotal": "Total aproximado: £{{value}}"
 }

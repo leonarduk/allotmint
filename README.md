@@ -34,11 +34,37 @@ entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
 All backend Python dependencies live in the top-level `requirements.txt` file.
 Workflows and helper scripts install from this list, so update it when new packages are needed.
 
+## Risk reporting
+
+The backend exposes Value at Risk (VaR) metrics for each portfolio.
+
+* **Defaults** – 95 % confidence over a 1‑day horizon and 99 % over 10 days.
+* **Query** – `GET /var/{owner}?days=30&confidence=0.99` fetches a 30‑day, 99 % VaR.
+* **UI** – VaR surfaces alongside portfolio charts on the performance dashboard.
+
+**Assumptions**
+
+* Historical simulation using daily returns from cached price series.
+* Results reported in GBP.
+* Calculations default to a 365‑day window (`days` parameter).
+
+See [backend/common/portfolio_utils.py](backend/common/portfolio_utils.py) for the return series that feed the calculation
+and [backend/common/constants.py](backend/common/constants.py) for currency labels.
+
 ## Local Quick-start
 
 The project is split into a Python FastAPI backend and a React/TypeScript
 frontend. The two communicate over HTTP which makes it easy to work on either
-side in isolation.
+side in isolation. Backend runtime options are stored in `config.yaml`:
+
+```yaml
+app_env: local
+uvicorn_port: 8000
+reload: true
+log_config: backend/logging.ini
+```
+
+Adjust these values to change the environment or server behaviour.
 
 ```bash
 # clone & enter
@@ -49,8 +75,9 @@ cd allotmint
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# run the API locally on :8000
-./run-local-api.sh
+# configure API settings
+# (see config.yaml for app_env, uvicorn_port, reload and log_config)
+./run-local-api.sh    # or use run-backend.ps1 on Windows
 
 # in another shell install React deps and start Vite on :5173
 cd frontend

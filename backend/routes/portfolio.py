@@ -11,6 +11,7 @@ Owners / groups / portfolio endpoints (shared).
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import List
 
 from fastapi import APIRouter, HTTPException
@@ -23,6 +24,7 @@ from backend.common import (
     portfolio_utils,
     prices,
     instrument_api,
+    risk,
 )
 
 log = logging.getLogger("routes.portfolio")
@@ -97,6 +99,32 @@ async def performance(owner: str, days: int = 365):
         return portfolio_utils.compute_owner_performance(owner, days=days)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
+
+
+@router.get("/var/{owner}")
+async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
+    """Return historical-simulation VaR for ``owner``.
+
+    Parameters
+    ----------
+    days:
+        Length of the historical window used for returns. Must be positive.
+        VaR is reported for 1-day and 10-day horizons.
+    confidence:
+        Quantile for losses in (0, 1). Defaults to 0.95 (95 %); 0.99 is
+        also common.
+
+    Returns a JSON object ``{"owner": owner, "as_of": <today>, "var": {...}}``.
+    Raises 404 if the owner does not exist and 400 for invalid parameters.
+    """
+
+    try:
+        var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"owner": owner, "as_of": date.today().isoformat(), "var": var}
 
 
 @router.get("/portfolio-group/{slug}")

@@ -7,6 +7,7 @@ import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
+import i18n from "../i18n";
 
 /* ──────────────────────────────────────────────────────────────
  * Component
@@ -36,7 +37,10 @@ export function AccountBlock({ account, relativeView = false }: Props) {
 
       {account.last_updated && (
         <div style={{ fontSize: "0.8rem", color: "#666" }}>
-          Last updated:&nbsp;{account.last_updated}
+          Last updated:&nbsp;
+          {new Intl.DateTimeFormat(i18n.language).format(
+            new Date(account.last_updated),
+          )}
         </div>
       )}
 

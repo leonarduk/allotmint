@@ -141,3 +141,17 @@ export interface ScreenerResult {
     fcf: number | null;
 }
 
+export interface CustomQuery {
+    start?: string;
+    end?: string;
+    owners?: string[];
+    tickers?: string[];
+    metrics?: string[];
+}
+
+export interface SavedQuery {
+    id: string;
+    name: string;
+    params: CustomQuery;
+}
+

@@ -27,6 +27,7 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { Screener } from "./pages/Screener";
+import { QueryPage } from "./pages/QueryPage";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import i18n from "./i18n";
@@ -39,6 +40,7 @@ type Mode =
   | "transactions"
   | "performance"
   | "screener"
+  | "query";
   | "timeseries";
 
 // derive initial mode + id from path
@@ -49,6 +51,7 @@ const initialMode: Mode =
   path[0] === "transactions" ? "transactions" :
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
+  path[0] === "query" ? "query" :
   path[0] === "timeseries" ? "timeseries" :
   "group";
 const initialSlug = path[1] ?? "";
@@ -189,6 +192,7 @@ export default function App() {
           "performance",
           "transactions",
           "screener",
+          "query",
           "timeseries",
         ] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
@@ -317,6 +321,8 @@ export default function App() {
 
       {mode === "screener" && <Screener />}
       {mode === "timeseries" && <TimeseriesEdit />}
+
+      {mode === "query" && <QueryPage />}
 
       <p style={{ marginTop: "2rem", textAlign: "center" }}>
         <a href="/support">{t("app.supportLink")}</a>

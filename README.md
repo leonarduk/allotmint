@@ -78,6 +78,18 @@ npm run dev
 open http://localhost:5173/
 ```
 
+## Alerts
+
+Trading alerts support multiple transports that are enabled via environment
+variables:
+
+* **AWS SNS** – set ``SNS_TOPIC_ARN`` to publish alerts to an SNS topic using
+  ``backend.common.alerts.publish_alert``.
+* **Telegram** – provide ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` to
+  forward alerts to a Telegram chat via ``backend.utils.telegram_utils``.
+
+When several transports are configured, alerts are sent to each of them.
+
 ## Tests
 
 Run Python and frontend test suites with:

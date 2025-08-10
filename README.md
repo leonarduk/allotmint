@@ -108,6 +108,15 @@ errors which you can attach when reporting bugs.
 python run_with_error_summary.py pytest
 ```
 
+## Trading Agent
+
+Use the helper script to run the trading agent locally. All arguments are
+optional:
+
+```bash
+python scripts/run_trading_agent.py --tickers AAPL MSFT --thresholds 0.1 0.2 --indicator RSI
+```
+
 ## Deploy to AWS
 
 The project includes an AWS CDK stack that provisions an S3 bucket and

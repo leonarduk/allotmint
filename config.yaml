@@ -5,7 +5,7 @@ accounts_root: data/accounts
 prices_json: data/prices/latest_prices.json
 offline_mode: false
 timeseries_cache_base: data/timeseries
-alpha_vantage_key: "demo"
+alpha_vantage_key: "B74N5L0LY87QHKX4"
 fundamentals_cache_ttl_seconds: 86400
 app_env: local
 sns_topic_arn: ""

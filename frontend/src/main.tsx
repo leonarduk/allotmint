@@ -4,12 +4,14 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import Support from './pages/Support'
+import VirtualPortfolio from './pages/VirtualPortfolio'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
         <Route path="/support" element={<Support />} />
+        <Route path="/virtual" element={<VirtualPortfolio />} />
         <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>

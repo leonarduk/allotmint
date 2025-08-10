@@ -10,6 +10,7 @@ import type {
   Transaction,
   Alert,
   ScreenerResult,
+  VirtualPortfolio,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -125,3 +126,32 @@ export const getCompliance = (owner: string) =>
   fetchJson<{ owner: string; warnings: string[] }>(
     `${API_BASE}/compliance/${owner}`
   );
+
+/** Virtual portfolio endpoints */
+export const getVirtualPortfolios = () =>
+  fetchJson<VirtualPortfolio[]>(`${API_BASE}/virtual-portfolios`);
+
+export const getVirtualPortfolio = (id: number | string) =>
+  fetchJson<VirtualPortfolio>(`${API_BASE}/virtual-portfolios/${id}`);
+
+export const createVirtualPortfolio = (vp: VirtualPortfolio) =>
+  fetchJson<VirtualPortfolio>(`${API_BASE}/virtual-portfolios`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(vp),
+  });
+
+export const updateVirtualPortfolio = (
+  id: number | string,
+  vp: VirtualPortfolio,
+) =>
+  fetchJson<VirtualPortfolio>(`${API_BASE}/virtual-portfolios/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(vp),
+  });
+
+export const deleteVirtualPortfolio = (id: number | string) =>
+  fetchJson<{ status: string }>(`${API_BASE}/virtual-portfolios/${id}`, {
+    method: "DELETE",
+  });

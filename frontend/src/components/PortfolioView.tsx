@@ -23,6 +23,9 @@ export function PortfolioView({data, loading, error, relativeView = false}: Prop
 
     return (
         <div>
+            <div style={{textAlign: "right"}}>
+                <a href="/virtual">Virtual Portfolios</a>
+            </div>
             <h1 style={{marginTop: 0}}>
                 Portfolio: <span data-testid="owner-name">{data.owner}</span>
             </h1>

@@ -272,6 +272,8 @@ export default function App() {
       {mode === "screener" && <Screener />}
 
       <p style={{ marginTop: "2rem", textAlign: "center" }}>
+        <a href="/virtual">Virtual Portfolios</a>
+        {" • "}
         <a href="/support">Support</a>
       </p>
     </div>

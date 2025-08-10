@@ -22,6 +22,7 @@ from backend.routes.alerts import router as alerts_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.screener import router as screener_router
 from backend.routes.support import router as support_router
+from backend.routes.query import router as query_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 from backend.common.portfolio_utils import refresh_snapshot_in_memory_from_timeseries
 
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(support_router)
+    app.include_router(query_router)
     app.include_router(virtual_portfolio_router)
 
     # ────────────────────── Health-check endpoint ─────────────────────

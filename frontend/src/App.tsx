@@ -26,6 +26,7 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { Screener } from "./pages/Screener";
+import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 
@@ -147,6 +148,7 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+      <LanguageSwitcher />
       <AlertsPanel />
       {/* mode toggle */}
       <div style={{ marginBottom: "1rem" }}>

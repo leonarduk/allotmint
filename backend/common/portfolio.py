@@ -12,15 +12,12 @@ Owner-level portfolio builder for AllotMint
 import csv
 import datetime as dt
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend import config as config_module
 from backend.common.constants import (
     ACQUIRED_DATE,
-    HOLD_DAYS_MIN,
-    MAX_TRADES_PER_MONTH,
-    _PLOTS_ROOT,
     COST_BASIS_GBP,
     UNITS,
     TICKER,
@@ -28,10 +25,12 @@ from backend.common.constants import (
 from backend.common.data_loader import list_plots, load_account
 from backend.common.holding_utils import enrich_holding
 
+config = config_module.config
+
 
 # ───────────────────────── trades helpers ─────────────────────────
 def _local_trades_path(owner: str) -> Path:
-    return _PLOTS_ROOT / owner / "trades.csv"
+    return Path(config.accounts_root) / owner / "trades.csv"
 
 
 def _load_trades_local(owner: str) -> List[Dict[str, Any]]:
@@ -47,12 +46,13 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
     return []
 
 
-def load_trades(owner: str, env: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Public helper. Keeps us self-contained so there's no circular dependency.
-    """
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
-    return _load_trades_local(owner) if env == "local" else _load_trades_aws(owner)
+def load_trades(owner: str) -> List[Dict[str, Any]]:
+    """Public helper. Keeps us self-contained so there's no circular dependency."""
+    return (
+        _load_trades_local(owner)
+        if config_module.get_config().get("app_env") == "local"
+        else _load_trades_aws(owner)
+    )
 
 
 # ───────────────────────── generic helpers ───────────────────────
@@ -68,7 +68,7 @@ def _parse_date(s: str | None) -> Optional[dt.date]:
 # ─────────────────────── owners utility ──────────────────────────
 def list_owners() -> list[str]:
     owners: list[str] = []
-    for pf in _PLOTS_ROOT.glob("*/person.json"):
+    for pf in Path(config.accounts_root).glob("*/person.json"):
         try:
             data = json.loads(pf.read_text())
             slug = data.get("owner") or data.get("slug")
@@ -80,28 +80,27 @@ def list_owners() -> list[str]:
 
 
 # ─────────────────────── owner-level builder ─────────────────────
-def build_owner_portfolio(owner: str, env: Optional[str] = None) -> Dict[str, Any]:
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
+def build_owner_portfolio(owner: str) -> Dict[str, Any]:
     today = dt.date.today()
 
-    plots = [p for p in list_plots(env=env) if p.get("owner") == owner]
+    plots = [p for p in list_plots() if p.get("owner") == owner]
     if not plots:
         raise FileNotFoundError(f"No plot for owner '{owner}'")
     accounts_meta = plots[0].get("accounts", [])
 
-    trades = load_trades(owner, env=env)
+    trades = load_trades(owner)
     trades_this = 0
     for t in trades:
         d = _parse_date(t.get("date"))
         if d and d.year == today.year and d.month == today.month:
             trades_this += 1
-    trades_rem = max(0, MAX_TRADES_PER_MONTH - trades_this)
+    trades_rem = max(0, config.max_trades_per_month - trades_this)
 
     price_cache: dict[str, float] = {}
 
     accounts: List[Dict[str, Any]] = []
     for meta in accounts_meta:
-        raw = load_account(owner, meta, env=env)
+        raw = load_account(owner, meta)
         holdings_raw = raw.get("holdings", [])
 
         enriched = [

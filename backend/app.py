@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.routes.instrument import router as instrument_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.timeseries_meta import router as timeseries_router
+from backend.routes.timeseries_edit import router as timeseries_edit_router
 
 from backend.routes.transactions import router as transactions_router
 from backend.routes.alerts import router as alerts_router
@@ -22,6 +23,7 @@ from backend.routes.compliance import router as compliance_router
 from backend.routes.screener import router as screener_router
 from backend.routes.support import router as support_router
 from backend.routes.query import router as query_router
+from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 from backend.common.portfolio_utils import refresh_snapshot_in_memory_from_timeseries
 
 
@@ -55,12 +57,14 @@ def create_app() -> FastAPI:
     app.include_router(portfolio_router)
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
+    app.include_router(timeseries_edit_router)
     app.include_router(transactions_router)
     app.include_router(alerts_router)
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(support_router)
     app.include_router(query_router)
+    app.include_router(virtual_portfolio_router)
 
     # ────────────────────── Health-check endpoint ─────────────────────
     @app.get("/health")

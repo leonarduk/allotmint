@@ -4,6 +4,8 @@ import { getTransactions } from "../api";
 import { Selector } from "./Selector";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
+import { money } from "../lib/money";
+import i18n from "../i18n";
 
 type Props = {
   owners: OwnerSummary[];
@@ -81,12 +83,20 @@ export function TransactionsPage({ owners }: Props) {
           <tbody>
             {(transactions ?? []).map((t, i) => (
               <tr key={i}>
-                <td className={tableStyles.cell}>{t.date ? new Date(t.date).toLocaleDateString() : ""}</td>
+                <td className={tableStyles.cell}>
+                  {t.date
+                    ? new Intl.DateTimeFormat(i18n.language).format(
+                        new Date(t.date),
+                      )
+                    : ""}
+                </td>
                 <td className={tableStyles.cell}>{t.owner}</td>
                 <td className={tableStyles.cell}>{t.account}</td>
                 <td className={tableStyles.cell}>{t.type || t.kind}</td>
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {t.amount_minor != null ? (t.amount_minor / 100).toFixed(2) : ""}
+                  {t.amount_minor != null
+                    ? money(t.amount_minor / 100, t.currency ?? "GBP")
+                    : ""}
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>{t.shares ?? ""}</td>
               </tr>

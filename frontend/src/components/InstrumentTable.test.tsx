@@ -62,4 +62,12 @@ describe("InstrumentTable", () => {
         dataRows = screen.getAllByRole("row");
         expect(within(dataRows[1]).getByText("XYZ")).toBeInTheDocument();
     });
+
+    it("renders 7d and 30d percentage changes", () => {
+        render(<InstrumentTable rows={rows} />);
+        expect(screen.getByText("1.0%"));
+        expect(screen.getByText("2.0%"));
+        expect(screen.getByText("-1.0%"));
+        expect(screen.getByText("-2.0%"));
+    });
 });

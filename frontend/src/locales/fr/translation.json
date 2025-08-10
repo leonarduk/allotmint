@@ -15,5 +15,23 @@
   "loadingPortfolio": "Chargement du portefeuille…",
   "portfolio": "Portefeuille",
   "asOf": "Au {{date}} • Transactions ce mois: {{trades}} / 20 (Restantes: {{remaining}})",
-  "approxTotal": "Total approximatif: £{{value}}"
+  "approxTotal": "Total approximatif: £{{value}}",
+  "instrumentTable": {
+    "noInstruments": "Aucun instrument",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nom",
+      "ccy": "Devise",
+      "type": "Type",
+      "units": "Unités",
+      "cost": "Coût £",
+      "market": "Marché £",
+      "gain": "Gain £",
+      "gainPct": "Gain %",
+      "last": "Dernier £",
+      "lastDate": "Dernière date",
+      "delta7d": "Δ 7j %",
+      "delta30d": "Δ 30j %"
+    }
+  }
 }

@@ -141,6 +141,16 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
 
     sym, ex = (full.split(".", 1) + ["L"])[:2]
 
+    # Prime meta timeseries cache on demand so percentage changes are
+    # available even when the process hasn't previously loaded prices for
+    # this ticker. Failures are ignored – missing data will simply yield
+    # ``None`` for the change fields below.
+    if not has_cached_meta_timeseries(sym, ex):
+        try:  # pragma: no cover - network/cache behaviour
+            run_all_tickers([full])
+        except Exception:
+            pass
+
     def _close_on(d: dt.date) -> Optional[float]:
         # Snap to nearest weekday (backwards) and request that exact day.
         snap = _nearest_weekday(d, forward=False)

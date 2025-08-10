@@ -15,5 +15,23 @@
   "loadingPortfolio": "Cargando portafolio…",
   "portfolio": "Portafolio",
   "asOf": "A fecha de {{date}} • Operaciones este mes: {{trades}} / 20 (Restantes: {{remaining}})",
-  "approxTotal": "Total aproximado: £{{value}}"
+  "approxTotal": "Total aproximado: £{{value}}",
+  "instrumentTable": {
+    "noInstruments": "Sin instrumentos",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nombre",
+      "ccy": "Moneda",
+      "type": "Tipo",
+      "units": "Unidades",
+      "cost": "Coste £",
+      "market": "Mercado £",
+      "gain": "Ganancia £",
+      "gainPct": "% Ganancia",
+      "last": "Último £",
+      "lastDate": "Última fecha",
+      "delta7d": "Δ 7d %",
+      "delta30d": "Δ 30d %"
+    }
+  }
 }

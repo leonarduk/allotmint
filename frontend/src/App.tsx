@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  getGroupInstruments,
-  getGroups,
-  getOwners,
-  getPortfolio,
-  refreshPrices,
-} from "./api";
+import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
 
 import type {
   GroupSummary,
@@ -83,9 +77,6 @@ export default function App() {
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  // when true, holdings table emphasises relative metrics
-  const [relativeView, setRelativeView] = useState(true);
 
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
@@ -249,18 +240,6 @@ export default function App() {
         ))}
       </div>
 
-      {/* absolute vs relative toggle */}
-      <div style={{ marginBottom: "1rem" }}>
-        <label>
-          <input
-            type="checkbox"
-            checked={relativeView}
-            onChange={(e) => setRelativeView(e.target.checked)}
-          />{" "}
-          {t("app.relativeView")}
-        </label>
-      </div>
-
       <div style={{ marginBottom: "1rem" }}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
           {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
@@ -287,12 +266,7 @@ export default function App() {
             onSelect={setSelectedOwner}
           />
           <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-          <PortfolioView
-            data={portfolio}
-            loading={loading}
-            error={err}
-            relativeView={relativeView}
-          />
+          <PortfolioView data={portfolio} loading={loading} error={err} />
         </>
       )}
 
@@ -304,14 +278,6 @@ export default function App() {
             selected={selectedGroup}
             onSelect={setSelectedGroup}
           />
-          <label style={{ display: "block", margin: "0.5rem 0" }}>
-            <input
-              type="checkbox"
-              checked={relativeView}
-              onChange={(e) => setRelativeView(e.target.checked)}
-            />{" "}
-            Relative view
-          </label>
           <ComplianceWarnings
             owners={
               groups.find((g) => g.slug === selectedGroup)?.members ?? []
@@ -319,7 +285,6 @@ export default function App() {
           />
           <GroupPortfolioView
             slug={selectedGroup}
-            relativeView={relativeView}
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);

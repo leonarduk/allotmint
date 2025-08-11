@@ -4,6 +4,7 @@ import type { InstrumentSummary } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { useFilterableTable } from "../hooks/useFilterableTable";
 import { money, percent } from "../lib/money";
+import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 
@@ -158,7 +159,7 @@ export function InstrumentTable({ rows }: Props) {
                                 </td>
                                 <td className={tableStyles.cell}>{r.name}</td>
                                 <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
-                                <td className={tableStyles.cell}>{r.instrument_type ?? "—"}</td>
+                                <td className={tableStyles.cell}>{translateInstrumentType(t, r.instrument_type)}</td>
                                 {visibleColumns.units && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                         {new Intl.NumberFormat(i18n.language).format(r.units)}

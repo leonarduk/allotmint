@@ -34,6 +34,7 @@ class Config:
     # misc complex config
     error_summary: Optional[dict] = None
     offline_mode: Optional[bool] = None
+    relative_view_enabled: Optional[bool] = None
     timeseries_cache_base: Optional[str] = None
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
@@ -102,6 +103,7 @@ def load_config() -> Config:
         selenium_headless=data.get("selenium_headless"),
         error_summary=data.get("error_summary"),
         offline_mode=data.get("offline_mode"),
+        relative_view_enabled=data.get("relative_view_enabled"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get(

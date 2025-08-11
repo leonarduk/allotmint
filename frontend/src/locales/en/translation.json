@@ -25,6 +25,16 @@
     "loading": "Loading…",
     "other": "Other"
   },
+  "instrumentType": {
+    "equity": "Equity",
+    "bond": "Bond",
+    "cash": "Cash",
+    "etf": "ETF",
+    "fund": "Fund",
+    "investmentTrust": "Investment Trust",
+    "realEstate": "Real Estate",
+    "other": "Other"
+  },
   "instrumentTable": {
     "noInstruments": "No instruments.",
     "columns": {

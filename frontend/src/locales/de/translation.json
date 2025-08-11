@@ -25,6 +25,16 @@
     "loading": "Laden…",
     "other": "Andere"
   },
+  "instrumentType": {
+    "equity": "Aktie",
+    "bond": "Anleihe",
+    "cash": "Bargeld",
+    "etf": "ETF",
+    "fund": "Fonds",
+    "investmentTrust": "Investment Trust",
+    "realEstate": "Immobilien",
+    "other": "Andere"
+  },
   "instrumentTable": {
     "noInstruments": "Keine Instrumente.",
     "columns": {

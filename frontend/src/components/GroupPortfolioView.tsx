@@ -5,6 +5,7 @@ import { getGroupPortfolio } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money, percent } from "../lib/money";
+import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
@@ -38,18 +39,12 @@ type Props = {
   slug: string;
   /** when clicking an owner you may want to jump to the member tab */
   onSelectMember?: (owner: string) => void;
-  /**
-   * Toggle for displaying absolute columns like Units/Cost/Gain in the
-   * holdings tables. When true, those columns are hidden to show relative
-   * percentages instead.
-   */
-  relativeView?: boolean;
 };
 
 /* ────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────── */
-export function GroupPortfolioView({ slug, relativeView }: Props) {
+export function GroupPortfolioView({ slug, onSelectMember }: Props) {
   const { data: portfolio, loading, error } = useFetch<GroupPortfolio>(
     () => getGroupPortfolio(slug),
     [slug],
@@ -110,7 +105,8 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
       const dayChg = h.day_change_gbp ?? 0;
 
       const type = formatInstrumentType(t, h.instrument_type);
-      perType[type] = (perType[type] || 0) + market;
+      const typeKey = (h.instrument_type ?? "other").toLowerCase();
+      perType[typeKey] = (perType[typeKey] || 0) + market;
 
       totalCost += cost;
       totalGain += gain;
@@ -136,8 +132,8 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
     return { owner, ...data, gainPct, dayChangePct };
   });
 
-  const typeRows = Object.entries(perType).map(([name, value]) => ({
-    name,
+  const typeRows = Object.entries(perType).map(([type, value]) => ({
+    name: translateInstrumentType(t, type),
     value,
     pct: totalValue > 0 ? (value / totalValue) * 100 : 0,
   }));
@@ -284,7 +280,6 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
             {checked && (
               <HoldingsTable
                 holdings={acct.holdings ?? []}
-                relativeView={relativeView}
                 onSelectInstrument={(ticker, name) =>
                   setSelected({ ticker, name })
                 }

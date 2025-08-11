@@ -119,6 +119,19 @@ export interface PriceEntry {
     Source?: string;
 }
 
+export interface QuoteRow {
+    name: string | null;
+    symbol: string;
+    last: number | null;
+    open: number | null;
+    high: number | null;
+    low: number | null;
+    change: number | null;
+    changePct: number | null;
+    volume: number | null;
+    time: string | null;
+}
+
 export type Alert = {
     ticker: string;
     change_pct: number;

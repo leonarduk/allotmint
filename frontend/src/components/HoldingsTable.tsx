@@ -1,22 +1,29 @@
 import type React from "react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
+import { translateInstrumentType } from "../lib/instrumentType";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
+import { useConfig } from "../ConfigContext";
 
 type Props = {
   holdings: Holding[];
   onSelectInstrument?: (ticker: string, name: string) => void;
-  relativeView?: boolean;
 };
+
+export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
+  const { relativeViewEnabled } = useConfig();
 
 export function HoldingsTable({
   holdings,
   onSelectInstrument,
   relativeView = false,
 }: Props) {
+  const { t } = useTranslation();
+
   const [filters, setFilters] = useState({
     ticker: "",
     name: "",
@@ -145,7 +152,7 @@ export function HoldingsTable({
                 onChange={(e) => handleFilterChange("instrument_type", e.target.value)}
               />
             </th>
-            {!relativeView && visibleColumns.units && (
+            {!relativeViewEnabled && visibleColumns.units && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                 <input
                   placeholder="Units"
@@ -155,13 +162,13 @@ export function HoldingsTable({
               </th>
             )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
-            {!relativeView && visibleColumns.cost && (
+            {!relativeViewEnabled && visibleColumns.cost && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
             {visibleColumns.market && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
-            {!relativeView && visibleColumns.gain && (
+            {!relativeViewEnabled && visibleColumns.gain && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
             {visibleColumns.gain_pct && (
@@ -197,11 +204,11 @@ export function HoldingsTable({
             </th>
             <th className={tableStyles.cell}>CCY</th>
             <th className={tableStyles.cell}>Type</th>
-            {!relativeView && visibleColumns.units && (
+            {!relativeViewEnabled && visibleColumns.units && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
             )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>Px £</th>
-            {!relativeView && visibleColumns.cost && (
+            {!relativeViewEnabled && visibleColumns.cost && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => handleSort("cost")}
@@ -212,7 +219,7 @@ export function HoldingsTable({
             {visibleColumns.market && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
             )}
-            {!relativeView && visibleColumns.gain && (
+            {!relativeViewEnabled && visibleColumns.gain && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => handleSort("gain")}
@@ -269,14 +276,14 @@ export function HoldingsTable({
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
                 <td className={tableStyles.cell}>{h.currency ?? "—"}</td>
-                <td className={tableStyles.cell}>{h.instrument_type ?? "—"}</td>
-                {!relativeView && visibleColumns.units && (
+                <td className={tableStyles.cell}>{translateInstrumentType(t, h.instrument_type)}</td>
+                {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}
                   </td>
                 )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.current_price_gbp)}</td>
-                {!relativeView && visibleColumns.cost && (
+                {!relativeViewEnabled && visibleColumns.cost && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
                     title={(h.cost_basis_gbp ?? 0) > 0 ? "Actual purchase cost" : "Inferred from price on acquisition date"}
@@ -287,7 +294,7 @@ export function HoldingsTable({
                 {visibleColumns.market && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
                 )}
-                {!relativeView && visibleColumns.gain && (
+                {!relativeViewEnabled && visibleColumns.gain && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
                     style={{ color: (h.gain ?? 0) >= 0 ? "lightgreen" : "red" }}

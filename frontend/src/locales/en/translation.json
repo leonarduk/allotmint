@@ -16,12 +16,23 @@
       "screener": "Screener",
       "query": "Query",
       "trading": "Trading",
-      "timeseries": "Timeseries"
+      "timeseries": "Timeseries",
+      "watchlist": "Watchlist"
     }
   },
   "common": {
     "error": "Error",
     "loading": "Loading…",
+    "other": "Other"
+  },
+  "instrumentType": {
+    "equity": "Equity",
+    "bond": "Bond",
+    "cash": "Cash",
+    "etf": "ETF",
+    "fund": "Fund",
+    "investmentTrust": "Investment Trust",
+    "realEstate": "Real Estate",
     "other": "Other"
   },
   "instrumentTable": {

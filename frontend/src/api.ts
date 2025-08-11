@@ -15,6 +15,7 @@ import type {
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
+  QuoteRow,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -62,6 +63,12 @@ export const refreshPrices = () =>
     `${API_BASE}/prices/refresh`,
     { method: "POST" }
   );
+
+/** Fetch quote snapshots for a list of symbols. */
+export const getQuotes = (symbols: string[]) => {
+  const params = new URLSearchParams({ symbols: symbols.join(",") });
+  return fetchJson<QuoteRow[]>(`${API_BASE}/api/quotes?${params.toString()}`);
+};
 
 /** Retrieve per-ticker aggregation for a group portfolio. */
 export const getGroupInstruments = (slug: string) =>

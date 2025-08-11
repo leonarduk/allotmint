@@ -16,12 +16,23 @@
       "screener": "Filtro",
       "query": "Consulta",
       "trading": "Trading",
-      "timeseries": "Serie temporal"
+      "timeseries": "Serie temporal",
+      "watchlist": "Watchlist"
     }
   },
   "common": {
     "error": "Error",
     "loading": "Cargando…",
+    "other": "Otro"
+  },
+  "instrumentType": {
+    "equity": "Acción",
+    "bond": "Bono",
+    "cash": "Efectivo",
+    "etf": "ETF",
+    "fund": "Fondo",
+    "investmentTrust": "Investment Trust",
+    "realEstate": "Bienes raíces",
     "other": "Otro"
   },
   "instrumentTable": {

@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  getGroupInstruments,
-  getGroups,
-  getOwners,
-  getPortfolio,
-  refreshPrices,
-} from "./api";
+import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
 
 import type {
   GroupSummary,
@@ -33,6 +27,7 @@ import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import { TradingAgent } from "./pages/TradingAgent";
+import Watchlist from "./pages/Watchlist";
 
 type Mode =
   | "owner"
@@ -43,7 +38,8 @@ type Mode =
   | "screener"
   | "query"
   | "trading"
-  | "timeseries";
+  | "timeseries"
+  | "watchlist";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -56,6 +52,7 @@ const initialMode: Mode =
   path[0] === "query" ? "query" :
   path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
+  path[0] === "watchlist" ? "watchlist" :
   "group";
 const initialSlug = path[1] ?? "";
 
@@ -81,9 +78,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // when true, holdings table emphasises relative metrics
-  const [relativeView, setRelativeView] = useState(true);
-
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
@@ -105,13 +99,15 @@ export default function App() {
               ? "performance"
               : segs[0] === "screener"
                 ? "screener"
-                : segs[0] === "query"
-                  ? "query"
-                  : segs[0] === "trading"
-                    ? "trading"
-                    : segs[0] === "timeseries"
-                      ? "timeseries"
-                      : "group";
+        : segs[0] === "query"
+          ? "query"
+          : segs[0] === "trading"
+            ? "trading"
+            : segs[0] === "timeseries"
+              ? "timeseries"
+              : segs[0] === "watchlist"
+                ? "watchlist"
+                : "group";
     setMode(newMode);
     if (newMode === "owner") {
       setSelectedOwner(segs[1] ?? "");
@@ -229,6 +225,7 @@ export default function App() {
           "query",
           "trading",
           "timeseries",
+          "watchlist",
         ] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
             <input
@@ -241,18 +238,6 @@ export default function App() {
             {t(`app.modes.${m}`)}
           </label>
         ))}
-      </div>
-
-      {/* absolute vs relative toggle */}
-      <div style={{ marginBottom: "1rem" }}>
-        <label>
-          <input
-            type="checkbox"
-            checked={relativeView}
-            onChange={(e) => setRelativeView(e.target.checked)}
-          />{" "}
-          {t("app.relativeView")}
-        </label>
       </div>
 
       <div style={{ marginBottom: "1rem" }}>
@@ -281,12 +266,7 @@ export default function App() {
             onSelect={setSelectedOwner}
           />
           <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-          <PortfolioView
-            data={portfolio}
-            loading={loading}
-            error={err}
-            relativeView={relativeView}
-          />
+          <PortfolioView data={portfolio} loading={loading} error={err} />
         </>
       )}
 
@@ -298,14 +278,6 @@ export default function App() {
             selected={selectedGroup}
             onSelect={setSelectedGroup}
           />
-          <label style={{ display: "block", margin: "0.5rem 0" }}>
-            <input
-              type="checkbox"
-              checked={relativeView}
-              onChange={(e) => setRelativeView(e.target.checked)}
-            />{" "}
-            Relative view
-          </label>
           <ComplianceWarnings
             owners={
               groups.find((g) => g.slug === selectedGroup)?.members ?? []
@@ -313,7 +285,6 @@ export default function App() {
           />
           <GroupPortfolioView
             slug={selectedGroup}
-            relativeView={relativeView}
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);
@@ -357,6 +328,7 @@ export default function App() {
       {mode === "screener" && <Screener />}
       {mode === "trading" && <TradingAgent />}
       {mode === "timeseries" && <TimeseriesEdit />}
+      {mode === "watchlist" && <Watchlist />}
 
       {mode === "query" && <QueryPage />}
 

@@ -16,12 +16,23 @@
       "screener": "Filter",
       "query": "Abfrage",
       "trading": "Handel",
-      "timeseries": "Zeitreihe"
+      "timeseries": "Zeitreihe",
+      "watchlist": "Watchlist"
     }
   },
   "common": {
     "error": "Fehler",
     "loading": "Laden…",
+    "other": "Andere"
+  },
+  "instrumentType": {
+    "equity": "Aktie",
+    "bond": "Anleihe",
+    "cash": "Bargeld",
+    "etf": "ETF",
+    "fund": "Fonds",
+    "investmentTrust": "Investment Trust",
+    "realEstate": "Immobilien",
     "other": "Andere"
   },
   "instrumentTable": {

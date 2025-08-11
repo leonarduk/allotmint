@@ -16,12 +16,23 @@
       "screener": "Filtro",
       "query": "Consulta",
       "trading": "Negociação",
-      "timeseries": "Série temporal"
+      "timeseries": "Série temporal",
+      "watchlist": "Watchlist"
     }
   },
   "common": {
     "error": "Erro",
     "loading": "Carregando…",
+    "other": "Outro"
+  },
+  "instrumentType": {
+    "equity": "Ação",
+    "bond": "Título",
+    "cash": "Dinheiro",
+    "etf": "ETF",
+    "fund": "Fundo",
+    "investmentTrust": "Trust de investimento",
+    "realEstate": "Imóveis",
     "other": "Outro"
   },
   "instrumentTable": {

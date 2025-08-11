@@ -1,6 +1,7 @@
-import {render, screen, within, fireEvent} from "@testing-library/react";
-import {HoldingsTable} from "./HoldingsTable";
-import type {Holding} from "../types";
+import { render, screen, within, fireEvent } from "@testing-library/react";
+import { HoldingsTable } from "./HoldingsTable";
+import { ConfigContext, type AppConfig } from "../ConfigContext";
+import type { Holding } from "../types";
 
 describe("HoldingsTable", () => {
     const holdings: Holding[] = [
@@ -36,8 +37,11 @@ describe("HoldingsTable", () => {
         },
     ];
 
-    it("displays relative metrics when relativeView is true", () => {
-        render(<HoldingsTable holdings={holdings} relativeView/>);
+    const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
+        render(<ConfigContext.Provider value={cfg}>{ui}</ConfigContext.Provider>);
+
+    it("displays relative metrics when relative view is enabled", () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} />, { relativeViewEnabled: true });
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.getByText("XYZ")).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
@@ -47,8 +51,8 @@ describe("HoldingsTable", () => {
         expect(screen.queryByRole('columnheader', {name: /Gain £/})).toBeNull();
     });
 
-    it("shows absolute columns when relativeView is false", () => {
-        render(<HoldingsTable holdings={holdings} relativeView={false}/>);
+    it("shows absolute columns when relative view is disabled", () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} />, { relativeViewEnabled: false });
         expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Cost £/})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Gain £/})).toBeInTheDocument();

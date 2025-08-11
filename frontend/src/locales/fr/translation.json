@@ -16,12 +16,23 @@
       "screener": "Filtre",
       "query": "Requête",
       "trading": "Trading",
-      "timeseries": "Séries temporelles"
+      "timeseries": "Séries temporelles",
+      "watchlist": "Watchlist"
     }
   },
   "common": {
     "error": "Erreur",
     "loading": "Chargement…",
+    "other": "Autre"
+  },
+  "instrumentType": {
+    "equity": "Action",
+    "bond": "Obligation",
+    "cash": "Espèces",
+    "etf": "ETF",
+    "fund": "Fonds",
+    "investmentTrust": "Fiducie de placement",
+    "realEstate": "Immobilier",
     "other": "Autre"
   },
   "instrumentTable": {

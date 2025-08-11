@@ -173,5 +173,5 @@ export interface SavedQuery {
     id: string;
     name: string;
     params: CustomQuery;
-}
+};
 

@@ -24,6 +24,16 @@
     "loading": "Carregando…",
     "other": "Outro"
   },
+  "instrumentType": {
+    "equity": "Ação",
+    "bond": "Título",
+    "cash": "Dinheiro",
+    "etf": "ETF",
+    "fund": "Fundo",
+    "investmentTrust": "Trust de investimento",
+    "realEstate": "Imóveis",
+    "other": "Outro"
+  },
   "instrumentTable": {
     "noInstruments": "Sem instrumentos.",
     "columns": {

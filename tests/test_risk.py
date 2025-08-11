@@ -1,6 +1,6 @@
 import numpy as np
-import numpy as np
 import pytest
+from unittest.mock import patch
 from backend.common import risk
 
 

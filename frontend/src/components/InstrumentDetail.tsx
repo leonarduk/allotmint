@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { getInstrumentDetail } from "../api";
 import { money, percent } from "../lib/money";
+import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 
@@ -166,7 +167,7 @@ export function InstrumentDetail({
       </button>
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
       <div style={{ fontSize: "0.85rem", color: "#aaa" }}>
-        {ticker} • {displayCurrency} • {instrument_type ?? "?"} • {" "}
+        {ticker} • {displayCurrency} • {translateInstrumentType(t, instrument_type)} • {" "}
         <Link to={editLink} style={{ color: "#00d8ff", textDecoration: "none" }}>
           {t("instrumentDetail.edit")}
         </Link>

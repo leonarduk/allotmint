@@ -14,7 +14,7 @@ import logging
 from datetime import date
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 
 from backend.common import (
@@ -26,9 +26,12 @@ from backend.common import (
     instrument_api,
     risk,
 )
+from backend.utils import page_cache
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
+
+PORTFOLIO_TTL = 300  # seconds
 
 
 # ──────────────────────────────────────────────────────────────
@@ -78,7 +81,7 @@ async def groups():
 # Owner / group portfolios
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio/{owner}")
-async def portfolio(owner: str):
+async def portfolio(owner: str, background_tasks: BackgroundTasks):
     """Return the fully expanded portfolio for ``owner``.
 
     The helper function :func:`build_owner_portfolio` loads account data from
@@ -86,10 +89,22 @@ async def portfolio(owner: str):
     the owner's holdings.
     """
 
+    page = f"portfolio_{owner}"
+    page_cache.schedule_refresh(
+        page, PORTFOLIO_TTL, lambda owner=owner: portfolio_mod.build_owner_portfolio(owner)
+    )
+    if not page_cache.is_stale(page, PORTFOLIO_TTL):
+        cached = page_cache.load_cache(page)
+        if cached is not None:
+            return cached
+
     try:
-        return portfolio_mod.build_owner_portfolio(owner)
+        data = portfolio_mod.build_owner_portfolio(owner)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
+
+    background_tasks.add_task(page_cache.save_cache, page, data)
+    return data
 
 
 @router.get("/performance/{owner}")
@@ -136,29 +151,58 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
 
 
 @router.get("/portfolio-group/{slug}")
-async def portfolio_group(slug: str):
+async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
     """Return the aggregated portfolio for a group.
 
     Groups are defined in configuration and simply reference a list of owner
     slugs. The aggregation combines holdings across all members.
     """
 
+    page = f"portfolio_group_{slug}"
+    page_cache.schedule_refresh(
+        page,
+        PORTFOLIO_TTL,
+        lambda slug=slug: group_portfolio.build_group_portfolio(slug),
+    )
+    if not page_cache.is_stale(page, PORTFOLIO_TTL):
+        cached = page_cache.load_cache(page)
+        if cached is not None:
+            return cached
+
     try:
-        return group_portfolio.build_group_portfolio(slug)
+        data = group_portfolio.build_group_portfolio(slug)
     except Exception as e:
         log.warning(f"Failed to load group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
+
+    background_tasks.add_task(page_cache.save_cache, page, data)
+    return data
 
 
 # ──────────────────────────────────────────────────────────────
 # Group-level aggregation
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio-group/{slug}/instruments")
-async def group_instruments(slug: str):
+async def group_instruments(slug: str, background_tasks: BackgroundTasks):
     """Return holdings for the group aggregated by ticker."""
 
+    page = f"group_instruments_{slug}"
+    page_cache.schedule_refresh(
+        page,
+        PORTFOLIO_TTL,
+        lambda slug=slug: portfolio_utils.aggregate_by_ticker(
+            group_portfolio.build_group_portfolio(slug)
+        ),
+    )
+    if not page_cache.is_stale(page, PORTFOLIO_TTL):
+        cached = page_cache.load_cache(page)
+        if cached is not None:
+            return cached
+
     gp = group_portfolio.build_group_portfolio(slug)
-    return portfolio_utils.aggregate_by_ticker(gp)
+    data = portfolio_utils.aggregate_by_ticker(gp)
+    background_tasks.add_task(page_cache.save_cache, page, data)
+    return data
 
 
 @router.get("/account/{owner}/{account}")

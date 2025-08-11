@@ -129,8 +129,10 @@ describe("GroupPortfolioView", () => {
     );
     render(<GroupPortfolioView slug="all" />);
     expect(screen.getByText(i18n.t("common.loading"))).toBeInTheDocument();
+  });
 
   it("updates totals when accounts are toggled", async () => {
+    await i18n.changeLanguage("en");
     const mockPortfolio = {
       name: "All owners combined",
       accounts: [

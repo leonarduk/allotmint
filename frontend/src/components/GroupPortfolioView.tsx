@@ -8,6 +8,7 @@ import { money, percent } from "../lib/money";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
+import { formatInstrumentType } from "../instrumentType";
 import {
   PieChart,
   Pie,
@@ -82,12 +83,6 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
   const perOwner: Record<string, { value: number; dayChange: number; gain: number; cost: number }> = {};
   const perType: Record<string, number> = {};
 
-  const formatType = (type: string | null | undefined) => {
-    if (!type) return t("common.other");
-    const normalized = type.toLowerCase().replace(/_/g, " ");
-    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  };
-
   const activeKeys = selectedAccounts.length
     ? new Set(selectedAccounts)
     : new Set(portfolio.accounts?.map(accountKey));
@@ -114,7 +109,7 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
           : market - cost;
       const dayChg = h.day_change_gbp ?? 0;
 
-      const type = formatType(h.instrument_type);
+      const type = formatInstrumentType(t, h.instrument_type);
       perType[type] = (perType[type] || 0) + market;
 
       totalCost += cost;

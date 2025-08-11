@@ -62,4 +62,12 @@ describe("InstrumentTable", () => {
         dataRows = screen.getAllByRole("row");
         expect(within(dataRows[1]).getByText("XYZ")).toBeInTheDocument();
     });
+
+    it("allows toggling columns", () => {
+        render(<InstrumentTable rows={rows} />);
+        expect(screen.getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
+        const checkbox = screen.getByLabelText("Gain %");
+        fireEvent.click(checkbox);
+        expect(screen.queryByRole('columnheader', {name: /Gain %/})).toBeNull();
+    });
 });

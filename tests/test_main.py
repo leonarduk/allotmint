@@ -98,22 +98,30 @@ def test_instrument_detail(mock_list, mock_build, mock_positions, mock_timeserie
     assert "positions" in response.json()
 
 
+@patch("backend.common.risk.compute_sharpe_ratio", return_value=1.23)
 @patch("backend.common.risk.compute_portfolio_var", return_value={"1d": 100.0, "10d": 200.0})
-def test_var_endpoint(mock_var):
+def test_var_endpoint(mock_var, mock_sharpe):
     response = client.get("/var/steve")
     assert response.status_code == 200
     payload = response.json()
     assert payload["owner"] == "steve"
     assert payload["var"] == {"1d": 100.0, "10d": 200.0}
+    assert payload["sharpe_ratio"] == 1.23
 
 
+@patch("backend.common.risk.compute_sharpe_ratio", side_effect=FileNotFoundError)
 @patch("backend.common.risk.compute_portfolio_var", side_effect=FileNotFoundError)
-def test_var_owner_not_found(mock_var):
+def test_var_owner_not_found(mock_var, mock_sharpe):
     response = client.get("/var/missing")
     assert response.status_code == 404
 
 
+@patch("backend.common.risk.compute_sharpe_ratio", return_value=1.0)
 @patch("backend.common.risk.compute_portfolio_var", side_effect=ValueError("bad"))
+
+def test_var_invalid_params(mock_var, mock_sharpe):
+    response = client.get("/var/steve?confidence=2")
+
 def test_var_invalid_params(mock_var):
     response = client.get("/var/steve?confidence=101")
     assert response.status_code == 400

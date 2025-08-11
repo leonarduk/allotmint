@@ -96,9 +96,10 @@ async def portfolio(owner: str):
 async def performance(owner: str, days: int = 365):
     """Return portfolio performance metrics for ``owner``."""
     try:
-        return portfolio_utils.compute_owner_performance(owner, days=days)
+        result = portfolio_utils.compute_owner_performance(owner, days=days)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
+    return {"owner": owner, **result}
 
 
 @router.get("/var/{owner}")
@@ -121,11 +122,17 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
 
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
+        sharpe = risk.compute_sharpe_ratio(owner, days=days)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return {"owner": owner, "as_of": date.today().isoformat(), "var": var}
+    return {
+        "owner": owner,
+        "as_of": date.today().isoformat(),
+        "var": var,
+        "sharpe_ratio": sharpe,
+    }
 
 
 @router.get("/portfolio-group/{slug}")

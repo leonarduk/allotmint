@@ -34,6 +34,23 @@ entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
 All backend Python dependencies live in the top-level `requirements.txt` file.
 Workflows and helper scripts install from this list, so update it when new packages are needed.
 
+## Page cache
+
+Expensive API routes cache their JSON responses under `data/cache/<page>.json`.
+Each request serves the cached payload when it is fresh; on a miss or stale
+entry the response is rebuilt, returned to the client and saved in the
+background. A lightweight scheduler keeps caches warm by rebuilding them at a
+fixed interval.
+
+| Page           | TTL (seconds) |
+|----------------|---------------|
+| Portfolio views | 300 |
+| Screener queries | 900 |
+
+Adjust the `PORTFOLIO_TTL` and `SCREENER_TTL` constants in
+`backend/routes/portfolio.py` and `backend/routes/screener.py` to change these
+intervals. The cache helpers live in `backend/utils/page_cache.py`.
+
 ## Risk reporting
 
 The backend exposes Value at Risk (VaR) metrics for each portfolio.

@@ -37,6 +37,37 @@
       "delta30d": "30j %"
     }
   },
+  "instrumentDetail": {
+    "edit": "Modifier",
+    "change7d": "7j",
+    "change30d": "30j",
+    "range": "Plage :",
+    "rangeOptions": {
+      "1w": "1S",
+      "1m": "1M",
+      "1y": "1A",
+      "10y": "10A",
+      "max": "MAX"
+    },
+    "bollingerBands": "Bandes de Bollinger",
+    "positions": "Positions",
+    "columns": {
+      "account": "Compte",
+      "units": "Unités",
+      "market": "Mkt £",
+      "gain": "Gain £",
+      "gainPct": "Gain %"
+    },
+    "noPositions": "Aucune position",
+    "recentPrices": "Prix récents",
+    "priceColumns": {
+      "date": "Date",
+      "close": "£ Clôture",
+      "delta": "Δ £",
+      "deltaPct": "Δ %"
+    },
+    "noPriceData": "Pas de données de prix"
+  },
   "owner": {
     "label": "Propriétaire",
     "select": "Sélectionnez un propriétaire."

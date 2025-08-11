@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, type Mock, beforeEach } from "vitest";
+import i18n from "../i18n";
 
 vi.mock("../api", () => ({ getInstrumentDetail: vi.fn() }));
 import { getInstrumentDetail } from "../api";
@@ -21,21 +22,30 @@ describe("InstrumentDetail", () => {
     mockGetInstrumentDetail.mockReset();
   });
 
-  it("links to timeseries edit page", async () => {
-    mockGetInstrumentDetail.mockResolvedValue({
-      prices: [],
-      positions: [],
-      currency: null,
-    });
+  it.each(["en", "fr", "de", "es", "pt"]) (
+    "links to timeseries edit page (%s)",
+    async (lang) => {
+      mockGetInstrumentDetail.mockResolvedValue({
+        prices: [],
+        positions: [],
+        currency: null,
+      });
 
-    render(
-      <MemoryRouter>
-        <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
-      </MemoryRouter>,
-    );
-    const link = await screen.findByRole("link", { name: /edit/i });
-    expect(link).toHaveAttribute("href", "/timeseries?ticker=ABC&exchange=L");
-  });
+      i18n.changeLanguage(lang);
+
+      render(
+        <MemoryRouter>
+          <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
+        </MemoryRouter>,
+      );
+      const link = await screen.findByRole("link", {
+        name: i18n.t("instrumentDetail.edit"),
+      });
+      expect(link).toHaveAttribute("href", "/timeseries?ticker=ABC&exchange=L");
+      expect(screen.getByRole("heading", { name: "ABC" })).toBeInTheDocument();
+      expect(screen.getByText(/ABC\.L/)).toBeInTheDocument();
+    },
+  );
 
   it("displays 7d and 30d changes", async () => {
     const prices = Array.from({ length: 30 }, (_, i) => ({
@@ -50,14 +60,24 @@ describe("InstrumentDetail", () => {
       currency: null,
     });
 
+    i18n.changeLanguage("en");
+
     render(
       <MemoryRouter>
         <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText(/7d 30\.0%/)).toBeInTheDocument();
-    expect(screen.getByText(/30d 30\.0%/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        `${i18n.t("instrumentDetail.change7d")} 30.0%`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `${i18n.t("instrumentDetail.change30d")} 30.0%`,
+      ),
+    ).toBeInTheDocument();
   });
 });
 

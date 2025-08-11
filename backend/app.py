@@ -22,6 +22,8 @@ from backend.routes.screener import router as screener_router
 from backend.routes.support import router as support_router
 from backend.routes.query import router as query_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
+from backend.routes.metrics import router as metrics_router
+from backend.routes.agent import router as agent_router
 from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.config import router as config_router
 from backend.common.portfolio_utils import refresh_snapshot_in_memory_from_timeseries
@@ -66,6 +68,8 @@ def create_app() -> FastAPI:
     app.include_router(support_router)
     app.include_router(query_router)
     app.include_router(virtual_portfolio_router)
+    app.include_router(metrics_router)
+    app.include_router(agent_router)
     app.include_router(trading_agent_router)
     app.include_router(config_router)
 

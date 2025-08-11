@@ -1,4 +1,4 @@
-import {render, screen} from "@testing-library/react";
+import {render, screen, fireEvent} from "@testing-library/react";
 import {PortfolioView} from "./PortfolioView";
 import type {Portfolio} from "../types";
 
@@ -43,5 +43,17 @@ describe("PortfolioView", () => {
 
         expect(screen.getByText(/SIPP.*GBP/)).toBeInTheDocument();
 
+    });
+
+    it("updates total when accounts are toggled", () => {
+        render(<PortfolioView data={mockOwner}/>);
+
+        const total = screen.getByText(/Approx Total:/);
+        expect(total).toHaveTextContent("£14,925.00");
+
+        const sippCheckbox = screen.getByRole("checkbox", {name: /sipp/i});
+        fireEvent.click(sippCheckbox);
+
+        expect(total).toHaveTextContent("£0.00");
     });
 });

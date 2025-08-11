@@ -19,6 +19,11 @@
       "timeseries": "Serie temporal"
     }
   },
+  "common": {
+    "error": "Error",
+    "loading": "Cargando…",
+    "other": "Otro"
+  },
   "instrumentTable": {
     "noInstruments": "Sin instrumentos.",
     "columns": {
@@ -37,9 +42,43 @@
       "delta30d": "30d %"
     }
   },
+  "instrumentDetail": {
+    "edit": "Editar",
+    "change7d": "7d",
+    "change30d": "30d",
+    "range": "Rango:",
+    "rangeOptions": {
+      "1w": "1S",
+      "1m": "1M",
+      "1y": "1A",
+      "10y": "10A",
+      "max": "MÁX"
+    },
+    "bollingerBands": "Bandas de Bollinger",
+    "positions": "Posiciones",
+    "columns": {
+      "account": "Cuenta",
+      "units": "Unidades",
+      "market": "Mercado £",
+      "gain": "Ganancia £",
+      "gainPct": "Ganancia %"
+    },
+    "noPositions": "Sin posiciones",
+    "recentPrices": "Precios recientes",
+    "priceColumns": {
+      "date": "Fecha",
+      "close": "£ Cierre",
+      "delta": "Δ £",
+      "deltaPct": "Δ %"
+    },
+    "noPriceData": "Sin datos de precios"
+  },
   "owner": {
     "label": "Propietario",
     "select": "Seleccione un propietario."
+  },
+  "group": {
+    "select": "Seleccione un grupo."
   },
   "support": {
     "title": "Soporte",

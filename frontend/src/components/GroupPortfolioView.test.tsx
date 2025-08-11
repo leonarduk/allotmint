@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
+import i18n from "../i18n";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -101,5 +102,69 @@ describe("GroupPortfolioView", () => {
 
     expect(screen.getByText("Equity")).toBeInTheDocument();
     expect(screen.getByText("Cash")).toBeInTheDocument();
+  });
+
+
+  const locales = ["en", "fr", "de", "es", "pt"] as const;
+
+  it.each(locales)("renders select group message in %s", async (lng) => {
+    await i18n.changeLanguage(lng);
+    render(<GroupPortfolioView slug="" />);
+    expect(screen.getByText(i18n.t("group.select"))).toBeInTheDocument();
+  });
+
+  it.each(locales)("renders error message in %s", async (lng) => {
+    await i18n.changeLanguage(lng);
+    vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("boom"));
+    render(<GroupPortfolioView slug="all" />);
+    await waitFor(() =>
+      screen.getByText(`${i18n.t("common.error")}: boom`)
+    );
+  });
+
+  it.each(locales)("renders loading message in %s", async (lng) => {
+    await i18n.changeLanguage(lng);
+    vi.spyOn(global, "fetch").mockImplementation(
+      () => new Promise(() => {})
+    );
+    render(<GroupPortfolioView slug="all" />);
+    expect(screen.getByText(i18n.t("common.loading"))).toBeInTheDocument();
+
+  it("updates totals when accounts are toggled", async () => {
+    const mockPortfolio = {
+      name: "All owners combined",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [],
+        },
+        {
+          owner: "bob",
+          account_type: "isa",
+          value_estimate_gbp: 200,
+          holdings: [],
+        },
+      ],
+    };
+
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockPortfolio,
+    } as unknown as Response);
+
+    render(<GroupPortfolioView slug="all" />);
+
+    await waitFor(() => screen.getByLabelText(/alice isa/i));
+
+    const totalLabel = screen.getAllByText("Total Value")[0];
+    const valueEl = totalLabel.nextElementSibling as HTMLElement;
+    expect(valueEl).toHaveTextContent("£300.00");
+
+    const bobCheckbox = screen.getByLabelText(/bob isa/i);
+    fireEvent.click(bobCheckbox);
+
+    expect(valueEl).toHaveTextContent("£100.00");
   });
 });

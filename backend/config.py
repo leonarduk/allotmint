@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, Dict, Any, overload
+from typing import Optional, Dict, Any, overload, List
 import yaml
 
 
@@ -34,6 +34,7 @@ class Config:
     # misc complex config
     error_summary: Optional[dict] = None
     offline_mode: Optional[bool] = None
+    relative_view_enabled: Optional[bool] = None
     timeseries_cache_base: Optional[str] = None
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
@@ -44,6 +45,11 @@ class Config:
     repo_root: Optional[Path] = None
     accounts_root: Optional[Path] = None
     prices_json: Optional[Path] = None
+    risk_free_rate: Optional[float] = None
+
+    approval_valid_days: Optional[int] = None
+    approval_exempt_types: Optional[List[str]] = None
+    approval_exempt_tickers: Optional[List[str]] = None
 
 
 def _project_config_path() -> Path:
@@ -97,6 +103,7 @@ def load_config() -> Config:
         selenium_headless=data.get("selenium_headless"),
         error_summary=data.get("error_summary"),
         offline_mode=data.get("offline_mode"),
+        relative_view_enabled=data.get("relative_view_enabled"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get(
@@ -107,6 +114,10 @@ def load_config() -> Config:
         repo_root=repo_root,
         accounts_root=accounts_root,
         prices_json=prices_json,
+        risk_free_rate=data.get("risk_free_rate"),
+        approval_valid_days=data.get("approval_valid_days"),
+        approval_exempt_types=data.get("approval_exempt_types"),
+        approval_exempt_tickers=data.get("approval_exempt_tickers"),
     )
 
 

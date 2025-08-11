@@ -8,11 +8,12 @@ Common portfolio helpers
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import date, timedelta, datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ import pandas as pd
 from backend.common import portfolio as portfolio_mod
 from backend.common.portfolio_loader import list_portfolios          # existing helper
 from backend.common.instruments import get_instrument_meta
-from backend.timeseries.cache import load_meta_timeseries
+from backend.timeseries.cache import load_meta_timeseries_range, load_meta_timeseries
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
@@ -71,24 +72,40 @@ def _safe_num(val, default: float = 0.0) -> float:
 # ──────────────────────────────────────────────────────────────
 _PRICES_PATH = Path("data/prices/latest_prices.json")
 
-def _load_snapshot() -> Dict[str, Dict]:
+
+def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
     if not _PRICES_PATH.exists():
         logger.warning("Price snapshot not found: %s", _PRICES_PATH)
-        return {}
+        return {}, None
     try:
-        return json.loads(_PRICES_PATH.read_text())
+        data = json.loads(_PRICES_PATH.read_text())
+        ts = datetime.fromtimestamp(_PRICES_PATH.stat().st_mtime)
+        return data, ts
     except Exception as exc:
         logger.error("Failed to parse snapshot %s: %s", _PRICES_PATH, exc)
-        return {}
-
-_PRICE_SNAPSHOT: Dict[str, Dict] = _load_snapshot()
+        return {}, None
 
 
-def refresh_snapshot_in_memory(new_snapshot: Dict[str, Dict] | None = None) -> None:
+_PRICE_SNAPSHOT: Dict[str, Dict]
+_PRICE_SNAPSHOT_TS: datetime | None
+_PRICE_SNAPSHOT, _PRICE_SNAPSHOT_TS = _load_snapshot()
+
+
+def refresh_snapshot_in_memory(
+    new_snapshot: Dict[str, Dict] | None = None,
+    timestamp: datetime | None = None,
+) -> None:
     """Call this from /prices/refresh when you write a new JSON snapshot."""
-    global _PRICE_SNAPSHOT
-    _PRICE_SNAPSHOT = new_snapshot or _load_snapshot()
-    logger.debug("In-memory price snapshot refreshed, %d tickers", len(_PRICE_SNAPSHOT))
+    global _PRICE_SNAPSHOT, _PRICE_SNAPSHOT_TS
+    if new_snapshot is None:
+        new_snapshot, timestamp = _load_snapshot()
+    elif timestamp is None:
+        timestamp = datetime.utcnow()
+    _PRICE_SNAPSHOT = new_snapshot
+    _PRICE_SNAPSHOT_TS = timestamp
+    logger.debug(
+        "In-memory price snapshot refreshed, %d tickers", len(_PRICE_SNAPSHOT)
+    )
 
 
 # ──────────────────────────────────────────────────────────────
@@ -278,12 +295,13 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
 # ──────────────────────────────────────────────────────────────
 # Performance helpers
 # ──────────────────────────────────────────────────────────────
-def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
+def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
     """Return daily portfolio values and returns for an ``owner``.
 
     The calculation uses current holdings and fetches closing prices from the
-    meta timeseries cache for the requested rolling window. The result is a
-    list of records::
+    meta timeseries cache for the requested rolling window. The result is
+    returned as ``{"history": [...], "max_drawdown": float}`` where
+    ``history`` is a list of records::
 
         {
             "date": "2024-01-01",
@@ -291,9 +309,12 @@ def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
             "daily_return": 0.0012,         # 0.12 %
             "weekly_return": 0.0345,        # 3.45 %
             "cumulative_return": 0.0567,    # 5.67 % from start
+            "running_max": 1500.0,          # peak value so far
+            "drawdown": -0.18,              # % drop from running max
         }
 
-    Returns an empty list if the owner or timeseries data is missing.
+    Returns ``{"history": [], "max_drawdown": None}`` if the owner or
+    timeseries data is missing.
     """
 
     try:
@@ -314,7 +335,7 @@ def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
             holdings.append((tkr.split(".", 1)[0], exch, units))
 
     if not holdings:
-        return []
+        return {"history": [], "max_drawdown": None}
 
     total = pd.Series(dtype=float)
     for ticker, exchange, units in holdings:
@@ -327,13 +348,16 @@ def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
         total = total.add(values, fill_value=0)
 
     if total.empty:
-        return []
+        return {"history": [], "max_drawdown": None}
 
     perf = total.sort_index().to_frame(name="value")
     perf["daily_return"] = perf["value"].pct_change()
     perf["weekly_return"] = perf["value"].pct_change(5)
     start_val = perf["value"].iloc[0]
     perf["cumulative_return"] = perf["value"] / start_val - 1
+    perf["running_max"] = perf["value"].cummax()
+    perf["drawdown"] = perf["value"] / perf["running_max"] - 1
+    max_drawdown = float(perf["drawdown"].min())
     perf = perf.reset_index().rename(columns={"index": "date"})
 
     out: List[Dict] = []
@@ -353,10 +377,14 @@ def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
                     if pd.notna(row.cumulative_return)
                     else None
                 ),
+                "running_max": round(float(row.running_max), 2),
+                "drawdown": (
+                    float(row.drawdown) if pd.notna(row.drawdown) else None
+                ),
             }
         )
 
-    return out
+    return {"history": out, "max_drawdown": max_drawdown}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -379,8 +407,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             cutoff = today - timedelta(days=days)
             ticker_only, exchange = (t.split(".", 1) + ["L"])[:2]
 
-            df = fetch_meta_timeseries(ticker=ticker_only, exchange=exchange,
-                                        start_date=cutoff, end_date=today)
+            df = fetch_meta_timeseries(
+                ticker=ticker_only, exchange=exchange, start_date=cutoff, end_date=today
+            )
 
             if df is not None and not df.empty:
                 # Map lowercase column names to their actual counterparts
@@ -398,8 +427,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             logger.warning("Could not get timeseries for %s: %s", t, e)
 
     # store in-memory
-    _PRICE_SNAPSHOT.clear()
-    _PRICE_SNAPSHOT.update(snapshot)
+    refresh_snapshot_in_memory(snapshot, datetime.utcnow())
 
     # write to disk
     try:
@@ -411,12 +439,21 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
 
     logger.info("Refreshed %d price entries", len(snapshot))
 
+
+def refresh_snapshot_async(days: int = 365) -> asyncio.Task:
+    """Run :func:`refresh_snapshot_in_memory_from_timeseries` in the background."""
+
+    async def _runner() -> None:
+        await asyncio.to_thread(refresh_snapshot_in_memory_from_timeseries, days=days)
+
+    return asyncio.create_task(_runner())
+
 # ──────────────────────────────────────────────────────────────
 # Alert helpers
 # ──────────────────────────────────────────────────────────────
 def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
     """Check holdings against cost basis and emit alerts."""
-    from backend.common.alerts import publish_sns_alert
+    from backend.common.alerts import publish_alert
 
     alerts: List[Dict] = []
     for pf in list_portfolios():
@@ -432,6 +469,6 @@ def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
                     "change_pct": round(change_pct, 4),
                     "message": f"{row['ticker']} change {change_pct*100:.1f}% vs cost basis",
                 }
-                publish_sns_alert(alert)
+                publish_alert(alert)
                 alerts.append(alert)
     return alerts

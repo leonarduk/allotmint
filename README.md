@@ -27,12 +27,41 @@ entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
 | Storage  | S3 JSON / CSV (no RDBMS)                     |
 | IaC      | AWS CDK (Py)                                 |
 
+## Watchlist
+
+The repo includes a lightweight Yahoo Finance watchlist. Run it locally with:
+
+```
+# backend
+uvicorn app:app --reload --port 8000
+
+# frontend
+npm i && npm run dev
+```
+
 ---
 
 ## Backend dependencies
 
 All backend Python dependencies live in the top-level `requirements.txt` file.
 Workflows and helper scripts install from this list, so update it when new packages are needed.
+
+## Page cache
+
+Expensive API routes cache their JSON responses under `data/cache/<page>.json`.
+Each request serves the cached payload when it is fresh; on a miss or stale
+entry the response is rebuilt, returned to the client and saved in the
+background. A lightweight scheduler keeps caches warm by rebuilding them at a
+fixed interval.
+
+| Page           | TTL (seconds) |
+|----------------|---------------|
+| Portfolio views | 300 |
+| Screener queries | 900 |
+
+Adjust the `PORTFOLIO_TTL` and `SCREENER_TTL` constants in
+`backend/routes/portfolio.py` and `backend/routes/screener.py` to change these
+intervals. The cache helpers live in `backend/utils/page_cache.py`.
 
 ## Risk reporting
 

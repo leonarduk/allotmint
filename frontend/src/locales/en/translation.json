@@ -18,8 +18,24 @@
       "trading": "Trading",
       "timeseries": "Timeseries",
       "virtual": "Virtual Portfolios",
-      "support": "Support"
+      "support": "Support",
+      "watchlist": "Watchlist"
     }
+  },
+  "common": {
+    "error": "Error",
+    "loading": "Loading…",
+    "other": "Other"
+  },
+  "instrumentType": {
+    "equity": "Equity",
+    "bond": "Bond",
+    "cash": "Cash",
+    "etf": "ETF",
+    "fund": "Fund",
+    "investmentTrust": "Investment Trust",
+    "realEstate": "Real Estate",
+    "other": "Other"
   },
   "instrumentTable": {
     "noInstruments": "No instruments.",
@@ -39,9 +55,43 @@
       "delta30d": "30d %"
     }
   },
+  "instrumentDetail": {
+    "edit": "Edit",
+    "change7d": "7d",
+    "change30d": "30d",
+    "range": "Range:",
+    "rangeOptions": {
+      "1w": "1W",
+      "1m": "1M",
+      "1y": "1Y",
+      "10y": "10Y",
+      "max": "MAX"
+    },
+    "bollingerBands": "Bollinger Bands",
+    "positions": "Positions",
+    "columns": {
+      "account": "Account",
+      "units": "Units",
+      "market": "Mkt £",
+      "gain": "Gain £",
+      "gainPct": "Gain %"
+    },
+    "noPositions": "No positions",
+    "recentPrices": "Recent Prices",
+    "priceColumns": {
+      "date": "Date",
+      "close": "£ Close",
+      "delta": "Δ £",
+      "deltaPct": "Δ %"
+    },
+    "noPriceData": "No price data"
+  },
   "owner": {
     "label": "Owner",
     "select": "Select an owner."
+  },
+  "group": {
+    "select": "Select a group."
   },
   "support": {
     "title": "Support",

@@ -12,10 +12,18 @@ import i18n from "../i18n";
 /* ──────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────────── */
-type Props = { account: Account; relativeView?: boolean };
+type Props = {
+  account: Account;
+  selected?: boolean;
+  onToggle?: () => void;
+};
 
-export function AccountBlock({ account, relativeView = false }: Props) {
-  const [selected, setSelected] = useState<{
+export function AccountBlock({
+  account,
+  selected = true,
+  onToggle,
+}: Props) {
+  const [selectedInstrument, setSelectedInstrument] = useState<{
     ticker: string;
     name: string;
   } | null>(null);
@@ -28,34 +36,48 @@ export function AccountBlock({ account, relativeView = false }: Props) {
       }}
     >
       <h2 style={{ marginTop: 0 }}>
+        {onToggle && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            aria-label={account.account_type}
+            style={{ marginRight: "0.5rem" }}
+          />
+        )}
         {account.account_type} ({account.currency})
       </h2>
 
-      <div style={{ marginBottom: "0.5rem" }}>
-        Est&nbsp;Value:&nbsp;{money(account.value_estimate_gbp)}
-      </div>
-
-      {account.last_updated && (
-        <div style={{ fontSize: "0.8rem", color: "#666" }}>
-          Last updated:&nbsp;
-          {new Intl.DateTimeFormat(i18n.language).format(
-            new Date(account.last_updated),
-          )}
-        </div>
-      )}
-
-      <HoldingsTable
-        holdings={account.holdings}
-        relativeView={relativeView}
-        onSelectInstrument={(ticker, name) => setSelected({ ticker, name })}
-      />
-
       {selected && (
-        <InstrumentDetail
-          ticker={selected.ticker}
-          name={selected.name}
-          onClose={() => setSelected(null)}
-        />
+        <>
+          <div style={{ marginBottom: "0.5rem" }}>
+            Est&nbsp;Value:&nbsp;{money(account.value_estimate_gbp)}
+          </div>
+
+          {account.last_updated && (
+            <div style={{ fontSize: "0.8rem", color: "#666" }}>
+              Last updated:&nbsp;
+              {new Intl.DateTimeFormat(i18n.language).format(
+                new Date(account.last_updated),
+              )}
+            </div>
+          )}
+
+          <HoldingsTable
+            holdings={account.holdings}
+            onSelectInstrument={(ticker, name) =>
+              setSelectedInstrument({ ticker, name })
+            }
+          />
+
+          {selectedInstrument && (
+            <InstrumentDetail
+              ticker={selectedInstrument.ticker}
+              name={selectedInstrument.name}
+              onClose={() => setSelectedInstrument(null)}
+            />
+          )}
+        </>
       )}
     </div>
   );

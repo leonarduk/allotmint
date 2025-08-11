@@ -15,7 +15,7 @@ import type {
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
-  TradingSignal,
+  QuoteRow,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -63,6 +63,12 @@ export const refreshPrices = () =>
     `${API_BASE}/prices/refresh`,
     { method: "POST" }
   );
+
+/** Fetch quote snapshots for a list of symbols. */
+export const getQuotes = (symbols: string[]) => {
+  const params = new URLSearchParams({ symbols: symbols.join(",") });
+  return fetchJson<QuoteRow[]>(`${API_BASE}/api/quotes?${params.toString()}`);
+};
 
 /** Retrieve per-ticker aggregation for a group portfolio. */
 export const getGroupInstruments = (slug: string) =>
@@ -176,6 +182,18 @@ export const updateVirtualPortfolio = (
 export const deleteVirtualPortfolio = (id: number | string) =>
   fetchJson<{ status: string }>(`${API_BASE}/virtual-portfolios/${id}`, {
     method: "DELETE",
+  });
+
+/** Retrieve backend configuration. */
+export const getConfig = () =>
+  fetchJson<Record<string, unknown>>(`${API_BASE}/config`);
+
+/** Persist configuration changes. */
+export const updateConfig = (cfg: Record<string, unknown>) =>
+  fetchJson<Record<string, unknown>>(`${API_BASE}/config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cfg),
   });
 
 

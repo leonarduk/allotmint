@@ -1,12 +1,15 @@
 // src/components/GroupPortfolioView.tsx
-import { useState } from "react";
-import type { GroupPortfolio } from "../types";
+import { useState, useEffect } from "react";
+import type { GroupPortfolio, Account } from "../types";
 import { getGroupPortfolio } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money, percent } from "../lib/money";
+import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
+import { useTranslation } from "react-i18next";
+import { formatInstrumentType } from "../instrumentType";
 import {
   PieChart,
   Pie,
@@ -36,29 +39,36 @@ type Props = {
   slug: string;
   /** when clicking an owner you may want to jump to the member tab */
   onSelectMember?: (owner: string) => void;
-  /**
-   * Toggle for displaying absolute columns like Units/Cost/Gain in the
-   * holdings tables. When true, those columns are hidden to show relative
-   * percentages instead.
-   */
-  relativeView?: boolean;
 };
 
 /* ────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────── */
-export function GroupPortfolioView({ slug, relativeView }: Props) {
+export function GroupPortfolioView({ slug, onSelectMember }: Props) {
   const { data: portfolio, loading, error } = useFetch<GroupPortfolio>(
     () => getGroupPortfolio(slug),
     [slug],
     !!slug
   );
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
+  const { t } = useTranslation();
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+
+  // helper to derive a stable key for each account
+  const accountKey = (acct: Account, idx: number) =>
+    `${acct.owner ?? "owner"}-${acct.account_type}-${idx}`;
+
+  // when portfolio changes, select all accounts by default
+  useEffect(() => {
+    if (portfolio?.accounts) {
+      setSelectedAccounts(portfolio.accounts.map(accountKey));
+    }
+  }, [portfolio]);
 
   /* ── early‑return states ───────────────────────────────── */
-  if (!slug) return <p>Select a group.</p>;
-  if (error) return <p style={{ color: "red" }}>Error: {error.message}</p>;
-  if (loading || !portfolio) return <p>Loading…</p>;
+  if (!slug) return <p>{t("group.select")}</p>;
+  if (error) return <p style={{ color: "red" }}>{t("common.error")}: {error.message}</p>;
+  if (loading || !portfolio) return <p>{t("common.loading")}</p>;
 
   /* ── aggregate totals for summary box ──────────────────── */
   let totalValue = 0;
@@ -68,13 +78,13 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
   const perOwner: Record<string, { value: number; dayChange: number; gain: number; cost: number }> = {};
   const perType: Record<string, number> = {};
 
-  const formatType = (t: string | null | undefined) => {
-    if (!t) return "Other";
-    const normalized = t.toLowerCase().replace(/_/g, " ");
-    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  };
+  const activeKeys = selectedAccounts.length
+    ? new Set(selectedAccounts)
+    : new Set(portfolio.accounts?.map(accountKey));
 
-  for (const acct of portfolio.accounts ?? []) {
+  for (const [idx, acct] of (portfolio.accounts ?? []).entries()) {
+    const key = accountKey(acct, idx);
+    if (!activeKeys.has(key)) continue;
     const owner = acct.owner ?? "—";
     const entry =
       perOwner[owner] || (perOwner[owner] = { value: 0, dayChange: 0, gain: 0, cost: 0 });
@@ -94,8 +104,9 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
           : market - cost;
       const dayChg = h.day_change_gbp ?? 0;
 
-      const type = formatType(h.instrument_type);
-      perType[type] = (perType[type] || 0) + market;
+      const type = formatInstrumentType(t, h.instrument_type);
+      const typeKey = (h.instrument_type ?? "other").toLowerCase();
+      perType[typeKey] = (perType[typeKey] || 0) + market;
 
       totalCost += cost;
       totalGain += gain;
@@ -121,8 +132,8 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
     return { owner, ...data, gainPct, dayChangePct };
   });
 
-  const typeRows = Object.entries(perType).map(([name, value]) => ({
-    name,
+  const typeRows = Object.entries(perType).map(([type, value]) => ({
+    name: translateInstrumentType(t, type),
     value,
     pct: totalValue > 0 ? (value / totalValue) * 100 : 0,
   }));
@@ -244,22 +255,39 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
       </table>
 
       {/* Account breakdown */}
-      {portfolio.accounts?.map((acct, idx) => (
-        <div
-          key={`${acct.owner ?? "owner"}-${acct.account_type}-${idx}`}
-          style={{ marginBottom: "1.5rem" }}
-        >
-          <h3>
-            {acct.owner ?? "—"} • {acct.account_type} — {money(acct.value_estimate_gbp)}
-          </h3>
+      {portfolio.accounts?.map((acct, idx) => {
+        const key = accountKey(acct, idx);
+        const checked = activeKeys.has(key);
+        return (
+          <div key={key} style={{ marginBottom: "1.5rem" }}>
+            <h3>
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() =>
+                  setSelectedAccounts((prev) =>
+                    prev.includes(key)
+                      ? prev.filter((k) => k !== key)
+                      : [...prev, key]
+                  )
+                }
+                aria-label={`${acct.owner ?? "—"} ${acct.account_type}`}
+                style={{ marginRight: "0.5rem" }}
+              />
+              {acct.owner ?? "—"} • {acct.account_type} — {money(acct.value_estimate_gbp)}
+            </h3>
 
-          <HoldingsTable
-            holdings={acct.holdings ?? []}
-            relativeView={relativeView}
-            onSelectInstrument={(ticker, name) => setSelected({ ticker, name })}
-          />
-        </div>
-      ))}
+            {checked && (
+              <HoldingsTable
+                holdings={acct.holdings ?? []}
+                onSelectInstrument={(ticker, name) =>
+                  setSelected({ ticker, name })
+                }
+              />
+            )}
+          </div>
+        );
+      })}
 
       {/* Slide‑in instrument detail panel */}
       {selected && (

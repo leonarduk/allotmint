@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Line,
   LineChart,
@@ -10,6 +11,7 @@ import {
 } from "recharts";
 import { getInstrumentDetail } from "../api";
 import { money, percent } from "../lib/money";
+import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 
@@ -56,6 +58,7 @@ export function InstrumentDetail({
   instrument_type, // ← comes from props now
   onClose,
 }: Props) {
+  const { t } = useTranslation();
   const [data, setData] = useState<{
     prices: Price[];
     positions: Position[];
@@ -82,7 +85,7 @@ export function InstrumentDetail({
   }, [ticker, days]);
 
   if (err) return <p style={{ color: "red" }}>{err}</p>;
-  if (!data) return <p>Loading…</p>;
+  if (!data) return <p>{t("app.loading")}</p>;
 
   const displayCurrency = currencyFromData ?? currencyProp ?? "?";
 
@@ -164,9 +167,9 @@ export function InstrumentDetail({
       </button>
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
       <div style={{ fontSize: "0.85rem", color: "#aaa" }}>
-        {ticker} • {displayCurrency} • {instrument_type ?? "?"} • {" "}
+        {ticker} • {displayCurrency} • {translateInstrumentType(t, instrument_type)} • {" "}
         <Link to={editLink} style={{ color: "#00d8ff", textDecoration: "none" }}>
-          edit
+          {t("instrumentDetail.edit")}
         </Link>
       </div>
       <div style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
@@ -179,7 +182,7 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          7d {percent(change7dPct, 1)}
+          {t("instrumentDetail.change7d")} {percent(change7dPct, 1)}
         </span>
         {" • "}
         <span
@@ -191,24 +194,24 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          30d {percent(change30dPct, 1)}
+          {t("instrumentDetail.change30d")} {percent(change30dPct, 1)}
         </span>
       </div>
 
       {/* Chart */}
       <div style={{ marginBottom: "0.5rem" }}>
         <label style={{ fontSize: "0.85rem", marginRight: "1rem" }}>
-          Range:
+          {t("instrumentDetail.range")}
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
             style={{ marginLeft: "0.25rem" }}
           >
-            <option value={7}>1W</option>
-            <option value={30}>1M</option>
-            <option value={365}>1Y</option>
-            <option value={3650}>10Y</option>
-            <option value={0}>MAX</option>
+            <option value={7}>{t("instrumentDetail.rangeOptions.1w")}</option>
+            <option value={30}>{t("instrumentDetail.rangeOptions.1m")}</option>
+            <option value={365}>{t("instrumentDetail.rangeOptions.1y")}</option>
+            <option value={3650}>{t("instrumentDetail.rangeOptions.10y")}</option>
+            <option value={0}>{t("instrumentDetail.rangeOptions.max")}</option>
           </select>
         </label>
         <label style={{ fontSize: "0.85rem" }}>
@@ -217,7 +220,7 @@ export function InstrumentDetail({
             checked={showBollinger}
             onChange={(e) => setShowBollinger(e.target.checked)}
           />{" "}
-          Bollinger Bands
+          {t("instrumentDetail.bollingerBands")}
         </label>
       </div>
       <ResponsiveContainer width="100%" height={220}>
@@ -255,18 +258,18 @@ export function InstrumentDetail({
       </ResponsiveContainer>
 
       {/* Positions */}
-      <h3 style={{ marginTop: "1.5rem" }}>Positions</h3>
+      <h3 style={{ marginTop: "1.5rem" }}>{t("instrumentDetail.positions")}</h3>
       <table
         className={tableStyles.table}
         style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
       >
         <thead>
           <tr>
-            <th className={tableStyles.cell}>Account</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Gain £</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Gain %</th>
+            <th className={tableStyles.cell}>{t("instrumentDetail.columns.account")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.units")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.market")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.gain")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.gainPct")}</th>
           </tr>
         </thead>
         <tbody>
@@ -309,7 +312,7 @@ export function InstrumentDetail({
                 className={`${tableStyles.cell} ${tableStyles.center}`}
                 style={{ color: "#888" }}
               >
-                No positions
+                {t("instrumentDetail.noPositions")}
               </td>
             </tr>
           )}
@@ -317,17 +320,17 @@ export function InstrumentDetail({
       </table>
 
       {/* Recent Prices */}
-      <h3>Recent Prices</h3>
+      <h3>{t("instrumentDetail.recentPrices")}</h3>
       <table
         className={tableStyles.table}
         style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
       >
         <thead>
           <tr>
-            <th className={tableStyles.cell}>Date</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>£ Close</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ £</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ %</th>
+            <th className={tableStyles.cell}>{t("instrumentDetail.priceColumns.date")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.priceColumns.close")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.priceColumns.delta")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.priceColumns.deltaPct")}</th>
           </tr>
         </thead>
         <tbody>
@@ -372,7 +375,7 @@ export function InstrumentDetail({
                 className={`${tableStyles.cell} ${tableStyles.center}`}
                 style={{ color: "#888" }}
               >
-                No price data
+                {t("instrumentDetail.noPriceData")}
               </td>
             </tr>
           )}

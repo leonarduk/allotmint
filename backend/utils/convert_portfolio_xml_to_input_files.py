@@ -5,6 +5,8 @@ from pathlib import Path
 
 from backend.config import config
 from positions import extract_holdings_from_transactions
+from backend.common.approvals import load_approvals, is_approval_valid
+from backend.common.instruments import get_instrument_meta
 
 
 def normalize_account(account: str) -> tuple[str, str]:
@@ -34,19 +36,42 @@ def generate_json_holdings(xml_path: str, output_base_dir: str | Path = config.a
             "holdings": []
         }
 
+        approvals = load_approvals(owner)
+
         for _, row in group.iterrows():
             acq_date_raw = row.get("acquired_date", "")
             try:
                 acq_date = datetime.fromisoformat(acq_date_raw)
                 days_held = (datetime.today() - acq_date).days
-                sell_eligible = days_held >= config.hold_days_min
-                days_until_eligible = (
-                    None if sell_eligible else max(0, config.hold_days_min - days_held)
-                )
             except Exception:
+                acq_date = None
                 days_held = None
-                sell_eligible = False
-                days_until_eligible = None
+
+            meta_tkr = str(row.get("ticker", "")).strip().upper()
+            meta = get_instrument_meta(meta_tkr)
+            instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
+            exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
+            exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
+
+            needs_approval = not (
+                meta_tkr in exempt_tickers or instr_type in exempt_types
+            )
+
+            approved = False
+            if needs_approval:
+                appr_on = approvals.get(meta_tkr)
+                if appr_on:
+                    approved = is_approval_valid(appr_on, date.today())
+
+            sell_eligible = (
+                (days_held is not None and days_held >= config.hold_days_min)
+                and (approved or not needs_approval)
+            )
+            days_until_eligible = None if sell_eligible else (
+                None
+                if days_held is None
+                else max(0, config.hold_days_min - days_held)
+            )
 
             raw_ticker = str(row.get("ticker", "")).strip()
             isin = str(row.get("isin", "")).strip().upper()

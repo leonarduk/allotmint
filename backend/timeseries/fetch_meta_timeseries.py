@@ -16,6 +16,10 @@ from datetime import date, timedelta, datetime
 from typing import List, Optional, Dict
 
 import pandas as pd
+from backend.config import config as app_config
+
+config = app_config
+OFFLINE_MODE = config.offline_mode
 
 # ──────────────────────────────────────────────────────────────
 # Local imports

@@ -15,6 +15,7 @@ import type {
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
+  Quote,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -211,4 +212,10 @@ export const getValueAtRisk = (
   return fetchJson<ValueAtRiskPoint[]>(
     `${API_BASE}/var/${owner}${qs ? `?${qs}` : ""}`
   );
+};
+
+/** Fetch live quote snapshots for a list of symbols. */
+export const getQuotes = (symbols: string) => {
+  const params = new URLSearchParams({ symbols });
+  return fetchJson<Quote[]>(`${API_BASE}/api/quotes?${params.toString()}`);
 };

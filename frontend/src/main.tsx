@@ -6,6 +6,7 @@ import './i18n'
 import App from './App.tsx'
 import Support from './pages/Support'
 import VirtualPortfolio from './pages/VirtualPortfolio'
+import { Watchlist } from './pages/Watchlist'
 import './i18n'
 
 createRoot(document.getElementById('root')!).render(
@@ -14,6 +15,7 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/support" element={<Support />} />
         <Route path="/virtual" element={<VirtualPortfolio />} />
+        <Route path="/watchlist" element={<Watchlist />} />
         <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>

@@ -1,0 +1,39 @@
+.watchlist-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.watchlist-table th,
+.watchlist-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #ccc;
+  white-space: nowrap;
+}
+
+.watchlist-table th {
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+}
+
+.watchlist-table td.num,
+.watchlist-table th.num {
+  text-align: right;
+}
+
+.pos {
+  color: green;
+  background-color: rgba(0, 128, 0, 0.05);
+}
+
+.neg {
+  color: red;
+  background-color: rgba(255, 0, 0, 0.05);
+}
+
+.toast {
+  color: #fff;
+  background-color: #d33;
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}

@@ -168,3 +168,16 @@ export interface SavedQuery {
     params: CustomQuery;
 }
 
+export interface Quote {
+    name: string;
+    symbol: string;
+    last: number | null;
+    open: number | null;
+    high: number | null;
+    low: number | null;
+    change: number | null;
+    changePct: number | null;
+    volume: number | null;
+    time: string | null;
+}
+

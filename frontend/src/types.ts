@@ -153,6 +153,13 @@ export interface VirtualPortfolio {
     name: string;
     accounts: string[];
     holdings: SyntheticHolding[];
+}
+
+export interface TradingSignal {
+    ticker: string;
+    action: string;
+    reason: string;
+}
 
 export interface CustomQuery {
     start?: string;
@@ -166,5 +173,5 @@ export interface SavedQuery {
     id: string;
     name: string;
     params: CustomQuery;
-}
+};
 

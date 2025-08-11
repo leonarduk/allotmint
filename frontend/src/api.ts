@@ -15,6 +15,7 @@ import type {
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
+  TradingSignal,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -137,6 +138,9 @@ export const getTransactions = (params: {
 
 /** Retrieve recent alert messages from backend. */
 export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts`);
+/** Retrieve trading signals from trading agent. */
+export const getTradingSignals = () =>
+  fetchJson<TradingSignal[]>(`${API_BASE}/trading-agent/signals`);
 /** Retrieve compliance warnings for an owner */
 export const getCompliance = (owner: string) =>
   fetchJson<{ owner: string; warnings: string[] }>(

@@ -292,6 +292,10 @@ def _convert_to_gbp(df: pd.DataFrame, exchange: str, start: date, end: date) -> 
     if currency == "GBP" or df.empty:
         return df
 
+    if OFFLINE_MODE:
+        # TODO fix this to read from cache or use proxy
+        return df
+
     fx = fetch_fx_rate_range(currency, start, end).copy()
     if fx.empty:
         return df

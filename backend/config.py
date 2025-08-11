@@ -81,9 +81,9 @@ def load_config() -> Config:
     )
 
     prices_json_raw = data.get("prices_json")
-        prices_json = (
-            (repo_root / prices_json_raw).resolve() if prices_json_raw else None
-        )
+    prices_json = (
+        (repo_root / prices_json_raw).resolve() if prices_json_raw else None
+    )
 
     return Config(
         app_env=data.get("app_env"),

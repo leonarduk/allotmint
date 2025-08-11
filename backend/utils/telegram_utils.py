@@ -16,9 +16,15 @@ from backend.config import config as app_config
 
 # expose config for tests/backwards compat
 config = app_config
+OFFLINE_MODE = config.offline_mode
+logger = logging.getLogger(__name__)
 
 
 def send_message(text: str) -> None:
+    if OFFLINE_MODE:
+        logger.info(f"Offline-alert: {text}")
+        return
+
     """Send `text` to the configured Telegram chat."""
     token = app_config.telegram_bot_token
     chat_id = app_config.telegram_chat_id
@@ -41,7 +47,8 @@ class TelegramLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - thin wrapper
         try:
             message = self.format(record)
-            send_message(message)
+            if not OFFLINE_MODE:
+                send_message(message)
         except Exception:
             # Let logging's handleError respect logging.raiseExceptions.
             self.handleError(record)

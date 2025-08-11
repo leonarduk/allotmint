@@ -96,9 +96,10 @@ async def portfolio(owner: str):
 async def performance(owner: str, days: int = 365):
     """Return portfolio performance metrics for ``owner``."""
     try:
-        return portfolio_utils.compute_owner_performance(owner, days=days)
+        result = portfolio_utils.compute_owner_performance(owner, days=days)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
+    return {"owner": owner, **result}
 
 
 @router.get("/var/{owner}")

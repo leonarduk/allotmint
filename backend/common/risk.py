@@ -58,10 +58,11 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
         raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
     perf = portfolio_utils.compute_owner_performance(owner, days=days)
-    if not perf:
+    history = perf.get("history", [])
+    if not history:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
-    df = pd.DataFrame(perf)
+    df = pd.DataFrame(history)
     returns = df["daily_return"].dropna()
     if returns.empty:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}

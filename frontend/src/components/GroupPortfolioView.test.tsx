@@ -5,6 +5,7 @@ import i18n from "../i18n";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  i18n.changeLanguage("en");
 });
 
 describe("GroupPortfolioView", () => {
@@ -98,10 +99,10 @@ describe("GroupPortfolioView", () => {
 
     render(<GroupPortfolioView slug="all" />);
 
-    await waitFor(() => screen.getByText("Equity"));
+    await waitFor(() => screen.getAllByText("Equity"));
 
-    expect(screen.getByText("Equity")).toBeInTheDocument();
-    expect(screen.getByText("Cash")).toBeInTheDocument();
+    expect(screen.getAllByText("Equity").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Cash").length).toBeGreaterThan(0);
   });
 
 
@@ -129,6 +130,7 @@ describe("GroupPortfolioView", () => {
     );
     render(<GroupPortfolioView slug="all" />);
     expect(screen.getByText(i18n.t("common.loading"))).toBeInTheDocument();
+  });
 
   it("updates totals when accounts are toggled", async () => {
     const mockPortfolio = {

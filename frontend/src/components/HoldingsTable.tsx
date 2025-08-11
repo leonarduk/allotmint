@@ -1,7 +1,9 @@
 import type React from "react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
+import { translateInstrumentType } from "../lib/instrumentType";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
@@ -17,6 +19,7 @@ export function HoldingsTable({
   onSelectInstrument,
   relativeView = false,
 }: Props) {
+  const { t } = useTranslation();
   const [filters, setFilters] = useState({
     ticker: "",
     name: "",
@@ -269,7 +272,7 @@ export function HoldingsTable({
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
                 <td className={tableStyles.cell}>{h.currency ?? "—"}</td>
-                <td className={tableStyles.cell}>{h.instrument_type ?? "—"}</td>
+                <td className={tableStyles.cell}>{translateInstrumentType(t, h.instrument_type)}</td>
                 {!relativeView && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}

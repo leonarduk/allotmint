@@ -40,18 +40,18 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings} relativeView/>);
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.getByText("XYZ")).toBeInTheDocument();
-        expect(screen.getByText(/Gain %/)).toBeInTheDocument();
-        expect(screen.getByText(/Weight %/)).toBeInTheDocument();
-        expect(screen.queryByText("Units")).toBeNull();
-        expect(screen.queryByText(/Cost £/)).toBeNull();
-        expect(screen.queryByText(/Gain £/)).toBeNull();
+        expect(screen.getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', {name: /Weight %/})).toBeInTheDocument();
+        expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
+        expect(screen.queryByRole('columnheader', {name: /Cost £/})).toBeNull();
+        expect(screen.queryByRole('columnheader', {name: /Gain £/})).toBeNull();
     });
 
     it("shows absolute columns when relativeView is false", () => {
         render(<HoldingsTable holdings={holdings} relativeView={false}/>);
-        expect(screen.getByText("Units")).toBeInTheDocument();
-        expect(screen.getByText(/Cost £/)).toBeInTheDocument();
-        expect(screen.getByText(/Gain £/)).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', {name: /Cost £/})).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', {name: /Gain £/})).toBeInTheDocument();
     });
 
     it("shows days to go if not eligible", () => {
@@ -86,5 +86,13 @@ describe("HoldingsTable", () => {
         fireEvent.change(select, { target: { value: "true" } });
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("Test Holding")).toBeNull();
+    });
+
+    it("allows toggling columns", () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
+        const checkbox = screen.getByLabelText("Units");
+        fireEvent.click(checkbox);
+        expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
     });
 });

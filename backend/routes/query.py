@@ -18,7 +18,7 @@ from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import compute_var, get_security_meta
 from backend.timeseries.cache import load_meta_timeseries_range
 
-router = APIRouter(prefix="/query", tags=["query"])
+router = APIRouter(prefix="/custom-query", tags=["query"])
 
 QUERIES_DIR = Path("data/queries")
 

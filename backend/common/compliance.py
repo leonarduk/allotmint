@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Dict, List, Any
 
 from backend.config import config
+from backend.common.approvals import load_approvals, is_approval_valid
+from backend.common.instruments import get_instrument_meta
 
 
 def _parse_date(val: str | None) -> date | None:
@@ -52,6 +54,9 @@ def check_owner(owner: str) -> Dict[str, Any]:
     """Return compliance warnings for an owner."""
     txs = load_transactions(owner)
     warnings: List[str] = []
+    approvals = load_approvals(owner)
+    exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
+    exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
 
     # trade count rule
     counts: Dict[str, int] = defaultdict(int)
@@ -84,4 +89,16 @@ def check_owner(owner: str) -> Dict[str, Any]:
                 warnings.append(
                     f"Sold {ticker} after {days} days (min {config.hold_days_min})"
                 )
+
+            meta = get_instrument_meta(ticker)
+            instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
+            needs_approval = not (
+                ticker in exempt_tickers
+                or ticker.split(".")[0] in exempt_tickers
+                or instr_type in exempt_types
+            )
+            if needs_approval:
+                appr = approvals.get(ticker) or approvals.get(ticker.split(".")[0])
+                if not (appr and is_approval_valid(appr, d)):
+                    warnings.append(f"Sold {ticker} without approval")
     return {"owner": owner, "warnings": warnings, "trade_counts": dict(counts)}

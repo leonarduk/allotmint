@@ -19,6 +19,7 @@ from backend.config import config
 from backend.common.instruments import get_instrument_meta
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import get_scaling_override, apply_scaling
+from backend.common.approvals import is_approval_valid
 
 logger = logging.getLogger(__name__)
 
@@ -193,8 +194,15 @@ def get_effective_cost_basis_gbp(
     If booked cost exists, use it. Otherwise derive:
       units * (close near acquisition OR latest cache price).
     """
-    units = float(h.get(UNITS, 0) or 0)
-    booked = float(h.get(COST_BASIS_GBP) or 0.0)
+    units = float(h.get(UNITS) or 0.0)
+    if units <= 0:
+        return 0.0
+
+    booked_raw = h.get(COST_BASIS_GBP)
+    try:
+        booked = float(booked_raw) if booked_raw is not None else 0.0
+    except (TypeError, ValueError):
+        booked = 0.0
     if booked > 0:
         return round(booked, 2)
 
@@ -222,6 +230,7 @@ def enrich_holding(
     h: Dict[str, Any],
     today: dt.date,
     price_cache: dict[str, float],
+    approvals: dict[str, dt.date] | None = None,
 ) -> Dict[str, Any]:
     """
     Canonical enrichment used by both owner and group builders.
@@ -235,7 +244,12 @@ def enrich_holding(
     from backend.common.portfolio_utils import get_security_meta  # local import to avoid circular
     sec_meta = get_security_meta(full) or {}
     instr_meta = meta or {}
-    meta = {**instr_meta, **sec_meta}
+    # Merge metadata giving precedence to instrument files over
+    # security metadata derived from portfolios. Previously the merge
+    # order overwrote detailed instrument information (like the name)
+    # with generic placeholders from security metadata, causing
+    # instrument names to appear as tickers on the group page.
+    meta = {**sec_meta, **instr_meta}
     out["currency"] = meta.get("currency")
     out["name"] = out.get("name") or meta.get("name") or full
 
@@ -278,6 +292,25 @@ def enrich_holding(
     out["currency"] = meta.get("currency")
     out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type")
 
+    units = float(out.get(UNITS, 0) or 0.0)
+    if units <= 0:
+        out.setdefault(COST_BASIS_GBP, None)
+        out[EFFECTIVE_COST_BASIS_GBP] = 0.0
+        out["market_value_gbp"] = 0.0
+        out["gain_gbp"] = 0.0
+        out["unrealised_gain_gbp"] = 0.0
+        out["unrealized_gain_gbp"] = 0.0
+        out["gain_pct"] = None
+        out["day_change_gbp"] = 0.0
+        out["days_held"] = None
+        out["sell_eligible"] = False
+        out["eligible_on"] = None
+        out["days_until_eligible"] = None
+        out["price"] = None
+        out["current_price_gbp"] = None
+        out["cost_basis_source"] = "none"
+        return out
+
     # default acquired date if missing
     if out.get(ACQUIRED_DATE) is None:
         out[ACQUIRED_DATE] = (today - dt.timedelta(days=365)).isoformat()
@@ -286,16 +319,32 @@ def enrich_holding(
     if acq:
         days = (today - acq).days
         out["days_held"] = days
-        out["sell_eligible"] = days >= config.hold_days_min
+        eligible = days >= config.hold_days_min
         out["eligible_on"] = (
             acq + dt.timedelta(days=config.hold_days_min)
         ).isoformat()
         out["days_until_eligible"] = max(0, config.hold_days_min - days)
     else:
         out["days_held"] = None
-        out["sell_eligible"] = False
+        eligible = False
         out["eligible_on"] = None
         out["days_until_eligible"] = None
+
+    instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
+    exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
+    exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
+    needs_approval = not (
+        ticker.upper() in exempt_tickers
+        or full.upper() in exempt_tickers
+        or instr_type in exempt_types
+    )
+    approved = False
+    if approvals and needs_approval:
+        approved_on = approvals.get(full.upper()) or approvals.get(ticker.upper())
+        if approved_on:
+            approved = is_approval_valid(approved_on, today)
+
+    out["sell_eligible"] = bool(eligible and (approved or not needs_approval))
 
     # Effective cost basis (always computed)
     ecb = get_effective_cost_basis_gbp(out, price_cache)

@@ -28,8 +28,10 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
         The portfolio value is reconstructed over this window using current
         holdings. VaR is reported for 1-day and 10-day horizons.
     confidence:
-        Confidence level for the VaR quantile. Must be between 0 and 1.
-        Values of 0.95 (95 %) and 0.99 (99 %) are commonly used.
+        Confidence level for the VaR quantile. Accepts either a decimal
+        fraction between 0 and 1 or a percentage in the range 0–100. For
+        example, ``0.95`` and ``95`` are treated equivalently. Values close
+        to 95 % and 99 % are commonly used.
 
     Returns
     -------
@@ -39,21 +41,29 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
     Raises
     ------
     ValueError
-        If ``days`` is not positive or ``confidence`` is outside (0, 1).
+        If ``days`` is not positive or ``confidence`` is outside the accepted
+        ranges.
     FileNotFoundError
         If the owner does not exist.
     """
 
     if days <= 0:
         raise ValueError("days must be positive")
+
+    # Allow the confidence level to be expressed as a percentage (e.g. 95)
+    # or as a decimal fraction (0.95). Convert percentages to a fraction and
+    # validate the result.
+    if confidence > 1:
+        confidence = confidence / 100
     if not 0 < confidence < 1:
-        raise ValueError("confidence must be between 0 and 1")
+        raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
     perf = portfolio_utils.compute_owner_performance(owner, days=days)
-    if not perf:
+    history = perf.get("history", [])
+    if not history:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
-    df = pd.DataFrame(perf)
+    df = pd.DataFrame(history)
     returns = df["daily_return"].dropna()
     if returns.empty:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}

@@ -26,7 +26,11 @@ from backend.routes.metrics import router as metrics_router
 from backend.routes.agent import router as agent_router
 from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.config import router as config_router
-from backend.common.portfolio_utils import refresh_snapshot_in_memory_from_timeseries
+from backend.common.portfolio_utils import (
+    _load_snapshot,
+    refresh_snapshot_async,
+    refresh_snapshot_in_memory,
+)
 from backend.config import config
 
 
@@ -85,12 +89,12 @@ def create_app() -> FastAPI:
 
     if not skip_warm:
         @app.on_event("startup")
-        async def _warm_snapshot():
+        async def _warm_snapshot() -> None:
             """Pre-fetch recent price data so the first request is fast."""
 
-            refresh_snapshot_in_memory_from_timeseries(
-                days=config.snapshot_warm_days or 30
-            )
+            snapshot, ts = _load_snapshot()
+            refresh_snapshot_in_memory(snapshot, ts)
+            _ = refresh_snapshot_async(days=config.snapshot_warm_days or 30)
 
     return app
 

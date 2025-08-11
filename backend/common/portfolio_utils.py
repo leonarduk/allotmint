@@ -8,6 +8,7 @@ Common portfolio helpers
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import date, timedelta, datetime
@@ -20,7 +21,7 @@ import pandas as pd
 from backend.common import portfolio as portfolio_mod
 from backend.common.portfolio_loader import list_portfolios          # existing helper
 from backend.common.instruments import get_instrument_meta
-from backend.timeseries.cache import load_meta_timeseries_range
+from backend.timeseries.cache import load_meta_timeseries_range, load_meta_timeseries
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
@@ -71,24 +72,40 @@ def _safe_num(val, default: float = 0.0) -> float:
 # ──────────────────────────────────────────────────────────────
 _PRICES_PATH = Path("data/prices/latest_prices.json")
 
-def _load_snapshot() -> Dict[str, Dict]:
+
+def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
     if not _PRICES_PATH.exists():
         logger.warning("Price snapshot not found: %s", _PRICES_PATH)
-        return {}
+        return {}, None
     try:
-        return json.loads(_PRICES_PATH.read_text())
+        data = json.loads(_PRICES_PATH.read_text())
+        ts = datetime.fromtimestamp(_PRICES_PATH.stat().st_mtime)
+        return data, ts
     except Exception as exc:
         logger.error("Failed to parse snapshot %s: %s", _PRICES_PATH, exc)
-        return {}
-
-_PRICE_SNAPSHOT: Dict[str, Dict] = _load_snapshot()
+        return {}, None
 
 
-def refresh_snapshot_in_memory(new_snapshot: Dict[str, Dict] | None = None) -> None:
+_PRICE_SNAPSHOT: Dict[str, Dict]
+_PRICE_SNAPSHOT_TS: datetime | None
+_PRICE_SNAPSHOT, _PRICE_SNAPSHOT_TS = _load_snapshot()
+
+
+def refresh_snapshot_in_memory(
+    new_snapshot: Dict[str, Dict] | None = None,
+    timestamp: datetime | None = None,
+) -> None:
     """Call this from /prices/refresh when you write a new JSON snapshot."""
-    global _PRICE_SNAPSHOT
-    _PRICE_SNAPSHOT = new_snapshot or _load_snapshot()
-    logger.debug("In-memory price snapshot refreshed, %d tickers", len(_PRICE_SNAPSHOT))
+    global _PRICE_SNAPSHOT, _PRICE_SNAPSHOT_TS
+    if new_snapshot is None:
+        new_snapshot, timestamp = _load_snapshot()
+    elif timestamp is None:
+        timestamp = datetime.utcnow()
+    _PRICE_SNAPSHOT = new_snapshot
+    _PRICE_SNAPSHOT_TS = timestamp
+    logger.debug(
+        "In-memory price snapshot refreshed, %d tickers", len(_PRICE_SNAPSHOT)
+    )
 
 
 # ──────────────────────────────────────────────────────────────
@@ -390,8 +407,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             cutoff = today - timedelta(days=days)
             ticker_only, exchange = (t.split(".", 1) + ["L"])[:2]
 
-            df = load_meta_timeseries_range(ticker=ticker_only, exchange=exchange,
-                                        start_date=cutoff, end_date=today)
+            df = fetch_meta_timeseries(
+                ticker=ticker_only, exchange=exchange, start_date=cutoff, end_date=today
+            )
 
             if df is not None and not df.empty:
                 # Map lowercase column names to their actual counterparts
@@ -409,8 +427,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             logger.warning("Could not get timeseries for %s: %s", t, e)
 
     # store in-memory
-    _PRICE_SNAPSHOT.clear()
-    _PRICE_SNAPSHOT.update(snapshot)
+    refresh_snapshot_in_memory(snapshot, datetime.utcnow())
 
     # write to disk
     try:
@@ -421,6 +438,15 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
         logger.warning("Failed to write latest_prices.json: %s", e)
 
     logger.info("Refreshed %d price entries", len(snapshot))
+
+
+def refresh_snapshot_async(days: int = 365) -> asyncio.Task:
+    """Run :func:`refresh_snapshot_in_memory_from_timeseries` in the background."""
+
+    async def _runner() -> None:
+        await asyncio.to_thread(refresh_snapshot_in_memory_from_timeseries, days=days)
+
+    return asyncio.create_task(_runner())
 
 # ──────────────────────────────────────────────────────────────
 # Alert helpers

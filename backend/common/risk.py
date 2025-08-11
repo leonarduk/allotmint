@@ -59,7 +59,7 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
         raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
     perf = portfolio_utils.compute_owner_performance(owner, days=days)
-    history = perf.get("history", [])
+    history = perf.get("history", []) if isinstance(perf, dict) else perf
     if not history:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
@@ -99,6 +99,8 @@ def compute_sharpe_ratio(owner: str, days: int = 365) -> float | None:
         raise ValueError("days must be positive")
 
     perf = portfolio_utils.compute_owner_performance(owner, days=days)
+    if isinstance(perf, dict):
+        perf = perf.get("history", [])
     if not perf:
         return None
 

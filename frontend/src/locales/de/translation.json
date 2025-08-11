@@ -16,7 +16,8 @@
       "screener": "Filter",
       "query": "Abfrage",
       "trading": "Handel",
-      "timeseries": "Zeitreihe"
+      "timeseries": "Zeitreihe",
+      "watchlist": "Watchlist"
     }
   },
   "common": {

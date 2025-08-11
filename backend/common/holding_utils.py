@@ -19,6 +19,7 @@ from backend.config import config
 from backend.common.instruments import get_instrument_meta
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import get_scaling_override, apply_scaling
+from backend.common.approvals import is_approval_valid
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +230,7 @@ def enrich_holding(
     h: Dict[str, Any],
     today: dt.date,
     price_cache: dict[str, float],
+    approvals: dict[str, dt.date] | None = None,
 ) -> Dict[str, Any]:
     """
     Canonical enrichment used by both owner and group builders.
@@ -317,16 +319,32 @@ def enrich_holding(
     if acq:
         days = (today - acq).days
         out["days_held"] = days
-        out["sell_eligible"] = days >= config.hold_days_min
+        eligible = days >= config.hold_days_min
         out["eligible_on"] = (
             acq + dt.timedelta(days=config.hold_days_min)
         ).isoformat()
         out["days_until_eligible"] = max(0, config.hold_days_min - days)
     else:
         out["days_held"] = None
-        out["sell_eligible"] = False
+        eligible = False
         out["eligible_on"] = None
         out["days_until_eligible"] = None
+
+    instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
+    exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
+    exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
+    needs_approval = not (
+        ticker.upper() in exempt_tickers
+        or full.upper() in exempt_tickers
+        or instr_type in exempt_types
+    )
+    approved = False
+    if approvals and needs_approval:
+        approved_on = approvals.get(full.upper()) or approvals.get(ticker.upper())
+        if approved_on:
+            approved = is_approval_valid(approved_on, today)
+
+    out["sell_eligible"] = bool(eligible and (approved or not needs_approval))
 
     # Effective cost basis (always computed)
     ecb = get_effective_cost_basis_gbp(out, price_cache)

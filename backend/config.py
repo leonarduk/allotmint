@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, Dict, Any, overload
+from typing import Optional, Dict, Any, overload, List
 import yaml
 
 
@@ -45,6 +45,10 @@ class Config:
     accounts_root: Optional[Path] = None
     prices_json: Optional[Path] = None
 
+    approval_valid_days: Optional[int] = None
+    approval_exempt_types: Optional[List[str]] = None
+    approval_exempt_tickers: Optional[List[str]] = None
+
 
 def _project_config_path() -> Path:
     return Path(__file__).resolve().parents[1] / "config.yaml"
@@ -76,9 +80,9 @@ def load_config() -> Config:
     )
 
     prices_json_raw = data.get("prices_json")
-    prices_json = (
-        (repo_root / prices_json_raw).resolve() if prices_json_raw else None
-    )
+        prices_json = (
+            (repo_root / prices_json_raw).resolve() if prices_json_raw else None
+        )
 
     return Config(
         app_env=data.get("app_env"),
@@ -107,6 +111,9 @@ def load_config() -> Config:
         repo_root=repo_root,
         accounts_root=accounts_root,
         prices_json=prices_json,
+        approval_valid_days=data.get("approval_valid_days"),
+        approval_exempt_types=data.get("approval_exempt_types"),
+        approval_exempt_tickers=data.get("approval_exempt_tickers"),
     )
 
 

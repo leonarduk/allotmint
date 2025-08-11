@@ -21,6 +21,10 @@ snapshot_warm_days: 30
 ft_url_template: "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
 selenium_user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 selenium_headless: true
+approval_valid_days: 2
+approval_exempt_types:
+  - ETF
+approval_exempt_tickers: []
 error_summary:
   default_command:
     - pytest

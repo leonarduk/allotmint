@@ -3,6 +3,7 @@ hold_days_min: 30
 repo_root: .
 accounts_root: data/accounts
 prices_json: data/prices/latest_prices.json
+risk_free_rate: 0.01
 offline_mode: false
 timeseries_cache_base: data/timeseries
 alpha_vantage_key: "B74N5L0LY87QHKX4"

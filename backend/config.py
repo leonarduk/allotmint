@@ -44,6 +44,7 @@ class Config:
     repo_root: Optional[Path] = None
     accounts_root: Optional[Path] = None
     prices_json: Optional[Path] = None
+    risk_free_rate: Optional[float] = None
 
     approval_valid_days: Optional[int] = None
     approval_exempt_types: Optional[List[str]] = None
@@ -111,6 +112,7 @@ def load_config() -> Config:
         repo_root=repo_root,
         accounts_root=accounts_root,
         prices_json=prices_json,
+        risk_free_rate=data.get("risk_free_rate"),
         approval_valid_days=data.get("approval_valid_days"),
         approval_exempt_types=data.get("approval_exempt_types"),
         approval_exempt_tickers=data.get("approval_exempt_tickers"),

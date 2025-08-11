@@ -1,5 +1,6 @@
 // src/components/GroupPortfolioView.tsx
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { GroupPortfolio } from "../types";
 import { getGroupPortfolio } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
@@ -7,6 +8,7 @@ import { InstrumentDetail } from "./InstrumentDetail";
 import { money, percent } from "../lib/money";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
+import { translateInstrumentType } from "../lib/translateInstrumentType";
 import {
   PieChart,
   Pie,
@@ -53,6 +55,7 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
     [slug],
     !!slug
   );
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
 
   /* ── early‑return states ───────────────────────────────── */
@@ -67,12 +70,6 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
   let totalCost = 0;
   const perOwner: Record<string, { value: number; dayChange: number; gain: number; cost: number }> = {};
   const perType: Record<string, number> = {};
-
-  const formatType = (t: string | null | undefined) => {
-    if (!t) return "Other";
-    const normalized = t.toLowerCase().replace(/_/g, " ");
-    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  };
 
   for (const acct of portfolio.accounts ?? []) {
     const owner = acct.owner ?? "—";
@@ -94,8 +91,8 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
           : market - cost;
       const dayChg = h.day_change_gbp ?? 0;
 
-      const type = formatType(h.instrument_type);
-      perType[type] = (perType[type] || 0) + market;
+      const typeKey = (h.instrument_type ?? "other").toLowerCase();
+      perType[typeKey] = (perType[typeKey] || 0) + market;
 
       totalCost += cost;
       totalGain += gain;
@@ -121,8 +118,8 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
     return { owner, ...data, gainPct, dayChangePct };
   });
 
-  const typeRows = Object.entries(perType).map(([name, value]) => ({
-    name,
+  const typeRows = Object.entries(perType).map(([key, value]) => ({
+    name: translateInstrumentType(key, t),
     value,
     pct: totalValue > 0 ? (value / totalValue) * 100 : 0,
   }));

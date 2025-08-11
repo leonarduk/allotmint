@@ -37,6 +37,13 @@
       "delta30d": "30d %"
     }
   },
+  "instrumentType": {
+    "equity": "Ação",
+    "bond": "Obrigação",
+    "cash": "Dinheiro",
+    "fund": "Fundo",
+    "other": "Outro"
+  },
   "owner": {
     "label": "Proprietário",
     "select": "Selecione um proprietário."

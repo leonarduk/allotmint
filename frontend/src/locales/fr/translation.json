@@ -37,6 +37,13 @@
       "delta30d": "30j %"
     }
   },
+  "instrumentType": {
+    "equity": "Action",
+    "bond": "Obligation",
+    "cash": "Liquidités",
+    "fund": "Fonds",
+    "other": "Autre"
+  },
   "owner": {
     "label": "Propriétaire",
     "select": "Sélectionnez un propriétaire."

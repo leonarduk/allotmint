@@ -7,6 +7,7 @@ import { money, percent } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
+import { translateInstrumentType } from "../lib/translateInstrumentType";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -118,7 +119,7 @@ export function InstrumentTable({ rows }: Props) {
                                 </td>
                                 <td className={tableStyles.cell}>{r.name}</td>
                                 <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
-                                <td className={tableStyles.cell}>{r.instrument_type ?? "—"}</td>
+                                <td className={tableStyles.cell}>{translateInstrumentType(r.instrument_type, t)}</td>
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                     {new Intl.NumberFormat(i18n.language).format(r.units)}
                                 </td>

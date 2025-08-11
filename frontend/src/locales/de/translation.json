@@ -37,6 +37,13 @@
       "delta30d": "30T %"
     }
   },
+  "instrumentType": {
+    "equity": "Aktie",
+    "bond": "Anleihe",
+    "cash": "Bargeld",
+    "fund": "Fonds",
+    "other": "Sonstiges"
+  },
   "owner": {
     "label": "Besitzer",
     "select": "Wählen Sie einen Besitzer."

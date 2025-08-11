@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Line,
   LineChart,
@@ -12,6 +13,7 @@ import { getInstrumentDetail } from "../api";
 import { money, percent } from "../lib/money";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
+import { translateInstrumentType } from "../lib/translateInstrumentType";
 
 type Props = {
   ticker: string;
@@ -56,6 +58,7 @@ export function InstrumentDetail({
   instrument_type, // ← comes from props now
   onClose,
 }: Props) {
+  const { t } = useTranslation();
   const [data, setData] = useState<{
     prices: Price[];
     positions: Position[];
@@ -164,7 +167,7 @@ export function InstrumentDetail({
       </button>
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
       <div style={{ fontSize: "0.85rem", color: "#aaa" }}>
-        {ticker} • {displayCurrency} • {instrument_type ?? "?"} • {" "}
+        {ticker} • {displayCurrency} • {translateInstrumentType(instrument_type, t)} • {" "}
         <Link to={editLink} style={{ color: "#00d8ff", textDecoration: "none" }}>
           edit
         </Link>

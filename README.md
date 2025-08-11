@@ -27,6 +27,18 @@ entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
 | Storage  | S3 JSON / CSV (no RDBMS)                     |
 | IaC      | AWS CDK (Py)                                 |
 
+## Watchlist
+
+The repo includes a lightweight Yahoo Finance watchlist. Run it locally with:
+
+```
+# backend
+uvicorn app:app --reload --port 8000
+
+# frontend
+npm i && npm run dev
+```
+
 ---
 
 ## Backend dependencies

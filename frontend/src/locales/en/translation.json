@@ -15,6 +15,7 @@
       "transactions": "Transactions",
       "screener": "Screener",
       "query": "Query",
+      "trading": "Trading",
       "timeseries": "Timeseries"
     }
   },

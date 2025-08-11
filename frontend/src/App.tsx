@@ -32,6 +32,7 @@ import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
+import { TradingAgent } from "./pages/TradingAgent";
 
 type Mode =
   | "owner"
@@ -41,6 +42,7 @@ type Mode =
   | "performance"
   | "screener"
   | "query"
+  | "trading"
   | "timeseries";
 
 // derive initial mode + id from path
@@ -52,6 +54,7 @@ const initialMode: Mode =
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
   path[0] === "query" ? "query" :
+  path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
   "group";
 const initialSlug = path[1] ?? "";
@@ -104,9 +107,11 @@ export default function App() {
                 ? "screener"
                 : segs[0] === "query"
                   ? "query"
-                  : segs[0] === "timeseries"
-                    ? "timeseries"
-                    : "group";
+                  : segs[0] === "trading"
+                    ? "trading"
+                    : segs[0] === "timeseries"
+                      ? "timeseries"
+                      : "group";
     setMode(newMode);
     if (newMode === "owner") {
       setSelectedOwner(segs[1] ?? "");
@@ -222,6 +227,7 @@ export default function App() {
           "transactions",
           "screener",
           "query",
+          "trading",
           "timeseries",
         ] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
@@ -349,12 +355,15 @@ export default function App() {
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
       {mode === "screener" && <Screener />}
+      {mode === "trading" && <TradingAgent />}
       {mode === "timeseries" && <TimeseriesEdit />}
 
       {mode === "query" && <QueryPage />}
 
       <p style={{ marginTop: "2rem", textAlign: "center" }}>
         <a href="/virtual">Virtual Portfolios</a>
+        {" • "}
+        <a href="/trading">Trading Agent</a>
         {" • "}
         <a href="/support">{t("app.supportLink")}</a>
       </p>

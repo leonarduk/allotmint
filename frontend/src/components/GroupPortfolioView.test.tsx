@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
 
@@ -101,5 +101,43 @@ describe("GroupPortfolioView", () => {
 
     expect(screen.getByText("Equity")).toBeInTheDocument();
     expect(screen.getByText("Cash")).toBeInTheDocument();
+  });
+
+  it("updates totals when accounts are toggled", async () => {
+    const mockPortfolio = {
+      name: "All owners combined",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [],
+        },
+        {
+          owner: "bob",
+          account_type: "isa",
+          value_estimate_gbp: 200,
+          holdings: [],
+        },
+      ],
+    };
+
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockPortfolio,
+    } as unknown as Response);
+
+    render(<GroupPortfolioView slug="all" />);
+
+    await waitFor(() => screen.getByLabelText(/alice isa/i));
+
+    const totalLabel = screen.getAllByText("Total Value")[0];
+    const valueEl = totalLabel.nextElementSibling as HTMLElement;
+    expect(valueEl).toHaveTextContent("£300.00");
+
+    const bobCheckbox = screen.getByLabelText(/bob isa/i);
+    fireEvent.click(bobCheckbox);
+
+    expect(valueEl).toHaveTextContent("£100.00");
   });
 });

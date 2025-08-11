@@ -24,6 +24,16 @@
     "loading": "Chargement…",
     "other": "Autre"
   },
+  "instrumentType": {
+    "equity": "Action",
+    "bond": "Obligation",
+    "cash": "Espèces",
+    "etf": "ETF",
+    "fund": "Fonds",
+    "investmentTrust": "Fiducie de placement",
+    "realEstate": "Immobilier",
+    "other": "Autre"
+  },
   "instrumentTable": {
     "noInstruments": "Aucun instrument.",
     "columns": {

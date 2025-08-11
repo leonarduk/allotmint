@@ -22,6 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from backend.common.portfolio_loader import list_portfolios
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.common.portfolio_utils import get_security_meta
+from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
 # Group the instrument endpoints under their own router to keep ``app.py``
 # tidy and allow reuse across different deployment targets.
@@ -73,14 +74,31 @@ def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
                 units = h.get("units") or h.get("quantity")
                 mv_gbp = None if units is None else round(units * last_close, 2)
 
+                gain_gbp = h.get("gain_gbp")
+                gain_pct = h.get("gain_pct")
+                if gain_gbp is None and mv_gbp is not None:
+                    # fall back to cost basis when explicit gain is missing
+                    cost = (
+                        h.get("effective_cost_basis_gbp")
+                        or h.get("cost_basis_gbp")
+                        or h.get("cost_basis")
+                    )
+                    try:
+                        cost_f = float(cost) if cost is not None else None
+                    except (TypeError, ValueError):
+                        cost_f = None
+                    if cost_f is not None:
+                        gain_gbp = round(mv_gbp - cost_f, 2)
+                        gain_pct = (gain_gbp / cost_f * 100.0) if cost_f else None
+
                 positions.append(
                     {
                         "owner": owner,
                         "account": acct_name,
                         "units": units,
                         "market_value_gbp": mv_gbp,
-                        "unrealised_gain_gbp": h.get("gain_gbp"),
-                        "gain_pct": h.get("gain_pct"),
+                        "unrealised_gain_gbp": gain_gbp,
+                        "gain_pct": gain_pct,
                     }
                 )
     return positions
@@ -177,10 +195,22 @@ async def instrument(
     if "Close_gbp" not in df.columns and "Close" in df.columns:
         df["Close_gbp"] = df["Close"]
 
+    # Apply instrument-specific scaling
+    scale = get_scaling_override(tkr, exch, None)
+    if scale != 1.0:
+        df = apply_scaling(df, scale)
+        if "Close_gbp" in df.columns:
+            df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+
     df = df[pd.notnull(df["Close"])]
 
     last_close = float(df.iloc[-1]["Close_gbp"])
     positions = _positions_for_ticker(ticker.upper(), last_close)
+
+    if scale != 1.0:
+        for p in positions:
+            if p.get("unrealised_gain_gbp") is not None:
+                p["unrealised_gain_gbp"] = p["unrealised_gain_gbp"] * scale
 
     # ── JSON ───────────────────────────────────────────────────
     if format == "json":

@@ -24,6 +24,7 @@ from backend.common.constants import (
 )
 from backend.common.data_loader import list_plots, load_account
 from backend.common.holding_utils import enrich_holding
+from backend.common.approvals import load_approvals
 
 
 # ───────────────────────── trades helpers ─────────────────────────
@@ -95,6 +96,7 @@ def build_owner_portfolio(owner: str) -> Dict[str, Any]:
     trades_rem = max(0, config.max_trades_per_month - trades_this)
 
     price_cache: dict[str, float] = {}
+    approvals = load_approvals(owner)
 
     accounts: List[Dict[str, Any]] = []
     for meta in accounts_meta:
@@ -102,7 +104,7 @@ def build_owner_portfolio(owner: str) -> Dict[str, Any]:
         holdings_raw = raw.get("holdings", [])
 
         enriched = [
-            enrich_holding(h, today, price_cache) for h in holdings_raw
+            enrich_holding(h, today, price_cache, approvals) for h in holdings_raw
         ]
         val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in enriched)
 

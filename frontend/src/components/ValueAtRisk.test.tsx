@@ -1,19 +1,28 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import ValueAtRisk from "./ValueAtRisk";
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("ValueAtRisk component", () => {
-  test("renders VaR value and selectors", async () => {
-    render(<ValueAtRisk value={123.45} days={10} confidence={0.95} />);
+  it("renders VaR values and selectors", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => [{ date: "2024-01-01", var: 123.45 }],
+    } as unknown as Response);
 
-    expect(screen.getByText("123.45")).toBeInTheDocument();
-    const periodSel = screen.getByLabelText(/period/i);
-    const confSel = screen.getByLabelText(/confidence/i);
-    expect(periodSel).toBeInTheDocument();
-    expect(confSel).toBeInTheDocument();
+    render(<ValueAtRisk owner="alice" />);
 
-    await userEvent.selectOptions(periodSel, "30");
-    await userEvent.selectOptions(confSel, "0.99");
+    await waitFor(() => screen.getByText(/95%:/));
+
+    expect(screen.getByText(/95%:/)).toHaveTextContent("£123.45");
+    expect(screen.getByText(/99%:/)).toHaveTextContent("£123.45");
+
+    const periodSel = screen.getByLabelText(/Period/i);
+    fireEvent.change(periodSel, { target: { value: "90" } });
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
   });
 });

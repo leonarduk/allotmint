@@ -175,6 +175,18 @@ export const deleteVirtualPortfolio = (id: number | string) =>
     method: "DELETE",
   });
 
+/** Retrieve backend configuration. */
+export const getConfig = () =>
+  fetchJson<Record<string, unknown>>(`${API_BASE}/config`);
+
+/** Persist configuration changes. */
+export const updateConfig = (cfg: Record<string, unknown>) =>
+  fetchJson<Record<string, unknown>>(`${API_BASE}/config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cfg),
+  });
+
 
 /** Execute a custom query against the backend. */
 export const runCustomQuery = (params: CustomQuery) => {

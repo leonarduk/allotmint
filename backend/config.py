@@ -44,6 +44,7 @@ class Config:
     repo_root: Optional[Path] = None
     accounts_root: Optional[Path] = None
     prices_json: Optional[Path] = None
+    risk_free_rate: Optional[float] = None
 
 
 def _project_config_path() -> Path:
@@ -107,6 +108,7 @@ def load_config() -> Config:
         repo_root=repo_root,
         accounts_root=accounts_root,
         prices_json=prices_json,
+        risk_free_rate=data.get("risk_free_rate"),
     )
 
 

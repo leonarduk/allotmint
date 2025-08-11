@@ -112,8 +112,9 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
         Length of the historical window used for returns. Must be positive.
         VaR is reported for 1-day and 10-day horizons.
     confidence:
-        Quantile for losses in (0, 1). Defaults to 0.95 (95 %); 0.99 is
-        also common.
+        Quantile for losses in (0, 1) or, alternatively, a percentage in the
+        range 0–100. Both ``0.95`` and ``95`` will request the 95 % quantile.
+        Defaults to 0.95 (95 %); 0.99 is also common.
 
     Returns a JSON object ``{"owner": owner, "as_of": <today>, "var": {...}}``.
     Raises 404 if the owner does not exist and 400 for invalid parameters.

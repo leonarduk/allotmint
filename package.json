@@ -3,5 +3,9 @@
   "version": "0.0.2",
   "devDependencies": {
     "concurrently": "^9.2.0"
+  },
+  "dependencies": {
+    "i18next": "^25.3.4",
+    "react-i18next": "^15.6.1"
   }
 }

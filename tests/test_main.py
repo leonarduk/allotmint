@@ -115,7 +115,7 @@ def test_var_owner_not_found(mock_var):
 
 @patch("backend.common.risk.compute_portfolio_var", side_effect=ValueError("bad"))
 def test_var_invalid_params(mock_var):
-    response = client.get("/var/steve?confidence=2")
+    response = client.get("/var/steve?confidence=101")
     assert response.status_code == 400
 
 @patch("backend.timeseries.fetch_timeseries.fetch_yahoo_timeseries")

@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 import os
 
-from backend.common.alerts import publish_alert
+from backend.common.alerts import publish_sns_alert
 from backend.utils.telegram_utils import send_message
+from backend.config import config
 from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
@@ -21,19 +22,26 @@ from backend.common.portfolio_loader import list_portfolios
 logger = logging.getLogger(__name__)
 
 
-def send_trade_alert(message: str) -> None:
+def send_trade_alert(message: str, publish: bool = True) -> None:
     """Send ``message`` using the configured alert transports.
 
-    The alert is always passed to :func:`backend.common.alerts.publish_alert`
-    which stores it and publishes to SNS when ``SNS_TOPIC_ARN`` is set.
-    If both ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` are present in the
-    environment, the message is also forwarded to Telegram via
-    :func:`backend.utils.telegram_utils.send_message`.
+    Args:
+        message: Text to send.
+        publish: When ``True`` the message is passed to
+            :func:`backend.common.alerts.publish_alert` for storage/SNS
+            publication. Set to ``False`` when the caller has already
+            published the alert and only a Telegram notification is required.
+
+    The message is forwarded to Telegram via
+    :func:`backend.utils.telegram_utils.send_message` when both
+    ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` environment variables are
+    present and the application is not running on AWS (``config.app_env`` is
+    not ``"aws"``).
     """
 
-    publish_alert({"message": message})
+    if publish:
+        publish_sns_alert({"message": message})
 
-    if os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"):
         try:
             send_message(message)
         except Exception as exc:  # pragma: no cover - network errors are rare
@@ -144,7 +152,8 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             "reason": sig["reason"],
             "message": f"{sig['action']} {sig['ticker']}: {sig['reason']}",
         }
-        publish_alert(alert)
+        # When running outside AWS publish a Telegram notification too.
+        send_trade_alert(alert["message"])
         logger.info("Published alert: %s", alert)
     _alert_on_drawdown()
     return signals

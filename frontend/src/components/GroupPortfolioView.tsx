@@ -7,6 +7,25 @@ import { InstrumentDetail } from "./InstrumentDetail";
 import { money, percent } from "../lib/money";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+} from "recharts";
+
+const PIE_COLORS = [
+  "#8884d8",
+  "#82ca9d",
+  "#ffc658",
+  "#ff8042",
+  "#8dd1e1",
+  "#a4de6c",
+  "#d0ed57",
+  "#ffc0cb",
+];
 
 type SelectedInstrument = {
   ticker: string;
@@ -47,6 +66,13 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
   let totalDayChange = 0;
   let totalCost = 0;
   const perOwner: Record<string, { value: number; dayChange: number; gain: number; cost: number }> = {};
+  const perType: Record<string, number> = {};
+
+  const formatType = (t: string | null | undefined) => {
+    if (!t) return "Other";
+    const normalized = t.toLowerCase().replace(/_/g, " ");
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  };
 
   for (const acct of portfolio.accounts ?? []) {
     const owner = acct.owner ?? "—";
@@ -67,6 +93,9 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
           ? h.gain_gbp
           : market - cost;
       const dayChg = h.day_change_gbp ?? 0;
+
+      const type = formatType(h.instrument_type);
+      perType[type] = (perType[type] || 0) + market;
 
       totalCost += cost;
       totalGain += gain;
@@ -92,10 +121,39 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
     return { owner, ...data, gainPct, dayChangePct };
   });
 
+  const typeRows = Object.entries(perType).map(([name, value]) => ({
+    name,
+    value,
+    pct: totalValue > 0 ? (value / totalValue) * 100 : 0,
+  }));
+
   /* ── render ────────────────────────────────────────────── */
   return (
     <div style={{ marginTop: "1rem" }}>
       <h2>{portfolio.name}</h2>
+
+      {typeRows.length > 0 && (
+        <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>
+          <ResponsiveContainer>
+            <PieChart>
+              <Pie
+                dataKey="value"
+                data={typeRows}
+                label={({ name, pct }) => `${name} ${percent(pct)}`}
+              >
+                {typeRows.map((_, idx) => (
+                  <Cell
+                    key={`cell-${idx}`}
+                    fill={PIE_COLORS[idx % PIE_COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v: number, n: string) => [money(v), n]} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Summary Box */}
       <div

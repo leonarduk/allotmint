@@ -1,7 +1,26 @@
 {
-  "owner": { "label": "Owner" },
+  "app": {
+    "viewBy": "View by",
+    "relativeView": "Relative view",
+    "refreshPrices": "Refresh Prices",
+    "refreshing": "Refreshing…",
+    "last": "Last:",
+    "loading": "Loading…",
+    "supportLink": "Support",
+    "modes": {
+      "group": "Group",
+      "instrument": "Instrument",
+      "owner": "Member",
+      "performance": "Performance",
+      "transactions": "Transactions",
+      "screener": "Screener",
+      "query": "Query",
+      "trading": "Trading",
+      "timeseries": "Timeseries"
+    }
+  },
   "instrumentTable": {
-    "noInstruments": "No instruments found for this group.",
+    "noInstruments": "No instruments.",
     "columns": {
       "ticker": "Ticker",
       "name": "Name",
@@ -9,59 +28,33 @@
       "type": "Type",
       "units": "Units",
       "cost": "Cost £",
-      "market": "Mkt £",
+      "market": "Market £",
       "gain": "Gain £",
       "gainPct": "Gain %",
       "last": "Last £",
       "lastDate": "Last Date",
-      "delta7d": "Δ 7 d %",
-      "delta30d": "Δ 1 mo %"
+      "delta7d": "7d %",
+      "delta30d": "30d %"
     }
   },
-  "app": {
-    "viewBy": "View by:",
-    "modes": {
-      "group": "Group",
-      "instrument": "Instrument",
-      "owner": "Member",
-      "performance": "Performance",
-      "transactions": "Transactions",
-      "screener": "Screener"
-    },
-    "relativeView": "Relative view",
-    "refreshing": "Refreshing…",
-    "refreshPrices": "Refresh Prices",
-    "last": "Last:",
-    "loading": "Loading…",
-    "supportLink": "Support"
+  "owner": {
+    "label": "Owner",
+    "select": "Select an owner."
   },
   "support": {
     "title": "Support",
-    "online": "Online:",
-    "onlineYes": "yes",
-    "onlineNo": "no",
+    "online": "Online",
+    "onlineYes": "Yes",
+    "onlineNo": "No",
     "environment": "Environment",
     "telegramMessage": "Telegram Message",
     "send": "Send",
     "status": {
       "sent": "Sent",
-      "error": "Failed to send",
-      "sending": "Sending…"
+      "error": "Error",
+      "sending": "Sending..."
     }
-  }
-  "member": "Member",
-  "group": "Group",
-  "instrument": "Instrument",
-  "transactions": "Transactions",
-  "performance": "Performance",
-  "screener": "Screener",
-  "relativeView": "Relative view",
-  "refreshPrices": "Refresh Prices",
-  "refreshing": "Refreshing…",
-  "loading": "Loading…",
-  "support": "Support",
-  "owner": "Owner",
-  "selectOwner": "Select an owner.",
+  },
   "loadingPortfolio": "Loading portfolio…",
   "portfolio": "Portfolio",
   "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",

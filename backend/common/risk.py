@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from backend.common import portfolio_utils
+from backend.config import config
 
 
 def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95) -> Dict:
@@ -27,8 +28,10 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
         The portfolio value is reconstructed over this window using current
         holdings. VaR is reported for 1-day and 10-day horizons.
     confidence:
-        Confidence level for the VaR quantile. Must be between 0 and 1.
-        Values of 0.95 (95 %) and 0.99 (99 %) are commonly used.
+        Confidence level for the VaR quantile. Accepts either a decimal
+        fraction between 0 and 1 or a percentage in the range 0–100. For
+        example, ``0.95`` and ``95`` are treated equivalently. Values close
+        to 95 % and 99 % are commonly used.
 
     Returns
     -------
@@ -38,21 +41,29 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
     Raises
     ------
     ValueError
-        If ``days`` is not positive or ``confidence`` is outside (0, 1).
+        If ``days`` is not positive or ``confidence`` is outside the accepted
+        ranges.
     FileNotFoundError
         If the owner does not exist.
     """
 
     if days <= 0:
         raise ValueError("days must be positive")
+
+    # Allow the confidence level to be expressed as a percentage (e.g. 95)
+    # or as a decimal fraction (0.95). Convert percentages to a fraction and
+    # validate the result.
+    if confidence > 1:
+        confidence = confidence / 100
     if not 0 < confidence < 1:
-        raise ValueError("confidence must be between 0 and 1")
+        raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
     perf = portfolio_utils.compute_owner_performance(owner, days=days)
-    if not perf:
+    history = perf.get("history", [])
+    if not history:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
-    df = pd.DataFrame(perf)
+    df = pd.DataFrame(history)
     returns = df["daily_return"].dropna()
     if returns.empty:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
@@ -73,3 +84,36 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
         "1d": round(var_1d, 2) if var_1d is not None else None,
         "10d": round(var_10d, 2) if var_10d is not None else None,
     }
+
+
+def compute_sharpe_ratio(owner: str, days: int = 365) -> float | None:
+    """Calculate the annualised Sharpe ratio for ``owner``.
+
+    The calculation uses the daily returns from
+    :func:`portfolio_utils.compute_owner_performance` and adjusts them by the
+    configured risk-free rate. Returns ``None`` when not enough data is
+    available.
+    """
+
+    if days <= 0:
+        raise ValueError("days must be positive")
+
+    perf = portfolio_utils.compute_owner_performance(owner, days=days)
+    if not perf:
+        return None
+
+    returns = pd.Series([r.get("daily_return") for r in perf])
+    returns = returns.dropna()
+    if len(returns) < 2:
+        return None
+
+    rf = config.risk_free_rate or 0.0
+    trading_days = 252
+    daily_rf = rf / trading_days
+    excess = returns - daily_rf
+    std = excess.std(ddof=1)
+    if std == 0 or pd.isna(std):
+        return None
+
+    sharpe = (excess.mean() / std) * np.sqrt(trading_days)
+    return round(float(sharpe), 4)

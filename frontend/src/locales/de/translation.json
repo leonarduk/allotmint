@@ -1,17 +1,60 @@
 {
-  "member": "Mitglied",
-  "group": "Gruppe",
-  "instrument": "Instrument",
-  "transactions": "Transaktionen",
-  "performance": "Leistung",
-  "screener": "Filter",
-  "relativeView": "Relative Ansicht",
-  "refreshPrices": "Preise aktualisieren",
-  "refreshing": "Aktualisierung…",
-  "loading": "Laden…",
-  "support": "Support",
-  "owner": "Besitzer",
-  "selectOwner": "Wählen Sie einen Besitzer.",
+  "app": {
+    "viewBy": "Ansicht nach",
+    "relativeView": "Relative Ansicht",
+    "refreshPrices": "Preise aktualisieren",
+    "refreshing": "Aktualisierung…",
+    "last": "Zuletzt:",
+    "loading": "Laden…",
+    "supportLink": "Support",
+    "modes": {
+      "group": "Gruppe",
+      "instrument": "Instrument",
+      "owner": "Mitglied",
+      "performance": "Leistung",
+      "transactions": "Transaktionen",
+      "screener": "Filter",
+      "query": "Abfrage",
+      "trading": "Handel",
+      "timeseries": "Zeitreihe"
+    }
+  },
+  "instrumentTable": {
+    "noInstruments": "Keine Instrumente.",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Name",
+      "ccy": "Währung",
+      "type": "Typ",
+      "units": "Einheiten",
+      "cost": "Kosten £",
+      "market": "Marktwert £",
+      "gain": "Gewinn £",
+      "gainPct": "Gewinn %",
+      "last": "Letzter £",
+      "lastDate": "Letztes Datum",
+      "delta7d": "7T %",
+      "delta30d": "30T %"
+    }
+  },
+  "owner": {
+    "label": "Besitzer",
+    "select": "Wählen Sie einen Besitzer."
+  },
+  "support": {
+    "title": "Support",
+    "online": "Online",
+    "onlineYes": "Ja",
+    "onlineNo": "Nein",
+    "environment": "Umgebung",
+    "telegramMessage": "Telegram-Nachricht",
+    "send": "Senden",
+    "status": {
+      "sent": "Gesendet",
+      "error": "Fehler",
+      "sending": "Wird gesendet..."
+    }
+  },
   "loadingPortfolio": "Portfolio wird geladen…",
   "portfolio": "Portfolio",
   "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",

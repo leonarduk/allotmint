@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   getGroupInstruments,
@@ -32,6 +32,7 @@ import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
+import { TradingAgent } from "./pages/TradingAgent";
 
 type Mode =
   | "owner"
@@ -41,6 +42,7 @@ type Mode =
   | "performance"
   | "screener"
   | "query"
+  | "trading"
   | "timeseries";
 
 // derive initial mode + id from path
@@ -52,19 +54,21 @@ const initialMode: Mode =
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
   path[0] === "query" ? "query" :
+  path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
   "group";
 const initialSlug = path[1] ?? "";
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
 
+  const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
     initialMode === "owner" ? initialSlug : "",
   );
-  const params = new URLSearchParams(window.location.search);
   const [selectedGroup, setSelectedGroup] = useState(
     initialMode === "instrument" ? initialSlug : params.get("group") ?? "",
   );
@@ -89,10 +93,40 @@ export default function App() {
   const groupsReq = useFetchWithRetry(getGroups);
 
   useEffect(() => {
+    const segs = location.pathname.split("/").filter(Boolean);
+    const newMode: Mode =
+      segs[0] === "member"
+        ? "owner"
+        : segs[0] === "instrument"
+          ? "instrument"
+          : segs[0] === "transactions"
+            ? "transactions"
+            : segs[0] === "performance"
+              ? "performance"
+              : segs[0] === "screener"
+                ? "screener"
+                : segs[0] === "query"
+                  ? "query"
+                  : segs[0] === "trading"
+                    ? "trading"
+                    : segs[0] === "timeseries"
+                      ? "timeseries"
+                      : "group";
+    setMode(newMode);
+    if (newMode === "owner") {
+      setSelectedOwner(segs[1] ?? "");
+    } else if (newMode === "instrument") {
+      setSelectedGroup(segs[1] ?? "");
+    } else if (newMode === "group") {
+      setSelectedGroup(
+        new URLSearchParams(location.search).get("group") ?? "",
+      );
+    }
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
     if (ownersReq.data) setOwners(ownersReq.data);
   }, [ownersReq.data]);
-  // Toggle between showing absolute or relative positions in holdings tables
-  const [relativeView, setRelativeView] = useState(true);
 
   useEffect(() => {
     if (groupsReq.data) setGroups(groupsReq.data);
@@ -193,6 +227,7 @@ export default function App() {
           "transactions",
           "screener",
           "query",
+          "trading",
           "timeseries",
         ] as Mode[]).map((m) => (
           <label key={m} style={{ marginRight: "1rem" }}>
@@ -320,12 +355,15 @@ export default function App() {
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
       {mode === "screener" && <Screener />}
+      {mode === "trading" && <TradingAgent />}
       {mode === "timeseries" && <TimeseriesEdit />}
 
       {mode === "query" && <QueryPage />}
 
       <p style={{ marginTop: "2rem", textAlign: "center" }}>
         <a href="/virtual">Virtual Portfolios</a>
+        {" • "}
+        <a href="/trading">Trading Agent</a>
         {" • "}
         <a href="/support">{t("app.supportLink")}</a>
       </p>

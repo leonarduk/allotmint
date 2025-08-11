@@ -56,4 +56,50 @@ describe("GroupPortfolioView", () => {
     expect(screen.getByText("-4.76%"))
       .toBeInTheDocument();
   });
+
+  it("renders instrument type pie chart", async () => {
+    const mockPortfolio = {
+      name: "All owners combined",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [
+            {
+              units: 1,
+              cost_basis_gbp: 80,
+              market_value_gbp: 100,
+              instrument_type: "equity",
+            },
+          ],
+        },
+        {
+          owner: "bob",
+          account_type: "isa",
+          value_estimate_gbp: 200,
+          holdings: [
+            {
+              units: 1,
+              cost_basis_gbp: 200,
+              market_value_gbp: 200,
+              instrument_type: "cash",
+            },
+          ],
+        },
+      ],
+    };
+
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockPortfolio,
+    } as unknown as Response);
+
+    render(<GroupPortfolioView slug="all" />);
+
+    await waitFor(() => screen.getByText("Equity"));
+
+    expect(screen.getByText("Equity")).toBeInTheDocument();
+    expect(screen.getByText("Cash")).toBeInTheDocument();
+  });
 });

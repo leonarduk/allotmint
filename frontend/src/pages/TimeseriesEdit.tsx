@@ -1,4 +1,4 @@
-import { useState, ChangeEvent } from "react";
+import { useState, ChangeEvent, useEffect } from "react";
 import { getTimeseries, saveTimeseries } from "../api";
 import type { PriceEntry } from "../types";
 
@@ -8,6 +8,14 @@ export function TimeseriesEdit() {
   const [csv, setCsv] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("ticker");
+    const e = params.get("exchange");
+    if (t) setTicker(t);
+    if (e) setExchange(e);
+  }, []);
 
   async function handleLoad() {
     setError(null);

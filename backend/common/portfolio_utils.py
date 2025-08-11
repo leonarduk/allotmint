@@ -12,7 +12,7 @@ import json
 import logging
 from datetime import date, timedelta, datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import numpy as np
 import pandas as pd
@@ -278,12 +278,13 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
 # ──────────────────────────────────────────────────────────────
 # Performance helpers
 # ──────────────────────────────────────────────────────────────
-def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
+def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
     """Return daily portfolio values and returns for an ``owner``.
 
     The calculation uses current holdings and fetches closing prices from the
-    meta timeseries cache for the requested rolling window. The result is a
-    list of records::
+    meta timeseries cache for the requested rolling window. The result is
+    returned as ``{"history": [...], "max_drawdown": float}`` where
+    ``history`` is a list of records::
 
         {
             "date": "2024-01-01",
@@ -291,9 +292,12 @@ def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
             "daily_return": 0.0012,         # 0.12 %
             "weekly_return": 0.0345,        # 3.45 %
             "cumulative_return": 0.0567,    # 5.67 % from start
+            "running_max": 1500.0,          # peak value so far
+            "drawdown": -0.18,              # % drop from running max
         }
 
-    Returns an empty list if the owner or timeseries data is missing.
+    Returns ``{"history": [], "max_drawdown": None}`` if the owner or
+    timeseries data is missing.
     """
 
     try:
@@ -314,7 +318,7 @@ def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
             holdings.append((tkr.split(".", 1)[0], exch, units))
 
     if not holdings:
-        return []
+        return {"history": [], "max_drawdown": None}
 
     total = pd.Series(dtype=float)
     for ticker, exchange, units in holdings:
@@ -327,13 +331,16 @@ def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
         total = total.add(values, fill_value=0)
 
     if total.empty:
-        return []
+        return {"history": [], "max_drawdown": None}
 
     perf = total.sort_index().to_frame(name="value")
     perf["daily_return"] = perf["value"].pct_change()
     perf["weekly_return"] = perf["value"].pct_change(5)
     start_val = perf["value"].iloc[0]
     perf["cumulative_return"] = perf["value"] / start_val - 1
+    perf["running_max"] = perf["value"].cummax()
+    perf["drawdown"] = perf["value"] / perf["running_max"] - 1
+    max_drawdown = float(perf["drawdown"].min())
     perf = perf.reset_index().rename(columns={"index": "date"})
 
     out: List[Dict] = []
@@ -353,10 +360,14 @@ def compute_owner_performance(owner: str, days: int = 365) -> List[Dict]:
                     if pd.notna(row.cumulative_return)
                     else None
                 ),
+                "running_max": round(float(row.running_max), 2),
+                "drawdown": (
+                    float(row.drawdown) if pd.notna(row.drawdown) else None
+                ),
             }
         )
 
-    return out
+    return {"history": out, "max_drawdown": max_drawdown}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -416,7 +427,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
 # ──────────────────────────────────────────────────────────────
 def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
     """Check holdings against cost basis and emit alerts."""
-    from backend.common.alerts import publish_alert
+    from backend.common.alerts import publish_sns_alert
 
     alerts: List[Dict] = []
     for pf in list_portfolios():
@@ -432,6 +443,6 @@ def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
                     "change_pct": round(change_pct, 4),
                     "message": f"{row['ticker']} change {change_pct*100:.1f}% vs cost basis",
                 }
-                publish_alert(alert)
+                publish_sns_alert(alert)
                 alerts.append(alert)
     return alerts

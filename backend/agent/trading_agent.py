@@ -14,7 +14,7 @@ from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 
-from backend.common import prices
+from backend.common import prices, risk
 from backend.common.alerts import publish_sns_alert
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
@@ -203,6 +203,14 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             metrics["win_rate"] * 100,
             metrics["average_profit"],
         )
+    for pf in list_portfolios():
+        owner = pf.get("owner")
+        try:
+            sortino = risk.compute_sortino_ratio(owner)
+        except FileNotFoundError:
+            continue
+        if sortino is not None:
+            logger.info("Sortino ratio for %s: %.4f", owner, sortino)
     _alert_on_drawdown()
     return signals
 

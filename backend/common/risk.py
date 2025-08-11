@@ -98,7 +98,10 @@ def compute_sharpe_ratio(owner: str, days: int = 365) -> float | None:
     if days <= 0:
         raise ValueError("days must be positive")
 
-    perf = portfolio_utils.compute_owner_performance(owner, days=days)
+    try:
+        perf = portfolio_utils.compute_owner_performance(owner, days=days)
+    except ValueError:
+        return None
     if isinstance(perf, dict):
         perf = perf.get("history", [])
     if not perf:
@@ -119,3 +122,46 @@ def compute_sharpe_ratio(owner: str, days: int = 365) -> float | None:
 
     sharpe = (excess.mean() / std) * np.sqrt(trading_days)
     return round(float(sharpe), 4)
+
+
+def compute_sortino_ratio(owner: str, days: int = 365) -> float | None:
+    """Calculate the annualised Sortino ratio for ``owner``.
+
+    The calculation uses daily returns from
+    :func:`portfolio_utils.compute_owner_performance`, adjusts them by the
+    configured risk-free rate and measures volatility only from downside
+    returns. Returns ``None`` when insufficient data is available or when
+    there are no negative returns.
+    """
+
+    if days <= 0:
+        raise ValueError("days must be positive")
+
+    try:
+        perf = portfolio_utils.compute_owner_performance(owner, days=days)
+    except ValueError:
+        return None
+    if isinstance(perf, dict):
+        perf = perf.get("history", [])
+    if not perf:
+        return None
+
+    returns = pd.Series([r.get("daily_return") for r in perf])
+    returns = returns.dropna()
+    if len(returns) < 2:
+        return None
+
+    rf = config.risk_free_rate or 0.0
+    trading_days = 252
+    daily_rf = rf / trading_days
+    excess = returns - daily_rf
+    downside = excess[excess < 0]
+    if len(downside) < 2:
+        return None
+
+    std = downside.std(ddof=1)
+    if std == 0 or pd.isna(std):
+        return None
+
+    sortino = (excess.mean() / std) * np.sqrt(trading_days)
+    return round(float(sortino), 4)

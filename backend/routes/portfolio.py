@@ -138,6 +138,7 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
+        sortino = risk.compute_sortino_ratio(owner, days=days)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
@@ -147,6 +148,7 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
         "as_of": date.today().isoformat(),
         "var": var,
         "sharpe_ratio": sharpe,
+        "sortino_ratio": sortino,
     }
 
 

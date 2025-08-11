@@ -119,6 +119,13 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.publish_alert", lambda alert: None
     )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.risk.compute_sortino_ratio", lambda owner: None
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.compute_owner_performance",
+        lambda owner, days=365: {"history": [], "max_drawdown": None},
+    )
 
     run()
 
@@ -142,6 +149,13 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
     )
     monkeypatch.setattr(
         "backend.agent.trading_agent.publish_alert", lambda alert: None
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.risk.compute_sortino_ratio", lambda owner: None
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.compute_owner_performance",
+        lambda owner, days=365: {"history": [], "max_drawdown": None},
     )
 
     sent: list[str] = []

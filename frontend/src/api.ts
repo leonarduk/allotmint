@@ -15,7 +15,6 @@ import type {
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
-  TradingSignal,
 } from "./types";
 
 /* ------------------------------------------------------------------ */

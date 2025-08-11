@@ -20,7 +20,7 @@ import pandas as pd
 from backend.common import portfolio as portfolio_mod
 from backend.common.portfolio_loader import list_portfolios          # existing helper
 from backend.common.instruments import get_instrument_meta
-from backend.timeseries.cache import load_meta_timeseries
+from backend.timeseries.cache import load_meta_timeseries_range
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
@@ -390,7 +390,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             cutoff = today - timedelta(days=days)
             ticker_only, exchange = (t.split(".", 1) + ["L"])[:2]
 
-            df = fetch_meta_timeseries(ticker=ticker_only, exchange=exchange,
+            df = load_meta_timeseries_range(ticker=ticker_only, exchange=exchange,
                                         start_date=cutoff, end_date=today)
 
             if df is not None and not df.empty:

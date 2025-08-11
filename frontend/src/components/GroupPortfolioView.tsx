@@ -7,6 +7,7 @@ import { InstrumentDetail } from "./InstrumentDetail";
 import { money, percent } from "../lib/money";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
+import { useTranslation } from "react-i18next";
 import {
   PieChart,
   Pie,
@@ -54,6 +55,7 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
     !!slug
   );
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
+  const { t } = useTranslation();
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
 
   // helper to derive a stable key for each account
@@ -68,9 +70,9 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
   }, [portfolio]);
 
   /* ── early‑return states ───────────────────────────────── */
-  if (!slug) return <p>Select a group.</p>;
-  if (error) return <p style={{ color: "red" }}>Error: {error.message}</p>;
-  if (loading || !portfolio) return <p>Loading…</p>;
+  if (!slug) return <p>{t("group.select")}</p>;
+  if (error) return <p style={{ color: "red" }}>{t("common.error")}: {error.message}</p>;
+  if (loading || !portfolio) return <p>{t("common.loading")}</p>;
 
   /* ── aggregate totals for summary box ──────────────────── */
   let totalValue = 0;
@@ -80,9 +82,9 @@ export function GroupPortfolioView({ slug, relativeView }: Props) {
   const perOwner: Record<string, { value: number; dayChange: number; gain: number; cost: number }> = {};
   const perType: Record<string, number> = {};
 
-  const formatType = (t: string | null | undefined) => {
-    if (!t) return "Other";
-    const normalized = t.toLowerCase().replace(/_/g, " ");
+  const formatType = (type: string | null | undefined) => {
+    if (!type) return t("common.other");
+    const normalized = type.toLowerCase().replace(/_/g, " ");
     return normalized.charAt(0).toUpperCase() + normalized.slice(1);
   };
 

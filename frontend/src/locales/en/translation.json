@@ -19,6 +19,11 @@
       "timeseries": "Timeseries"
     }
   },
+  "common": {
+    "error": "Error",
+    "loading": "Loading…",
+    "other": "Other"
+  },
   "instrumentTable": {
     "noInstruments": "No instruments.",
     "columns": {
@@ -40,6 +45,9 @@
   "owner": {
     "label": "Owner",
     "select": "Select an owner."
+  },
+  "group": {
+    "select": "Select a group."
   },
   "support": {
     "title": "Support",

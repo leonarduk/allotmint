@@ -4,31 +4,23 @@ from __future__ import annotations
 
 import csv
 import logging
-import os
 from datetime import datetime
-
-from backend.common.alerts import publish_sns_alert
-from backend.utils.telegram_utils import send_message
-from backend.config import config
-
 from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 
 from backend.common import prices
-
-from backend.common.alerts import publish_alert
+from backend.common.alerts import publish_sns_alert
+from backend.common.portfolio_loader import list_portfolios
+from backend.common.portfolio_utils import (
+    list_all_unique_tickers,
+    compute_owner_performance,
+)
 from backend.common.trade_metrics import (
     TRADE_LOG_PATH,
     load_and_compute_metrics,
 )
 from backend.utils.telegram_utils import send_message
-
-from backend.common.portfolio_utils import (
-    list_all_unique_tickers,
-    compute_owner_performance,
-)
-from backend.common.portfolio_loader import list_portfolios
 
 logger = logging.getLogger(__name__)
 

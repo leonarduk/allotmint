@@ -19,6 +19,11 @@
       "timeseries": "Serie temporal"
     }
   },
+  "common": {
+    "error": "Error",
+    "loading": "Cargando…",
+    "other": "Otro"
+  },
   "instrumentTable": {
     "noInstruments": "Sin instrumentos.",
     "columns": {
@@ -40,6 +45,9 @@
   "owner": {
     "label": "Propietario",
     "select": "Seleccione un propietario."
+  },
+  "group": {
+    "select": "Seleccione un grupo."
   },
   "support": {
     "title": "Soporte",

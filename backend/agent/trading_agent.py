@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import csv
 import logging
 import os
-
-from backend.common.alerts import publish_alert
-from backend.utils.telegram_utils import send_message
+from datetime import datetime
 from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
@@ -14,6 +13,11 @@ import pandas as pd
 from backend.common import prices
 from backend.common.alerts import publish_alert
 from backend.common.portfolio_utils import list_all_unique_tickers
+from backend.common.trade_metrics import (
+    TRADE_LOG_PATH,
+    load_and_compute_metrics,
+)
+from backend.utils.telegram_utils import send_message
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +83,30 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     return signals
 
 
+def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = None) -> None:
+    """Append a trade record to the trade log.
+
+    The log is stored as CSV at :data:`backend.common.trade_metrics.TRADE_LOG_PATH`.
+    """
+
+    ts = ts or datetime.utcnow()
+    header = not TRADE_LOG_PATH.exists()
+    with TRADE_LOG_PATH.open("a", newline="") as f:
+        writer = csv.DictWriter(
+            f, fieldnames=["timestamp", "ticker", "action", "price"]
+        )
+        if header:
+            writer.writeheader()
+        writer.writerow(
+            {
+                "timestamp": ts.isoformat(),
+                "ticker": ticker,
+                "action": action,
+                "price": price,
+            }
+        )
+
+
 def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
     """Refresh prices, generate signals and publish alerts.
 
@@ -114,14 +142,25 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
 
     signals = generate_signals(snapshot)
     for sig in signals:
+        ticker = sig["ticker"]
+        price = snapshot[ticker]["last_price"]
         alert = {
-            "ticker": sig["ticker"],
+            "ticker": ticker,
             "action": sig["action"],
             "reason": sig["reason"],
-            "message": f"{sig['action']} {sig['ticker']}: {sig['reason']}",
+            "message": f"{sig['action']} {ticker}: {sig['reason']}",
         }
         publish_alert(alert)
         logger.info("Published alert: %s", alert)
+        _log_trade(ticker, sig["action"], price)
+
+    if signals:
+        metrics = load_and_compute_metrics()
+        logger.info(
+            "Trade metrics - win rate: %.2f%%, average P/L: %.2f",
+            metrics["win_rate"] * 100,
+            metrics["average_profit"],
+        )
     return signals
 
 

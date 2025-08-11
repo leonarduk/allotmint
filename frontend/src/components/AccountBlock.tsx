@@ -14,14 +14,12 @@ import i18n from "../i18n";
  * ────────────────────────────────────────────────────────────── */
 type Props = {
   account: Account;
-  relativeView?: boolean;
   selected?: boolean;
   onToggle?: () => void;
 };
 
 export function AccountBlock({
   account,
-  relativeView = false,
   selected = true,
   onToggle,
 }: Props) {
@@ -67,7 +65,6 @@ export function AccountBlock({
 
           <HoldingsTable
             holdings={account.holdings}
-            relativeView={relativeView}
             onSelectInstrument={(ticker, name) =>
               setSelectedInstrument({ ticker, name })
             }

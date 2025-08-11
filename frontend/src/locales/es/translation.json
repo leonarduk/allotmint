@@ -37,6 +37,27 @@
       "delta30d": "30d %"
     }
   },
+  "holdingsTable": {
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nombre",
+      "type": "Tipo",
+      "units": "Unidades",
+      "gainPct": "Ganancia %"
+    },
+    "filters": {
+      "sellEligible": "Elegible para vender"
+    },
+    "options": {
+      "all": "Todos",
+      "yes": "Sí",
+      "no": "No"
+    },
+    "tooltips": {
+      "actualCost": "Costo de compra real",
+      "inferredCost": "Inferido del precio en la fecha de adquisición"
+    }
+  },
   "owner": {
     "label": "Propietario",
     "select": "Seleccione un propietario."

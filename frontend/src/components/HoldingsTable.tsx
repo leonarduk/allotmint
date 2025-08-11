@@ -1,5 +1,6 @@
 import type React from "react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -17,6 +18,7 @@ export function HoldingsTable({
   onSelectInstrument,
   relativeView = false,
 }: Props) {
+  const { t } = useTranslation();
   const [filters, setFilters] = useState({
     ticker: "",
     name: "",
@@ -91,14 +93,14 @@ export function HoldingsTable({
         <tr>
           <th className={tableStyles.cell}>
             <input
-              placeholder="Ticker"
+              placeholder={t("holdingsTable.columns.ticker")}
               value={filters.ticker}
               onChange={(e) => handleFilterChange("ticker", e.target.value)}
             />
           </th>
           <th className={tableStyles.cell}>
             <input
-              placeholder="Name"
+              placeholder={t("holdingsTable.columns.name")}
               value={filters.name}
               onChange={(e) => handleFilterChange("name", e.target.value)}
             />
@@ -106,7 +108,7 @@ export function HoldingsTable({
           <th className={tableStyles.cell}></th>
           <th className={tableStyles.cell}>
             <input
-              placeholder="Type"
+              placeholder={t("holdingsTable.columns.type")}
               value={filters.instrument_type}
               onChange={(e) => handleFilterChange("instrument_type", e.target.value)}
             />
@@ -114,7 +116,7 @@ export function HoldingsTable({
           {!relativeView && (
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>
               <input
-                placeholder="Units"
+                placeholder={t("holdingsTable.columns.units")}
                 value={filters.units}
                 onChange={(e) => handleFilterChange("units", e.target.value)}
               />
@@ -126,7 +128,7 @@ export function HoldingsTable({
           {!relativeView && <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>}
           <th className={`${tableStyles.cell} ${tableStyles.right}`}>
             <input
-              placeholder="Gain %"
+              placeholder={t("holdingsTable.columns.gainPct")}
               value={filters.gain_pct}
               onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
             />
@@ -136,26 +138,26 @@ export function HoldingsTable({
           <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
           <th className={`${tableStyles.cell} ${tableStyles.center}`}>
             <select
-              aria-label="Sell eligible"
+              aria-label={t("holdingsTable.filters.sellEligible")}
               value={filters.sell_eligible}
               onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
             >
-              <option value="">All</option>
-              <option value="true">Yes</option>
-              <option value="false">No</option>
+              <option value="">{t("holdingsTable.options.all")}</option>
+              <option value="true">{t("holdingsTable.options.yes")}</option>
+              <option value="false">{t("holdingsTable.options.no")}</option>
             </select>
           </th>
         </tr>
         <tr>
           <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("ticker")}>
-            Ticker{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
+            {t("holdingsTable.columns.ticker")}{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("name")}>
-            Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
+            {t("holdingsTable.columns.name")}{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th className={tableStyles.cell}>CCY</th>
-          <th className={tableStyles.cell}>Type</th>
-          {!relativeView && <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>}
+          <th className={tableStyles.cell}>{t("holdingsTable.columns.type")}</th>
+          {!relativeView && <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.units")}</th>}
           <th className={`${tableStyles.cell} ${tableStyles.right}`}>Px £</th>
           {!relativeView && (
             <th className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`} onClick={() => handleSort("cost")}>
@@ -169,7 +171,7 @@ export function HoldingsTable({
             </th>
           )}
           <th className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`} onClick={() => handleSort("gain_pct")}>
-            Gain %{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
+            {t("holdingsTable.columns.gainPct")}{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
           </th>
           <th className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`} onClick={() => handleSort("weight_pct")}>
             Weight %{sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
@@ -216,7 +218,9 @@ export function HoldingsTable({
               {!relativeView && (
                 <td
                   className={`${tableStyles.cell} ${tableStyles.right}`}
-                  title={(h.cost_basis_gbp ?? 0) > 0 ? "Actual purchase cost" : "Inferred from price on acquisition date"}
+                  title={(h.cost_basis_gbp ?? 0) > 0
+                    ? t("holdingsTable.tooltips.actualCost")
+                    : t("holdingsTable.tooltips.inferredCost")}
                 >
                   {money(h.cost)}
                 </td>

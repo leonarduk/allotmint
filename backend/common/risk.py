@@ -1,18 +1,49 @@
 """Risk metrics helpers.
 
-This module currently exposes :func:`compute_portfolio_var` which calculates
-historical-simulation Value-at-Risk (VaR) for a portfolio owner.
+This module exposes helpers for calculating risk metrics for a portfolio
+owner including Value-at-Risk (VaR) and the Sortino ratio.
 """
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Dict
 
 import numpy as np
 import pandas as pd
 
 from backend.common import portfolio_utils
+
+
+def compute_sortino_ratio(owner: str, days: int = 365) -> float | None:
+    """Calculate the Sortino ratio for ``owner`` over ``days`` of returns.
+
+    The ratio is defined as the mean daily return divided by the standard
+    deviation of negative daily returns. Returns ``None`` if there are no
+    returns or no negative returns over the period.
+    """
+
+    if days <= 0:
+        raise ValueError("days must be positive")
+
+    perf = portfolio_utils.compute_owner_performance(owner, days=days)
+    if not perf:
+        return None
+
+    df = pd.DataFrame(perf)
+    returns = df["daily_return"].dropna()
+    if returns.empty:
+        return None
+
+    downside = returns[returns < 0]
+    if downside.empty:
+        return None
+
+    downside_std = downside.std()
+    if pd.isna(downside_std) or downside_std == 0:
+        return None
+
+    mean_return = returns.mean()
+    return float(mean_return / downside_std)
 
 
 def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95) -> Dict:

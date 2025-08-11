@@ -5,15 +5,15 @@ from __future__ import annotations
 import logging
 import os
 
-from backend.common.alerts import publish_alert
-from backend.utils.telegram_utils import send_message
 from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 
-from backend.common import prices
+from backend.common import prices, risk
 from backend.common.alerts import publish_alert
 from backend.common.portfolio_utils import list_all_unique_tickers
+from backend.common.portfolio_loader import list_portfolios
+from backend.utils.telegram_utils import send_message
 
 logger = logging.getLogger(__name__)
 
@@ -79,16 +79,9 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     return signals
 
 
-def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
-    """Refresh prices, generate signals and publish alerts.
+def run(tickers: Optional[Iterable[str]] = None) -> Dict:
+    """Refresh prices, generate signals, publish alerts and diagnostics."""
 
-    Args:
-        tickers: optional iterable of ticker symbols. If omitted, all
-            known instruments from the current portfolios are analysed.
-
-    Returns:
-        A list of generated signals.
-    """
     tickers = list(tickers) if tickers else list_all_unique_tickers()
 
     df = prices.load_prices_for_tickers(tickers, days=60)
@@ -122,7 +115,18 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
         }
         publish_alert(alert)
         logger.info("Published alert: %s", alert)
-    return signals
+
+    diagnostics: Dict[str, float | None] = {}
+    for pf in list_portfolios():
+        owner = pf.get("owner")
+        if not owner:
+            continue
+        try:
+            diagnostics[owner] = risk.compute_sortino_ratio(owner)
+        except Exception as exc:  # pragma: no cover - diagnostics are best-effort
+            logger.warning("Sortino ratio failed for %s: %s", owner, exc)
+
+    return {"signals": signals, "diagnostics": diagnostics}
 
 
 if __name__ == "__main__":  # pragma: no cover

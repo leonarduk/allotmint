@@ -98,13 +98,15 @@ def test_instrument_detail(mock_list, mock_build, mock_positions, mock_timeserie
     assert "positions" in response.json()
 
 
+@patch("backend.common.risk.compute_sortino_ratio", return_value=1.23)
 @patch("backend.common.risk.compute_portfolio_var", return_value={"1d": 100.0, "10d": 200.0})
-def test_var_endpoint(mock_var):
+def test_var_endpoint(mock_var, mock_sortino):
     response = client.get("/var/steve")
     assert response.status_code == 200
     payload = response.json()
     assert payload["owner"] == "steve"
     assert payload["var"] == {"1d": 100.0, "10d": 200.0}
+    assert payload["sortino"] == 1.23
 
 
 @patch("backend.common.risk.compute_portfolio_var", side_effect=FileNotFoundError)

@@ -96,7 +96,6 @@ def test_send_trade_alert_with_telegram(monkeypatch):
 def test_run_defaults_to_all_known_tickers(monkeypatch):
     captured: dict = {}
 
-    # ensure the agent discovers our tickers when none are supplied
     monkeypatch.setattr(
         "backend.agent.trading_agent.list_all_unique_tickers",
         lambda: ["AAA", "BBB"],
@@ -119,7 +118,16 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.publish_alert", lambda alert: None
     )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_portfolios",
+        lambda: [{"owner": "alex"}],
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.risk.compute_sortino_ratio",
+        lambda owner: 0.5,
+    )
 
-    run()
+    result = run()
 
     assert captured["tickers"] == ["AAA", "BBB"]
+    assert result["diagnostics"] == {"alex": 0.5}

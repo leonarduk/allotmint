@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import csv
 import logging
+import os
+
+from backend.common.alerts import publish_alert
+from backend.utils.telegram_utils import send_message
+from backend.config import config
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional
 
@@ -43,12 +48,17 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
     """
 
     if publish:
-        publish_sns_alert({"message": message})
+        publish_alert({"message": message})
 
-        try:
-            send_message(message)
-        except Exception as exc:  # pragma: no cover - network errors are rare
-            logger.warning("Telegram send failed: %s", exc)
+        if (
+            os.getenv("TELEGRAM_BOT_TOKEN")
+            and os.getenv("TELEGRAM_CHAT_ID")
+            and config.app_env != "aws"
+        ):
+            try:
+                send_message(message)
+            except Exception as exc:  # pragma: no cover - network errors are rare
+                logger.warning("Telegram send failed: %s", exc)
 
 PRICE_DROP_THRESHOLD = -5.0  # percent
 PRICE_GAIN_THRESHOLD = 5.0   # percent

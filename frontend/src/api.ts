@@ -15,7 +15,6 @@ import type {
   VirtualPortfolio,
   CustomQuery,
   SavedQuery,
-  TradingSignal,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -176,6 +175,18 @@ export const updateVirtualPortfolio = (
 export const deleteVirtualPortfolio = (id: number | string) =>
   fetchJson<{ status: string }>(`${API_BASE}/virtual-portfolios/${id}`, {
     method: "DELETE",
+  });
+
+/** Retrieve backend configuration. */
+export const getConfig = () =>
+  fetchJson<Record<string, unknown>>(`${API_BASE}/config`);
+
+/** Persist configuration changes. */
+export const updateConfig = (cfg: Record<string, unknown>) =>
+  fetchJson<Record<string, unknown>>(`${API_BASE}/config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cfg),
   });
 
 

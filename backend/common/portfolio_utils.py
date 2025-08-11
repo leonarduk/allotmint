@@ -427,7 +427,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
 # ──────────────────────────────────────────────────────────────
 def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
     """Check holdings against cost basis and emit alerts."""
-    from backend.common.alerts import publish_sns_alert
+    from backend.common.alerts import publish_alert
 
     alerts: List[Dict] = []
     for pf in list_portfolios():
@@ -443,6 +443,6 @@ def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
                     "change_pct": round(change_pct, 4),
                     "message": f"{row['ticker']} change {change_pct*100:.1f}% vs cost basis",
                 }
-                publish_sns_alert(alert)
+                publish_alert(alert)
                 alerts.append(alert)
     return alerts

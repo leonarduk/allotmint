@@ -16,7 +16,9 @@
       "screener": "Screener",
       "query": "Query",
       "trading": "Trading",
-      "timeseries": "Timeseries"
+      "timeseries": "Timeseries",
+      "virtual": "Virtual Portfolios",
+      "support": "Support"
     }
   },
   "instrumentTable": {

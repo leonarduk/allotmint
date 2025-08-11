@@ -16,7 +16,9 @@
       "screener": "Filter",
       "query": "Abfrage",
       "trading": "Handel",
-      "timeseries": "Zeitreihe"
+      "timeseries": "Zeitreihe",
+      "virtual": "Virtuelle Portfolios",
+      "support": "Support"
     }
   },
   "instrumentTable": {

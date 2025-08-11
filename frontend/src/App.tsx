@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Routes, Route, Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   getGroupInstruments,
@@ -48,7 +48,7 @@ type Mode =
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
 const initialMode: Mode =
-  path[0] === "member" ? "owner" :
+  path[0] === "owner" ? "owner" :
   path[0] === "instrument" ? "instrument" :
   path[0] === "transactions" ? "transactions" :
   path[0] === "performance" ? "performance" :
@@ -95,7 +95,7 @@ export default function App() {
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
     const newMode: Mode =
-      segs[0] === "member"
+      segs[0] === "owner"
         ? "owner"
         : segs[0] === "instrument"
           ? "instrument"
@@ -148,7 +148,7 @@ export default function App() {
     if (mode === "owner" && !selectedOwner && owners.length) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
-      navigate(`/member/${owner}`, { replace: true });
+      navigate(`/owner/${owner}`, { replace: true });
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
@@ -158,7 +158,7 @@ export default function App() {
     if (mode === "group" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
       setSelectedGroup(slug);
-      navigate(`/?group=${slug}`, { replace: true });
+      navigate(`/group?group=${slug}`, { replace: true });
     }
   }, [mode, selectedOwner, selectedGroup, owners, groups, navigate]);
 
@@ -205,44 +205,13 @@ export default function App() {
   }
 
   if (backendUnavailable) {
-    return (
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-        Backend unavailable—retrying…
-      </div>
-    );
+    return <div>Backend unavailable—retrying…</div>;
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+    <>
       <LanguageSwitcher />
       <AlertsPanel />
-      {/* mode toggle */}
-      <div style={{ marginBottom: "1rem" }}>
-        <strong>{t("app.viewBy")}</strong>{" "}
-        {([
-          "group",
-          "instrument",
-          "owner",
-          "performance",
-          "transactions",
-          "screener",
-          "query",
-          "trading",
-          "timeseries",
-        ] as Mode[]).map((m) => (
-          <label key={m} style={{ marginRight: "1rem" }}>
-            <input
-              type="radio"
-              name="mode"
-              value={m}
-              checked={mode === m}
-              onChange={() => setMode(m)}
-            />{" "}
-            {t(`app.modes.${m}`)}
-          </label>
-        ))}
-      </div>
-
       {/* absolute vs relative toggle */}
       <div style={{ marginBottom: "1rem" }}>
         <label>
@@ -272,102 +241,99 @@ export default function App() {
         )}
       </div>
 
-      {/* OWNER VIEW */}
-      {mode === "owner" && (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={setSelectedOwner}
-          />
-          <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-          <PortfolioView
-            data={portfolio}
-            loading={loading}
-            error={err}
-            relativeView={relativeView}
-          />
-        </>
-      )}
-
-      {/* GROUP VIEW */}
-      {mode === "group" && groups.length > 0 && (
-        <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
-          <label style={{ display: "block", margin: "0.5rem 0" }}>
-            <input
-              type="checkbox"
-              checked={relativeView}
-              onChange={(e) => setRelativeView(e.target.checked)}
-            />{" "}
-            Relative view
-          </label>
-          <ComplianceWarnings
-            owners={
-              groups.find((g) => g.slug === selectedGroup)?.members ?? []
-            }
-          />
-          <GroupPortfolioView
-            slug={selectedGroup}
-            relativeView={relativeView}
-            onSelectMember={(owner) => {
-              setMode("owner");
-              setSelectedOwner(owner);
-              navigate(`/member/${owner}`);
-            }}
-          />
-        </>
-      )}
-
-      {/* INSTRUMENT VIEW */}
-      {mode === "instrument" && groups.length > 0 && (
-        <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
-          {err && <p style={{ color: "red" }}>{err}</p>}
-          {loading ? (
-            <p>{t("app.loading")}</p>
-          ) : (
-            <InstrumentTable rows={instruments} />
-          )}
-        </>
-      )}
-
-      {/* PERFORMANCE VIEW */}
-      {mode === "performance" && (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={setSelectedOwner}
-          />
-          <PerformanceDashboard owner={selectedOwner} />
-        </>
-      )}
-
-      {mode === "transactions" && <TransactionsPage owners={owners} />}
-
-      {mode === "screener" && <Screener />}
-      {mode === "trading" && <TradingAgent />}
-      {mode === "timeseries" && <TimeseriesEdit />}
-
-      {mode === "query" && <QueryPage />}
-
-      <p style={{ marginTop: "2rem", textAlign: "center" }}>
-        <a href="/virtual">Virtual Portfolios</a>
-        {" • "}
-        <a href="/trading">Trading Agent</a>
-        {" • "}
-        <a href="/support">{t("app.supportLink")}</a>
-      </p>
-    </div>
+      <Routes>
+        <Route
+          path="owner/:owner?"
+          element={
+            <>
+              <OwnerSelector
+                owners={owners}
+                selected={selectedOwner}
+                onSelect={setSelectedOwner}
+              />
+              <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
+              <PortfolioView
+                data={portfolio}
+                loading={loading}
+                error={err}
+                relativeView={relativeView}
+              />
+            </>
+          }
+        />
+        <Route
+          path="group"
+          element={
+            groups.length > 0 ? (
+              <>
+                <GroupSelector
+                  groups={groups}
+                  selected={selectedGroup}
+                  onSelect={setSelectedGroup}
+                />
+                <label style={{ display: "block", margin: "0.5rem 0" }}>
+                  <input
+                    type="checkbox"
+                    checked={relativeView}
+                    onChange={(e) => setRelativeView(e.target.checked)}
+                  />{" "}
+                  Relative view
+                </label>
+                <ComplianceWarnings
+                  owners={
+                    groups.find((g) => g.slug === selectedGroup)?.members ?? []
+                  }
+                />
+                <GroupPortfolioView
+                  slug={selectedGroup}
+                  relativeView={relativeView}
+                  onSelectMember={(owner) => {
+                    setMode("owner");
+                    setSelectedOwner(owner);
+                    navigate(`/owner/${owner}`);
+                  }}
+                />
+              </>
+            ) : null
+          }
+        />
+        <Route
+          path="instrument/:slug?"
+          element={
+            groups.length > 0 ? (
+              <>
+                <GroupSelector
+                  groups={groups}
+                  selected={selectedGroup}
+                  onSelect={setSelectedGroup}
+                />
+                {err && <p style={{ color: "red" }}>{err}</p>}
+                {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
+              </>
+            ) : null
+          }
+        />
+        <Route
+          path="performance"
+          element={
+            <>
+              <OwnerSelector
+                owners={owners}
+                selected={selectedOwner}
+                onSelect={setSelectedOwner}
+              />
+              <PerformanceDashboard owner={selectedOwner} />
+            </>
+          }
+        />
+        <Route path="transactions" element={<TransactionsPage owners={owners} />} />
+        <Route path="screener" element={<Screener />} />
+        <Route path="query" element={<QueryPage />} />
+        <Route path="trading" element={<TradingAgent />} />
+        <Route path="timeseries" element={<TimeseriesEdit />} />
+        <Route index element={<Navigate to="group" replace />} />
+      </Routes>
+    </>
   );
 }
 

@@ -274,7 +274,32 @@ export function HoldingsTable({
                   </button>
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
-                <td className={tableStyles.cell}>{h.currency ?? "—"}</td>
+                <td className={tableStyles.cell}>
+                  {h.currency && h.currency !== "GBP" ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onSelectInstrument?.(
+                          `${h.currency}GBP=X`,
+                          `${h.currency}GBP=X`,
+                        )
+                      }
+                      style={{
+                        color: "dodgerblue",
+                        textDecoration: "underline",
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        font: "inherit",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {h.currency}
+                    </button>
+                  ) : (
+                    h.currency ?? "—"
+                  )}
+                </td>
                 <td className={tableStyles.cell}>{translateInstrumentType(t, h.instrument_type)}</td>
                 {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>

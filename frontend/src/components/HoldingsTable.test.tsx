@@ -2,6 +2,7 @@ import { render, screen, within, fireEvent } from "@testing-library/react";
 import { HoldingsTable } from "./HoldingsTable";
 import { ConfigContext, type AppConfig } from "../ConfigContext";
 import type { Holding } from "../types";
+import { vi } from "vitest";
 
 describe("HoldingsTable", () => {
     const holdings: Holding[] = [
@@ -100,5 +101,21 @@ describe("HoldingsTable", () => {
         const checkbox = screen.getByLabelText("Units");
         fireEvent.click(checkbox);
         expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
+    });
+
+    it("handles currency cell clicks", () => {
+        const onSelect = vi.fn();
+        render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect} />);
+
+        const usdRow = screen.getByText("Test Holding").closest("tr");
+        const usdBtn = within(usdRow!).getByRole("button", { name: "USD" });
+        fireEvent.click(usdBtn);
+        expect(onSelect).toHaveBeenCalledWith("USDGBP=X", "USDGBP=X");
+
+        const gbpRow = screen.getByText("Alpha").closest("tr");
+        const gbpCell = within(gbpRow!).getByText("GBP");
+        fireEvent.click(gbpCell);
+        expect(onSelect).toHaveBeenCalledTimes(1);
+        expect(within(gbpRow!).queryByRole("button", { name: "GBP" })).toBeNull();
     });
 });

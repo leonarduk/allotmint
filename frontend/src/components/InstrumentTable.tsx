@@ -162,7 +162,34 @@ export function InstrumentTable({ rows }: Props) {
                                     </button>
                                 </td>
                                 <td className={tableStyles.cell}>{r.name}</td>
-                                <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
+                                <td className={tableStyles.cell}>
+                                    {r.currency && r.currency !== "GBP" ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setSelected(
+                                                    {
+                                                        ticker: `${r.currency}GBP=X`,
+                                                        name: `${r.currency}GBP=X`,
+                                                    } as InstrumentSummary,
+                                                )
+                                            }
+                                            style={{
+                                                color: "dodgerblue",
+                                                textDecoration: "underline",
+                                                background: "none",
+                                                border: "none",
+                                                padding: 0,
+                                                font: "inherit",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            {r.currency}
+                                        </button>
+                                    ) : (
+                                        r.currency ?? "—"
+                                    )}
+                                </td>
                                 <td className={tableStyles.cell}>{translateInstrumentType(t, r.instrument_type)}</td>
                                 {!relativeViewEnabled && visibleColumns.units && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>

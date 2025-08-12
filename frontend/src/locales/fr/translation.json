@@ -108,5 +108,26 @@
   "loadingPortfolio": "Chargement du portefeuille…",
   "portfolio": "Portefeuille",
   "asOf": "Au {{date}} • Transactions ce mois: {{trades}} / 20 (Restantes: {{remaining}})",
-  "approxTotal": "Total approximatif: £{{value}}"
+  "approxTotal": "Total approximatif: £{{value}}",
+  "query": {
+    "start": "Début",
+    "end": "Fin",
+    "owners": "Propriétaires",
+    "tickers": "Tickers",
+    "metrics": "Métriques",
+    "run": "Exécuter",
+    "running": "Exécution…",
+    "save": "Enregistrer",
+    "exportCsv": "Exporter CSV",
+    "exportXlsx": "Exporter XLSX"
+  },
+  "screener": {
+    "tickers": "Tickers",
+    "maxPeg": "PEG max",
+    "maxPe": "P/E max",
+    "maxDe": "D/E max",
+    "minFcf": "FCF min",
+    "run": "Exécuter",
+    "loading": "Chargement…"
+  }
 }

@@ -279,7 +279,7 @@ export function HoldingsTable({
                     <button
                       type="button"
                       onClick={() =>
-                        onSelectInstrument?.(`GBP${h.currency}=X`, h.currency)
+                        onSelectInstrument?.(`GBP${h.currency}.FX`, h.currency)
                       }
                       style={{
                         color: "dodgerblue",

@@ -14,7 +14,11 @@ type Props = {
   onSelectInstrument?: (ticker: string, name: string) => void;
 };
 
-export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
+export function HoldingsTable({
+  holdings,
+  onSelectInstrument,
+  relativeView = false,
+}: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled } = useConfig();
 

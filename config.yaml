@@ -1,7 +1,6 @@
 offline_mode: false
 max_trades_per_month: 20
 hold_days_min: 30
-offline_mode: true
 repo_root: .
 accounts_root: data/accounts
 prices_json: data/prices/latest_prices.json
@@ -25,7 +24,6 @@ ft_url_template: https://markets.ft.com/data/funds/tearsheet/historical?s={ticke
 selenium_user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
   (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36
 selenium_headless: true
-error_summary: '[object Object]'
 approval_valid_days: 2
 approval_exempt_types:
   - ETF

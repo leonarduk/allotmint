@@ -81,7 +81,7 @@ async def groups():
 # Owner / group portfolios
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio/{owner}")
-async def portfolio(owner: str, background_tasks: BackgroundTasks):
+async def portfolio(owner: str, background_tasks: BackgroundTasks, lang: str | None = None):
     """Return the fully expanded portfolio for ``owner``.
 
     The helper function :func:`build_owner_portfolio` loads account data from
@@ -97,6 +97,7 @@ async def portfolio(owner: str, background_tasks: BackgroundTasks):
             PORTFOLIO_TTL,
             lambda owner=owner: portfolio_mod.build_owner_portfolio(owner),
             background_tasks,
+            lang,
         )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
@@ -146,7 +147,7 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
 
 
 @router.get("/portfolio-group/{slug}")
-async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
+async def portfolio_group(slug: str, background_tasks: BackgroundTasks, lang: str | None = None):
     """Return the aggregated portfolio for a group.
 
     Groups are defined in configuration and simply reference a list of owner
@@ -161,6 +162,7 @@ async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
             PORTFOLIO_TTL,
             lambda slug=slug: group_portfolio.build_group_portfolio(slug),
             background_tasks,
+            lang,
         )
     except Exception as e:
         log.warning(f"Failed to load group {slug}: {e}")
@@ -171,7 +173,7 @@ async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
 # Group-level aggregation
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio-group/{slug}/instruments")
-async def group_instruments(slug: str, background_tasks: BackgroundTasks):
+async def group_instruments(slug: str, background_tasks: BackgroundTasks, lang: str | None = None):
     """Return holdings for the group aggregated by ticker."""
 
     page = f"group_instruments_{slug}"
@@ -182,6 +184,7 @@ async def group_instruments(slug: str, background_tasks: BackgroundTasks):
             group_portfolio.build_group_portfolio(slug)
         ),
         background_tasks,
+        lang,
     )
 
 

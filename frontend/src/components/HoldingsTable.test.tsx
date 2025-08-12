@@ -1,4 +1,5 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import { HoldingsTable } from "./HoldingsTable";
 import { ConfigContext, type AppConfig } from "../ConfigContext";
 import type { Holding } from "../types";
@@ -35,6 +36,36 @@ describe("HoldingsTable", () => {
             sell_eligible: false,
             days_until_eligible: 10,
         },
+        {
+            ticker: "GBXH",
+            name: "GBX Holding",
+            currency: "GBX",
+            instrument_type: "Equity",
+            units: 1,
+            price: 0,
+            cost_basis_gbp: 10,
+            market_value_gbp: 10,
+            gain_gbp: 0,
+            acquired_date: "2024-01-05",
+            days_held: 50,
+            sell_eligible: false,
+            days_until_eligible: 5,
+        },
+        {
+            ticker: "CADH",
+            name: "CAD Holding",
+            currency: "CAD",
+            instrument_type: "Equity",
+            units: 1,
+            price: 0,
+            cost_basis_gbp: 20,
+            market_value_gbp: 20,
+            gain_gbp: 0,
+            acquired_date: "2024-02-01",
+            days_held: 30,
+            sell_eligible: false,
+            days_until_eligible: 0,
+        },
     ];
 
     const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
@@ -65,6 +96,15 @@ describe("HoldingsTable", () => {
         const row = screen.getByText("Test Holding").closest("tr");
         const cell = within(row!).getByText("✗ 10");
         expect(cell).toBeInTheDocument();
+    });
+
+    it("creates FX pair buttons for currency and skips GBX", () => {
+        const onSelect = vi.fn();
+        render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);
+        fireEvent.click(screen.getByRole('button', { name: 'USD' }));
+        expect(onSelect).toHaveBeenCalledWith('GBPUSD=X', 'USD');
+        expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'CAD' })).toBeNull();
     });
 
     it("sorts by ticker when header clicked", () => {

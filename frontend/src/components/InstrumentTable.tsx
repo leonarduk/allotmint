@@ -8,6 +8,7 @@ import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
+import { isSupportedFx, fxTicker } from "../lib/fx";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -162,7 +163,37 @@ export function InstrumentTable({ rows }: Props) {
                                     </button>
                                 </td>
                                 <td className={tableStyles.cell}>{r.name}</td>
-                                <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
+                                <td className={tableStyles.cell}>
+                                    {isSupportedFx(r.currency) ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setSelected({
+                                                    ticker: fxTicker(r.currency),
+                                                    name: fxTicker(r.currency),
+                                                    currency: r.currency,
+                                                    instrument_type: "FX",
+                                                    units: 0,
+                                                    market_value_gbp: 0,
+                                                    gain_gbp: 0,
+                                                })
+                                            }
+                                            style={{
+                                                color: "dodgerblue",
+                                                textDecoration: "underline",
+                                                background: "none",
+                                                border: "none",
+                                                padding: 0,
+                                                font: "inherit",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            {r.currency}
+                                        </button>
+                                    ) : (
+                                        r.currency ?? "—"
+                                    )}
+                                </td>
                                 <td className={tableStyles.cell}>{translateInstrumentType(t, r.instrument_type)}</td>
                                 {!relativeViewEnabled && visibleColumns.units && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>

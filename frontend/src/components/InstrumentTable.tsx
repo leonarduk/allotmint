@@ -169,8 +169,8 @@ export function InstrumentTable({ rows }: Props) {
                                             type="button"
                                             onClick={() =>
                                                 setSelected({
-                                                    ticker: fxTicker(r.currency),
-                                                    name: fxTicker(r.currency),
+                                                    ticker: `GBP${r.currency}.FX`,
+                                                    name: `GBP${r.currency}.FX`,
                                                     currency: r.currency,
                                                     instrument_type: "FX",
                                                     units: 0,

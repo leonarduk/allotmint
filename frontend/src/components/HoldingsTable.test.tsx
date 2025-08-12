@@ -102,7 +102,7 @@ describe("HoldingsTable", () => {
         const onSelect = vi.fn();
         render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);
         fireEvent.click(screen.getByRole('button', { name: 'USD' }));
-        expect(onSelect).toHaveBeenCalledWith('GBPUSD=X', 'USD');
+        expect(onSelect).toHaveBeenCalledWith('GBPUSD.FX', 'USD');
         expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'CAD' })).toBeNull();
     });

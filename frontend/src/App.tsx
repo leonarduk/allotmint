@@ -24,7 +24,6 @@ import { Screener } from "./pages/Screener";
 import { QueryPage } from "./pages/QueryPage";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
-import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";

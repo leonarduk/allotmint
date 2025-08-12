@@ -162,7 +162,37 @@ export function InstrumentTable({ rows }: Props) {
                                     </button>
                                 </td>
                                 <td className={tableStyles.cell}>{r.name}</td>
-                                <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
+                                <td className={tableStyles.cell}>
+                                    {r.currency && !["GBP", "GBX"].includes(r.currency) ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setSelected({
+                                                    ticker: `GBP${r.currency}=X`,
+                                                    name: `GBP${r.currency}=X`,
+                                                    currency: r.currency,
+                                                    instrument_type: "FX",
+                                                    units: 0,
+                                                    market_value_gbp: 0,
+                                                    gain_gbp: 0,
+                                                })
+                                            }
+                                            style={{
+                                                color: "dodgerblue",
+                                                textDecoration: "underline",
+                                                background: "none",
+                                                border: "none",
+                                                padding: 0,
+                                                font: "inherit",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            {r.currency}
+                                        </button>
+                                    ) : (
+                                        r.currency ?? "—"
+                                    )}
+                                </td>
                                 <td className={tableStyles.cell}>{translateInstrumentType(t, r.instrument_type)}</td>
                                 {!relativeViewEnabled && visibleColumns.units && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>

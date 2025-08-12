@@ -20,6 +20,7 @@ export function HoldingsTable({
   relativeView = false,
 }: Props) {
   const { t } = useTranslation();
+  const { relativeViewEnabled } = useConfig();
 
   const [filters, setFilters] = useState({
     ticker: "",

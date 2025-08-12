@@ -1,9 +1,9 @@
 offline_mode: false
 max_trades_per_month: 20
 hold_days_min: 30
-repo_root: .
-accounts_root: data/accounts
-prices_json: data/prices/latest_prices.json
+repo_root: C:\workspaces\github\allotmint
+accounts_root: C:\workspaces\github\allotmint\data\accounts
+prices_json: C:\workspaces\github\allotmint\data\prices\latest_prices.json
 risk_free_rate: 0.01
 timeseries_cache_base: data/timeseries
 alpha_vantage_key: B74N5L0LY87QHKX4
@@ -16,7 +16,7 @@ portfolio_xml_path: data/portfolio/investments.xml
 transactions_output_root: data/accounts
 uvicorn_port: 8000
 reload: true
-relative_view_enabled: true
+relative_view_enabled: false
 log_config: backend/logging.ini
 skip_snapshot_warm: false
 snapshot_warm_days: 30
@@ -25,9 +25,6 @@ selenium_user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
   (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36
 selenium_headless: true
 approval_valid_days: 2
-approval_exempt_types:
-  - ETF
-approval_exempt_tickers: []
-error_summary:
-  default_command:
-    - pytest
+approval_exempt_types: ETF
+approval_exempt_tickers: ''
+error_summary: '[object Object]'

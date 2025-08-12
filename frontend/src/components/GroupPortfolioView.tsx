@@ -233,7 +233,11 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
         </thead>
         <tbody>
           {ownerRows.map((row) => (
-            <tr key={row.owner}>
+            <tr
+              key={row.owner}
+              onClick={() => onSelectMember?.(row.owner)}
+              style={{ cursor: onSelectMember ? "pointer" : undefined }}
+            >
               <td className={tableStyles.cell}>{row.owner}</td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                 {relativeViewEnabled ? percent(row.valuePct) : money(row.value)}

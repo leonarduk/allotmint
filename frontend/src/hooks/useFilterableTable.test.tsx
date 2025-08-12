@@ -25,7 +25,7 @@ const filters: Record<string, Filter<Row, any>> = {
 describe("useFilterableTable", () => {
   it("filters and sorts rows", () => {
     const { result } = renderHook(() =>
-      useFilterableTable<Row, keyof Row, typeof filters>(rows, "age", filters)
+      useFilterableTable<Row, typeof filters>(rows, "age", filters)
     );
 
     expect(result.current.rows.map((r) => r.name)).toEqual([

@@ -11,6 +11,7 @@ import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { formatInstrumentType } from "../instrumentType";
 import { useConfig } from "../ConfigContext";
+import type { SelectedInstrument } from "../types";
 import {
   PieChart,
   Pie,
@@ -30,11 +31,6 @@ const PIE_COLORS = [
   "#d0ed57",
   "#ffc0cb",
 ];
-
-type SelectedInstrument = {
-  ticker: string;
-  name: string;
-};
 
 type Props = {
   slug: string;
@@ -297,9 +293,7 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
             {checked && (
               <HoldingsTable
                 holdings={acct.holdings ?? []}
-                onSelectInstrument={(ticker, name) =>
-                  setSelected({ ticker, name })
-                }
+                onSelectInstrument={(instrument) => setSelected(instrument)}
               />
             )}
           </div>
@@ -311,6 +305,8 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
         <InstrumentDetail
           ticker={selected.ticker}
           name={selected.name}
+          currency={selected.currency}
+          instrument_type={selected.instrument_type}
           onClose={() => setSelected(null)}
         />
       )}

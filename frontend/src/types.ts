@@ -83,6 +83,13 @@ export type InstrumentSummary = {
     change_30d_pct?: number | null;
 };
 
+export type SelectedInstrument = {
+    ticker: string;
+    name: string;
+    currency?: string | null;
+    instrument_type?: string | null;
+};
+
 export interface PerformancePoint {
     date: string;
     value: number;

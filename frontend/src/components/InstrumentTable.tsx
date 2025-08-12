@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { InstrumentSummary } from "../types";
+import type { InstrumentSummary, SelectedInstrument } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { useFilterableTable } from "../hooks/useFilterableTable";
 import { money, percent } from "../lib/money";
@@ -13,17 +13,10 @@ type Props = {
     rows: InstrumentSummary[];
 };
 
-type Selected = {
-    ticker: string;
-    name: string;
-    currency?: string | null;
-    instrument_type?: string | null;
-};
-
 export function InstrumentTable({ rows }: Props) {
     const { t } = useTranslation();
     const { relativeViewEnabled } = useConfig();
-    const [selected, setSelected] = useState<Selected | null>(null);
+    const [selected, setSelected] = useState<SelectedInstrument | null>(null);
     const [visibleColumns, setVisibleColumns] = useState({
         units: true,
         cost: true,
@@ -176,7 +169,7 @@ export function InstrumentTable({ rows }: Props) {
                                         onClick={() => {
                                             if (r.currency && r.currency !== "GBP") {
                                                 const pairTicker = `GBP${r.currency}`;
-                                                setSelected({ ticker: pairTicker, name: pairTicker });
+                                                setSelected({ ticker: pairTicker, name: pairTicker, currency: r.currency });
                                             }
                                         }}
                                         style={{

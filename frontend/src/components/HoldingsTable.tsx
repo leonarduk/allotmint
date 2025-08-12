@@ -1,7 +1,7 @@
 import type React from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Holding } from "../types";
+import type { Holding, SelectedInstrument } from "../types";
 import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -11,7 +11,7 @@ import { useConfig } from "../ConfigContext";
 
 type Props = {
   holdings: Holding[];
-  onSelectInstrument?: (ticker: string, name: string) => void;
+  onSelectInstrument?: (instrument: SelectedInstrument) => void;
 };
 
 
@@ -253,7 +253,13 @@ export function HoldingsTable({
 
         <tbody>
           {sortedRows.map((h) => {
-            const handleClick = () => onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+            const handleClick = () =>
+              onSelectInstrument?.({
+                ticker: h.ticker,
+                name: h.name ?? h.ticker,
+                currency: h.currency,
+                instrument_type: h.instrument_type,
+              });
             return (
               <tr key={h.ticker + h.acquired_date}>
                 <td className={tableStyles.cell}>
@@ -280,7 +286,11 @@ export function HoldingsTable({
                       type="button"
                       onClick={() => {
                         const pairTicker = `GBP${h.currency}`;
-                        onSelectInstrument?.(pairTicker, pairTicker);
+                        onSelectInstrument?.({
+                          ticker: pairTicker,
+                          name: pairTicker,
+                          currency: h.currency,
+                        });
                       }}
                       style={{
                         color: "dodgerblue",

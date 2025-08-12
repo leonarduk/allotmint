@@ -3,7 +3,7 @@
  * ------------------------------------------------------------------ */
 
 import { useState } from "react";
-import type { Account } from "../types";
+import type { Account, SelectedInstrument } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
@@ -23,10 +23,8 @@ export function AccountBlock({
   selected = true,
   onToggle,
 }: Props) {
-  const [selectedInstrument, setSelectedInstrument] = useState<{
-    ticker: string;
-    name: string;
-  } | null>(null);
+  const [selectedInstrument, setSelectedInstrument] =
+    useState<SelectedInstrument | null>(null);
 
   return (
     <div
@@ -65,15 +63,15 @@ export function AccountBlock({
 
           <HoldingsTable
             holdings={account.holdings}
-            onSelectInstrument={(ticker, name) =>
-              setSelectedInstrument({ ticker, name })
-            }
+            onSelectInstrument={(instrument) => setSelectedInstrument(instrument)}
           />
 
           {selectedInstrument && (
             <InstrumentDetail
               ticker={selectedInstrument.ticker}
               name={selectedInstrument.name}
+              currency={selectedInstrument.currency}
+              instrument_type={selectedInstrument.instrument_type}
               onClose={() => setSelectedInstrument(null)}
             />
           )}

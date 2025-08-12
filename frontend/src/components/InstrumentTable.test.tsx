@@ -51,6 +51,7 @@ describe("InstrumentTable", () => {
         const props = mock.mock.calls[0][0] as DetailProps;
         expect(props.ticker).toBe("ABC");
         expect(props.name).toBe("ABC Corp");
+        expect(props.currency).toBe("GBP");
     });
 
     it("opens currency pair when currency clicked", () => {
@@ -61,6 +62,7 @@ describe("InstrumentTable", () => {
         const props = mock.mock.calls.at(-1)[0] as Parameters<typeof InstrumentDetail>[0];
         expect(props.ticker).toBe("GBPUSD");
         expect(props.name).toBe("GBPUSD");
+        expect(props.currency).toBe("USD");
     });
 
     it("disables currency button for GBP", () => {

@@ -57,7 +57,11 @@ describe("HoldingsTable", () => {
         const onSelect = vi.fn();
         render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect} />);
         fireEvent.click(screen.getByRole("button", { name: "USD" }));
-        expect(onSelect).toHaveBeenCalledWith("GBPUSD", "GBPUSD");
+        expect(onSelect).toHaveBeenCalledWith({
+            ticker: "GBPUSD",
+            name: "GBPUSD",
+            currency: "USD",
+        });
     });
 
     it("shows absolute columns when relative view is disabled", () => {

@@ -53,6 +53,22 @@ describe("InstrumentTable", () => {
         expect(props.name).toBe("ABC Corp");
     });
 
+    it("opens currency pair when currency clicked", () => {
+        render(<InstrumentTable rows={rows} />);
+        fireEvent.click(screen.getByRole("button", { name: "USD" }));
+
+        const mock = InstrumentDetail as unknown as Mock;
+        const props = mock.mock.calls.at(-1)[0] as Parameters<typeof InstrumentDetail>[0];
+        expect(props.ticker).toBe("GBPUSD");
+        expect(props.name).toBe("GBPUSD");
+    });
+
+    it("disables currency button for GBP", () => {
+        render(<InstrumentTable rows={rows} />);
+        const btn = screen.getByRole("button", { name: "GBP" });
+        expect(btn).toBeDisabled();
+    });
+
     it("sorts by ticker when header clicked", () => {
         render(<InstrumentTable rows={rows} />);
         // initial sort is ticker ascending => ABC first

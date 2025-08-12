@@ -1,4 +1,5 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import { HoldingsTable } from "./HoldingsTable";
 import { ConfigContext, type AppConfig } from "../ConfigContext";
 import type { Holding } from "../types";
@@ -50,6 +51,13 @@ describe("HoldingsTable", () => {
         expect(screen.queryByRole('columnheader', {name: /Cost £/})).toBeNull();
         expect(screen.queryByRole('columnheader', {name: /Gain £/})).toBeNull();
         expect(screen.queryByRole('columnheader', {name: /Mkt £/})).toBeNull();
+    });
+
+    it("opens currency pair when currency clicked", () => {
+        const onSelect = vi.fn();
+        render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect} />);
+        fireEvent.click(screen.getByRole("button", { name: "USD" }));
+        expect(onSelect).toHaveBeenCalledWith("GBPUSD", "GBPUSD");
     });
 
     it("shows absolute columns when relative view is disabled", () => {

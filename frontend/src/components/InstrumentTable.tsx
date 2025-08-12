@@ -13,10 +13,17 @@ type Props = {
     rows: InstrumentSummary[];
 };
 
+type Selected = {
+    ticker: string;
+    name: string;
+    currency?: string | null;
+    instrument_type?: string | null;
+};
+
 export function InstrumentTable({ rows }: Props) {
     const { t } = useTranslation();
     const { relativeViewEnabled } = useConfig();
-    const [selected, setSelected] = useState<InstrumentSummary | null>(null);
+    const [selected, setSelected] = useState<Selected | null>(null);
     const [visibleColumns, setVisibleColumns] = useState({
         units: true,
         cost: true,
@@ -162,7 +169,32 @@ export function InstrumentTable({ rows }: Props) {
                                     </button>
                                 </td>
                                 <td className={tableStyles.cell}>{r.name}</td>
-                                <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
+                                <td className={tableStyles.cell}>
+                                    <button
+                                        type="button"
+                                        disabled={!r.currency || r.currency === "GBP"}
+                                        onClick={() => {
+                                            if (r.currency && r.currency !== "GBP") {
+                                                const pairTicker = `GBP${r.currency}`;
+                                                setSelected({ ticker: pairTicker, name: pairTicker });
+                                            }
+                                        }}
+                                        style={{
+                                            color: "dodgerblue",
+                                            textDecoration: "underline",
+                                            background: "none",
+                                            border: "none",
+                                            padding: 0,
+                                            font: "inherit",
+                                            cursor:
+                                                !r.currency || r.currency === "GBP"
+                                                    ? "default"
+                                                    : "pointer",
+                                        }}
+                                    >
+                                        {r.currency ?? "—"}
+                                    </button>
+                                </td>
                                 <td className={tableStyles.cell}>{translateInstrumentType(t, r.instrument_type)}</td>
                                 {!relativeViewEnabled && visibleColumns.units && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>

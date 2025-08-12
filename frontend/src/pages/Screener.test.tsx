@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("../api", () => ({
@@ -18,8 +18,12 @@ import { Screener } from "./Screener";
 import { getScreener } from "../api";
 
 describe("Screener page", () => {
-  it("submits criteria and renders results", async () => {
+  it("fetches all instruments by default and submits criteria", async () => {
     render(<Screener />);
+
+    await waitFor(() =>
+      expect(getScreener).toHaveBeenCalledWith([], expect.any(Object))
+    );
 
     fireEvent.change(screen.getByLabelText(/Tickers/i), {
       target: { value: "AAA" },
@@ -31,7 +35,10 @@ describe("Screener page", () => {
     fireEvent.click(screen.getByRole("button", { name: /run/i }));
 
     expect(await screen.findByText("AAA")).toBeInTheDocument();
-    expect(getScreener).toHaveBeenCalledWith(["AAA"], { peg_max: 2 });
+    await waitFor(() =>
+      expect(getScreener).toHaveBeenLastCalledWith(["AAA"], { peg_max: 2 })
+    );
+    expect(getScreener).toHaveBeenCalledTimes(2);
   });
 });
 

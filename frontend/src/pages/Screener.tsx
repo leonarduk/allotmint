@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -22,14 +22,7 @@ export function Screener() {
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right", cursor: "pointer" } as const;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const symbols = tickers
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    if (!symbols.length) return;
-
+  async function fetchData(symbols: string[]) {
     setLoading(true);
     setError(null);
     try {
@@ -46,6 +39,21 @@ export function Screener() {
     } finally {
       setLoading(false);
     }
+  }
+
+  useEffect(() => {
+    void fetchData([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const symbols = tickers
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    await fetchData(symbols);
   }
 
   return (

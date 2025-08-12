@@ -2,14 +2,18 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
 import i18n from "../i18n";
+import { ConfigContext, type AppConfig } from "../ConfigContext";
 
 afterEach(() => {
   vi.restoreAllMocks();
   i18n.changeLanguage("en");
 });
 
+const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
+  render(<ConfigContext.Provider value={cfg}>{ui}</ConfigContext.Provider>);
+
 describe("GroupPortfolioView", () => {
-  it("shows per-owner totals with percentages", async () => {
+  it("shows per-owner totals with percentages in relative view", async () => {
     const mockPortfolio = {
       name: "All owners combined",
       accounts: [
@@ -47,16 +51,21 @@ describe("GroupPortfolioView", () => {
       json: async () => mockPortfolio,
     } as unknown as Response);
 
-    render(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" />, {
+      relativeViewEnabled: true,
+    });
 
     await waitFor(() => screen.getByText("alice"));
 
     expect(screen.getByText("alice")).toBeInTheDocument();
     expect(screen.getByText("bob")).toBeInTheDocument();
+    expect(screen.getByText("66.67%"))
+      .toBeInTheDocument();
     expect(screen.getByText("25.00%"))
       .toBeInTheDocument();
     expect(screen.getByText("-4.76%"))
       .toBeInTheDocument();
+    expect(screen.queryByText("Total Value")).toBeNull();
   });
 
   it("renders instrument type pie chart", async () => {

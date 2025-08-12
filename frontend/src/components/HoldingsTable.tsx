@@ -14,6 +14,7 @@ type Props = {
   onSelectInstrument?: (ticker: string, name: string) => void;
 };
 
+
 export function HoldingsTable({
   holdings,
   onSelectInstrument,

@@ -1,5 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+
+vi.mock("../api", () => ({
+  API_BASE: "",
+  getConfig: vi.fn().mockResolvedValue({ flag: true }),
+  updateConfig: vi.fn(),
+}));
+
 import Support from "./Support";
 
 describe("Support page", () => {

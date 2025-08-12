@@ -14,6 +14,7 @@ import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
+import { useConfig } from "../ConfigContext";
 
 type Props = {
   ticker: string;
@@ -59,6 +60,7 @@ export function InstrumentDetail({
   onClose,
 }: Props) {
   const { t } = useTranslation();
+  const { relativeViewEnabled } = useConfig();
   const [data, setData] = useState<{
     prices: Price[];
     positions: Position[];
@@ -266,9 +268,13 @@ export function InstrumentDetail({
         <thead>
           <tr>
             <th className={tableStyles.cell}>{t("instrumentDetail.columns.account")}</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.units")}</th>
+            {!relativeViewEnabled && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.units")}</th>
+            )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.market")}</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.gain")}</th>
+            {!relativeViewEnabled && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.gain")}</th>
+            )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.gainPct")}</th>
           </tr>
         </thead>
@@ -283,20 +289,24 @@ export function InstrumentDetail({
                   {pos.owner} – {pos.account}
                 </Link>
               </td>
-              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                {fixed(pos.units, 4)}
-              </td>
+              {!relativeViewEnabled && (
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {fixed(pos.units, 4)}
+                </td>
+              )}
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                 {money(pos.market_value_gbp)}
               </td>
-              <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{
-                  color: toNum(pos.unrealised_gain_gbp) >= 0 ? "lightgreen" : "red",
-                }}
-              >
-                {money(pos.unrealised_gain_gbp)}
-              </td>
+              {!relativeViewEnabled && (
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  style={{
+                    color: toNum(pos.unrealised_gain_gbp) >= 0 ? "lightgreen" : "red",
+                  }}
+                >
+                  {money(pos.unrealised_gain_gbp)}
+                </td>
+              )}
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{ color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red" }}
@@ -308,7 +318,7 @@ export function InstrumentDetail({
           {!positions.length && (
             <tr>
               <td
-                colSpan={5} // <- fix: matches 5 columns
+                colSpan={relativeViewEnabled ? 3 : 5}
                 className={`${tableStyles.cell} ${tableStyles.center}`}
                 style={{ color: "#888" }}
               >

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, type Mock } from "vitest";
 import type { InstrumentSummary } from "../types";
+import { ConfigContext, type AppConfig } from "../ConfigContext";
 
 vi.mock("./InstrumentDetail", () => ({
     InstrumentDetail: vi.fn(() => <div data-testid="instrument-detail" />),
@@ -39,6 +40,9 @@ describe("InstrumentTable", () => {
         },
     ];
 
+    const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
+        render(<ConfigContext.Provider value={cfg}>{ui}</ConfigContext.Provider>);
+
     it("passes ticker and name to InstrumentDetail", () => {
         render(<InstrumentTable rows={rows} />);
         expect(screen.getByText("GBP")).toBeInTheDocument();
@@ -69,5 +73,20 @@ describe("InstrumentTable", () => {
         const checkbox = screen.getByLabelText("Gain %");
         fireEvent.click(checkbox);
         expect(screen.queryByRole('columnheader', {name: /Gain %/})).toBeNull();
+    });
+
+    it("hides absolute columns when relative view is enabled", () => {
+        renderWithConfig(<InstrumentTable rows={rows} />, { relativeViewEnabled: true });
+        expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
+        expect(screen.queryByRole('columnheader', {name: /Cost/})).toBeNull();
+        expect(screen.queryByRole('columnheader', {name: /Gain £/})).toBeNull();
+        expect(screen.getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
+    });
+
+    it("shows absolute columns when relative view is disabled", () => {
+        renderWithConfig(<InstrumentTable rows={rows} />, { relativeViewEnabled: false });
+        expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', {name: /Cost/})).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', {name: /Gain £/})).toBeInTheDocument();
     });
 });

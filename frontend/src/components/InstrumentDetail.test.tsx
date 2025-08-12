@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, type Mock, beforeEach } from "vitest";
 import i18n from "../i18n";
+import { ConfigContext, type AppConfig } from "../ConfigContext";
 
 vi.mock("../api", () => ({ getInstrumentDetail: vi.fn() }));
 import { getInstrumentDetail } from "../api";
@@ -21,6 +22,13 @@ describe("InstrumentDetail", () => {
   beforeEach(() => {
     mockGetInstrumentDetail.mockReset();
   });
+
+  const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
+    render(
+      <MemoryRouter>
+        <ConfigContext.Provider value={cfg}>{ui}</ConfigContext.Provider>
+      </MemoryRouter>,
+    );
 
   it.each(["en", "fr", "de", "es", "pt"]) (
     "links to timeseries edit page (%s)",
@@ -78,6 +86,19 @@ describe("InstrumentDetail", () => {
         `${i18n.t("instrumentDetail.change30d")} 30.0%`,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("hides units and gain columns when relative view is enabled", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({ prices: [], positions: [], currency: null });
+    i18n.changeLanguage("en");
+
+    renderWithConfig(<InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />, { relativeViewEnabled: true });
+
+    await screen.findByText(i18n.t("instrumentDetail.positions"));
+    expect(screen.queryByRole('columnheader', { name: /Units/ })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: /Gain £/ })).toBeNull();
+    expect(screen.getByRole('columnheader', { name: /Mkt £/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Gain %/ })).toBeInTheDocument();
   });
 });
 

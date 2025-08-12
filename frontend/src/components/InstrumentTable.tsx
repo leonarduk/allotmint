@@ -7,6 +7,7 @@ import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
+import { useConfig } from "../ConfigContext";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -14,6 +15,7 @@ type Props = {
 
 export function InstrumentTable({ rows }: Props) {
     const { t } = useTranslation();
+    const { relativeViewEnabled } = useConfig();
     const [selected, setSelected] = useState<InstrumentSummary | null>(null);
     const [visibleColumns, setVisibleColumns] = useState({
         units: true,
@@ -94,10 +96,10 @@ export function InstrumentTable({ rows }: Props) {
                         </th>
                         <th className={tableStyles.cell}>{t("instrumentTable.columns.ccy")}</th>
                         <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
-                        {visibleColumns.units && (
+                        {!relativeViewEnabled && visibleColumns.units && (
                             <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.units")}</th>
                         )}
-                        {visibleColumns.cost && (
+                        {!relativeViewEnabled && visibleColumns.cost && (
                             <th
                                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                                 onClick={() => handleSort("cost")}
@@ -109,7 +111,7 @@ export function InstrumentTable({ rows }: Props) {
                         {visibleColumns.market && (
                             <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.market")}</th>
                         )}
-                        {visibleColumns.gain && (
+                        {!relativeViewEnabled && visibleColumns.gain && (
                             <th
                                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                                 onClick={() => handleSort("gain")}
@@ -160,18 +162,18 @@ export function InstrumentTable({ rows }: Props) {
                                 <td className={tableStyles.cell}>{r.name}</td>
                                 <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
                                 <td className={tableStyles.cell}>{translateInstrumentType(t, r.instrument_type)}</td>
-                                {visibleColumns.units && (
+                                {!relativeViewEnabled && visibleColumns.units && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                         {new Intl.NumberFormat(i18n.language).format(r.units)}
                                     </td>
                                 )}
-                                {visibleColumns.cost && (
+                                {!relativeViewEnabled && visibleColumns.cost && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(r.cost)}</td>
                                 )}
                                 {visibleColumns.market && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(r.market_value_gbp)}</td>
                                 )}
-                                {visibleColumns.gain && (
+                                {!relativeViewEnabled && visibleColumns.gain && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`} style={{ color: gainColour }}>
                                         {money(r.gain_gbp)}
                                     </td>

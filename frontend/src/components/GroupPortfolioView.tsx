@@ -10,6 +10,7 @@ import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { formatInstrumentType } from "../instrumentType";
+import { useConfig } from "../ConfigContext";
 import {
   PieChart,
   Pie,
@@ -52,6 +53,7 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
   );
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
   const { t } = useTranslation();
+  const { relativeViewEnabled } = useConfig();
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
 
   // helper to derive a stable key for each account
@@ -129,7 +131,8 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
       data.value - data.dayChange !== 0
         ? (data.dayChange / (data.value - data.dayChange)) * 100
         : 0;
-    return { owner, ...data, gainPct, dayChangePct };
+    const valuePct = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
+    return { owner, ...data, gainPct, dayChangePct, valuePct };
   });
 
   const typeRows = Object.entries(perType).map(([type, value]) => ({
@@ -167,56 +170,64 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
       )}
 
       {/* Summary Box */}
-      <div
-        style={{
-          display: "flex",
-          gap: "2rem",
-          marginBottom: "1rem",
-          padding: "0.75rem 1rem",
-          backgroundColor: "#222",
-          border: "1px solid #444",
-          borderRadius: "6px",
-        }}
-      >
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Value</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>{money(totalValue)}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Day Change</div>
-          <div
-            style={{
-              fontSize: "1.2rem",
-              fontWeight: "bold",
-              color: totalDayChange >= 0 ? "lightgreen" : "red",
-            }}
-          >
-            {money(totalDayChange)} ({percent(totalDayChangePct)})
+      {!relativeViewEnabled && (
+        <div
+          style={{
+            display: "flex",
+            gap: "2rem",
+            marginBottom: "1rem",
+            padding: "0.75rem 1rem",
+            backgroundColor: "#222",
+            border: "1px solid #444",
+            borderRadius: "6px",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Value</div>
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>{money(totalValue)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Day Change</div>
+            <div
+              style={{
+                fontSize: "1.2rem",
+                fontWeight: "bold",
+                color: totalDayChange >= 0 ? "lightgreen" : "red",
+              }}
+            >
+              {money(totalDayChange)} ({percent(totalDayChangePct)})
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Gain</div>
+            <div
+              style={{
+                fontSize: "1.2rem",
+                fontWeight: "bold",
+                color: totalGain >= 0 ? "lightgreen" : "red",
+              }}
+            >
+              {money(totalGain)} ({percent(totalGainPct)})
+            </div>
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Gain</div>
-          <div
-            style={{
-              fontSize: "1.2rem",
-              fontWeight: "bold",
-              color: totalGain >= 0 ? "lightgreen" : "red",
-            }}
-          >
-            {money(totalGain)} ({percent(totalGainPct)})
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Per-owner summary */}
       <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
         <thead>
           <tr>
             <th className={tableStyles.cell}>Owner</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Value</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Day Change</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {relativeViewEnabled ? "Portfolio %" : "Total Value"}
+            </th>
+            {!relativeViewEnabled && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Day Change</th>
+            )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>Day Change %</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Gain</th>
+            {!relativeViewEnabled && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Gain</th>
+            )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Gain %</th>
           </tr>
         </thead>
@@ -224,25 +235,31 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
           {ownerRows.map((row) => (
             <tr key={row.owner}>
               <td className={tableStyles.cell}>{row.owner}</td>
-              <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(row.value)}</td>
-              <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
-              >
-                {money(row.dayChange)}
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {relativeViewEnabled ? percent(row.valuePct) : money(row.value)}
               </td>
+              {!relativeViewEnabled && (
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
+                >
+                  {money(row.dayChange)}
+                </td>
+              )}
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
               >
                 {percent(row.dayChangePct)}
               </td>
-              <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
-              >
-                {money(row.gain)}
-              </td>
+              {!relativeViewEnabled && (
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+                >
+                  {money(row.gain)}
+                </td>
+              )}
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}

@@ -16,12 +16,6 @@ type Props = {
 
 export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
   const { relativeViewEnabled } = useConfig();
-
-export function HoldingsTable({
-  holdings,
-  onSelectInstrument,
-  relativeView = false,
-}: Props) {
   const { t } = useTranslation();
 
   const [filters, setFilters] = useState({

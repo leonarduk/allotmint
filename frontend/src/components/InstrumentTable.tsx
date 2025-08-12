@@ -8,6 +8,7 @@ import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
+import { isSupportedFx, fxTicker } from "../lib/fx";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -163,7 +164,7 @@ export function InstrumentTable({ rows }: Props) {
                                 </td>
                                 <td className={tableStyles.cell}>{r.name}</td>
                                 <td className={tableStyles.cell}>
-                                    {r.currency && !["GBP", "GBX"].includes(r.currency) ? (
+                                    {isSupportedFx(r.currency) ? (
                                         <button
                                             type="button"
                                             onClick={() =>

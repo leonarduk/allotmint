@@ -338,8 +338,6 @@ export default function App() {
         <a href="/trading">Trading Agent</a>
         {" • "}
         <a href="/support">{t("app.supportLink")}</a>
-        {" • "}
-        <a href="/admin/config">Admin Config</a>
       </p>
     </div>
   );

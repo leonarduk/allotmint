@@ -6,6 +6,7 @@ import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { money } from "../lib/money";
 import i18n from "../i18n";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   owners: OwnerSummary[];
@@ -16,6 +17,7 @@ export function TransactionsPage({ owners }: Props) {
   const [account, setAccount] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const { t } = useTranslation();
   const { data: transactions, loading, error } = useFetch<Transaction[]>(
     () =>
       getTransactions({
@@ -40,7 +42,7 @@ export function TransactionsPage({ owners }: Props) {
     <div>
       <div style={{ marginBottom: "1rem" }}>
         <Selector
-          label="Owner"
+          label={t("owner.label")}
           value={owner}
           onChange={setOwner}
           options={[
@@ -58,16 +60,16 @@ export function TransactionsPage({ owners }: Props) {
           ]}
         />
         <label style={{ marginLeft: "0.5rem" }}>
-          Start: <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+          {t("query.start")}: <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
         </label>
         <label style={{ marginLeft: "0.5rem" }}>
-          End: <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+          {t("query.end")}: <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
         </label>
       </div>
 
       {error && <p style={{ color: "red" }}>{error.message}</p>}
       {loading ? (
-        <p>Loading…</p>
+        <p>{t("common.loading")}</p>
       ) : (
         <table className={tableStyles.table}>
           <thead>

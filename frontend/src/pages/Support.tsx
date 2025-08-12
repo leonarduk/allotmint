@@ -50,7 +50,11 @@ export default function Support() {
     try {
       await updateConfig(payload);
       const fresh = await getConfig();
-      setConfig(fresh);
+      const entries: Record<string, string | boolean> = {};
+      Object.entries(fresh).forEach(([k, v]) => {
+        entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
+      });
+      setConfig(entries);
       setConfigStatus("saved");
     } catch {
       setConfigStatus("error");

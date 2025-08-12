@@ -5,15 +5,21 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 from typing import List, Dict, Any
+import logging
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 import yfinance as yf
 
 router = APIRouter(prefix="/api")
+log = logging.getLogger("routes.quotes")
 
 
 def _fetch(symbols: List[str]) -> List[Dict[str, Any]]:
-    tickers = yf.Tickers(" ".join(symbols))
+    try:
+        tickers = yf.Tickers(" ".join(symbols))
+    except Exception as exc:
+        log.exception("yf.Tickers failed for %s", symbols)
+        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {exc}") from exc
     results: List[Dict[str, Any]] = []
     for sym in symbols:
         t = tickers.tickers.get(sym)

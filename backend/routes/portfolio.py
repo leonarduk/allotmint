@@ -26,6 +26,7 @@ from backend.common import (
     instrument_api,
     risk,
 )
+from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.utils import page_cache
 
 log = logging.getLogger("routes.portfolio")
@@ -81,6 +82,7 @@ async def groups():
 # Owner / group portfolios
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio/{owner}")
+@handle_owner_not_found
 async def portfolio(owner: str, background_tasks: BackgroundTasks):
     """Return the fully expanded portfolio for ``owner``.
 
@@ -101,23 +103,25 @@ async def portfolio(owner: str, background_tasks: BackgroundTasks):
     try:
         data = portfolio_mod.build_owner_portfolio(owner)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Owner not found")
+        raise_owner_not_found()
 
     background_tasks.add_task(page_cache.save_cache, page, data)
     return data
 
 
 @router.get("/performance/{owner}")
+@handle_owner_not_found
 async def performance(owner: str, days: int = 365):
     """Return portfolio performance metrics for ``owner``."""
     try:
         result = portfolio_utils.compute_owner_performance(owner, days=days)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Owner not found")
+        raise_owner_not_found()
     return {"owner": owner, **result}
 
 
 @router.get("/var/{owner}")
+@handle_owner_not_found
 async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
     """Return historical-simulation VaR for ``owner``.
 
@@ -139,7 +143,7 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Owner not found")
+        raise_owner_not_found()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {

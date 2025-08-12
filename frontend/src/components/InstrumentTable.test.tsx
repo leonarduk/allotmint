@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, type Mock } from "vitest";
 import type { InstrumentSummary } from "../types";
+import { ConfigContext } from "../ConfigContext";
 
 vi.mock("./InstrumentDetail", () => ({
     InstrumentDetail: vi.fn(() => <div data-testid="instrument-detail" />),
@@ -69,5 +70,28 @@ describe("InstrumentTable", () => {
         const checkbox = screen.getByLabelText("Gain %");
         fireEvent.click(checkbox);
         expect(screen.queryByRole('columnheader', {name: /Gain %/})).toBeNull();
+    });
+
+    it("shows absolute columns when relative view disabled", () => {
+        render(<InstrumentTable rows={rows} />);
+        expect(screen.getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Cost £' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Market £' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Gain £' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Last £' })).toBeInTheDocument();
+    });
+
+    it("hides absolute columns in relative view", () => {
+        render(
+            <ConfigContext.Provider value={{ relativeViewEnabled: true }}>
+                <InstrumentTable rows={rows} />
+            </ConfigContext.Provider>,
+        );
+        expect(screen.queryByRole('columnheader', { name: 'Units' })).toBeNull();
+        expect(screen.queryByRole('columnheader', { name: 'Cost £' })).toBeNull();
+        expect(screen.queryByRole('columnheader', { name: 'Market £' })).toBeNull();
+        expect(screen.queryByRole('columnheader', { name: 'Gain £' })).toBeNull();
+        expect(screen.queryByRole('columnheader', { name: 'Last £' })).toBeNull();
+        expect(screen.getByRole('columnheader', { name: 'Gain %' })).toBeInTheDocument();
     });
 });

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -16,6 +17,7 @@ export function Screener() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const { t } = useTranslation();
 
   const { sorted, handleSort } = useSortableTable(rows, "peg_ratio");
 
@@ -52,9 +54,9 @@ export function Screener() {
     <div>
       <form onSubmit={handleSubmit} style={{ marginBottom: "1rem" }}>
         <label style={{ marginRight: "0.5rem" }}>
-          Tickers
+          {t("screener.tickers")}
           <input
-            aria-label="Tickers"
+            aria-label={t("screener.tickers")}
             type="text"
             value={tickers}
             onChange={(e) => setTickers(e.target.value)}
@@ -63,9 +65,9 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
-          Max PEG
+          {t("screener.maxPeg")}
           <input
-            aria-label="Max PEG"
+            aria-label={t("screener.maxPeg")}
             type="number"
             value={pegMax}
             onChange={(e) => setPegMax(e.target.value)}
@@ -74,9 +76,9 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
-          Max P/E
+          {t("screener.maxPe")}
           <input
-            aria-label="Max P/E"
+            aria-label={t("screener.maxPe")}
             type="number"
             value={peMax}
             onChange={(e) => setPeMax(e.target.value)}
@@ -85,9 +87,9 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
-          Max D/E
+          {t("screener.maxDe")}
           <input
-            aria-label="Max D/E"
+            aria-label={t("screener.maxDe")}
             type="number"
             value={deMax}
             onChange={(e) => setDeMax(e.target.value)}
@@ -96,9 +98,9 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
-          Min FCF
+          {t("screener.minFcf")}
           <input
-            aria-label="Min FCF"
+            aria-label={t("screener.minFcf")}
             type="number"
             value={fcfMin}
             onChange={(e) => setFcfMin(e.target.value)}
@@ -107,12 +109,12 @@ export function Screener() {
           />
         </label>
         <button type="submit" disabled={loading} style={{ marginLeft: "0.5rem" }}>
-          {loading ? "Loading…" : "Run"}
+          {loading ? t("screener.loading") : t("screener.run")}
         </button>
       </form>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
-      {loading && <p>Loading…</p>}
+      {loading && <p>{t("screener.loading")}</p>}
 
       {rows.length > 0 && !loading && (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>

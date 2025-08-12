@@ -108,5 +108,26 @@
   "loadingPortfolio": "Carregando portfólio…",
   "portfolio": "Portfólio",
   "asOf": "Em {{date}} • Negociações este mês: {{trades}} / 20 (Restantes: {{remaining}})",
-  "approxTotal": "Total aproximado: £{{value}}"
+  "approxTotal": "Total aproximado: £{{value}}",
+  "query": {
+    "start": "Início",
+    "end": "Fim",
+    "owners": "Proprietários",
+    "tickers": "Tickers",
+    "metrics": "Métricas",
+    "run": "Executar",
+    "running": "Executando…",
+    "save": "Salvar",
+    "exportCsv": "Exportar CSV",
+    "exportXlsx": "Exportar XLSX"
+  },
+  "screener": {
+    "tickers": "Tickers",
+    "maxPeg": "PEG máx",
+    "maxPe": "P/E máx",
+    "maxDe": "D/E máx",
+    "minFcf": "FCF mín",
+    "run": "Executar",
+    "loading": "Carregando…"
+  }
 }

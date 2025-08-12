@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   API_BASE,
   runCustomQuery,
@@ -17,6 +18,7 @@ type ResultRow = Record<string, string | number>;
 
 export function QueryPage() {
   const { data: owners } = useFetch(() => getOwners(), []);
+  const { t } = useTranslation();
 
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -97,9 +99,9 @@ export function QueryPage() {
     <div>
       <form onSubmit={handleSubmit} style={{ marginBottom: "1rem" }}>
         <label style={{ marginRight: "0.5rem" }}>
-          Start
+          {t("query.start")}
           <input
-            aria-label="Start"
+            aria-label={t("query.start")}
             type="date"
             value={start}
             onChange={(e) => setStart(e.target.value)}
@@ -107,9 +109,9 @@ export function QueryPage() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
-          End
+          {t("query.end")}
           <input
-            aria-label="End"
+            aria-label={t("query.end")}
             type="date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
@@ -117,7 +119,7 @@ export function QueryPage() {
           />
         </label>
         <fieldset style={{ marginBottom: "1rem" }}>
-          <legend>Owners</legend>
+          <legend>{t("query.owners")}</legend>
           {owners?.map((o) => (
             <label key={o.owner} style={{ marginRight: "0.5rem" }}>
               <input
@@ -133,7 +135,7 @@ export function QueryPage() {
           ))}
         </fieldset>
         <fieldset style={{ marginBottom: "1rem" }}>
-          <legend>Tickers</legend>
+          <legend>{t("query.tickers")}</legend>
           {TICKER_OPTIONS.map((t) => (
             <label key={t} style={{ marginRight: "0.5rem" }}>
               <input
@@ -149,7 +151,7 @@ export function QueryPage() {
           ))}
         </fieldset>
         <fieldset style={{ marginBottom: "1rem" }}>
-          <legend>Metrics</legend>
+          <legend>{t("query.metrics")}</legend>
           {METRIC_OPTIONS.map((m) => (
             <label key={m} style={{ marginRight: "0.5rem" }}>
               <input
@@ -163,15 +165,15 @@ export function QueryPage() {
           ))}
         </fieldset>
         <button type="submit" disabled={loading} style={{ marginRight: "0.5rem" }}>
-          {loading ? "Running…" : "Run"}
+          {loading ? t("query.running") : t("query.run")}
         </button>
         <button type="button" onClick={handleSave} style={{ marginRight: "0.5rem" }}>
-          Save
+          {t("query.save")}
         </button>
         {rows.length > 0 && (
           <span>
-            <a href={buildExportUrl("csv")}>Export CSV</a>{" | "}
-            <a href={buildExportUrl("xlsx")}>Export XLSX</a>
+            <a href={buildExportUrl("csv")}>{t("query.exportCsv")}</a>{" | "}
+            <a href={buildExportUrl("xlsx")}>{t("query.exportXlsx")}</a>
           </span>
         )}
       </form>

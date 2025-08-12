@@ -27,7 +27,8 @@ def get_yahoo_suffix(exchange: str) -> str:
         "LSE": ".L", "L": ".L", "UK": ".L",
         "NASDAQ": "", "NYSE": "", "N": "", "US": "",
         "PARIS": ".PA", "XETRA": ".DE", "DE": ".DE",
-        "TSX": ".TO", "ASX": ".AX",
+        "TSX": ".TO", "TO": ".TO",
+        "ASX": ".AX",
         "F": ".F"
     }
     suffix = exchange_map.get(exchange.upper())

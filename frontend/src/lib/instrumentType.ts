@@ -1,4 +1,4 @@
-import { TFunction } from "i18next";
+import type { TFunction } from "i18next";
 
 const TYPE_KEYS: Record<string, string> = {
   equity: "instrumentType.equity",

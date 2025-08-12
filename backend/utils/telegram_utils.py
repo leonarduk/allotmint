@@ -10,6 +10,7 @@ returns to avoid recursive logging loops.
 from __future__ import annotations
 
 import logging
+import time
 import requests
 
 from backend.config import config as app_config
@@ -19,10 +20,21 @@ config = app_config
 OFFLINE_MODE = config.offline_mode
 logger = logging.getLogger(__name__)
 
+MESSAGE_TTL_SECONDS = 300
+RECENT_MESSAGES: dict[str, float] = {}
+
 
 def send_message(text: str) -> None:
     if OFFLINE_MODE:
         logger.info(f"Offline-alert: {text}")
+        return
+
+    now = time.time()
+    expired = [m for m, ts in RECENT_MESSAGES.items() if now - ts > MESSAGE_TTL_SECONDS]
+    for m in expired:
+        del RECENT_MESSAGES[m]
+
+    if text in RECENT_MESSAGES:
         return
 
     """Send `text` to the configured Telegram chat."""
@@ -39,6 +51,7 @@ def send_message(text: str) -> None:
         timeout=5,
     )
     resp.raise_for_status()
+    RECENT_MESSAGES[text] = now
 
 
 class TelegramLogHandler(logging.Handler):

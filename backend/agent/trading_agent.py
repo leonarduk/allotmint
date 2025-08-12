@@ -139,7 +139,10 @@ def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
             perf = compute_owner_performance(owner)
         except FileNotFoundError:
             continue
-        max_dd = perf.get("max_drawdown")
+        if not perf:
+            continue
+        dd_vals = [p.get("drawdown") for p in perf if p.get("drawdown") is not None]
+        max_dd = min(dd_vals) if dd_vals else None
         if max_dd is None:
             continue
         if abs(max_dd) >= threshold:

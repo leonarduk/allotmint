@@ -20,6 +20,7 @@ from typing import List, Dict, Any, Optional
 from backend.common.constants import OWNER, ACCOUNTS, HOLDINGS
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.holding_utils import load_latest_prices
+from backend.common.exchange import guess_exchange
 from backend.common.portfolio_utils import list_all_unique_tickers
 from backend.timeseries.cache import (
     load_meta_timeseries_range,
@@ -68,7 +69,10 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
         return []
 
     full = _resolve_full_ticker(ticker, _LATEST_PRICES) or ticker.upper()
-    sym, ex = (full.split(".", 1) + ["L"])[:2]
+    if "." in full:
+        sym, ex = full.split(".", 1)
+    else:
+        sym, ex = full, guess_exchange(full)
 
     # Only fetch if not cached
     if not has_cached_meta_timeseries(sym, ex):
@@ -138,7 +142,10 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
             "change_30d_pct": None,
         }
 
-    sym, ex = (full.split(".", 1) + ["L"])[:2]
+    if "." in full:
+        sym, ex = full.split(".", 1)
+    else:
+        sym, ex = full, guess_exchange(full)
 
     def _close_on(d: dt.date) -> Optional[float]:
         # Snap to nearest weekday (backwards) and request that exact day.

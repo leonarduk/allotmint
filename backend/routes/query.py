@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, model_validator
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import compute_var, get_security_meta
 from backend.timeseries.cache import load_meta_timeseries_range
+from backend.common.exchange import guess_exchange
 
 router = APIRouter(prefix="/custom-query", tags=["query"])
 
@@ -68,7 +69,10 @@ async def run_query(q: CustomQuery):
 
     rows = []
     for t in tickers:
-        sym, exch = (t.split(".", 1) + ["L"])[:2]
+        if "." in t:
+            sym, exch = t.split(".", 1)
+        else:
+            sym, exch = t, guess_exchange(t)
         df = load_meta_timeseries_range(sym, exch, start_date=q.start, end_date=q.end)
         row = {"ticker": t}
         if "var" in q.metrics:

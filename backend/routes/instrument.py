@@ -23,6 +23,7 @@ from backend.common.portfolio_loader import list_portfolios
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.common.portfolio_utils import get_security_meta
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
+from backend.common.exchange import guess_exchange
 
 # Group the instrument endpoints under their own router to keep ``app.py``
 # tidy and allow reuse across different deployment targets.
@@ -177,7 +178,10 @@ async def instrument(
         start = date(1900, 1, 1)
     else:
         start = date.today() - timedelta(days=days)
-    tkr, exch = (ticker.split(".", 1) + ["L"])[:2]
+    if "." in ticker:
+        tkr, exch = ticker.split(".", 1)
+    else:
+        tkr, exch = ticker, guess_exchange(ticker)
 
     # ── history ────────────────────────────────────────────────
     df = load_meta_timeseries_range(tkr, exch, start_date=start, end_date=date.today())

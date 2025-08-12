@@ -36,6 +36,7 @@ from backend.common.portfolio_utils import (
 from backend.common.holding_utils import load_latest_prices as _load_latest_prices
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import _nearest_weekday
+from backend.common.exchange import guess_exchange
 
 logger = logging.getLogger("prices")
 
@@ -80,7 +81,10 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         }
 
         if last is not None:
-            sym, exch = (full.split(".", 1) + ["L"])[:2]
+            if "." in full:
+                sym, exch = full.split(".", 1)
+            else:
+                sym, exch = full, guess_exchange(full)
 
             px_7 = _close_on(sym, exch, yday - timedelta(days=7))
             px_30 = _close_on(sym, exch, yday - timedelta(days=30))
@@ -178,7 +182,10 @@ def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
 
     prices: Dict[str, float] = {}
     for full in tickers:
-        ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
+        if "." in full:
+            ticker_only, exchange = full.split(".", 1)
+        else:
+            ticker_only, exchange = full, guess_exchange(full)
         df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
         if df is not None and not df.empty:
             prices[full] = float(df.iloc[-1]["close"])
@@ -199,7 +206,10 @@ def load_prices_for_tickers(
 
     for full in tickers:
         try:
-            ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
+            if "." in full:
+                ticker_only, exchange = full.split(".", 1)
+            else:
+                ticker_only, exchange = full, guess_exchange(full)
             df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
             if not df.empty:
                 df["Ticker"] = full  # restore suffix for display

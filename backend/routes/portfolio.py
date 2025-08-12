@@ -83,7 +83,7 @@ async def groups():
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio/{owner}")
 @handle_owner_not_found
-async def portfolio(owner: str, background_tasks: BackgroundTasks):
+async def portfolio(owner: str, background_tasks: BackgroundTasks = None):
     """Return the fully expanded portfolio for ``owner``.
 
     The helper function :func:`build_owner_portfolio` loads account data from
@@ -92,6 +92,8 @@ async def portfolio(owner: str, background_tasks: BackgroundTasks):
     """
 
     page = f"portfolio_{owner}"
+    if background_tasks is None:
+        background_tasks = BackgroundTasks()
     page_cache.schedule_refresh(
         page, PORTFOLIO_TTL, lambda owner=owner: portfolio_mod.build_owner_portfolio(owner)
     )
@@ -114,10 +116,14 @@ async def portfolio(owner: str, background_tasks: BackgroundTasks):
 async def performance(owner: str, days: int = 365):
     """Return portfolio performance metrics for ``owner``."""
     try:
-        result = portfolio_utils.compute_owner_performance(owner, days=days)
+        history = portfolio_utils.compute_owner_performance(owner, days=days)
     except FileNotFoundError:
         raise_owner_not_found()
-    return {"owner": owner, **result}
+    max_dd = None
+    if history:
+        dd_vals = [r.get("drawdown") for r in history if r.get("drawdown") is not None]
+        max_dd = min(dd_vals) if dd_vals else None
+    return {"owner": owner, "history": history, "max_drawdown": max_dd}
 
 
 @router.get("/var/{owner}")
@@ -155,7 +161,7 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
 
 
 @router.get("/portfolio-group/{slug}")
-async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
+async def portfolio_group(slug: str, background_tasks: BackgroundTasks = None):
     """Return the aggregated portfolio for a group.
 
     Groups are defined in configuration and simply reference a list of owner
@@ -163,6 +169,8 @@ async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
     """
 
     page = f"portfolio_group_{slug}"
+    if background_tasks is None:
+        background_tasks = BackgroundTasks()
     page_cache.schedule_refresh(
         page,
         PORTFOLIO_TTL,
@@ -187,10 +195,12 @@ async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
 # Group-level aggregation
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio-group/{slug}/instruments")
-async def group_instruments(slug: str, background_tasks: BackgroundTasks):
+async def group_instruments(slug: str, background_tasks: BackgroundTasks = None):
     """Return holdings for the group aggregated by ticker."""
 
     page = f"group_instruments_{slug}"
+    if background_tasks is None:
+        background_tasks = BackgroundTasks()
     page_cache.schedule_refresh(
         page,
         PORTFOLIO_TTL,

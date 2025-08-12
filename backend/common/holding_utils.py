@@ -17,6 +17,7 @@ from backend.common.constants import (
 )
 from backend.config import config
 from backend.common.instruments import get_instrument_meta
+from backend.common.exchange import guess_exchange
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import get_scaling_override, apply_scaling
 from backend.common.approvals import is_approval_valid
@@ -52,7 +53,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     """
     Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77} in GBP.
     - Uses end_date = yesterday
-    - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
+    - Accepts 'HFEL.L' or 'HFEL' (attempts to infer exchange)
     - Skips empties instead of returning 0.00
     """
     result: dict[str, float] = {}
@@ -67,7 +68,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
         if "." in full:
             ticker, exchange = full.split(".", 1)
         else:
-            ticker, exchange = full, "L"
+            ticker, exchange = full, guess_exchange(full)
 
         try:
             df = load_meta_timeseries_range(

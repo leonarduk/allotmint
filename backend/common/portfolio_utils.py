@@ -26,6 +26,7 @@ from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
 )
+from backend.common.exchange import guess_exchange
 
 logger = logging.getLogger("portfolio_utils")
 
@@ -295,7 +296,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
 # ──────────────────────────────────────────────────────────────
 # Performance helpers
 # ──────────────────────────────────────────────────────────────
-def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
+def compute_owner_performance(owner: str, days: int = 365) -> List[Dict[str, Any]]:
     """Return daily portfolio values and returns for an ``owner``.
 
     The calculation uses current holdings and fetches closing prices from the
@@ -313,8 +314,7 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
             "drawdown": -0.18,              # % drop from running max
         }
 
-    Returns ``{"history": [], "max_drawdown": None}`` if the owner or
-    timeseries data is missing.
+    Returns an empty list if the owner or timeseries data is missing.
     """
 
     try:
@@ -331,11 +331,11 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
             units = _safe_num(h.get("units"))
             if not units:
                 continue
-            exch = (h.get("exchange") or "L").upper()
+            exch = (h.get("exchange") or guess_exchange(tkr)).upper()
             holdings.append((tkr.split(".", 1)[0], exch, units))
 
     if not holdings:
-        return {"history": [], "max_drawdown": None}
+        return []
 
     total = pd.Series(dtype=float)
     for ticker, exchange, units in holdings:
@@ -348,7 +348,7 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
         total = total.add(values, fill_value=0)
 
     if total.empty:
-        return {"history": [], "max_drawdown": None}
+        return []
 
     perf = total.sort_index().to_frame(name="value")
     perf["daily_return"] = perf["value"].pct_change()
@@ -357,7 +357,6 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
     perf["cumulative_return"] = perf["value"] / start_val - 1
     perf["running_max"] = perf["value"].cummax()
     perf["drawdown"] = perf["value"] / perf["running_max"] - 1
-    max_drawdown = float(perf["drawdown"].min())
     perf = perf.reset_index().rename(columns={"index": "date"})
 
     out: List[Dict] = []
@@ -384,7 +383,7 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
             }
         )
 
-    return {"history": out, "max_drawdown": max_drawdown}
+    return out
 
 
 # ──────────────────────────────────────────────────────────────
@@ -405,7 +404,10 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
         try:
             today = datetime.today().date()
             cutoff = today - timedelta(days=days)
-            ticker_only, exchange = (t.split(".", 1) + ["L"])[:2]
+            if "." in t:
+                ticker_only, exchange = t.split(".", 1)
+            else:
+                ticker_only, exchange = t, guess_exchange(t)
 
             df = fetch_meta_timeseries(
                 ticker=ticker_only, exchange=exchange, start_date=cutoff, end_date=today

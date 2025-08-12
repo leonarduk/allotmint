@@ -46,6 +46,7 @@ describe("HoldingsTable", () => {
         expect(screen.getByText("XYZ")).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Weight %/})).toBeInTheDocument();
+        expect(screen.queryByRole('columnheader', {name: /Mkt £/})).toBeNull();
         expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
         expect(screen.queryByRole('columnheader', {name: /Cost £/})).toBeNull();
         expect(screen.queryByRole('columnheader', {name: /Gain £/})).toBeNull();

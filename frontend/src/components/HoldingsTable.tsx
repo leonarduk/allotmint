@@ -15,14 +15,8 @@ type Props = {
 };
 
 export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
-  const { relativeViewEnabled } = useConfig();
-
-export function HoldingsTable({
-  holdings,
-  onSelectInstrument,
-  relativeView = false,
-}: Props) {
   const { t } = useTranslation();
+  const { relativeViewEnabled } = useConfig();
 
   const [filters, setFilters] = useState({
     ticker: "",
@@ -107,7 +101,7 @@ export function HoldingsTable({
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", "Units"],
     ["cost", "Cost"],
-    ["market", "Market"],
+    ["market", relativeViewEnabled ? "Weight %" : "Market"],
     ["gain", "Gain"],
     ["gain_pct", "Gain %"],
   ];
@@ -180,7 +174,6 @@ export function HoldingsTable({
                 />
               </th>
             )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             <th className={tableStyles.cell}></th>
             <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             <th className={`${tableStyles.cell} ${tableStyles.center}`}>
@@ -216,9 +209,25 @@ export function HoldingsTable({
                 Cost £{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
-            {visibleColumns.market && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
-            )}
+              {visibleColumns.market && (
+                !relativeViewEnabled ? (
+                  <th
+                    className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                    onClick={() => handleSort("market")}
+                  >
+                    Mkt £
+                    {sortKey === "market" ? (asc ? " ▲" : " ▼") : ""}
+                  </th>
+                ) : (
+                  <th
+                    className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                    onClick={() => handleSort("weight_pct")}
+                  >
+                    Weight %
+                    {sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
+                  </th>
+                )
+              )}
             {!relativeViewEnabled && visibleColumns.gain && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
@@ -227,21 +236,15 @@ export function HoldingsTable({
                 Gain £{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
-            {visibleColumns.gain_pct && (
-              <th
-                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                onClick={() => handleSort("gain_pct")}
-              >
-                Gain %{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
-              </th>
-            )}
-            <th
-              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-              onClick={() => handleSort("weight_pct")}
-            >
-              Weight %{sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
-            </th>
-            <th className={tableStyles.cell}>Acquired</th>
+              {visibleColumns.gain_pct && (
+                <th
+                  className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                  onClick={() => handleSort("gain_pct")}
+                >
+                  Gain %{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
+                </th>
+              )}
+              <th className={tableStyles.cell}>Acquired</th>
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
               onClick={() => handleSort("days_held")}
@@ -291,10 +294,14 @@ export function HoldingsTable({
                     {money(h.cost)}
                   </td>
                 )}
-                {visibleColumns.market && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
-                )}
-                {!relativeViewEnabled && visibleColumns.gain && (
+                  {visibleColumns.market && (
+                    !relativeViewEnabled ? (
+                      <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
+                    ) : (
+                      <td className={`${tableStyles.cell} ${tableStyles.right}`}>{percent(h.weight_pct ?? 0, 1)}</td>
+                    )
+                  )}
+                  {!relativeViewEnabled && visibleColumns.gain && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
                     style={{ color: (h.gain ?? 0) >= 0 ? "lightgreen" : "red" }}
@@ -302,15 +309,14 @@ export function HoldingsTable({
                     {money(h.gain)}
                   </td>
                 )}
-                {visibleColumns.gain_pct && (
-                  <td
-                    className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{ color: (h.gain_pct ?? 0) >= 0 ? "lightgreen" : "red" }}
-                  >
-                    {percent(h.gain_pct ?? 0, 1)}
-                  </td>
-                )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{percent(h.weight_pct ?? 0, 1)}</td>
+                  {visibleColumns.gain_pct && (
+                    <td
+                      className={`${tableStyles.cell} ${tableStyles.right}`}
+                      style={{ color: (h.gain_pct ?? 0) >= 0 ? "lightgreen" : "red" }}
+                    >
+                      {percent(h.gain_pct ?? 0, 1)}
+                    </td>
+                  )}
                 <td className={tableStyles.cell}>
                   {h.acquired_date && !isNaN(Date.parse(h.acquired_date))
                     ? new Intl.DateTimeFormat(i18n.language).format(new Date(h.acquired_date))

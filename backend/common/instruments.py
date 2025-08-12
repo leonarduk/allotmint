@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict
 
 _INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
+
+logger = logging.getLogger(__name__)
 
 
 def _instrument_path(ticker: str) -> Path:
@@ -30,5 +33,11 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
     try:
         with path.open("r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except FileNotFoundError:
         return {}
+    except json.JSONDecodeError as exc:
+        logger.warning("Invalid instrument JSON %s: %s", path, exc)
+        return {}
+    except Exception as exc:
+        logger.exception("Unexpected error loading instrument metadata for %s", path)
+        raise

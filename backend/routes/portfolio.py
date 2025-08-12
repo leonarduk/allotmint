@@ -26,7 +26,7 @@ from backend.common import (
     instrument_api,
     risk,
 )
-from backend.utils import page_cache
+from backend.utils.cache import cached_page
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -90,21 +90,16 @@ async def portfolio(owner: str, background_tasks: BackgroundTasks):
     """
 
     page = f"portfolio_{owner}"
-    page_cache.schedule_refresh(
-        page, PORTFOLIO_TTL, lambda owner=owner: portfolio_mod.build_owner_portfolio(owner)
-    )
-    if not page_cache.is_stale(page, PORTFOLIO_TTL):
-        cached = page_cache.load_cache(page)
-        if cached is not None:
-            return cached
 
     try:
-        data = portfolio_mod.build_owner_portfolio(owner)
+        return cached_page(
+            page,
+            PORTFOLIO_TTL,
+            lambda owner=owner: portfolio_mod.build_owner_portfolio(owner),
+            background_tasks,
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
-
-    background_tasks.add_task(page_cache.save_cache, page, data)
-    return data
 
 
 @router.get("/performance/{owner}")
@@ -159,24 +154,17 @@ async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
     """
 
     page = f"portfolio_group_{slug}"
-    page_cache.schedule_refresh(
-        page,
-        PORTFOLIO_TTL,
-        lambda slug=slug: group_portfolio.build_group_portfolio(slug),
-    )
-    if not page_cache.is_stale(page, PORTFOLIO_TTL):
-        cached = page_cache.load_cache(page)
-        if cached is not None:
-            return cached
 
     try:
-        data = group_portfolio.build_group_portfolio(slug)
+        return cached_page(
+            page,
+            PORTFOLIO_TTL,
+            lambda slug=slug: group_portfolio.build_group_portfolio(slug),
+            background_tasks,
+        )
     except Exception as e:
         log.warning(f"Failed to load group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
-
-    background_tasks.add_task(page_cache.save_cache, page, data)
-    return data
 
 
 # ──────────────────────────────────────────────────────────────
@@ -187,22 +175,14 @@ async def group_instruments(slug: str, background_tasks: BackgroundTasks):
     """Return holdings for the group aggregated by ticker."""
 
     page = f"group_instruments_{slug}"
-    page_cache.schedule_refresh(
+    return cached_page(
         page,
         PORTFOLIO_TTL,
         lambda slug=slug: portfolio_utils.aggregate_by_ticker(
             group_portfolio.build_group_portfolio(slug)
         ),
+        background_tasks,
     )
-    if not page_cache.is_stale(page, PORTFOLIO_TTL):
-        cached = page_cache.load_cache(page)
-        if cached is not None:
-            return cached
-
-    gp = group_portfolio.build_group_portfolio(slug)
-    data = portfolio_utils.aggregate_by_ticker(gp)
-    background_tasks.add_task(page_cache.save_cache, page, data)
-    return data
 
 
 @router.get("/account/{owner}/{account}")

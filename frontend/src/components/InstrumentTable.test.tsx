@@ -51,6 +51,19 @@ describe("InstrumentTable", () => {
             change_7d_pct: 0.5,
             change_30d_pct: 1,
         },
+        {
+            ticker: "CADI",
+            name: "CAD Inc",
+            currency: "CAD",
+            instrument_type: "Equity",
+            units: 2,
+            market_value_gbp: 200,
+            gain_gbp: 20,
+            last_price_gbp: 100,
+            last_price_date: "2024-01-04",
+            change_7d_pct: 0,
+            change_30d_pct: 0,
+        },
     ];
 
     it("passes ticker and name to InstrumentDetail", () => {
@@ -76,6 +89,7 @@ describe("InstrumentTable", () => {
         const props = mock.mock.calls[0][0] as DetailProps;
         expect(props.ticker).toBe('GBPUSD=X');
         expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'CAD' })).toBeNull();
     });
 
     it("sorts by ticker when header clicked", () => {

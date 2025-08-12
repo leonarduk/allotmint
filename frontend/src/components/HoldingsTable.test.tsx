@@ -51,6 +51,21 @@ describe("HoldingsTable", () => {
             sell_eligible: false,
             days_until_eligible: 5,
         },
+        {
+            ticker: "CADH",
+            name: "CAD Holding",
+            currency: "CAD",
+            instrument_type: "Equity",
+            units: 1,
+            price: 0,
+            cost_basis_gbp: 20,
+            market_value_gbp: 20,
+            gain_gbp: 0,
+            acquired_date: "2024-02-01",
+            days_held: 30,
+            sell_eligible: false,
+            days_until_eligible: 0,
+        },
     ];
 
     const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
@@ -89,6 +104,7 @@ describe("HoldingsTable", () => {
         fireEvent.click(screen.getByRole('button', { name: 'USD' }));
         expect(onSelect).toHaveBeenCalledWith('GBPUSD=X', 'USD');
         expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'CAD' })).toBeNull();
     });
 
     it("sorts by ticker when header clicked", () => {

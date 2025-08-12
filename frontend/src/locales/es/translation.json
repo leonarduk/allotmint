@@ -108,5 +108,8 @@
   "loadingPortfolio": "Cargando portafolio…",
   "portfolio": "Portafolio",
   "asOf": "A fecha de {{date}} • Operaciones este mes: {{trades}} / 20 (Restantes: {{remaining}})",
-  "approxTotal": "Total aproximado: £{{value}}"
+  "approxTotal": "Total aproximado: £{{value}}",
+  "watchlist": {
+    "refresh": "Actualizar"
+  }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 
@@ -37,6 +38,7 @@ function formatTime(val: string | null): string {
 }
 
 export function Watchlist() {
+  const { t } = useTranslation();
   const [symbols, setSymbols] = useState(() =>
     localStorage.getItem("watchlistSymbols") || DEFAULT_SYMBOLS,
   );
@@ -110,13 +112,23 @@ export function Watchlist() {
           onChange={(e) => setSymbols(e.target.value)}
         />
       </div>
-      <label style={{ display: "block", marginBottom: "0.5rem" }}>
-        <input
-          type="checkbox"
-          checked={auto}
-          onChange={(e) => setAuto(e.target.checked)}
-        />{" "}Auto-refresh
-      </label>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          marginBottom: "0.5rem",
+        }}
+      >
+        <label style={{ display: "flex", alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={auto}
+            onChange={(e) => setAuto(e.target.checked)}
+          />{" "}Auto-refresh
+        </label>
+        <button onClick={fetchData}>{t("watchlist.refresh")}</button>
+      </div>
       {error && (
         <div style={{ color: "red", marginBottom: "0.5rem" }}>{error}</div>
       )}

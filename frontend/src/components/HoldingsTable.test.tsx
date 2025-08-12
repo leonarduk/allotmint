@@ -49,6 +49,7 @@ describe("HoldingsTable", () => {
         expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
         expect(screen.queryByRole('columnheader', {name: /Cost £/})).toBeNull();
         expect(screen.queryByRole('columnheader', {name: /Gain £/})).toBeNull();
+        expect(screen.queryByRole('columnheader', {name: /Mkt £/})).toBeNull();
     });
 
     it("shows absolute columns when relative view is disabled", () => {
@@ -56,6 +57,7 @@ describe("HoldingsTable", () => {
         expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Cost £/})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Gain £/})).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', {name: /Mkt £/})).toBeInTheDocument();
     });
 
     it("shows days to go if not eligible", () => {

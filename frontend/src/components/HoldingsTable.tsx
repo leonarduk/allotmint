@@ -164,7 +164,7 @@ export function HoldingsTable({
             {!relativeViewEnabled && visibleColumns.cost && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
-            {visibleColumns.market && (
+            {!relativeViewEnabled && visibleColumns.market && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
@@ -215,7 +215,7 @@ export function HoldingsTable({
                 Cost £{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
-            {visibleColumns.market && (
+            {!relativeViewEnabled && visibleColumns.market && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
@@ -290,7 +290,7 @@ export function HoldingsTable({
                     {money(h.cost)}
                   </td>
                 )}
-                {visibleColumns.market && (
+                {!relativeViewEnabled && visibleColumns.market && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (

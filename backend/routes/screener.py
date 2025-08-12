@@ -6,7 +6,7 @@ from typing import List
 
 import hashlib
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query
 
 from backend.screener import Fundamentals, screen
 from backend.utils import page_cache
@@ -18,7 +18,6 @@ SCREENER_TTL = 900  # seconds
 
 @router.get("/", response_model=List[Fundamentals])
 async def screener(
-    background_tasks: BackgroundTasks,
     tickers: str = Query(..., description="Comma-separated list of tickers"),
     peg_max: float | None = Query(None),
     pe_max: float | None = Query(None),
@@ -70,5 +69,5 @@ async def screener(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     payload = [r.model_dump() for r in result]
-    background_tasks.add_task(page_cache.save_cache, page, payload)
+    page_cache.save_cache(page, payload)
     return payload

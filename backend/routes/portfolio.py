@@ -14,7 +14,7 @@ import logging
 from datetime import date
 from typing import List
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.common import (
@@ -83,7 +83,7 @@ async def groups():
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio/{owner}")
 @handle_owner_not_found
-async def portfolio(owner: str, background_tasks: BackgroundTasks):
+async def portfolio(owner: str):
     """Return the fully expanded portfolio for ``owner``.
 
     The helper function :func:`build_owner_portfolio` loads account data from
@@ -105,7 +105,7 @@ async def portfolio(owner: str, background_tasks: BackgroundTasks):
     except FileNotFoundError:
         raise_owner_not_found()
 
-    background_tasks.add_task(page_cache.save_cache, page, data)
+    page_cache.save_cache(page, data)
     return data
 
 
@@ -155,7 +155,7 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
 
 
 @router.get("/portfolio-group/{slug}")
-async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
+async def portfolio_group(slug: str):
     """Return the aggregated portfolio for a group.
 
     Groups are defined in configuration and simply reference a list of owner
@@ -179,7 +179,7 @@ async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
         log.warning(f"Failed to load group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
 
-    background_tasks.add_task(page_cache.save_cache, page, data)
+    page_cache.save_cache(page, data)
     return data
 
 
@@ -187,7 +187,7 @@ async def portfolio_group(slug: str, background_tasks: BackgroundTasks):
 # Group-level aggregation
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio-group/{slug}/instruments")
-async def group_instruments(slug: str, background_tasks: BackgroundTasks):
+async def group_instruments(slug: str):
     """Return holdings for the group aggregated by ticker."""
 
     page = f"group_instruments_{slug}"
@@ -205,7 +205,7 @@ async def group_instruments(slug: str, background_tasks: BackgroundTasks):
 
     gp = group_portfolio.build_group_portfolio(slug)
     data = portfolio_utils.aggregate_by_ticker(gp)
-    background_tasks.add_task(page_cache.save_cache, page, data)
+    page_cache.save_cache(page, data)
     return data
 
 

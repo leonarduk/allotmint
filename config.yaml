@@ -1,7 +1,6 @@
 offline_mode: false
 max_trades_per_month: 20
 hold_days_min: 30
-offline_mode: true
 repo_root: .
 accounts_root: data/accounts
 prices_json: data/prices/latest_prices.json

@@ -1,5 +1,5 @@
 import { renderHook, act } from "@testing-library/react";
-import { useFilterableTable, Filter } from "./useFilterableTable";
+import { useFilterableTable, type Filter } from "./useFilterableTable";
 
 type Row = { name: string; age: number; active: boolean };
 

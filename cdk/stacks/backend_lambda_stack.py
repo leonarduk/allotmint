@@ -18,11 +18,9 @@ class BackendLambdaStack(Stack):
 
         project_root = Path(__file__).resolve().parents[2]
 
-        backend_fn = _lambda.Function(
+        dependencies_layer = _lambda.LayerVersion(
             self,
-            "BackendLambda",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="backend.lambda_api.handler.lambda_handler",
+            "BackendDependencies",
             code=_lambda.Code.from_asset(
                 str(project_root),
                 bundling=_lambda.BundlingOptions(
@@ -30,10 +28,22 @@ class BackendLambdaStack(Stack):
                     command=[
                         "bash",
                         "-c",
-                        "pip install -r requirements.txt -t /asset-output && cp -r backend /asset-output",
+                        "pip install -r backend/requirements.txt -t /asset-output/python",
                     ],
                 ),
             ),
+            compatible_runtimes=[_lambda.Runtime.PYTHON_3_11],
+        )
+
+        backend_code = _lambda.Code.from_asset(str(project_root / "backend"))
+
+        backend_fn = _lambda.Function(
+            self,
+            "BackendLambda",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="backend.lambda_api.handler.lambda_handler",
+            code=backend_code,
+            layers=[dependencies_layer],
         )
 
         apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)
@@ -44,7 +54,8 @@ class BackendLambdaStack(Stack):
             "PriceRefreshLambda",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="backend.lambda_api.price_refresh.lambda_handler",
-            code=backend_fn.code,
+            code=backend_code,
+            layers=[dependencies_layer],
         )
 
         events.Rule(

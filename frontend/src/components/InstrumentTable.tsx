@@ -8,7 +8,7 @@ import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
-import { isSupportedFx } from "../lib/fx";
+import { isSupportedFx, fxTicker } from "../lib/fx";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -169,8 +169,8 @@ export function InstrumentTable({ rows }: Props) {
                                             type="button"
                                             onClick={() =>
                                                 setSelected({
-                                                    ticker: `GBP${r.currency}.FX`,
-                                                    name: `GBP${r.currency}.FX`,
+                                                    ticker: fxTicker(r.currency),
+                                                    name: fxTicker(r.currency),
                                                     currency: r.currency,
                                                     instrument_type: "FX",
                                                     units: 0,

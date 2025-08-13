@@ -7,7 +7,7 @@ import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
-import { isSupportedFx } from "../lib/fx";
+import { isSupportedFx, fxTicker } from "../lib/fx";
 
 type Props = {
   holdings: Holding[];
@@ -278,7 +278,7 @@ export function HoldingsTable({
                     <button
                       type="button"
                       onClick={() =>
-                        onSelectInstrument?.(`GBP${h.currency!}.FX`, h.currency!)
+                        onSelectInstrument?.(fxTicker(h.currency), h.currency)
                       }
                       style={{
                         color: "dodgerblue",

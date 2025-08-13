@@ -4,4 +4,5 @@ export type FxCurrency = typeof FX_CURRENCIES[number];
 export const isSupportedFx = (ccy?: string | null): ccy is FxCurrency =>
   ccy != null && (FX_CURRENCIES as readonly string[]).includes(ccy);
 
-export const fxTicker = (ccy: FxCurrency): string => `GBP${ccy}=X`;
+// Build a currency pair ticker in the format "${ccy}GBP.FX"
+export const fxTicker = (ccy: FxCurrency): string => `${ccy}GBP.FX`;

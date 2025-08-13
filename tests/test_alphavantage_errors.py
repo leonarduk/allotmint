@@ -1,6 +1,7 @@
 import pytest
 from datetime import date
 
+import backend.timeseries.fetch_alphavantage_timeseries as av
 from backend.timeseries.fetch_alphavantage_timeseries import (
     fetch_alphavantage_timeseries_range,
 )
@@ -21,6 +22,7 @@ def test_information_field_propagated(monkeypatch):
     def fake_get(url, params=None, timeout=None):
         return FakeResponse({"Information": "test info"})
 
+    monkeypatch.setattr(av, "is_valid_ticker", lambda *a, **k: True)
     import requests
 
     monkeypatch.setattr(requests, "get", fake_get)

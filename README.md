@@ -147,6 +147,19 @@ variables:
 
 When several transports are configured, alerts are sent to each of them.
 
+## AWS data bucket
+
+When running the backend in AWS (``config.app_env: aws``), account and
+metadata JSON files are loaded from an S3 bucket.
+
+Set the ``DATA_BUCKET`` environment variable to the name of the bucket
+containing the ``accounts/OWNER/ACCOUNT.json`` objects. The Lambda execution
+role requires the following minimal IAM permissions on that bucket:
+
+* ``s3:ListBucket`` (with a prefix of ``accounts/``) – discover available
+  accounts.
+* ``s3:GetObject`` on ``accounts/*`` – read account and ``person.json`` files.
+
 ## Tests
 
 Run Python and frontend test suites with:

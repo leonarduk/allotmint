@@ -79,7 +79,7 @@ def test_performance_with_synthetic_holdings(monkeypatch):
 
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
 
-    perf = portfolio_utils.compute_owner_performance("virtual", days=3)
+    perf = portfolio_utils.compute_owner_performance("virtual", days=3)["history"]
 
     assert len(perf) == 3
     assert perf[0]["value"] == 200  # 10*10 + 5*20

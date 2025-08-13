@@ -11,6 +11,7 @@ afterEach(() => {
 
 const defaultConfig: AppConfig = {
   relativeViewEnabled: false,
+  theme: "system",
   tabs: {
     instrument: true,
     performance: true,

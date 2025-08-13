@@ -109,6 +109,9 @@
   "portfolio": "Portefeuille",
   "asOf": "Au {{date}} • Transactions ce mois: {{trades}} / 20 (Restantes: {{remaining}})",
   "approxTotal": "Total approximatif: £{{value}}",
+  "watchlist": {
+    "refresh": "Actualiser"
+  },
   "query": {
     "start": "Début",
     "end": "Fin",

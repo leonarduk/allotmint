@@ -109,6 +109,9 @@
   "portfolio": "Portfolio",
   "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",
   "approxTotal": "Ungefähre Summe: £{{value}}",
+  "watchlist": {
+    "refresh": "Aktualisieren"
+  },
   "query": {
     "start": "Start",
     "end": "Ende",

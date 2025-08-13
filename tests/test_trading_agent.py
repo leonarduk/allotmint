@@ -93,6 +93,28 @@ def test_send_trade_alert_with_telegram(monkeypatch):
     assert telegram_msgs == ["hi"]
 
 
+def test_send_trade_alert_no_publish_with_telegram(monkeypatch):
+    published = {"called": False}
+    telegram_msgs: list[str] = []
+
+    def fake_publish(alert):
+        published["called"] = True
+
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.publish_alert", fake_publish
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg)
+    )
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
+
+    send_trade_alert("hi", publish=False)
+
+    assert published["called"] is False
+    assert telegram_msgs == ["hi"]
+
+
 def test_run_defaults_to_all_known_tickers(monkeypatch):
     captured: dict = {}
 

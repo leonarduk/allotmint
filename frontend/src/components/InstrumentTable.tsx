@@ -8,7 +8,7 @@ import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
-import { isSupportedFx, fxTicker } from "../lib/fx";
+import { isSupportedFx } from "../lib/fx";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -248,7 +248,7 @@ export function InstrumentTable({ rows }: Props) {
                 <InstrumentDetail
                     ticker={selected.ticker}
                     name={selected.name}
-                    currency={selected.currency}
+                    currency={selected.currency ?? undefined}
                     instrument_type={selected.instrument_type}
                     onClose={() => setSelected(null)}
                 />

@@ -30,7 +30,7 @@ export function QueryPage() {
   const [error, setError] = useState<string | null>(null);
 
   const columns = rows.length ? (Object.keys(rows[0]) as (keyof ResultRow)[]) : [];
-  const { sorted, handleSort } = useSortableTable<ResultRow, keyof ResultRow>(
+  const { sorted, handleSort } = useSortableTable<ResultRow>(
     rows,
     (columns[0] as keyof ResultRow) || ("owner" as keyof ResultRow),
   );

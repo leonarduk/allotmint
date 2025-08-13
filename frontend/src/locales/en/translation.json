@@ -15,7 +15,9 @@
       "transactions": "Transactions",
       "screener": "Screener",
       "query": "Query",
-      "trading": "Trading",
+      "trading": "Trading Agent",
+      "virtual": "Virtual Portfolio",
+      "support": "Support",
       "timeseries": "Timeseries",
       "watchlist": "Watchlist"
     }

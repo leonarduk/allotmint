@@ -4,8 +4,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import './i18n'
 import App from './App.tsx'
-import Support from './pages/Support'
-import VirtualPortfolio from './pages/VirtualPortfolio'
 import './i18n'
 import { ConfigProvider } from './ConfigContext'
 
@@ -14,8 +12,8 @@ createRoot(document.getElementById('root')!).render(
     <ConfigProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/support" element={<Support />} />
-          <Route path="/virtual" element={<VirtualPortfolio />} />
+          <Route path="/support" element={<App />} />
+          <Route path="/virtual" element={<App />} />
           <Route path="/*" element={<App />} />
         </Routes>
       </BrowserRouter>

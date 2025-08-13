@@ -87,7 +87,7 @@ describe("InstrumentTable", () => {
         expect(mock).toHaveBeenCalled();
         type DetailProps = Parameters<typeof InstrumentDetail>[0];
         const props = mock.mock.calls[0][0] as DetailProps;
-        expect(props.ticker).toBe('GBPUSD=X');
+        expect(props.ticker).toBe('GBPUSD.FX');
         expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
         expect(screen.queryByRole('button', { name: 'CAD' })).toBeNull();
     });

@@ -28,6 +28,8 @@ import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
+import VirtualPortfolio from "./pages/VirtualPortfolio";
+import Support from "./pages/Support";
 
 type Mode =
   | "owner"
@@ -38,6 +40,8 @@ type Mode =
   | "screener"
   | "query"
   | "trading"
+  | "virtual"
+  | "support"
   | "timeseries"
   | "watchlist";
 
@@ -51,6 +55,8 @@ const initialMode: Mode =
   path[0] === "screener" ? "screener" :
   path[0] === "query" ? "query" :
   path[0] === "trading" ? "trading" :
+  path[0] === "virtual" ? "virtual" :
+  path[0] === "support" ? "support" :
   path[0] === "timeseries" ? "timeseries" :
   path[0] === "watchlist" ? "watchlist" :
   "group";
@@ -103,6 +109,10 @@ export default function App() {
           ? "query"
           : segs[0] === "trading"
             ? "trading"
+            : segs[0] === "virtual"
+              ? "virtual"
+              : segs[0] === "support"
+                ? "support"
             : segs[0] === "timeseries"
               ? "timeseries"
               : segs[0] === "watchlist"
@@ -224,6 +234,8 @@ export default function App() {
           "screener",
           "query",
           "trading",
+          "virtual",
+          "support",
           "timeseries",
           "watchlist",
         ] as Mode[]).map((m) => (
@@ -327,18 +339,12 @@ export default function App() {
 
       {mode === "screener" && <Screener />}
       {mode === "trading" && <TradingAgent />}
+      {mode === "virtual" && <VirtualPortfolio />}
+      {mode === "support" && <Support />}
       {mode === "timeseries" && <TimeseriesEdit />}
       {mode === "watchlist" && <Watchlist />}
 
       {mode === "query" && <QueryPage />}
-
-      <p style={{ marginTop: "2rem", textAlign: "center" }}>
-        <a href="/virtual">Virtual Portfolios</a>
-        {" • "}
-        <a href="/trading">Trading Agent</a>
-        {" • "}
-        <a href="/support">{t("app.supportLink")}</a>
-      </p>
     </div>
   );
 }

@@ -9,7 +9,6 @@ import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
-import { formatInstrumentType } from "../instrumentType";
 import { useConfig } from "../ConfigContext";
 import {
   PieChart,
@@ -106,7 +105,6 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
           : market - cost;
       const dayChg = h.day_change_gbp ?? 0;
 
-      const type = formatInstrumentType(t, h.instrument_type);
       const typeKey = (h.instrument_type ?? "other").toLowerCase();
       perType[typeKey] = (perType[typeKey] || 0) + market;
 
@@ -234,7 +232,16 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
         <tbody>
           {ownerRows.map((row) => (
             <tr key={row.owner}>
-              <td className={tableStyles.cell}>{row.owner}</td>
+              <td
+                className={`${tableStyles.cell} ${
+                  onSelectMember ? tableStyles.clickable : ""
+                }`}
+                onClick={
+                  onSelectMember ? () => onSelectMember(row.owner) : undefined
+                }
+              >
+                {row.owner}
+              </td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                 {relativeViewEnabled ? percent(row.valuePct) : money(row.value)}
               </td>
@@ -291,7 +298,17 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
                 aria-label={`${acct.owner ?? "—"} ${acct.account_type}`}
                 style={{ marginRight: "0.5rem" }}
               />
-              {acct.owner ?? "—"} • {acct.account_type} — {money(acct.value_estimate_gbp)}
+              {onSelectMember ? (
+                <span
+                  className={tableStyles.clickable}
+                  onClick={() => onSelectMember(acct.owner ?? "—")}
+                >
+                  {acct.owner ?? "—"}
+                </span>
+              ) : (
+                <>{acct.owner ?? "—"}</>
+              )}{" "}
+              • {acct.account_type} — {money(acct.value_estimate_gbp)}
             </h3>
 
             {checked && (

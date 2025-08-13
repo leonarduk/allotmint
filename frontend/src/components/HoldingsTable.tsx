@@ -1,4 +1,3 @@
-import type React from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
@@ -8,7 +7,7 @@ import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
-import { isSupportedFx, fxTicker } from "../lib/fx";
+import { isSupportedFx } from "../lib/fx";
 
 type Props = {
   holdings: Holding[];
@@ -19,7 +18,6 @@ type Props = {
 export function HoldingsTable({
   holdings,
   onSelectInstrument,
-  relativeView = false,
 }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled } = useConfig();
@@ -280,7 +278,7 @@ export function HoldingsTable({
                     <button
                       type="button"
                       onClick={() =>
-                        onSelectInstrument?.(`GBP${h.currency}.FX`, h.currency)
+                        onSelectInstrument?.(`GBP${h.currency!}.FX`, h.currency!)
                       }
                       style={{
                         color: "dodgerblue",

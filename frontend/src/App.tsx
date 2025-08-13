@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
@@ -24,7 +24,6 @@ import { Screener } from "./pages/Screener";
 import { QueryPage } from "./pages/QueryPage";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
-import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
@@ -62,6 +61,7 @@ export default function App() {
   const location = useLocation();
   const { t } = useTranslation();
   const { disabledTabs = [] } = useConfig();
+  const { tabs } = useConfig();
 
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -87,6 +87,24 @@ export default function App() {
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
+
+  const modes: Mode[] = [
+    "group",
+    ...(tabs.instrument ? ["instrument"] : []),
+    "owner",
+    ...(tabs.performance ? ["performance"] : []),
+    ...(tabs.transactions ? ["transactions"] : []),
+    ...(tabs.screener ? ["screener"] : []),
+    ...(tabs.query ? ["query"] : []),
+    ...(tabs.trading ? ["trading"] : []),
+    ...(tabs.timeseries ? ["timeseries"] : []),
+    ...(tabs.watchlist ? ["watchlist"] : []),
+  ];
+
+  const links: JSX.Element[] = [];
+  if (tabs.virtual) links.push(<a href="/virtual">Virtual Portfolios</a>);
+  if (tabs.trading) links.push(<a href="/trading">Trading Agent</a>);
+  if (tabs.support) links.push(<a href="/support">{t("app.supportLink")}</a>);
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
@@ -341,13 +359,16 @@ export default function App() {
 
       {mode === "query" && <QueryPage />}
 
-      <p style={{ marginTop: "2rem", textAlign: "center" }}>
-        <a href="/virtual">Virtual Portfolios</a>
-        {" • "}
-        <a href="/trading">Trading Agent</a>
-        {" • "}
-        <a href="/support">{t("app.supportLink")}</a>
-      </p>
+      {links.length > 0 && (
+        <p style={{ marginTop: "2rem", textAlign: "center" }}>
+          {links.map((link, i) => (
+            <span key={i}>
+              {i > 0 && " • "}
+              {link}
+            </span>
+          ))}
+        </p>
+      )}
     </div>
   );
 }

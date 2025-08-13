@@ -95,6 +95,24 @@ log_config: backend/logging.ini
 
 Adjust these values to change the environment or server behaviour.
 
+Optional frontend tabs can be toggled in `config.yaml`:
+
+```yaml
+tabs:
+  instrument: true
+  performance: true
+  transactions: true
+  screener: true
+  query: true
+  trading: true
+  timeseries: true
+  watchlist: true
+  virtual: true
+  support: true
+```
+
+Setting a tab to `false` removes its menu entry and related links from the UI.
+
 ```bash
 # clone & enter
 git clone git@github.com:leonarduk/allotmint.git

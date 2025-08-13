@@ -443,7 +443,13 @@ def refresh_snapshot_async(days: int = 365) -> asyncio.Task:
     """Run :func:`refresh_snapshot_in_memory_from_timeseries` in the background."""
 
     async def _runner() -> None:
-        await asyncio.to_thread(refresh_snapshot_in_memory_from_timeseries, days=days)
+        try:
+            await asyncio.to_thread(
+                refresh_snapshot_in_memory_from_timeseries, days=days
+            )
+        except asyncio.CancelledError:  # pragma: no cover - defensive
+            logger.info("refresh_snapshot_async cancelled")
+            raise
 
     return asyncio.create_task(_runner())
 

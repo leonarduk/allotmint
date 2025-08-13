@@ -101,7 +101,10 @@ def load_config() -> Config:
         (repo_root / prices_json_raw).resolve() if prices_json_raw else None
     )
 
-    tabs_data = {**asdict(TabsConfig()), **data.get("tabs", {})}
+    tabs_raw = data.get("tabs")
+    tabs_data = asdict(TabsConfig())
+    if isinstance(tabs_raw, dict):
+        tabs_data.update(tabs_raw)
     tabs = TabsConfig(**tabs_data)
 
     return Config(

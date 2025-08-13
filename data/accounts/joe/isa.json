@@ -1,0 +1,55 @@
+{
+  "owner": "joe",
+  "account_type": "ISA",
+  "currency": "GBP",
+  "last_updated": "2025-08-06",
+  "holdings": [
+    {
+      "ticker": "CASH.GBP",
+      "units": 9673.4,
+      "cost_basis_gbp": 9673.4
+    },
+    {
+      "ticker": "HFEL.L",
+      "units": 902.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "IEFV.L",
+      "units": 636.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "ERNS.L",
+      "units": 150.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "MINV.L",
+      "units": 37.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "CUKS.L",
+      "units": 8.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "JEGI.L",
+      "units": 4101.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "SERE.L",
+      "units": 4409.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    }
+  ]
+}

@@ -1,77 +1,116 @@
+# backend/common/group_portfolio.py
 from __future__ import annotations
 
 """
-Group portfolio aggregation for AllotMint.
+Virtual "group portfolio" builder.
 
-Groups:
-  family   -> stephen, lucy, alex, joe
-  adults   -> stephen, lucy
-  children -> alex, joe
+- list_groups()                -> synthetic list generated from owners
+- build_group_portfolio(slug)  -> merge owners -> one portfolio dict
 """
 
 import datetime as dt
-from typing import Dict, List, Any, Optional
+import json
+import logging
+from typing import Any, Dict, List
 
-from backend.common.portfolio import build_owner_portfolio
+from backend.common.constants import (
+    OWNER,
+    ACCOUNTS,
+    HOLDINGS,
+)
+from backend.common.holding_utils import enrich_holding
+from backend.common.approvals import load_approvals
+
+logger = logging.getLogger("group_portfolio")
 
 
-GROUP_DEFS: Dict[str, List[str]] = {
-    "family":   ["stephen", "lucy", "alex", "joe"],
-    "adults":   ["stephen", "lucy"],
-    "children": ["alex", "joe"],
-}
-
-
+# ───────────────────────── groups list ──────────────────────────
 def list_groups() -> List[Dict[str, Any]]:
-    """Return groups + member owner IDs."""
-    return [{"group": g, "members": m} for g, m in GROUP_DEFS.items()]
-
-
-def build_group_portfolio(group: str, env: Optional[str] = None) -> Dict[str, Any]:
     """
-    Aggregate member portfolios into a group view.
-    Returns:
-      {
-        group: "family",
-        as_of: "...",
-        members: ["stephen", "lucy", ...],
-        total_value_estimate_gbp: float,
-        members_summary: [
-          {owner, total_value_estimate_gbp, trades_this_month, trades_remaining}
-        ],
-        subtotals_by_account_type: { "ISA": float, "SIPP": float, "DB": float }
-      }
+    Build a default set of groups based on the owners that exist.
+    - "all"      - every owner
+    - "adults"   - lucy + steve
+    - "children" - alex + joe
     """
-    group = group.lower()
-    if group not in GROUP_DEFS:
-        raise KeyError(f"Unknown group '{group}'")
+    from backend.common.portfolio_loader import list_portfolios  # local import avoids cycles
 
-    members = GROUP_DEFS[group]
-    as_of = dt.date.today().isoformat()
+    owners = sorted({pf.get("owner") for pf in list_portfolios() if pf.get("owner")})
 
-    group_total = 0.0
-    members_summary = []
-    acct_subtotals: Dict[str, float] = {}
+    return [
+        {
+            "slug": "all",
+            "name": "All owners combined",
+            "members": owners,
+        },
+        {
+            "slug": "adults",
+            "name": "Adults",
+            "members": [o for o in owners if (o or "").lower() in {"lucy", "steve"}],
+        },
+        {
+            "slug": "children",
+            "name": "Children",
+            "members": [o for o in owners if (o or "").lower() in {"alex", "joe"}],
+        },
+    ]
 
-    for owner in members:
-        p = build_owner_portfolio(owner, env=env)
-        group_total += p["total_value_estimate_gbp"]
-        members_summary.append({
-            "owner": owner,
-            "total_value_estimate_gbp": p["total_value_estimate_gbp"],
-            "trades_this_month": p["trades_this_month"],
-            "trades_remaining": p["trades_remaining"],
-        })
-        # accumulate by account type
-        for acct in p["accounts"]:
-            acct_type = str(acct.get("account_type", "UNKNOWN")).upper()
-            acct_subtotals[acct_type] = acct_subtotals.get(acct_type, 0.0) + float(acct["value_estimate_gbp"])
+
+# ───────────────────────── core builder ─────────────────────────
+def build_group_portfolio(slug: str) -> Dict[str, Any]:
+    groups = {g["slug"]: g for g in list_groups()}
+    grp = groups.get(slug)
+    if not grp:
+        raise ValueError(f"Unknown group slug: {slug!r}")
+
+    wanted = {o.lower() for o in grp["members"]}
+
+    # Get portfolios to merge (raw portfolios; we will enrich here)
+    from backend.common.portfolio_loader import list_portfolios  # local import avoids cycles
+
+    portfolios_to_merge = [
+        pf for pf in list_portfolios() if (pf.get(OWNER, "") or "").lower() in wanted
+    ]
+
+    approvals_map = {pf[OWNER]: load_approvals(pf[OWNER]) for pf in portfolios_to_merge}
+
+    today = dt.date.today()
+    price_cache: dict[str, float] = {}
+
+    merged_accounts: List[Dict[str, Any]] = []
+
+    for pf in portfolios_to_merge:
+        for acct in pf.get(ACCOUNTS, []):
+            owner = pf[OWNER]
+            acct_copy = dict(acct)
+            acct_copy[OWNER] = owner
+
+            holdings = acct_copy.get(HOLDINGS, [])
+            acct_copy[HOLDINGS] = [
+                enrich_holding(h, today, price_cache, approvals_map.get(owner)) for h in holdings
+            ]
+
+            # compute account value in GBP for summary totals
+            val_gbp = sum(
+                float(h.get("market_value_gbp") or 0.0)
+                for h in acct_copy[HOLDINGS]
+            )
+            acct_copy["value_estimate_gbp"] = val_gbp
+
+            merged_accounts.append(acct_copy)
+
+    # Place accounts with actual holdings first to keep downstream consumers
+    # (and tests) simple. Some metadata-only accounts like pension forecasts
+    # contain no holdings which previously surfaced as the first account and
+    # triggered index errors.
+    merged_accounts.sort(key=lambda a: len(a.get(HOLDINGS, [])), reverse=True)
+
+    total_value = sum(float(a.get("value_estimate_gbp") or 0.0) for a in merged_accounts)
 
     return {
-        "group": group,
-        "as_of": as_of,
-        "members": members,
-        "total_value_estimate_gbp": group_total,
-        "members_summary": members_summary,
-        "subtotals_by_account_type": acct_subtotals,
+        "slug": slug,
+        "name": grp["name"],
+        "members": grp.get("members", []),
+        "as_of": today.isoformat(),
+        "total_value_estimate_gbp": total_value,
+        ACCOUNTS: merged_accounts,
     }

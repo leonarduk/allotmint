@@ -1,0 +1,107 @@
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import { createInstance } from "i18next";
+import type { ReactElement } from "react";
+import en from "../locales/en/translation.json";
+import fr from "../locales/fr/translation.json";
+
+vi.mock("../api", () => ({
+  API_BASE: "http://api",
+  getOwners: vi.fn().mockResolvedValue([
+    { owner: "Alice", accounts: [] },
+    { owner: "Bob", accounts: [] },
+  ]),
+  runCustomQuery: vi.fn().mockResolvedValue([
+    { owner: "Alice", ticker: "AAA", market_value_gbp: 100 },
+  ]),
+  saveCustomQuery: vi.fn().mockResolvedValue({}),
+  listSavedQueries: vi.fn().mockResolvedValue([
+    {
+      id: "1",
+      name: "Saved1",
+      params: {
+        start: "2024-01-01",
+        end: "2024-01-31",
+        owners: ["Bob"],
+        tickers: ["BBB"],
+        metrics: ["market_value_gbp"],
+      },
+    },
+  ]),
+}));
+
+import { runCustomQuery } from "../api";
+import { QueryPage } from "./QueryPage";
+
+function renderWithI18n(ui: ReactElement) {
+  const i18n = createInstance();
+  i18n.use(initReactI18next).init({
+    lng: "en",
+    resources: { en: { translation: en }, fr: { translation: fr } },
+  });
+  const result = render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
+  return { i18n, ...result };
+}
+
+describe("QueryPage", () => {
+  it("submits form and renders results with export links", async () => {
+    const { i18n } = renderWithI18n(<QueryPage />);
+
+    await screen.findByLabelText("Alice");
+
+    fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
+      target: { value: "2024-01-01" },
+    });
+    fireEvent.change(screen.getByLabelText(i18n.t("query.end")), {
+      target: { value: "2024-02-01" },
+    });
+
+    fireEvent.click(screen.getByLabelText("Alice"));
+    fireEvent.click(screen.getByLabelText("AAA"));
+    fireEvent.click(screen.getByLabelText("market_value_gbp"));
+
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("query.run") }));
+
+    expect(runCustomQuery).toHaveBeenCalledWith({
+      start: "2024-01-01",
+      end: "2024-02-01",
+      owners: ["Alice"],
+      tickers: ["AAA"],
+      metrics: ["market_value_gbp"],
+    });
+
+    expect(await screen.findByText("AAA")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /csv/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("format=csv"),
+    );
+    expect(screen.getByRole("link", { name: /xlsx/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("format=xlsx"),
+    );
+  });
+
+  it("loads saved queries into the form", async () => {
+    const { i18n } = renderWithI18n(<QueryPage />);
+    const btn = await screen.findByText("Saved1");
+    fireEvent.click(btn);
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("2024-01-01");
+  });
+
+  it("switches labels when language changes", async () => {
+    const { i18n, rerender } = renderWithI18n(<QueryPage />);
+    await screen.findByLabelText(i18n.t("query.start"));
+    await act(async () => {
+      await i18n.changeLanguage("fr");
+    });
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <QueryPage />
+      </I18nextProvider>,
+    );
+    expect(
+      await screen.findByLabelText(i18n.t("query.start")),
+    ).toBeInTheDocument();
+  });
+});

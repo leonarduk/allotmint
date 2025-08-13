@@ -1,73 +1,338 @@
-import React from "react";
-import type { GroupPortfolio } from "../types";
+// src/components/GroupPortfolioView.tsx
+import { useState, useEffect } from "react";
+import type { GroupPortfolio, Account } from "../types";
+import { getGroupPortfolio } from "../api";
+import { HoldingsTable } from "./HoldingsTable";
+import { InstrumentDetail } from "./InstrumentDetail";
+import { money, percent } from "../lib/money";
+import { translateInstrumentType } from "../lib/instrumentType";
+import { useFetch } from "../hooks/useFetch";
+import tableStyles from "../styles/table.module.css";
+import { useTranslation } from "react-i18next";
+import { useConfig } from "../ConfigContext";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+} from "recharts";
 
-type Props = {
-  data: GroupPortfolio | null;
-  loading?: boolean;
-  error?: string | null;
-  onSelectMember?: (owner: string) => void; // to jump into owner view
+const PIE_COLORS = [
+  "#8884d8",
+  "#82ca9d",
+  "#ffc658",
+  "#ff8042",
+  "#8dd1e1",
+  "#a4de6c",
+  "#d0ed57",
+  "#ffc0cb",
+];
+
+type SelectedInstrument = {
+  ticker: string;
+  name: string;
 };
 
-export function GroupPortfolioView({ data, loading, error, onSelectMember }: Props) {
-  if (loading) return <div>Loading group…</div>;
-  if (error) return <div style={{ color: "red" }}>{error}</div>;
-  if (!data) return <div>Select a group.</div>;
+type Props = {
+  slug: string;
+  /** when clicking an owner you may want to jump to the member tab */
+  onSelectMember?: (owner: string) => void;
+};
 
-  const subt = data.subtotals_by_account_type || {};
-  const acctTypes = Object.keys(subt).sort();
+/* ────────────────────────────────────────────────────────────
+ * Component
+ * ────────────────────────────────────────────────────────── */
+export function GroupPortfolioView({ slug, onSelectMember }: Props) {
+  const { data: portfolio, loading, error } = useFetch<GroupPortfolio>(
+    () => getGroupPortfolio(slug),
+    [slug],
+    !!slug
+  );
+  const [selected, setSelected] = useState<SelectedInstrument | null>(null);
+  const { t } = useTranslation();
+  const { relativeViewEnabled } = useConfig();
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
 
+  // helper to derive a stable key for each account
+  const accountKey = (acct: Account, idx: number) =>
+    `${acct.owner ?? "owner"}-${acct.account_type}-${idx}`;
+
+  // when portfolio changes, select all accounts by default
+  useEffect(() => {
+    if (portfolio?.accounts) {
+      setSelectedAccounts(portfolio.accounts.map(accountKey));
+    }
+  }, [portfolio]);
+
+  /* ── early‑return states ───────────────────────────────── */
+  if (!slug) return <p>{t("group.select")}</p>;
+  if (error) return <p style={{ color: "red" }}>{t("common.error")}: {error.message}</p>;
+  if (loading || !portfolio) return <p>{t("common.loading")}</p>;
+
+  /* ── aggregate totals for summary box ──────────────────── */
+  let totalValue = 0;
+  let totalGain = 0;
+  let totalDayChange = 0;
+  let totalCost = 0;
+  const perOwner: Record<string, { value: number; dayChange: number; gain: number; cost: number }> = {};
+  const perType: Record<string, number> = {};
+
+  const activeKeys = selectedAccounts.length
+    ? new Set(selectedAccounts)
+    : new Set(portfolio.accounts?.map(accountKey));
+
+  for (const [idx, acct] of (portfolio.accounts ?? []).entries()) {
+    const key = accountKey(acct, idx);
+    if (!activeKeys.has(key)) continue;
+    const owner = acct.owner ?? "—";
+    const entry =
+      perOwner[owner] || (perOwner[owner] = { value: 0, dayChange: 0, gain: 0, cost: 0 });
+
+    totalValue += acct.value_estimate_gbp ?? 0;
+    entry.value += acct.value_estimate_gbp ?? 0;
+
+    for (const h of acct.holdings ?? []) {
+      const cost =
+        h.cost_basis_gbp && h.cost_basis_gbp > 0
+          ? h.cost_basis_gbp
+          : h.effective_cost_basis_gbp ?? 0;
+      const market = h.market_value_gbp ?? 0;
+      const gain =
+        h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
+          ? h.gain_gbp
+          : market - cost;
+      const dayChg = h.day_change_gbp ?? 0;
+
+      const typeKey = (h.instrument_type ?? "other").toLowerCase();
+      perType[typeKey] = (perType[typeKey] || 0) + market;
+
+      totalCost += cost;
+      totalGain += gain;
+      totalDayChange += dayChg;
+
+      entry.cost += cost;
+      entry.gain += gain;
+      entry.dayChange += dayChg;
+    }
+  }
+
+  const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
+  const totalDayChangePct =
+    totalValue - totalDayChange !== 0
+      ? (totalDayChange / (totalValue - totalDayChange)) * 100
+      : 0;
+  const ownerRows = Object.entries(perOwner).map(([owner, data]) => {
+    const gainPct = data.cost > 0 ? (data.gain / data.cost) * 100 : 0;
+    const dayChangePct =
+      data.value - data.dayChange !== 0
+        ? (data.dayChange / (data.value - data.dayChange)) * 100
+        : 0;
+    const valuePct = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
+    return { owner, ...data, gainPct, dayChangePct, valuePct };
+  });
+
+  const typeRows = Object.entries(perType).map(([type, value]) => ({
+    name: translateInstrumentType(t, type),
+    value,
+    pct: totalValue > 0 ? (value / totalValue) * 100 : 0,
+  }));
+
+  /* ── render ────────────────────────────────────────────── */
   return (
-    <div>
-      <h1 style={{ marginTop: 0, textTransform: "capitalize" }}>Group: {data.group}</h1>
-      <div style={{ marginBottom: "1rem" }}>As of {data.as_of}</div>
-      <div style={{ marginBottom: "1rem" }}>
-        Approx Total: £{data.total_value_estimate_gbp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-      </div>
+    <div style={{ marginTop: "1rem" }}>
+      <h2>{portfolio.name}</h2>
 
-      {acctTypes.length > 0 && (
-        <div style={{ marginBottom: "2rem" }}>
-          <h3>By Account Type</h3>
-          <ul>
-            {acctTypes.map((t) => (
-              <li key={t}>
-                {t}: £{subt[t].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </li>
-            ))}
-          </ul>
+      {typeRows.length > 0 && (
+        <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>
+          <ResponsiveContainer>
+            <PieChart>
+              <Pie
+                dataKey="value"
+                data={typeRows}
+                label={({ name, pct }) => `${name} ${percent(pct)}`}
+              >
+                {typeRows.map((_, idx) => (
+                  <Cell
+                    key={`cell-${idx}`}
+                    fill={PIE_COLORS[idx % PIE_COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v: number, n: string) => [money(v), n]} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       )}
 
-      <h3>Members</h3>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "2rem" }}>
+      {/* Summary Box */}
+      {!relativeViewEnabled && (
+        <div
+          style={{
+            display: "flex",
+            gap: "2rem",
+            marginBottom: "1rem",
+            padding: "0.75rem 1rem",
+            backgroundColor: "#222",
+            border: "1px solid #444",
+            borderRadius: "6px",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Value</div>
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>{money(totalValue)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Day Change</div>
+            <div
+              style={{
+                fontSize: "1.2rem",
+                fontWeight: "bold",
+                color: totalDayChange >= 0 ? "lightgreen" : "red",
+              }}
+            >
+              {money(totalDayChange)} ({percent(totalDayChangePct)})
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Gain</div>
+            <div
+              style={{
+                fontSize: "1.2rem",
+                fontWeight: "bold",
+                color: totalGain >= 0 ? "lightgreen" : "red",
+              }}
+            >
+              {money(totalGain)} ({percent(totalGainPct)})
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Per-owner summary */}
+      <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
         <thead>
           <tr>
-            <th style={th}>Owner</th>
-            <th style={th}>Value £</th>
-            <th style={th}>Trades / 20</th>
+            <th className={tableStyles.cell}>Owner</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {relativeViewEnabled ? "Portfolio %" : "Total Value"}
+            </th>
+            {!relativeViewEnabled && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Day Change</th>
+            )}
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Day Change %</th>
+            {!relativeViewEnabled && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Gain</th>
+            )}
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Gain %</th>
           </tr>
         </thead>
         <tbody>
-          {data.members_summary.map((m) => (
-            <tr
-              key={m.owner}
-              style={tr}
-              onClick={() => onSelectMember?.(m.owner)}
-            >
-              <td style={tdLink}>{m.owner}</td>
-              <td style={td}>{m.total_value_estimate_gbp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-              <td style={td}>{m.trades_this_month} ({m.trades_remaining} left)</td>
+          {ownerRows.map((row) => (
+            <tr key={row.owner}>
+              <td
+                className={`${tableStyles.cell} ${
+                  onSelectMember ? tableStyles.clickable : ""
+                }`}
+                onClick={
+                  onSelectMember ? () => onSelectMember(row.owner) : undefined
+                }
+              >
+                {row.owner}
+              </td>
+              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {relativeViewEnabled ? percent(row.valuePct) : money(row.value)}
+              </td>
+              {!relativeViewEnabled && (
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
+                >
+                  {money(row.dayChange)}
+                </td>
+              )}
+              <td
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
+              >
+                {percent(row.dayChangePct)}
+              </td>
+              {!relativeViewEnabled && (
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+                >
+                  {money(row.gain)}
+                </td>
+              )}
+              <td
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+              >
+                {percent(row.gainPct)}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div style={{ fontSize: "0.8rem", color: "#666" }}>
-        Click a member to view their portfolio.
-      </div>
+
+      {/* Account breakdown */}
+      {portfolio.accounts?.map((acct, idx) => {
+        const key = accountKey(acct, idx);
+        const checked = activeKeys.has(key);
+        return (
+          <div key={key} style={{ marginBottom: "1.5rem" }}>
+            <h3>
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() =>
+                  setSelectedAccounts((prev) =>
+                    prev.includes(key)
+                      ? prev.filter((k) => k !== key)
+                      : [...prev, key]
+                  )
+                }
+                aria-label={`${acct.owner ?? "—"} ${acct.account_type}`}
+                style={{ marginRight: "0.5rem" }}
+              />
+              {onSelectMember ? (
+                <span
+                  className={tableStyles.clickable}
+                  onClick={() => onSelectMember(acct.owner ?? "—")}
+                >
+                  {acct.owner ?? "—"}
+                </span>
+              ) : (
+                <>{acct.owner ?? "—"}</>
+              )}{" "}
+              • {acct.account_type} — {money(acct.value_estimate_gbp)}
+            </h3>
+
+            {checked && (
+              <HoldingsTable
+                holdings={acct.holdings ?? []}
+                onSelectInstrument={(ticker, name) =>
+                  setSelected({ ticker, name })
+                }
+              />
+            )}
+          </div>
+        );
+      })}
+
+      {/* Slide‑in instrument detail panel */}
+      {selected && (
+        <InstrumentDetail
+          ticker={selected.ticker}
+          name={selected.name}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
 
-const th: React.CSSProperties = { textAlign: "left", borderBottom: "1px solid #ccc", padding: "4px" };
-const td: React.CSSProperties = { padding: "4px", borderBottom: "1px solid #eee" };
-const tdLink: React.CSSProperties = { ...td, cursor: "pointer", textDecoration: "underline", color: "#0077cc" };
-const tr: React.CSSProperties = {};
+export default GroupPortfolioView;

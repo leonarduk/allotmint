@@ -1,0 +1,13 @@
+{
+  // Piggy-back on whatever you already compile with
+  "extends": "./tsconfig.app.json",
+
+  // Explicitly list the files ESLint should parse
+  "include": ["src/**/*"],
+
+  // Don’t emit; ESLint only needs the type-checker
+  "compilerOptions": {
+    "noEmit": true
+  }
+}
+

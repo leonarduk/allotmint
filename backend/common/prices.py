@@ -1,233 +1,216 @@
-from __future__ import annotations
-
 """
-Price + FX caching for AllotMint.
+Price utilities driven entirely by the live portfolio universe
+(no securities.csv required).  Persists a JSON snapshot with:
 
-- Reads securities.csv to know which tickers & currencies to load.
-- Fetches latest price via yfinance.
-- Fetches FX to GBP where needed.
-- Writes cache (prices.json) locally or to S3.
-- Provides get_price_gbp(ticker) for valuation.
-
-NOTE: Minimal error handling for MVP.
-"""
-
-import csv
-import json
-import os
-import pathlib
-import time
-from dataclasses import dataclass
-from typing import Dict, Optional
-
-import datetime as dt
-
-import yfinance as yf  # install in backend/requirements.txt
-
-# paths
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_LOCAL_UNIVERSE = _REPO_ROOT / "data-sample" / "universe"
-_LOCAL_SECURITIES_CSV = _LOCAL_UNIVERSE / "securities.csv"
-_LOCAL_PRICES_JSON = _LOCAL_UNIVERSE / "prices.json"
-
-DATA_BUCKET_ENV = "DATA_BUCKET"
-UNIVERSE_PREFIX = "universe/"  # in S3: universe/securities.csv, universe/prices.json
-
-
-# ------------------------------------------------------------
-# Data models
-# ------------------------------------------------------------
-@dataclass
-class SecMeta:
-    ticker: str
-    name: str
-    currency: str
-    price_ticker: str
-    px_scale: float = 1.0   # <-- NEW
-
-
-# ------------------------------------------------------------
-# Load securities metadata
-# ------------------------------------------------------------
-def load_securities_local() -> Dict[str, SecMeta]:
-    """
-    Load security metadata from data-sample/universe/securities.csv.
-
-    Returns dict keyed by *your* internal ticker (the one used in holdings).
-
-    CSV columns:
-      ticker        (required)
-      name          (optional)
-      currency      (default GBP)
-      price_ticker  (default ticker)
-      px_scale      (default 1.0)  <-- use 0.01 if feed is GBp but you want GBP
-
-    Any rows missing `ticker` are skipped.
-    """
-    out: Dict[str, SecMeta] = {}
-
-    if not _LOCAL_SECURITIES_CSV.exists():
-        return out
-
-    with open(_LOCAL_SECURITIES_CSV, newline="", encoding="utf-8") as f:
-        rdr = csv.DictReader(f)
-        for r in rdr:
-            t_raw = (r.get("ticker") or "").strip()
-            if not t_raw:
-                continue  # skip blank row
-            t = t_raw  # preserve case; tickers are case-sensitive in our map
-
-            name = (r.get("name") or t).strip()
-
-            currency = (r.get("currency") or "GBP").strip().upper()
-
-            price_ticker = (r.get("price_ticker") or t).strip()
-
-            # Parse px_scale; be forgiving (blank, None, bad string)
-            px_scale_txt = r.get("px_scale")
-            try:
-                px_scale = float(px_scale_txt) if px_scale_txt not in (None, "", " ") else 1.0
-            except Exception:  # noqa: BLE001
-                px_scale = 1.0
-
-            out[t] = SecMeta(
-                ticker=t,
-                name=name,
-                currency=currency,
-                price_ticker=price_ticker,
-                px_scale=px_scale,
-            )
-
-    return out
-
-
-
-def load_securities(env: Optional[str] = None) -> Dict[str, SecMeta]:
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
-    if env == "aws":
-        # TODO: load from S3 (later); fall back to local now
-        pass
-    return load_securities_local()
-
-
-# ------------------------------------------------------------
-# FX support
-# ------------------------------------------------------------
-# Map currency->(fx_ticker, invert) where fx_ticker returns units_of_other per GBP
-FX_MAP = {
-    "USD": ("GBPUSD=X", True),  # GBPUSD = USD per GBP; we want GBP = USD / quote
-    "EUR": ("GBPEUR=X", True),
-    "GBP": (None, False),
-}
-
-def fetch_fx_to_gbp(currency: str) -> float:
-    currency = currency.upper()
-    if currency == "GBP":
-        return 1.0
-    fx_meta = FX_MAP.get(currency)
-    if not fx_meta:
-        raise ValueError(f"No FX mapping for {currency}")
-    fx_ticker, invert = fx_meta
-    data = yf.Ticker(fx_ticker).fast_info  # fast_info has last_price
-    quote = float(data["last_price"])
-    return 1.0 / quote if invert else quote
-
-
-# ------------------------------------------------------------
-# Price fetch & cache
-# ------------------------------------------------------------
-def fetch_price_native(price_ticker: str) -> float:
-    tk = yf.Ticker(price_ticker)
-    fi = tk.fast_info
-    return float(fi["last_price"])
-
-
-def build_price_cache(env: Optional[str] = None) -> Dict[str, Dict]:
-    """
-    Return dict keyed by internal ticker.
     {
-      "VUSA.L": {
-        "price_native": 543.21,
-        "currency": "USD",
-        "fx_to_gbp": 0.77,
-        "price_gbp": 417.27,
-        "timestamp": "2025-07-16T21:59:00Z"
+      "TICKER": {
+        "last_price":      ...,
+        "change_7d_pct":   ...,
+        "change_30d_pct":  ...,
+        "last_price_date": "YYYY-MM-DD"
       },
       ...
     }
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from datetime import datetime, timedelta, date
+from pathlib import Path
+from typing import Optional, Iterable, Dict, List
+
+import pandas as pd
+
+# ──────────────────────────────────────────────────────────────
+# Local imports
+# ──────────────────────────────────────────────────────────────
+from backend.config import config
+from backend.common.portfolio_loader import list_portfolios
+from backend.common.portfolio_utils import (
+    list_all_unique_tickers,
+    refresh_snapshot_in_memory,
+    check_price_alerts,
+)
+from backend.common.holding_utils import load_latest_prices as _load_latest_prices
+from backend.timeseries.cache import load_meta_timeseries_range
+from backend.utils.timeseries_helpers import _nearest_weekday
+
+logger = logging.getLogger("prices")
+
+
+def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
+    """Fetch the close price for ``sym.exch`` on or nearest before ``d``."""
+
+    snap = _nearest_weekday(d, forward=False)
+    df = load_meta_timeseries_range(sym, exch, start_date=snap, end_date=snap)
+    if df is None or df.empty:
+        return None
+
+    # try a few common column names, prioritising GBP-converted prices
+    for col in ("close_gbp", "Close_gbp", "close", "Close"):
+        if col in df.columns:
+            try:
+                return float(df[col].iloc[0])
+            except Exception:
+                return None
+    return None
+
+
+def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
+    """Return last price and 7/30 day % changes for each ticker.
+
+    Uses cached meta timeseries data; callers are responsible for priming the
+    cache via ``fetch_meta_timeseries`` beforehand. Missing data results in
+    ``None`` values so downstream consumers can skip incomplete entries.
     """
-    secs = load_securities(env=env)
-    now = dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
-    cache: Dict[str, Dict] = {}
-    # prefetch FX used
-    fx_cache: Dict[str, float] = {}
-    for s in secs.values():
-        fx_cache.setdefault(s.currency, fetch_fx_to_gbp(s.currency))
+    yday = date.today() - timedelta(days=1)
+    latest = _load_latest_prices(list(tickers))
 
-    for s in secs.values():
-        try:
-            p_native_raw = fetch_price_native(s.price_ticker)
-            p_native = p_native_raw * s.px_scale  # scale to stated currency units
-        except Exception:
-            p_native = None
-        fx = fx_cache.get(s.currency, 1.0)
-        p_gbp = p_native * fx if p_native is not None else None
-        cache[s.ticker] = {
-            "currency": s.currency,
-            "price_native": p_native,
-            "fx_to_gbp": fx,
-            "price_gbp": p_gbp,
-            "timestamp": now,
+    snapshot: Dict[str, Dict] = {}
+    for full in tickers:
+        last = latest.get(full)
+        info = {
+            "last_price": float(last) if last is not None else None,
+            "change_7d_pct": None,
+            "change_30d_pct": None,
+            "last_price_date": yday.isoformat(),
         }
-    return cache
+
+        if last is not None:
+            sym, exch = (full.split(".", 1) + ["L"])[:2]
+
+            px_7 = _close_on(sym, exch, yday - timedelta(days=7))
+            px_30 = _close_on(sym, exch, yday - timedelta(days=30))
+
+            if px_7 not in (None, 0):
+                info["change_7d_pct"] = (float(last) / px_7 - 1.0) * 100.0
+            if px_30 not in (None, 0):
+                info["change_30d_pct"] = (float(last) / px_30 - 1.0) * 100.0
+
+        snapshot[full] = info
+
+    return snapshot
+
+logging.basicConfig(level=logging.DEBUG)
+
+# ──────────────────────────────────────────────────────────────
+# Securities universe : derived from portfolios
+# ──────────────────────────────────────────────────────────────
+def _build_securities_from_portfolios() -> Dict[str, Dict]:
+    securities: Dict[str, Dict] = {}
+    portfolios = list_portfolios()
+    logger.debug("Loaded %d portfolios", len(portfolios))
+    for pf in portfolios:
+        for acct in pf.get("accounts", []):
+            for h in acct.get("holdings", []):
+                tkr = (h.get("ticker") or "").upper()
+                if not tkr:
+                    continue
+                securities[tkr] = {
+                    "ticker": tkr,
+                    "name": h.get("name", tkr),
+                }
+    return securities
+
+def get_security_meta(ticker: str) -> Optional[Dict]:
+    """Always fetch fresh metadata derived from latest portfolios."""
+    return _build_securities_from_portfolios().get(ticker.upper())
 
 
-def save_price_cache_local(cache: Dict[str, Dict]) -> None:
-    _LOCAL_PRICES_JSON.parent.mkdir(parents=True, exist_ok=True)
-    with open(_LOCAL_PRICES_JSON, "w", encoding="utf-8") as f:
-        json.dump(cache, f, indent=2)
+# ──────────────────────────────────────────────────────────────
+# In-memory latest-price cache (GBP closes only)
+# ──────────────────────────────────────────────────────────────
+_price_cache: Dict[str, float] = {}
 
+def get_price_gbp(ticker: str) -> Optional[float]:
+    """Return the cached last close in GBP, or None if unseen."""
+    return _price_cache.get(ticker.upper())
 
-def load_price_cache_local() -> Dict[str, Dict]:
-    try:
-        if not _LOCAL_PRICES_JSON.exists() or _LOCAL_PRICES_JSON.stat().st_size == 0:
-            return {}
-        with open(_LOCAL_PRICES_JSON, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+# ──────────────────────────────────────────────────────────────
+# Refresh logic
+# ──────────────────────────────────────────────────────────────
+def refresh_prices() -> Dict:
+    """
+    Pulls latest close, 7- and 30-day % moves for every ticker in
+    the current portfolios.  Writes to JSON and updates the cache.
+    """
+    tickers: List[str] = list_all_unique_tickers()
+    logger.info(f"Updating price snapshot for: {tickers}")
 
+    snapshot = get_price_snapshot(tickers)
 
-def get_price_gbp(ticker: str, env: Optional[str] = None, refresh: bool = False) -> Optional[float]:
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
-    cache = load_price_cache_local()
+    # ---- persist to disk --------------------------------------------------
+    path = Path(config.prices_json)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(snapshot, indent=2))
 
-    if refresh or ticker not in cache:
-        try:
-            cache = build_price_cache(env=env)
-            save_price_cache_local(cache)
-        except Exception:
-            pass  # swallow; fall through
-        cache = load_price_cache_local()
+    # ---- refresh in-memory cache -----------------------------------------
+    _price_cache.clear()
+    for tkr, info in snapshot.items():
+        _price_cache[tkr.upper()] = info["last_price"]
 
-    entry = cache.get(ticker)
-    return entry.get("price_gbp") if entry else None
+    # keep portfolio_utils in sync and run alert checks
+    refresh_snapshot_in_memory(snapshot)
+    check_price_alerts()
 
-def refresh_prices(env: Optional[str] = None) -> Dict[str, Any]:
-    env = (env or os.getenv("ALLOTMINT_ENV", "local")).lower()
-    try:
-        cache = build_price_cache(env=env)
-        save_price_cache_local(cache)
-    except Exception as exc:
-        # fall back: load existing cache size
-        try:
-            cache = load_price_cache_local()
-        except Exception:
-            cache = {}
-        return {"env": env, "tickers": len(cache), "timestamp": None, "error": str(exc)}
+    logger.debug(f"Snapshot written to {path}")
     return {
-        "env": env,
-        "tickers": len(cache),
-        "timestamp": next(iter(cache.values()))["timestamp"] if cache else None,
+        "tickers": tickers,
+        "snapshot": snapshot,
+        "timestamp": datetime.utcnow().isoformat(),
     }
+
+# ──────────────────────────────────────────────────────────────
+# Ad-hoc helpers
+# ──────────────────────────────────────────────────────────────
+def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
+    """
+    Convenience helper for notebooks / quick scripts:
+    returns {'TICKER': last_close_gbp, ...}
+    """
+    if not tickers:
+        return {}
+    start_date = date.today() - timedelta(days=365)
+    end_date = date.today() - timedelta(days=1)
+
+    prices: Dict[str, float] = {}
+    for full in tickers:
+        ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
+        df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
+        if df is not None and not df.empty:
+            prices[full] = float(df.iloc[-1]["close"])
+    return prices
+
+def load_prices_for_tickers(
+    tickers: Iterable[str],
+    days: int = 365,
+) -> pd.DataFrame:
+    """
+    Fetch historical daily closes for a list of tickers and return a
+    concatenated dataframe; keeps each original suffix (e.g. '.L').
+    """
+    end_date   = _nearest_weekday(datetime.today().date(), forward=True)
+    start_date = _nearest_weekday(end_date - timedelta(days=days), forward=False)
+
+    frames: List[pd.DataFrame] = []
+
+    for full in tickers:
+        try:
+            ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
+            df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
+            if not df.empty:
+                df["Ticker"] = full  # restore suffix for display
+                frames.append(df)
+        except Exception as exc:
+            logger.warning(f"Failed to fetch prices for {full}: {exc}")
+
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+# ──────────────────────────────────────────────────────────────
+# CLI test
+# ──────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    print(json.dumps(refresh_prices(), indent=2))

@@ -1,0 +1,37 @@
+{
+  "owner": "joe",
+  "account_type": "SIPP",
+  "currency": "GBP",
+  "last_updated": "2025-08-06",
+  "holdings": [
+    {
+      "ticker": "CASH.GBP",
+      "units": 2734.18,
+      "cost_basis_gbp": 2734.18
+    },
+    {
+      "ticker": "IEFV.L",
+      "units": 231.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "ERNS.L",
+      "units": 38.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "SPGP.L",
+      "units": 54.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "VWRL.L",
+      "units": 18.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    }
+  ]
+}

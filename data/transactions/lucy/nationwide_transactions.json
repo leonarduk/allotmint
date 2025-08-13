@@ -1,0 +1,38 @@
+{
+  "owner": "lucy",
+  "account_type": "NATIONWIDE",
+  "currency": "GBP",
+  "last_updated": "2025-08-09",
+  "transactions": [
+    {
+      "kind": "account",
+      "account_id": "9406",
+      "account": "Lucy Nationwide ISA",
+      "transaction_id": "9407",
+      "uuid": "fc02786b-e030-4109-a57d-a069031bbe4a",
+      "date": "2020-09-07T00:00",
+      "currency": "GBP",
+      "amount_minor": 400000.0,
+      "type": "DEPOSIT",
+      "security_ref": null,
+      "shares": 0.0,
+      "portfolio_id": NaN,
+      "portfolio": NaN
+    },
+    {
+      "kind": "account",
+      "account_id": "9406",
+      "account": "Lucy Nationwide ISA",
+      "transaction_id": "9408",
+      "uuid": "d9fd8765-8c8f-41e6-a3ad-780bcf64ecdb",
+      "date": "2025-03-08T00:00",
+      "currency": "GBP",
+      "amount_minor": 400000.0,
+      "type": "TRANSFER_OUT",
+      "security_ref": null,
+      "shares": 0.0,
+      "portfolio_id": NaN,
+      "portfolio": NaN
+    }
+  ]
+}

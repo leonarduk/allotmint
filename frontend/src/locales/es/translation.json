@@ -1,0 +1,136 @@
+{
+  "app": {
+    "viewBy": "Ver por",
+    "relativeView": "Vista relativa",
+    "refreshPrices": "Actualizar precios",
+    "refreshing": "Actualizando…",
+    "last": "Último:",
+    "loading": "Cargando…",
+    "supportLink": "Soporte",
+    "modes": {
+      "group": "Grupo",
+      "instrument": "Instrumento",
+      "owner": "Miembro",
+      "performance": "Rendimiento",
+      "transactions": "Transacciones",
+      "screener": "Filtro",
+      "query": "Consulta",
+      "trading": "Trading",
+      "timeseries": "Serie temporal",
+      "watchlist": "Watchlist"
+    }
+  },
+  "common": {
+    "error": "Error",
+    "loading": "Cargando…",
+    "other": "Otro"
+  },
+  "instrumentType": {
+    "equity": "Acción",
+    "bond": "Bono",
+    "cash": "Efectivo",
+    "etf": "ETF",
+    "fund": "Fondo",
+    "investmentTrust": "Investment Trust",
+    "realEstate": "Bienes raíces",
+    "other": "Otro"
+  },
+  "instrumentTable": {
+    "noInstruments": "Sin instrumentos.",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nombre",
+      "ccy": "Moneda",
+      "type": "Tipo",
+      "units": "Unidades",
+      "cost": "Coste £",
+      "market": "Valor de mercado £",
+      "gain": "Ganancia £",
+      "gainPct": "Ganancia %",
+      "last": "Último £",
+      "lastDate": "Última fecha",
+      "delta7d": "7d %",
+      "delta30d": "30d %"
+    }
+  },
+  "instrumentDetail": {
+    "edit": "Editar",
+    "change7d": "7d",
+    "change30d": "30d",
+    "range": "Rango:",
+    "rangeOptions": {
+      "1w": "1S",
+      "1m": "1M",
+      "1y": "1A",
+      "10y": "10A",
+      "max": "MÁX"
+    },
+    "bollingerBands": "Bandas de Bollinger",
+    "positions": "Posiciones",
+    "columns": {
+      "account": "Cuenta",
+      "units": "Unidades",
+      "market": "Mercado £",
+      "gain": "Ganancia £",
+      "gainPct": "Ganancia %"
+    },
+    "noPositions": "Sin posiciones",
+    "recentPrices": "Precios recientes",
+    "priceColumns": {
+      "date": "Fecha",
+      "close": "£ Cierre",
+      "delta": "Δ £",
+      "deltaPct": "Δ %"
+    },
+    "noPriceData": "Sin datos de precios"
+  },
+  "owner": {
+    "label": "Propietario",
+    "select": "Seleccione un propietario."
+  },
+  "group": {
+    "select": "Seleccione un grupo."
+  },
+  "support": {
+    "title": "Soporte",
+    "online": "En línea",
+    "onlineYes": "Sí",
+    "onlineNo": "No",
+    "environment": "Entorno",
+    "telegramMessage": "Mensaje de Telegram",
+    "send": "Enviar",
+    "status": {
+      "sent": "Enviado",
+      "error": "Error",
+      "sending": "Enviando..."
+    }
+  },
+  "loadingPortfolio": "Cargando portafolio…",
+  "portfolio": "Portafolio",
+  "asOf": "A fecha de {{date}} • Operaciones este mes: {{trades}} / 20 (Restantes: {{remaining}})",
+  "approxTotal": "Total aproximado: £{{value}}",
+  "watchlist": {
+    "refresh": "Actualizar"
+  },
+  "query": {
+    "start": "Inicio",
+    "end": "Fin",
+    "owners": "Propietarios",
+    "tickers": "Tickers",
+    "metrics": "Métricas",
+    "run": "Ejecutar",
+    "running": "Ejecutando…",
+    "save": "Guardar",
+    "exportCsv": "Exportar CSV",
+    "exportXlsx": "Exportar XLSX"
+  },
+  "screener": {
+    "tickers": "Tickers",
+    "maxPeg": "PEG máx",
+    "maxPe": "P/E máx",
+    "maxDe": "D/E máx",
+    "minFcf": "FCF mín",
+    "run": "Ejecutar",
+    "loading": "Cargando…"
+  }
+}

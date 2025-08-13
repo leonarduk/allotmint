@@ -1,31 +1,118 @@
 # AllotMint 🌱💷
+[![codecov](https://codecov.io/gh/leonarduk/allotmint/branch/main/graph/badge.svg)](https://codecov.io/gh/leonarduk/allotmint)
 *Tend your family’s investments like an allotment. Harvest smarter wealth.*
 
-AllotMint is a private, server-less web app that turns real-world family investing into a visually engaging “allotment” you tend over time.  
-It enforces strict compliance rules (30-day minimum holding, 20 trades / person / month), runs entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
+AllotMint is a private, server-less web app that turns real-world family
+investing into a visually engaging “allotment” you tend over time. It enforces
+strict compliance rules (30‑day minimum holding, 20 trades/person/month), runs
+entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
 
 ---
 
 ## MVP Scope
 1. **Portfolio Viewer** – individual / adults / whole family.
-2. **Compliance Engine** – 30-day sell lock & monthly trade counter.
+2. **Compliance Engine** – 30‑day sell lock & monthly trade counter.
 3. **Stock Screener v1** – PEG < 1, P/E < 20, low D/E, positive FCF.
-4. **Scenario Tester (Lite)** – single-asset price shocks.
-5. **Lucy DB Pension Forecast** – inflation-linked income overlay.
+4. **Scenario Tester (Lite)** – single‑asset price shocks.
+5. **Lucy DB Pension Forecast** – inflation‑linked income overlay.
 
 ---
 
 ## Tech Stack
-| Layer      | Choice                      |
-|------------|----------------------------|
-| Frontend   | React + TypeScript → S3 + CloudFront |
-| Backend    | AWS Lambda (Python 3.12) behind API Gateway |
-| Storage    | S3 JSON / CSV (no RDBMS)   |
-| IaC        | AWS CDK (Py)               |
+
+| Layer    | Choice                                       |
+|----------|----------------------------------------------|
+| Frontend | React + TypeScript → S3 + CloudFront         |
+| Backend  | AWS Lambda (Python 3.12) behind API Gateway  |
+| Storage  | S3 JSON / CSV (no RDBMS)                     |
+| IaC      | AWS CDK (Py)                                 |
+
+## Watchlist
+
+The repo includes a lightweight Yahoo Finance watchlist. Run it locally with:
+
+```
+# backend
+uvicorn app:app --reload --port 8000
+
+# frontend
+npm i && npm run dev
+```
 
 ---
 
+## Backend dependencies
+
+All backend Python dependencies live in the top-level `requirements.txt` file.
+Workflows and helper scripts install from this list, so update it when new packages are needed.
+
+## Page cache
+
+Expensive API routes cache their JSON responses under `data/cache/<page>.json`.
+Each request serves the cached payload when it is fresh; on a miss or stale
+entry the response is rebuilt, returned to the client and saved in the
+background. A lightweight scheduler keeps caches warm by rebuilding them at a
+fixed interval.
+
+| Page           | TTL (seconds) |
+|----------------|---------------|
+| Portfolio views | 300 |
+| Screener queries | 900 |
+
+Adjust the `PORTFOLIO_TTL` and `SCREENER_TTL` constants in
+`backend/routes/portfolio.py` and `backend/routes/screener.py` to change these
+intervals. The cache helpers live in `backend/utils/page_cache.py`.
+
+## Risk reporting
+
+The backend exposes Value at Risk (VaR) metrics for each portfolio.
+
+* **Defaults** – 95 % confidence over a 1‑day horizon and 99 % over 10 days.
+* **Query** – `GET /var/{owner}?days=30&confidence=0.99` fetches a 30‑day, 99 % VaR.
+* **UI** – VaR surfaces alongside portfolio charts on the performance dashboard.
+
+**Assumptions**
+
+* Historical simulation using daily returns from cached price series.
+* Results reported in GBP.
+* Calculations default to a 365‑day window (`days` parameter).
+
+See [backend/common/portfolio_utils.py](backend/common/portfolio_utils.py) for the return series that feed the calculation
+and [backend/common/constants.py](backend/common/constants.py) for currency labels.
+
 ## Local Quick-start
+
+The project is split into a Python FastAPI backend and a React/TypeScript
+frontend. The two communicate over HTTP which makes it easy to work on either
+side in isolation. Backend runtime options are stored in `config.yaml`:
+
+```yaml
+app_env: local
+uvicorn_port: 8000
+reload: true
+log_config: backend/logging.ini
+```
+
+Adjust these values to change the environment or server behaviour.
+
+Optional frontend tabs can be toggled in `config.yaml`:
+
+```yaml
+tabs:
+  instrument: true
+  performance: true
+  transactions: true
+  screener: true
+  query: true
+  trading: true
+  timeseries: true
+  watchlist: true
+  virtual: true
+  support: true
+```
+
+Setting a tab to `false` removes its menu entry and related links from the UI.
+
 ```bash
 # clone & enter
 git clone git@github.com:leonarduk/allotmint.git
@@ -33,7 +120,113 @@ cd allotmint
 
 # set up Python venv for CDK & backend (optional)
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt   # requirements file TBD
+pip install -r requirements.txt
 
-# install React deps later:
-# cd frontend && npm install
+# configure API settings
+# (see config.yaml for app_env, uvicorn_port, reload and log_config)
+./run-local-api.sh    # or use run-backend.ps1 on Windows
+
+# in another shell install React deps and start Vite on :5173
+cd frontend
+npm install
+npm run dev
+
+# visit the app
+open http://localhost:5173/
+```
+
+## Alerts
+
+Trading alerts support multiple transports that are enabled via environment
+variables:
+
+* **AWS SNS** – set ``SNS_TOPIC_ARN`` to publish alerts to an SNS topic using
+  ``backend.common.alerts.publish_alert``.
+* **Telegram** – provide ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` to
+  forward alerts to a Telegram chat via ``backend.utils.telegram_utils``.
+
+When several transports are configured, alerts are sent to each of them.
+
+## Tests
+
+Run Python and frontend test suites with:
+
+```bash
+pytest
+cd frontend && npm test
+```
+
+## Error summary helper
+
+Use the `run_with_error_summary.py` script to capture error lines when running
+commands. A log file `error_summary.log` will be created with a summary of
+errors which you can attach when reporting bugs.
+
+```bash
+# example
+python run_with_error_summary.py pytest
+```
+
+## Trading Agent
+
+Use the helper script to run the trading agent locally. All arguments are
+optional:
+
+```bash
+python scripts/run_trading_agent.py --tickers AAPL MSFT --thresholds 0.1 0.2 --indicator RSI
+```
+
+## Deploy to AWS
+
+The project includes an AWS CDK stack that provisions an S3 bucket and
+CloudFront distribution for the frontend. To deploy the site:
+
+```bash
+# build the frontend assets first
+cd frontend
+npm install
+npm run build
+cd ..
+
+# deploy the static site stack
+cd cdk
+cdk bootstrap   # only required once per AWS account/region
+cdk deploy StaticSiteStack
+```
+
+The bucket remains private and CloudFront uses an origin access identity
+with Price Class 100 to minimise cost while serving the content over HTTPS.
+
+### GitHub Actions Deployment
+
+The CI workflow in `.github/workflows/deploy-lambda.yml` uses GitHub's
+OpenID Connect (OIDC) provider to assume an IAM role at deploy time. To
+enable this:
+
+1. Create an IAM role with permissions to deploy the CDK stack.
+2. Add a trust policy that allows the GitHub OIDC provider to assume the
+   role. A minimal example is:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {"Federated": "arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"},
+         "Action": "sts:AssumeRoleWithWebIdentity",
+         "Condition": {
+           "StringEquals": {
+             "token.actions.githubusercontent.com:sub": "repo:YOUR_ORG/YOUR_REPO:ref:refs/heads/main"
+           }
+         }
+       }
+     ]
+   }
+   ```
+3. Store the role ARN in the repository as the `AWS_ROLE_TO_ASSUME` secret
+   and set `AWS_REGION` as needed.
+
+Remove any long-term `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+secrets, as they are no longer required.
+

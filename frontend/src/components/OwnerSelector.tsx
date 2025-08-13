@@ -1,5 +1,6 @@
-import React from "react";
 import type { OwnerSummary } from "../types";
+import { Selector } from "./Selector";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   owners: OwnerSummary[];
@@ -8,17 +9,14 @@ type Props = {
 };
 
 export function OwnerSelector({ owners, selected, onSelect }: Props) {
+  const { t } = useTranslation();
   return (
-    <div style={{ marginBottom: "1rem" }}>
-      <label style={{ marginRight: "0.5rem" }}>Owner:</label>
-      <select value={selected} onChange={(e) => onSelect(e.target.value)}>
-        {owners.map((o) => (
-          <option key={o.owner} value={o.owner}>
-            {o.owner}
-          </option>
-        ))}
-      </select>
-    </div>
+    <Selector
+      label={t("owner.label")}
+      value={selected}
+      onChange={onSelect}
+      options={owners.map((o) => ({ value: o.owner, label: o.owner }))}
+    />
   );
 }
 

@@ -21,4 +21,8 @@ cdk.out/
 .vscode/
 
 # Data dumps (keep in S3 instead)
-data-sample/**/*.csv
+data/**/*.csv
+/data/accounts/
+
+# Logs
+backend.log

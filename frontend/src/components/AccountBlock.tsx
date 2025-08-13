@@ -1,24 +1,87 @@
-import React from "react";
+/* ------------------------------------------------------------------
+ *  AccountBlock.tsx   ─ merged, consolidated version
+ * ------------------------------------------------------------------ */
+
+import { useState } from "react";
 import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
+import { InstrumentDetail } from "./InstrumentDetail";
+import { money } from "../lib/money";
+import i18n from "../i18n";
 
-type Props = { account: Account; };
+/* ──────────────────────────────────────────────────────────────
+ * Component
+ * ────────────────────────────────────────────────────────────── */
+type Props = {
+  account: Account;
+  selected?: boolean;
+  onToggle?: () => void;
+};
 
-export function AccountBlock({ account }: Props) {
+export function AccountBlock({
+  account,
+  selected = true,
+  onToggle,
+}: Props) {
+  const [selectedInstrument, setSelectedInstrument] = useState<{
+    ticker: string;
+    name: string;
+  } | null>(null);
+
   return (
-    <div style={{ marginBottom: "2rem", padding: "1rem", border: "1px solid #ddd", borderRadius: "4px" }}>
+    <div
+      style={{
+        marginBottom: "2rem",
+        padding: "1rem",
+      }}
+    >
       <h2 style={{ marginTop: 0 }}>
+        {onToggle && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            aria-label={account.account_type}
+            style={{ marginRight: "0.5rem" }}
+          />
+        )}
         {account.account_type} ({account.currency})
       </h2>
-      <div style={{ marginBottom: "0.5rem" }}>
-        Est Value: £{account.value_estimate_gbp.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
-      </div>
-      {account.last_updated && (
-        <div style={{ fontSize: "0.8rem", color: "#666" }}>
-          Last updated: {account.last_updated}
-        </div>
+
+      {selected && (
+        <>
+          <div style={{ marginBottom: "0.5rem" }}>
+            Est&nbsp;Value:&nbsp;{money(account.value_estimate_gbp)}
+          </div>
+
+          {account.last_updated && (
+            <div style={{ fontSize: "0.8rem", color: "#666" }}>
+              Last updated:&nbsp;
+              {new Intl.DateTimeFormat(i18n.language).format(
+                new Date(account.last_updated),
+              )}
+            </div>
+          )}
+
+          <HoldingsTable
+            holdings={account.holdings}
+            onSelectInstrument={(ticker, name) =>
+              setSelectedInstrument({ ticker, name })
+            }
+          />
+
+          {selectedInstrument && (
+            <InstrumentDetail
+              ticker={selectedInstrument.ticker}
+              name={selectedInstrument.name}
+              onClose={() => setSelectedInstrument(null)}
+            />
+          )}
+        </>
       )}
-      <HoldingsTable holdings={account.holdings} />
     </div>
   );
 }
+
+/* Export default as convenience for `lazy()` / Storybook */
+export default AccountBlock;

@@ -1,0 +1,145 @@
+{
+  "app": {
+    "viewBy": "View by",
+    "relativeView": "Relative view",
+    "refreshPrices": "Refresh Prices",
+    "refreshing": "Refreshing…",
+    "last": "Last:",
+    "loading": "Loading…",
+    "supportLink": "Support",
+    "modes": {
+      "group": "Group",
+      "instrument": "Instrument",
+      "owner": "Member",
+      "performance": "Performance",
+      "transactions": "Transactions",
+      "screener": "Screener",
+      "query": "Query",
+      "trading": "Trading",
+      "timeseries": "Timeseries",
+      "watchlist": "Watchlist"
+    }
+  },
+  "common": {
+    "error": "Error",
+    "loading": "Loading…",
+    "other": "Other"
+  },
+  "instrumentType": {
+    "equity": "Equity",
+    "bond": "Bond",
+    "cash": "Cash",
+    "etf": "ETF",
+    "fund": "Fund",
+    "investmentTrust": "Investment Trust",
+    "realEstate": "Real Estate",
+    "other": "Other"
+  },
+  "instrumentTable": {
+    "noInstruments": "No instruments.",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Name",
+      "ccy": "CCY",
+      "type": "Type",
+      "units": "Units",
+      "cost": "Cost £",
+      "market": "Market £",
+      "gain": "Gain £",
+      "gainPct": "Gain %",
+      "last": "Last £",
+      "lastDate": "Last Date",
+      "delta7d": "7d %",
+      "delta30d": "30d %"
+    }
+  },
+  "instrumentDetail": {
+    "edit": "Edit",
+    "change7d": "7d",
+    "change30d": "30d",
+    "range": "Range:",
+    "rangeOptions": {
+      "1w": "1W",
+      "1m": "1M",
+      "1y": "1Y",
+      "10y": "10Y",
+      "max": "MAX"
+    },
+    "bollingerBands": "Bollinger Bands",
+    "positions": "Positions",
+    "columns": {
+      "account": "Account",
+      "units": "Units",
+      "market": "Mkt £",
+      "gain": "Gain £",
+      "gainPct": "Gain %"
+    },
+    "noPositions": "No positions",
+    "recentPrices": "Recent Prices",
+    "priceColumns": {
+      "date": "Date",
+      "close": "£ Close",
+      "delta": "Δ £",
+      "deltaPct": "Δ %"
+    },
+    "noPriceData": "No price data"
+  },
+  "owner": {
+    "label": "Owner",
+    "select": "Select an owner."
+  },
+  "group": {
+    "select": "Select a group."
+  },
+  "support": {
+    "title": "Support",
+    "online": "Online",
+    "onlineYes": "Yes",
+    "onlineNo": "No",
+    "environment": "Environment",
+    "telegramMessage": "Telegram Message",
+    "send": "Send",
+    "status": {
+      "sent": "Sent",
+      "error": "Error",
+      "sending": "Sending..."
+    }
+  },
+  "loadingPortfolio": "Loading portfolio…",
+  "portfolio": "Portfolio",
+  "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",
+  "approxTotal": "Approx Total: £{{value}}",
+  "watchlist": {
+    "refresh": "Refresh"
+  },
+  "trading": {
+    "noPositions": "No positions."
+  },
+  "timeseries": {
+    "loading": "Loading…"
+  },
+  "query": {
+    "noResults": "No results."
+  },
+  "query": {
+    "start": "Start",
+    "end": "End",
+    "owners": "Owners",
+    "tickers": "Tickers",
+    "metrics": "Metrics",
+    "run": "Run",
+    "running": "Running…",
+    "save": "Save",
+    "exportCsv": "Export CSV",
+    "exportXlsx": "Export XLSX"
+  },
+  "screener": {
+    "tickers": "Tickers",
+    "maxPeg": "Max PEG",
+    "maxPe": "Max P/E",
+    "maxDe": "Max D/E",
+    "minFcf": "Min FCF",
+    "run": "Run",
+    "loading": "Loading…"
+  }
+}

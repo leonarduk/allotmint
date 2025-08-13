@@ -1,0 +1,67 @@
+{
+  "owner": "lucy",
+  "account_type": "ISA",
+  "currency": "GBP",
+  "last_updated": "2025-08-06",
+  "holdings": [
+    {
+      "ticker": "CASH.GBP",
+      "units": 11661.61,
+      "cost_basis_gbp": 11661.61
+    },
+    {
+      "ticker": "ULVR.L",
+      "units": 40.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "IEFV.L",
+      "units": 1271.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "JEGI.L",
+      "units": 4091.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "BPCR.L",
+      "units": 3016.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "GBPG.L",
+      "units": 230.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "HFEL.L",
+      "units": 897.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "ERNS.L",
+      "units": 276.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "SPGP.L",
+      "units": 108.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "SERE.L",
+      "units": 5861.0,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    }
+  ]
+}

@@ -29,6 +29,7 @@ from backend.utils.timeseries_helpers import _nearest_weekday, get_scaling_overr
 from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.config import config
 from backend.common.instruments import get_instrument_meta
+import requests
 
 OFFLINE_MODE = config.offline_mode
 
@@ -303,14 +304,38 @@ def _convert_to_gbp(
         return df
 
     if OFFLINE_MODE:
-        # TODO fix this to read from cache or use proxy
-        return df
+        path = _cache_path("fx", f"{currency}.parquet")
+        try:
+            fx = pd.read_parquet(path)
+            fx["Date"] = pd.to_datetime(fx["Date"])
+        except Exception as exc:
+            logger.debug("FX cache read miss (%s): %s", path, exc)
+            fx = pd.DataFrame(columns=["Date", "Rate"])
 
-    fx = fetch_fx_rate_range(currency, start, end).copy()
-    if fx.empty:
-        return df
+        if fx.empty and getattr(config, "fx_proxy_url", None):
+            try:
+                url = f"{config.fx_proxy_url.rstrip('/')}/{currency}"
+                params = {"start": start.isoformat(), "end": end.isoformat()}
+                resp = requests.get(url, params=params, timeout=5)
+                if resp.ok:
+                    fx = pd.DataFrame(resp.json())
+                    fx["Date"] = pd.to_datetime(fx["Date"])
+            except Exception as exc:
+                logger.warning("FX proxy fetch failed for %s: %s", currency, exc)
 
-    fx["Date"] = pd.to_datetime(fx["Date"])
+        if fx.empty:
+            raise ValueError(f"Offline mode: no FX rates for {currency}")
+
+        mask = (fx["Date"].dt.date >= start) & (fx["Date"].dt.date <= end)
+        fx = fx.loc[mask]
+        if fx.empty:
+            raise ValueError(f"Offline mode: FX cache lacks range for {currency}")
+    else:
+        fx = fetch_fx_rate_range(currency, start, end).copy()
+        if fx.empty:
+            return df
+        fx["Date"] = pd.to_datetime(fx["Date"])
+
     merged = df.merge(fx, on="Date", how="left")
     merged["Rate"] = merged["Rate"].ffill().bfill()
     for col in ["Open", "High", "Low", "Close"]:

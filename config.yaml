@@ -6,6 +6,7 @@ accounts_root: C:\workspaces\github\allotmint\data\accounts
 prices_json: C:\workspaces\github\allotmint\data\prices\latest_prices.json
 risk_free_rate: 0.01
 timeseries_cache_base: data/timeseries
+fx_proxy_url: ''
 alpha_vantage_key: B74N5L0LY87QHKX4
 fundamentals_cache_ttl_seconds: 86400
 app_env: local

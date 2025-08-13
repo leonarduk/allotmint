@@ -9,7 +9,6 @@ import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
-import { formatInstrumentType } from "../instrumentType";
 import { useConfig } from "../ConfigContext";
 import {
   PieChart,
@@ -106,7 +105,6 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
           : market - cost;
       const dayChg = h.day_change_gbp ?? 0;
 
-      const type = formatInstrumentType(t, h.instrument_type);
       const typeKey = (h.instrument_type ?? "other").toLowerCase();
       perType[typeKey] = (perType[typeKey] || 0) + market;
 

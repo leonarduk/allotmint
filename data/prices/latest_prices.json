@@ -1,446 +1,298 @@
 {
   "3IN.L": {
-    "last_price": 352.0,
-    "change_7d_pct": -0.283286118980175,
-    "change_30d_pct": 2.7737226277372296,
-    "last_price_date": "2025-08-12"
+    "last_price": 351.58,
+    "last_price_date": "2025-08-13"
   },
   "ADBE.N": {
-    "last_price": 270.744,
-    "change_7d_pct": -0.09151561669716868,
-    "change_30d_pct": -6.8584009907802335,
-    "last_price_date": "2025-08-12"
+    "last_price": 338.73,
+    "last_price_date": "2025-08-13"
   },
   "ADM.L": {
-    "last_price": 3356.0,
-    "change_7d_pct": -2.328288707799764,
-    "change_30d_pct": 2.629969418960254,
-    "last_price_date": "2025-08-12"
+    "last_price": 3338.0,
+    "last_price_date": "2025-08-13"
   },
   "AIE.L": {
-    "last_price": 265.0,
-    "change_7d_pct": -3.6363636363636376,
-    "change_30d_pct": -6.690140845070425,
-    "last_price_date": "2025-08-12"
+    "last_price": 264.81,
+    "last_price_date": "2025-08-13"
   },
   "AIGE.L": {
-    "last_price": 3.34,
-    "change_7d_pct": -2.6239067055393694,
-    "change_30d_pct": -7.734806629834257,
-    "last_price_date": "2025-08-12"
+    "last_price": 3.32,
+    "last_price_date": "2025-08-13"
   },
   "ARG.TO": {
-    "last_price": null,
-    "change_7d_pct": null,
-    "change_30d_pct": null,
-    "last_price_date": "2025-08-12"
+    "last_price": 2.15,
+    "last_price_date": "2025-08-13"
   },
   "AV.L": {
-    "last_price": 656.0,
-    "change_7d_pct": 1.5479876160990669,
-    "change_30d_pct": 4.6251993620414655,
-    "last_price_date": "2025-08-12"
+    "last_price": 657.8,
+    "last_price_date": "2025-08-13"
   },
   "AZN.L": {
-    "last_price": 11086.0,
-    "change_7d_pct": -1.1874265768921477,
-    "change_30d_pct": 6.093434188767066,
-    "last_price_date": "2025-08-12"
+    "last_price": 11348.0,
+    "last_price_date": "2025-08-13"
   },
   "B.N": {
-    "last_price": 18.8,
-    "change_7d_pct": 4.25909494232477,
-    "change_30d_pct": 10.744580584354392,
-    "last_price_date": "2025-08-12"
+    "last_price": 23.78,
+    "last_price_date": "2025-08-13"
   },
   "BBAI.N": {
-    "last_price": 4.776,
-    "change_7d_pct": -15.198863636363647,
-    "change_30d_pct": -7.29813664596276,
-    "last_price_date": "2025-08-12"
+    "last_price": 5.8,
+    "last_price_date": "2025-08-13"
   },
   "BIIB.N": {
-    "last_price": 103.144,
-    "change_7d_pct": -2.979908194747527,
-    "change_30d_pct": -3.934133075031665,
-    "last_price_date": "2025-08-12"
+    "last_price": 130.91,
+    "last_price_date": "2025-08-13"
   },
   "BLND.L": {
-    "last_price": 341.4,
-    "change_7d_pct": -3.4502262443439013,
-    "change_30d_pct": -2.3455377574370884,
-    "last_price_date": "2025-08-12"
+    "last_price": 342.8,
+    "last_price_date": "2025-08-13"
   },
   "BME.L": {
-    "last_price": 223.1,
-    "change_7d_pct": 1.9652650822669093,
-    "change_30d_pct": -14.15929203539823,
-    "last_price_date": "2025-08-12"
+    "last_price": 228.0,
+    "last_price_date": "2025-08-13"
   },
   "BMY.L": {
-    "last_price": 478.5,
-    "change_7d_pct": -1.8461538461538418,
-    "change_30d_pct": -3.017896592958913,
-    "last_price_date": "2025-08-12"
+    "last_price": 476.5,
+    "last_price_date": "2025-08-13"
   },
   "BP.L": {
-    "last_price": 424.05,
-    "change_7d_pct": 1.5810276679842028,
-    "change_30d_pct": 5.471956224350194,
-    "last_price_date": "2025-08-12"
+    "last_price": 418.7,
+    "last_price_date": "2025-08-13"
   },
   "BPCR.L": {
-    "last_price": 0.87,
-    "change_7d_pct": 0.0,
-    "change_30d_pct": 0.0,
-    "last_price_date": "2025-08-12"
+    "last_price": 0.88,
+    "last_price_date": "2025-08-13"
   },
   "BUT.L": {
-    "last_price": 1422.0,
-    "change_7d_pct": 1.5714285714285792,
-    "change_30d_pct": 0.4279842366201825,
-    "last_price_date": "2025-08-12"
+    "last_price": 1426.08,
+    "last_price_date": "2025-08-13"
   },
   "BYG.L": {
     "last_price": 912.0,
-    "change_7d_pct": -3.797468354430378,
-    "change_30d_pct": -1.829924650161463,
-    "last_price_date": "2025-08-12"
+    "last_price_date": "2025-08-13"
   },
   "CARD.L": {
-    "last_price": 103.8,
-    "change_7d_pct": 0.5813953488372103,
-    "change_30d_pct": 18.08873720136517,
-    "last_price_date": "2025-08-12"
+    "last_price": 106.44,
+    "last_price_date": "2025-08-13"
   },
   "CASH.GBP": {
     "last_price": 1.0,
-    "change_7d_pct": 0.0,
-    "change_30d_pct": 0.0,
-    "last_price_date": "2025-08-12"
+    "last_price_date": "2025-08-13"
   },
   "CLIG.L": {
-    "last_price": 375.0,
-    "change_7d_pct": 4.456824512534818,
-    "change_30d_pct": 5.633802816901401,
-    "last_price_date": "2025-08-12"
+    "last_price": 372.0,
+    "last_price_date": "2025-08-13"
   },
   "CNA.L": {
-    "last_price": 162.65,
-    "change_7d_pct": -1.1846901579586788,
-    "change_30d_pct": 5.037132709073311,
-    "last_price_date": "2025-08-12"
+    "last_price": 162.25,
+    "last_price_date": "2025-08-13"
   },
   "CUKS.L": {
-    "last_price": 25120.0,
-    "change_7d_pct": -0.248188225950563,
-    "change_30d_pct": 0.6611901422560518,
-    "last_price_date": "2025-08-12"
+    "last_price": 25049.8,
+    "last_price_date": "2025-08-13"
   },
   "ERNS.L": {
-    "last_price": 101.36,
-    "change_7d_pct": 0.12842042872664994,
-    "change_30d_pct": 0.4758128469468659,
-    "last_price_date": "2025-08-12"
+    "last_price": 101.38,
+    "last_price_date": "2025-08-13"
   },
   "ESIH.L": {
-    "last_price": 5.32,
-    "change_7d_pct": -1.1152416356877248,
-    "change_30d_pct": -3.2727272727272716,
-    "last_price_date": "2025-08-12"
+    "last_price": 5.35,
+    "last_price_date": "2025-08-13"
   },
   "FSFL.L": {
-    "last_price": 88.0,
-    "change_7d_pct": 1.7341040462427681,
-    "change_30d_pct": 0.4795615437314549,
-    "last_price_date": "2025-08-12"
+    "last_price": 87.6,
+    "last_price_date": "2025-08-13"
   },
   "GAMA.L": {
     "last_price": 1090.0,
-    "change_7d_pct": -0.1831501831501825,
-    "change_30d_pct": 0.0,
-    "last_price_date": "2025-08-12"
+    "last_price_date": "2025-08-13"
   },
   "GAW.L": {
-    "last_price": 15170.0,
-    "change_7d_pct": -5.423940149625938,
-    "change_30d_pct": -5.5417185554171855,
-    "last_price_date": "2025-08-12"
+    "last_price": 15280.0,
+    "last_price_date": "2025-08-13"
   },
   "GBPG.L": {
-    "last_price": 43.75,
-    "change_7d_pct": -0.5455785405774072,
-    "change_30d_pct": 0.2750401100160449,
-    "last_price_date": "2025-08-12"
+    "last_price": 43.82,
+    "last_price_date": "2025-08-13"
   },
   "GILG.L": {
-    "last_price": 4.44,
-    "change_7d_pct": -0.4484304932735328,
-    "change_30d_pct": 0.9090909090909038,
-    "last_price_date": "2025-08-12"
+    "last_price": 4.45,
+    "last_price_date": "2025-08-13"
   },
   "GRG.L": {
-    "last_price": 1622.0,
-    "change_7d_pct": 1.692789968652031,
-    "change_30d_pct": -6.351039260969982,
-    "last_price_date": "2025-08-12"
+    "last_price": 1587.0,
+    "last_price_date": "2025-08-13"
   },
   "GSK.L": {
-    "last_price": 1404.5,
-    "change_7d_pct": 0.5368647100930657,
-    "change_30d_pct": -0.2839900603478829,
-    "last_price_date": "2025-08-12"
+    "last_price": 1420.5,
+    "last_price_date": "2025-08-13"
   },
   "HFD.L": {
-    "last_price": 135.8,
-    "change_7d_pct": -4.995102840352583,
-    "change_30d_pct": -6.692318263020458,
-    "last_price_date": "2025-08-12"
+    "last_price": 137.4,
+    "last_price_date": "2025-08-13"
   },
   "HFEL.L": {
-    "last_price": 229.0,
-    "change_7d_pct": 0.2188183807439792,
-    "change_30d_pct": -1.0799136069114423,
-    "last_price_date": "2025-08-12"
+    "last_price": 230.45,
+    "last_price_date": "2025-08-13"
   },
   "HICL.L": {
-    "last_price": 121.4,
-    "change_7d_pct": 0.33057851239670644,
-    "change_30d_pct": 1.183530588431414,
-    "last_price_date": "2025-08-12"
+    "last_price": 120.64,
+    "last_price_date": "2025-08-13"
   },
   "IBZL.L": {
-    "last_price": 1696.25,
-    "change_7d_pct": 3.1782238442822353,
-    "change_30d_pct": 3.6669213139801426,
-    "last_price_date": "2025-08-12"
+    "last_price": 1680.0,
+    "last_price_date": "2025-08-13"
   },
   "IEFV.L": {
-    "last_price": 927.35,
-    "change_7d_pct": 2.7534626038781207,
-    "change_30d_pct": 3.556672250139581,
-    "last_price_date": "2025-08-12"
+    "last_price": 927.89,
+    "last_price_date": "2025-08-13"
   },
   "IFX.DE": {
-    "last_price": 33.102000000000004,
-    "change_7d_pct": 4.192634560906527,
-    "change_30d_pct": -3.1595576619273036,
-    "last_price_date": "2025-08-12"
+    "last_price": 36.75,
+    "last_price_date": "2025-08-13"
   },
   "III.L": {
-    "last_price": 4088.0,
-    "change_7d_pct": 1.464383221643084,
-    "change_30d_pct": -2.317801672640385,
-    "last_price_date": "2025-08-12"
+    "last_price": 4093.5,
+    "last_price_date": "2025-08-13"
   },
   "IONQ.N": {
-    "last_price": 34.4,
-    "change_7d_pct": 2.3322227510709004,
-    "change_30d_pct": 2.8462090408992946,
-    "last_price_date": "2025-08-12"
+    "last_price": 42.7,
+    "last_price_date": "2025-08-13"
   },
   "ISXF.L": {
-    "last_price": 103.03,
-    "change_7d_pct": -0.5213865018827812,
-    "change_30d_pct": 0.6152343749999956,
-    "last_price_date": "2025-08-12"
+    "last_price": 103.12,
+    "last_price_date": "2025-08-13"
   },
   "JEGI.L": {
-    "last_price": 124.0,
-    "change_7d_pct": 0.4048582995951344,
-    "change_30d_pct": -0.40160642570281624,
-    "last_price_date": "2025-08-12"
+    "last_price": 125.39,
+    "last_price_date": "2025-08-13"
   },
   "LAES.N": {
-    "last_price": 2.288,
-    "change_7d_pct": -2.38907849829354,
-    "change_30d_pct": -21.212121212121215,
-    "last_price_date": "2025-08-12"
+    "last_price": 2.87,
+    "last_price_date": "2025-08-13"
   },
   "MINV.L": {
-    "last_price": 5371.0,
-    "change_7d_pct": -1.2774561161657982,
-    "change_30d_pct": 0.5240501590866531,
-    "last_price_date": "2025-08-12"
+    "last_price": 5363.93,
+    "last_price_date": "2025-08-13"
   },
   "MNDI.L": {
-    "last_price": 1074.0,
-    "change_7d_pct": 1.1775788977861579,
-    "change_30d_pct": -10.163111668757841,
-    "last_price_date": "2025-08-12"
+    "last_price": 1063.0,
+    "last_price_date": "2025-08-13"
   },
   "MONY.L": {
-    "last_price": 197.6,
-    "change_7d_pct": -0.8529854490717637,
-    "change_30d_pct": -9.755206430398255,
-    "last_price_date": "2025-08-12"
+    "last_price": 198.6,
+    "last_price_date": "2025-08-13"
   },
   "NBIX.N": {
-    "last_price": 103.112,
-    "change_7d_pct": 0.38943842978425014,
-    "change_30d_pct": -3.4242469653829044,
-    "last_price_date": "2025-08-12"
+    "last_price": 130.16,
+    "last_price_date": "2025-08-13"
   },
   "NESF.L": {
-    "last_price": 77.9,
-    "change_7d_pct": 3.590425531914887,
-    "change_30d_pct": 6.275579809004106,
-    "last_price_date": "2025-08-12"
+    "last_price": 78.05,
+    "last_price_date": "2025-08-13"
   },
   "PBR-A.N": {
-    "last_price": null,
-    "change_7d_pct": null,
-    "change_30d_pct": null,
-    "last_price_date": "2025-08-12"
+    "last_price": 11.32,
+    "last_price_date": "2025-08-13"
   },
   "PFE.N": {
-    "last_price": 19.72,
-    "change_7d_pct": -0.40404040404041774,
-    "change_30d_pct": -2.2213407378024796,
-    "last_price_date": "2025-08-12"
+    "last_price": 24.87,
+    "last_price_date": "2025-08-13"
   },
   "PHGP.L": {
-    "last_price": 23107.5,
-    "change_7d_pct": -2.4876566654006838,
-    "change_30d_pct": -0.49520938744751497,
-    "last_price_date": "2025-08-12"
+    "last_price": 23044.0,
+    "last_price_date": "2025-08-13"
   },
   "PHSP.L": {
-    "last_price": 2571.0,
-    "change_7d_pct": -1.077337437475956,
-    "change_30d_pct": -0.905762189246484,
-    "last_price_date": "2025-08-12"
+    "last_price": 2593.0,
+    "last_price_date": "2025-08-13"
   },
   "POLR.L": {
-    "last_price": 484.5,
-    "change_7d_pct": -0.10309278350515427,
-    "change_30d_pct": 3.304904051172697,
-    "last_price_date": "2025-08-12"
+    "last_price": 485.5,
+    "last_price_date": "2025-08-13"
   },
   "QBTS.N": {
-    "last_price": 14.808000000000002,
-    "change_7d_pct": 1.1475409836065653,
-    "change_30d_pct": 24.983119513842,
-    "last_price_date": "2025-08-12"
+    "last_price": 18.65,
+    "last_price_date": "2025-08-13"
   },
   "REC.L": {
-    "last_price": 60.6,
-    "change_7d_pct": 4.482758620689653,
-    "change_30d_pct": -1.3029315960912058,
-    "last_price_date": "2025-08-12"
+    "last_price": 60.52,
+    "last_price_date": "2025-08-13"
   },
   "SBRY.L": {
-    "last_price": 298.4,
-    "change_7d_pct": 0.6747638326585648,
-    "change_30d_pct": 6.419400855920121,
-    "last_price_date": "2025-08-12"
+    "last_price": 297.6,
+    "last_price_date": "2025-08-13"
   },
   "SEGA.L": {
-    "last_price": 95.02,
-    "change_7d_pct": -1.4213092644465242,
-    "change_30d_pct": 0.02105263157894388,
-    "last_price_date": "2025-08-12"
+    "last_price": 95.32,
+    "last_price_date": "2025-08-13"
   },
   "SERE.L": {
-    "last_price": 67.6,
-    "change_7d_pct": 1.8072289156626287,
-    "change_30d_pct": -2.859606265268011,
-    "last_price_date": "2025-08-12"
+    "last_price": 68.35,
+    "last_price_date": "2025-08-13"
   },
   "SFR.L": {
-    "last_price": 31.1,
-    "change_7d_pct": -2.8124999999999956,
-    "change_30d_pct": -11.142857142857142,
-    "last_price_date": "2025-08-12"
+    "last_price": 31.4,
+    "last_price_date": "2025-08-13"
   },
   "SN.L": {
-    "last_price": 1346.0,
-    "change_7d_pct": 1.1269722013523609,
-    "change_30d_pct": 19.910913140311813,
-    "last_price_date": "2025-08-12"
+    "last_price": 1349.5,
+    "last_price_date": "2025-08-13"
   },
   "SNWS.L": {
-    "last_price": 54.8,
-    "change_7d_pct": -1.7921146953404965,
-    "change_30d_pct": -2.8368794326241176,
-    "last_price_date": "2025-08-12"
+    "last_price": 55.0,
+    "last_price_date": "2025-08-13"
   },
   "SPGP.L": {
-    "last_price": 1969.0,
-    "change_7d_pct": 1.7571059431524594,
-    "change_30d_pct": 10.75798059344677,
-    "last_price_date": "2025-08-12"
+    "last_price": 1980.0,
+    "last_price_date": "2025-08-13"
   },
   "TFIF.L": {
-    "last_price": 112.2,
-    "change_7d_pct": -0.1779359430605032,
-    "change_30d_pct": -0.8658773634917849,
-    "last_price_date": "2025-08-12"
+    "last_price": 112.4,
+    "last_price_date": "2025-08-13"
   },
   "THX.L": {
-    "last_price": 47.0,
-    "change_7d_pct": 16.915422885572127,
-    "change_30d_pct": 17.529382345586384,
-    "last_price_date": "2025-08-12"
+    "last_price": 48.62,
+    "last_price_date": "2025-08-13"
   },
   "UKW.L": {
-    "last_price": 118.3,
-    "change_7d_pct": -0.16877637130802148,
-    "change_30d_pct": -4.132901134521882,
-    "last_price_date": "2025-08-12"
+    "last_price": 118.4,
+    "last_price_date": "2025-08-13"
   },
   "ULVR.L": {
-    "last_price": 4490.0,
-    "change_7d_pct": -0.37719103616596916,
-    "change_30d_pct": 0.17849174475681462,
-    "last_price_date": "2025-08-12"
+    "last_price": 4523.0,
+    "last_price_date": "2025-08-13"
   },
   "UNH.N": {
-    "last_price": 209.256,
-    "change_7d_pct": 4.211155378486042,
-    "change_30d_pct": -13.985531075304191,
-    "last_price_date": "2025-08-12"
+    "last_price": 265.08,
+    "last_price_date": "2025-08-13"
   },
   "UPS.N": {
-    "last_price": 69.944,
-    "change_7d_pct": 0.7490205116386317,
-    "change_30d_pct": -13.6664362595043,
-    "last_price_date": "2025-08-12"
+    "last_price": 86.62,
+    "last_price_date": "2025-08-13"
   },
   "UTHR.N": {
-    "last_price": 241.112,
-    "change_7d_pct": -1.122010432728593,
-    "change_30d_pct": 1.9863291824580465,
-    "last_price_date": "2025-08-12"
+    "last_price": 305.56,
+    "last_price_date": "2025-08-13"
   },
   "VHYL.L": {
-    "last_price": 56.48,
-    "change_7d_pct": 0.6773618538324255,
-    "change_30d_pct": 2.0046956835831686,
-    "last_price_date": "2025-08-12"
+    "last_price": 56.46,
+    "last_price_date": "2025-08-13"
   },
   "VOD.L": {
-    "last_price": 85.94,
-    "change_7d_pct": 3.095009596928988,
-    "change_30d_pct": 6.837394331178515,
-    "last_price_date": "2025-08-12"
+    "last_price": 86.1,
+    "last_price_date": "2025-08-13"
   },
   "VWRL.L": {
-    "last_price": 114.68,
-    "change_7d_pct": 0.5876677484431214,
-    "change_30d_pct": 2.71383788625168,
-    "last_price_date": "2025-08-12"
+    "last_price": 114.98,
+    "last_price_date": "2025-08-13"
   },
   "WCOS.L": {
-    "last_price": 51.71,
-    "change_7d_pct": 2.477209671026559,
-    "change_30d_pct": 1.6512679378808848,
-    "last_price_date": "2025-08-12"
+    "last_price": 51.87,
+    "last_price_date": "2025-08-13"
   },
   "WIX.L": {
-    "last_price": 219.0,
-    "change_7d_pct": 0.0,
-    "change_30d_pct": -2.882483370288247,
-    "last_price_date": "2025-08-12"
+    "last_price": 218.72,
+    "last_price_date": "2025-08-13"
   }
 }

@@ -1,7 +1,23 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, type Mock } from "vitest";
 import type { InstrumentSummary } from "../types";
-import { ConfigContext } from "../ConfigContext";
+import { ConfigContext, type AppConfig } from "../ConfigContext";
+
+const defaultConfig: AppConfig = {
+    relativeViewEnabled: false,
+    tabs: {
+        instrument: true,
+        performance: true,
+        transactions: true,
+        screener: true,
+        query: true,
+        trading: true,
+        timeseries: true,
+        watchlist: true,
+        virtual: true,
+        support: true,
+    },
+};
 
 vi.mock("./InstrumentDetail", () => ({
     InstrumentDetail: vi.fn(() => <div data-testid="instrument-detail" />),
@@ -122,7 +138,7 @@ describe("InstrumentTable", () => {
 
     it("hides absolute columns in relative view", () => {
         render(
-            <ConfigContext.Provider value={{ relativeViewEnabled: true }}>
+            <ConfigContext.Provider value={{ ...defaultConfig, relativeViewEnabled: true }}>
                 <InstrumentTable rows={rows} />
             </ConfigContext.Provider>,
         );

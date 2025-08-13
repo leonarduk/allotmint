@@ -9,8 +9,28 @@ afterEach(() => {
   i18n.changeLanguage("en");
 });
 
-const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
-  render(<ConfigContext.Provider value={cfg}>{ui}</ConfigContext.Provider>);
+const defaultConfig: AppConfig = {
+  relativeViewEnabled: false,
+  tabs: {
+    instrument: true,
+    performance: true,
+    transactions: true,
+    screener: true,
+    query: true,
+    trading: true,
+    timeseries: true,
+    watchlist: true,
+    virtual: true,
+    support: true,
+  },
+};
+
+const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) =>
+  render(
+    <ConfigContext.Provider value={{ ...defaultConfig, ...cfg }}>
+      {ui}
+    </ConfigContext.Provider>,
+  );
 
 describe("GroupPortfolioView", () => {
   it("shows per-owner totals with percentages in relative view", async () => {

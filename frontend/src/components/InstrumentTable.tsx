@@ -115,10 +115,10 @@ export function InstrumentTable({ rows }: Props) {
                         {!relativeViewEnabled && visibleColumns.gain && (
                             <th
                                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                                onClick={() => handleSort("gain")}
+                                onClick={() => handleSort("gain_gbp")}
                             >
                                 {t("instrumentTable.columns.gain")}
-                                {sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
+                                {sortKey === "gain_gbp" ? (asc ? " ▲" : " ▼") : ""}
                             </th>
                         )}
                         {visibleColumns.gain_pct && (

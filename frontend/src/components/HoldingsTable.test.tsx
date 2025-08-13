@@ -2,6 +2,22 @@ import { render, screen, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { HoldingsTable } from "./HoldingsTable";
 import { ConfigContext, type AppConfig } from "../ConfigContext";
+
+const defaultConfig: AppConfig = {
+    relativeViewEnabled: false,
+    tabs: {
+        instrument: true,
+        performance: true,
+        transactions: true,
+        screener: true,
+        query: true,
+        trading: true,
+        timeseries: true,
+        watchlist: true,
+        virtual: true,
+        support: true,
+    },
+};
 import type { Holding } from "../types";
 
 describe("HoldingsTable", () => {
@@ -68,8 +84,12 @@ describe("HoldingsTable", () => {
         },
     ];
 
-    const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
-        render(<ConfigContext.Provider value={cfg}>{ui}</ConfigContext.Provider>);
+    const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig>) =>
+        render(
+            <ConfigContext.Provider value={{ ...defaultConfig, ...cfg }}>
+                {ui}
+            </ConfigContext.Provider>,
+        );
 
     it("displays relative metrics when relative view is enabled", () => {
         renderWithConfig(<HoldingsTable holdings={holdings} />, { relativeViewEnabled: true });

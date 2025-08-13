@@ -4,7 +4,7 @@ import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 
 const DEFAULT_SYMBOLS =
-  "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,GBPUSD=X,GBPEUR=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
+  "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,USDGBP=X,EURGBP=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
 
 function formatPrice(symbol: string, val: number | null): string {
   if (val == null) return "—";

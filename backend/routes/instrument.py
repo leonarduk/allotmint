@@ -11,6 +11,7 @@ GET /instrument?ticker=XDEV.L&days=365&format=html
 """
 
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
@@ -18,11 +19,18 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.common.portfolio_loader import list_portfolios
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.common.portfolio_utils import get_security_meta
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
+
+templates_dir = Path(__file__).resolve().parent.parent / "templates"
+env = Environment(
+    loader=FileSystemLoader(templates_dir),
+    autoescape=select_autoescape(["html", "xml"]),
+)
 
 # Group the instrument endpoints under their own router to keep ``app.py``
 # tidy and allow reuse across different deployment targets.
@@ -119,40 +127,26 @@ def _render_html(
     window_days: int,
 ) -> str:
     """Render a minimal HTML page summarising price and position data."""
-
     prices_tbl = df[["Date", "Close"]].tail(30).to_html(index=False, classes="prices")
     pos_tbl = (
         pd.DataFrame(positions).to_html(index=False, classes="positions")
         if positions
-        else "<p>No portfolio positions</p>"
+        else None
     )
 
     begin, end = _as_iso(df.iloc[0]["Date"]), _as_iso(df.iloc[-1]["Date"])
 
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>{ticker} - {window_days}-day view</title>
-  <style>
-    body {{ font-family: system-ui, sans-serif; margin: 2rem; }}
-    table{{ border-collapse:collapse;margin:.5rem 0}}
-    th,td{{ padding:.25rem .5rem;border:1px solid #ccc; }}
-    th{{background:#f5f5f5}}
-    .prices{{ float:left;margin-right:2rem }}
-    footer{{ clear:both;margin-top:3rem;font-size:.85em;color:#666 }}
-  </style>
-</head>
-<body>
-  <h1>{ticker}</h1>
-  <p>{len(df):,} rows - {begin} -> {end}</p>
-
-  <section>{prices_tbl}</section>
-  <section>{pos_tbl}</section>
-
-  <footer>Generated {date.today().isoformat()}</footer>
-</body>
-</html>"""
+    template = env.get_template("instrument.html")
+    return template.render(
+        ticker=ticker,
+        window_days=window_days,
+        prices_tbl=prices_tbl,
+        pos_tbl=pos_tbl,
+        begin=begin,
+        end=end,
+        rows_count=f"{len(df):,}",
+        today=date.today().isoformat(),
+    )
 
 
 # ────────────────────────────────────────────────────────────────

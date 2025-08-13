@@ -63,3 +63,4 @@ mangum-cli~=0.1.0
 aws-cdk-lib~=2.151.0
 constructs~=10.3.0
 PyYAML~=6.0.2
+jinja2~=3.1.4

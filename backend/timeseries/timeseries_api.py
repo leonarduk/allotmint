@@ -9,12 +9,14 @@ Light-weight time-series download endpoint for AllotMint.
 import io
 import logging
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 router = APIRouter(
     prefix="/timeseries",
@@ -38,27 +40,20 @@ def _fetch_yahoo(ticker: str, period: str, interval: str) -> pd.DataFrame:
     return df
 
 
+templates_dir = Path(__file__).resolve().parent.parent / "templates"
+env = Environment(
+    loader=FileSystemLoader(templates_dir),
+    autoescape=select_autoescape(["html", "xml"]),
+)
+
+
 def _render_html(df: pd.DataFrame, title: str) -> str:
     """Return a minimal HTML document with a styled table."""
-    table_html = df.to_html(classes="dataframe table table-striped", index=False, border=0)
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>{title}</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
-<style>
-  .dataframe {{
-      overflow-x: auto;
-      width: 100%;
-  }}
-</style>
-</head>
-<body>
-<h2>{title}</h2>
-{table_html}
-</body>
-</html>"""
+    table_html = df.to_html(
+        classes="dataframe table table-striped", index=False, border=0
+    )
+    template = env.get_template("timeseries.html")
+    return template.render(title=title, table_html=table_html)
 
 
 # ---------------------------------------------------------------------

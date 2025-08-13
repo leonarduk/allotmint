@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{ title }}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+<style>
+  .dataframe {
+      overflow-x: auto;
+      width: 100%;
+  }
+</style>
+</head>
+<body>
+<h2>{{ title }}</h2>
+{{ table_html|safe }}
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
@@ -24,12 +24,12 @@ import { Screener } from "./pages/Screener";
 import { QueryPage } from "./pages/QueryPage";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
-import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
 import VirtualPortfolio from "./pages/VirtualPortfolio";
 import Support from "./pages/Support";
+import { useConfig } from "./ConfigContext";
 
 type Mode =
   | "owner"
@@ -66,6 +66,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  const { tabs } = useConfig();
 
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -91,6 +92,24 @@ export default function App() {
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
+
+  const modes: Mode[] = [
+    "group",
+    ...(tabs.instrument ? ["instrument"] : []),
+    "owner",
+    ...(tabs.performance ? ["performance"] : []),
+    ...(tabs.transactions ? ["transactions"] : []),
+    ...(tabs.screener ? ["screener"] : []),
+    ...(tabs.query ? ["query"] : []),
+    ...(tabs.trading ? ["trading"] : []),
+    ...(tabs.timeseries ? ["timeseries"] : []),
+    ...(tabs.watchlist ? ["watchlist"] : []),
+  ];
+
+  const links: JSX.Element[] = [];
+  if (tabs.virtual) links.push(<a href="/virtual">Virtual Portfolios</a>);
+  if (tabs.trading) links.push(<a href="/trading">Trading Agent</a>);
+  if (tabs.support) links.push(<a href="/support">{t("app.supportLink")}</a>);
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
@@ -239,112 +258,6 @@ export default function App() {
           "timeseries",
           "watchlist",
         ] as Mode[]).map((m) => (
-          <label key={m} style={{ marginRight: "1rem" }}>
-            <input
-              type="radio"
-              name="mode"
-              value={m}
-              checked={mode === m}
-              onChange={() => setMode(m)}
-            />{" "}
-            {t(`app.modes.${m}`)}
-          </label>
-        ))}
-      </div>
-
-      <div style={{ marginBottom: "1rem" }}>
-        <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
-          {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
-        </button>
-        {lastPriceRefresh && (
-          <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
-            {t("app.last")}{" "}
-            {new Date(lastPriceRefresh).toLocaleString()}
-          </span>
-        )}
-        {priceRefreshError && (
-          <span style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}>
-            {priceRefreshError}
-          </span>
-        )}
-      </div>
-
-      {/* OWNER VIEW */}
-      {mode === "owner" && (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={setSelectedOwner}
-          />
-          <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-          <PortfolioView data={portfolio} loading={loading} error={err} />
-        </>
-      )}
-
-      {/* GROUP VIEW */}
-      {mode === "group" && groups.length > 0 && (
-        <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
-          <ComplianceWarnings
-            owners={
-              groups.find((g) => g.slug === selectedGroup)?.members ?? []
-            }
-          />
-          <GroupPortfolioView
-            slug={selectedGroup}
-            onSelectMember={(owner) => {
-              setMode("owner");
-              setSelectedOwner(owner);
-              navigate(`/member/${owner}`);
-            }}
-          />
-        </>
-      )}
-
-      {/* INSTRUMENT VIEW */}
-      {mode === "instrument" && groups.length > 0 && (
-        <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
-          {err && <p style={{ color: "red" }}>{err}</p>}
-          {loading ? (
-            <p>{t("app.loading")}</p>
-          ) : (
-            <InstrumentTable rows={instruments} />
-          )}
-        </>
-      )}
-
-      {/* PERFORMANCE VIEW */}
-      {mode === "performance" && (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={setSelectedOwner}
-          />
-          <PerformanceDashboard owner={selectedOwner} />
-        </>
-      )}
-
-      {mode === "transactions" && <TransactionsPage owners={owners} />}
-
-      {mode === "screener" && <Screener />}
-      {mode === "trading" && <TradingAgent />}
-      {mode === "virtual" && <VirtualPortfolio />}
-      {mode === "support" && <Support />}
-      {mode === "timeseries" && <TimeseriesEdit />}
-      {mode === "watchlist" && <Watchlist />}
-
-      {mode === "query" && <QueryPage />}
     </div>
   );
 }

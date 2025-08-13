@@ -28,6 +28,7 @@ from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.utils.timeseries_helpers import _nearest_weekday, get_scaling_override, apply_scaling
 from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.config import config
+from backend.common.instruments import get_instrument_meta
 
 OFFLINE_MODE = config.offline_mode
 
@@ -48,6 +49,10 @@ EXCHANGE_TO_CCY = {
     "F": "EUR",
     "PARIS": "EUR",
     "XETRA": "EUR",
+    "SW": "CHF",
+    "JP": "JPY",
+    "CA": "CAD",
+    "TO": "CAD",
 }
 
 
@@ -286,10 +291,15 @@ def _memoized_range(
     return _memoized_range_cached(ticker, exchange, start_iso, end_iso).copy()
 
 
-def _convert_to_gbp(df: pd.DataFrame, exchange: str, start: date, end: date) -> pd.DataFrame:
-    """Convert OHLC prices to GBP if needed based on exchange."""
-    currency = EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
-    if currency == "GBP" or df.empty:
+def _convert_to_gbp(
+    df: pd.DataFrame, ticker: str, exchange: str, start: date, end: date
+) -> pd.DataFrame:
+    """Convert OHLC prices to GBP if needed based on instrument currency."""
+
+    meta = get_instrument_meta(f"{ticker}.{exchange}")
+    currency = meta.get("currency") or EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
+
+    if currency in ("GBP", "GBX") or df.empty:
         return df
 
     if OFFLINE_MODE:
@@ -305,7 +315,8 @@ def _convert_to_gbp(df: pd.DataFrame, exchange: str, start: date, end: date) -> 
     merged["Rate"] = merged["Rate"].ffill().bfill()
     for col in ["Open", "High", "Low", "Close"]:
         if col in merged.columns:
-            merged[col] = pd.to_numeric(merged[col], errors="coerce") * merged["Rate"]
+            merged[col] = pd.to_numeric(merged[col], errors="coerce")
+            merged[f"{col}_gbp"] = merged[col] * merged["Rate"]
     return merged.drop(columns=["Rate"])
 
 # ──────────────────────────────────────────────────────────────
@@ -322,7 +333,13 @@ def load_meta_timeseries_range(
         e = end_date - timedelta(days=offset)
         df = _memoized_range(ticker, exchange, s.isoformat(), e.isoformat())
         if not df.empty:
-            df = _convert_to_gbp(df, exchange, s, e)
+            try:
+                df = _convert_to_gbp(df, exchange, s, e)
+            except ValueError as exc:
+                logger.warning(
+                    "Skipping FX conversion for %s.%s: %s", ticker, exchange, exc
+                )
+                return _empty_ts()
             return df
     return _empty_ts()
 

@@ -1,13 +1,21 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
+
+const mockGetConfig = vi.fn();
+const mockUpdateConfig = vi.fn();
 
 vi.mock("../api", () => ({
   API_BASE: "",
-  getConfig: vi.fn().mockResolvedValue({ flag: true }),
-  updateConfig: vi.fn(),
+  getConfig: mockGetConfig,
+  updateConfig: mockUpdateConfig,
 }));
 
 import Support from "./Support";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockGetConfig.mockResolvedValue({ flag: true });
+});
 
 describe("Support page", () => {
   it("renders environment heading", () => {
@@ -27,4 +35,21 @@ describe("Support page", () => {
     );
     vi.unstubAllEnvs();
   });
+
+  it("stringifies fresh config after saving", async () => {
+    mockGetConfig.mockResolvedValueOnce({ flag: true });
+    mockGetConfig.mockResolvedValueOnce({ flag: false, count: 5 });
+    mockUpdateConfig.mockResolvedValue(undefined);
+
+    render(<Support />);
+
+    const saveButton = await screen.findByRole("button", { name: "Save" });
+    fireEvent.click(saveButton);
+
+    await screen.findByDisplayValue("5");
+
+    expect(screen.getByDisplayValue("false")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("5")).toBeInTheDocument();
+  });
 });
+

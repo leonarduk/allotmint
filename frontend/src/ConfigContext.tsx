@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { getConfig } from "./api";
 
@@ -39,7 +40,7 @@ const defaultTabs: TabsConfig = {
   support: true,
 };
 
-const ConfigContext = createContext<AppConfig>({
+export const configContext = createContext<AppConfig>({
   relativeViewEnabled: false,
   disabledTabs: [],
   tabs: defaultTabs,
@@ -85,14 +86,12 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     applyTheme(config.theme);
   }, [config.theme]);
 
-  return <ConfigContext.Provider value={config}>{children}</ConfigContext.Provider>;
+  return <configContext.Provider value={config}>{children}</configContext.Provider>;
 }
 
 export function useConfig() {
-  return useContext(ConfigContext);
+  return useContext(configContext);
 }
-
-export { ConfigContext };
 
 function applyTheme(theme: string) {
   const root = document.documentElement;

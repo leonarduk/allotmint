@@ -88,19 +88,6 @@ export default function App() {
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
 
-  const modes: Mode[] = [
-    "group",
-    ...(tabs.instrument ? ["instrument"] : []),
-    "owner",
-    ...(tabs.performance ? ["performance"] : []),
-    ...(tabs.transactions ? ["transactions"] : []),
-    ...(tabs.screener ? ["screener"] : []),
-    ...(tabs.query ? ["query"] : []),
-    ...(tabs.trading ? ["trading"] : []),
-    ...(tabs.timeseries ? ["timeseries"] : []),
-    ...(tabs.watchlist ? ["watchlist"] : []),
-  ];
-
   const links: JSX.Element[] = [];
   if (tabs.virtual) links.push(<a href="/virtual">Virtual Portfolios</a>);
   if (tabs.trading) links.push(<a href="/trading">Trading Agent</a>);

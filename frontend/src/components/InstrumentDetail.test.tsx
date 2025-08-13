@@ -4,6 +4,22 @@ import { describe, it, expect, vi, type Mock, beforeEach } from "vitest";
 import i18n from "../i18n";
 import { ConfigContext, type AppConfig } from "../ConfigContext";
 
+const defaultConfig: AppConfig = {
+  relativeViewEnabled: false,
+  tabs: {
+    instrument: true,
+    performance: true,
+    transactions: true,
+    screener: true,
+    query: true,
+    trading: true,
+    timeseries: true,
+    watchlist: true,
+    virtual: true,
+    support: true,
+  },
+};
+
 vi.mock("../api", () => ({ getInstrumentDetail: vi.fn() }));
 import { getInstrumentDetail } from "../api";
 
@@ -19,9 +35,9 @@ import { InstrumentDetail } from "./InstrumentDetail";
 describe("InstrumentDetail", () => {
   const mockGetInstrumentDetail = getInstrumentDetail as unknown as Mock;
 
-  const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
+  const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig>) =>
     render(
-      <ConfigContext.Provider value={cfg}>
+      <ConfigContext.Provider value={{ ...defaultConfig, ...cfg }}>
         <MemoryRouter>{ui}</MemoryRouter>
       </ConfigContext.Provider>,
     );

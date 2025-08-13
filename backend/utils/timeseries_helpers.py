@@ -41,7 +41,12 @@ def get_scaling_override(
     if requested_scaling is not None:
         return requested_scaling
 
-    path = Path(config.repo_root) / "data" / "scaling_overrides.json"
+    repo_root = (
+        Path(config.repo_root)
+        if config.repo_root and ":" not in str(config.repo_root)
+        else Path(__file__).resolve().parents[2]
+    )
+    path = repo_root / "data" / "scaling_overrides.json"
     try:
         with path.open() as f:
             ov = json.load(f)

@@ -122,8 +122,7 @@ def test_var_invalid_params(mock_var, mock_sharpe):
     response = client.get("/var/steve?confidence=2")
     assert response.status_code == 400
 
-@patch("backend.common.risk.compute_portfolio_var", side_effect=ValueError("bad"))
-def test_var_invalid_percentage(mock_var):
+def test_var_invalid_confidence_range():
     response = client.get("/var/steve?confidence=101")
     assert response.status_code == 400
 

@@ -1,7 +1,7 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { HoldingsTable } from "./HoldingsTable";
-import { ConfigContext, type AppConfig } from "../ConfigContext";
+import { configContext, type AppConfig } from "../ConfigContext";
 
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
@@ -87,9 +87,9 @@ describe("HoldingsTable", () => {
 
     const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig>) =>
         render(
-            <ConfigContext.Provider value={{ ...defaultConfig, ...cfg }}>
+            <configContext.Provider value={{ ...defaultConfig, ...cfg }}>
                 {ui}
-            </ConfigContext.Provider>,
+            </configContext.Provider>,
         );
 
     it("displays relative metrics when relative view is enabled", () => {

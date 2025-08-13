@@ -114,7 +114,7 @@ export default function App() {
               : segs[0] === "watchlist"
                 ? "watchlist"
                 : "group";
-    if ((tabs as Record<string, boolean>)[newMode] === false) {
+    if (tabs[newMode] === false) {
       setMode("group");
       navigate("/", { replace: true });
       return;
@@ -238,7 +238,7 @@ export default function App() {
           "timeseries",
           "watchlist",
           ] as Mode[])
-            .filter((m) => (tabs as Record<string, boolean>)[m] !== false)
+            .filter((m) => tabs[m] !== false)
             .map((m) => (
             <label key={m} style={{ marginRight: "1rem" }}>
               <input

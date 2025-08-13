@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, type Mock } from "vitest";
 import type { InstrumentSummary } from "../types";
-import { ConfigContext, type AppConfig } from "../ConfigContext";
+import { configContext, type AppConfig } from "../ConfigContext";
 
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
@@ -139,9 +139,9 @@ describe("InstrumentTable", () => {
 
     it("hides absolute columns in relative view", () => {
         render(
-            <ConfigContext.Provider value={{ ...defaultConfig, relativeViewEnabled: true }}>
+            <configContext.Provider value={{ ...defaultConfig, relativeViewEnabled: true }}>
                 <InstrumentTable rows={rows} />
-            </ConfigContext.Provider>,
+            </configContext.Provider>,
         );
         expect(screen.queryByRole('columnheader', { name: 'Units' })).toBeNull();
         expect(screen.queryByRole('columnheader', { name: 'Cost £' })).toBeNull();

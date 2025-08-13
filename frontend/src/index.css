@@ -13,18 +13,6 @@
     -moz-osx-font-smoothing: grayscale;
 }
 
-:root[data-theme='light'] {
-    color-scheme: light;
-    color: #213547;
-    background-color: #ffffff;
-}
-
-:root[data-theme='dark'] {
-    color-scheme: dark;
-    color: rgba(255, 255, 255, 0.87);
-    background-color: #242424;
-}
-
 a {
     font-weight: 500;
     color: #646cff;
@@ -33,10 +21,6 @@ a {
 
 a:hover {
     color: #535bf2;
-}
-
-:root[data-theme='light'] a:hover {
-    color: #747bff;
 }
 
 body {
@@ -73,22 +57,17 @@ button:focus-visible {
     outline: 4px auto -webkit-focus-ring-color;
 }
 
-:root[data-theme='light'] button {
-    background-color: #f9f9f9;
-}
-
 @media (prefers-color-scheme: light) {
-    :root:not([data-theme]) {
+    :root {
         color: #213547;
         background-color: #ffffff;
     }
 
-    :root:not([data-theme]) a:hover {
+    a:hover {
         color: #747bff;
     }
 
-    :root:not([data-theme]) button {
+    button {
         background-color: #f9f9f9;
     }
 }
-

@@ -11,16 +11,20 @@ export function ComplianceWarnings({ owners }: Props) {
     data,
     loading,
     error,
-  } = useFetch<Record<string, string[]>>(
+  } = useFetch<Record<string, ComplianceResult>>(
     async () => {
-      const entries: Record<string, string[]> = {};
+      const entries: Record<string, ComplianceResult> = {};
       await Promise.all(
         owners.map(async (o) => {
           try {
-            const res: ComplianceResult = await getCompliance(o);
-            entries[o] = res.warnings ?? [];
+            const res = await getCompliance(o);
+            entries[o] = res;
           } catch {
-            entries[o] = ["Failed to load warnings"];
+            entries[o] = {
+              owner: o,
+              warnings: ["Failed to load warnings"],
+              trade_counts: {},
+            };
           }
         })
       );
@@ -32,7 +36,9 @@ export function ComplianceWarnings({ owners }: Props) {
 
   if (!owners.length || loading || error) return null;
 
-  const ownersWithWarnings = owners.filter((o) => (data?.[o] ?? []).length);
+  const ownersWithWarnings = owners.filter(
+    (o) => (data?.[o]?.warnings ?? []).length,
+  );
 
   if (!ownersWithWarnings.length) return null;
 
@@ -50,7 +56,7 @@ export function ComplianceWarnings({ owners }: Props) {
         <div key={o} style={{ marginBottom: "0.5rem" }}>
           <strong>{o}</strong>
           <ul style={{ margin: "0.25rem 0 0 1.25rem" }}>
-            {(data?.[o] ?? []).map((w) => (
+            {(data?.[o]?.warnings ?? []).map((w) => (
               <li key={`${o}-${w}`}>{w}</li>
             ))}
           </ul>

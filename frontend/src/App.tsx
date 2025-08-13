@@ -28,6 +28,7 @@ import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
+import { useConfig } from "./ConfigContext";
 
 type Mode =
   | "owner"
@@ -60,6 +61,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  const { disabledTabs = [] } = useConfig();
 
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -108,6 +110,11 @@ export default function App() {
               : segs[0] === "watchlist"
                 ? "watchlist"
                 : "group";
+    if (disabledTabs.includes(newMode)) {
+      setMode("group");
+      navigate("/", { replace: true });
+      return;
+    }
     setMode(newMode);
     if (newMode === "owner") {
       setSelectedOwner(segs[1] ?? "");
@@ -118,7 +125,7 @@ export default function App() {
         new URLSearchParams(location.search).get("group") ?? "",
       );
     }
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, disabledTabs, navigate]);
 
   useEffect(() => {
     if (ownersReq.data) setOwners(ownersReq.data);
@@ -226,18 +233,20 @@ export default function App() {
           "trading",
           "timeseries",
           "watchlist",
-        ] as Mode[]).map((m) => (
-          <label key={m} style={{ marginRight: "1rem" }}>
-            <input
-              type="radio"
-              name="mode"
-              value={m}
-              checked={mode === m}
-              onChange={() => setMode(m)}
-            />{" "}
-            {t(`app.modes.${m}`)}
-          </label>
-        ))}
+        ] as Mode[])
+          .filter((m) => !disabledTabs.includes(m))
+          .map((m) => (
+            <label key={m} style={{ marginRight: "1rem" }}>
+              <input
+                type="radio"
+                name="mode"
+                value={m}
+                checked={mode === m}
+                onChange={() => setMode(m)}
+              />{" "}
+              {t(`app.modes.${m}`)}
+            </label>
+          ))}
       </div>
 
       <div style={{ marginBottom: "1rem" }}>

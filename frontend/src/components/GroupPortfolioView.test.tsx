@@ -176,7 +176,8 @@ describe("GroupPortfolioView", () => {
 
     const bobCheckbox = screen.getByLabelText(/bob isa/i);
     fireEvent.click(bobCheckbox);
-
-    expect(valueEl).toHaveTextContent("£100.00");
+    await waitFor(() => {
+      expect(valueEl).toHaveTextContent("£100.00");
+    });
   });
 });

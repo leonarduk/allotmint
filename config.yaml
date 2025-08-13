@@ -31,12 +31,12 @@ error_summary: '[object Object]'
 
 tabs:
   instrument: true
-  performance: true
-  transactions: true
-  screener: true
-  query: true
-  trading: true
+  performance: false
+  transactions: false
+  screener: false
+  query: false
+  trading: false
   timeseries: true
-  watchlist: true
-  virtual: true
+  watchlist: false
+  virtual: false
   support: true

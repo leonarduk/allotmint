@@ -145,3 +145,27 @@ def test_positions_gain_from_cost(monkeypatch):
     pos = data["positions"][0]
     assert pos["unrealised_gain_gbp"] == pytest.approx(2.0)
     assert pos["gain_pct"] == pytest.approx(10.0)
+
+
+def test_non_gbp_instrument_has_distinct_close(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = pd.DataFrame(
+        {
+            "Date": pd.date_range("2020-01-01", periods=2, freq="D"),
+            "Close": [10.0, 11.0],
+            "Close_gbp": [8.0, 8.8],
+        }
+    )
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch(
+        "backend.routes.instrument.list_portfolios", return_value=[]
+    ), patch(
+        "backend.routes.instrument.get_security_meta", return_value={"currency": "USD"}
+    ):
+        client = TestClient(app)
+        resp = client.get("/instrument?ticker=ABC.N&days=1&format=json")
+    assert resp.status_code == 200
+    prices = resp.json()["prices"]
+    assert prices[-1]["close"] != prices[-1]["close_gbp"]

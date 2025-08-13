@@ -5,6 +5,7 @@ import { ConfigContext, type AppConfig } from "../ConfigContext";
 
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
+    theme: "system",
     tabs: {
         instrument: true,
         performance: true,

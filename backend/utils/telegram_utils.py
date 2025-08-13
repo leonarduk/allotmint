@@ -20,6 +20,34 @@ config = app_config
 OFFLINE_MODE = config.offline_mode
 logger = logging.getLogger(__name__)
 
+
+def redact_token(text: str) -> str:
+    """Replace any occurrence of the Telegram token in ``text`` with ***."""
+    token = app_config.telegram_bot_token
+    if not token:
+        return text
+    return text.replace(token, "***")
+
+
+class RedactTokenFilter(logging.Filter):
+    """Filter that redacts the Telegram token from log records."""
+
+    def filter(self, record: logging.LogRecord) -> bool:  # pragma: no cover - logging internals
+        token = app_config.telegram_bot_token
+        if token:
+            if isinstance(record.msg, str):
+                record.msg = record.msg.replace(token, "***")
+            if record.args:
+                record.args = tuple(
+                    arg.replace(token, "***") if isinstance(arg, str) else arg
+                    for arg in record.args
+                )
+        return True
+
+
+# Ensure all loggers redact the token
+logging.getLogger().addFilter(RedactTokenFilter())
+
 MESSAGE_TTL_SECONDS = 300
 RECENT_MESSAGES: dict[str, float] = {}
 
@@ -45,12 +73,16 @@ def send_message(text: str) -> None:
     if not token or not chat_id:
         return
 
-    resp = requests.post(
-        f"https://api.telegram.org/bot{token}/sendMessage",
-        data={"chat_id": str(chat_id), "text": text},
-        timeout=5,
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data={"chat_id": str(chat_id), "text": text},
+            timeout=5,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        # Avoid leaking the token in exception messages
+        raise exc.__class__(redact_token(str(exc))) from exc
     RECENT_MESSAGES[text] = now
 
 

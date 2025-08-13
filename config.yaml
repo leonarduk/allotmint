@@ -28,3 +28,15 @@ approval_valid_days: 2
 approval_exempt_types: ETF
 approval_exempt_tickers: ''
 error_summary: '[object Object]'
+
+tabs:
+  instrument: true
+  performance: true
+  transactions: true
+  screener: true
+  query: true
+  trading: true
+  timeseries: true
+  watchlist: true
+  virtual: true
+  support: true

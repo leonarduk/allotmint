@@ -223,10 +223,16 @@ async def instrument(
             "date": lambda d: d["date"].dt.strftime("%Y-%m-%d"),
             "close": lambda d: d["close"].astype(float),
         }
+        is_gbp_ticker = ticker.upper().endswith(".L") or ticker.upper().endswith(".UK")
+        if currency == "GBX" or (currency is None and is_gbp_ticker):
+            currency = "GBP"
+        if "Close_gbp" not in df.columns and "Close" in df.columns and (currency == "GBP" or is_gbp_ticker):
+            df["Close_gbp"] = df["Close"]
         if "Close_gbp" in df.columns:
             cols.append("Close_gbp")
             rename["Close_gbp"] = "close_gbp"
             assigns["close_gbp"] = lambda d: d["close_gbp"].astype(float)
+            currency = "GBP"
 
         prices = (
             df[cols]

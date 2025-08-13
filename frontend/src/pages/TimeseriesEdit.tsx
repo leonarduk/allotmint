@@ -1,4 +1,5 @@
-import { useState, ChangeEvent, useEffect } from "react";
+import { useState, useEffect } from "react";
+import type { ChangeEvent } from "react";
 import { getTimeseries, saveTimeseries } from "../api";
 import type { PriceEntry } from "../types";
 

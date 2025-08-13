@@ -111,5 +111,26 @@
   "approxTotal": "Total approximatif: £{{value}}",
   "watchlist": {
     "refresh": "Actualiser"
+  },
+  "query": {
+    "start": "Début",
+    "end": "Fin",
+    "owners": "Propriétaires",
+    "tickers": "Tickers",
+    "metrics": "Métriques",
+    "run": "Exécuter",
+    "running": "Exécution…",
+    "save": "Enregistrer",
+    "exportCsv": "Exporter CSV",
+    "exportXlsx": "Exporter XLSX"
+  },
+  "screener": {
+    "tickers": "Tickers",
+    "maxPeg": "PEG max",
+    "maxPe": "P/E max",
+    "maxDe": "D/E max",
+    "minFcf": "FCF min",
+    "run": "Exécuter",
+    "loading": "Chargement…"
   }
 }

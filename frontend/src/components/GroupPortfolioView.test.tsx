@@ -114,6 +114,34 @@ describe("GroupPortfolioView", () => {
     expect(screen.getAllByText("Cash").length).toBeGreaterThan(0);
   });
 
+  it("calls onSelectMember when owner name clicked", async () => {
+    const mockPortfolio = {
+      name: "All owners combined",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [],
+        },
+      ],
+    };
+
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockPortfolio,
+    } as unknown as Response);
+
+    const handler = vi.fn();
+    render(<GroupPortfolioView slug="all" onSelectMember={handler} />);
+
+    await screen.findAllByText("alice");
+
+    fireEvent.click(screen.getAllByText("alice")[0]);
+
+    expect(handler).toHaveBeenCalledWith("alice");
+  });
+
 
   const locales = ["en", "fr", "de", "es", "pt"] as const;
 
@@ -176,7 +204,8 @@ describe("GroupPortfolioView", () => {
 
     const bobCheckbox = screen.getByLabelText(/bob isa/i);
     fireEvent.click(bobCheckbox);
-
-    expect(valueEl).toHaveTextContent("£100.00");
+    await waitFor(() => {
+      expect(valueEl).toHaveTextContent("£100.00");
+    });
   });
 });

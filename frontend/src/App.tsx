@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
@@ -24,10 +24,10 @@ import { Screener } from "./pages/Screener";
 import { QueryPage } from "./pages/QueryPage";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
-import i18n from "./i18n";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
+import { useConfig } from "./ConfigContext";
 
 type Mode =
   | "owner"
@@ -60,6 +60,8 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  const { disabledTabs = [] } = useConfig();
+  const { tabs } = useConfig();
 
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -86,6 +88,24 @@ export default function App() {
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
 
+  const modes: Mode[] = [
+    "group",
+    ...(tabs.instrument ? ["instrument"] : []),
+    "owner",
+    ...(tabs.performance ? ["performance"] : []),
+    ...(tabs.transactions ? ["transactions"] : []),
+    ...(tabs.screener ? ["screener"] : []),
+    ...(tabs.query ? ["query"] : []),
+    ...(tabs.trading ? ["trading"] : []),
+    ...(tabs.timeseries ? ["timeseries"] : []),
+    ...(tabs.watchlist ? ["watchlist"] : []),
+  ];
+
+  const links: JSX.Element[] = [];
+  if (tabs.virtual) links.push(<a href="/virtual">Virtual Portfolios</a>);
+  if (tabs.trading) links.push(<a href="/trading">Trading Agent</a>);
+  if (tabs.support) links.push(<a href="/support">{t("app.supportLink")}</a>);
+
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
     const newMode: Mode =
@@ -108,6 +128,11 @@ export default function App() {
               : segs[0] === "watchlist"
                 ? "watchlist"
                 : "group";
+    if (disabledTabs.includes(newMode)) {
+      setMode("group");
+      navigate("/", { replace: true });
+      return;
+    }
     setMode(newMode);
     if (newMode === "owner") {
       setSelectedOwner(segs[1] ?? "");
@@ -118,7 +143,7 @@ export default function App() {
         new URLSearchParams(location.search).get("group") ?? "",
       );
     }
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, disabledTabs, navigate]);
 
   useEffect(() => {
     if (ownersReq.data) setOwners(ownersReq.data);
@@ -226,18 +251,20 @@ export default function App() {
           "trading",
           "timeseries",
           "watchlist",
-        ] as Mode[]).map((m) => (
-          <label key={m} style={{ marginRight: "1rem" }}>
-            <input
-              type="radio"
-              name="mode"
-              value={m}
-              checked={mode === m}
-              onChange={() => setMode(m)}
-            />{" "}
-            {t(`app.modes.${m}`)}
-          </label>
-        ))}
+        ] as Mode[])
+          .filter((m) => !disabledTabs.includes(m))
+          .map((m) => (
+            <label key={m} style={{ marginRight: "1rem" }}>
+              <input
+                type="radio"
+                name="mode"
+                value={m}
+                checked={mode === m}
+                onChange={() => setMode(m)}
+              />{" "}
+              {t(`app.modes.${m}`)}
+            </label>
+          ))}
       </div>
 
       <div style={{ marginBottom: "1rem" }}>
@@ -332,15 +359,16 @@ export default function App() {
 
       {mode === "query" && <QueryPage />}
 
-      <p style={{ marginTop: "2rem", textAlign: "center" }}>
-        <a href="/virtual">Virtual Portfolios</a>
-        {" • "}
-        <a href="/trading">Trading Agent</a>
-        {" • "}
-        <a href="/support">{t("app.supportLink")}</a>
-        {" • "}
-        <a href="/admin/config">Admin Config</a>
-      </p>
+      {links.length > 0 && (
+        <p style={{ marginTop: "2rem", textAlign: "center" }}>
+          {links.map((link, i) => (
+            <span key={i}>
+              {i > 0 && " • "}
+              {link}
+            </span>
+          ))}
+        </p>
+      )}
     </div>
   );
 }

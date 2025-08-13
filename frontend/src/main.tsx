@@ -6,7 +6,6 @@ import './i18n'
 import App from './App.tsx'
 import Support from './pages/Support'
 import VirtualPortfolio from './pages/VirtualPortfolio'
-import AdminConfig from './pages/AdminConfig'
 import './i18n'
 import { ConfigProvider } from './ConfigContext'
 
@@ -17,7 +16,6 @@ createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route path="/support" element={<Support />} />
           <Route path="/virtual" element={<VirtualPortfolio />} />
-          <Route path="/admin/config" element={<AdminConfig />} />
           <Route path="/*" element={<App />} />
         </Routes>
       </BrowserRouter>

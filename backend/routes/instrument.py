@@ -43,7 +43,7 @@ def _validate_ticker(tkr: str) -> None:
         raise HTTPException(400, f'Invalid ticker: "{tkr}"')
 
 
-def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
+def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, Any]]:
     """Return every occurrence of ``tkr`` across all portfolios.
 
     The structure returned by :func:`list_portfolios` looks roughly like::
@@ -72,7 +72,11 @@ def _positions_for_ticker(tkr: str, last_close: float) -> List[Dict[str, Any]]:
                     continue
 
                 units = h.get("units") or h.get("quantity")
-                mv_gbp = None if units is None else round(units * last_close, 2)
+                mv_gbp = (
+                    None
+                    if units is None or last_close is None
+                    else round(units * last_close, 2)
+                )
 
                 gain_gbp = h.get("gain_gbp")
                 gain_pct = h.get("gain_pct")
@@ -189,10 +193,15 @@ async def instrument(
 
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
 
-    # Ensure both Close and Close_gbp columns exist
+    # Ensure Close column exists for downstream processing
     if "Close" not in df.columns and "Close_gbp" in df.columns:
         df["Close"] = df["Close_gbp"]
-    if "Close_gbp" not in df.columns and "Close" in df.columns:
+
+    meta = get_security_meta(ticker) or {}
+    currency = meta.get("currency")
+
+    ts_is_gbp = currency == "GBP" or "Close_gbp" in df.columns
+    if ts_is_gbp and "Close_gbp" not in df.columns and "Close" in df.columns:
         df["Close_gbp"] = df["Close"]
 
     # Apply instrument-specific scaling
@@ -204,7 +213,7 @@ async def instrument(
 
     df = df[pd.notnull(df["Close"])]
 
-    last_close = float(df.iloc[-1]["Close_gbp"])
+    last_close = float(df.iloc[-1]["Close_gbp"]) if "Close_gbp" in df.columns else None
     positions = _positions_for_ticker(ticker.upper(), last_close)
 
     if scale != 1.0:
@@ -214,14 +223,21 @@ async def instrument(
 
     # ── JSON ───────────────────────────────────────────────────
     if format == "json":
+        cols = ["Date", "Close"]
+        rename = {"Date": "date", "Close": "close"}
+        assigns = {
+            "date": lambda d: d["date"].dt.strftime("%Y-%m-%d"),
+            "close": lambda d: d["close"].astype(float),
+        }
+        if "Close_gbp" in df.columns:
+            cols.append("Close_gbp")
+            rename["Close_gbp"] = "close_gbp"
+            assigns["close_gbp"] = lambda d: d["close_gbp"].astype(float)
+
         prices = (
-            df[["Date", "Close", "Close_gbp"]]
-            .rename(columns={"Date": "date", "Close": "close", "Close_gbp": "close_gbp"})
-            .assign(
-                date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
-                close=lambda d: d["close"].astype(float),
-                close_gbp=lambda d: d["close_gbp"].astype(float),
-            )
+            df[cols]
+            .rename(columns=rename)
+            .assign(**assigns)
             .to_dict(orient="records")
         )
         payload = {
@@ -231,7 +247,7 @@ async def instrument(
             "rows": len(prices),
             "positions": positions,
             "prices": prices,
-            "currency": (get_security_meta(ticker) or {}).get("currency"),
+            "currency": currency,
         }
         return JSONResponse(jsonable_encoder(payload))
 

@@ -1,20 +1,69 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { getConfig } from "./api";
 
-export interface AppConfig {
-  relativeViewEnabled: boolean;
+export interface TabsConfig {
+  instrument: boolean;
+  performance: boolean;
+  transactions: boolean;
+  screener: boolean;
+  query: boolean;
+  trading: boolean;
+  timeseries: boolean;
+  watchlist: boolean;
+  virtual: boolean;
+  support: boolean;
 }
 
-export const ConfigContext = createContext<AppConfig>({ relativeViewEnabled: false });
+export interface AppConfig {
+  relativeViewEnabled: boolean;
+  /**
+   * Tabs that should be hidden/disabled from the UI.  We keep the type
+   * flexible here so that the context can be consumed without depending on
+   * the `Mode` union defined in `App.tsx`.
+   */
+  disabledTabs?: string[];
+  tabs: TabsConfig;
+}
+
+export const ConfigContext = createContext<AppConfig>({
+  relativeViewEnabled: false,
+  disabledTabs: [],
+}
+
+const defaultTabs: TabsConfig = {
+  instrument: true,
+  performance: true,
+  transactions: true,
+  screener: true,
+  query: true,
+  trading: true,
+  timeseries: true,
+  watchlist: true,
+  virtual: true,
+  support: true,
+};
+
+export const ConfigContext = createContext<AppConfig>({
+  relativeViewEnabled: false,
+  tabs: defaultTabs,
+});
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<AppConfig>({ relativeViewEnabled: false });
+  const [config, setConfig] = useState<AppConfig>({
+    relativeViewEnabled: false,
+    disabledTabs: [],
+    tabs: defaultTabs,
+  });
 
   useEffect(() => {
     getConfig()
       .then((cfg) =>
         setConfig({
           relativeViewEnabled: Boolean((cfg as any).relative_view_enabled),
+          disabledTabs: Array.isArray((cfg as any).disabled_tabs)
+            ? ((cfg as any).disabled_tabs as string[])
+            : [],
+          tabs: { ...defaultTabs, ...((cfg as any).tabs ?? {}) },
         })
       )
       .catch(() => {

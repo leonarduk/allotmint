@@ -11,7 +11,10 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
+
 import requests
+from requests import exceptions as req_exc
 
 from backend.config import config as app_config
 
@@ -49,7 +52,11 @@ class RedactTokenFilter(logging.Filter):
 logging.getLogger().addFilter(RedactTokenFilter())
 
 MESSAGE_TTL_SECONDS = 300
+RATE_LIMIT_SECONDS = 1.0
+MAX_RETRIES = 3
+
 RECENT_MESSAGES: dict[str, float] = {}
+_NEXT_ALLOWED_TIME = 0.0
 
 
 def send_message(text: str) -> None:
@@ -65,31 +72,60 @@ def send_message(text: str) -> None:
     if text in RECENT_MESSAGES:
         return
 
-    """Send `text` to the configured Telegram chat."""
     token = app_config.telegram_bot_token
     chat_id = app_config.telegram_chat_id
 
-    # Avoid emitting logs here (could recurse if TelegramLogHandler is active)
     if not token or not chat_id:
         return
 
-    try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data={"chat_id": str(chat_id), "text": text},
-            timeout=5,
-        )
-        resp.raise_for_status()
-    except requests.RequestException as exc:
-        # Avoid leaking the token in exception messages
-        raise exc.__class__(redact_token(str(exc))) from exc
-    RECENT_MESSAGES[text] = now
+    global _NEXT_ALLOWED_TIME
+    if now < _NEXT_ALLOWED_TIME:
+        time.sleep(_NEXT_ALLOWED_TIME - now)
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    data: dict[str, Any] = {"chat_id": str(chat_id), "text": text}
+
+    backoff = 1.0
+    warning_logged = False
+
+    for _ in range(MAX_RETRIES):
+        try:
+            resp = requests.post(url, data=data, timeout=5)
+        except req_exc.Timeout:
+            logger.warning("Timeout sending Telegram message", extra={"skip_telegram": True})
+            return
+        except req_exc.RequestException as exc:
+            logger.warning(f"Error sending Telegram message: {exc}", extra={"skip_telegram": True})
+            return
+
+        if resp.status_code == 429:
+            if not warning_logged:
+                logger.warning(
+                    "Telegram rate limit hit; backing off", extra={"skip_telegram": True}
+                )
+                warning_logged = True
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+            continue
+
+        try:
+            resp.raise_for_status()
+        except req_exc.RequestException as exc:
+            logger.warning(f"Error sending Telegram message: {exc}", extra={"skip_telegram": True})
+            return
+
+        RECENT_MESSAGES[text] = time.time()
+        _NEXT_ALLOWED_TIME = time.time() + RATE_LIMIT_SECONDS
+        return
+
 
 
 class TelegramLogHandler(logging.Handler):
     """A logging handler that forwards records to Telegram."""
 
     def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - thin wrapper
+        if getattr(record, "skip_telegram", False):
+            return
         try:
             message = self.format(record)
             if not OFFLINE_MODE:

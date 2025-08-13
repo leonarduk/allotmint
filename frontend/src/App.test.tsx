@@ -91,9 +91,26 @@ describe("App", () => {
     const { default: App } = await import("./App");
     const { ConfigContext } = await import("./ConfigContext");
 
+    const allTabs = {
+      instrument: true,
+      performance: true,
+      transactions: true,
+      screener: true,
+      query: true,
+      trading: true,
+      timeseries: true,
+      watchlist: true,
+      virtual: true,
+      support: true,
+    };
+
     render(
       <ConfigContext.Provider
-        value={{ relativeViewEnabled: false, disabledTabs: ["trading"] }}
+        value={{
+          relativeViewEnabled: false,
+          disabledTabs: ["trading"],
+          tabs: allTabs,
+        }}
       >
         <MemoryRouter initialEntries={["/trading"]}>
           <App />
@@ -129,8 +146,23 @@ describe("App", () => {
     const { default: App } = await import("./App");
     const { ConfigContext } = await import("./ConfigContext");
 
+    const allTabs = {
+      instrument: true,
+      performance: true,
+      transactions: true,
+      screener: true,
+      query: true,
+      trading: true,
+      timeseries: true,
+      watchlist: true,
+      virtual: true,
+      support: true,
+    };
+
     render(
-      <ConfigContext.Provider value={{ relativeViewEnabled: false }}>
+      <ConfigContext.Provider
+        value={{ relativeViewEnabled: false, tabs: allTabs }}
+      >
         <MemoryRouter initialEntries={["/trading"]}>
           <App />
         </MemoryRouter>

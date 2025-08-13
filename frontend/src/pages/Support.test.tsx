@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
-const mockGetConfig = vi.fn();
-const mockUpdateConfig = vi.fn();
+const mockGetConfig = vi.hoisted(() => vi.fn());
+const mockUpdateConfig = vi.hoisted(() => vi.fn());
 
 vi.mock("../api", () => ({
   API_BASE: "",

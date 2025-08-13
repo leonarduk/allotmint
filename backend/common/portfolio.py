@@ -12,6 +12,7 @@ Owner-level portfolio builder for AllotMint
 import csv
 import datetime as dt
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -22,7 +23,12 @@ from backend.common.constants import (
     UNITS,
     TICKER,
 )
-from backend.common.data_loader import list_plots, load_account
+from backend.common.data_loader import (
+    list_plots,
+    load_account,
+    DATA_BUCKET_ENV,
+    PLOTS_PREFIX,
+)
 from backend.common.holding_utils import enrich_holding
 from backend.common.approvals import load_approvals
 
@@ -41,8 +47,23 @@ def _load_trades_local(owner: str) -> List[Dict[str, Any]]:
 
 
 def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
-    # TODO: implement S3 lookup once infra is in place
-    return []
+    bucket = os.getenv(DATA_BUCKET_ENV)
+    if not bucket:
+        return []
+
+    key = f"{PLOTS_PREFIX}{owner}/trades.csv"
+    try:
+        import boto3  # type: ignore
+
+        s3 = boto3.client("s3")
+        obj = s3.get_object(Bucket=bucket, Key=key)
+        body = obj.get("Body")
+        if not body:
+            return []
+        data = body.read().decode("utf-8").splitlines()
+        return list(csv.DictReader(data))
+    except Exception:
+        return []
 
 
 def load_trades(owner: str) -> List[Dict[str, Any]]:

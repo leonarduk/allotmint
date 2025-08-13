@@ -197,6 +197,27 @@ cdk deploy StaticSiteStack
 The bucket remains private and CloudFront uses an origin access identity
 with Price Class 100 to minimise cost while serving the content over HTTPS.
 
+### Backend data bucket
+
+Runtime portfolio data lives in a separate S3 bucket referenced by the
+`DATA_BUCKET` environment variable. Files are stored under the `accounts/`
+prefix:
+
+- `accounts/<owner>/trades.csv`
+- `accounts/<owner>/<account>.json`
+- `accounts/<owner>/person.json`
+
+Lambdas that read portfolio information require `s3:GetObject` permission for
+these paths. A minimal IAM policy statement is:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["s3:GetObject"],
+  "Resource": "arn:aws:s3:::YOUR_DATA_BUCKET/accounts/*"
+}
+```
+
 ### GitHub Actions Deployment
 
 The CI workflow in `.github/workflows/deploy-lambda.yml` uses GitHub's

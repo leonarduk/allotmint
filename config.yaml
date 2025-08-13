@@ -1,9 +1,9 @@
 offline_mode: false
 max_trades_per_month: 20
 hold_days_min: 30
-repo_root: C:\workspaces\github\allotmint
-accounts_root: C:\workspaces\github\allotmint\data\accounts
-prices_json: C:\workspaces\github\allotmint\data\prices\latest_prices.json
+repo_root: .
+accounts_root: data/accounts
+prices_json: data/prices/latest_prices.json
 risk_free_rate: 0.01
 timeseries_cache_base: data/timeseries
 alpha_vantage_key: B74N5L0LY87QHKX4

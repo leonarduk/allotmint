@@ -38,7 +38,7 @@ const defaultTabs: TabsConfig = {
   support: true,
 };
 
-export const ConfigContext = createContext<AppConfig>({
+const ConfigContext = createContext<AppConfig>({
   relativeViewEnabled: false,
   disabledTabs: [],
   tabs: defaultTabs,
@@ -80,4 +80,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 export function useConfig() {
   return useContext(ConfigContext);
 }
+
+export { ConfigContext };
 

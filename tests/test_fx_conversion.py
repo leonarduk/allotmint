@@ -125,3 +125,32 @@ def test_memoized_range_returns_copy(monkeypatch):
     second = cache._memoized_range("T", "L", start.isoformat(), end.isoformat())
     assert calls["n"] == 1
     assert list(second["Close"]) == [1, 2]
+
+
+def test_offline_mode_uses_fx_cache(tmp_path, monkeypatch):
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 2)
+
+    def fake_memoized_range(ticker, exch, s_iso, e_iso):
+        return _sample_df(start, end)
+
+    monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", True)
+    monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
+    monkeypatch.setattr(cache, "get_instrument_meta", lambda t: {"currency": "USD"})
+
+    fx_df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(pd.bdate_range(start, end)),
+            "Rate": [0.8, 0.81],
+        }
+    )
+    fx_path = tmp_path / "fx" / "USD.parquet"
+    fx_path.parent.mkdir(parents=True)
+    fx_df.to_parquet(fx_path, index=False)
+
+    df = cache.load_meta_timeseries_range("T", "N", start, end)
+    assert list(df["Close_gbp"].astype(float)) == [
+        pytest.approx(1 * 0.8),
+        pytest.approx(2 * 0.81),
+    ]

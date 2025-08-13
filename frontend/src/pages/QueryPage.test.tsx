@@ -8,7 +8,7 @@ vi.mock("../api", () => ({
     { owner: "Bob", accounts: [] },
   ]),
   runCustomQuery: vi.fn().mockResolvedValue([
-    { owner: "Alice", ticker: "AAA", market_value_gbp: 100 },
+    { owner: "Alice", ticker: "AAA", price: 100 },
   ]),
   saveCustomQuery: vi.fn().mockResolvedValue({}),
   listSavedQueries: vi.fn().mockResolvedValue([
@@ -20,7 +20,8 @@ vi.mock("../api", () => ({
         end: "2024-01-31",
         owners: ["Bob"],
         tickers: ["BBB"],
-        metrics: ["market_value_gbp"],
+        metrics: ["price"],
+        granularity: "weekly",
       },
     },
   ]),
@@ -44,7 +45,10 @@ describe("QueryPage", () => {
 
     fireEvent.click(screen.getByLabelText("Alice"));
     fireEvent.click(screen.getByLabelText("AAA"));
-    fireEvent.click(screen.getByLabelText("market_value_gbp"));
+    fireEvent.change(screen.getByLabelText("Granularity"), {
+      target: { value: "weekly" },
+    });
+    fireEvent.click(screen.getByLabelText("price"));
 
     fireEvent.click(screen.getByRole("button", { name: /run/i }));
 
@@ -53,7 +57,8 @@ describe("QueryPage", () => {
       end: "2024-02-01",
       owners: ["Alice"],
       tickers: ["AAA"],
-      metrics: ["market_value_gbp"],
+      metrics: ["price"],
+      granularity: "weekly",
     });
 
     expect(await screen.findByText("AAA")).toBeInTheDocument();
@@ -72,5 +77,6 @@ describe("QueryPage", () => {
     const btn = await screen.findByText("Saved1");
     fireEvent.click(btn);
     expect(screen.getByLabelText(/Start/)).toHaveValue("2024-01-01");
+    expect(screen.getByLabelText("Granularity")).toHaveValue("weekly");
   });
 });

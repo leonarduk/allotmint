@@ -1,6 +1,17 @@
 from __future__ import annotations
 
-"""Custom query routes for analytics and saved queries."""
+"""Custom query routes for analytics and saved queries.
+
+Supported metrics:
+
+* ``var`` – 1‑day Value at Risk using historical returns.
+* ``meta`` – basic security metadata sourced from portfolios.
+* ``price`` – time‑series of close prices between ``start`` and ``end``.
+* ``position`` – aggregated position sizes per owner for each ticker.
+
+``price`` can be resampled using the ``granularity`` field on ``CustomQuery``
+(``daily``/``weekly``/``monthly``).
+"""
 
 import io
 import json
@@ -29,6 +40,9 @@ class CustomQuery(BaseModel):
     owners: Optional[List[str]] = None
     tickers: Optional[List[str]] = None
     metrics: List[str] = Field(default_factory=list)
+    granularity: Optional[str] = Field(
+        "daily", pattern="^(daily|weekly|monthly)$"
+    )
     name: Optional[str] = None
     format: Optional[str] = Field("json", pattern="^(json|csv|xlsx)$")
 
@@ -60,6 +74,31 @@ def _resolve_tickers(q: CustomQuery) -> List[str]:
     return sorted(tickers)
 
 
+def _close_column(df: pd.DataFrame) -> str | None:
+    """Return the column name that holds close prices, case-insensitive."""
+    mapping = {c.lower(): c for c in df.columns}
+    return mapping.get("close") or mapping.get("adj close") or mapping.get("adj_close")
+
+
+def _positions_for_ticker(ticker: str, owners: Optional[List[str]]) -> List[dict]:
+    """Aggregate position units for ``ticker`` grouped by owner."""
+    wanted = {o.lower() for o in owners} if owners else None
+    rows: List[dict] = []
+    for pf in list_portfolios():
+        owner = (pf.get("owner") or "").lower()
+        if wanted and owner not in wanted:
+            continue
+        total = 0.0
+        for acct in pf.get("accounts", []):
+            for h in acct.get("holdings", []):
+                t = (h.get("ticker") or "").upper()
+                if t == ticker or t.split(".", 1)[0] == ticker.split(".", 1)[0]:
+                    total += float(h.get("units") or 0.0)
+        if total:
+            rows.append({"owner": pf.get("owner"), "units": total})
+    return rows
+
+
 @router.post("/run")
 async def run_query(q: CustomQuery):
     tickers = _resolve_tickers(q)
@@ -69,13 +108,29 @@ async def run_query(q: CustomQuery):
     rows = []
     for t in tickers:
         sym, exch = (t.split(".", 1) + ["L"])[:2]
-        df = load_meta_timeseries_range(sym, exch, start_date=q.start, end_date=q.end)
+        df = load_meta_timeseries_range(
+            sym, exch, start_date=q.start, end_date=q.end
+        )
         row = {"ticker": t}
         if "var" in q.metrics:
             row["var"] = compute_var(df)
         if "meta" in q.metrics:
             meta = get_security_meta(t) or {}
             row.update(meta)
+        if "price" in q.metrics:
+            col = _close_column(df) or "Close"
+            if col in df.columns:
+                df_px = df[[col]].copy()
+                df_px.index = pd.to_datetime(df_px.index)
+                freq_map = {"daily": "D", "weekly": "W", "monthly": "M"}
+                if q.granularity in freq_map:
+                    df_px = df_px.resample(freq_map[q.granularity]).last()
+                row["price"] = [
+                    {"date": idx.date().isoformat(), "close": float(val)}
+                    for idx, val in df_px[col].items()
+                ]
+        if "position" in q.metrics:
+            row["position"] = _positions_for_ticker(t, q.owners)
         rows.append(row)
 
     if q.name:

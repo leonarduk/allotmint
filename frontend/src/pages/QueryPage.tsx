@@ -11,7 +11,8 @@ import { useSortableTable } from "../hooks/useSortableTable";
 import { SavedQueries } from "../components/SavedQueries";
 
 const TICKER_OPTIONS = ["AAA", "BBB", "CCC"];
-const METRIC_OPTIONS = ["market_value_gbp", "gain_gbp"];
+const METRIC_OPTIONS = ["var", "meta", "price", "position"];
+const GRANULARITY_OPTIONS = ["daily", "weekly", "monthly"];
 
 type ResultRow = Record<string, string | number>;
 
@@ -23,6 +24,7 @@ export function QueryPage() {
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [selectedTickers, setSelectedTickers] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<string[]>([]);
+  const [granularity, setGranularity] = useState("daily");
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +49,7 @@ export function QueryPage() {
       owners: selectedOwners,
       tickers: selectedTickers,
       metrics,
+      granularity,
     };
     setLoading(true);
     setError(null);
@@ -70,6 +73,7 @@ export function QueryPage() {
       owners: selectedOwners,
       tickers: selectedTickers,
       metrics,
+      granularity,
     };
     void saveCustomQuery(name, params);
   }
@@ -80,6 +84,7 @@ export function QueryPage() {
     setSelectedOwners(params.owners ?? []);
     setSelectedTickers(params.tickers ?? []);
     setMetrics(params.metrics ?? []);
+    setGranularity(params.granularity ?? "daily");
   }
 
   function buildExportUrl(fmt: string) {
@@ -89,6 +94,7 @@ export function QueryPage() {
     if (selectedOwners.length) q.set("owners", selectedOwners.join(","));
     if (selectedTickers.length) q.set("tickers", selectedTickers.join(","));
     if (metrics.length) q.set("metrics", metrics.join(","));
+    if (granularity) q.set("granularity", granularity);
     q.set("format", fmt);
     return `${API_BASE}/custom-query/run?${q.toString()}`;
   }
@@ -132,6 +138,21 @@ export function QueryPage() {
             </label>
           ))}
         </fieldset>
+        <label style={{ marginRight: "0.5rem" }}>
+          Granularity
+          <select
+            aria-label="Granularity"
+            value={granularity}
+            onChange={(e) => setGranularity(e.target.value)}
+            style={{ marginLeft: "0.25rem" }}
+          >
+            {GRANULARITY_OPTIONS.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </label>
         <fieldset style={{ marginBottom: "1rem" }}>
           <legend>Tickers</legend>
           {TICKER_OPTIONS.map((t) => (

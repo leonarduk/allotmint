@@ -205,6 +205,7 @@ export const runCustomQuery = (params: CustomQuery) => {
   if (params.owners?.length) query.set("owners", params.owners.join(","));
   if (params.tickers?.length) query.set("tickers", params.tickers.join(","));
   if (params.metrics?.length) query.set("metrics", params.metrics.join(","));
+  if (params.granularity) query.set("granularity", params.granularity);
   query.set("format", "json");
   return fetchJson<Record<string, unknown>[]>(
     `${API_BASE}/custom-query/run?${query.toString()}`,

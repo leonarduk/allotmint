@@ -80,6 +80,19 @@ The backend exposes Value at Risk (VaR) metrics for each portfolio.
 See [backend/common/portfolio_utils.py](backend/common/portfolio_utils.py) for the return series that feed the calculation
 and [backend/common/constants.py](backend/common/constants.py) for currency labels.
 
+## Custom queries
+
+The `/custom-query/run` endpoint exposes ad‑hoc analytics for a set of tickers or
+owners. Available metrics include:
+
+* `var` – 1‑day Value at Risk based on historical prices.
+* `meta` – security metadata extracted from portfolios.
+* `price` – close price time‑series sourced from the timeseries cache.
+* `position` – current position sizes per owner from portfolio holdings.
+
+Price series can be resampled with the optional `granularity` parameter which
+accepts `daily` (default), `weekly` or `monthly`.
+
 ## Local Quick-start
 
 The project is split into a Python FastAPI backend and a React/TypeScript

@@ -180,6 +180,7 @@ export interface CustomQuery {
     owners?: string[];
     tickers?: string[];
     metrics?: string[];
+    granularity?: string;
 }
 
 export interface SavedQuery {

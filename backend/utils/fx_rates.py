@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 PAIR_MAP = {
     "USD": "USDGBP=X",
     "EUR": "EURGBP=X",
+    "CAD": "CADGBP=X",
 }
 
 

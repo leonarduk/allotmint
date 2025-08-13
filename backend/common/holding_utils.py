@@ -80,19 +80,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 # no data -> don't write a zero; just continue
                 continue
 
-            # coerce expected columns and sort by date
-            # Accept either 'Close' or 'close' and optionally 'close_gbp'
-            cols = {c.lower(): c for c in df.columns}
-            close_col = (
-                "close_gbp" if "close_gbp" in cols
-                else cols.get("close", None)
-                or cols.get("close_gbp", None)
-            )
-            if not close_col:
-                # last resort: try 'Close'
-                close_col = "Close" if "Close" in df.columns else None
-            if not close_col:
-                continue
+            close_col = "Close"
 
             df = df.sort_values(df.columns[0])  # first col is Date in your feeds
             last = df.iloc[-1]

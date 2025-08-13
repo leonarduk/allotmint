@@ -28,7 +28,7 @@ export interface AppConfig {
 export const ConfigContext = createContext<AppConfig>({
   relativeViewEnabled: false,
   disabledTabs: [],
-}
+});
 
 const defaultTabs: TabsConfig = {
   instrument: true,

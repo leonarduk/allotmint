@@ -334,7 +334,7 @@ def load_meta_timeseries_range(
         df = _memoized_range(ticker, exchange, s.isoformat(), e.isoformat())
         if not df.empty:
             try:
-                df = _convert_to_gbp(df, exchange, s, e)
+                df = _convert_to_gbp(df, ticker, exchange, s, e)
             except ValueError as exc:
                 logger.warning(
                     "Skipping FX conversion for %s.%s: %s", ticker, exchange, exc

@@ -120,8 +120,8 @@
   },
   "query": {
     "noResults": "No results."
-
-    "query": {
+  },
+  "query": {
     "start": "Start",
     "end": "End",
     "owners": "Owners",

@@ -89,7 +89,7 @@ describe("App", () => {
     }));
 
     const { default: App } = await import("./App");
-    const { ConfigContext } = await import("./ConfigContext");
+    const { configContext } = await import("./ConfigContext");
 
     const allTabs = {
       instrument: true,
@@ -105,7 +105,7 @@ describe("App", () => {
     };
 
     render(
-      <ConfigContext.Provider
+      <configContext.Provider
         value={{
           relativeViewEnabled: false,
           tabs: { ...allTabs, trading: false },
@@ -114,7 +114,7 @@ describe("App", () => {
         <MemoryRouter initialEntries={["/trading"]}>
           <App />
         </MemoryRouter>
-      </ConfigContext.Provider>,
+      </configContext.Provider>,
     );
 
     expect(screen.queryByLabelText(/trading/i)).toBeNull();
@@ -143,7 +143,7 @@ describe("App", () => {
     }));
 
     const { default: App } = await import("./App");
-    const { ConfigContext } = await import("./ConfigContext");
+    const { configContext } = await import("./ConfigContext");
 
     const allTabs = {
       instrument: true,
@@ -159,13 +159,13 @@ describe("App", () => {
     };
 
     render(
-      <ConfigContext.Provider
+      <configContext.Provider
         value={{ relativeViewEnabled: false, tabs: allTabs }}
       >
         <MemoryRouter initialEntries={["/trading"]}>
           <App />
         </MemoryRouter>
-      </ConfigContext.Provider>,
+      </configContext.Provider>,
     );
 
     const tradingTab = await screen.findByLabelText(/trading/i);

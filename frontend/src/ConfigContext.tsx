@@ -16,7 +16,18 @@ export interface TabsConfig {
 
 export interface AppConfig {
   relativeViewEnabled: boolean;
+  /**
+   * Tabs that should be hidden/disabled from the UI.  We keep the type
+   * flexible here so that the context can be consumed without depending on
+   * the `Mode` union defined in `App.tsx`.
+   */
+  disabledTabs?: string[];
   tabs: TabsConfig;
+}
+
+export const ConfigContext = createContext<AppConfig>({
+  relativeViewEnabled: false,
+  disabledTabs: [],
 }
 
 const defaultTabs: TabsConfig = {
@@ -40,6 +51,7 @@ export const ConfigContext = createContext<AppConfig>({
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>({
     relativeViewEnabled: false,
+    disabledTabs: [],
     tabs: defaultTabs,
   });
 
@@ -48,6 +60,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       .then((cfg) =>
         setConfig({
           relativeViewEnabled: Boolean((cfg as any).relative_view_enabled),
+          disabledTabs: Array.isArray((cfg as any).disabled_tabs)
+            ? ((cfg as any).disabled_tabs as string[])
+            : [],
           tabs: { ...defaultTabs, ...((cfg as any).tabs ?? {}) },
         })
       )

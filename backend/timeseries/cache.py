@@ -48,6 +48,7 @@ EXCHANGE_TO_CCY = {
     "F": "EUR",
     "PARIS": "EUR",
     "XETRA": "EUR",
+    "TO": "CAD",
 }
 
 

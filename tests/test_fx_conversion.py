@@ -21,7 +21,7 @@ def _sample_df(start: dt.date, end: dt.date):
     })
 
 
-@pytest.mark.parametrize("exchange,rate", [("N", 0.8), ("DE", 0.9)])
+@pytest.mark.parametrize("exchange,rate", [("N", 0.8), ("DE", 0.9), ("TO", 0.6)])
 def test_prices_converted_to_gbp(monkeypatch, exchange, rate):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 2)

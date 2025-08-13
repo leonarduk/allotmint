@@ -3,6 +3,8 @@ from datetime import date, timedelta
 
 import pandas as pd
 import requests
+from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 from backend.config import config
 
@@ -36,6 +38,10 @@ def fetch_alphavantage_timeseries_range(
     api_key: str | None = None,
 ) -> pd.DataFrame:
     """Fetch historical Alpha Vantage data using a date range."""
+    if not is_valid_ticker(ticker, exchange):
+        logger.info("Skipping Alpha Vantage fetch for unrecognized ticker %s.%s", ticker, exchange)
+        record_skipped_ticker(ticker, exchange, reason="unknown")
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
     symbol = _build_symbol(ticker, exchange)
     key = api_key or config.alpha_vantage_key or "demo"
 

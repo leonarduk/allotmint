@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 import logging
+import requests
+import pytest
 
 import backend.utils.telegram_utils as telegram_utils
 
@@ -142,3 +144,24 @@ def test_handles_timeout(monkeypatch, caplog):
         telegram_utils.send_message("timeout")
 
     assert any("timeout" in r.message.lower() for r in caplog.records)
+    
+def test_redacts_token_from_errors(monkeypatch, caplog):
+    telegram_utils.RECENT_MESSAGES.clear()
+    monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)
+    token = "SECRET"
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", token)
+    monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
+
+    def fake_post(url, data, timeout):
+        raise requests.RequestException(f"boom {url}")
+
+    with patch("backend.utils.telegram_utils.requests.post", fake_post):
+        with pytest.raises(requests.RequestException) as excinfo:
+            telegram_utils.send_message("hi")
+        with caplog.at_level(logging.ERROR):
+            logging.getLogger("caller").error("fail: %s", excinfo.value)
+
+    assert token not in str(excinfo.value)
+    assert "***" in str(excinfo.value)
+    assert token not in caplog.text
+    assert "***" in caplog.text

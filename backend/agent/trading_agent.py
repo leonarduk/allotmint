@@ -7,7 +7,7 @@ import logging
 import os
 
 from backend.common.alerts import publish_alert
-from backend.utils.telegram_utils import send_message
+from backend.utils.telegram_utils import send_message, redact_token
 from backend.config import config
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional
@@ -56,7 +56,7 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
         try:
             send_message(message)
         except Exception as exc:  # pragma: no cover - network errors are rare
-            logger.warning("Telegram send failed: %s", exc)
+            logger.warning("Telegram send failed: %s", redact_token(str(exc)))
 
 PRICE_DROP_THRESHOLD = -5.0  # percent
 PRICE_GAIN_THRESHOLD = 5.0   # percent

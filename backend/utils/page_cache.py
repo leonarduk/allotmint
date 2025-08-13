@@ -65,11 +65,34 @@ def schedule_refresh(page_name: str, ttl: int, builder: Callable[[], Any]) -> No
         return
 
     async def _loop() -> None:
-        while True:
-            try:
+        try:
+            while True:
                 data = builder()
                 save_cache(page_name, data)
-            finally:
                 await asyncio.sleep(ttl)
+        except asyncio.CancelledError:  # pragma: no cover - defensive
+            pass
 
     _refresh_tasks[page_name] = asyncio.create_task(_loop())
+
+
+async def cancel_refresh_tasks() -> None:
+    """Cancel all scheduled refresh tasks and wait for them to finish."""
+
+    tasks = list(_refresh_tasks.values())
+    current_loop = None
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+
+    for task in tasks:
+        task.cancel()
+    for task in tasks:
+        loop = task.get_loop()
+        if current_loop is not None and loop is current_loop and not loop.is_closed():
+            try:
+                await task
+            except Exception:
+                pass
+    _refresh_tasks.clear()

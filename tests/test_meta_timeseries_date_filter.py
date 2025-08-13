@@ -11,6 +11,7 @@ def test_fetch_meta_timeseries_handles_python_dates(monkeypatch):
     monkeypatch.setattr(fetch_meta_timeseries, "fetch_stooq_timeseries_range", lambda *a, **k: pd.DataFrame())
     monkeypatch.setattr(fetch_meta_timeseries, "fetch_alphavantage_timeseries_range", lambda *a, **k: pd.DataFrame())
     monkeypatch.setattr(fetch_meta_timeseries, "_is_isin", lambda ticker: False)
+    monkeypatch.setattr(fetch_meta_timeseries, "is_valid_ticker", lambda *a, **k: True)
 
     def fake_ft(ticker, days):
         return pd.DataFrame(

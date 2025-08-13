@@ -3,6 +3,8 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
+from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 # Setup logger
 logger = logging.getLogger("yahoo_timeseries")
@@ -44,6 +46,10 @@ def fetch_yahoo_timeseries_range(
     start_date: date,
     end_date: date
 ) -> pd.DataFrame:
+    if not is_valid_ticker(ticker, exchange):
+        logger.info("Skipping Yahoo fetch for unrecognized ticker %s.%s", ticker, exchange)
+        record_skipped_ticker(ticker, exchange, reason="unknown")
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
     full_ticker = _build_full_ticker(ticker, exchange)
     logger.debug(f"Fetching Yahoo data for {full_ticker} from {start_date} to {end_date}")
 

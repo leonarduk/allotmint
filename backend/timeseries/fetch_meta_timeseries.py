@@ -30,7 +30,8 @@ from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_ran
 from backend.timeseries.fetch_alphavantage_timeseries import (
     fetch_alphavantage_timeseries_range,
 )
-from backend.utils.timeseries_helpers import _nearest_weekday, _is_isin, STANDARD_COLUMNS
+from backend.utils.timeseries_helpers import (_nearest_weekday, _is_isin, STANDARD_COLUMNS)
+from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 
 logger = logging.getLogger("meta_timeseries")
 
@@ -79,6 +80,11 @@ def fetch_meta_timeseries(
 
     if not _TICKER_RE.match(ticker):
         logger.warning("Ticker pattern looks invalid: %s", ticker)
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
+
+    if not is_valid_ticker(ticker, exchange):
+        logger.info("Skipping unrecognized ticker %s.%s", ticker, exchange)
+        record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     if end_date is None:

@@ -4,6 +4,8 @@ from io import StringIO
 
 import pandas as pd
 import requests
+from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 # Setup logger
 logger = logging.getLogger("stooq_timeseries")
@@ -40,6 +42,10 @@ def fetch_stooq_timeseries_range(
     """
     Fetch historical Stooq data using date range.
     """
+    if not is_valid_ticker(ticker, exchange):
+        logger.info("Skipping Stooq fetch for unrecognized ticker %s.%s", ticker, exchange)
+        record_skipped_ticker(ticker, exchange, reason="unknown")
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
     suffix = get_stooq_suffix(exchange)
     full_ticker = ticker + suffix
 

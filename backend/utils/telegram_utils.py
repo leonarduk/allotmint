@@ -23,6 +23,34 @@ config = app_config
 OFFLINE_MODE = config.offline_mode
 logger = logging.getLogger(__name__)
 
+
+def redact_token(text: str) -> str:
+    """Replace any occurrence of the Telegram token in ``text`` with ***."""
+    token = app_config.telegram_bot_token
+    if not token:
+        return text
+    return text.replace(token, "***")
+
+
+class RedactTokenFilter(logging.Filter):
+    """Filter that redacts the Telegram token from log records."""
+
+    def filter(self, record: logging.LogRecord) -> bool:  # pragma: no cover - logging internals
+        token = app_config.telegram_bot_token
+        if token:
+            if isinstance(record.msg, str):
+                record.msg = record.msg.replace(token, "***")
+            if record.args:
+                record.args = tuple(
+                    arg.replace(token, "***") if isinstance(arg, str) else arg
+                    for arg in record.args
+                )
+        return True
+
+
+# Ensure all loggers redact the token
+logging.getLogger().addFilter(RedactTokenFilter())
+
 MESSAGE_TTL_SECONDS = 300
 RATE_LIMIT_SECONDS = 1.0
 MAX_RETRIES = 3
@@ -89,6 +117,7 @@ def send_message(text: str) -> None:
         RECENT_MESSAGES[text] = time.time()
         _NEXT_ALLOWED_TIME = time.time() + RATE_LIMIT_SECONDS
         return
+
 
 
 class TelegramLogHandler(logging.Handler):

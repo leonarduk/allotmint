@@ -53,15 +53,22 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     getConfig()
-      .then((cfg) =>
-        setConfig({
-          relativeViewEnabled: Boolean((cfg as any).relative_view_enabled),
-          disabledTabs: Array.isArray((cfg as any).disabled_tabs)
+      .then((cfg) => {
+        const tabs = { ...defaultTabs, ...((cfg as any).tabs ?? {}) };
+        const disabledTabs = new Set<string>(
+          Array.isArray((cfg as any).disabled_tabs)
             ? ((cfg as any).disabled_tabs as string[])
             : [],
-          tabs: { ...defaultTabs, ...((cfg as any).tabs ?? {}) },
-        })
-      )
+        );
+        for (const [tab, enabled] of Object.entries(tabs)) {
+          if (!enabled) disabledTabs.add(tab);
+        }
+        setConfig({
+          relativeViewEnabled: Boolean((cfg as any).relative_view_enabled),
+          disabledTabs: Array.from(disabledTabs),
+          tabs,
+        });
+      })
       .catch(() => {
         /* ignore */
       });

@@ -60,7 +60,6 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { disabledTabs = [] } = useConfig();
   const { tabs } = useConfig();
 
   const params = new URLSearchParams(location.search);
@@ -115,7 +114,7 @@ export default function App() {
               : segs[0] === "watchlist"
                 ? "watchlist"
                 : "group";
-    if (disabledTabs.includes(newMode)) {
+    if ((tabs as Record<string, boolean>)[newMode] === false) {
       setMode("group");
       navigate("/", { replace: true });
       return;
@@ -130,7 +129,7 @@ export default function App() {
         new URLSearchParams(location.search).get("group") ?? "",
       );
     }
-  }, [location.pathname, location.search, disabledTabs, navigate]);
+  }, [location.pathname, location.search, tabs, navigate]);
 
   useEffect(() => {
     if (ownersReq.data) setOwners(ownersReq.data);
@@ -238,9 +237,9 @@ export default function App() {
           "trading",
           "timeseries",
           "watchlist",
-        ] as Mode[])
-          .filter((m) => !disabledTabs.includes(m))
-          .map((m) => (
+          ] as Mode[])
+            .filter((m) => (tabs as Record<string, boolean>)[m] !== false)
+            .map((m) => (
             <label key={m} style={{ marginRight: "1rem" }}>
               <input
                 type="radio"

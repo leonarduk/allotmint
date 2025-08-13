@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ ticker }} - {{ window_days }}-day view</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    table{ border-collapse:collapse;margin:.5rem 0}
+    th,td{ padding:.25rem .5rem;border:1px solid #ccc; }
+    th{background:#f5f5f5}
+    .prices{ float:left;margin-right:2rem }
+    footer{ clear:both;margin-top:3rem;font-size:.85em;color:#666 }
+  </style>
+</head>
+<body>
+  <h1>{{ ticker }}</h1>
+  <p>{{ rows_count }} rows - {{ begin }} -> {{ end }}</p>
+
+  <section>{{ prices_tbl|safe }}</section>
+  <section>
+    {% if pos_tbl %}
+      {{ pos_tbl|safe }}
+    {% else %}
+      <p>No portfolio positions</p>
+    {% endif %}
+  </section>
+
+  <footer>Generated {{ today }}</footer>
+</body>
+</html>

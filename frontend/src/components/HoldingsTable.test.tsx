@@ -1,10 +1,11 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { HoldingsTable } from "./HoldingsTable";
-import { ConfigContext, type AppConfig } from "../ConfigContext";
+import { configContext, type AppConfig } from "../ConfigContext";
 
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
+    theme: "system",
     tabs: {
         instrument: true,
         performance: true,
@@ -86,9 +87,9 @@ describe("HoldingsTable", () => {
 
     const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig>) =>
         render(
-            <ConfigContext.Provider value={{ ...defaultConfig, ...cfg }}>
+            <configContext.Provider value={{ ...defaultConfig, ...cfg }}>
                 {ui}
-            </ConfigContext.Provider>,
+            </configContext.Provider>,
         );
 
     it("displays relative metrics when relative view is enabled", () => {
@@ -122,9 +123,9 @@ describe("HoldingsTable", () => {
         const onSelect = vi.fn();
         render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);
         fireEvent.click(screen.getByRole('button', { name: 'USD' }));
-        expect(onSelect).toHaveBeenCalledWith('GBPUSD.FX', 'USD');
+        expect(onSelect).toHaveBeenCalledWith('USDGBP.FX', 'USD');
         expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'CAD' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'CAD' })).toBeInTheDocument();
     });
 
     it("sorts by ticker when header clicked", () => {

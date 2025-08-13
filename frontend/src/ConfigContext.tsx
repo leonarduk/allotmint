@@ -1,7 +1,9 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { getConfig } from "./api";
 
 export interface TabsConfig {
+  [key: string]: boolean;
   instrument: boolean;
   performance: boolean;
   transactions: boolean;
@@ -23,6 +25,7 @@ export interface AppConfig {
    */
   disabledTabs?: string[];
   tabs: TabsConfig;
+  theme: "dark" | "light" | "system";
 }
 
 const defaultTabs: TabsConfig = {
@@ -38,10 +41,11 @@ const defaultTabs: TabsConfig = {
   support: true,
 };
 
-const ConfigContext = createContext<AppConfig>({
+export const configContext = createContext<AppConfig>({
   relativeViewEnabled: false,
   disabledTabs: [],
   tabs: defaultTabs,
+  theme: "system",
 });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
@@ -49,6 +53,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     relativeViewEnabled: false,
     disabledTabs: [],
     tabs: defaultTabs,
+    theme: "system",
   });
 
   useEffect(() => {
@@ -63,23 +68,39 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         for (const [tab, enabled] of Object.entries(tabs)) {
           if (!enabled) disabledTabs.add(tab);
         }
+        const theme =
+          typeof (cfg as any).theme === "string" ? ((cfg as any).theme as any) : "system";
         setConfig({
           relativeViewEnabled: Boolean((cfg as any).relative_view_enabled),
           disabledTabs: Array.from(disabledTabs),
           tabs,
+          theme,
         });
+        applyTheme(theme);
       })
       .catch(() => {
         /* ignore */
       });
   }, []);
 
-  return <ConfigContext.Provider value={config}>{children}</ConfigContext.Provider>;
+  useEffect(() => {
+    applyTheme(config.theme);
+  }, [config.theme]);
+
+  return <configContext.Provider value={config}>{children}</configContext.Provider>;
 }
 
 export function useConfig() {
-  return useContext(ConfigContext);
+  return useContext(configContext);
 }
 
-export { ConfigContext };
+function applyTheme(theme: string) {
+  const root = document.documentElement;
+  if (!root) return;
+  if (theme === "dark" || theme === "light") {
+    root.setAttribute("data-theme", theme);
+  } else {
+    root.removeAttribute("data-theme");
+  }
+}
 

@@ -2,10 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, type Mock, beforeEach } from "vitest";
 import i18n from "../i18n";
-import { ConfigContext, type AppConfig } from "../ConfigContext";
+import { configContext, type AppConfig } from "../ConfigContext";
 
 const defaultConfig: AppConfig = {
   relativeViewEnabled: false,
+  theme: "system",
   tabs: {
     instrument: true,
     performance: true,
@@ -37,9 +38,9 @@ describe("InstrumentDetail", () => {
 
   const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig>) =>
     render(
-      <ConfigContext.Provider value={{ ...defaultConfig, ...cfg }}>
+      <configContext.Provider value={{ ...defaultConfig, ...cfg }}>
         <MemoryRouter>{ui}</MemoryRouter>
-      </ConfigContext.Provider>,
+      </configContext.Provider>,
     );
 
   beforeEach(() => {

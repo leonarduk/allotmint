@@ -63,6 +63,27 @@ Adjust the `PORTFOLIO_TTL` and `SCREENER_TTL` constants in
 `backend/routes/portfolio.py` and `backend/routes/screener.py` to change these
 intervals. The cache helpers live in `backend/utils/page_cache.py`.
 
+## FX rate cache & offline mode
+
+FX conversions use daily GBP rates. When `offline_mode: true` in
+`config.yaml`, rates are loaded from parquet files under
+`data/timeseries/fx/<CCY>.parquet`. Each file must contain `Date` and `Rate`
+columns. Populate the cache before going offline:
+
+```bash
+python - <<'PY'
+from datetime import date
+import pandas as pd
+from backend.utils.fx_rates import fetch_fx_rate_range
+
+df = fetch_fx_rate_range("USD", date(2024,1,1), date.today())
+df.to_parquet("data/timeseries/fx/USD.parquet", index=False)
+PY
+```
+
+If a currency file is missing, `_convert_to_gbp` falls back to requesting
+rates from `fx_proxy_url` configured in `config.yaml`.
+
 ## Risk reporting
 
 The backend exposes Value at Risk (VaR) metrics for each portfolio.
@@ -147,6 +168,19 @@ variables:
 
 When several transports are configured, alerts are sent to each of them.
 
+## AWS data bucket
+
+When running the backend in AWS (``config.app_env: aws``), account and
+metadata JSON files are loaded from an S3 bucket.
+
+Set the ``DATA_BUCKET`` environment variable to the name of the bucket
+containing the ``accounts/OWNER/ACCOUNT.json`` objects. The Lambda execution
+role requires the following minimal IAM permissions on that bucket:
+
+* ``s3:ListBucket`` (with a prefix of ``accounts/``) – discover available
+  accounts.
+* ``s3:GetObject`` on ``accounts/*`` – read account and ``person.json`` files.
+
 ## Tests
 
 Run Python and frontend test suites with:
@@ -196,6 +230,27 @@ cdk deploy StaticSiteStack
 
 The bucket remains private and CloudFront uses an origin access identity
 with Price Class 100 to minimise cost while serving the content over HTTPS.
+
+### Backend data bucket
+
+Runtime portfolio data lives in a separate S3 bucket referenced by the
+`DATA_BUCKET` environment variable. Files are stored under the `accounts/`
+prefix:
+
+- `accounts/<owner>/trades.csv`
+- `accounts/<owner>/<account>.json`
+- `accounts/<owner>/person.json`
+
+Lambdas that read portfolio information require `s3:GetObject` permission for
+these paths. A minimal IAM policy statement is:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": ["s3:GetObject"],
+  "Resource": "arn:aws:s3:::YOUR_DATA_BUCKET/accounts/*"
+}
+```
 
 ### GitHub Actions Deployment
 

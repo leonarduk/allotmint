@@ -2,7 +2,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
 import i18n from "../i18n";
-import { ConfigContext, type AppConfig } from "../ConfigContext";
+import { configContext, type AppConfig } from "../ConfigContext";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -11,6 +11,7 @@ afterEach(() => {
 
 const defaultConfig: AppConfig = {
   relativeViewEnabled: false,
+  theme: "system",
   tabs: {
     instrument: true,
     performance: true,
@@ -27,9 +28,9 @@ const defaultConfig: AppConfig = {
 
 const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) =>
   render(
-    <ConfigContext.Provider value={{ ...defaultConfig, ...cfg }}>
+    <configContext.Provider value={{ ...defaultConfig, ...cfg }}>
       {ui}
-    </ConfigContext.Provider>,
+    </configContext.Provider>,
   );
 
 describe("GroupPortfolioView", () => {

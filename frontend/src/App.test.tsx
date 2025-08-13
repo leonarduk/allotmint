@@ -160,7 +160,7 @@ describe("App", () => {
     };
 
     render(
-      <ConfigContext.Provider
+      <configContext.Provider
         value={{ theme: "system", relativeViewEnabled: false, tabs: allTabs }}
       >
         <MemoryRouter initialEntries={["/trading"]}>

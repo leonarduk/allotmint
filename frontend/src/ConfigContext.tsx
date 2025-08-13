@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { getConfig } from "./api";
 
 export interface TabsConfig {
+  [key: string]: boolean;
   instrument: boolean;
   performance: boolean;
   transactions: boolean;

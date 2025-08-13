@@ -118,7 +118,22 @@ export default function Support() {
           {Object.entries(config).map(([key, value]) => (
             <div key={key} style={{ marginBottom: "0.5rem" }}>
               <label style={{ display: "block", fontWeight: 500 }}>{key}</label>
-              {typeof value === "boolean" ? (
+              {key === "theme" && typeof value === "string" ? (
+                <div>
+                  {(["dark", "light", "system"] as const).map((opt) => (
+                    <label key={opt} style={{ marginRight: "0.5rem" }}>
+                      <input
+                        type="radio"
+                        name="theme"
+                        value={opt}
+                        checked={value === opt}
+                        onChange={(e) => handleConfigChange(key, e.target.value)}
+                      />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              ) : typeof value === "boolean" ? (
                 <select
                   value={String(value)}
                   onChange={(e) => handleConfigChange(key, e.target.value === "true")}

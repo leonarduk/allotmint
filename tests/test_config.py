@@ -14,3 +14,8 @@ def test_tabs_defaults_true():
     cfg = config_module.load_config()
     assert cfg.tabs.instrument is True
     assert cfg.tabs.support is True
+
+
+def test_theme_loaded():
+    cfg = config_module.load_config()
+    assert cfg.theme == "system"

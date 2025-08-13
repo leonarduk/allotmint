@@ -27,6 +27,7 @@ type Props = {
 type Price = {
   date: string;
   close_gbp: number | null | undefined;
+  close?: number | null | undefined;
 };
 
 type Position = {
@@ -95,7 +96,7 @@ export function InstrumentDetail({
   const editLink = `/timeseries?ticker=${encodeURIComponent(tickerBase)}&exchange=${encodeURIComponent(exch)}`;
 
   const rawPrices = (data.prices ?? [])
-    .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp) }))
+    .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp ?? p.close) }))
     .filter((p) => Number.isFinite(p.close_gbp));
 
   const withChanges = rawPrices.map((p, i) => {

@@ -23,6 +23,7 @@ export interface AppConfig {
    */
   disabledTabs?: string[];
   tabs: TabsConfig;
+  theme: "dark" | "light" | "system";
 }
 
 const defaultTabs: TabsConfig = {
@@ -42,6 +43,7 @@ const ConfigContext = createContext<AppConfig>({
   relativeViewEnabled: false,
   disabledTabs: [],
   tabs: defaultTabs,
+  theme: "system",
 });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
@@ -49,6 +51,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     relativeViewEnabled: false,
     disabledTabs: [],
     tabs: defaultTabs,
+    theme: "system",
   });
 
   useEffect(() => {
@@ -63,16 +66,24 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         for (const [tab, enabled] of Object.entries(tabs)) {
           if (!enabled) disabledTabs.add(tab);
         }
+        const theme =
+          typeof (cfg as any).theme === "string" ? ((cfg as any).theme as any) : "system";
         setConfig({
           relativeViewEnabled: Boolean((cfg as any).relative_view_enabled),
           disabledTabs: Array.from(disabledTabs),
           tabs,
+          theme,
         });
+        applyTheme(theme);
       })
       .catch(() => {
         /* ignore */
       });
   }, []);
+
+  useEffect(() => {
+    applyTheme(config.theme);
+  }, [config.theme]);
 
   return <ConfigContext.Provider value={config}>{children}</ConfigContext.Provider>;
 }
@@ -82,4 +93,14 @@ export function useConfig() {
 }
 
 export { ConfigContext };
+
+function applyTheme(theme: string) {
+  const root = document.documentElement;
+  if (!root) return;
+  if (theme === "dark" || theme === "light") {
+    root.setAttribute("data-theme", theme);
+  } else {
+    root.removeAttribute("data-theme");
+  }
+}
 

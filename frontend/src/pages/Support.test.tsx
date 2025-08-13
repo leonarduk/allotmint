@@ -14,7 +14,7 @@ import Support from "./Support";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockGetConfig.mockResolvedValue({ flag: true });
+  mockGetConfig.mockResolvedValue({ flag: true, theme: "system" });
 });
 
 describe("Support page", () => {
@@ -37,8 +37,8 @@ describe("Support page", () => {
   });
 
   it("stringifies fresh config after saving", async () => {
-    mockGetConfig.mockResolvedValueOnce({ flag: true });
-    mockGetConfig.mockResolvedValueOnce({ flag: false, count: 5 });
+    mockGetConfig.mockResolvedValueOnce({ flag: true, theme: "system" });
+    mockGetConfig.mockResolvedValueOnce({ flag: false, count: 5, theme: "dark" });
     mockUpdateConfig.mockResolvedValue(undefined);
 
     render(<Support />);
@@ -50,6 +50,16 @@ describe("Support page", () => {
 
     expect(screen.getByDisplayValue("false")).toBeInTheDocument();
     expect(screen.getByDisplayValue("5")).toBeInTheDocument();
+  });
+
+  it("allows selecting theme via radio buttons", async () => {
+    render(<Support />);
+    const dark = await screen.findByRole("radio", { name: "dark" });
+    const light = screen.getByRole("radio", { name: "light" });
+    fireEvent.click(light);
+    expect(light).toBeChecked();
+    fireEvent.click(dark);
+    expect(dark).toBeChecked();
   });
 });
 

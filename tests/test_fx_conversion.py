@@ -21,7 +21,8 @@ def _sample_df(start: dt.date, end: dt.date):
     })
 
 
-@pytest.mark.parametrize("exchange,rate", [("N", 0.8), ("DE", 0.9), ("TO", 0.6)])
+@pytest.mark.parametrize("exchange,rate", [("N", 0.8), ("DE", 0.9), ("CA", 0.6), ("TO", 0.6)])
+
 def test_prices_converted_to_gbp(monkeypatch, exchange, rate):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 2)
@@ -84,6 +85,24 @@ def test_non_gbp_instrument_on_gbp_exchange(monkeypatch):
     df = cache.load_meta_timeseries_range("T", "L", start, end)
     assert list(df["Close"].astype(float)) == [1.0, 2.0]
     assert list(df["Close_gbp"].astype(float)) == [pytest.approx(1 * 1.25), pytest.approx(2 * 1.25)]
+
+
+def test_unsupported_currency_skips_conversion(monkeypatch):
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 2)
+
+    def fake_memoized_range(ticker, exch, s_iso, e_iso):
+        return _sample_df(start, end)
+
+    def fake_fx(base, s, e):
+        raise ValueError("Unsupported currency")
+
+    monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
+    monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
+    monkeypatch.setitem(cache.EXCHANGE_TO_CCY, "ZZ", "XYZ")
+
+    df = cache.load_meta_timeseries_range("T", "ZZ", start, end)
+    assert df.empty
 
 
 def test_memoized_range_returns_copy(monkeypatch):

@@ -10,7 +10,20 @@ logger = logging.getLogger(__name__)
 PAIR_MAP = {
     "USD": "USDGBP=X",
     "EUR": "EURGBP=X",
+    "CHF": "CHFGBP=X",
+    "JPY": "JPYGBP=X",
     "CAD": "CADGBP=X",
+}
+
+
+# Fallback constants used when remote fetch fails. Values are approximate and
+# only intended for tests/offline scenarios.
+FALLBACK_RATES = {
+    "USD": 0.8,
+    "EUR": 0.9,
+    "CHF": 0.8,
+    "JPY": 0.006,
+    "CAD": 0.6,
 }
 
 
@@ -36,5 +49,5 @@ def fetch_fx_rate_range(base: str, start_date: date, end_date: date) -> pd.DataF
         logger.info("FX fetch failed for %s: %s", base, exc)
 
     dates = pd.bdate_range(start_date, end_date).date
-    const = 0.8 if base == "USD" else 0.9
+    const = FALLBACK_RATES.get(base, 1.0)
     return pd.DataFrame({"Date": dates, "Rate": [const] * len(dates)})

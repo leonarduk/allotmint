@@ -17,25 +17,26 @@ class BackendLambdaStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         project_root = Path(__file__).resolve().parents[2]
+        backend_path = project_root / "backend"
 
         dependencies_layer = _lambda.LayerVersion(
             self,
             "BackendDependencies",
             code=_lambda.Code.from_asset(
-                str(project_root),
+                str(backend_path),
                 bundling=_lambda.BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_11.bundling_image,
                     command=[
                         "bash",
                         "-c",
-                        "pip install -r backend/requirements.txt -t /asset-output/python",
+                        "pip install -r requirements.txt -t /asset-output/python",
                     ],
                 ),
             ),
             compatible_runtimes=[_lambda.Runtime.PYTHON_3_11],
         )
 
-        backend_code = _lambda.Code.from_asset(str(project_root / "backend"))
+        backend_code = _lambda.Code.from_asset(str(backend_path))
 
         backend_fn = _lambda.Function(
             self,

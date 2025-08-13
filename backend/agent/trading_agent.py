@@ -15,7 +15,6 @@ from typing import Dict, Iterable, List, Optional
 import pandas as pd
 
 from backend.common import prices
-from backend.common.alerts import publish_sns_alert
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     list_all_unique_tickers,
@@ -25,7 +24,6 @@ from backend.common.trade_metrics import (
     TRADE_LOG_PATH,
     load_and_compute_metrics,
 )
-from backend.utils.telegram_utils import send_message
 
 logger = logging.getLogger(__name__)
 
@@ -50,15 +48,15 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
     if publish:
         publish_alert({"message": message})
 
-        if (
-            os.getenv("TELEGRAM_BOT_TOKEN")
-            and os.getenv("TELEGRAM_CHAT_ID")
-            and config.app_env != "aws"
-        ):
-            try:
-                send_message(message)
-            except Exception as exc:  # pragma: no cover - network errors are rare
-                logger.warning("Telegram send failed: %s", exc)
+    if (
+        os.getenv("TELEGRAM_BOT_TOKEN")
+        and os.getenv("TELEGRAM_CHAT_ID")
+        and config.app_env != "aws"
+    ):
+        try:
+            send_message(message)
+        except Exception as exc:  # pragma: no cover - network errors are rare
+            logger.warning("Telegram send failed: %s", exc)
 
 PRICE_DROP_THRESHOLD = -5.0  # percent
 PRICE_GAIN_THRESHOLD = 5.0   # percent

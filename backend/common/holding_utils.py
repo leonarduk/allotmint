@@ -50,7 +50,8 @@ def _lower_name_map(df: pd.DataFrame) -> Dict[str, str]:
 
 def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     """
-    Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77} in GBP.
+    Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77}.
+    Prices are GBP-converted when that column is available.
     - Uses end_date = yesterday
     - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
     - Skips empties instead of returning 0.00
@@ -80,17 +81,12 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 # no data -> don't write a zero; just continue
                 continue
 
-            # coerce expected columns and sort by date
-            # Accept either 'Close' or 'close' and optionally 'close_gbp'
-            cols = {c.lower(): c for c in df.columns}
-            close_col = (
-                "close_gbp" if "close_gbp" in cols
-                else cols.get("close", None)
-                or cols.get("close_gbp", None)
-            )
-            if not close_col:
-                # last resort: try 'Close'
-                close_col = "Close" if "Close" in df.columns else None
+            # prefer GBP-close column if present
+            close_col = None
+            for col in ("Close_gbp", "Close", "close_gbp", "close"):
+                if col in df.columns:
+                    close_col = col
+                    break
             if not close_col:
                 continue
 

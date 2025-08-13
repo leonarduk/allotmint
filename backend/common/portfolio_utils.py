@@ -230,7 +230,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                 {
                     "ticker":           tkr,
                     "name":             meta.get("name") or h.get("name", tkr),
-                    "currency":         h.get("currency"),
+                    "currency":         meta.get("currency") or h.get("currency"),
                     "units":            0.0,
                     "market_value_gbp": 0.0,
                     "gain_gbp":         0.0,
@@ -239,7 +239,6 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                     "last_price_date":  None,
                     "change_7d_pct":    None,
                     "change_30d_pct":   None,
-                    "currency":        meta.get("currency"),
                     "instrument_type": meta.get("instrumentType") or meta.get("instrument_type"),
                 },
             )

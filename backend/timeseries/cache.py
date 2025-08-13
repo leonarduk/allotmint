@@ -28,6 +28,8 @@ from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.utils.timeseries_helpers import _nearest_weekday, get_scaling_override, apply_scaling
 from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.config import config
+from backend.common.instruments import get_instrument_meta
+import requests
 
 OFFLINE_MODE = config.offline_mode
 
@@ -48,6 +50,10 @@ EXCHANGE_TO_CCY = {
     "F": "EUR",
     "PARIS": "EUR",
     "XETRA": "EUR",
+    "SW": "CHF",
+    "JP": "JPY",
+    "CA": "CAD",
+    "TO": "CAD",
 }
 
 
@@ -286,26 +292,56 @@ def _memoized_range(
     return _memoized_range_cached(ticker, exchange, start_iso, end_iso).copy()
 
 
-def _convert_to_gbp(df: pd.DataFrame, exchange: str, start: date, end: date) -> pd.DataFrame:
-    """Convert OHLC prices to GBP if needed based on exchange."""
-    currency = EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
-    if currency == "GBP" or df.empty:
+def _convert_to_gbp(
+    df: pd.DataFrame, ticker: str, exchange: str, start: date, end: date
+) -> pd.DataFrame:
+    """Convert OHLC prices to GBP if needed based on instrument currency."""
+
+    meta = get_instrument_meta(f"{ticker}.{exchange}")
+    currency = meta.get("currency") or EXCHANGE_TO_CCY.get((exchange or "").upper(), "GBP")
+
+    if currency in ("GBP", "GBX") or df.empty:
         return df
 
     if OFFLINE_MODE:
-        # TODO fix this to read from cache or use proxy
-        return df
+        path = _cache_path("fx", f"{currency}.parquet")
+        try:
+            fx = pd.read_parquet(path)
+            fx["Date"] = pd.to_datetime(fx["Date"])
+        except Exception as exc:
+            logger.debug("FX cache read miss (%s): %s", path, exc)
+            fx = pd.DataFrame(columns=["Date", "Rate"])
 
-    fx = fetch_fx_rate_range(currency, start, end).copy()
-    if fx.empty:
-        return df
+        if fx.empty and getattr(config, "fx_proxy_url", None):
+            try:
+                url = f"{config.fx_proxy_url.rstrip('/')}/{currency}"
+                params = {"start": start.isoformat(), "end": end.isoformat()}
+                resp = requests.get(url, params=params, timeout=5)
+                if resp.ok:
+                    fx = pd.DataFrame(resp.json())
+                    fx["Date"] = pd.to_datetime(fx["Date"])
+            except Exception as exc:
+                logger.warning("FX proxy fetch failed for %s: %s", currency, exc)
 
-    fx["Date"] = pd.to_datetime(fx["Date"])
+        if fx.empty:
+            raise ValueError(f"Offline mode: no FX rates for {currency}")
+
+        mask = (fx["Date"].dt.date >= start) & (fx["Date"].dt.date <= end)
+        fx = fx.loc[mask]
+        if fx.empty:
+            raise ValueError(f"Offline mode: FX cache lacks range for {currency}")
+    else:
+        fx = fetch_fx_rate_range(currency, start, end).copy()
+        if fx.empty:
+            return df
+        fx["Date"] = pd.to_datetime(fx["Date"])
+
     merged = df.merge(fx, on="Date", how="left")
     merged["Rate"] = merged["Rate"].ffill().bfill()
     for col in ["Open", "High", "Low", "Close"]:
         if col in merged.columns:
-            merged[col] = pd.to_numeric(merged[col], errors="coerce") * merged["Rate"]
+            merged[col] = pd.to_numeric(merged[col], errors="coerce")
+            merged[f"{col}_gbp"] = merged[col] * merged["Rate"]
     return merged.drop(columns=["Rate"])
 
 # ──────────────────────────────────────────────────────────────
@@ -322,7 +358,13 @@ def load_meta_timeseries_range(
         e = end_date - timedelta(days=offset)
         df = _memoized_range(ticker, exchange, s.isoformat(), e.isoformat())
         if not df.empty:
-            df = _convert_to_gbp(df, exchange, s, e)
+            try:
+                df = _convert_to_gbp(df, ticker, exchange, s, e)
+            except ValueError as exc:
+                logger.warning(
+                    "Skipping FX conversion for %s.%s: %s", ticker, exchange, exc
+                )
+                return _empty_ts()
             return df
     return _empty_ts()
 

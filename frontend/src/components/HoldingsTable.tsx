@@ -1,4 +1,3 @@
-import type React from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
@@ -8,21 +7,20 @@ import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
+import { isSupportedFx } from "../lib/fx";
 
 type Props = {
   holdings: Holding[];
   onSelectInstrument?: (ticker: string, name: string) => void;
 };
 
-export function HoldingsTable({ holdings, onSelectInstrument }: Props) {
-  const { relativeViewEnabled } = useConfig();
 
 export function HoldingsTable({
   holdings,
   onSelectInstrument,
-  relativeView = false,
 }: Props) {
   const { t } = useTranslation();
+  const { relativeViewEnabled } = useConfig();
 
   const [filters, setFilters] = useState({
     ticker: "",
@@ -165,7 +163,7 @@ export function HoldingsTable({
             {!relativeViewEnabled && visibleColumns.cost && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
-            {visibleColumns.market && (
+            {!relativeViewEnabled && visibleColumns.market && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
@@ -216,7 +214,7 @@ export function HoldingsTable({
                 Cost £{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
-            {visibleColumns.market && (
+            {!relativeViewEnabled && visibleColumns.market && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
@@ -275,7 +273,29 @@ export function HoldingsTable({
                   </button>
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
-                <td className={tableStyles.cell}>{h.currency ?? "—"}</td>
+                <td className={tableStyles.cell}>
+                  {isSupportedFx(h.currency) ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onSelectInstrument?.(`${h.currency!}GBP.FX`, h.currency!)
+                      }
+                      style={{
+                        color: "dodgerblue",
+                        textDecoration: "underline",
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        font: "inherit",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {h.currency}
+                    </button>
+                  ) : (
+                    h.currency ?? "—"
+                  )}
+                </td>
                 <td className={tableStyles.cell}>{translateInstrumentType(t, h.instrument_type)}</td>
                 {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
@@ -291,7 +311,7 @@ export function HoldingsTable({
                     {money(h.cost)}
                   </td>
                 )}
-                {visibleColumns.market && (
+                {!relativeViewEnabled && visibleColumns.market && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (

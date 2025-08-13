@@ -1,6 +1,24 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import { HoldingsTable } from "./HoldingsTable";
-import { ConfigContext, type AppConfig } from "../ConfigContext";
+import { configContext, type AppConfig } from "../ConfigContext";
+
+const defaultConfig: AppConfig = {
+    relativeViewEnabled: false,
+    theme: "system",
+    tabs: {
+        instrument: true,
+        performance: true,
+        transactions: true,
+        screener: true,
+        query: true,
+        trading: true,
+        timeseries: true,
+        watchlist: true,
+        virtual: true,
+        support: true,
+    },
+};
 import type { Holding } from "../types";
 
 describe("HoldingsTable", () => {
@@ -35,10 +53,44 @@ describe("HoldingsTable", () => {
             sell_eligible: false,
             days_until_eligible: 10,
         },
+        {
+            ticker: "GBXH",
+            name: "GBX Holding",
+            currency: "GBX",
+            instrument_type: "Equity",
+            units: 1,
+            price: 0,
+            cost_basis_gbp: 10,
+            market_value_gbp: 10,
+            gain_gbp: 0,
+            acquired_date: "2024-01-05",
+            days_held: 50,
+            sell_eligible: false,
+            days_until_eligible: 5,
+        },
+        {
+            ticker: "CADH",
+            name: "CAD Holding",
+            currency: "CAD",
+            instrument_type: "Equity",
+            units: 1,
+            price: 0,
+            cost_basis_gbp: 20,
+            market_value_gbp: 20,
+            gain_gbp: 0,
+            acquired_date: "2024-02-01",
+            days_held: 30,
+            sell_eligible: false,
+            days_until_eligible: 0,
+        },
     ];
 
-    const renderWithConfig = (ui: React.ReactElement, cfg: AppConfig) =>
-        render(<ConfigContext.Provider value={cfg}>{ui}</ConfigContext.Provider>);
+    const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig>) =>
+        render(
+            <configContext.Provider value={{ ...defaultConfig, ...cfg }}>
+                {ui}
+            </configContext.Provider>,
+        );
 
     it("displays relative metrics when relative view is enabled", () => {
         renderWithConfig(<HoldingsTable holdings={holdings} />, { relativeViewEnabled: true });
@@ -49,6 +101,7 @@ describe("HoldingsTable", () => {
         expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
         expect(screen.queryByRole('columnheader', {name: /Cost £/})).toBeNull();
         expect(screen.queryByRole('columnheader', {name: /Gain £/})).toBeNull();
+        expect(screen.queryByRole('columnheader', {name: /Mkt £/})).toBeNull();
     });
 
     it("shows absolute columns when relative view is disabled", () => {
@@ -56,6 +109,7 @@ describe("HoldingsTable", () => {
         expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Cost £/})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Gain £/})).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', {name: /Mkt £/})).toBeInTheDocument();
     });
 
     it("shows days to go if not eligible", () => {
@@ -63,6 +117,15 @@ describe("HoldingsTable", () => {
         const row = screen.getByText("Test Holding").closest("tr");
         const cell = within(row!).getByText("✗ 10");
         expect(cell).toBeInTheDocument();
+    });
+
+    it("creates FX pair buttons for currency and skips GBX", () => {
+        const onSelect = vi.fn();
+        render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);
+        fireEvent.click(screen.getByRole('button', { name: 'USD' }));
+        expect(onSelect).toHaveBeenCalledWith('USDGBP.FX', 'USD');
+        expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'CAD' })).toBeInTheDocument();
     });
 
     it("sorts by ticker when header clicked", () => {

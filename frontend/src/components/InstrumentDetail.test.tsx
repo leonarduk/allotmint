@@ -2,6 +2,24 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, type Mock, beforeEach } from "vitest";
 import i18n from "../i18n";
+import { configContext, type AppConfig } from "../ConfigContext";
+
+const defaultConfig: AppConfig = {
+  relativeViewEnabled: false,
+  theme: "system",
+  tabs: {
+    instrument: true,
+    performance: true,
+    transactions: true,
+    screener: true,
+    query: true,
+    trading: true,
+    timeseries: true,
+    watchlist: true,
+    virtual: true,
+    support: true,
+  },
+};
 
 vi.mock("../api", () => ({ getInstrumentDetail: vi.fn() }));
 import { getInstrumentDetail } from "../api";
@@ -17,6 +35,13 @@ import { InstrumentDetail } from "./InstrumentDetail";
 
 describe("InstrumentDetail", () => {
   const mockGetInstrumentDetail = getInstrumentDetail as unknown as Mock;
+
+  const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig>) =>
+    render(
+      <configContext.Provider value={{ ...defaultConfig, ...cfg }}>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </configContext.Provider>,
+    );
 
   beforeEach(() => {
     mockGetInstrumentDetail.mockReset();
@@ -78,6 +103,67 @@ describe("InstrumentDetail", () => {
         `${i18n.t("instrumentDetail.change30d")} 30.0%`,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("hides absolute columns in relative view", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: [],
+      positions: [
+        {
+          owner: "Alice",
+          account: "Acct",
+          units: 1,
+          market_value_gbp: 100,
+          unrealised_gain_gbp: 10,
+          gain_pct: 10,
+        },
+      ],
+      currency: null,
+    });
+
+    i18n.changeLanguage("en");
+
+    renderWithConfig(
+      <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />,
+      { relativeViewEnabled: true },
+    );
+
+    await screen.findByText("Alice – Acct");
+
+    expect(screen.queryByRole('columnheader', { name: /Units/ })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: /Mkt £/ })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: /Gain £/ })).toBeNull();
+    expect(screen.getByRole('columnheader', { name: /Gain %/ })).toBeInTheDocument();
+  });
+
+  it("shows absolute columns when relative view disabled", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: [],
+      positions: [
+        {
+          owner: "Alice",
+          account: "Acct",
+          units: 1,
+          market_value_gbp: 100,
+          unrealised_gain_gbp: 10,
+          gain_pct: 10,
+        },
+      ],
+      currency: null,
+    });
+
+    i18n.changeLanguage("en");
+
+    renderWithConfig(
+      <InstrumentDetail ticker="ABC.L" name="ABC" onClose={() => {}} />,
+      { relativeViewEnabled: false },
+    );
+
+    await screen.findByText("Alice – Acct");
+
+    expect(screen.getByRole('columnheader', { name: /Units/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Mkt £/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Gain £/ })).toBeInTheDocument();
   });
 });
 

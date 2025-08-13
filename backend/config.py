@@ -1,10 +1,24 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional, Dict, Any, overload, List
 import yaml
+
+
+@dataclass
+class TabsConfig:
+    instrument: bool = True
+    performance: bool = True
+    transactions: bool = True
+    screener: bool = True
+    query: bool = True
+    trading: bool = True
+    timeseries: bool = True
+    watchlist: bool = True
+    virtual: bool = True
+    support: bool = True
 
 
 @dataclass
@@ -35,7 +49,9 @@ class Config:
     error_summary: Optional[dict] = None
     offline_mode: Optional[bool] = None
     relative_view_enabled: Optional[bool] = None
+    theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
+    fx_proxy_url: Optional[str] = None
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
 
@@ -50,6 +66,7 @@ class Config:
     approval_valid_days: Optional[int] = None
     approval_exempt_types: Optional[List[str]] = None
     approval_exempt_tickers: Optional[List[str]] = None
+    tabs: TabsConfig = field(default_factory=TabsConfig)
 
 
 def _project_config_path() -> Path:
@@ -86,6 +103,12 @@ def load_config() -> Config:
         (repo_root / prices_json_raw).resolve() if prices_json_raw else None
     )
 
+    tabs_raw = data.get("tabs")
+    tabs_data = asdict(TabsConfig())
+    if isinstance(tabs_raw, dict):
+        tabs_data.update(tabs_raw)
+    tabs = TabsConfig(**tabs_data)
+
     return Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
@@ -104,7 +127,9 @@ def load_config() -> Config:
         error_summary=data.get("error_summary"),
         offline_mode=data.get("offline_mode"),
         relative_view_enabled=data.get("relative_view_enabled"),
+        theme=data.get("theme"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
+        fx_proxy_url=data.get("fx_proxy_url"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get(
             "fundamentals_cache_ttl_seconds"
@@ -118,6 +143,7 @@ def load_config() -> Config:
         approval_valid_days=data.get("approval_valid_days"),
         approval_exempt_types=data.get("approval_exempt_types"),
         approval_exempt_tickers=data.get("approval_exempt_tickers"),
+        tabs=tabs,
     )
 
 

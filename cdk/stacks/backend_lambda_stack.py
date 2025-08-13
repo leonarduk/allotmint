@@ -17,23 +17,34 @@ class BackendLambdaStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         project_root = Path(__file__).resolve().parents[2]
+        backend_path = project_root / "backend"
+
+        dependencies_layer = _lambda.LayerVersion(
+            self,
+            "BackendDependencies",
+            code=_lambda.Code.from_asset(
+                str(backend_path),
+                bundling=_lambda.BundlingOptions(
+                    image=_lambda.Runtime.PYTHON_3_11.bundling_image,
+                    command=[
+                        "bash",
+                        "-c",
+                        "pip install -r requirements.txt -t /asset-output/python",
+                    ],
+                ),
+            ),
+            compatible_runtimes=[_lambda.Runtime.PYTHON_3_11],
+        )
+
+        backend_code = _lambda.Code.from_asset(str(backend_path))
 
         backend_fn = _lambda.Function(
             self,
             "BackendLambda",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="backend.lambda_api.handler.lambda_handler",
-            code=_lambda.Code.from_asset(
-                str(project_root),
-                bundling=_lambda.BundlingOptions(
-                    image=_lambda.Runtime.PYTHON_3_11.bundling_image,
-                    command=[
-                        "bash",
-                        "-c",
-                        "pip install -r requirements.txt -t /asset-output && cp -r backend /asset-output",
-                    ],
-                ),
-            ),
+            code=backend_code,
+            layers=[dependencies_layer],
         )
 
         apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)
@@ -44,7 +55,8 @@ class BackendLambdaStack(Stack):
             "PriceRefreshLambda",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="backend.lambda_api.price_refresh.lambda_handler",
-            code=backend_fn.code,
+            code=backend_code,
+            layers=[dependencies_layer],
         )
 
         events.Rule(

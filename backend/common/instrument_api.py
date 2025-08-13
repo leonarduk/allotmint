@@ -122,7 +122,7 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
     Return:
         last_price_gbp, last_price_date,
         change_7d_pct,  change_30d_pct
-    All as-of yesterday per app-wide rule.
+    Historical closes prefer GBP values when available and are as-of yesterday.
     """
     today = dt.date.today()
     yday = today - dt.timedelta(days=1)
@@ -141,12 +141,19 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
     sym, ex = (full.split(".", 1) + ["L"])[:2]
 
     def _close_on(d: dt.date) -> Optional[float]:
-        # Snap to nearest weekday (backwards) and request that exact day.
+        # Snap to nearest weekday (backwards) and request that exact day,
+        # preferring GBP closes when provided by the data source.
         snap = _nearest_weekday(d, forward=False)
         df = load_meta_timeseries_range(sym, ex, start_date=snap, end_date=snap)
         if df is None or df.empty:
             return None
-        col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
+        col = (
+            "close_gbp"
+            if "close_gbp" in df.columns
+            else ("Close_gbp" if "Close_gbp" in df.columns else None)
+        )
+        if col is None:
+            col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
         return float(df[col].iloc[0]) if col else None
 
     px_7 = _close_on(yday - dt.timedelta(days=7))

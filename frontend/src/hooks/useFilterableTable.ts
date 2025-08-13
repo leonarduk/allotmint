@@ -7,14 +7,13 @@ export type Filter<T, V> = {
 
 export function useFilterableTable<
   T,
-  K extends keyof T,
   F extends Record<string, Filter<T, any>>
->(rows: T[], initialSortKey: K, initialFilters: F) {
-  const [sortKey, setSortKey] = useState<K>(initialSortKey);
+>(rows: T[], initialSortKey: keyof T, initialFilters: F) {
+  const [sortKey, setSortKey] = useState<keyof T>(initialSortKey);
   const [asc, setAsc] = useState(true);
   const [filters, setFilters] = useState<F>(initialFilters);
 
-  function handleSort(key: K) {
+  function handleSort(key: keyof T) {
     if (sortKey === key) {
       setAsc(!asc);
     } else {

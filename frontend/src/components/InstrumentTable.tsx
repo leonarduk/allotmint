@@ -7,6 +7,8 @@ import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
+import { useConfig } from "../ConfigContext";
+import { isSupportedFx } from "../lib/fx";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -14,6 +16,7 @@ type Props = {
 
 export function InstrumentTable({ rows }: Props) {
     const { t } = useTranslation();
+    const { relativeViewEnabled } = useConfig();
     const [selected, setSelected] = useState<InstrumentSummary | null>(null);
     const [visibleColumns, setVisibleColumns] = useState({
         units: true,
@@ -94,10 +97,10 @@ export function InstrumentTable({ rows }: Props) {
                         </th>
                         <th className={tableStyles.cell}>{t("instrumentTable.columns.ccy")}</th>
                         <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
-                        {visibleColumns.units && (
+                        {!relativeViewEnabled && visibleColumns.units && (
                             <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.units")}</th>
                         )}
-                        {visibleColumns.cost && (
+                        {!relativeViewEnabled && visibleColumns.cost && (
                             <th
                                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                                 onClick={() => handleSort("cost")}
@@ -106,16 +109,16 @@ export function InstrumentTable({ rows }: Props) {
                                 {sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
                             </th>
                         )}
-                        {visibleColumns.market && (
+                        {!relativeViewEnabled && visibleColumns.market && (
                             <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.market")}</th>
                         )}
-                        {visibleColumns.gain && (
+                        {!relativeViewEnabled && visibleColumns.gain && (
                             <th
                                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                                onClick={() => handleSort("gain")}
+                                onClick={() => handleSort("gain_gbp")}
                             >
                                 {t("instrumentTable.columns.gain")}
-                                {sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
+                                {sortKey === "gain_gbp" ? (asc ? " ▲" : " ▼") : ""}
                             </th>
                         )}
                         {visibleColumns.gain_pct && (
@@ -127,7 +130,9 @@ export function InstrumentTable({ rows }: Props) {
                                 {sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
                             </th>
                         )}
-                        <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.last")}</th>
+                        {!relativeViewEnabled && (
+                            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.last")}</th>
+                        )}
                         <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.lastDate")}</th>
                         <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.delta7d")}</th>
                         <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentTable.columns.delta30d")}</th>
@@ -158,20 +163,50 @@ export function InstrumentTable({ rows }: Props) {
                                     </button>
                                 </td>
                                 <td className={tableStyles.cell}>{r.name}</td>
-                                <td className={tableStyles.cell}>{r.currency ?? "—"}</td>
+                                <td className={tableStyles.cell}>
+                                    {isSupportedFx(r.currency) ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setSelected({
+                                                    ticker: `${r.currency}GBP.FX`,
+                                                    name: `${r.currency}GBP.FX`,
+                                                    currency: r.currency,
+                                                    instrument_type: "FX",
+                                                    units: 0,
+                                                    market_value_gbp: 0,
+                                                    gain_gbp: 0,
+                                                })
+                                            }
+                                            style={{
+                                                color: "dodgerblue",
+                                                textDecoration: "underline",
+                                                background: "none",
+                                                border: "none",
+                                                padding: 0,
+                                                font: "inherit",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            {r.currency}
+                                        </button>
+                                    ) : (
+                                        r.currency ?? "—"
+                                    )}
+                                </td>
                                 <td className={tableStyles.cell}>{translateInstrumentType(t, r.instrument_type)}</td>
-                                {visibleColumns.units && (
+                                {!relativeViewEnabled && visibleColumns.units && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                         {new Intl.NumberFormat(i18n.language).format(r.units)}
                                     </td>
                                 )}
-                                {visibleColumns.cost && (
+                                {!relativeViewEnabled && visibleColumns.cost && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(r.cost)}</td>
                                 )}
-                                {visibleColumns.market && (
+                                {!relativeViewEnabled && visibleColumns.market && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(r.market_value_gbp)}</td>
                                 )}
-                                {visibleColumns.gain && (
+                                {!relativeViewEnabled && visibleColumns.gain && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`} style={{ color: gainColour }}>
                                         {money(r.gain_gbp)}
                                     </td>
@@ -184,9 +219,11 @@ export function InstrumentTable({ rows }: Props) {
                                         {percent(r.gain_pct, 1)}
                                     </td>
                                 )}
-                                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                                    {r.last_price_gbp != null ? money(r.last_price_gbp) : "—"}
-                                </td>
+                                {!relativeViewEnabled && (
+                                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                                        {r.last_price_gbp != null ? money(r.last_price_gbp) : "—"}
+                                    </td>
+                                )}
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                                     {r.last_price_date
                                         ? new Intl.DateTimeFormat(i18n.language).format(
@@ -211,7 +248,7 @@ export function InstrumentTable({ rows }: Props) {
                 <InstrumentDetail
                     ticker={selected.ticker}
                     name={selected.name}
-                    currency={selected.currency}
+                    currency={selected.currency ?? undefined}
                     instrument_type={selected.instrument_type}
                     onClose={() => setSelected(null)}
                 />

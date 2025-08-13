@@ -48,8 +48,8 @@ def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
     if df is None or df.empty:
         return None
 
-    # try a few common column names
-    for col in ("close", "Close", "close_gbp", "Close_gbp"):
+    # try a few common column names, prioritising GBP-converted prices
+    for col in ("close_gbp", "Close_gbp", "close", "Close"):
         if col in df.columns:
             try:
                 return float(df[col].iloc[0])
@@ -93,8 +93,6 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         snapshot[full] = info
 
     return snapshot
-
-logging.basicConfig(level=logging.DEBUG)
 
 # ──────────────────────────────────────────────────────────────
 # Securities universe : derived from portfolios

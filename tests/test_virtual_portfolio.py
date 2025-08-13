@@ -78,10 +78,10 @@ def test_performance_with_synthetic_holdings(monkeypatch):
         return pd.DataFrame({"Date": dates, "Close": prices.get(ticker, [0, 0, 0])})
 
     monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
-
     perf = portfolio_utils.compute_owner_performance("virtual", days=3)
+    history = perf["history"] if isinstance(perf, dict) else perf
 
-    assert len(perf) == 3
-    assert perf[0]["value"] == 200  # 10*10 + 5*20
-    assert perf[-1]["value"] == 230  # 10*12 + 5*22
-    assert perf[-1]["cumulative_return"] == pytest.approx(0.15, rel=1e-3)
+    assert len(history) == 3
+    assert history[0]["value"] == 200  # 10*10 + 5*20
+    assert history[-1]["value"] == 230  # 10*12 + 5*22
+    assert history[-1]["cumulative_return"] == pytest.approx(0.15, rel=1e-3)

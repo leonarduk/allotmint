@@ -12,6 +12,9 @@ BASE_QUERY = {
     "end": "2025-01-10",
     "tickers": ["HFEL.L"],
     "metrics": ["var", "meta"],
+    "columns": ["ticker", "var"],
+    "sort_key": "var",
+    "sort_asc": False,
 }
 
 
@@ -31,6 +34,9 @@ def test_save_and_load_query(tmp_path):
     assert resp.status_code == 200
     data = resp.json()
     assert data["tickers"] == BASE_QUERY["tickers"]
+    assert data["columns"] == BASE_QUERY["columns"]
+    assert data["sort_key"] == BASE_QUERY["sort_key"]
+    assert data["sort_asc"] == BASE_QUERY["sort_asc"]
 
     resp = client.get("/custom-query/saved")
     assert slug in resp.json()

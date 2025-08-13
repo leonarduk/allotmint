@@ -180,6 +180,9 @@ export interface CustomQuery {
     owners?: string[];
     tickers?: string[];
     metrics?: string[];
+    columns?: string[];
+    sortKey?: string;
+    sortAsc?: boolean;
 }
 
 export interface SavedQuery {

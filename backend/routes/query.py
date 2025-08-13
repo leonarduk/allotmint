@@ -29,6 +29,9 @@ class CustomQuery(BaseModel):
     owners: Optional[List[str]] = None
     tickers: Optional[List[str]] = None
     metrics: List[str] = Field(default_factory=list)
+    columns: Optional[List[str]] = None
+    sort_key: Optional[str] = None
+    sort_asc: Optional[bool] = None
     name: Optional[str] = None
     format: Optional[str] = Field("json", pattern="^(json|csv|xlsx)$")
 

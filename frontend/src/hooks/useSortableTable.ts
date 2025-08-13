@@ -3,9 +3,10 @@ import { useMemo, useState } from "react";
 export function useSortableTable<T, K extends keyof T>(
   rows: T[],
   initialSortKey: K,
+  initialAsc = true,
 ) {
   const [sortKey, setSortKey] = useState<K>(initialSortKey);
-  const [asc, setAsc] = useState(true);
+  const [asc, setAsc] = useState(initialAsc);
 
   function handleSort(key: K) {
     if (sortKey === key) {
@@ -29,5 +30,5 @@ export function useSortableTable<T, K extends keyof T>(
     });
   }, [rows, sortKey, asc]);
 
-  return { sorted, sortKey, asc, handleSort };
+  return { sorted, sortKey, asc, handleSort, setSortKey, setAsc };
 }

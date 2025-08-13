@@ -11,7 +11,8 @@ def _fake_df(start, end):
     return pd.DataFrame({"Date": dates, "Close": [1.0 + i * 0.1 for i in range(len(dates))]})
 
 
-def test_fetch_fx_rate_range_success(monkeypatch):
+@pytest.mark.parametrize("currency", ["USD", "CHF", "JPY", "CAD"])
+def test_fetch_fx_rate_range_success(monkeypatch, currency):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 3)
 
@@ -22,7 +23,7 @@ def test_fetch_fx_rate_range_success(monkeypatch):
     monkeypatch.setattr(yf, "Ticker", lambda pair: FakeTicker())
     fetch_fx_rate_range.cache_clear()
 
-    df = fetch_fx_rate_range("USD", start, end)
+    df = fetch_fx_rate_range(currency, start, end)
     assert list(df["Date"]) == [dt.date(2024, 1, 1), dt.date(2024, 1, 2), dt.date(2024, 1, 3)]
     assert list(df["Rate"]) == [1.0, 1.1, 1.2]
 
@@ -61,4 +62,4 @@ def test_fetch_fx_rate_range_unsupported():
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 1)
     with pytest.raises(ValueError):
-        fetch_fx_rate_range("JPY", start, end)
+        fetch_fx_rate_range("AUD", start, end)

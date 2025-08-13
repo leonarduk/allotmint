@@ -48,6 +48,9 @@ EXCHANGE_TO_CCY = {
     "F": "EUR",
     "PARIS": "EUR",
     "XETRA": "EUR",
+    "SW": "CHF",
+    "JP": "JPY",
+    "CA": "CAD",
 }
 
 
@@ -322,7 +325,13 @@ def load_meta_timeseries_range(
         e = end_date - timedelta(days=offset)
         df = _memoized_range(ticker, exchange, s.isoformat(), e.isoformat())
         if not df.empty:
-            df = _convert_to_gbp(df, exchange, s, e)
+            try:
+                df = _convert_to_gbp(df, exchange, s, e)
+            except ValueError as exc:
+                logger.warning(
+                    "Skipping FX conversion for %s.%s: %s", ticker, exchange, exc
+                )
+                return _empty_ts()
             return df
     return _empty_ts()
 

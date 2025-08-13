@@ -94,8 +94,6 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
 
     return snapshot
 
-logging.basicConfig(level=logging.DEBUG)
-
 # ──────────────────────────────────────────────────────────────
 # Securities universe : derived from portfolios
 # ──────────────────────────────────────────────────────────────

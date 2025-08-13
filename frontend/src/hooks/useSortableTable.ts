@@ -8,7 +8,7 @@ export function useSortableTable<T, K extends keyof T>(
   const [sortKey, setSortKey] = useState<K>(initialSortKey);
   const [asc, setAsc] = useState(initialAsc);
 
-  function handleSort(key: K) {
+  function handleSort(key: keyof T) {
     if (sortKey === key) {
       setAsc(!asc);
     } else {

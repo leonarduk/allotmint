@@ -1,14 +1,65 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { API_BASE } from "../api";
+import { API_BASE, getConfig, updateConfig } from "../api";
 
 export default function Support() {
   const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [config, setConfig] = useState<Record<string, string | boolean>>({});
+  const [configStatus, setConfigStatus] = useState<string | null>(null);
 
   const envEntries = Object.entries(import.meta.env).sort();
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
+
+  useEffect(() => {
+    getConfig()
+      .then((cfg) => {
+        const entries: Record<string, string | boolean> = {};
+        Object.entries(cfg).forEach(([k, v]) => {
+          entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
+        });
+        setConfig(entries);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, []);
+
+  function handleConfigChange(key: string, value: string | boolean) {
+    setConfig((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function saveConfig(e: React.FormEvent) {
+    e.preventDefault();
+    setConfigStatus("saving");
+    const payload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(config)) {
+      if (typeof v === "string") {
+        let parsed: unknown = v;
+        try {
+          parsed = JSON.parse(v);
+        } catch {
+          /* keep as string */
+        }
+        payload[k] = parsed;
+      } else {
+        payload[k] = v;
+      }
+    }
+    try {
+      await updateConfig(payload);
+      const fresh = await getConfig();
+      const entries: Record<string, string | boolean> = {};
+      Object.entries(fresh).forEach(([k, v]) => {
+        entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
+      });
+      setConfig(entries);
+      setConfigStatus("saved");
+    } catch {
+      setConfigStatus("error");
+    }
+  }
 
   async function send() {
     setStatus("sending");
@@ -58,6 +109,45 @@ export default function Support() {
           })}
         </tbody>
       </table>
+
+      <h2>Configuration</h2>
+      {!Object.keys(config).length ? (
+        <p>Loading…</p>
+      ) : (
+        <form onSubmit={saveConfig}>
+          {Object.entries(config).map(([key, value]) => (
+            <div key={key} style={{ marginBottom: "0.5rem" }}>
+              <label style={{ display: "block", fontWeight: 500 }}>{key}</label>
+              {typeof value === "boolean" ? (
+                <select
+                  value={String(value)}
+                  onChange={(e) => handleConfigChange(key, e.target.value === "true")}
+                >
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={String(value ?? "")}
+                  onChange={(e) => handleConfigChange(key, e.target.value)}
+                  style={{ width: "100%" }}
+                />
+              )}
+            </div>
+          ))}
+          <button type="submit">Save</button>
+          {configStatus === "saved" && (
+            <span style={{ marginLeft: "0.5rem", color: "green" }}>Saved</span>
+          )}
+          {configStatus === "error" && (
+            <span style={{ marginLeft: "0.5rem", color: "red" }}>Error</span>
+          )}
+          {configStatus === "saving" && (
+            <span style={{ marginLeft: "0.5rem" }}>Saving…</span>
+          )}
+        </form>
+      )}
       <h2>{t("support.telegramMessage")}</h2>
       <textarea
         value={message}

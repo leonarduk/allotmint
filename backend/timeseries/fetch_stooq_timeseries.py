@@ -17,7 +17,8 @@ def get_stooq_suffix(exchange: str) -> str:
         "L": ".UK", "LSE": ".UK", "UK": ".UK",
         "NASDAQ": ".US", "NYSE": ".US", "US": ".US", "AMEX": ".US",
         "XETRA": ".DE", "DE": ".DE",
-        "F": ".F"
+        "F": ".F",
+        "TO" : ".TO"
 
     }
     suffix = exchange_map.get(exchange.upper())

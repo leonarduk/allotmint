@@ -16,6 +16,8 @@ import type {
   CustomQuery,
   SavedQuery,
   QuoteRow,
+  TradingSignal,
+  ComplianceResult,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -151,9 +153,7 @@ export const getTradingSignals = () =>
 
 /** Retrieve compliance warnings for an owner */
 export const getCompliance = (owner: string) =>
-  fetchJson<{ owner: string; warnings: string[] }>(
-    `${API_BASE}/compliance/${owner}`
-  );
+  fetchJson<ComplianceResult>(`${API_BASE}/compliance/${owner}`);
 
 /** Virtual portfolio endpoints */
 export const getVirtualPortfolios = () =>

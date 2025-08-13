@@ -90,12 +90,16 @@ export const getScreener = (
     fcf_min?: number;
   } = {},
 ) => {
-  const params = new URLSearchParams({ tickers: tickers.join(",") });
+  const params = new URLSearchParams();
+  if (tickers.length > 0) params.set("tickers", tickers.join(","));
   if (criteria.peg_max != null) params.set("peg_max", String(criteria.peg_max));
   if (criteria.pe_max != null) params.set("pe_max", String(criteria.pe_max));
   if (criteria.de_max != null) params.set("de_max", String(criteria.de_max));
   if (criteria.fcf_min != null) params.set("fcf_min", String(criteria.fcf_min));
-  return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`);
+  const query = params.toString();
+  return fetchJson<ScreenerResult[]>(
+    `${API_BASE}/screener${query ? `?${query}` : ""}`,
+  );
 };
 
 /**

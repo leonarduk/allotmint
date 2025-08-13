@@ -10,7 +10,7 @@ vi.mock("../api", () => ({
 describe("ComplianceWarnings", () => {
     it("does not render when there are no warnings", async () => {
         const mock = getCompliance as unknown as Mock;
-        mock.mockResolvedValue({ warnings: [] });
+        mock.mockResolvedValue({ owner: "alice", warnings: [], trade_counts: {} });
 
         render(<ComplianceWarnings owners={["alice"]} />);
 
@@ -23,7 +23,7 @@ describe("ComplianceWarnings", () => {
 
     it("renders warnings when present", async () => {
         const mock = getCompliance as unknown as Mock;
-        mock.mockResolvedValue({ warnings: ["Issue"] });
+        mock.mockResolvedValue({ owner: "alice", warnings: ["Issue"], trade_counts: {} });
 
         render(<ComplianceWarnings owners={["alice"]} />);
 
@@ -33,8 +33,8 @@ describe("ComplianceWarnings", () => {
     it("only shows owners with warnings", async () => {
         const mock = getCompliance as unknown as Mock;
         mock
-            .mockResolvedValueOnce({ warnings: [] })
-            .mockResolvedValueOnce({ warnings: ["Issue"] });
+            .mockResolvedValueOnce({ owner: "alice", warnings: [], trade_counts: {} })
+            .mockResolvedValueOnce({ owner: "bob", warnings: ["Issue"], trade_counts: {} });
 
         render(<ComplianceWarnings owners={["alice", "bob"]} />);
 

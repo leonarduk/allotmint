@@ -50,7 +50,8 @@ def _lower_name_map(df: pd.DataFrame) -> Dict[str, str]:
 
 def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     """
-    Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77} in GBP.
+    Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77}.
+    Prices are GBP-converted when that column is available.
     - Uses end_date = yesterday
     - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
     - Skips empties instead of returning 0.00
@@ -80,7 +81,14 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 # no data -> don't write a zero; just continue
                 continue
 
-            close_col = "Close"
+            # prefer GBP-close column if present
+            close_col = None
+            for col in ("Close_gbp", "Close", "close_gbp", "close"):
+                if col in df.columns:
+                    close_col = col
+                    break
+            if not close_col:
+                continue
 
             df = df.sort_values(df.columns[0])  # first col is Date in your feeds
             last = df.iloc[-1]

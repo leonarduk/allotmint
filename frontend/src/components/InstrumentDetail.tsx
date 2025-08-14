@@ -68,12 +68,17 @@ export function InstrumentDetail({
     currency?: string | null;
   } | null>(null);
 
+  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [currencyFromData, setCurrencyFromData] = useState<string | null>(null);
   const [showBollinger, setShowBollinger] = useState(false);
   const [days, setDays] = useState<number>(365);
 
   useEffect(() => {
+    setLoading(true);
+    setData(null);
+    setErr(null);
+    setCurrencyFromData(null);
     getInstrumentDetail(ticker, days)
       .then((d) => {
         const detail = d as {
@@ -84,18 +89,16 @@ export function InstrumentDetail({
         setData(detail);
         setCurrencyFromData(detail.currency ?? null);
       })
-      .catch((e: Error) => setErr(e.message));
+      .catch((e: Error) => setErr(e.message))
+      .finally(() => setLoading(false));
   }, [ticker, days]);
-
-  if (err) return <p style={{ color: "red" }}>{err}</p>;
-  if (!data) return <p>{t("app.loading")}</p>;
 
   const displayCurrency = currencyFromData ?? currencyProp ?? "?";
 
   const [tickerBase, exch = "L"] = ticker.split(".", 2);
   const editLink = `/timeseries?ticker=${encodeURIComponent(tickerBase)}&exchange=${encodeURIComponent(exch)}`;
 
-  const rawPrices = (data.prices ?? [])
+  const rawPrices = (data?.prices ?? [])
     .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp ?? p.close) }))
     .filter((p) => Number.isFinite(p.close_gbp));
 
@@ -148,7 +151,7 @@ export function InstrumentDetail({
       ? ((latestClose / close30 - 1) * 100)
       : NaN;
 
-  const positions = data.positions ?? [];
+  const positions = data?.positions ?? [];
 
   return (
     <div
@@ -185,7 +188,7 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          {t("instrumentDetail.change7d")} {percent(change7dPct, 1)}
+          {t("instrumentDetail.change7d")} {loading ? t("app.loading") : percent(change7dPct, 1)}
         </span>
         {" • "}
         <span
@@ -197,9 +200,10 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          {t("instrumentDetail.change30d")} {percent(change30dPct, 1)}
+          {t("instrumentDetail.change30d")} {loading ? t("app.loading") : percent(change30dPct, 1)}
         </span>
       </div>
+      {err && <p style={{ color: "red" }}>{err}</p>}
 
       {/* Chart */}
       <div style={{ marginBottom: "0.5rem" }}>
@@ -226,39 +230,52 @@ export function InstrumentDetail({
           {t("instrumentDetail.bollingerBands")}
         </label>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={prices}>
-          <XAxis dataKey="date" hide />
-          <YAxis domain={["auto", "auto"]} />
-          <Tooltip wrapperStyle={{ color: "#000" }} labelStyle={{ color: "#000" }} />
-          {showBollinger && (
-            <>
-              <Line
-                type="monotone"
-                dataKey="bb_upper"
-                stroke="#8884d8"
-                dot={false}
-                strokeDasharray="3 3"
-              />
-              <Line
-                type="monotone"
-                dataKey="bb_mid"
-                stroke="#ff7300"
-                dot={false}
-                strokeDasharray="5 5"
-              />
-              <Line
-                type="monotone"
-                dataKey="bb_lower"
-                stroke="#8884d8"
-                dot={false}
-                strokeDasharray="3 3"
-              />
-            </>
-          )}
-          <Line type="monotone" dataKey="close_gbp" dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
+      {loading ? (
+        <div
+          style={{
+            height: 220,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {t("app.loading")}
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={prices}>
+            <XAxis dataKey="date" hide />
+            <YAxis domain={["auto", "auto"]} />
+            <Tooltip wrapperStyle={{ color: "#000" }} labelStyle={{ color: "#000" }} />
+            {showBollinger && (
+              <>
+                <Line
+                  type="monotone"
+                  dataKey="bb_upper"
+                  stroke="#8884d8"
+                  dot={false}
+                  strokeDasharray="3 3"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="bb_mid"
+                  stroke="#ff7300"
+                  dot={false}
+                  strokeDasharray="5 5"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="bb_lower"
+                  stroke="#8884d8"
+                  dot={false}
+                  strokeDasharray="3 3"
+                />
+              </>
+            )}
+            <Line type="monotone" dataKey="close_gbp" dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
 
       {/* Positions */}
       <h3 style={{ marginTop: "1.5rem" }}>{t("instrumentDetail.positions")}</h3>
@@ -282,45 +299,58 @@ export function InstrumentDetail({
           </tr>
         </thead>
         <tbody>
-          {(positions ?? []).map((pos, i) => (
-            <tr key={`${pos.owner}-${pos.account}-${i}`}>
-              <td className={tableStyles.cell}>
-                <Link
-                  to={`/member/${encodeURIComponent(pos.owner)}`}
-                  style={{ color: "#00d8ff", textDecoration: "none" }}
-                >
-                  {pos.owner} – {pos.account}
-                </Link>
-              </td>
-              {!relativeViewEnabled && (
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {fixed(pos.units, 4)}
-                </td>
-              )}
-              {!relativeViewEnabled && (
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {money(pos.market_value_gbp)}
-                </td>
-              )}
-              {!relativeViewEnabled && (
-                <td
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  style={{
-                    color: toNum(pos.unrealised_gain_gbp) >= 0 ? "lightgreen" : "red",
-                  }}
-                >
-                  {money(pos.unrealised_gain_gbp)}
-                </td>
-              )}
+          {loading ? (
+            <tr>
               <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red" }}
+                colSpan={relativeViewEnabled ? 2 : 5}
+                className={`${tableStyles.cell} ${tableStyles.center}`}
+                style={{ color: "#888" }}
               >
-                {percent(pos.gain_pct, 1)}
+                {t("app.loading")}
               </td>
             </tr>
-          ))}
-          {!positions.length && (
+          ) : positions.length ? (
+            positions.map((pos, i) => (
+              <tr key={`${pos.owner}-${pos.account}-${i}`}>
+                <td className={tableStyles.cell}>
+                  <Link
+                    to={`/member/${encodeURIComponent(pos.owner)}`}
+                    style={{ color: "#00d8ff", textDecoration: "none" }}
+                  >
+                    {pos.owner} – {pos.account}
+                  </Link>
+                </td>
+                {!relativeViewEnabled && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {fixed(pos.units, 4)}
+                  </td>
+                )}
+                {!relativeViewEnabled && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {money(pos.market_value_gbp)}
+                  </td>
+                )}
+                {!relativeViewEnabled && (
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right}`}
+                    style={{
+                      color: toNum(pos.unrealised_gain_gbp) >= 0
+                        ? "lightgreen"
+                        : "red",
+                    }}
+                  >
+                    {money(pos.unrealised_gain_gbp)}
+                  </td>
+                )}
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  style={{ color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red" }}
+                >
+                  {percent(pos.gain_pct, 1)}
+                </td>
+              </tr>
+            ))
+          ) : (
             <tr>
               <td
                 colSpan={relativeViewEnabled ? 2 : 5}
@@ -349,41 +379,52 @@ export function InstrumentDetail({
           </tr>
         </thead>
         <tbody>
-          {prices
-            .slice(-60)
-            .reverse()
-            .map((p) => {
-              const colour = Number.isFinite(p.change_gbp)
-                ? p.change_gbp >= 0
-                  ? "lightgreen"
-                  : "red"
-                : undefined;
-              return (
-                <tr key={p.date}>
-                  <td className={tableStyles.cell}>
-                    {new Intl.DateTimeFormat(i18n.language).format(
-                      new Date(p.date),
-                    )}
-                  </td>
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {money(p.close_gbp)}
-                  </td>
-                  <td
-                    className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{ color: colour }}
-                  >
-                    {money(p.change_gbp)}
-                  </td>
-                  <td
-                    className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{ color: colour }}
-                  >
-                    {percent(p.change_pct, 2)}
-                  </td>
-                </tr>
-              );
-            })}
-          {!prices.length && (
+          {loading ? (
+            <tr>
+              <td
+                colSpan={4}
+                className={`${tableStyles.cell} ${tableStyles.center}`}
+                style={{ color: "#888" }}
+              >
+                {t("app.loading")}
+              </td>
+            </tr>
+          ) : prices.length ? (
+            prices
+              .slice(-60)
+              .reverse()
+              .map((p) => {
+                const colour = Number.isFinite(p.change_gbp)
+                  ? p.change_gbp >= 0
+                    ? "lightgreen"
+                    : "red"
+                  : undefined;
+                return (
+                  <tr key={p.date}>
+                    <td className={tableStyles.cell}>
+                      {new Intl.DateTimeFormat(i18n.language).format(
+                        new Date(p.date),
+                      )}
+                    </td>
+                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                      {money(p.close_gbp)}
+                    </td>
+                    <td
+                      className={`${tableStyles.cell} ${tableStyles.right}`}
+                      style={{ color: colour }}
+                    >
+                      {money(p.change_gbp)}
+                    </td>
+                    <td
+                      className={`${tableStyles.cell} ${tableStyles.right}`}
+                      style={{ color: colour }}
+                    >
+                      {percent(p.change_pct, 2)}
+                    </td>
+                  </tr>
+                );
+              })
+          ) : (
             <tr>
               <td
                 colSpan={4}

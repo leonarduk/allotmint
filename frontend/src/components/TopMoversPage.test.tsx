@@ -14,7 +14,10 @@ const mockGetTopMovers = vi.fn(() =>
   }),
 );
 
-vi.mock("../api", () => ({ getTopMovers: (...args: any[]) => mockGetTopMovers(...args) }));
+vi.mock("../api", () => ({
+  getTopMovers: (...args: any[]) => mockGetTopMovers(...args),
+  getGroupMovers: vi.fn(),
+}));
 
 describe("TopMoversPage", () => {
   it("renders movers and refetches on period change", async () => {

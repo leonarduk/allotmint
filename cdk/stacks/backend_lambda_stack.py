@@ -2,6 +2,7 @@ from pathlib import Path
 
 from aws_cdk import (
     Stack,
+    BundlingOptions,
     aws_apigateway as apigw,
     aws_lambda as _lambda,
     aws_events as events,
@@ -24,7 +25,7 @@ class BackendLambdaStack(Stack):
             "BackendDependencies",
             code=_lambda.Code.from_asset(
                 str(backend_path),
-                bundling=_lambda.BundlingOptions(
+                bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_11.bundling_image,
                     command=[
                         "bash",

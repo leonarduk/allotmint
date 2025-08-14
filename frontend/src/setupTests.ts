@@ -13,4 +13,10 @@ class ResizeObserver {
   unobserve() {}
   disconnect() {}
 }
-(global as any).ResizeObserver = ResizeObserver;
+declare global {
+  interface GlobalThis {
+    ResizeObserver: typeof ResizeObserver;
+  }
+}
+
+globalThis.ResizeObserver = ResizeObserver;

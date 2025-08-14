@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { listSavedQueries } from "../api";
 import type { SavedQuery, CustomQuery } from "../types";
 import { useFetch } from "../hooks/useFetch";
@@ -7,8 +8,9 @@ type Props = {
 };
 
 export function SavedQueries({ onLoad }: Props) {
+  const loadQueries = useCallback(() => listSavedQueries(), []);
   const { data: queries, loading, error } = useFetch<SavedQuery[]>(
-    () => listSavedQueries(),
+    loadQueries,
     [],
   );
 

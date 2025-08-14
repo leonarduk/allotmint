@@ -1,5 +1,5 @@
 // src/components/GroupPortfolioView.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { GroupPortfolio, Account } from "../types";
 import { getGroupPortfolio } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
@@ -45,8 +45,9 @@ type Props = {
  * Component
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug, onSelectMember }: Props) {
+  const fetchPortfolio = useCallback(() => getGroupPortfolio(slug), [slug]);
   const { data: portfolio, loading, error } = useFetch<GroupPortfolio>(
-    () => getGroupPortfolio(slug),
+    fetchPortfolio,
     [slug],
     !!slug
   );

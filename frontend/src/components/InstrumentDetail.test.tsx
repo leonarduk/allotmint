@@ -36,6 +36,7 @@ declare global {
   }
 }
 
+
 globalThis.ResizeObserver = ResizeObserver;
 
 import { InstrumentDetail } from "./InstrumentDetail";

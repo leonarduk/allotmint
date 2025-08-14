@@ -16,6 +16,7 @@ const defaultConfig: AppConfig = {
     trading: true,
     timeseries: true,
     watchlist: true,
+    movers: true,
     virtual: true,
     support: true,
   },

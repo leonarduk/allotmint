@@ -27,6 +27,7 @@ import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
+import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
 
 type Mode =
@@ -39,7 +40,8 @@ type Mode =
   | "query"
   | "trading"
   | "timeseries"
-  | "watchlist";
+  | "watchlist"
+  | "movers";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -53,6 +55,7 @@ const initialMode: Mode =
   path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
   path[0] === "watchlist" ? "watchlist" :
+  path[0] === "movers" ? "movers" :
   "group";
 const initialSlug = path[1] ?? "";
 
@@ -98,6 +101,7 @@ export default function App() {
     "trading",
     "timeseries",
     "watchlist",
+    "movers",
   ];
 
   function pathFor(m: Mode) {
@@ -110,6 +114,8 @@ export default function App() {
         return selectedOwner ? `/member/${selectedOwner}` : "/member";
       case "performance":
         return selectedOwner ? `/performance/${selectedOwner}` : "/performance";
+      case "movers":
+        return "/movers";
       default:
         return `/${m}`;
     }
@@ -132,11 +138,13 @@ export default function App() {
           ? "query"
           : segs[0] === "trading"
             ? "trading"
-            : segs[0] === "timeseries"
-              ? "timeseries"
-              : segs[0] === "watchlist"
-                ? "watchlist"
-                : "group";
+              : segs[0] === "timeseries"
+                ? "timeseries"
+                : segs[0] === "watchlist"
+                  ? "watchlist"
+                  : segs[0] === "movers"
+                    ? "movers"
+                    : "group";
     if (tabs[newMode] === false) {
       setMode("group");
       navigate("/", { replace: true });
@@ -352,6 +360,7 @@ export default function App() {
       {mode === "trading" && <TradingAgent />}
       {mode === "timeseries" && <TimeseriesEdit />}
       {mode === "watchlist" && <Watchlist />}
+      {mode === "movers" && <TopMovers />}
 
       {mode === "query" && <QueryPage />}
 

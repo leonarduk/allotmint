@@ -16,7 +16,8 @@
       "query": "Consulta",
       "trading": "Trading",
       "timeseries": "Serie temporal",
-      "watchlist": "Watchlist"
+      "watchlist": "Watchlist",
+      "movers": "Movers"
     }
   },
   "common": {

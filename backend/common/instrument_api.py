@@ -20,7 +20,7 @@ from typing import List, Dict, Any, Optional
 from backend.common.constants import OWNER, ACCOUNTS, HOLDINGS
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.holding_utils import load_latest_prices
-from backend.common.portfolio_utils import list_all_unique_tickers
+from backend.common.portfolio_utils import list_all_unique_tickers, get_security_meta
 from backend.timeseries.cache import (
     load_meta_timeseries_range,
     has_cached_meta_timeseries,
@@ -114,23 +114,80 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
 
 
 # ───────────────────────────────────────────────────────────────
-# Last price + %-changes helper (cached)
+# Last price + %-changes helpers
 # ───────────────────────────────────────────────────────────────
+
+def _close_on(full: str, d: dt.date) -> Optional[float]:
+    """Return close price for ``full`` ticker on date ``d`` if available."""
+    sym, ex = (full.split(".", 1) + ["L"])[:2]
+    snap = _nearest_weekday(d, forward=False)
+    df = load_meta_timeseries_range(sym, ex, start_date=snap, end_date=snap)
+    if df is None or df.empty:
+        return None
+    col = (
+        "close_gbp"
+        if "close_gbp" in df.columns
+        else ("Close_gbp" if "Close_gbp" in df.columns else None)
+    )
+    if col is None:
+        col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
+    return float(df[col].iloc[0]) if col else None
+
+
+def price_change_pct(ticker: str, days: int) -> Optional[float]:
+    """Return % change from ``days`` ago to yesterday's close for ``ticker``."""
+    today = dt.date.today()
+    yday = today - dt.timedelta(days=1)
+
+    full = _resolve_full_ticker(ticker, _LATEST_PRICES)
+    if not full:
+        return None
+
+    px_now = _close_on(full, yday)
+    px_then = _close_on(full, yday - dt.timedelta(days=days))
+    if px_now is None or px_then is None or px_then == 0:
+        return None
+    return (px_now / px_then - 1.0) * 100.0
+
+
+def top_movers(tickers: List[str], days: int, limit: int = 10) -> Dict[str, List[Dict[str, Any]]]:
+    """Return top gainers and losers for ``tickers`` over ``days``."""
+    today = dt.date.today()
+    yday = today - dt.timedelta(days=1)
+    rows: List[Dict[str, Any]] = []
+
+    for t in tickers:
+        change = price_change_pct(t, days)
+        if change is None:
+            continue
+        full = _resolve_full_ticker(t, _LATEST_PRICES) or t.upper()
+        last_px = _close_on(full, yday)
+        meta = get_security_meta(full) or {}
+        rows.append(
+            {
+                "ticker": full,
+                "name": meta.get("name", full),
+                "change_pct": change,
+                "last_price_gbp": last_px,
+                "last_price_date": yday.isoformat(),
+            }
+        )
+
+    pos = sorted([r for r in rows if r["change_pct"] > 0], key=lambda r: r["change_pct"], reverse=True)
+    neg = sorted([r for r in rows if r["change_pct"] < 0], key=lambda r: r["change_pct"])
+    return {"gainers": pos[:limit], "losers": neg[:limit]}
+
+
 @lru_cache(maxsize=2048)
 def _price_and_changes(ticker: str) -> Dict[str, Any]:
     """
-    Return:
-        last_price_gbp, last_price_date,
-        change_7d_pct,  change_30d_pct
-    Historical closes prefer GBP values when available and are as-of yesterday.
+    Return last price and common percentage changes for ``ticker``.
     """
     today = dt.date.today()
     yday = today - dt.timedelta(days=1)
 
     full = _resolve_full_ticker(ticker, _LATEST_PRICES)
-    last_px = _LATEST_PRICES.get(full) if full else None
-
-    if not full or last_px is None:
+    if not full:
         return {
             "last_price_gbp": None,
             "last_price_date": None,
@@ -138,32 +195,13 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
             "change_30d_pct": None,
         }
 
-    sym, ex = (full.split(".", 1) + ["L"])[:2]
-
-    def _close_on(d: dt.date) -> Optional[float]:
-        # Snap to nearest weekday (backwards) and request that exact day,
-        # preferring GBP closes when provided by the data source.
-        snap = _nearest_weekday(d, forward=False)
-        df = load_meta_timeseries_range(sym, ex, start_date=snap, end_date=snap)
-        if df is None or df.empty:
-            return None
-        col = (
-            "close_gbp"
-            if "close_gbp" in df.columns
-            else ("Close_gbp" if "Close_gbp" in df.columns else None)
-        )
-        if col is None:
-            col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
-        return float(df[col].iloc[0]) if col else None
-
-    px_7 = _close_on(yday - dt.timedelta(days=7))
-    px_30 = _close_on(yday - dt.timedelta(days=30))
+    last_px = _close_on(full, yday)
 
     return {
-        "last_price_gbp": float(last_px),
+        "last_price_gbp": last_px,
         "last_price_date": yday.isoformat(),
-        "change_7d_pct": None if px_7 is None else (float(last_px) / px_7 - 1.0) * 100.0,
-        "change_30d_pct": None if px_30 is None else (float(last_px) / px_30 - 1.0) * 100.0,
+        "change_7d_pct": price_change_pct(ticker, 7),
+        "change_30d_pct": price_change_pct(ticker, 30),
     }
 
 

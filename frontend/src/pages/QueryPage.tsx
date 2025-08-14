@@ -17,7 +17,7 @@ const METRIC_OPTIONS = ["market_value_gbp", "gain_gbp"];
 type ResultRow = Record<string, string | number>;
 
 export function QueryPage() {
-  const { data: owners } = useFetch(() => getOwners(), []);
+  const { data: owners } = useFetch(getOwners, []);
   const { t } = useTranslation();
 
   const [start, setStart] = useState("");

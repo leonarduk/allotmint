@@ -4,8 +4,11 @@ import { useEffect, useState, type DependencyList } from "react";
  * Small helper hook that wraps an async function and provides
  * the resolved `data`, a `loading` indicator and any `error`.
  *
- * It automatically re‑runs whenever the dependency list changes
- * and will reset its state when `enabled` is set to `false`.
+ * It automatically re-runs whenever `enabled`, `fn` or the dependency list
+ * changes and will reset its state when `enabled` is set to `false`.
+ *
+ * Callers should ensure that `fn` is stable (e.g. via `useCallback`) to avoid
+ * unnecessary re-renders.
  */
 export function useFetch<T>(
   fn: () => Promise<T>,
@@ -43,7 +46,7 @@ export function useFetch<T>(
     return () => {
       cancelled = true;
     };
-  }, deps);
+  }, [enabled, fn, ...deps]);
 
   return { data, loading, error };
 }

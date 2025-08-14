@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../api", () => ({
@@ -71,6 +71,43 @@ describe("Watchlist page", () => {
     render(<Watchlist />);
 
     expect(await screen.findByText("boom")).toBeInTheDocument();
+  });
+
+  it("allows manual refresh", async () => {
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
+    localStorage.setItem("watchlistSymbols", "AAA");
+
+    render(<Watchlist />);
+
+    await screen.findByText("Alpha");
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByText("Refresh"));
+    await screen.findByText("Alpha");
+    expect(getQuotes).toHaveBeenCalledTimes(2);
+  });
+
+  it("auto-refreshes when enabled", async () => {
+    vi.useFakeTimers();
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
+    localStorage.setItem("watchlistSymbols", "AAA");
+
+    render(<Watchlist />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
   });
 });
 

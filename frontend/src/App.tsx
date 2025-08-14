@@ -28,6 +28,7 @@ import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
 import { useConfig } from "./ConfigContext";
+import { showNavigation } from "./config";
 
 type Mode =
   | "owner"
@@ -87,10 +88,39 @@ export default function App() {
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
 
-  const links: JSX.Element[] = [];
-  if (tabs.virtual) links.push(<a href="/virtual">Virtual Portfolios</a>);
-  if (tabs.trading) links.push(<a href="/trading">Trading Agent</a>);
-  if (tabs.support) links.push(<a href="/support">{t("app.supportLink")}</a>);
+  const extraLinks: JSX.Element[] = [];
+  if (tabs.virtual) extraLinks.push(<a href="/virtual">Virtual Portfolios</a>);
+  if (tabs.trading) extraLinks.push(<a href="/trading">Trading Agent</a>);
+  if (tabs.support) extraLinks.push(
+    <a href="/support">{t("app.supportLink")}</a>,
+  );
+
+  function linkForMode(m: Mode) {
+    switch (m) {
+      case "group":
+        return selectedGroup ? `/?group=${selectedGroup}` : "/";
+      case "instrument":
+        return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
+      case "owner":
+        return selectedOwner ? `/member/${selectedOwner}` : "/member";
+      case "performance":
+        return "/performance";
+      case "transactions":
+        return "/transactions";
+      case "screener":
+        return "/screener";
+      case "query":
+        return "/query";
+      case "trading":
+        return "/trading";
+      case "timeseries":
+        return "/timeseries";
+      case "watchlist":
+        return "/watchlist";
+      default:
+        return "/";
+    }
+  }
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
@@ -221,38 +251,35 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <LanguageSwitcher />
-      <AlertsPanel />
-      {/* mode toggle */}
-      <div style={{ marginBottom: "1rem" }}>
-        <strong>{t("app.viewBy")}</strong>{" "}
-        {([
-          "group",
-          "instrument",
-          "owner",
-          "performance",
-          "transactions",
-          "screener",
-          "query",
-          "trading",
-          "timeseries",
-          "watchlist",
+      {showNavigation && (
+        <nav style={{ marginBottom: "1rem" }}>
+          {([
+            "group",
+            "instrument",
+            "owner",
+            "performance",
+            "transactions",
+            "screener",
+            "query",
+            "trading",
+            "timeseries",
+            "watchlist",
           ] as Mode[])
             .filter((m) => tabs[m] !== false)
             .map((m) => (
-            <label key={m} style={{ marginRight: "1rem" }}>
-              <input
-                type="radio"
-                name="mode"
-                value={m}
-                checked={mode === m}
-                onChange={() => setMode(m)}
-              />{" "}
-              {t(`app.modes.${m}`)}
-            </label>
+              <a key={m} href={linkForMode(m)} style={{ marginRight: "1rem" }}>
+                {t(`app.modes.${m}`)}
+              </a>
+            ))}
+          {extraLinks.map((link, i) => (
+            <span key={i} style={{ marginRight: "1rem" }}>
+              {link}
+            </span>
           ))}
-      </div>
-
+        </nav>
+      )}
+      <LanguageSwitcher />
+      <AlertsPanel />
       <div style={{ marginBottom: "1rem" }}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
           {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
@@ -344,17 +371,6 @@ export default function App() {
       {mode === "watchlist" && <Watchlist />}
 
       {mode === "query" && <QueryPage />}
-
-      {links.length > 0 && (
-        <p style={{ marginTop: "2rem", textAlign: "center" }}>
-          {links.map((link, i) => (
-            <span key={i}>
-              {i > 0 && " • "}
-              {link}
-            </span>
-          ))}
-        </p>
-      )}
     </div>
   );
 }

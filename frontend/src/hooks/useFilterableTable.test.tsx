@@ -10,7 +10,7 @@ const rows: Row[] = [
   { name: "Carol", age: 35, active: true },
 ];
 
-const filters: Record<string, Filter<Row, any>> = {
+const filters: Record<string, Filter<Row, unknown>> = {
   search: {
     value: "",
     predicate: (row, value: string) =>

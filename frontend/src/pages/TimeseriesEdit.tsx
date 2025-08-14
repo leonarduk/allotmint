@@ -51,11 +51,10 @@ export function TimeseriesEdit() {
       const cols = header.split(",");
       const data: PriceEntry[] = rows.map((line) => {
         const parts = line.split(",");
-        const obj: any = {};
+        const obj: Record<string, unknown> = {};
         cols.forEach((col, i) => {
           const val = parts[i];
-          if (col === "Date") obj[col] = val;
-          else obj[col] = val === undefined || val === "" ? null : Number(val);
+          obj[col] = col === "Date" ? val : val === undefined || val === "" ? null : Number(val);
         });
         return obj as PriceEntry;
       });

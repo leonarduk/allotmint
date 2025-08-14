@@ -20,17 +20,19 @@ type Props = {
  * keep the JSX at the bottom easy to follow.
  */
 export function PortfolioView({ data, loading, error }: Props) {
-  if (loading) return <div>Loading portfolio…</div>; // show a quick spinner
-  if (error) return <div style={{ color: "red" }}>{error}</div>; // bubble errors
-  if (!data) return <div>Select an owner.</div>; // nothing chosen yet
-
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
 
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
 
   useEffect(() => {
-    setSelectedAccounts(data.accounts.map(accountKey));
+    if (data) {
+      setSelectedAccounts(data.accounts.map(accountKey));
+    }
   }, [data]);
+
+  if (loading) return <div>Loading portfolio…</div>; // show a quick spinner
+  if (error) return <div style={{ color: "red" }}>{error}</div>; // bubble errors
+  if (!data) return <div>Select an owner.</div>; // nothing chosen yet
 
   const allKeys = data.accounts.map(accountKey);
   const activeSet = new Set(

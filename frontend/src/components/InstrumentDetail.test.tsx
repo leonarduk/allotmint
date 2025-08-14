@@ -29,7 +29,8 @@ class ResizeObserver {
   unobserve() {}
   disconnect() {}
 }
-(global as any).ResizeObserver = ResizeObserver;
+(globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
+  ResizeObserver;
 
 import { InstrumentDetail } from "./InstrumentDetail";
 

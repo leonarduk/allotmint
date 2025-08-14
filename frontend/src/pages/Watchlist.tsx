@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
@@ -53,7 +53,7 @@ export function Watchlist() {
     [symbols],
   );
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     if (!symbolList.length) {
       setRows([]);
       return;
@@ -65,18 +65,18 @@ export function Watchlist() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }
+  }, [symbolList]);
 
   useEffect(() => {
     fetchData();
     localStorage.setItem("watchlistSymbols", symbols);
-  }, [symbols]);
+  }, [symbols, fetchData]);
 
   useEffect(() => {
     if (!auto) return;
     const id = setInterval(fetchData, 10000);
     return () => clearInterval(id);
-  }, [auto, symbols]);
+  }, [auto, fetchData]);
 
   const sorted = useMemo(() => {
     const data = [...rows];

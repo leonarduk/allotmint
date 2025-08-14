@@ -2,6 +2,13 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { getConfig } from "./api";
 
+interface RawConfig {
+  relative_view_enabled?: boolean;
+  disabled_tabs?: string[];
+  tabs?: Partial<TabsConfig>;
+  theme?: string;
+}
+
 export interface TabsConfig {
   [key: string]: boolean;
   instrument: boolean;
@@ -59,19 +66,20 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     getConfig()
       .then((cfg) => {
-        const tabs = { ...defaultTabs, ...((cfg as any).tabs ?? {}) };
+        const raw = cfg as RawConfig;
+        const tabs: TabsConfig = { ...defaultTabs, ...(raw.tabs ?? {}) };
         const disabledTabs = new Set<string>(
-          Array.isArray((cfg as any).disabled_tabs)
-            ? ((cfg as any).disabled_tabs as string[])
-            : [],
+          Array.isArray(raw.disabled_tabs) ? raw.disabled_tabs : [],
         );
         for (const [tab, enabled] of Object.entries(tabs)) {
           if (!enabled) disabledTabs.add(tab);
         }
-        const theme =
-          typeof (cfg as any).theme === "string" ? ((cfg as any).theme as any) : "system";
+        const theme: AppConfig["theme"] =
+          raw.theme === "dark" || raw.theme === "light" || raw.theme === "system"
+            ? raw.theme
+            : "system";
         setConfig({
-          relativeViewEnabled: Boolean((cfg as any).relative_view_enabled),
+          relativeViewEnabled: Boolean(raw.relative_view_enabled),
           disabledTabs: Array.from(disabledTabs),
           tabs,
           theme,

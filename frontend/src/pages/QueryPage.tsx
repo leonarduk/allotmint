@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   API_BASE,
@@ -17,7 +17,8 @@ const METRIC_OPTIONS = ["market_value_gbp", "gain_gbp"];
 type ResultRow = Record<string, string | number>;
 
 export function QueryPage() {
-  const { data: owners } = useFetch(getOwners, []);
+  const fetchOwners = useCallback(getOwners, []);
+  const { data: owners } = useFetch(fetchOwners, []);
   const { t } = useTranslation();
 
   const [start, setStart] = useState("");

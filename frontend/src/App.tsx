@@ -1,5 +1,5 @@
-import { useEffect, useState, type JSX } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
 
@@ -87,10 +87,33 @@ export default function App() {
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
 
-  const links: JSX.Element[] = [];
-  if (tabs.virtual) links.push(<a href="/virtual">Virtual Portfolios</a>);
-  if (tabs.trading) links.push(<a href="/trading">Trading Agent</a>);
-  if (tabs.support) links.push(<a href="/support">{t("app.supportLink")}</a>);
+  const modes: Mode[] = [
+    "group",
+    "instrument",
+    "owner",
+    "performance",
+    "transactions",
+    "screener",
+    "query",
+    "trading",
+    "timeseries",
+    "watchlist",
+  ];
+
+  function pathFor(m: Mode) {
+    switch (m) {
+      case "group":
+        return selectedGroup ? `/?group=${selectedGroup}` : "/";
+      case "instrument":
+        return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
+      case "owner":
+        return selectedOwner ? `/member/${selectedOwner}` : "/member";
+      case "performance":
+        return selectedOwner ? `/performance/${selectedOwner}` : "/performance";
+      default:
+        return `/${m}`;
+    }
+  }
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
@@ -223,35 +246,22 @@ export default function App() {
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <LanguageSwitcher />
       <AlertsPanel />
-      {/* mode toggle */}
-      <div style={{ marginBottom: "1rem" }}>
-        <strong>{t("app.viewBy")}</strong>{" "}
-        {([
-          "group",
-          "instrument",
-          "owner",
-          "performance",
-          "transactions",
-          "screener",
-          "query",
-          "trading",
-          "timeseries",
-          "watchlist",
-          ] as Mode[])
-            .filter((m) => tabs[m] !== false)
-            .map((m) => (
-            <label key={m} style={{ marginRight: "1rem" }}>
-              <input
-                type="radio"
-                name="mode"
-                value={m}
-                checked={mode === m}
-                onChange={() => setMode(m)}
-              />{" "}
+      <nav style={{ margin: "1rem 0" }}>
+        {modes
+          .filter((m) => tabs[m] !== false)
+          .map((m) => (
+            <Link
+              key={m}
+              to={pathFor(m)}
+              style={{
+                marginRight: "1rem",
+                fontWeight: mode === m ? "bold" : undefined,
+              }}
+            >
               {t(`app.modes.${m}`)}
-            </label>
+            </Link>
           ))}
-      </div>
+      </nav>
 
       <div style={{ marginBottom: "1rem" }}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
@@ -345,16 +355,6 @@ export default function App() {
 
       {mode === "query" && <QueryPage />}
 
-      {links.length > 0 && (
-        <p style={{ marginTop: "2rem", textAlign: "center" }}>
-          {links.map((link, i) => (
-            <span key={i}>
-              {i > 0 && " • "}
-              {link}
-            </span>
-          ))}
-        </p>
-      )}
     </div>
   );
 }

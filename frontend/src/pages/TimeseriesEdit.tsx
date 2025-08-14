@@ -49,13 +49,34 @@ export function TimeseriesEdit() {
       if (!lines.length) throw new Error("No data to save");
       const [header, ...rows] = lines;
       const cols = header.split(",");
-      const data: PriceEntry[] = rows.map((line) => {
+      const allowedCols: (keyof PriceEntry)[] = [
+        "Date",
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "Volume",
+        "Ticker",
+        "Source",
+      ];
+      const unexpected = cols.filter(
+        (c) => !allowedCols.includes(c as keyof PriceEntry),
+      );
+      if (unexpected.length)
+        throw new Error(`Unexpected column(s): ${unexpected.join(", ")}`);
+
+      const data = rows.map<PriceEntry>((line) => {
         const parts = line.split(",");
-        const obj: any = {};
+        const obj: Partial<PriceEntry> = {};
         cols.forEach((col, i) => {
+          const key = col as keyof PriceEntry;
           const val = parts[i];
-          if (col === "Date") obj[col] = val;
-          else obj[col] = val === undefined || val === "" ? null : Number(val);
+          obj[key] =
+            key === "Date" || key === "Ticker" || key === "Source"
+              ? val
+              : val === undefined || val === ""
+              ? null
+              : Number(val);
         });
         return obj as PriceEntry;
       });

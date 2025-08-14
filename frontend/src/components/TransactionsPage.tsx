@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import type { OwnerSummary, Transaction } from "../types";
 import { getTransactions } from "../api";
 import { Selector } from "./Selector";
@@ -18,7 +18,7 @@ export function TransactionsPage({ owners }: Props) {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const { t } = useTranslation();
-  const { data: transactions, loading, error } = useFetch<Transaction[]>(
+  const fetchTransactions = useCallback(
     () =>
       getTransactions({
         owner: owner || undefined,
@@ -26,6 +26,10 @@ export function TransactionsPage({ owners }: Props) {
         start: start || undefined,
         end: end || undefined,
       }),
+    [owner, account, start, end]
+  );
+  const { data: transactions, loading, error } = useFetch<Transaction[]>(
+    fetchTransactions,
     [owner, account, start, end]
   );
 

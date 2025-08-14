@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
@@ -11,14 +11,15 @@ import i18n from "../i18n";
 
 export function ScreenerPage() {
   const [watchlist, setWatchlist] = useState<WatchlistName>("FTSE 100");
+  const fetchScreener = useCallback(
+    () => getScreener(WATCHLISTS[watchlist]),
+    [watchlist]
+  );
   const {
     data: rows,
     loading,
     error,
-  } = useFetch<ScreenerResult[]>(
-    () => getScreener(WATCHLISTS[watchlist]),
-    [watchlist]
-  );
+  } = useFetch<ScreenerResult[]>(fetchScreener, [watchlist]);
   const [ticker, setTicker] = useState<string | null>(null);
 
   const { sorted, handleSort } = useSortableTable(rows ?? [], "peg_ratio");

@@ -118,9 +118,9 @@ describe("App", () => {
       </configContext.Provider>,
     );
 
-    expect(screen.queryByLabelText(/trading/i)).toBeNull();
-    const group = await screen.findByLabelText(/group/i);
-    expect((group as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByRole("link", { name: /trading/i })).toBeNull();
+    const groupLink = await screen.findByRole("link", { name: /group/i });
+    expect(groupLink).toHaveStyle("font-weight: bold");
   });
 
   it("allows navigation to enabled tabs", async () => {
@@ -169,8 +169,8 @@ describe("App", () => {
       </configContext.Provider>,
     );
 
-    const tradingTab = await screen.findByLabelText(/trading/i);
-    expect((tradingTab as HTMLInputElement).checked).toBe(true);
+    const tradingTab = await screen.findByRole("link", { name: /trading/i });
+    expect(tradingTab).toHaveStyle("font-weight: bold");
     expect(await screen.findByText(/No signals\./i)).toBeInTheDocument();
     expect(mockTradingSignals).toHaveBeenCalled();
   });

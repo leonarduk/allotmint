@@ -18,6 +18,7 @@ import type {
   QuoteRow,
   TradingSignal,
   ComplianceResult,
+  MoverRow,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -70,6 +71,22 @@ export const refreshPrices = () =>
 export const getQuotes = (symbols: string[]) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });
   return fetchJson<QuoteRow[]>(`${API_BASE}/api/quotes?${params.toString()}`);
+};
+
+/** Retrieve top movers across tickers for a period. */
+export const getTopMovers = (
+  tickers: string[],
+  days: number,
+  limit = 10,
+) => {
+  const params = new URLSearchParams({
+    tickers: tickers.join(","),
+    days: String(days),
+  });
+  if (limit) params.set("limit", String(limit));
+  return fetchJson<{ gainers: MoverRow[]; losers: MoverRow[] }>(
+    `${API_BASE}/movers?${params.toString()}`,
+  );
 };
 
 /** Retrieve per-ticker aggregation for a group portfolio. */

@@ -12,6 +12,7 @@ export interface TabsConfig {
   trading: boolean;
   timeseries: boolean;
   watchlist: boolean;
+  movers: boolean;
   virtual: boolean;
   support: boolean;
 }
@@ -37,6 +38,7 @@ const defaultTabs: TabsConfig = {
   trading: true,
   timeseries: true,
   watchlist: true,
+  movers: true,
   virtual: true,
   support: true,
 };

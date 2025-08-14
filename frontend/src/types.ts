@@ -132,6 +132,14 @@ export interface QuoteRow {
     time: string | null;
 }
 
+export interface MoverRow {
+    ticker: string;
+    name: string;
+    change_pct: number;
+    last_price_gbp?: number | null;
+    last_price_date?: string | null;
+}
+
 export type Alert = {
     ticker: string;
     change_pct: number;

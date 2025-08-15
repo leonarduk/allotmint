@@ -1,4 +1,4 @@
-import { useEffect, useState, type DependencyList } from "react";
+import { useEffect, useState, useMemo, type DependencyList } from "react";
 
 /**
  * Small helper hook that wraps an async function and provides
@@ -7,8 +7,8 @@ import { useEffect, useState, type DependencyList } from "react";
  * It automatically re-runs whenever `enabled`, `fn` or the dependency list
  * changes and will reset its state when `enabled` is set to `false`.
  *
- * Callers should ensure that `fn` is stable (e.g. via `useCallback`) to avoid
- * unnecessary re-renders.
+ * Callers should ensure that `fn` and values in `deps` are memoized (e.g. via
+ * `useCallback`/`useMemo`) so the dependency array only changes when inputs do.
  */
 export function useFetch<T>(
   fn: () => Promise<T>,
@@ -18,6 +18,7 @@ export function useFetch<T>(
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const allDeps = useMemo(() => [enabled, fn, ...deps], [enabled, fn, ...deps]);
 
   useEffect(() => {
     if (!enabled) {
@@ -46,7 +47,7 @@ export function useFetch<T>(
     return () => {
       cancelled = true;
     };
-  }, [enabled, fn, ...deps]);
+  }, allDeps);
 
   return { data, loading, error };
 }

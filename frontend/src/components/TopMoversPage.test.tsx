@@ -13,8 +13,32 @@ const mockGetTopMovers = vi.fn(() =>
     losers: [{ ticker: "BBB", name: "BBB", change_pct: -2 } as MoverRow],
   }),
 );
+const mockGetGroupInstruments = vi.fn(() =>
+  Promise.resolve([
+    {
+      ticker: "CCC",
+      name: "CCC",
+      currency: null,
+      units: 0,
+      market_value_gbp: 0,
+      gain_gbp: 0,
+    },
+  ]),
+);
 
-vi.mock("../api", () => ({ getTopMovers: (...args: any[]) => mockGetTopMovers(...args) }));
+vi.mock("../api", () => ({
+  getTopMovers: (...args: any[]) => mockGetTopMovers(...args),
+  getGroupInstruments: (...args: any[]) => mockGetGroupInstruments(...args),
+}));
+
+vi.mock("./InstrumentDetail", () => ({
+  InstrumentDetail: ({ ticker, onClose }: any) => (
+    <div data-testid="detail">
+      Detail for {ticker}
+      <button onClick={onClose}>x</button>
+    </div>
+  ),
+}));
 
 describe("TopMoversPage", () => {
   it("renders movers and refetches on period change", async () => {
@@ -30,5 +54,29 @@ describe("TopMoversPage", () => {
     const periodSelect = selects[1];
     fireEvent.change(periodSelect, { target: { value: "1w" } });
     await waitFor(() => expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 7));
+  });
+
+  it("fetches portfolio instruments when selecting Portfolio", async () => {
+    render(<TopMoversPage />);
+
+    const selects = await screen.findAllByRole("combobox");
+    const watchlistSelect = selects[0];
+    fireEvent.change(watchlistSelect, { target: { value: "Portfolio" } });
+
+    await waitFor(() => expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"));
+    await waitFor(() =>
+      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["CCC"], 1),
+    );
+    expect(
+      mockGetGroupInstruments.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockGetTopMovers.mock.invocationCallOrder.at(-1)!);
+  });
+
+  it("mounts InstrumentDetail when ticker clicked", async () => {
+    render(<TopMoversPage />);
+
+    const button = await screen.findByRole("button", { name: "AAA" });
+    fireEvent.click(button);
+    expect(await screen.findByTestId("detail")).toHaveTextContent("AAA");
   });
 });

@@ -1,22 +1,32 @@
 import { useCallback, useMemo, useState } from "react";
-import { getTopMovers } from "../api";
+import { getTopMovers, getGroupInstruments } from "../api";
 import type { MoverRow } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
+import { InstrumentDetail } from "./InstrumentDetail";
 import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 
 const PERIODS = { "1d": 1, "1w": 7, "1m": 30, "3m": 90, "1y": 365 } as const;
 type PeriodKey = keyof typeof PERIODS;
+type WatchlistOption = WatchlistName | "Portfolio";
 
 export function TopMoversPage() {
-  const [watchlist, setWatchlist] = useState<WatchlistName>("FTSE 100");
+  const [watchlist, setWatchlist] = useState<WatchlistOption>("FTSE 100");
   const [period, setPeriod] = useState<PeriodKey>("1d");
+  const [selected, setSelected] = useState<MoverRow | null>(null);
 
-  const fetchMovers = useCallback(
-    () => getTopMovers(WATCHLISTS[watchlist], PERIODS[period]),
-    [watchlist, period],
-  );
+  const fetchMovers = useCallback(() => {
+    if (watchlist === "Portfolio") {
+      return getGroupInstruments("all").then((rows) =>
+        getTopMovers(
+          rows.map((r) => r.ticker),
+          PERIODS[period],
+        ),
+      );
+    }
+    return getTopMovers(WATCHLISTS[watchlist], PERIODS[period]);
+  }, [watchlist, period]);
   const { data, loading, error } = useFetch(fetchMovers, [watchlist, period]);
   const rows = useMemo(() => {
     if (!data) return [];
@@ -36,14 +46,16 @@ export function TopMoversPage() {
       <div style={{ marginBottom: "0.5rem" }}>
         <select
           value={watchlist}
-          onChange={(e) => setWatchlist(e.target.value as WatchlistName)}
+          onChange={(e) => setWatchlist(e.target.value as WatchlistOption)}
           style={{ marginRight: "0.5rem" }}
         >
-          {(Object.keys(WATCHLISTS) as WatchlistName[]).map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
+          {([...Object.keys(WATCHLISTS), "Portfolio"] as WatchlistOption[]).map(
+            (name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ),
+          )}
         </select>
         <select
           value={period}
@@ -83,7 +95,23 @@ export function TopMoversPage() {
         <tbody>
           {sorted.map((r) => (
             <tr key={r.ticker}>
-              <td className={tableStyles.cell}>{r.ticker}</td>
+              <td className={tableStyles.cell}>
+                <button
+                  type="button"
+                  onClick={() => setSelected(r)}
+                  style={{
+                    color: "dodgerblue",
+                    textDecoration: "underline",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    font: "inherit",
+                    cursor: "pointer",
+                  }}
+                >
+                  {r.ticker}
+                </button>
+              </td>
               <td className={tableStyles.cell}>{r.name}</td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                 {r.change_pct.toFixed(2)}
@@ -92,6 +120,14 @@ export function TopMoversPage() {
           ))}
         </tbody>
       </table>
+
+      {selected && (
+        <InstrumentDetail
+          ticker={selected.ticker}
+          name={selected.name}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </>
   );
 }

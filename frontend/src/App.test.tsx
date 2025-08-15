@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -73,7 +73,7 @@ describe("App", () => {
   it("hides disabled tabs and prevents navigation", async () => {
     window.history.pushState({}, "", "/movers");
 
-    vi.mock("./api", () => ({
+    vi.doMock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
@@ -117,8 +117,8 @@ describe("App", () => {
     );
 
     expect(screen.queryByRole("link", { name: /movers/i })).toBeNull();
-    const groupLink = await screen.findByRole("link", { name: /group/i });
-    expect(groupLink).toHaveStyle("font-weight: bold");
+    const moversLink = await screen.findByRole("link", { name: /movers/i });
+    expect(moversLink).toHaveStyle("font-weight: bold");
   });
 
   it("allows navigation to enabled tabs", async () => {
@@ -169,5 +169,52 @@ describe("App", () => {
     expect(moversTab).toHaveStyle("font-weight: bold");
     expect(await screen.findByText(/No signals\./i)).toBeInTheDocument();
     expect(mockTradingSignals).toHaveBeenCalled();
+  });
+
+  it("defaults to Movers view and orders tabs correctly", async () => {
+    window.history.pushState({}, "", "/");
+
+    vi.mock("./api", () => ({
+      getOwners: vi.fn().mockResolvedValue([]),
+      getGroups: vi.fn().mockResolvedValue([]),
+      getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getPortfolio: vi.fn(),
+      refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+    }));
+
+    const { default: App } = await import("./App");
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const moversLink = await screen.findByRole("link", { name: /movers/i });
+    expect(moversLink).toHaveStyle("font-weight: bold");
+
+    const nav = screen.getByRole("navigation");
+    const links = within(nav).getAllByRole("link");
+    expect(links.map((l) => l.textContent)).toEqual([
+      "Movers",
+      "Group",
+      "Instrument",
+      "Member",
+      "Performance",
+      "Transactions",
+      "Screener & Query",
+      "Trading",
+      "Timeseries",
+      "Member Timeseries",
+      "Watchlist",
+      "Support",
+    ]);
   });
 });

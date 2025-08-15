@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { API_BASE, getConfig, updateConfig } from "../api";
+import { API_BASE, getConfig, updateConfig, type BackendConfig } from "../api";
 
 export default function Support() {
   const { t } = useTranslation();
@@ -14,7 +14,7 @@ export default function Support() {
 
   useEffect(() => {
     getConfig()
-      .then((cfg) => {
+      .then((cfg: BackendConfig) => {
         const entries: Record<string, string | boolean> = {};
         Object.entries(cfg).forEach(([k, v]) => {
           entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
@@ -49,7 +49,7 @@ export default function Support() {
     }
     try {
       await updateConfig(payload);
-      const fresh = await getConfig();
+      const fresh: BackendConfig = await getConfig();
       const entries: Record<string, string | boolean> = {};
       Object.entries(fresh).forEach(([k, v]) => {
         entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);

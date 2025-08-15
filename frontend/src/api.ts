@@ -202,8 +202,16 @@ export const deleteVirtualPortfolio = (id: number | string) =>
   });
 
 /** Retrieve backend configuration. */
+export interface BackendConfig {
+  tabs?: Record<string, boolean>;
+  disabled_tabs?: string[];
+  theme?: "dark" | "light" | "system";
+  relative_view_enabled?: boolean;
+  [key: string]: unknown;
+}
+
 export const getConfig = () =>
-  fetchJson<Record<string, unknown>>(`${API_BASE}/config`);
+  fetchJson<BackendConfig>(`${API_BASE}/config`);
 
 /** Persist configuration changes. */
 export const updateConfig = (cfg: Record<string, unknown>) =>

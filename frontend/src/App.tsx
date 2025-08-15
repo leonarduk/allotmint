@@ -40,6 +40,7 @@ type Mode =
   | "query"
   | "trading"
   | "timeseries"
+  | "groupInstrumentMemberTimeseries"
   | "watchlist"
   | "movers";
 
@@ -54,6 +55,7 @@ const initialMode: Mode =
   path[0] === "query" ? "query" :
   path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
+  path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
   path[0] === "watchlist" ? "watchlist" :
   path[0] === "movers" ? "movers" :
   "group";
@@ -100,6 +102,7 @@ export default function App() {
     "query",
     "trading",
     "timeseries",
+    "groupInstrumentMemberTimeseries",
     "watchlist",
     "movers",
   ];
@@ -140,11 +143,13 @@ export default function App() {
             ? "trading"
               : segs[0] === "timeseries"
                 ? "timeseries"
-                : segs[0] === "watchlist"
-                  ? "watchlist"
-                  : segs[0] === "movers"
-                    ? "movers"
-                    : "group";
+                : segs[0] === "groupInstrumentMemberTimeseries"
+                  ? "groupInstrumentMemberTimeseries"
+                  : segs[0] === "watchlist"
+                    ? "watchlist"
+                    : segs[0] === "movers"
+                      ? "movers"
+                      : "group";
     if (tabs[newMode] === false) {
       setMode("group");
       navigate("/", { replace: true });

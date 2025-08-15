@@ -20,8 +20,7 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
-import { Screener } from "./pages/Screener";
-import { QueryPage } from "./pages/QueryPage";
+import { ScreenerQuery } from "./pages/ScreenerQuery";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
@@ -37,7 +36,6 @@ type Mode =
   | "transactions"
   | "performance"
   | "screener"
-  | "query"
   | "trading"
   | "timeseries"
   | "groupInstrumentMemberTimeseries"
@@ -53,7 +51,6 @@ const initialMode: Mode =
   path[0] === "transactions" ? "transactions" :
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
-  path[0] === "query" ? "query" :
   path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
   path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
@@ -101,7 +98,6 @@ export default function App() {
     "performance",
     "transactions",
     "screener",
-    "query",
     "trading",
     "timeseries",
     "groupInstrumentMemberTimeseries",
@@ -140,10 +136,8 @@ export default function App() {
               ? "performance"
               : segs[0] === "screener"
                 ? "screener"
-        : segs[0] === "query"
-          ? "query"
-          : segs[0] === "trading"
-            ? "trading"
+              : segs[0] === "trading"
+                ? "trading"
               : segs[0] === "timeseries"
                 ? "timeseries"
                 : segs[0] === "groupInstrumentMemberTimeseries"
@@ -366,14 +360,11 @@ export default function App() {
 
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
-      {mode === "screener" && <Screener />}
+      {mode === "screener" && <ScreenerQuery />}
       {mode === "trading" && <TradingAgent />}
       {mode === "timeseries" && <TimeseriesEdit />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}
-
-      {mode === "query" && <QueryPage />}
-
     </div>
   );
 }

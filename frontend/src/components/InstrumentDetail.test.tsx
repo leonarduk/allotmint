@@ -12,7 +12,6 @@ const defaultConfig: AppConfig = {
     performance: true,
     transactions: true,
     screener: true,
-    query: true,
     trading: true,
     timeseries: true,
     groupInstrumentMemberTimeseries: true,

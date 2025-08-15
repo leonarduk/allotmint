@@ -24,7 +24,6 @@ import { ScreenerQuery } from "./pages/ScreenerQuery";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
-import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
@@ -36,9 +35,7 @@ type Mode =
   | "transactions"
   | "performance"
   | "screener"
-  | "trading"
   | "timeseries"
-  | "groupInstrumentMemberTimeseries"
   | "watchlist"
   | "movers"
   | "support";
@@ -52,9 +49,7 @@ const initialMode: Mode =
   path[0] === "transactions" ? "transactions" :
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
-  path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
-  path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
   path[0] === "watchlist" ? "watchlist" :
   path[0] === "movers" ? "movers" :
   path[0] === "support" ? "support" :
@@ -100,9 +95,7 @@ export default function App() {
     "performance",
     "transactions",
     "screener",
-    "trading",
     "timeseries",
-    "groupInstrumentMemberTimeseries",
     "watchlist",
     "support",
   ];
@@ -144,9 +137,6 @@ export default function App() {
       case "screener":
         newMode = "screener";
         break;
-      case "trading":
-        newMode = "trading";
-        break;
       case "timeseries":
         newMode = "timeseries";
         break;
@@ -165,6 +155,7 @@ export default function App() {
       default:
         newMode = segs.length === 0 && params.has("group") ? "group" : "movers";
     }
+
     if (tabs[newMode] === false) {
       setMode("movers");
       navigate("/movers", { replace: true });
@@ -380,7 +371,6 @@ export default function App() {
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
       {mode === "screener" && <ScreenerQuery />}
-      {mode === "trading" && <TradingAgent />}
       {mode === "timeseries" && <TimeseriesEdit />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}

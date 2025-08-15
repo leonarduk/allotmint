@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 import { TopMoversPage } from "./TopMoversPage";
 import type { MoverRow } from "../types";
@@ -25,11 +26,17 @@ const mockGetGroupInstruments = vi.fn(() =>
     },
   ]),
 );
+const mockGetTradingSignals = vi.fn(() =>
+  Promise.resolve([
+    { ticker: "AAA", action: "buy", reason: "go long" },
+  ]),
+);
 
 vi.mock("../api", () => ({
   getTopMovers: (...args: unknown[]) => mockGetTopMovers(...args),
   getGroupInstruments: (...args: unknown[]) =>
     mockGetGroupInstruments(...args),
+  getTradingSignals: (...args: unknown[]) => mockGetTradingSignals(...args),
 }));
 
 vi.mock("./InstrumentDetail", () => ({
@@ -49,7 +56,11 @@ vi.mock("./InstrumentDetail", () => ({
 
 describe("TopMoversPage", () => {
   it("renders movers and refetches on period change", async () => {
-    render(<TopMoversPage />);
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
 
     await waitFor(() =>
       expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"),
@@ -69,7 +80,11 @@ describe("TopMoversPage", () => {
   });
 
   it("fetches watchlist instruments when selecting FTSE 100", async () => {
-    render(<TopMoversPage />);
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
 
     await waitFor(() =>
       expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1),
@@ -85,7 +100,11 @@ describe("TopMoversPage", () => {
   });
 
   it("mounts InstrumentDetail when ticker clicked", async () => {
-    render(<TopMoversPage />);
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
 
     const button = await screen.findByRole("button", { name: "AAA" });
     fireEvent.click(button);
@@ -93,11 +112,25 @@ describe("TopMoversPage", () => {
   });
 
   it("colors gainers green and losers red", async () => {
-    render(<TopMoversPage />);
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
 
     const gainerCell = await screen.findByText("5.00");
     const loserCell = await screen.findByText("-2.00");
     expect(gainerCell).toHaveStyle({ color: "rgb(0, 128, 0)" });
     expect(loserCell).toHaveStyle({ color: "rgb(255, 0, 0)" });
+  });
+
+  it("renders trading signals table", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(mockGetTradingSignals).toHaveBeenCalled());
+    expect(await screen.findByText("go long")).toBeInTheDocument();
   });
 });

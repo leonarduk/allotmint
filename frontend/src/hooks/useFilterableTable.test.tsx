@@ -10,15 +10,18 @@ const rows: Row[] = [
   { name: "Carol", age: 35, active: true },
 ];
 
-const filters: Record<string, Filter<Row, any>> = {
+const filters: Record<string, Filter<Row, unknown>> = {
   search: {
     value: "",
-    predicate: (row, value: string) =>
-      row.name.toLowerCase().includes(value.toLowerCase()),
+    predicate: (row, value) =>
+      typeof value === "string"
+        ? row.name.toLowerCase().includes(value.toLowerCase())
+        : true,
   },
   onlyActive: {
     value: false,
-    predicate: (row, value: boolean) => (value ? row.active : true),
+    predicate: (row, value) =>
+      typeof value === "boolean" ? (value ? row.active : true) : true,
   },
 };
 

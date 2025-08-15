@@ -27,12 +27,19 @@ const mockGetGroupInstruments = vi.fn(() =>
 );
 
 vi.mock("../api", () => ({
-  getTopMovers: (...args: any[]) => mockGetTopMovers(...args),
-  getGroupInstruments: (...args: any[]) => mockGetGroupInstruments(...args),
+  getTopMovers: (...args: unknown[]) => mockGetTopMovers(...args),
+  getGroupInstruments: (...args: unknown[]) =>
+    mockGetGroupInstruments(...args),
 }));
 
 vi.mock("./InstrumentDetail", () => ({
-  InstrumentDetail: ({ ticker, onClose }: any) => (
+  InstrumentDetail: ({
+    ticker,
+    onClose,
+  }: {
+    ticker: string;
+    onClose: () => void;
+  }) => (
     <div data-testid="detail">
       Detail for {ticker}
       <button onClick={onClose}>x</button>

@@ -20,6 +20,7 @@ async def take_screenshots(urls, out_dir: Path) -> list[Path]:
         for idx, url in enumerate(urls, start=1):
             await page.goto(url, wait_until="networkidle")
             file_path = out_dir / f"menu_{idx}.png"
+            print(f"Saving screenshot {url} to: {file_path}")
             await page.screenshot(path=file_path, full_page=True)
             saved_paths.append(file_path)
         await browser.close()
@@ -52,23 +53,13 @@ def analyze_images(image_paths: list[Path], model: str) -> None:
 
 async def main(urls: list[str], out_dir: Path, model: str) -> None:
     images = await take_screenshots(urls, out_dir)
-    analyze_images(images, model)
+    # analyze_images(images, model)
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Capture menu screenshots and analyze with GPT"
-    )
-    parser.add_argument("urls", nargs="+", help="Menu page URLs to crawl")
-    parser.add_argument(
-        "--out-dir", type=Path, default=Path("screenshots"), help="Output directory"
-    )
-    parser.add_argument(
-        "--model", default="gpt-4.1", help="OpenAI GPT model to use for analysis"
-    )
-    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    asyncio.run(main(args.urls, args.out_dir, args.model))
+    urls = ["http://localhost:5174"]
+    out_dir = Path("screenshots")
+    model = "openai"
+    asyncio.run(main(urls, out_dir, model))

@@ -40,7 +40,6 @@ type Mode =
   | "query"
   | "trading"
   | "timeseries"
-  | "groupInstrumentMemberTimeseries"
   | "watchlist"
   | "movers"
   | "support";
@@ -56,7 +55,6 @@ const initialMode: Mode =
   path[0] === "query" ? "query" :
   path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
-  path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
   path[0] === "watchlist" ? "watchlist" :
   path[0] === "movers" ? "movers" :
   path[0] === "support" ? "support" :
@@ -104,7 +102,6 @@ export default function App() {
     "query",
     "trading",
     "timeseries",
-    "groupInstrumentMemberTimeseries",
     "watchlist",
     "movers",
     "support",
@@ -140,21 +137,19 @@ export default function App() {
               ? "performance"
               : segs[0] === "screener"
                 ? "screener"
-        : segs[0] === "query"
-          ? "query"
-          : segs[0] === "trading"
-            ? "trading"
-              : segs[0] === "timeseries"
-                ? "timeseries"
-                : segs[0] === "groupInstrumentMemberTimeseries"
-                  ? "groupInstrumentMemberTimeseries"
-                  : segs[0] === "watchlist"
-                    ? "watchlist"
-                    : segs[0] === "movers"
-                      ? "movers"
-                    : segs[0] === "support"
-                      ? "support"
-                      : "group";
+                : segs[0] === "query"
+                  ? "query"
+                  : segs[0] === "trading"
+                    ? "trading"
+                    : segs[0] === "timeseries"
+                      ? "timeseries"
+                      : segs[0] === "watchlist"
+                        ? "watchlist"
+                        : segs[0] === "movers"
+                          ? "movers"
+                          : segs[0] === "support"
+                            ? "support"
+                            : "group";
     if (tabs[newMode] === false) {
       setMode("group");
       navigate("/", { replace: true });

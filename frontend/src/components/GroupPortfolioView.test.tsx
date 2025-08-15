@@ -20,7 +20,6 @@ const defaultConfig: AppConfig = {
     query: true,
     trading: true,
     timeseries: true,
-    groupInstrumentMemberTimeseries: true,
     watchlist: true,
     movers: true,
     virtual: true,

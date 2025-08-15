@@ -16,8 +16,10 @@
       "query": "Consulta",
       "trading": "Trading",
       "timeseries": "Serie temporal",
+      "groupInstrumentMemberTimeseries": "Serie temporal de miembros",
       "watchlist": "Watchlist",
-      "movers": "Movers"
+      "movers": "Movers",
+      "support": "Soporte"
     }
   },
   "common": {

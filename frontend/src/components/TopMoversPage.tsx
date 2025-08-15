@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
-import { getTopMovers, getGroupInstruments } from "../api";
+
+import { getTopMovers, getGroupInstruments, getGroupMovers } from "../api";
 import type { MoverRow } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
+
 import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
@@ -12,6 +14,12 @@ type PeriodKey = keyof typeof PERIODS;
 type WatchlistOption = WatchlistName | "Portfolio";
 
 export function TopMoversPage() {
+  type WatchlistOption = keyof typeof WATCHLISTS | "Portfolio";
+  const WATCHLIST_OPTIONS: WatchlistOption[] = [
+    ...(Object.keys(WATCHLISTS) as (keyof typeof WATCHLISTS)[]),
+    "Portfolio",
+  ];
+
   const [watchlist, setWatchlist] = useState<WatchlistOption>("FTSE 100");
   const [period, setPeriod] = useState<PeriodKey>("1d");
   const [selected, setSelected] = useState<MoverRow | null>(null);

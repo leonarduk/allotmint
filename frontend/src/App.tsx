@@ -40,8 +40,10 @@ type Mode =
   | "query"
   | "trading"
   | "timeseries"
+  | "groupInstrumentMemberTimeseries"
   | "watchlist"
-  | "movers";
+  | "movers"
+  | "support";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -54,8 +56,10 @@ const initialMode: Mode =
   path[0] === "query" ? "query" :
   path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
+  path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
   path[0] === "watchlist" ? "watchlist" :
   path[0] === "movers" ? "movers" :
+  path[0] === "support" ? "support" :
   "group";
 const initialSlug = path[1] ?? "";
 
@@ -100,8 +104,10 @@ export default function App() {
     "query",
     "trading",
     "timeseries",
+    "groupInstrumentMemberTimeseries",
     "watchlist",
     "movers",
+    "support",
   ];
 
   function pathFor(m: Mode) {
@@ -140,11 +146,15 @@ export default function App() {
             ? "trading"
               : segs[0] === "timeseries"
                 ? "timeseries"
-                : segs[0] === "watchlist"
-                  ? "watchlist"
-                  : segs[0] === "movers"
-                    ? "movers"
-                    : "group";
+                : segs[0] === "groupInstrumentMemberTimeseries"
+                  ? "groupInstrumentMemberTimeseries"
+                  : segs[0] === "watchlist"
+                    ? "watchlist"
+                    : segs[0] === "movers"
+                      ? "movers"
+                    : segs[0] === "support"
+                      ? "support"
+                      : "group";
     if (tabs[newMode] === false) {
       setMode("group");
       navigate("/", { replace: true });

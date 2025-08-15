@@ -38,6 +38,9 @@ vi.mock("./InstrumentDetail", () => ({
       <button onClick={onClose}>x</button>
     </div>
   ),
+vi.mock("../api", () => ({
+  getTopMovers: (...args: any[]) => mockGetTopMovers(...args),
+  getGroupMovers: vi.fn(),
 }));
 
 describe("TopMoversPage", () => {

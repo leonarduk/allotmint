@@ -114,14 +114,23 @@ def refresh_snapshot_in_memory(
 INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
 
 
-def _currency_from_file(ticker: str) -> str | None:
-    """Best-effort lookup of currency from data/instruments files."""
+def _meta_from_file(ticker: str) -> Dict[str, str] | None:
+    """Best-effort lookup of instrument metadata from data/instruments files."""
     sym, exch = (ticker.split(".", 1) + ["Unknown"])[:2]
     path = INSTRUMENTS_DIR / (exch or "Unknown") / f"{sym}.json"
     try:
-        return json.loads(path.read_text()).get("currency")
+        data = json.loads(path.read_text())
     except Exception:
         return None
+    return {
+        "name": data.get("name", ticker.upper()),
+        "currency": data.get("currency"),
+    }
+
+
+def _currency_from_file(ticker: str) -> str | None:
+    meta = _meta_from_file(ticker)
+    return meta.get("currency") if meta else None
 
 
 def _build_securities_from_portfolios() -> Dict[str, Dict]:
@@ -133,12 +142,13 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                 tkr = (h.get("ticker") or "").upper()
                 if not tkr:
                     continue
+                file_meta = _meta_from_file(tkr) or {}
                 securities[tkr] = {
                     "ticker": tkr,
-                    "name": h.get("name", tkr),
+                    "name": h.get("name") or file_meta.get("name", tkr),
                     "exchange": h.get("exchange"),
                     "isin": h.get("isin"),
-                    "currency": h.get("currency") or _currency_from_file(tkr),
+                    "currency": h.get("currency") or file_meta.get("currency"),
                 }
     return securities
 
@@ -153,9 +163,9 @@ def get_security_meta(ticker: str) -> Dict | None:
     meta = _SECURITIES.get(t)
     if meta:
         return meta
-    ccy = _currency_from_file(t)
-    if ccy:
-        return {"ticker": t, "name": t, "currency": ccy}
+    file_meta = _meta_from_file(t)
+    if file_meta:
+        return {"ticker": t, **file_meta}
     return None
 
 

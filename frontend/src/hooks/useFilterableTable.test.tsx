@@ -10,17 +10,19 @@ const rows: Row[] = [
   { name: "Carol", age: 35, active: true },
 ];
 
-const filters: Record<string, Filter<Row, any>> = {
+const filters = {
   search: {
     value: "",
-    predicate: (row, value: string) =>
+    predicate: (row, value: unknown) =>
+      typeof value === "string" &&
       row.name.toLowerCase().includes(value.toLowerCase()),
   },
   onlyActive: {
     value: false,
-    predicate: (row, value: boolean) => (value ? row.active : true),
+    predicate: (row, value: unknown) =>
+      typeof value === "boolean" ? (value ? row.active : true) : true,
   },
-};
+} satisfies Record<string, Filter<Row, unknown>>;
 
 describe("useFilterableTable", () => {
   it("filters and sorts rows", () => {

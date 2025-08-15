@@ -59,6 +59,7 @@ describe("useFilterableTable", () => {
       "Alice",
     ]);
 
+    // eslint-disable-next-line no-constant-condition
     if (false) {
       // @ts-expect-error search filter expects a string
       result.current.setFilter("search", 123);

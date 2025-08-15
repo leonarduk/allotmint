@@ -13,12 +13,14 @@ const rows: Row[] = [
 const filters = {
   search: {
     value: "",
-    predicate: (row: Row, value: string) =>
+    predicate: (row, value: unknown) =>
+      typeof value === "string" &&
       row.name.toLowerCase().includes(value.toLowerCase()),
   },
   onlyActive: {
     value: false,
-    predicate: (row: Row, value: boolean) => (value ? row.active : true),
+    predicate: (row, value: unknown) =>
+      typeof value === "boolean" ? (value ? row.active : true) : true,
   },
 } satisfies Record<string, Filter<Row, unknown>>;
 

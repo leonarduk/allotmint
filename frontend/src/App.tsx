@@ -36,7 +36,6 @@ type Mode =
   | "performance"
   | "screener"
   | "timeseries"
-  | "groupInstrumentMemberTimeseries"
   | "watchlist"
   | "movers"
   | "support";
@@ -50,7 +49,6 @@ const initialMode: Mode =
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
   path[0] === "timeseries" ? "timeseries" :
-  path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
   path[0] === "watchlist" ? "watchlist" :
   path[0] === "movers" ? "movers" :
   path[0] === "support" ? "support" :
@@ -96,7 +94,6 @@ export default function App() {
     "transactions",
     "screener",
     "timeseries",
-    "groupInstrumentMemberTimeseries",
     "watchlist",
     "movers",
     "support",
@@ -134,8 +131,6 @@ export default function App() {
                 ? "screener"
               : segs[0] === "timeseries"
                 ? "timeseries"
-                : segs[0] === "groupInstrumentMemberTimeseries"
-                  ? "groupInstrumentMemberTimeseries"
                   : segs[0] === "watchlist"
                     ? "watchlist"
                     : segs[0] === "movers"

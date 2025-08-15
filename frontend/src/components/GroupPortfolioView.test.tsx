@@ -18,7 +18,6 @@ const defaultConfig: AppConfig = {
     transactions: true,
     screener: true,
     timeseries: true,
-    groupInstrumentMemberTimeseries: true,
     watchlist: true,
     movers: true,
     virtual: true,

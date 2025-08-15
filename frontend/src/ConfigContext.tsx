@@ -15,7 +15,6 @@ export interface TabsConfig {
   transactions: boolean;
   screener: boolean;
   timeseries: boolean;
-  groupInstrumentMemberTimeseries: boolean;
   watchlist: boolean;
   movers: boolean;
   virtual: boolean;
@@ -47,7 +46,6 @@ const defaultTabs: TabsConfig = {
   transactions: true,
   screener: true,
   timeseries: true,
-  groupInstrumentMemberTimeseries: true,
   watchlist: true,
   movers: true,
   virtual: true,

@@ -124,7 +124,6 @@ tabs:
   performance: true
   transactions: true
   screener: true
-  query: true
   trading: true
   timeseries: true
   watchlist: true

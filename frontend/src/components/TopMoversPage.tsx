@@ -121,7 +121,10 @@ export function TopMoversPage() {
                 </button>
               </td>
               <td className={tableStyles.cell}>{r.name}</td>
-              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+              <td
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: r.change_pct >= 0 ? "green" : "red" }}
+              >
                 {r.change_pct.toFixed(2)}
               </td>
             </tr>

@@ -38,9 +38,6 @@ vi.mock("./InstrumentDetail", () => ({
       <button onClick={onClose}>x</button>
     </div>
   ),
-vi.mock("../api", () => ({
-  getTopMovers: (...args: any[]) => mockGetTopMovers(...args),
-  getGroupMovers: vi.fn(),
 }));
 
 describe("TopMoversPage", () => {
@@ -81,5 +78,14 @@ describe("TopMoversPage", () => {
     const button = await screen.findByRole("button", { name: "AAA" });
     fireEvent.click(button);
     expect(await screen.findByTestId("detail")).toHaveTextContent("AAA");
+  });
+
+  it("colors gainers green and losers red", async () => {
+    render(<TopMoversPage />);
+
+    const gainerCell = await screen.findByText("5.00");
+    const loserCell = await screen.findByText("-2.00");
+    expect(gainerCell).toHaveStyle({ color: "rgb(0, 128, 0)" });
+    expect(loserCell).toHaveStyle({ color: "rgb(255, 0, 0)" });
   });
 });

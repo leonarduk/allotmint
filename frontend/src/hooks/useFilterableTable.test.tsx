@@ -27,7 +27,7 @@ const filters = {
 describe("useFilterableTable", () => {
   it("filters and sorts rows", () => {
     const { result } = renderHook(() =>
-      useFilterableTable<Row, typeof filters>(rows, "age", filters)
+      useFilterableTable(rows, "age", filters)
     );
 
     expect(result.current.rows.map((r) => r.name)).toEqual([
@@ -57,5 +57,12 @@ describe("useFilterableTable", () => {
       "Carol",
       "Alice",
     ]);
+
+    if (false) {
+      // @ts-expect-error search filter expects a string
+      result.current.setFilter("search", 123);
+      // @ts-expect-error onlyActive filter expects a boolean
+      result.current.setFilter("onlyActive", "true");
+    }
   });
 });

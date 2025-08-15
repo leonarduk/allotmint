@@ -17,7 +17,8 @@
       "trading": "Handel",
       "timeseries": "Zeitreihe",
       "watchlist": "Watchlist",
-      "movers": "Movers"
+      "movers": "Movers",
+      "support": "Support"
     }
   },
   "common": {

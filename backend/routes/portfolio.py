@@ -14,7 +14,7 @@ import logging
 from datetime import date
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.common import (
@@ -29,6 +29,7 @@ from backend.common import (
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
+_ALLOWED_DAYS = {1, 7, 30, 90, 365}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -159,6 +160,26 @@ async def group_instruments(slug: str):
 
     gp = group_portfolio.build_group_portfolio(slug)
     return portfolio_utils.aggregate_by_ticker(gp)
+
+
+@router.get("/portfolio-group/{slug}/movers")
+async def group_movers(
+    slug: str,
+    days: int = Query(1, description="Lookback window"),
+    limit: int = Query(10, description="Max results per side"),
+):
+    """Return top gainers and losers for a group portfolio."""
+
+    if days not in _ALLOWED_DAYS:
+        raise HTTPException(status_code=400, detail="Invalid days")
+    try:
+        summaries = instrument_api.instrument_summaries_for_group(slug)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Group not found")
+    tickers = [s.get("ticker") for s in summaries if s.get("ticker")]
+    if not tickers:
+        return {"gainers": [], "losers": []}
+    return instrument_api.top_movers(tickers, days, limit)
 
 
 @router.get("/account/{owner}/{account}")

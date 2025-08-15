@@ -11,7 +11,6 @@ const defaultConfig: AppConfig = {
         performance: true,
         transactions: true,
         screener: true,
-        trading: true,
         timeseries: true,
         groupInstrumentMemberTimeseries: true,
         watchlist: true,

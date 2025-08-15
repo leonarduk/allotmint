@@ -48,19 +48,31 @@ type Mode =
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
 const initialMode: Mode =
-  path[0] === "member" ? "owner" :
-  path[0] === "instrument" ? "instrument" :
-  path[0] === "transactions" ? "transactions" :
-  path[0] === "performance" ? "performance" :
-  path[0] === "screener" ? "screener" :
-  path[0] === "query" ? "query" :
-  path[0] === "trading" ? "trading" :
-  path[0] === "timeseries" ? "timeseries" :
-  path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
-  path[0] === "watchlist" ? "watchlist" :
-  path[0] === "movers" ? "movers" :
-  path[0] === "support" ? "support" :
-  "group";
+  path[0] === "member"
+    ? "owner"
+    : path[0] === "instrument"
+      ? "instrument"
+      : path[0] === "transactions"
+        ? "transactions"
+        : path[0] === "performance"
+          ? "performance"
+          : path[0] === "screener"
+            ? "screener"
+            : path[0] === "query"
+              ? "query"
+              : path[0] === "trading"
+                ? "trading"
+                : path[0] === "timeseries"
+                  ? "timeseries"
+                  : path[0] === "groupInstrumentMemberTimeseries"
+                    ? "groupInstrumentMemberTimeseries"
+                    : path[0] === "watchlist"
+                      ? "watchlist"
+                      : path[0] === "movers"
+                        ? "movers"
+                        : path[0] === "support"
+                          ? "support"
+                          : "movers";
 const initialSlug = path[1] ?? "";
 
 export default function App() {
@@ -95,6 +107,7 @@ export default function App() {
   const groupsReq = useFetchWithRetry(getGroups);
 
   const modes: Mode[] = [
+    "movers",
     "group",
     "instrument",
     "owner",
@@ -106,14 +119,14 @@ export default function App() {
     "timeseries",
     "groupInstrumentMemberTimeseries",
     "watchlist",
-    "movers",
     "support",
   ];
 
   function pathFor(m: Mode) {
     switch (m) {
       case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/";
+        if (selectedGroup) return `/?group=${selectedGroup}`;
+        return groups.length ? `/?group=${groups[0].slug}` : "/movers";
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":
@@ -140,24 +153,24 @@ export default function App() {
               ? "performance"
               : segs[0] === "screener"
                 ? "screener"
-        : segs[0] === "query"
-          ? "query"
-          : segs[0] === "trading"
-            ? "trading"
-              : segs[0] === "timeseries"
-                ? "timeseries"
-                : segs[0] === "groupInstrumentMemberTimeseries"
-                  ? "groupInstrumentMemberTimeseries"
-                  : segs[0] === "watchlist"
-                    ? "watchlist"
-                    : segs[0] === "movers"
-                      ? "movers"
-                    : segs[0] === "support"
-                      ? "support"
-                      : "group";
+                : segs[0] === "query"
+                  ? "query"
+                  : segs[0] === "trading"
+                    ? "trading"
+                    : segs[0] === "timeseries"
+                      ? "timeseries"
+                      : segs[0] === "groupInstrumentMemberTimeseries"
+                        ? "groupInstrumentMemberTimeseries"
+                        : segs[0] === "watchlist"
+                          ? "watchlist"
+                          : segs[0] === "movers"
+                            ? "movers"
+                            : segs[0] === "support"
+                              ? "support"
+                              : "movers";
     if (tabs[newMode] === false) {
-      setMode("group");
-      navigate("/", { replace: true });
+      setMode("movers");
+      navigate("/movers", { replace: true });
       return;
     }
     setMode(newMode);
@@ -169,6 +182,8 @@ export default function App() {
       setSelectedGroup(
         new URLSearchParams(location.search).get("group") ?? "",
       );
+    } else if (newMode === "movers" && location.pathname !== "/movers") {
+      navigate("/movers", { replace: true });
     }
   }, [location.pathname, location.search, tabs, navigate]);
 

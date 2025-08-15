@@ -12,6 +12,53 @@ describe("App", () => {
     mockTradingSignals.mockReset();
   });
 
+  it("defaults to movers view and orders tabs", async () => {
+    window.history.pushState({}, "", "/");
+
+    vi.mock("./api", () => ({
+      getOwners: vi.fn().mockResolvedValue([]),
+      getGroups: vi.fn().mockResolvedValue([]),
+      getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getPortfolio: vi.fn(),
+      refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+    }));
+
+    const { default: App } = await import("./App");
+
+    const { container } = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("link", { name: /movers/i });
+    const tabs = container.querySelectorAll("nav a");
+    const labels = Array.from(tabs).map((el) => el.textContent);
+    expect(labels).toEqual([
+      "Movers",
+      "Group",
+      "Instrument",
+      "Member",
+      "Performance",
+      "Transactions",
+      "Screener",
+      "Query",
+      "Trading",
+      "Timeseries",
+      "Member Timeseries",
+      "Watchlist",
+      "Support",
+    ]);
+    expect(tabs[0]).toHaveStyle("font-weight: bold");
+  });
+
   it.skip("preselects group from URL", async () => {
     window.history.pushState({}, "", "/instrument/kids");
 
@@ -86,6 +133,7 @@ describe("App", () => {
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       getTradingSignals: vi.fn().mockResolvedValue([]),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
     }));
 
     const { default: App } = await import("./App");
@@ -103,6 +151,7 @@ describe("App", () => {
       watchlist: true,
       virtual: true,
       support: true,
+      movers: true,
     };
 
     render(
@@ -120,8 +169,8 @@ describe("App", () => {
     );
 
     expect(screen.queryByRole("link", { name: /trading/i })).toBeNull();
-    const groupLink = await screen.findByRole("link", { name: /group/i });
-    expect(groupLink).toHaveStyle("font-weight: bold");
+    const moversLink = await screen.findByRole("link", { name: /movers/i });
+    expect(moversLink).toHaveStyle("font-weight: bold");
   });
 
   it("allows navigation to enabled tabs", async () => {
@@ -142,6 +191,7 @@ describe("App", () => {
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       getTradingSignals: mockTradingSignals,
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
     }));
 
     const { default: App } = await import("./App");
@@ -159,6 +209,7 @@ describe("App", () => {
       watchlist: true,
       virtual: true,
       support: true,
+      movers: true,
     };
 
     render(

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 
-import { getTopMovers, getGroupInstruments, getGroupMovers } from "../api";
+import { getTopMovers, getGroupInstruments } from "../api";
 import type { MoverRow } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
@@ -12,13 +12,12 @@ import tableStyles from "../styles/table.module.css";
 const PERIODS = { "1d": 1, "1w": 7, "1m": 30, "3m": 90, "1y": 365 } as const;
 type PeriodKey = keyof typeof PERIODS;
 type WatchlistOption = WatchlistName | "Portfolio";
+const WATCHLIST_OPTIONS: WatchlistOption[] = [
+  ...(Object.keys(WATCHLISTS) as WatchlistName[]),
+  "Portfolio",
+];
 
 export function TopMoversPage() {
-  type WatchlistOption = keyof typeof WATCHLISTS | "Portfolio";
-  const WATCHLIST_OPTIONS: WatchlistOption[] = [
-    ...(Object.keys(WATCHLISTS) as (keyof typeof WATCHLISTS)[]),
-    "Portfolio",
-  ];
 
   const [watchlist, setWatchlist] = useState<WatchlistOption>("Portfolio");
   const [period, setPeriod] = useState<PeriodKey>("1d");
@@ -57,13 +56,11 @@ export function TopMoversPage() {
           onChange={(e) => setWatchlist(e.target.value as WatchlistOption)}
           style={{ marginRight: "0.5rem" }}
         >
-          {([...Object.keys(WATCHLISTS), "Portfolio"] as WatchlistOption[]).map(
-            (name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ),
-          )}
+          {WATCHLIST_OPTIONS.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
         </select>
         <select
           value={period}

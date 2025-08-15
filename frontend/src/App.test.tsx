@@ -71,12 +71,13 @@ describe("App", () => {
   });
 
   it("hides disabled tabs and prevents navigation", async () => {
-    window.history.pushState({}, "", "/trading");
+    window.history.pushState({}, "", "/movers");
 
     vi.mock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -97,10 +98,10 @@ describe("App", () => {
       transactions: true,
       screener: true,
       query: true,
-      trading: true,
       timeseries: true,
       groupInstrumentMemberTimeseries: true,
       watchlist: true,
+      movers: true,
       virtual: true,
       support: true,
     };
@@ -110,22 +111,22 @@ describe("App", () => {
         value={{
           theme: "system",
           relativeViewEnabled: false,
-          tabs: { ...allTabs, trading: false },
+          tabs: { ...allTabs, movers: false },
         }}
       >
-        <MemoryRouter initialEntries={["/trading"]}>
+        <MemoryRouter initialEntries={["/movers"]}>
           <App />
         </MemoryRouter>
       </configContext.Provider>,
     );
 
-    expect(screen.queryByRole("link", { name: /trading/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /movers/i })).toBeNull();
     const groupLink = await screen.findByRole("link", { name: /group/i });
     expect(groupLink).toHaveStyle("font-weight: bold");
   });
 
-  it("allows navigation to enabled tabs", async () => {
-    window.history.pushState({}, "", "/trading");
+  it("shows trading signals in movers view", async () => {
+    window.history.pushState({}, "", "/movers");
 
     mockTradingSignals.mockResolvedValue([]);
 
@@ -133,6 +134,7 @@ describe("App", () => {
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -153,10 +155,10 @@ describe("App", () => {
       transactions: true,
       screener: true,
       query: true,
-      trading: true,
       timeseries: true,
       groupInstrumentMemberTimeseries: true,
       watchlist: true,
+      movers: true,
       virtual: true,
       support: true,
     };
@@ -165,14 +167,14 @@ describe("App", () => {
       <configContext.Provider
         value={{ theme: "system", relativeViewEnabled: false, tabs: allTabs }}
       >
-        <MemoryRouter initialEntries={["/trading"]}>
+        <MemoryRouter initialEntries={["/movers"]}>
           <App />
         </MemoryRouter>
       </configContext.Provider>,
     );
 
-    const tradingTab = await screen.findByRole("link", { name: /trading/i });
-    expect(tradingTab).toHaveStyle("font-weight: bold");
+    const moversTab = await screen.findByRole("link", { name: /movers/i });
+    expect(moversTab).toHaveStyle("font-weight: bold");
     expect(await screen.findByText(/No signals\./i)).toBeInTheDocument();
     expect(mockTradingSignals).toHaveBeenCalled();
   });

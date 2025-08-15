@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { getTopMovers, getGroupInstruments } from "../api";
-import type { MoverRow } from "../types";
+import { getTopMovers, getGroupInstruments, getTradingSignals } from "../api";
+import type { MoverRow, TradingSignal } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
 
@@ -21,6 +22,10 @@ export function TopMoversPage() {
   const [watchlist, setWatchlist] = useState<WatchlistOption>("Portfolio");
   const [period, setPeriod] = useState<PeriodKey>("1d");
   const [selected, setSelected] = useState<MoverRow | null>(null);
+  const [signals, setSignals] = useState<TradingSignal[]>([]);
+  const [signalsLoading, setSignalsLoading] = useState(true);
+  const [signalsError, setSignalsError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const fetchMovers = useCallback(() => {
     if (watchlist === "Portfolio") {
@@ -43,6 +48,15 @@ export function TopMoversPage() {
     rows,
     "change_pct",
   );
+
+  useEffect(() => {
+    getTradingSignals()
+      .then(setSignals)
+      .catch((e) =>
+        setSignalsError(e instanceof Error ? e.message : String(e)),
+      )
+      .finally(() => setSignalsLoading(false));
+  }, []);
 
   if (loading) return <p>Loading…</p>;
   if (error) return <p style={{ color: "red" }}>{error.message}</p>;
@@ -127,6 +141,45 @@ export function TopMoversPage() {
           ))}
         </tbody>
       </table>
+
+      {signalsLoading ? (
+        <p>Loading…</p>
+      ) : signalsError ? (
+        <p style={{ color: "red" }}>{signalsError}</p>
+      ) : signals.length ? (
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}
+        >
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left", padding: "4px" }}>Ticker</th>
+              <th style={{ textAlign: "left", padding: "4px" }}>Action</th>
+              <th style={{ textAlign: "left", padding: "4px" }}>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {signals.map((s) => (
+              <tr key={s.ticker}>
+                <td style={{ padding: "4px" }}>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate(`/instrument/${s.ticker}`);
+                    }}
+                  >
+                    {s.ticker}
+                  </a>
+                </td>
+                <td style={{ padding: "4px" }}>{s.action}</td>
+                <td style={{ padding: "4px" }}>{s.reason}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p>No signals.</p>
+      )}
 
       {selected && (
         <InstrumentDetail

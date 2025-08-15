@@ -25,7 +25,6 @@ import { QueryPage } from "./pages/QueryPage";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
-import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
@@ -38,7 +37,6 @@ type Mode =
   | "performance"
   | "screener"
   | "query"
-  | "trading"
   | "timeseries"
   | "groupInstrumentMemberTimeseries"
   | "watchlist"
@@ -54,7 +52,6 @@ const initialMode: Mode =
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
   path[0] === "query" ? "query" :
-  path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
   path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
   path[0] === "watchlist" ? "watchlist" :
@@ -102,7 +99,6 @@ export default function App() {
     "transactions",
     "screener",
     "query",
-    "trading",
     "timeseries",
     "groupInstrumentMemberTimeseries",
     "watchlist",
@@ -142,19 +138,17 @@ export default function App() {
                 ? "screener"
         : segs[0] === "query"
           ? "query"
-          : segs[0] === "trading"
-            ? "trading"
-              : segs[0] === "timeseries"
-                ? "timeseries"
-                : segs[0] === "groupInstrumentMemberTimeseries"
-                  ? "groupInstrumentMemberTimeseries"
-                  : segs[0] === "watchlist"
-                    ? "watchlist"
-                    : segs[0] === "movers"
-                      ? "movers"
-                    : segs[0] === "support"
-                      ? "support"
-                      : "group";
+          : segs[0] === "timeseries"
+            ? "timeseries"
+            : segs[0] === "groupInstrumentMemberTimeseries"
+              ? "groupInstrumentMemberTimeseries"
+              : segs[0] === "watchlist"
+                ? "watchlist"
+                : segs[0] === "movers"
+                  ? "movers"
+                : segs[0] === "support"
+                  ? "support"
+                  : "group";
     if (tabs[newMode] === false) {
       setMode("group");
       navigate("/", { replace: true });
@@ -367,7 +361,6 @@ export default function App() {
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
       {mode === "screener" && <Screener />}
-      {mode === "trading" && <TradingAgent />}
       {mode === "timeseries" && <TimeseriesEdit />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}

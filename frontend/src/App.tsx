@@ -24,7 +24,6 @@ import { ScreenerQuery } from "./pages/ScreenerQuery";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
-import { TradingAgent } from "./pages/TradingAgent";
 import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
@@ -36,7 +35,6 @@ type Mode =
   | "transactions"
   | "performance"
   | "screener"
-  | "trading"
   | "timeseries"
   | "groupInstrumentMemberTimeseries"
   | "watchlist"
@@ -51,7 +49,6 @@ const initialMode: Mode =
   path[0] === "transactions" ? "transactions" :
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
-  path[0] === "trading" ? "trading" :
   path[0] === "timeseries" ? "timeseries" :
   path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
   path[0] === "watchlist" ? "watchlist" :
@@ -98,7 +95,6 @@ export default function App() {
     "performance",
     "transactions",
     "screener",
-    "trading",
     "timeseries",
     "groupInstrumentMemberTimeseries",
     "watchlist",
@@ -136,8 +132,6 @@ export default function App() {
               ? "performance"
               : segs[0] === "screener"
                 ? "screener"
-              : segs[0] === "trading"
-                ? "trading"
               : segs[0] === "timeseries"
                 ? "timeseries"
                 : segs[0] === "groupInstrumentMemberTimeseries"
@@ -361,7 +355,6 @@ export default function App() {
       {mode === "transactions" && <TransactionsPage owners={owners} />}
 
       {mode === "screener" && <ScreenerQuery />}
-      {mode === "trading" && <TradingAgent />}
       {mode === "timeseries" && <TimeseriesEdit />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}

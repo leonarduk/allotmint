@@ -16,6 +16,7 @@
       "query": "Abfrage",
       "trading": "Handel",
       "timeseries": "Zeitreihe",
+      "groupInstrumentMemberTimeseries": "Mitglieder-Zeitreihe",
       "watchlist": "Watchlist",
       "movers": "Movers",
       "support": "Support"

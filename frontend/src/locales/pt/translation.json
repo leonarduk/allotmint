@@ -16,6 +16,7 @@
       "query": "Consulta",
       "trading": "Negociação",
       "timeseries": "Série temporal",
+      "groupInstrumentMemberTimeseries": "Série temporal de membros",
       "watchlist": "Watchlist",
       "movers": "Movers",
       "support": "Suporte"

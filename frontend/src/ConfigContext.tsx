@@ -14,8 +14,6 @@ export interface TabsConfig {
   performance: boolean;
   transactions: boolean;
   screener: boolean;
-  query: boolean;
-  trading: boolean;
   timeseries: boolean;
   watchlist: boolean;
   movers: boolean;
@@ -47,8 +45,6 @@ const defaultTabs: TabsConfig = {
   performance: true,
   transactions: true,
   screener: true,
-  query: true,
-  trading: true,
   timeseries: true,
   watchlist: true,
   movers: true,
@@ -78,7 +74,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         const disabledTabs = new Set<string>(
           Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
         );
-        for (const [tab, enabled] of Object.entries(tabs)) {
+        for (const [tab, enabled] of Object.entries(tabs) as [keyof TabsConfig, boolean][]) {
           if (!enabled) disabledTabs.add(tab);
         }
         const theme = isTheme(cfg.theme) ? cfg.theme : "system";

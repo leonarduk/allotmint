@@ -1,3 +1,4 @@
+import { Screener } from "./Screener";
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -16,7 +17,7 @@ const METRIC_OPTIONS = ["market_value_gbp", "gain_gbp"];
 
 type ResultRow = Record<string, string | number>;
 
-export function QueryPage() {
+function QuerySection() {
   const fetchOwners = useCallback(getOwners, []);
   const { data: owners } = useFetch(fetchOwners, []);
   const { t } = useTranslation();
@@ -127,9 +128,7 @@ export function QueryPage() {
                 type="checkbox"
                 aria-label={o.owner}
                 checked={selectedOwners.includes(o.owner)}
-                onChange={() =>
-                  toggle(selectedOwners, o.owner, setSelectedOwners)
-                }
+                onChange={() => toggle(selectedOwners, o.owner, setSelectedOwners)}
               />
               {o.owner}
             </label>
@@ -137,17 +136,15 @@ export function QueryPage() {
         </fieldset>
         <fieldset style={{ marginBottom: "1rem" }}>
           <legend>{t("query.tickers")}</legend>
-          {TICKER_OPTIONS.map((t) => (
-            <label key={t} style={{ marginRight: "0.5rem" }}>
+          {TICKER_OPTIONS.map((tkr) => (
+            <label key={tkr} style={{ marginRight: "0.5rem" }}>
               <input
                 type="checkbox"
-                aria-label={t}
-                checked={selectedTickers.includes(t)}
-                onChange={() =>
-                  toggle(selectedTickers, t, setSelectedTickers)
-                }
+                aria-label={tkr}
+                checked={selectedTickers.includes(tkr)}
+                onChange={() => toggle(selectedTickers, tkr, setSelectedTickers)}
               />
-              {t}
+              {tkr}
             </label>
           ))}
         </fieldset>
@@ -212,4 +209,14 @@ export function QueryPage() {
   );
 }
 
-export default QueryPage;
+export function ScreenerQuery() {
+  return (
+    <div>
+      <Screener />
+      <hr style={{ margin: "2rem 0" }} />
+      <QuerySection />
+    </div>
+  );
+}
+
+export default ScreenerQuery;

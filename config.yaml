@@ -36,7 +36,6 @@ tabs:
   performance: false
   transactions: false
   screener: false
-  query: false
   trading: false
   timeseries: true
   watchlist: false

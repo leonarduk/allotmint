@@ -29,10 +29,20 @@ vi.mock("../api", () => ({
       },
     },
   ]),
+  getScreener: vi.fn().mockResolvedValue([
+    {
+      ticker: "AAA",
+      name: "Alpha",
+      peg_ratio: 1,
+      pe_ratio: 10,
+      de_ratio: 0.5,
+      fcf: 1000,
+    },
+  ]),
 }));
 
-import { runCustomQuery } from "../api";
-import { QueryPage } from "./QueryPage";
+import { getScreener, runCustomQuery } from "../api";
+import { ScreenerQuery } from "./ScreenerQuery";
 
 function renderWithI18n(ui: ReactElement) {
   const i18n = createInstance();
@@ -44,9 +54,25 @@ function renderWithI18n(ui: ReactElement) {
   return { i18n, ...result };
 }
 
-describe("QueryPage", () => {
-  it("submits form and renders results with export links", async () => {
-    const { i18n } = renderWithI18n(<QueryPage />);
+describe("Screener & Query page", () => {
+  it("runs screener and displays results", async () => {
+    renderWithI18n(<ScreenerQuery />);
+
+    fireEvent.change(screen.getByLabelText(en.screener.tickers), {
+      target: { value: "AAA" },
+    });
+    fireEvent.change(screen.getByLabelText(en.screener.maxPeg), {
+      target: { value: "2" },
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
+
+    expect(await screen.findByText("1,000")).toBeInTheDocument();
+    expect(getScreener).toHaveBeenCalledWith(["AAA"], { peg_max: 2 });
+  });
+
+  it("submits query form and renders results with export links", async () => {
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
 
     await screen.findByLabelText("Alice");
 
@@ -61,7 +87,7 @@ describe("QueryPage", () => {
     fireEvent.click(screen.getByLabelText("AAA"));
     fireEvent.click(screen.getByLabelText("market_value_gbp"));
 
-    fireEvent.click(screen.getByRole("button", { name: i18n.t("query.run") }));
+    fireEvent.click(screen.getAllByRole("button", { name: i18n.t("query.run") })[1]);
 
     expect(runCustomQuery).toHaveBeenCalledWith({
       start: "2024-01-01",
@@ -83,21 +109,21 @@ describe("QueryPage", () => {
   });
 
   it("loads saved queries into the form", async () => {
-    const { i18n } = renderWithI18n(<QueryPage />);
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
     const btn = await screen.findByText("Saved1");
     fireEvent.click(btn);
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("2024-01-01");
   });
 
   it("switches labels when language changes", async () => {
-    const { i18n, rerender } = renderWithI18n(<QueryPage />);
+    const { i18n, rerender } = renderWithI18n(<ScreenerQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
     await act(async () => {
       await i18n.changeLanguage("fr");
     });
     rerender(
       <I18nextProvider i18n={i18n}>
-        <QueryPage />
+        <ScreenerQuery />
       </I18nextProvider>,
     );
     expect(

@@ -18,7 +18,6 @@ const WATCHLIST_OPTIONS: WatchlistOption[] = [
 ];
 
 export function TopMoversPage() {
-
   const [watchlist, setWatchlist] = useState<WatchlistOption>("Portfolio");
   const [period, setPeriod] = useState<PeriodKey>("1d");
   const [selected, setSelected] = useState<MoverRow | null>(null);

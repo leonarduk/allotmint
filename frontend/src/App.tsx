@@ -45,6 +45,7 @@ type Mode =
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
+const params = new URLSearchParams(window.location.search);
 const initialMode: Mode =
   path[0] === "member" ? "owner" :
   path[0] === "instrument" ? "instrument" :
@@ -57,7 +58,7 @@ const initialMode: Mode =
   path[0] === "watchlist" ? "watchlist" :
   path[0] === "movers" ? "movers" :
   path[0] === "support" ? "support" :
-  "group";
+  path.length === 0 && params.has("group") ? "group" : "movers";
 const initialSlug = path[1] ?? "";
 
 export default function App() {
@@ -92,6 +93,7 @@ export default function App() {
   const groupsReq = useFetchWithRetry(getGroups);
 
   const modes: Mode[] = [
+    "movers",
     "group",
     "instrument",
     "owner",
@@ -102,14 +104,13 @@ export default function App() {
     "timeseries",
     "groupInstrumentMemberTimeseries",
     "watchlist",
-    "movers",
     "support",
   ];
 
   function pathFor(m: Mode) {
     switch (m) {
       case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/";
+        return selectedGroup ? `/?group=${selectedGroup}` : "/movers";
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":
@@ -125,33 +126,53 @@ export default function App() {
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
-    const newMode: Mode =
-      segs[0] === "member"
-        ? "owner"
-        : segs[0] === "instrument"
-          ? "instrument"
-          : segs[0] === "transactions"
-            ? "transactions"
-            : segs[0] === "performance"
-              ? "performance"
-              : segs[0] === "screener"
-                ? "screener"
-              : segs[0] === "trading"
-                ? "trading"
-              : segs[0] === "timeseries"
-                ? "timeseries"
-                : segs[0] === "groupInstrumentMemberTimeseries"
-                  ? "groupInstrumentMemberTimeseries"
-                  : segs[0] === "watchlist"
-                    ? "watchlist"
-                    : segs[0] === "movers"
-                      ? "movers"
-                    : segs[0] === "support"
-                      ? "support"
-                      : "group";
+    const params = new URLSearchParams(location.search);
+    let newMode: Mode;
+    switch (segs[0]) {
+      case "member":
+        newMode = "owner";
+        break;
+      case "instrument":
+        newMode = "instrument";
+        break;
+      case "transactions":
+        newMode = "transactions";
+        break;
+      case "performance":
+        newMode = "performance";
+        break;
+      case "screener":
+        newMode = "screener";
+        break;
+      case "trading":
+        newMode = "trading";
+        break;
+      case "timeseries":
+        newMode = "timeseries";
+        break;
+      case "groupInstrumentMemberTimeseries":
+        newMode = "groupInstrumentMemberTimeseries";
+        break;
+      case "watchlist":
+        newMode = "watchlist";
+        break;
+      case "movers":
+        newMode = "movers";
+        break;
+      case "support":
+        newMode = "support";
+        break;
+      default:
+        newMode = segs.length === 0 && params.has("group") ? "group" : "movers";
+    }
     if (tabs[newMode] === false) {
-      setMode("group");
-      navigate("/", { replace: true });
+      setMode("movers");
+      navigate("/movers", { replace: true });
+      return;
+    }
+    if (newMode === "movers" && location.pathname !== "/movers") {
+      setMode("movers");
+      navigate("/movers", { replace: true });
       return;
     }
     setMode(newMode);
@@ -160,9 +181,7 @@ export default function App() {
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
-      setSelectedGroup(
-        new URLSearchParams(location.search).get("group") ?? "",
-      );
+      setSelectedGroup(params.get("group") ?? "");
     }
   }, [location.pathname, location.search, tabs, navigate]);
 

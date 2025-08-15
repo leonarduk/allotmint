@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, type DependencyList } from "react";
+import { useEffect, useState, type DependencyList } from "react";
 
 /**
  * Small helper hook that wraps an async function and provides
@@ -18,7 +18,6 @@ export function useFetch<T>(
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const allDeps = useMemo(() => [enabled, fn, ...deps], [enabled, fn, ...deps]);
 
   useEffect(() => {
     if (!enabled) {
@@ -47,7 +46,8 @@ export function useFetch<T>(
     return () => {
       cancelled = true;
     };
-  }, allDeps);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, fn, ...deps]);
 
   return { data, loading, error };
 }

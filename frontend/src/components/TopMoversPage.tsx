@@ -20,7 +20,7 @@ export function TopMoversPage() {
     "Portfolio",
   ];
 
-  const [watchlist, setWatchlist] = useState<WatchlistOption>("FTSE 100");
+  const [watchlist, setWatchlist] = useState<WatchlistOption>("Portfolio");
   const [period, setPeriod] = useState<PeriodKey>("1d");
   const [selected, setSelected] = useState<MoverRow | null>(null);
 

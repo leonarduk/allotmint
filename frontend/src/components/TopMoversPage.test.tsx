@@ -45,7 +45,10 @@ describe("TopMoversPage", () => {
     render(<TopMoversPage />);
 
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenCalledWith(["AAA", "BBB"], 1),
+      expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"),
+    );
+    await waitFor(() =>
+      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1),
     );
     expect((await screen.findAllByText("AAA")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("BBB")).length).toBeGreaterThan(0);
@@ -53,23 +56,25 @@ describe("TopMoversPage", () => {
     const selects = screen.getAllByRole("combobox");
     const periodSelect = selects[1];
     fireEvent.change(periodSelect, { target: { value: "1w" } });
-    await waitFor(() => expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 7));
+    await waitFor(() =>
+      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["CCC"], 7),
+    );
   });
 
-  it("fetches portfolio instruments when selecting Portfolio", async () => {
+  it("fetches watchlist instruments when selecting FTSE 100", async () => {
     render(<TopMoversPage />);
+
+    await waitFor(() =>
+      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1),
+    );
 
     const selects = await screen.findAllByRole("combobox");
     const watchlistSelect = selects[0];
-    fireEvent.change(watchlistSelect, { target: { value: "Portfolio" } });
+    fireEvent.change(watchlistSelect, { target: { value: "FTSE 100" } });
 
-    await waitFor(() => expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"));
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["CCC"], 1),
+      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 1),
     );
-    expect(
-      mockGetGroupInstruments.mock.invocationCallOrder[0],
-    ).toBeLessThan(mockGetTopMovers.mock.invocationCallOrder.at(-1)!);
   });
 
   it("mounts InstrumentDetail when ticker clicked", async () => {

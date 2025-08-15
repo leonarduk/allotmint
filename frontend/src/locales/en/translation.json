@@ -18,7 +18,8 @@
       "timeseries": "Timeseries",
       "groupInstrumentMemberTimeseries": "Member Timeseries",
       "watchlist": "Watchlist",
-      "movers": "Movers"
+      "movers": "Movers",
+      "support": "Support"
     }
   },
   "common": {

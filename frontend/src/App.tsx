@@ -42,7 +42,8 @@ type Mode =
   | "timeseries"
   | "groupInstrumentMemberTimeseries"
   | "watchlist"
-  | "movers";
+  | "movers"
+  | "support";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -58,6 +59,7 @@ const initialMode: Mode =
   path[0] === "groupInstrumentMemberTimeseries" ? "groupInstrumentMemberTimeseries" :
   path[0] === "watchlist" ? "watchlist" :
   path[0] === "movers" ? "movers" :
+  path[0] === "support" ? "support" :
   "group";
 const initialSlug = path[1] ?? "";
 
@@ -105,6 +107,7 @@ export default function App() {
     "groupInstrumentMemberTimeseries",
     "watchlist",
     "movers",
+    "support",
   ];
 
   function pathFor(m: Mode) {
@@ -149,6 +152,8 @@ export default function App() {
                     ? "watchlist"
                     : segs[0] === "movers"
                       ? "movers"
+                    : segs[0] === "support"
+                      ? "support"
                       : "group";
     if (tabs[newMode] === false) {
       setMode("group");

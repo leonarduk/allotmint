@@ -1,5 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { getConfig } from "./api";
 
 export interface TabsConfig {
@@ -28,6 +34,13 @@ export interface AppConfig {
   disabledTabs?: string[];
   tabs: TabsConfig;
   theme: "dark" | "light" | "system";
+}
+
+export interface RawConfig {
+  relative_view_enabled?: boolean;
+  tabs?: Partial<TabsConfig>;
+  disabled_tabs?: string[];
+  theme?: string;
 }
 
 const defaultTabs: TabsConfig = {
@@ -61,21 +74,18 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    getConfig()
+    getConfig<RawConfig>()
       .then((cfg) => {
-        const tabs = { ...defaultTabs, ...((cfg as any).tabs ?? {}) };
+        const tabs = { ...defaultTabs, ...(cfg.tabs ?? {}) };
         const disabledTabs = new Set<string>(
-          Array.isArray((cfg as any).disabled_tabs)
-            ? ((cfg as any).disabled_tabs as string[])
-            : [],
+          Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
         );
         for (const [tab, enabled] of Object.entries(tabs)) {
           if (!enabled) disabledTabs.add(tab);
         }
-        const theme =
-          typeof (cfg as any).theme === "string" ? ((cfg as any).theme as any) : "system";
+        const theme = isTheme(cfg.theme) ? cfg.theme : "system";
         setConfig({
-          relativeViewEnabled: Boolean((cfg as any).relative_view_enabled),
+          relativeViewEnabled: Boolean(cfg.relative_view_enabled),
           disabledTabs: Array.from(disabledTabs),
           tabs,
           theme,
@@ -98,7 +108,11 @@ export function useConfig() {
   return useContext(configContext);
 }
 
-function applyTheme(theme: string) {
+function isTheme(value: unknown): value is AppConfig["theme"] {
+  return value === "dark" || value === "light" || value === "system";
+}
+
+function applyTheme(theme: AppConfig["theme"]) {
   const root = document.documentElement;
   if (!root) return;
   if (theme === "dark" || theme === "light") {

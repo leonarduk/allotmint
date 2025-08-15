@@ -7,7 +7,7 @@ export type Filter<T, V> = {
 
 export function useFilterableTable<
   T,
-  F extends Record<string, Filter<T, any>>
+  F extends Record<string, Filter<T, unknown>>
 >(rows: T[], initialSortKey: keyof T, initialFilters: F) {
   const [sortKey, setSortKey] = useState<keyof T>(initialSortKey);
   const [asc, setAsc] = useState(true);

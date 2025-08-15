@@ -89,6 +89,19 @@ export const getTopMovers = (
   );
 };
 
+/** Retrieve top movers for a group portfolio. */
+export const getGroupMovers = (
+  slug: string,
+  days: number,
+  limit = 10,
+) => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (limit) params.set("limit", String(limit));
+  return fetchJson<{ gainers: MoverRow[]; losers: MoverRow[] }>(
+    `${API_BASE}/portfolio-group/${slug}/movers?${params.toString()}`,
+  );
+};
+
 /** Retrieve per-ticker aggregation for a group portfolio. */
 export const getGroupInstruments = (slug: string) =>
   fetchJson<InstrumentSummary[]>(
@@ -202,8 +215,8 @@ export const deleteVirtualPortfolio = (id: number | string) =>
   });
 
 /** Retrieve backend configuration. */
-export const getConfig = () =>
-  fetchJson<Record<string, unknown>>(`${API_BASE}/config`);
+export const getConfig = <T = Record<string, unknown>>() =>
+  fetchJson<T>(`${API_BASE}/config`);
 
 /** Persist configuration changes. */
 export const updateConfig = (cfg: Record<string, unknown>) =>

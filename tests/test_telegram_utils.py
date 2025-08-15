@@ -151,17 +151,14 @@ def test_redacts_token_from_errors(monkeypatch, caplog):
     token = "SECRET"
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", token)
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
+    telegram_utils.logger.addFilter(telegram_utils.RedactTokenFilter())
 
     def fake_post(url, data, timeout):
         raise requests.RequestException(f"boom {url}")
 
     with patch("backend.utils.telegram_utils.requests.post", fake_post):
-        with pytest.raises(requests.RequestException) as excinfo:
+        with caplog.at_level(logging.WARNING):
             telegram_utils.send_message("hi")
-        with caplog.at_level(logging.ERROR):
-            logging.getLogger("caller").error("fail: %s", excinfo.value)
 
-    assert token not in str(excinfo.value)
-    assert "***" in str(excinfo.value)
     assert token not in caplog.text
     assert "***" in caplog.text

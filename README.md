@@ -7,6 +7,8 @@ investing into a visually engaging “allotment” you tend over time. It enforc
 strict compliance rules (30‑day minimum holding, 20 trades/person/month), runs
 entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
 
+For setup and usage instructions, see the [USER_README](USER_README.md).
+
 ---
 
 ## MVP Scope

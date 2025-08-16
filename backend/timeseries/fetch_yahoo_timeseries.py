@@ -3,7 +3,10 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
-from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
+from backend.timeseries.ticker_validator import (
+    is_valid_ticker,
+    record_skipped_ticker,
+)
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 # Setup logger
@@ -40,6 +43,43 @@ def get_yahoo_suffix(exchange: str) -> str:
     return suffix
 
 
+def normalize_history(df: pd.DataFrame, ticker: str, source: str) -> pd.DataFrame:
+    """Standardize Yahoo history output.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Raw DataFrame returned by ``yfinance.Ticker.history``.
+    ticker : str
+        Ticker symbol to set in the ``Ticker`` column.
+    source : str
+        Source name for the ``Source`` column.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with ``STANDARD_COLUMNS`` and normalized data types.
+    """
+
+    # Ensure "Date" is a column rather than the index
+    df = df.reset_index()
+
+    # Convert DateTime to date objects
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"]).dt.date
+
+    # Round price columns
+    for col in ["Open", "High", "Low", "Close"]:
+        if col in df.columns:
+            df[col] = df[col].round(2)
+
+    # Attach metadata columns
+    df["Ticker"] = ticker
+    df["Source"] = source
+
+    return df[STANDARD_COLUMNS]
+
+
 def fetch_yahoo_timeseries_range(
     ticker: str,
     exchange: str,
@@ -61,19 +101,11 @@ def fetch_yahoo_timeseries_range(
             interval="1d"
         )
         if df.empty:
-            raise ValueError(f"No data returned for {full_ticker} between {start_date} and {end_date}")
+            raise ValueError(
+                f"No data returned for {full_ticker} between {start_date} and {end_date}"
+            )
 
-        df.reset_index(inplace=True)
-        df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        df["Ticker"] = full_ticker
-
-        for col in ["Open", "High", "Low", "Close"]:
-            if col in df.columns:
-                df[col] = df[col].round(2)
-
-        df["Source"] = "Yahoo"
-
-        return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]]
+        return normalize_history(df, full_ticker, "Yahoo")
 
     except Exception as e:
         logger.error(f"Failed to fetch Yahoo data for {full_ticker}: {e}")
@@ -98,15 +130,7 @@ def fetch_yahoo_timeseries_period(
         if df.empty:
             raise ValueError(f"No data returned for {full_ticker}")
 
-        df.reset_index(inplace=True)
-        df["Date"] = pd.to_datetime(df["Date"]).dt.date
-        df["Ticker"] = full_ticker
-
-        for col in ["Open", "High", "Low", "Close"]:
-            if col in df.columns:
-                df[col] = df[col].round(2)
-
-        return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker"]]
+        return normalize_history(df, full_ticker, "Yahoo")
 
     except Exception as e:
         logger.error(f"Failed to fetch Yahoo data for {full_ticker}: {e}")

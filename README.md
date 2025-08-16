@@ -286,3 +286,13 @@ enable this:
 Remove any long-term `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
 secrets, as they are no longer required.
 
+
+## 🎬 Generating the Overview Video
+
+Save an image named `presenter.png` in the `scripts` directory, then run:
+
+```bash
+python scripts/make_allotmint_video.py
+```
+
+The script will produce `allotmint_video.mp4` in the repository root.

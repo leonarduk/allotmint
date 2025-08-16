@@ -27,6 +27,7 @@ import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
+import DataAdmin from "./pages/DataAdmin";
 
 type Mode =
   | "owner"
@@ -38,6 +39,7 @@ type Mode =
   | "timeseries"
   | "watchlist"
   | "movers"
+  | "dataadmin"
   | "support";
 
 // derive initial mode + id from path
@@ -52,6 +54,7 @@ const initialMode: Mode =
   path[0] === "timeseries" ? "timeseries" :
   path[0] === "watchlist" ? "watchlist" :
   path[0] === "movers" ? "movers" :
+  path[0] === "dataadmin" ? "dataadmin" :
   path[0] === "support" ? "support" :
   path.length === 0 && params.has("group") ? "group" : "movers";
 const initialSlug = path[1] ?? "";
@@ -97,6 +100,7 @@ export default function App() {
     "screener",
     "timeseries",
     "watchlist",
+    "dataadmin",
     "support",
   ];
 
@@ -148,6 +152,9 @@ export default function App() {
         break;
       case "movers":
         newMode = "movers";
+        break;
+      case "dataadmin":
+        newMode = "dataadmin";
         break;
       case "support":
         newMode = "support";
@@ -372,6 +379,7 @@ export default function App() {
 
       {mode === "screener" && <ScreenerQuery />}
       {mode === "timeseries" && <TimeseriesEdit />}
+      {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}
     </div>

@@ -119,6 +119,17 @@ export interface PriceEntry {
     Source?: string;
 }
 
+export interface TimeseriesSummary {
+    ticker: string;
+    exchange: string;
+    name?: string | null;
+    earliest: string;
+    latest: string;
+    completeness: number;
+    latest_source?: string | null;
+    main_source?: string | null;
+}
+
 export interface QuoteRow {
     name: string | null;
     symbol: string;

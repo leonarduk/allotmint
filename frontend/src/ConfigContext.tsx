@@ -17,6 +17,7 @@ export interface TabsConfig {
   timeseries: boolean;
   watchlist: boolean;
   movers: boolean;
+  dataadmin: boolean;
   virtual: boolean;
   support: boolean;
 }
@@ -48,6 +49,7 @@ const defaultTabs: TabsConfig = {
   timeseries: true,
   watchlist: true,
   movers: true,
+  dataadmin: true,
   virtual: true,
   support: true,
 };

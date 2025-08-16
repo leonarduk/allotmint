@@ -1,11 +1,8 @@
 {
   "ticker": "HICL.L",
   "name": "HICL Infrastructure plc ORD GBP0.0001",
-  "exchange": "L",
-  "currency": "GBP",
-  "instrumentType": "Equity",
-  "isin": "GB00B0T35238",
+  "sector": "Utilities",
   "region": "UK",
-  "Sector": "Utilities",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBP"
 }

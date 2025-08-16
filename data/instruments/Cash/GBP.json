@@ -1,11 +1,8 @@
 {
   "ticker": "CASH.GBP",
   "name": "Cash (GBP)",
+  "sector": "",
+  "region": null,
   "exchange": null,
-  "currency": "GBP",
-  "instrumentType": "Cash",
-  "isin": "",
-  "region": "",
-  "Sector": "",
-  "morningStarRating": ""
+  "currency": "GBP"
 }

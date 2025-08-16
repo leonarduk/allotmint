@@ -1,11 +1,8 @@
 {
   "ticker": "NBIX.N",
   "name": "Neurocrine Biosciences Inc Com Stk NPV (CDI) *R",
-  "exchange": "N",
-  "currency": "USD",
-  "instrumentType": "Equity",
-  "isin": "US64125C1099",
+  "sector": "Health Care",
   "region": "US",
-  "Sector": "Health Care",
-  "morningStarRating": ""
+  "exchange": "N",
+  "currency": "USD"
 }

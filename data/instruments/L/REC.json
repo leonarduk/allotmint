@@ -1,11 +1,8 @@
 {
   "ticker": "REC.L",
   "name": "Record Plc",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "NO0010337689",
+  "sector": "Utilities",
   "region": "Europe",
-  "Sector": "Utilities",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

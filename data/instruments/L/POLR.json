@@ -1,11 +1,8 @@
 {
   "ticker": "POLR.L",
   "name": "Polar Capital Holdings Plc Ord 2.5p",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "GB00B5428M26",
+  "sector": "Financials",
   "region": "UK",
-  "Sector": "Financials",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

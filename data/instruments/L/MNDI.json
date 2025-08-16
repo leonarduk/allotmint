@@ -1,11 +1,8 @@
 {
   "ticker": "MNDI.L",
   "name": "Mondi plc ORD EUR0.22",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "GB00B1CRLC47",
+  "sector": "Materials",
   "region": "UK",
-  "Sector": "Materials",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

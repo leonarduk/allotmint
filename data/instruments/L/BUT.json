@@ -1,11 +1,8 @@
 {
   "ticker": "BUT.L",
   "name": "Brunner Investment Trust Plc",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Investment Trust",
-  "isin": "GB00BN7JGL35",
+  "sector": "Financials",
   "region": "UK",
-  "Sector": "Financials",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

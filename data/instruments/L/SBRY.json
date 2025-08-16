@@ -1,11 +1,8 @@
 {
   "ticker": "SBRY.L",
   "name": "Sainsbury (J) plc Ordinary 28,4/7p",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "GB00B019KW72",
+  "sector": "Consumer Staples",
   "region": "UK",
-  "Sector": "Consumer Staples",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

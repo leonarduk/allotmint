@@ -124,6 +124,8 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
         return None
     return {
         "name": data.get("name", ticker.upper()),
+        "sector": data.get("sector"),
+        "region": data.get("region"),
         "currency": data.get("currency"),
     }
 
@@ -148,6 +150,8 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                     "name": h.get("name") or file_meta.get("name", tkr),
                     "exchange": h.get("exchange"),
                     "isin": h.get("isin"),
+                    "sector": h.get("sector") or file_meta.get("sector"),
+                    "region": h.get("region") or file_meta.get("region"),
                     "currency": h.get("currency") or file_meta.get("currency"),
                 }
     return securities

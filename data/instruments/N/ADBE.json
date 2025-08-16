@@ -1,11 +1,8 @@
 {
   "ticker": "ADBE.N",
   "name": "Adobe Inc Comm Stk US$.0001 *R",
-  "exchange": "N",
-  "currency": "USD",
-  "instrumentType": "Equity",
-  "isin": "US00724F1012",
+  "sector": "Information Technology",
   "region": "US",
-  "Sector": "Information Technology",
-  "morningStarRating": ""
+  "exchange": "N",
+  "currency": "USD"
 }

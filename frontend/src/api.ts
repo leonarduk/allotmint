@@ -20,6 +20,7 @@ import type {
   ComplianceResult,
   MoverRow,
   TimeseriesSummary,
+  ScenarioResult,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -101,6 +102,12 @@ export const getGroupMovers = (
   return fetchJson<{ gainers: MoverRow[]; losers: MoverRow[] }>(
     `${API_BASE}/portfolio-group/${slug}/movers?${params.toString()}`,
   );
+};
+
+/** Apply a price shock scenario to all portfolios. */
+export const runScenario = (ticker: string, pct: number) => {
+  const params = new URLSearchParams({ ticker, pct: String(pct) });
+  return fetchJson<ScenarioResult[]>(`${API_BASE}/scenario?${params.toString()}`);
 };
 
 /** Retrieve per-ticker aggregation for a group portfolio. */

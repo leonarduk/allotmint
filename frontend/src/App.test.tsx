@@ -130,6 +130,7 @@ describe("App", () => {
       dataadmin: true,
       virtual: true,
       support: true,
+      scenario: true,
     };
 
     render(
@@ -182,6 +183,7 @@ describe("App", () => {
       dataadmin: true,
       virtual: true,
       support: true,
+      scenario: true,
     };
 
     render(
@@ -246,6 +248,7 @@ describe("App", () => {
       "Watchlist",
       "Data Admin",
       "Support",
+      "Scenario Tester",
     ]);
   });
 });

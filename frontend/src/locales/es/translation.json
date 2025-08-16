@@ -17,7 +17,8 @@
       "watchlist": "Watchlist",
       "movers": "Movers",
       "dataadmin": "Data Admin",
-      "support": "Soporte"
+      "support": "Soporte",
+      "scenario": "Probador de Escenarios"
     }
   },
   "common": {

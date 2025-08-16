@@ -32,6 +32,7 @@ from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.config import router as config_router
 from backend.routes.quotes import router as quotes_router
 from backend.routes.movers import router as movers_router
+from backend.routes.scenario import router as scenario_router
 from backend.common.portfolio_utils import (
     _load_snapshot,
     refresh_snapshot_async,
@@ -87,6 +88,7 @@ def create_app() -> FastAPI:
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(movers_router)
+    app.include_router(scenario_router)
 
     # ────────────────────── Health-check endpoint ─────────────────────
     @app.get("/health")

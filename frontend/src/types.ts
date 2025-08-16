@@ -158,6 +158,11 @@ export type Alert = {
     timestamp: string;
 };
 
+export interface ScenarioResult {
+    owner: string;
+    total_value_estimate_gbp: number;
+}
+
 export type ComplianceResult = {
     owner: string;
     warnings: string[];

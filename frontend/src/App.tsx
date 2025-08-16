@@ -28,6 +28,7 @@ import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
+import ScenarioTester from "./pages/ScenarioTester";
 
 type Mode =
   | "owner"
@@ -40,7 +41,8 @@ type Mode =
   | "watchlist"
   | "movers"
   | "dataadmin"
-  | "support";
+  | "support"
+  | "scenario";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -56,6 +58,7 @@ const initialMode: Mode =
   path[0] === "movers" ? "movers" :
   path[0] === "dataadmin" ? "dataadmin" :
   path[0] === "support" ? "support" :
+  path[0] === "scenario" ? "scenario" :
   path.length === 0 && params.has("group") ? "group" : "movers";
 const initialSlug = path[1] ?? "";
 
@@ -102,6 +105,7 @@ export default function App() {
     "watchlist",
     "dataadmin",
     "support",
+    "scenario",
   ];
 
   function pathFor(m: Mode) {
@@ -116,6 +120,8 @@ export default function App() {
         return selectedOwner ? `/performance/${selectedOwner}` : "/performance";
       case "movers":
         return "/movers";
+      case "scenario":
+        return "/scenario";
       default:
         return `/${m}`;
     }
@@ -155,6 +161,9 @@ export default function App() {
         break;
       case "support":
         newMode = "support";
+        break;
+      case "scenario":
+        newMode = "scenario";
         break;
       default:
         newMode = segs.length === 0 && params.has("group") ? "group" : "movers";
@@ -379,6 +388,7 @@ export default function App() {
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}
+      {mode === "scenario" && <ScenarioTester />}
     </div>
   );
 }

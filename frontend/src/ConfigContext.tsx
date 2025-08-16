@@ -20,6 +20,7 @@ export interface TabsConfig {
   dataadmin: boolean;
   virtual: boolean;
   support: boolean;
+  scenario: boolean;
 }
 
 export interface AppConfig {
@@ -52,6 +53,7 @@ const defaultTabs: TabsConfig = {
   dataadmin: true,
   virtual: true,
   support: true,
+  scenario: true,
 };
 
 export const configContext = createContext<AppConfig>({

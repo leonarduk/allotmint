@@ -19,6 +19,7 @@ import type {
   TradingSignal,
   ComplianceResult,
   MoverRow,
+  TimeseriesSummary,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -157,6 +158,9 @@ export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntr
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(rows),
   });
+
+export const listTimeseries = () =>
+  fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`);
 
 
 export const getTransactions = (params: {

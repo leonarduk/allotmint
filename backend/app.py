@@ -17,6 +17,7 @@ from backend.routes.instrument import router as instrument_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.timeseries_meta import router as timeseries_router
 from backend.routes.timeseries_edit import router as timeseries_edit_router
+from backend.routes.timeseries_admin import router as timeseries_admin_router
 
 from backend.routes.transactions import router as transactions_router
 from backend.routes.alerts import router as alerts_router
@@ -72,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
     app.include_router(timeseries_edit_router)
+    app.include_router(timeseries_admin_router)
     app.include_router(transactions_router)
     app.include_router(alerts_router)
     app.include_router(compliance_router)

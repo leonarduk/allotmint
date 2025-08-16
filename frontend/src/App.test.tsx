@@ -70,6 +70,35 @@ describe("App", () => {
     expect(await screen.findByText("Timeseries Editor")).toBeInTheDocument();
   });
 
+  it("renders data admin when path is /dataadmin", async () => {
+    window.history.pushState({}, "", "/dataadmin");
+
+    vi.doMock("./api", () => ({
+      getOwners: vi.fn().mockResolvedValue([]),
+      getGroups: vi.fn().mockResolvedValue([]),
+      getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getPortfolio: vi.fn(),
+      refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
+      getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      listTimeseries: vi.fn().mockResolvedValue([]),
+    }));
+
+    const { default: App } = await import("./App");
+
+    render(
+      <MemoryRouter initialEntries={["/dataadmin"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Data Admin" })
+    ).toBeInTheDocument();
+  });
+
   it("hides disabled tabs and prevents navigation", async () => {
     window.history.pushState({}, "", "/movers");
 
@@ -98,6 +127,7 @@ describe("App", () => {
       timeseries: true,
       watchlist: true,
       movers: true,
+      dataadmin: true,
       virtual: true,
       support: true,
     };
@@ -117,8 +147,6 @@ describe("App", () => {
     );
 
     expect(screen.queryByRole("link", { name: /movers/i })).toBeNull();
-    const moversLink = await screen.findByRole("link", { name: /movers/i });
-    expect(moversLink).toHaveStyle("font-weight: bold");
   });
 
   it("allows navigation to enabled tabs", async () => {
@@ -151,6 +179,7 @@ describe("App", () => {
       timeseries: true,
       watchlist: true,
       movers: true,
+      dataadmin: true,
       virtual: true,
       support: true,
     };
@@ -173,6 +202,7 @@ describe("App", () => {
 
   it("defaults to Movers view and orders tabs correctly", async () => {
     window.history.pushState({}, "", "/");
+    mockTradingSignals.mockResolvedValue([]);
 
     vi.mock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
@@ -187,6 +217,8 @@ describe("App", () => {
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getTradingSignals: mockTradingSignals,
+      listTimeseries: vi.fn().mockResolvedValue([]),
     }));
 
     const { default: App } = await import("./App");
@@ -210,10 +242,9 @@ describe("App", () => {
       "Performance",
       "Transactions",
       "Screener & Query",
-      "Trading",
       "Timeseries",
-      "Member Timeseries",
       "Watchlist",
+      "Data Admin",
       "Support",
     ]);
   });

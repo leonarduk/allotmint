@@ -78,7 +78,7 @@ export default function Support() {
   }
 
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto", padding: "1rem" }}>
+    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <h1>{t("support.title")}</h1>
       <p>
         <strong>{t("support.online")}</strong> {online ? t("support.onlineYes") : t("support.onlineNo")}
@@ -115,42 +115,90 @@ export default function Support() {
         <p>Loading…</p>
       ) : (
         <form onSubmit={saveConfig}>
-          {Object.entries(config).map(([key, value]) => (
-            <div key={key} style={{ marginBottom: "0.5rem" }}>
-              <label style={{ display: "block", fontWeight: 500 }}>{key}</label>
-              {key === "theme" && typeof value === "string" ? (
-                <div>
-                  {(["dark", "light", "system"] as const).map((opt) => (
-                    <label key={opt} style={{ marginRight: "0.5rem" }}>
-                      <input
-                        type="radio"
-                        name="theme"
-                        value={opt}
-                        checked={value === opt}
-                        onChange={(e) => handleConfigChange(key, e.target.value)}
-                      />
-                      {opt}
-                    </label>
-                  ))}
-                </div>
-              ) : typeof value === "boolean" ? (
-                <select
-                  value={String(value)}
-                  onChange={(e) => handleConfigChange(key, e.target.value === "true")}
-                >
-                  <option value="true">true</option>
-                  <option value="false">false</option>
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={String(value ?? "")}
-                  onChange={(e) => handleConfigChange(key, e.target.value)}
-                  style={{ width: "100%" }}
-                />
-              )}
-            </div>
-          ))}
+          {(() => {
+            const entries = Object.entries(config);
+            const gridStyle: React.CSSProperties = {
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+              gap: "1rem",
+            };
+            const booleanEntries = entries.filter(([, v]) => typeof v === "boolean");
+            const otherEntries = entries.filter(([, v]) => typeof v !== "boolean");
+            const messagingEntries = otherEntries.filter(([k]) =>
+              /telegram|message|alert/i.test(k),
+            );
+            const generalEntries = otherEntries.filter(
+              ([k]) => !/telegram|message|alert/i.test(k),
+            );
+
+            const renderItem = ([key, value]: [string, string | boolean]) => (
+              <div key={key} style={{ display: "flex", flexDirection: "column" }}>
+                <label style={{ fontWeight: 500, marginBottom: "0.25rem" }}>{key}</label>
+                {key === "theme" && typeof value === "string" ? (
+                  <div>
+                    {(["dark", "light", "system"] as const).map((opt) => (
+                      <label key={opt} style={{ marginRight: "0.5rem" }}>
+                        <input
+                          type="radio"
+                          name="theme"
+                          value={opt}
+                          checked={value === opt}
+                          onChange={(e) => handleConfigChange(key, e.target.value)}
+                        />
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                ) : typeof value === "boolean" ? (
+                  <select
+                    value={String(value)}
+                    onChange={(e) =>
+                      handleConfigChange(key, e.target.value === "true")
+                    }
+                  >
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={String(value ?? "")}
+                    onChange={(e) => handleConfigChange(key, e.target.value)}
+                    style={{ width: "100%" }}
+                  />
+                )}
+              </div>
+            );
+
+            return (
+              <>
+                {booleanEntries.length > 0 && (
+                  <>
+                    <h3 style={{ marginTop: 0 }}>Feature Switches</h3>
+                    <div style={gridStyle}>
+                      {booleanEntries.map((entry) => renderItem(entry))}
+                    </div>
+                  </>
+                )}
+                {generalEntries.length > 0 && (
+                  <>
+                    <h3>General Settings</h3>
+                    <div style={gridStyle}>
+                      {generalEntries.map((entry) => renderItem(entry))}
+                    </div>
+                  </>
+                )}
+                {messagingEntries.length > 0 && (
+                  <>
+                    <h3>Messaging/Alerts</h3>
+                    <div style={gridStyle}>
+                      {messagingEntries.map((entry) => renderItem(entry))}
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
           <button type="submit">Save</button>
           {configStatus === "saved" && (
             <span style={{ marginLeft: "0.5rem", color: "green" }}>Saved</span>

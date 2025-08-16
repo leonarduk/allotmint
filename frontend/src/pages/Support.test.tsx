@@ -48,7 +48,8 @@ describe("Support page", () => {
 
     await screen.findByDisplayValue("5");
 
-    expect(screen.getByDisplayValue("false")).toBeInTheDocument();
+    const flagToggle = screen.getByRole("checkbox");
+    expect(flagToggle).not.toBeChecked();
     expect(screen.getByDisplayValue("5")).toBeInTheDocument();
   });
 

@@ -2,6 +2,22 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE, getConfig, updateConfig } from "../api";
 
+function Toggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+      Off
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      On
+    </label>
+  );
+}
+
 export default function Support() {
   const { t } = useTranslation();
   const [message, setMessage] = useState("");
@@ -134,13 +150,10 @@ export default function Support() {
                   ))}
                 </div>
               ) : typeof value === "boolean" ? (
-                <select
-                  value={String(value)}
-                  onChange={(e) => handleConfigChange(key, e.target.value === "true")}
-                >
-                  <option value="true">true</option>
-                  <option value="false">false</option>
-                </select>
+                <Toggle
+                  checked={value}
+                  onChange={(checked) => handleConfigChange(key, checked)}
+                />
               ) : (
                 <input
                   type="text"

@@ -3,8 +3,9 @@
   "name": "Cash (EUR)",
   "exchange": null,
   "currency": "EUR",
+  "instrumentType": null,
   "isin": "",
   "region": "",
-  "Sector": "",
+  "sector": "",
   "morningStarRating": ""
 }

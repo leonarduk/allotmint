@@ -1,8 +1,11 @@
 {
   "ticker": "UPS.N",
   "name": "United Parcel Service Class &#39;B&#39; Com Stock US$0.01 (CDI) *R",
-  "sector": "Industrials",
-  "region": "US",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity",
+  "isin": "US9113121068",
+  "region": "US",
+  "sector": "Industrials",
+  "morningStarRating": ""
 }

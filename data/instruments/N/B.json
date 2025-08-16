@@ -1,8 +1,11 @@
 {
   "ticker": "B.N",
   "name": "Barrick Mining Corp NPV *R",
-  "sector": "Industrials",
-  "region": "US",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity",
+  "isin": "US05577W2008",
+  "region": "US",
+  "sector": "Industrials",
+  "morningStarRating": ""
 }

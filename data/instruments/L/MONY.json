@@ -1,8 +1,11 @@
 {
   "ticker": "MONY.L",
   "name": "Mony Group Plc Ord 2p",
-  "sector": "Financials",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00BGJWTR88",
+  "region": "UK",
+  "sector": "Financials",
+  "morningStarRating": ""
 }

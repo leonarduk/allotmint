@@ -1,8 +1,11 @@
 {
   "ticker": "BLND.L",
   "name": "British Land Co plc Ordinary 25p",
-  "sector": "Real Estate Investment Trusts",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB0001367019",
+  "region": "UK",
+  "sector": "Real Estate Investment Trusts",
+  "morningStarRating": ""
 }

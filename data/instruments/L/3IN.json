@@ -1,8 +1,11 @@
 {
   "ticker": "3IN.L",
   "name": "3i Infrastructure plc Ord NPV",
-  "sector": "Financials",
-  "region": "Europe",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "JE00BF5FX167",
+  "region": "Europe",
+  "sector": "Financials",
+  "morningStarRating": ""
 }

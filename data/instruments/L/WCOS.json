@@ -1,8 +1,11 @@
 {
   "ticker": "WCOS.L",
   "name": "SPDR MSCI World Consumer Staples UCITS ETF *1 *R",
-  "sector": "Consumer Staples",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "ETF",
+  "isin": "GB00B1N7Z094",
+  "region": "UK",
+  "sector": "Consumer Staples",
+  "morningStarRating": ""
 }

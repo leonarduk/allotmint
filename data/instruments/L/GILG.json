@@ -1,8 +1,11 @@
 {
   "ticker": "GILG.L",
   "name": "iShares III Plc Global Inflatin Linked Govt Bonds UCITS ETF GBP D",
-  "sector": "Fixed Income",
-  "region": "Europe",
   "exchange": "L",
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "ETF",
+  "isin": "IE00BYZJQ460",
+  "region": "Europe",
+  "sector": "Fixed Income",
+  "morningStarRating": ""
 }

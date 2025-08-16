@@ -1,8 +1,11 @@
 {
   "ticker": "HFD.L",
   "name": "Halfords Group plc",
-  "sector": "Consumer Discretionary",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00B1VQ6H25",
+  "region": "UK",
+  "sector": "Consumer Discretionary",
+  "morningStarRating": ""
 }

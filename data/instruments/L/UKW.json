@@ -1,8 +1,11 @@
 {
   "ticker": "UKW.L",
   "name": "Greencoat UK Wind plc Ordinary 1p",
-  "sector": "Utilities",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00B8SC6K54",
+  "region": "UK",
+  "sector": "Utilities",
+  "morningStarRating": ""
 }

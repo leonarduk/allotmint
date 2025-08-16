@@ -1,8 +1,11 @@
 {
   "ticker": "III.L",
   "name": "3i Group Plc Ordinary 73 19/22p",
-  "sector": "Financials",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00B1YW4409",
+  "region": "UK",
+  "sector": "Financials",
+  "morningStarRating": ""
 }

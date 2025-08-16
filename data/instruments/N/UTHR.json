@@ -1,8 +1,11 @@
 {
   "ticker": "UTHR.N",
   "name": "United Therapeutics Corp Com Stk USD0.01 *R",
-  "sector": "Health Care",
-  "region": "US",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity",
+  "isin": "US91307C1027",
+  "region": "US",
+  "sector": "Health Care",
+  "morningStarRating": ""
 }

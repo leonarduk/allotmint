@@ -1,8 +1,11 @@
 {
   "ticker": "CUKS.L",
   "name": "iShares VII plc MSCI UK Small CAP UCITS ETF",
-  "sector": "Financials",
-  "region": "Europe",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "ETF",
+  "isin": "IE00B42TW061",
+  "region": "Europe",
+  "sector": "Financials",
+  "morningStarRating": ""
 }

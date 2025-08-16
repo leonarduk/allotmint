@@ -1,8 +1,11 @@
 {
   "ticker": "SFR.L",
   "name": "Severfield plc Ordinary 2.5p",
-  "sector": "Financials",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00B1VVG079",
+  "region": "UK",
+  "sector": "Financials",
+  "morningStarRating": ""
 }

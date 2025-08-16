@@ -1,8 +1,11 @@
 {
   "ticker": "IFX.DE",
   "name": "Infineon Technologies AG Ordinary NPV *R",
-  "sector": "Information Technology",
-  "region": "Europe",
   "exchange": "DE",
-  "currency": "EUR"
+  "currency": "EUR",
+  "instrumentType": "Equity",
+  "isin": "DE0006231004",
+  "region": "Europe",
+  "sector": "Information Technology",
+  "morningStarRating": ""
 }

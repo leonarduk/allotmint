@@ -1,8 +1,11 @@
 {
   "ticker": "AIGE.L",
   "name": "WisdomTree Energy *R",
-  "sector": "Commodities - Energy",
-  "region": "Europe",
   "exchange": "L",
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "Equity",
+  "isin": "GB00B15KYB02",
+  "region": "Europe",
+  "sector": "Commodities - Energy",
+  "morningStarRating": ""
 }

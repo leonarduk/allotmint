@@ -1,8 +1,11 @@
 {
   "ticker": "CARD.L",
   "name": "Card Factory plc Ordinary 1p",
-  "sector": "Consumer Discretionary",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00BD6K4575",
+  "region": "UK",
+  "sector": "Consumer Discretionary",
+  "morningStarRating": ""
 }

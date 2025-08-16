@@ -1,8 +1,11 @@
 {
   "ticker": "QBTS.N",
   "name": "D-Wave Quantum Inc USD0.0001 A *R",
-  "sector": "Information Technology",
-  "region": "US",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity",
+  "isin": "US74766W1080",
+  "region": "US",
+  "sector": "Information Technology",
+  "morningStarRating": ""
 }

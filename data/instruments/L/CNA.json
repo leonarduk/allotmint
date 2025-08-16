@@ -1,8 +1,11 @@
 {
   "ticker": "CNA.L",
   "name": "Centrica plc Ord 6,14/81p",
-  "sector": "Utilities",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00B033F229",
+  "region": "UK",
+  "sector": "Utilities",
+  "morningStarRating": ""
 }

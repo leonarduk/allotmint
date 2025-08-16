@@ -1,8 +1,11 @@
 {
   "ticker": "THX.L",
   "name": "Thor Explorations Ltd NPV (DI)",
-  "sector": "Materials",
-  "region": "Canada",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "CA8851491040",
+  "region": "Canada",
+  "sector": "Materials",
+  "morningStarRating": ""
 }

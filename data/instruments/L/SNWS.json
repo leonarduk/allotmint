@@ -1,8 +1,11 @@
 {
   "ticker": "SNWS.L",
   "name": "Smiths News plc Ordinary 5p",
-  "sector": "Consumer Staples",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00B19NZY32",
+  "region": "UK",
+  "sector": "Consumer Staples",
+  "morningStarRating": ""
 }

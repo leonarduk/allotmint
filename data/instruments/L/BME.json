@@ -1,8 +1,11 @@
 {
   "ticker": "BME.L",
   "name": "B&M European Value Retail SA",
-  "sector": "Consumer Discretionary",
-  "region": "Europe",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "LU1072616219",
+  "region": "Europe",
+  "sector": "Consumer Discretionary",
+  "morningStarRating": ""
 }

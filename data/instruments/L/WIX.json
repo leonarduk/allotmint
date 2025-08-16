@@ -1,8 +1,11 @@
 {
   "ticker": "WIX.L",
   "name": "Wickes Group Plc ORD GBP0.1",
-  "sector": "Information Technology",
-  "region": "Israel",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "IL0011301780",
+  "region": "Israel",
+  "sector": "Information Technology",
+  "morningStarRating": ""
 }

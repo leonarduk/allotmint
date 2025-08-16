@@ -1,8 +1,11 @@
 {
   "ticker": "BMY.L",
   "name": "Bloomsbury Publishing plc Ordinary 1.25p Shares",
-  "sector": "Health Care",
-  "region": "US",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "US1101221083",
+  "region": "US",
+  "sector": "Health Care",
+  "morningStarRating": ""
 }

@@ -1,8 +1,11 @@
 {
   "ticker": "JEGI.L",
   "name": "JPMorgan European Growth & Income plc ORD GBP0.005",
-  "sector": "Financials",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00BF4ZR216",
+  "region": "UK",
+  "sector": "Financials",
+  "morningStarRating": ""
 }

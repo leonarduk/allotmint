@@ -1,8 +1,11 @@
 {
   "ticker": "GRG.L",
   "name": "Greggs Plc Ord 2p",
-  "sector": "Consumer Discretionary",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00B63QSB39",
+  "region": "UK",
+  "sector": "Consumer Discretionary",
+  "morningStarRating": ""
 }

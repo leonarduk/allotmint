@@ -1,8 +1,11 @@
 {
   "ticker": "ESIH.L",
   "name": "iShares VI plc MSCI EUR HealthCare Sect UCITS ETF Acc",
-  "sector": "Fixed Income",
-  "region": "Europe",
   "exchange": "L",
-  "currency": "GBP"
+  "currency": "GBP",
+  "instrumentType": "ETF",
+  "isin": "IE00BKM4GZ66",
+  "region": "Europe",
+  "sector": "Fixed Income",
+  "morningStarRating": ""
 }

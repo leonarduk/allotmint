@@ -1,8 +1,11 @@
 {
   "ticker": "PHGP.L",
   "name": "WisdomTree Physical Gold (GBP)",
-  "sector": "Materials",
-  "region": "Europe",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "JE00B1VS3770",
+  "region": "Europe",
+  "sector": "Materials",
+  "morningStarRating": ""
 }

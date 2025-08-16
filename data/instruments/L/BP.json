@@ -1,8 +1,11 @@
 {
   "ticker": "BP.L",
   "name": "BP Plc Ordinary US$0.25",
-  "sector": "Energy",
-  "region": "Europe",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB0007980591",
+  "region": "Europe",
+  "sector": "Energy",
+  "morningStarRating": ""
 }

@@ -1,8 +1,11 @@
 {
   "ticker": "PFE.N",
   "name": "Pfizer Inc Com Stk USD0.05 (CDI) *R",
-  "sector": "Health Care",
-  "region": "US",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity",
+  "isin": "US7170811035",
+  "region": "US",
+  "sector": "Health Care",
+  "morningStarRating": ""
 }

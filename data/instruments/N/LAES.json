@@ -1,8 +1,11 @@
 {
   "ticker": "LAES.N",
   "name": "Sealsq Corp USD0.01 *R",
-  "sector": "Health Care",
-  "region": "US",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity",
+  "isin": "US50736P1075",
+  "region": "US",
+  "sector": "Health Care",
+  "morningStarRating": ""
 }

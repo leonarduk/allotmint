@@ -1,8 +1,11 @@
 {
   "ticker": "AIE.L",
   "name": "Ashoka India Equity Inv Trust Plc Ord GBP0.01",
-  "sector": "Miscellaneous",
-  "region": "UK",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "Equity",
+  "isin": "GB00BF50VS41",
+  "region": "UK",
+  "sector": "Miscellaneous",
+  "morningStarRating": ""
 }

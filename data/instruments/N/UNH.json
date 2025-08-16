@@ -1,8 +1,11 @@
 {
   "ticker": "UNH.N",
   "name": "UnitedHealth Group Inc Com Stk USD0.01 *R",
-  "sector": "Health Care",
-  "region": "US",
   "exchange": "N",
-  "currency": "USD"
+  "currency": "USD",
+  "instrumentType": "Equity",
+  "isin": "US91324P1021",
+  "region": "US",
+  "sector": "Health Care",
+  "morningStarRating": ""
 }

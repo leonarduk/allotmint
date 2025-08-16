@@ -1,8 +1,11 @@
 {
   "ticker": "MINV.L",
   "name": "iShares VI plc Edge MSCI World Minimum Volatility UCITS ETF Acc",
-  "sector": "Financials",
-  "region": "Europe",
   "exchange": "L",
-  "currency": "GBX"
+  "currency": "GBX",
+  "instrumentType": "ETF",
+  "isin": "IE00B8FHGS14",
+  "region": "Europe",
+  "sector": "Financials",
+  "morningStarRating": ""
 }

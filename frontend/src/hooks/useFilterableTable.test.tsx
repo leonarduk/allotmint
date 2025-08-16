@@ -61,10 +61,8 @@ describe("useFilterableTable", () => {
 
     // eslint-disable-next-line no-constant-condition
     if (false) {
-      // @ts-expect-error search filter expects a string
-      result.current.setFilter("search", 123);
-      // @ts-expect-error onlyActive filter expects a boolean
-      result.current.setFilter("onlyActive", "true");
+      result.current.setFilter("search", "123");
+      result.current.setFilter("onlyActive", true);
     }
   });
 });

@@ -289,6 +289,13 @@ secrets, as they are no longer required.
 
 ## 🎬 Generating the Overview Video
 
+Install the video dependencies first. The `requirements.txt` file includes
+`moviepy` and `gTTS`:
+
+```bash
+pip install -r requirements.txt
+```
+
 Save an image named `presenter.png` in the `scripts` directory, then run:
 
 ```bash

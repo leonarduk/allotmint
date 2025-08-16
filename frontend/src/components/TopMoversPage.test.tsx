@@ -33,10 +33,15 @@ const mockGetTradingSignals = vi.fn(() =>
 );
 
 vi.mock("../api", () => ({
-  getTopMovers: (...args: unknown[]) => mockGetTopMovers(...args),
-  getGroupInstruments: (...args: unknown[]) =>
-    mockGetGroupInstruments(...args),
-  getTradingSignals: (...args: unknown[]) => mockGetTradingSignals(...args),
+  getTopMovers: (
+    ...args: Parameters<typeof mockGetTopMovers>
+  ) => mockGetTopMovers(...args),
+  getGroupInstruments: (
+    ...args: Parameters<typeof mockGetGroupInstruments>
+  ) => mockGetGroupInstruments(...args),
+  getTradingSignals: (
+    ...args: Parameters<typeof mockGetTradingSignals>
+  ) => mockGetTradingSignals(...args),
 }));
 
 vi.mock("./InstrumentDetail", () => ({

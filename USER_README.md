@@ -5,7 +5,8 @@ AllotMint helps families track and manage investments like tending an allotment.
 
 ## Installation
 1. **Clone the repository** and move into the project directory.
-2. **Backend dependencies**: `pip install -r requirements.txt`
+2. **Backend dependencies**: `pip install -r requirements.txt` (includes
+   `moviepy` and `gTTS` for video generation)
 3. **Frontend dependencies**: change into the `frontend/` folder and run `npm install`
 
 ## Configuration

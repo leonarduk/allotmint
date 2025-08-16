@@ -115,10 +115,11 @@ latest_prices: Dict[str, float] = {}
 
 def _close_column(df: pd.DataFrame) -> Optional[str]:
     """
-    Prefer Close, fall back to Adj Close, case-insensitive.
+    Prefer GBP close if present, else fall back to Close or Adj Close,
+    case-insensitive.
     """
     nm = _lower_name_map(df)
-    return nm.get("close") or nm.get("adj close") or nm.get("adj_close")
+    return nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
 
 
 # ─────── cost basis (single source of truth) ───────
@@ -155,13 +156,15 @@ def _get_price_for_date_scaled(
     ticker: str,
     exchange: str,
     d: dt.date,
-    field: str = "Close",
+    field: str = "Close_gbp",
 ) -> Optional[float]:
     if ticker.upper() in {"CASH", "GBP.CASH", "CASH.GBP"}:
         return 1.0
 
     """
-    Load a single-day DF, apply scaling override, return the requested field.
+    Load a single-day DF, apply scaling override and return the requested
+    field.  For close prices we prefer the GBP-converted column when
+    available, falling back to the regular close.
     """
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange,
                                     start_date=d, end_date=d)
@@ -172,7 +175,11 @@ def _get_price_for_date_scaled(
     df = apply_scaling(df, scale)
 
     nm = _lower_name_map(df)
-    col = nm.get(field.lower()) or _close_column(df)
+    col = None
+    if field.lower() in {"close", "close_gbp"}:
+        col = nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
+    else:
+        col = nm.get(field.lower())
     if not col or df.empty:
         return None
 
@@ -351,7 +358,7 @@ def enrich_holding(
 
     # Current price as of "yesterday" (app constraint)
     asof_date = (today - dt.timedelta(days=1))
-    px = _get_price_for_date_scaled(ticker, exchange, asof_date)
+    px = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
 
     units = float(out.get(UNITS, 0) or 0)
 
@@ -360,7 +367,7 @@ def enrich_holding(
 
     # price one day before to calculate day-on-day change
     prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
-    prev_px = _get_price_for_date_scaled(ticker, exchange, prev_date)
+    prev_px = _get_price_for_date_scaled(ticker, exchange, prev_date, field="Close_gbp")
 
     if px is not None:
         mv = round(units * float(px), 2)

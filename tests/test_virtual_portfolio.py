@@ -9,7 +9,7 @@ from backend.common import holding_utils
 def test_aggregate_with_mixed_holdings(monkeypatch):
     today = dt.date(2024, 1, 10)
 
-    def fake_get_price_for_date_scaled(ticker, exchange, d, field="Close"):
+    def fake_get_price_for_date_scaled(ticker, exchange, d, field="Close_gbp"):
         prices = {"AAA": 12.0, "CCC": 8.0}
         if ticker not in prices:
             raise AssertionError("price lookup should not occur for zero-unit holdings")

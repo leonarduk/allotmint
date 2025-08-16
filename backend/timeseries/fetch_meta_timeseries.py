@@ -191,15 +191,22 @@ def fetch_ft_df(ticker, end_date, start_date):
 
 # ──────────────────────────────────────────────────────────────
 # Cache-aware batch helpers (local import) ─────────────────────
-def run_all_tickers(tickers: List[str],
-                    exchange: str = "L",
-                    days: int = 365) -> List[str]:
-    """Warm-up helper - returns tickers that produced data."""
+def run_all_tickers(
+    tickers: List[str], exchange: str = "L", days: int = 365
+) -> List[str]:
+    """Warm-up helper - returns tickers that produced data.
+
+    ``tickers`` may contain base symbols ("VOD") or full tickers ("VOD.L").
+    When a ticker includes an exchange suffix, it takes precedence over the
+    ``exchange`` argument.
+    """
     from backend.timeseries.cache import load_meta_timeseries
+
     ok: list[str] = []
     for t in tickers:
+        sym, ex = (t.split(".", 1) + [exchange])[:2]
         try:
-            if not load_meta_timeseries(t, exchange, days).empty:
+            if not load_meta_timeseries(sym, ex, days).empty:
                 ok.append(t)
         except Exception as exc:
             logger.warning("[WARN] %s: %s", t, exc)

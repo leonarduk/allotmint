@@ -74,7 +74,7 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
     if not has_cached_meta_timeseries(sym, ex):
         try:
             # Best-effort priming; safe to ignore failures since we fall back anyway.
-            run_all_tickers([full])
+            run_all_tickers([sym], exchange=ex)
         except Exception:
             pass
 

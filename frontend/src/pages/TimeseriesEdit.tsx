@@ -3,10 +3,49 @@ import type { ChangeEvent } from "react";
 import { getTimeseries, saveTimeseries } from "../api";
 import type { PriceEntry } from "../types";
 
+function parseCsv(text: string): PriceEntry[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (!lines.length) return [];
+  const [header, ...rows] = lines;
+  const cols = header.split(",");
+  const allowedCols: (keyof PriceEntry)[] = [
+    "Date",
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume",
+    "Ticker",
+    "Source",
+  ];
+  const unexpected = cols.filter(
+    (c) => !allowedCols.includes(c as keyof PriceEntry),
+  );
+  if (unexpected.length)
+    throw new Error(`Unexpected column(s): ${unexpected.join(", ")}`);
+
+  return rows.map<PriceEntry>((line) => {
+    const parts = line.split(",");
+    const obj: Partial<PriceEntry> = {};
+    cols.forEach((col, i) => {
+      const key = col as keyof PriceEntry;
+      const val = parts[i];
+      const parsed =
+        key === "Date" || key === "Ticker" || key === "Source"
+          ? val
+          : val === undefined || val === ""
+          ? null
+          : Number(val);
+      obj[key] = parsed as PriceEntry[typeof key];
+    });
+    return obj as PriceEntry;
+  });
+}
+
 export function TimeseriesEdit() {
   const [ticker, setTicker] = useState("");
   const [exchange, setExchange] = useState("L");
-  const [csv, setCsv] = useState("");
+  const [rows, setRows] = useState<PriceEntry[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,68 +60,38 @@ export function TimeseriesEdit() {
   async function handleLoad() {
     setError(null);
     try {
-      const rows = await getTimeseries(ticker, exchange);
-      const header = "Date,Open,High,Low,Close,Volume";
-      const lines = rows.map(
-        (r) =>
-          `${r.Date},${r.Open ?? ""},${r.High ?? ""},${r.Low ?? ""},${r.Close ?? ""},${r.Volume ?? ""}`
-      );
-      setCsv([header, ...lines].join("\n"));
-      setStatus(`Loaded ${rows.length} rows`);
+      const data = await getTimeseries(ticker, exchange);
+      setRows(data);
+      setStatus(`Loaded ${data.length} rows`);
     } catch (e) {
       setError(String(e));
     }
   }
-
   function handleFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setCsv(String(reader.result));
+    reader.onload = () => {
+      try {
+        const parsed = parseCsv(String(reader.result));
+        setRows((prev) => {
+          const map = new Map(prev.map((r) => [r.Date, r]));
+          parsed.forEach((r) => map.set(r.Date, r));
+          return Array.from(map.values());
+        });
+      } catch (err) {
+        setError(String(err));
+      }
+    };
     reader.readAsText(file);
   }
 
   async function handleSave() {
     setError(null);
     try {
-      const lines = csv.split(/\r?\n/).filter((l) => l.trim());
-      if (!lines.length) throw new Error("No data to save");
-      const [header, ...rows] = lines;
-      const cols = header.split(",");
-      const allowedCols: (keyof PriceEntry)[] = [
-        "Date",
-        "Open",
-        "High",
-        "Low",
-        "Close",
-        "Volume",
-        "Ticker",
-        "Source",
-      ];
-      const unexpected = cols.filter(
-        (c) => !allowedCols.includes(c as keyof PriceEntry),
-      );
-      if (unexpected.length)
-        throw new Error(`Unexpected column(s): ${unexpected.join(", ")}`);
-
-      const data = rows.map<PriceEntry>((line) => {
-        const parts = line.split(",");
-        const obj: Partial<PriceEntry> = {};
-        cols.forEach((col, i) => {
-          const key = col as keyof PriceEntry;
-          const val = parts[i];
-          const parsed =
-            key === "Date" || key === "Ticker" || key === "Source"
-              ? val
-              : val === undefined || val === ""
-              ? null
-              : Number(val);
-          obj[key] = parsed as PriceEntry[typeof key];
-        });
-        return obj as PriceEntry;
-      });
-      await saveTimeseries(ticker, exchange, data);
-      setStatus(`Saved ${data.length} rows`);
+      if (!rows.length) throw new Error("No data to save");
+      await saveTimeseries(ticker, exchange, rows);
+      setStatus(`Saved ${rows.length} rows`);
     } catch (e) {
       setError(String(e));
     }
@@ -108,18 +117,187 @@ export function TimeseriesEdit() {
           Load
         </button>
       </div>
+      <div style={{ marginBottom: "0.5rem", overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Open</th>
+              <th>High</th>
+              <th>Low</th>
+              <th>Close</th>
+              <th>Volume</th>
+              <th>Ticker</th>
+              <th>Source</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i}>
+                <td>
+                  <input
+                    aria-label="Date"
+                    value={row.Date}
+                    onChange={(e) =>
+                      setRows((rs) => {
+                        const copy = [...rs];
+                        copy[i] = { ...copy[i], Date: e.target.value };
+                        return copy;
+                      })
+                    }
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label="Open"
+                    type="number"
+                    value={row.Open ?? ""}
+                    onChange={(e) =>
+                      setRows((rs) => {
+                        const copy = [...rs];
+                        copy[i] = {
+                          ...copy[i],
+                          Open: e.target.value === "" ? null : Number(e.target.value),
+                        };
+                        return copy;
+                      })
+                    }
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label="High"
+                    type="number"
+                    value={row.High ?? ""}
+                    onChange={(e) =>
+                      setRows((rs) => {
+                        const copy = [...rs];
+                        copy[i] = {
+                          ...copy[i],
+                          High: e.target.value === "" ? null : Number(e.target.value),
+                        };
+                        return copy;
+                      })
+                    }
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label="Low"
+                    type="number"
+                    value={row.Low ?? ""}
+                    onChange={(e) =>
+                      setRows((rs) => {
+                        const copy = [...rs];
+                        copy[i] = {
+                          ...copy[i],
+                          Low: e.target.value === "" ? null : Number(e.target.value),
+                        };
+                        return copy;
+                      })
+                    }
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label="Close"
+                    type="number"
+                    value={row.Close ?? ""}
+                    onChange={(e) =>
+                      setRows((rs) => {
+                        const copy = [...rs];
+                        copy[i] = {
+                          ...copy[i],
+                          Close: e.target.value === "" ? null : Number(e.target.value),
+                        };
+                        return copy;
+                      })
+                    }
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label="Volume"
+                    type="number"
+                    value={row.Volume ?? ""}
+                    onChange={(e) =>
+                      setRows((rs) => {
+                        const copy = [...rs];
+                        copy[i] = {
+                          ...copy[i],
+                          Volume: e.target.value === "" ? null : Number(e.target.value),
+                        };
+                        return copy;
+                      })
+                    }
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label="Ticker"
+                    value={row.Ticker ?? ""}
+                    onChange={(e) =>
+                      setRows((rs) => {
+                        const copy = [...rs];
+                        copy[i] = { ...copy[i], Ticker: e.target.value };
+                        return copy;
+                      })
+                    }
+                  />
+                </td>
+                <td>
+                  <input
+                    aria-label="Source"
+                    value={row.Source ?? ""}
+                    onChange={(e) =>
+                      setRows((rs) => {
+                        const copy = [...rs];
+                        copy[i] = { ...copy[i], Source: e.target.value };
+                        return copy;
+                      })
+                    }
+                  />
+                </td>
+                <td>
+                  <button
+                    aria-label="Delete"
+                    onClick={() =>
+                      setRows((rs) => rs.filter((_, idx) => idx !== i))
+                    }
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <div style={{ marginBottom: "0.5rem" }}>
-        <textarea
-          value={csv}
-          onChange={(e) => setCsv(e.target.value)}
-          rows={20}
-          style={{ width: "100%" }}
-          placeholder="Date,Open,High,Low,Close,Volume"
-        />
+        <button
+          onClick={() =>
+            setRows((rs) => [
+              ...rs,
+              {
+                Date: "",
+                Open: null,
+                High: null,
+                Low: null,
+                Close: null,
+                Volume: null,
+                Ticker: "",
+                Source: "",
+              },
+            ])
+          }
+        >
+          Add Row
+        </button>
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
         <input type="file" accept=".csv" onChange={handleFile} />{" "}
-        <button onClick={handleSave} disabled={!ticker || !csv.trim()}>
+        <button onClick={handleSave} disabled={!ticker || !rows.length}>
           Save
         </button>
       </div>

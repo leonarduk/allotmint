@@ -140,9 +140,6 @@ export default function App() {
       case "timeseries":
         newMode = "timeseries";
         break;
-      case "groupInstrumentMemberTimeseries":
-        newMode = "groupInstrumentMemberTimeseries";
-        break;
       case "watchlist":
         newMode = "watchlist";
         break;

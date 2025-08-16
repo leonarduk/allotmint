@@ -14,7 +14,11 @@ import Support from "./Support";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockGetConfig.mockResolvedValue({ flag: true, theme: "system" });
+  mockGetConfig.mockResolvedValue({
+    flag: true,
+    theme: "system",
+    tabs: { instrument: true, screener: false },
+  });
 });
 
 describe("Support page", () => {
@@ -37,8 +41,17 @@ describe("Support page", () => {
   });
 
   it("stringifies fresh config after saving", async () => {
-    mockGetConfig.mockResolvedValueOnce({ flag: true, theme: "system" });
-    mockGetConfig.mockResolvedValueOnce({ flag: false, count: 5, theme: "dark" });
+    mockGetConfig.mockResolvedValueOnce({
+      flag: true,
+      theme: "system",
+      tabs: { instrument: true, screener: false },
+    });
+    mockGetConfig.mockResolvedValueOnce({
+      flag: false,
+      count: 5,
+      theme: "dark",
+      tabs: { instrument: true, screener: true },
+    });
     mockUpdateConfig.mockResolvedValue(undefined);
 
     render(<Support />);
@@ -60,6 +73,22 @@ describe("Support page", () => {
     expect(light).toBeChecked();
     fireEvent.click(dark);
     expect(dark).toBeChecked();
+  });
+
+  it("renders tab toggles and saves them", async () => {
+    render(<Support />);
+    const instrument = await screen.findByLabelText("instrument");
+    const screener = screen.getByLabelText("screener");
+    expect(instrument).toBeChecked();
+    expect(screener).not.toBeChecked();
+    fireEvent.click(screener);
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    fireEvent.click(saveButton);
+    expect(mockUpdateConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tabs: expect.objectContaining({ instrument: true, screener: true }),
+      })
+    );
   });
 });
 

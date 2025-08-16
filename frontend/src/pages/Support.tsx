@@ -7,6 +7,7 @@ export default function Support() {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [config, setConfig] = useState<Record<string, string | boolean>>({});
+  const [tabs, setTabs] = useState<Record<string, boolean>>({});
   const [configStatus, setConfigStatus] = useState<string | null>(null);
 
   const envEntries = Object.entries(import.meta.env).sort();
@@ -16,10 +17,18 @@ export default function Support() {
     getConfig()
       .then((cfg) => {
         const entries: Record<string, string | boolean> = {};
+        const tabsCfg: Record<string, boolean> = {};
         Object.entries(cfg).forEach(([k, v]) => {
-          entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
+          if (k === "tabs" && v && typeof v === "object") {
+            Object.entries(v as Record<string, unknown>).forEach(([tab, val]) => {
+              tabsCfg[tab] = Boolean(val);
+            });
+          } else {
+            entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
+          }
         });
         setConfig(entries);
+        setTabs(tabsCfg);
       })
       .catch(() => {
         /* ignore */
@@ -47,14 +56,23 @@ export default function Support() {
         payload[k] = v;
       }
     }
+    payload.tabs = tabs;
     try {
       await updateConfig(payload);
       const fresh = await getConfig();
       const entries: Record<string, string | boolean> = {};
+      const tabsCfg: Record<string, boolean> = {};
       Object.entries(fresh).forEach(([k, v]) => {
-        entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
+        if (k === "tabs" && v && typeof v === "object") {
+          Object.entries(v as Record<string, unknown>).forEach(([tab, val]) => {
+            tabsCfg[tab] = Boolean(val);
+          });
+        } else {
+          entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
+        }
       });
       setConfig(entries);
+      setTabs(tabsCfg);
       setConfigStatus("saved");
     } catch {
       setConfigStatus("error");
@@ -151,6 +169,33 @@ export default function Support() {
               )}
             </div>
           ))}
+          <div style={{ marginBottom: "0.5rem" }}>
+            <label style={{ display: "block", fontWeight: 500 }}>tabs</label>
+            <div>
+              {[
+                "instrument",
+                "performance",
+                "transactions",
+                "screener",
+                "trading",
+                "timeseries",
+                "watchlist",
+                "virtual",
+                "support",
+              ].map((tab) => (
+                <label key={tab} style={{ marginRight: "0.5rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={tabs[tab] ?? false}
+                    onChange={(e) =>
+                      setTabs((prev) => ({ ...prev, [tab]: e.target.checked }))
+                    }
+                  />
+                  {tab}
+                </label>
+              ))}
+            </div>
+          </div>
           <button type="submit">Save</button>
           {configStatus === "saved" && (
             <span style={{ marginLeft: "0.5rem", color: "green" }}>Saved</span>

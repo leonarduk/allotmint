@@ -1,11 +1,8 @@
 {
   "ticker": "ADM.L",
   "name": "Admiral Group Ord GBP0.01",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "GB00B02J6398",
+  "sector": "Financials",
   "region": "UK",
-  "Sector": "Financials",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

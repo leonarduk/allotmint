@@ -1,11 +1,8 @@
 {
   "ticker": "SEGA.L",
   "name": "iShares III plc Core Euro Government Bond UCITS ETF Dist *1",
-  "exchange": "L",
-  "currency": "GBP",
-  "instrumentType": "ETF",
-  "isin": "IE00B4WXJJ64",
+  "sector": "Fixed Income",
   "region": "Europe",
-  "Sector": "Fixed Income",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBP"
 }

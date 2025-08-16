@@ -1,11 +1,8 @@
 {
   "ticker": "PBR-A.N",
   "name": "Petroleo Brasileiro SA Petrobras Spon ADR Each Repr 2 Pref Shs NPV *R",
-  "exchange": "N",
-  "currency": "USD",
-  "instrumentType": "Equity",
-  "isin": "US71654V4086",
+  "sector": "Energy",
   "region": "Brazil",
-  "Sector": "Energy",
-  "morningStarRating": ""
+  "exchange": "N",
+  "currency": "USD"
 }

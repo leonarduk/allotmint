@@ -1,11 +1,8 @@
 {
   "ticker": "SN.L",
   "name": "Smith & Nephew plc Ordinary USD0.20",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "GB00B1VKB244",
+  "sector": "Health Care",
   "region": "UK",
-  "Sector": "Health Care",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

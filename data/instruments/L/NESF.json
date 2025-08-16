@@ -1,11 +1,8 @@
 {
   "ticker": "NESF.L",
   "name": "NextEnergy Solar Fund Ltd Ordinary NPV",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Fund",
-  "isin": "GG00BJ0JVY01",
+  "sector": "Utilities",
   "region": "Europe",
-  "Sector": "Utilities",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

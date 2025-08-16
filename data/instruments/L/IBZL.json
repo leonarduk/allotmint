@@ -1,11 +1,8 @@
 {
   "ticker": "IBZL.L",
   "name": "iShares plc MSCI Brazil UCITS ETF (Dist)",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "ETF",
-  "isin": "IE00B1FZS574",
+  "sector": "Fixed Income",
   "region": "Europe",
-  "Sector": "Fixed Income",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

@@ -1,11 +1,8 @@
 {
   "ticker": "BYG.L",
   "name": "Big Yellow Group Ordinary 10p",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "GB00BG0P0V73",
+  "sector": "Real Estate",
   "region": "UK",
-  "Sector": "Real Estate",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

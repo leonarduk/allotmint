@@ -1,11 +1,8 @@
 {
   "ticker": "CLIG.L",
   "name": "City of London Investment Group plc Ordinary 1p",
-  "exchange": "L",
-  "currency": "GBP",
-  "instrumentType": "Equity",
-  "isin": "GB00B6S9KC04",
+  "sector": "Financials",
   "region": "UK",
-  "Sector": "Financials",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBP"
 }

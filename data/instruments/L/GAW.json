@@ -1,11 +1,8 @@
 {
   "ticker": "GAW.L",
   "name": "Games Workshop Group Ordinary 5p",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "GB0003718474",
+  "sector": "Consumer Discretionary",
   "region": "UK",
-  "Sector": "Consumer Discretionary",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

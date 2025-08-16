@@ -1,11 +1,8 @@
 {
   "ticker": "BIIB.N",
   "name": "Biogen Inc USD (CDI) *R",
-  "exchange": "N",
-  "currency": "USD",
-  "instrumentType": "Equity",
-  "isin": "US09062X1037",
+  "sector": "Health Care",
   "region": "US",
-  "Sector": "Health Care",
-  "morningStarRating": ""
+  "exchange": "N",
+  "currency": "USD"
 }

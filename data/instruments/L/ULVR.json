@@ -1,11 +1,8 @@
 {
   "ticker": "ULVR.L",
   "name": "The Unilever Group",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "GB00B10RZP78",
+  "sector": "Consumer Staples",
   "region": "UK",
-  "Sector": "Consumer Staples",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

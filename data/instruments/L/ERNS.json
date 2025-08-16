@@ -1,11 +1,8 @@
 {
   "ticker": "ERNS.L",
   "name": "iShares IV plc GBP Ultrashort Bond UCITS ETF GBP Dist",
-  "exchange": "L",
-  "currency": "GBP",
-  "instrumentType": "ETF",
-  "isin": "IE00BYSZ5W06",
+  "sector": "Fixed Income",
   "region": "Europe",
-  "Sector": "Fixed Income",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBP"
 }

@@ -1,11 +1,8 @@
 {
   "ticker": "AZN.L",
   "name": "AstraZeneca plc Ordinary US$0.25",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "GB0009895292",
+  "sector": "Health Care",
   "region": "UK",
-  "Sector": "Health Care",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

@@ -1,11 +1,8 @@
 {
   "ticker": "FSFL.L",
   "name": "Foresight Solar Fund Ltd Ordinary NPV",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Fund",
-  "isin": "JE00BVVJ6Y63",
+  "sector": "Utilities",
   "region": "Europe",
-  "Sector": "Utilities",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

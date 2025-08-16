@@ -1,11 +1,8 @@
 {
   "ticker": "PHSP.L",
   "name": "WisdomTree Physical Silver (GBP)",
-  "exchange": "L",
-  "currency": "GBX",
-  "instrumentType": "Equity",
-  "isin": "JE00B1VS3770",
+  "sector": "Materials",
   "region": "Europe",
-  "Sector": "Materials",
-  "morningStarRating": ""
+  "exchange": "L",
+  "currency": "GBX"
 }

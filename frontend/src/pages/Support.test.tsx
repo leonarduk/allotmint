@@ -14,7 +14,11 @@ import Support from "./Support";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockGetConfig.mockResolvedValue({ flag: true, theme: "system" });
+  mockGetConfig.mockResolvedValue({
+    flag: true,
+    theme: "system",
+    tabs: { instrument: true, support: true },
+  });
 });
 
 describe("Support page", () => {
@@ -37,8 +41,17 @@ describe("Support page", () => {
   });
 
   it("stringifies fresh config after saving", async () => {
-    mockGetConfig.mockResolvedValueOnce({ flag: true, theme: "system" });
-    mockGetConfig.mockResolvedValueOnce({ flag: false, count: 5, theme: "dark" });
+    mockGetConfig.mockResolvedValueOnce({
+      flag: true,
+      theme: "system",
+      tabs: { instrument: true, support: true },
+    });
+    mockGetConfig.mockResolvedValueOnce({
+      flag: false,
+      count: 5,
+      theme: "dark",
+      tabs: { instrument: false, support: true },
+    });
     mockUpdateConfig.mockResolvedValue(undefined);
 
     render(<Support />);
@@ -48,8 +61,24 @@ describe("Support page", () => {
 
     await screen.findByDisplayValue("5");
 
-    expect(screen.getByDisplayValue("false")).toBeInTheDocument();
+    const flagToggle = screen.getByRole("checkbox", { name: /flag/i });
+    expect(flagToggle).not.toBeChecked();
     expect(screen.getByDisplayValue("5")).toBeInTheDocument();
+  });
+
+  it("renders tab toggles and allows toggling", async () => {
+    render(<Support />);
+    await screen.findByText(/Feature Switches/i);
+    const instrument = await screen.findByRole("checkbox", {
+      name: /instrument/i,
+    });
+    const support = screen.getByRole("checkbox", { name: /support/i });
+    expect(instrument).toBeChecked();
+    expect(support).toBeChecked();
+    fireEvent.click(instrument);
+    fireEvent.click(support);
+    expect(instrument).not.toBeChecked();
+    expect(support).not.toBeChecked();
   });
 
   it("allows selecting theme via radio buttons", async () => {

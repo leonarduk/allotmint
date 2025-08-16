@@ -71,12 +71,13 @@ export function TimeseriesEdit() {
         cols.forEach((col, i) => {
           const key = col as keyof PriceEntry;
           const val = parts[i];
-          obj[key] =
+          const parsed =
             key === "Date" || key === "Ticker" || key === "Source"
               ? val
               : val === undefined || val === ""
               ? null
               : Number(val);
+          obj[key] = parsed as PriceEntry[typeof key];
         });
         return obj as PriceEntry;
       });

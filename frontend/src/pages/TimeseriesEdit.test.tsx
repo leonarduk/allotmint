@@ -29,6 +29,35 @@ describe("TimeseriesEdit page", () => {
     expect(getTimeseries).toHaveBeenCalledWith("ABC", "L");
   });
 
+  it("parses numeric and string columns correctly", async () => {
+    vi.clearAllMocks();
+    render(<TimeseriesEdit />);
+
+    fireEvent.change(screen.getByLabelText(/Ticker/i), {
+      target: { value: "ABC" },
+    });
+
+    const csv =
+      "Date,Open,Close,Ticker,Source,Volume\n2024-01-01,1,2,ABC,Feed,3";
+    fireEvent.change(
+      screen.getByPlaceholderText(/Date,Open,High,Low,Close,Volume/),
+      { target: { value: csv } },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(saveTimeseries).toHaveBeenCalledWith("ABC", "L", [
+      {
+        Date: "2024-01-01",
+        Open: 1,
+        Close: 2,
+        Ticker: "ABC",
+        Source: "Feed",
+        Volume: 3,
+      },
+    ]);
+  });
+
   it("prefills ticker and exchange from URL", async () => {
     window.history.pushState({}, "", "/timeseries?ticker=XYZ&exchange=US");
     render(<TimeseriesEdit />);

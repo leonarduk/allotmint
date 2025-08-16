@@ -13,4 +13,6 @@ def test_scenario_route():
     if data:
         first = data[0]
         assert "owner" in first
-        assert "total_value_estimate_gbp" in first
+        assert "baseline_total_value_gbp" in first
+        assert "shocked_total_value_gbp" in first
+        assert "delta_gbp" in first

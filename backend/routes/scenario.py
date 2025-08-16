@@ -17,10 +17,17 @@ def run_scenario(
     results = []
     for pf in list_portfolios():
         shocked = apply_price_shock(pf, ticker, pct)
+        baseline = pf.get("total_value_estimate_gbp")
+        shocked_total = shocked.get("total_value_estimate_gbp")
+        delta = None
+        if baseline is not None and shocked_total is not None:
+            delta = round(shocked_total - baseline, 2)
         results.append(
             {
                 "owner": pf.get("owner"),
-                "total_value_estimate_gbp": shocked.get("total_value_estimate_gbp"),
+                "baseline_total_value_gbp": baseline,
+                "shocked_total_value_gbp": shocked_total,
+                "delta_gbp": delta,
             }
         )
     return results

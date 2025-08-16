@@ -9,6 +9,7 @@ from backend.common.constants import (
     EFFECTIVE_COST_BASIS_GBP,
     COST_BASIS_GBP,
 )
+from backend.common.prices import get_price_gbp
 
 
 def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float) -> Dict[str, Any]:
@@ -30,6 +31,9 @@ def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float)
             units = float(h.get("units") or 0.0)
             if tkr == target:
                 price = float(h.get("current_price_gbp") or h.get("price") or 0.0)
+                if price == 0:
+                    cached = get_price_gbp(tkr)
+                    price = float(cached or 0.0)
                 new_price = price * factor
                 cost = float(
                     h.get(EFFECTIVE_COST_BASIS_GBP)

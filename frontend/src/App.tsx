@@ -28,7 +28,6 @@ import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
-import CodingPracticePage from "./CodingPracticePage.js";
 
 type Mode =
   | "owner"
@@ -41,8 +40,7 @@ type Mode =
   | "watchlist"
   | "movers"
   | "dataadmin"
-  | "support"
-  | "codingpractice";
+  | "support";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -58,7 +56,6 @@ const initialMode: Mode =
   path[0] === "movers" ? "movers" :
   path[0] === "dataadmin" ? "dataadmin" :
   path[0] === "support" ? "support" :
-  path[0] === "coding-practice" ? "codingpractice" :
   path.length === 0 && params.has("group") ? "group" : "movers";
 const initialSlug = path[1] ?? "";
 
@@ -105,7 +102,6 @@ export default function App() {
     "watchlist",
     "dataadmin",
     "support",
-    "codingpractice",
   ];
 
   function pathFor(m: Mode) {
@@ -120,8 +116,6 @@ export default function App() {
         return selectedOwner ? `/performance/${selectedOwner}` : "/performance";
       case "movers":
         return "/movers";
-      case "codingpractice":
-        return "/coding-practice";
       default:
         return `/${m}`;
     }
@@ -161,9 +155,6 @@ export default function App() {
         break;
       case "support":
         newMode = "support";
-        break;
-      case "coding-practice":
-        newMode = "codingpractice";
         break;
       default:
         newMode = segs.length === 0 && params.has("group") ? "group" : "movers";
@@ -387,7 +378,6 @@ export default function App() {
       {mode === "timeseries" && <TimeseriesEdit />}
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
-      {mode === "codingpractice" && <CodingPracticePage />}
       {mode === "movers" && <TopMovers />}
     </div>
   );

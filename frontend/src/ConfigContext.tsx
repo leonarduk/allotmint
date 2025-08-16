@@ -70,12 +70,12 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     getConfig<RawConfig>()
       .then((cfg) => {
-        const tabs = { ...defaultTabs, ...(cfg.tabs ?? {}) };
+        const tabs: TabsConfig = { ...defaultTabs, ...(cfg.tabs ?? {}) };
         const disabledTabs = new Set<string>(
           Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
         );
-        for (const [tab, enabled] of Object.entries(tabs) as [keyof TabsConfig, boolean][]) {
-          if (!enabled) disabledTabs.add(tab);
+        for (const [tab, enabled] of Object.entries(tabs) as [string, boolean][]) {
+          if (!enabled) disabledTabs.add(String(tab));
         }
         const theme = isTheme(cfg.theme) ? cfg.theme : "system";
         setConfig({

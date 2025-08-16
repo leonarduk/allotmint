@@ -2,28 +2,31 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE, getConfig, updateConfig } from "../api";
 
-function Toggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
-      Off
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      On
-    </label>
-  );
-}
+const TAB_KEYS = [
+  "instrument",
+  "performance",
+  "transactions",
+  "screener",
+  "trading",
+  "timeseries",
+  "watchlist",
+  "virtual",
+  "support",
+] as const;
+const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record<
+  (typeof TAB_KEYS)[number],
+  boolean
+>;
+
+type ConfigValue = string | boolean | Record<string, unknown>;
+type ConfigState = Record<string, ConfigValue>;
 
 export default function Support() {
   const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
-  type ConfigState = Record<string, string | boolean | Record<string, boolean>>;
   const [config, setConfig] = useState<ConfigState>({});
+  const [tabs, setTabs] = useState<Record<string, boolean>>(EMPTY_TABS);
   const [configStatus, setConfigStatus] = useState<string | null>(null);
 
   const envEntries = Object.entries(import.meta.env).sort();
@@ -34,20 +37,23 @@ export default function Support() {
       .then((cfg) => {
         const entries: ConfigState = {};
         Object.entries(cfg).forEach(([k, v]) => {
-          if (k === "tabs" && v && typeof v === "object") {
-            const tabEntries: Record<string, boolean> = {};
-            Object.entries(v as Record<string, unknown>).forEach(
-              ([tab, enabled]) => {
-                tabEntries[tab] = Boolean(enabled);
-              },
-            );
-            entries[k] = tabEntries;
+          if (v && typeof v === "object" && !Array.isArray(v)) {
+            entries[k] = v as Record<string, unknown>;
           } else {
-            entries[k] =
-              typeof v === "boolean" ? v : v == null ? "" : String(v);
+            entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
           }
         });
         setConfig(entries);
+        const tabConfig =
+          cfg && typeof cfg === "object" && cfg.tabs && typeof cfg.tabs === "object"
+            ? (cfg.tabs as Record<string, unknown>)
+            : {};
+        setTabs(
+          TAB_KEYS.reduce(
+            (acc, key) => ({ ...acc, [key]: Boolean(tabConfig[key]) }),
+            { ...EMPTY_TABS },
+          ),
+        );
       })
       .catch(() => {
         /* ignore */
@@ -59,10 +65,7 @@ export default function Support() {
   }
 
   function handleTabChange(key: string, value: boolean) {
-    setConfig((prev) => {
-      const current = (prev.tabs as Record<string, boolean>) || {};
-      return { ...prev, tabs: { ...current, [key]: value } };
-    });
+    setTabs((prev) => ({ ...prev, [key]: value }));
   }
 
   async function saveConfig(e: React.FormEvent) {
@@ -70,6 +73,7 @@ export default function Support() {
     setConfigStatus("saving");
     const payload: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(config)) {
+      if (k === "tabs") continue; // rebuilt from toggle state
       if (typeof v === "string") {
         let parsed: unknown = v;
         try {
@@ -82,25 +86,29 @@ export default function Support() {
         payload[k] = v;
       }
     }
+    payload.tabs = { ...tabs };
     try {
       await updateConfig(payload);
       const fresh = await getConfig();
       const entries: ConfigState = {};
       Object.entries(fresh).forEach(([k, v]) => {
-        if (k === "tabs" && v && typeof v === "object") {
-          const tabEntries: Record<string, boolean> = {};
-          Object.entries(v as Record<string, unknown>).forEach(
-            ([tab, enabled]) => {
-              tabEntries[tab] = Boolean(enabled);
-            },
-          );
-          entries[k] = tabEntries;
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          entries[k] = v as Record<string, unknown>;
         } else {
-          entries[k] =
-            typeof v === "boolean" ? v : v == null ? "" : String(v);
+          entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
         }
       });
       setConfig(entries);
+      const freshTabs =
+        fresh && typeof fresh === "object" && fresh.tabs && typeof fresh.tabs === "object"
+          ? (fresh.tabs as Record<string, unknown>)
+          : {};
+      setTabs(
+        TAB_KEYS.reduce(
+          (acc, key) => ({ ...acc, [key]: Boolean(freshTabs[key]) }),
+          { ...EMPTY_TABS },
+        ),
+      );
       setConfigStatus("saved");
     } catch {
       setConfigStatus("error");
@@ -161,65 +169,33 @@ export default function Support() {
         <p>Loading…</p>
       ) : (
         <form onSubmit={saveConfig}>
-
-          {Object.entries(config).map(([key, value]) =>
-            key === "tabs" && typeof value === "object" ? (
-              <div key={key} style={{ marginBottom: "0.5rem" }}>
-                <h3>Feature Switches</h3>
-                {Object.entries(value).map(([tab, enabled]) => (
-                  <label
-                    key={tab}
-                    style={{ display: "block", fontWeight: 500 }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={enabled as boolean}
-                      onChange={(e) => handleTabChange(tab, e.target.checked)}
-                    />
-                    {tab}
-                  </label>
-                ))}
-              </div>
-            ) : (
+          <div style={{ marginBottom: "0.5rem" }}>
+            <h3>Feature Switches</h3>
+            {TAB_KEYS.map((tab) => (
+              <label key={tab} style={{ display: "block", fontWeight: 500 }}>
+                <input
+                  type="checkbox"
+                  checked={tabs[tab]}
+                  onChange={(e) => handleTabChange(tab, e.target.checked)}
+                />
+                {tab}
+              </label>
+            ))}
+          </div>
+          {Object.entries(config)
+            .filter(([k]) => k !== "tabs")
+            .map(([key, value]) => (
               <div key={key} style={{ marginBottom: "0.5rem" }}>
                 {key === "theme" && typeof value === "string" ? (
                   <div>
-                    <label style={{ display: "block", fontWeight: 500 }}>
-                      {key}
-                    </label
-          {(() => {
-            const entries = Object.entries(config);
-            const gridStyle: React.CSSProperties = {
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
-              gap: "1rem",
-            };
-            const booleanEntries = entries.filter(([, v]) => typeof v === "boolean");
-            const otherEntries = entries.filter(([, v]) => typeof v !== "boolean");
-            const messagingEntries = otherEntries.filter(([k]) =>
-              /telegram|message|alert/i.test(k),
-            );
-            const generalEntries = otherEntries.filter(
-              ([k]) => !/telegram|message|alert/i.test(k),
-            );
-
-            const renderItem = ([key, value]: [string, string | boolean]) => (
-              <div key={key} style={{ display: "flex", flexDirection: "column" }}>
-                <label style={{ fontWeight: 500, marginBottom: "0.25rem" }}>{key}</label>
-                {key === "theme" && typeof value === "string" ? (
-                  <div>
-
-                    {(["dark", "light", "system"] as const).map((opt) => (
+                    <label style={{ display: "block", fontWeight: 500 }}>{key}</label>
+                    {["dark", "light", "system"].map((opt) => (
                       <label key={opt} style={{ marginRight: "0.5rem" }}>
                         <input
                           type="radio"
                           name="theme"
                           value={opt}
                           checked={value === opt}
-
-                          onChange={(e) =>
-                            handleConfigChange(key, e.target.value)
-                          }
                           onChange={(e) => handleConfigChange(key, e.target.value)}
                         />
                         {opt}
@@ -227,62 +203,14 @@ export default function Support() {
                     ))}
                   </div>
                 ) : typeof value === "boolean" ? (
-
                   <label style={{ display: "block", fontWeight: 500 }}>
                     <input
                       type="checkbox"
                       checked={value}
-                      onChange={(e) =>
-                        handleConfigChange(key, e.target.checked)
-                      }
+                      onChange={(e) => handleConfigChange(key, e.target.checked)}
                     />
                     {key}
                   </label>
-                ) : (
-                  <>
-                    <label style={{ display: "block", fontWeight: 500 }}>
-                      {key}
-                    </label>
-                  ))}
-                </div>
-              ) : typeof value === "boolean" ? (
-                <Toggle
-                  checked={value}
-                  onChange={(checked) => handleConfigChange(key, checked)}
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={String(value ?? "")}
-                  onChange={(e) => handleConfigChange(key, e.target.value)}
-                  style={{ width: "100%" }}
-                />
-              )}
-            </div>
-          ))}
-                    <input
-                      type="text"
-                      value={String(value ?? "")}
-                      onChange={(e) =>
-                        handleConfigChange(key, e.target.value)
-                      }
-                      style={{ width: "100%" }}
-                    />
-                  </>
-                )}
-              </div>
-            )
-          )}
-
-                  <select
-                    value={String(value)}
-                    onChange={(e) =>
-                      handleConfigChange(key, e.target.value === "true")
-                    }
-                  >
-                    <option value="true">true</option>
-                    <option value="false">false</option>
-                  </select>
                 ) : (
                   <input
                     type="text"
@@ -292,38 +220,7 @@ export default function Support() {
                   />
                 )}
               </div>
-            );
-
-            return (
-              <>
-                {booleanEntries.length > 0 && (
-                  <>
-                    <h3 style={{ marginTop: 0 }}>Feature Switches</h3>
-                    <div style={gridStyle}>
-                      {booleanEntries.map((entry) => renderItem(entry))}
-                    </div>
-                  </>
-                )}
-                {generalEntries.length > 0 && (
-                  <>
-                    <h3>General Settings</h3>
-                    <div style={gridStyle}>
-                      {generalEntries.map((entry) => renderItem(entry))}
-                    </div>
-                  </>
-                )}
-                {messagingEntries.length > 0 && (
-                  <>
-                    <h3>Messaging/Alerts</h3>
-                    <div style={gridStyle}>
-                      {messagingEntries.map((entry) => renderItem(entry))}
-                    </div>
-                  </>
-                )}
-              </>
-            );
-          })()}
-
+            ))}
           <button type="submit">Save</button>
           {configStatus === "saved" && (
             <span style={{ marginLeft: "0.5rem", color: "green" }}>Saved</span>
@@ -351,9 +248,7 @@ export default function Support() {
           <span style={{ marginLeft: "0.5rem", color: "green" }}>{t("support.status.sent")}</span>
         )}
         {status === "error" && (
-          <span style={{ marginLeft: "0.5rem", color: "red" }}>
-            {t("support.status.error")}
-          </span>
+          <span style={{ marginLeft: "0.5rem", color: "red" }}>{t("support.status.error")}</span>
         )}
         {status === "sending" && (
           <span style={{ marginLeft: "0.5rem" }}>{t("support.status.sending")}</span>
@@ -362,3 +257,4 @@ export default function Support() {
     </div>
   );
 }
+

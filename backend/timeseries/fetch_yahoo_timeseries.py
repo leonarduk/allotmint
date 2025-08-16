@@ -11,7 +11,6 @@ from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 # Setup logger
 logger = logging.getLogger("yahoo_timeseries")
-logging.basicConfig(level=logging.DEBUG)
 
 def _build_full_ticker(ticker: str, exchange: str) -> str:
     """

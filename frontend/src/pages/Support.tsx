@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE, getConfig, updateConfig } from "../api";
+import { useConfig } from "../ConfigContext";
 
 const TAB_KEYS = [
   "instrument",
@@ -23,6 +24,7 @@ type ConfigState = Record<string, ConfigValue>;
 
 export default function Support() {
   const { t } = useTranslation();
+  const { refreshConfig } = useConfig();
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigState>({});
@@ -89,6 +91,7 @@ export default function Support() {
     payload.tabs = { ...tabs };
     try {
       await updateConfig(payload);
+      await refreshConfig();
       const fresh = await getConfig();
       const entries: ConfigState = {};
       Object.entries(fresh).forEach(([k, v]) => {

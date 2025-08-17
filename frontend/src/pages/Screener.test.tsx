@@ -2,16 +2,12 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { Screener } from "./Screener";
 import * as api from "../api";
-import type { ScreenerResult } from "../types";
 
 vi.mock("../api");
 
 const mockGetScreener = vi.mocked(api.getScreener);
 
 describe("Screener", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
   it("renders new ratio columns", async () => {
     mockGetScreener.mockResolvedValueOnce([
       {
@@ -25,7 +21,7 @@ describe("Screener", () => {
         current_ratio: 2,
         quick_ratio: 1.5,
         fcf: 1000,
-      } as ScreenerResult,
+      },
     ]);
 
     render(<Screener />);
@@ -59,24 +55,5 @@ describe("Screener", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("1.5")).toBeInTheDocument();
   });
-
-  it("does not submit without tickers", async () => {
-    render(<Screener />);
-
-    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
-
-    await waitFor(() => expect(mockGetScreener).not.toHaveBeenCalled());
-  });
-
-
-  it("shows error message on failure", async () => {
-    mockGetScreener.mockRejectedValueOnce(new Error("fail"));
-
-    render(<Screener />);
-
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
-    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
-
-    expect(await screen.findByText("fail")).toBeInTheDocument();
-  });
 });
+

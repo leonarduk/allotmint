@@ -127,6 +127,10 @@ export const getScreener = (
     peg_max?: number;
     pe_max?: number;
     de_max?: number;
+    lt_de_max?: number;
+    interest_coverage_min?: number;
+    current_ratio_min?: number;
+    quick_ratio_min?: number;
     fcf_min?: number;
     eps_min?: number;
     gross_margin_min?: number;
@@ -142,6 +146,13 @@ export const getScreener = (
   if (criteria.peg_max != null) params.set("peg_max", String(criteria.peg_max));
   if (criteria.pe_max != null) params.set("pe_max", String(criteria.pe_max));
   if (criteria.de_max != null) params.set("de_max", String(criteria.de_max));
+  if (criteria.lt_de_max != null) params.set("lt_de_max", String(criteria.lt_de_max));
+  if (criteria.interest_coverage_min != null)
+    params.set("interest_coverage_min", String(criteria.interest_coverage_min));
+  if (criteria.current_ratio_min != null)
+    params.set("current_ratio_min", String(criteria.current_ratio_min));
+  if (criteria.quick_ratio_min != null)
+    params.set("quick_ratio_min", String(criteria.quick_ratio_min));
   if (criteria.fcf_min != null) params.set("fcf_min", String(criteria.fcf_min));
   if (criteria.eps_min != null) params.set("eps_min", String(criteria.eps_min));
   if (criteria.gross_margin_min != null)

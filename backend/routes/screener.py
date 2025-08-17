@@ -23,6 +23,10 @@ async def screener(
     peg_max: float | None = Query(None),
     pe_max: float | None = Query(None),
     de_max: float | None = Query(None),
+    lt_de_max: float | None = Query(None),
+    interest_coverage_min: float | None = Query(None),
+    current_ratio_min: float | None = Query(None),
+    quick_ratio_min: float | None = Query(None),
     fcf_min: float | None = Query(None),
     eps_min: float | None = Query(None),
     gross_margin_min: float | None = Query(None),
@@ -42,7 +46,8 @@ async def screener(
     params = (
         f"{','.join(symbols)}|{peg_max}|{pe_max}|{de_max}|{fcf_min}|"
         f"{eps_min}|{gross_margin_min}|{operating_margin_min}|{net_margin_min}|"
-        f"{ebitda_margin_min}|{roa_min}|{roe_min}|{roi_min}"
+        f"{ebitda_margin_min}|{roa_min}|{roe_min}|{roi_min}|{lt_de_max}|"
+        f"{interest_coverage_min}|{current_ratio_min}|{quick_ratio_min}|{fcf_min}"
     )
     page = "screener_" + hashlib.sha1(params.encode()).hexdigest()
     page_cache.schedule_refresh(
@@ -52,6 +57,7 @@ async def screener(
         peg_max=peg_max,
         pe_max=pe_max,
         de_max=de_max,
+
         fcf_min=fcf_min,
         eps_min=eps_min,
         gross_margin_min=gross_margin_min,
@@ -61,12 +67,22 @@ async def screener(
         roa_min=roa_min,
         roe_min=roe_min,
         roi_min=roi_min: [
+
+        lt_de_max=lt_de_max,
+        interest_coverage_min=interest_coverage_min,
+        current_ratio_min=current_ratio_min,
+        quick_ratio_min=quick_ratio_min,
+        fcf_min=fcf_min: [
             r.model_dump()
             for r in screen(
                 symbols,
                 peg_max=peg_max,
                 pe_max=pe_max,
                 de_max=de_max,
+                lt_de_max=lt_de_max,
+                interest_coverage_min=interest_coverage_min,
+                current_ratio_min=current_ratio_min,
+                quick_ratio_min=quick_ratio_min,
                 fcf_min=fcf_min,
                 eps_min=eps_min,
                 gross_margin_min=gross_margin_min,
@@ -90,6 +106,10 @@ async def screener(
             peg_max=peg_max,
             pe_max=pe_max,
             de_max=de_max,
+            lt_de_max=lt_de_max,
+            interest_coverage_min=interest_coverage_min,
+            current_ratio_min=current_ratio_min,
+            quick_ratio_min=quick_ratio_min,
             fcf_min=fcf_min,
             eps_min=eps_min,
             gross_margin_min=gross_margin_min,

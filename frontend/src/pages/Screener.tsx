@@ -11,6 +11,10 @@ export function Screener() {
   const [pegMax, setPegMax] = useState("");
   const [peMax, setPeMax] = useState("");
   const [deMax, setDeMax] = useState("");
+  const [ltDeMax, setLtDeMax] = useState("");
+  const [interestCoverageMin, setInterestCoverageMin] = useState("");
+  const [currentRatioMin, setCurrentRatioMin] = useState("");
+  const [quickRatioMin, setQuickRatioMin] = useState("");
   const [fcfMin, setFcfMin] = useState("");
   const [epsMin, setEpsMin] = useState("");
   const [grossMarginMin, setGrossMarginMin] = useState("");
@@ -47,6 +51,16 @@ export function Screener() {
         peg_max: pegMax ? parseFloat(pegMax) : undefined,
         pe_max: peMax ? parseFloat(peMax) : undefined,
         de_max: deMax ? parseFloat(deMax) : undefined,
+        lt_de_max: ltDeMax ? parseFloat(ltDeMax) : undefined,
+        interest_coverage_min: interestCoverageMin
+          ? parseFloat(interestCoverageMin)
+          : undefined,
+        current_ratio_min: currentRatioMin
+          ? parseFloat(currentRatioMin)
+          : undefined,
+        quick_ratio_min: quickRatioMin
+          ? parseFloat(quickRatioMin)
+          : undefined,
         fcf_min: fcfMin ? parseFloat(fcfMin) : undefined,
         eps_min: epsMin ? parseFloat(epsMin) : undefined,
         gross_margin_min: grossMarginMin
@@ -115,6 +129,50 @@ export function Screener() {
             type="number"
             value={deMax}
             onChange={(e) => setDeMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxLtDe")}
+          <input
+            aria-label={t("screener.maxLtDe")}
+            type="number"
+            value={ltDeMax}
+            onChange={(e) => setLtDeMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minInterestCoverage")}
+          <input
+            aria-label={t("screener.minInterestCoverage")}
+            type="number"
+            value={interestCoverageMin}
+            onChange={(e) => setInterestCoverageMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minCurrentRatio")}
+          <input
+            aria-label={t("screener.minCurrentRatio")}
+            type="number"
+            value={currentRatioMin}
+            onChange={(e) => setCurrentRatioMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minQuickRatio")}
+          <input
+            aria-label={t("screener.minQuickRatio")}
+            type="number"
+            value={quickRatioMin}
+            onChange={(e) => setQuickRatioMin(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />
@@ -239,6 +297,10 @@ export function Screener() {
               <th style={right} onClick={() => handleSort("peg_ratio")}>PEG</th>
               <th style={right} onClick={() => handleSort("pe_ratio")}>P/E</th>
               <th style={right} onClick={() => handleSort("de_ratio")}>D/E</th>
+              <th style={right} onClick={() => handleSort("lt_de_ratio")}>LT D/E</th>
+              <th style={right} onClick={() => handleSort("interest_coverage")}>IntCov</th>
+              <th style={right} onClick={() => handleSort("current_ratio")}>Curr</th>
+              <th style={right} onClick={() => handleSort("quick_ratio")}>Quick</th>
               <th style={right} onClick={() => handleSort("fcf")}>FCF</th>
               <th style={right} onClick={() => handleSort("eps")}>EPS</th>
               <th style={right} onClick={() => handleSort("gross_margin")}>
@@ -269,6 +331,10 @@ export function Screener() {
                 <td style={right}>{r.peg_ratio ?? "—"}</td>
                 <td style={right}>{r.pe_ratio ?? "—"}</td>
                 <td style={right}>{r.de_ratio ?? "—"}</td>
+                <td style={right}>{r.lt_de_ratio ?? "—"}</td>
+                <td style={right}>{r.interest_coverage ?? "—"}</td>
+                <td style={right}>{r.current_ratio ?? "—"}</td>
+                <td style={right}>{r.quick_ratio ?? "—"}</td>
                 <td style={right}>
                   {r.fcf != null
                     ? new Intl.NumberFormat(i18n.language).format(r.fcf)

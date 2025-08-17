@@ -31,6 +31,10 @@ class Fundamentals(BaseModel):
     peg_ratio: Optional[float] = None
     pe_ratio: Optional[float] = None
     de_ratio: Optional[float] = None
+    lt_de_ratio: Optional[float] = None
+    interest_coverage: Optional[float] = None
+    current_ratio: Optional[float] = None
+    quick_ratio: Optional[float] = None
     fcf: Optional[float] = None
     eps: Optional[float] = None
     gross_margin: Optional[float] = None
@@ -83,6 +87,10 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         peg_ratio=_parse_float(data.get("PEG")),
         pe_ratio=_parse_float(data.get("PERatio")),
         de_ratio=_parse_float(data.get("DebtToEquityTTM")),
+        lt_de_ratio=_parse_float(data.get("LongTermDebtToEquity")),
+        interest_coverage=_parse_float(data.get("InterestCoverage")),
+        current_ratio=_parse_float(data.get("CurrentRatio")),
+        quick_ratio=_parse_float(data.get("QuickRatio")),
         fcf=_parse_float(data.get("FreeCashFlowTTM")),
         eps=_parse_float(data.get("EPS")),
         gross_margin=_parse_float(data.get("GrossProfitTTM")),
@@ -107,6 +115,10 @@ def screen(
     peg_max: Optional[float] = None,
     pe_max: Optional[float] = None,
     de_max: Optional[float] = None,
+    lt_de_max: Optional[float] = None,
+    interest_coverage_min: Optional[float] = None,
+    current_ratio_min: Optional[float] = None,
+    quick_ratio_min: Optional[float] = None,
     fcf_min: Optional[float] = None,
     eps_min: Optional[float] = None,
     gross_margin_min: Optional[float] = None,
@@ -132,6 +144,22 @@ def screen(
         if pe_max is not None and (f.pe_ratio is None or f.pe_ratio > pe_max):
             continue
         if de_max is not None and (f.de_ratio is None or f.de_ratio > de_max):
+            continue
+        if lt_de_max is not None and (
+            f.lt_de_ratio is None or f.lt_de_ratio > lt_de_max
+        ):
+            continue
+        if interest_coverage_min is not None and (
+            f.interest_coverage is None or f.interest_coverage < interest_coverage_min
+        ):
+            continue
+        if current_ratio_min is not None and (
+            f.current_ratio is None or f.current_ratio < current_ratio_min
+        ):
+            continue
+        if quick_ratio_min is not None and (
+            f.quick_ratio is None or f.quick_ratio < quick_ratio_min
+        ):
             continue
         if fcf_min is not None and (f.fcf is None or f.fcf < fcf_min):
             continue

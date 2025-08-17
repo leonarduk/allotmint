@@ -8,6 +8,10 @@ def test_fetch_fundamentals_parses_values(monkeypatch):
         "PEG": "1.5",
         "PERatio": "10.2",
         "DebtToEquityTTM": "0.5",
+        "LongTermDebtToEquity": "0.3",
+        "InterestCoverage": "8.5",
+        "CurrentRatio": "2.1",
+        "QuickRatio": "1.8",
         "FreeCashFlowTTM": "1234",
         "EPS": "5.0",
         "GrossProfitTTM": "0.4",
@@ -42,6 +46,10 @@ def test_fetch_fundamentals_parses_values(monkeypatch):
     assert f.peg_ratio == 1.5
     assert f.pe_ratio == 10.2
     assert f.de_ratio == 0.5
+    assert f.lt_de_ratio == 0.3
+    assert f.interest_coverage == 8.5
+    assert f.current_ratio == 2.1
+    assert f.quick_ratio == 1.8
     assert f.fcf == 1234.0
     assert f.eps == 5.0
     assert f.gross_margin == 0.4
@@ -70,6 +78,11 @@ def test_screen_filters_based_on_thresholds(monkeypatch):
                 roa=0.15,
                 roe=0.2,
                 roi=0.18,
+                lt_de_ratio=0.3,
+                interest_coverage=10,
+                current_ratio=2.0,
+                quick_ratio=1.5,
+                fcf=1000,
             )
         return Fundamentals(
             ticker="BBB",
@@ -85,6 +98,11 @@ def test_screen_filters_based_on_thresholds(monkeypatch):
             roa=0.05,
             roe=0.04,
             roi=0.03,
+            lt_de_ratio=2.0,
+            interest_coverage=1.0,
+            current_ratio=0.5,
+            quick_ratio=0.4,
+            fcf=500,
         )
 
     monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
@@ -103,5 +121,10 @@ def test_screen_filters_based_on_thresholds(monkeypatch):
         roa_min=0.1,
         roe_min=0.15,
         roi_min=0.1,
+        lt_de_max=1.0,
+        interest_coverage_min=5.0,
+        current_ratio_min=1.0,
+        quick_ratio_min=1.0,
+        fcf_min=800,
     )
     assert [r.ticker for r in results] == ["AAA"]

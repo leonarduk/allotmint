@@ -32,11 +32,27 @@ class Fundamentals(BaseModel):
     pe_ratio: Optional[float] = None
     de_ratio: Optional[float] = None
     fcf: Optional[float] = None
+    dividend_yield: Optional[float] = None
+    dividend_payout_ratio: Optional[float] = None
+    beta: Optional[float] = None
+    shares_outstanding: Optional[int] = None
+    float_shares: Optional[int] = None
+    market_cap: Optional[int] = None
+    high_52w: Optional[float] = None
+    low_52w: Optional[float] = None
+    avg_volume: Optional[int] = None
 
 
 def _parse_float(value: Optional[str]) -> Optional[float]:
     try:
         return float(value) if value not in (None, "None", "") else None
+    except ValueError:
+        return None
+
+
+def _parse_int(value: Optional[str]) -> Optional[int]:
+    try:
+        return int(value) if value not in (None, "None", "") else None
     except ValueError:
         return None
 
@@ -76,6 +92,15 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         pe_ratio=_parse_float(data.get("PERatio")),
         de_ratio=_parse_float(data.get("DebtToEquityTTM")),
         fcf=_parse_float(data.get("FreeCashFlowTTM")),
+        dividend_yield=_parse_float(data.get("DividendYield")),
+        dividend_payout_ratio=_parse_float(data.get("PayoutRatio")),
+        beta=_parse_float(data.get("Beta")),
+        shares_outstanding=_parse_int(data.get("SharesOutstanding")),
+        float_shares=_parse_int(data.get("SharesFloat")),
+        market_cap=_parse_int(data.get("MarketCapitalization")),
+        high_52w=_parse_float(data.get("52WeekHigh")),
+        low_52w=_parse_float(data.get("52WeekLow")),
+        avg_volume=_parse_int(data.get("AverageDailyVolume10Day")),
     )
 
     _CACHE[key] = (now, result)
@@ -90,6 +115,15 @@ def screen(
     pe_max: Optional[float] = None,
     de_max: Optional[float] = None,
     fcf_min: Optional[float] = None,
+    dividend_yield_min: Optional[float] = None,
+    dividend_payout_ratio_max: Optional[float] = None,
+    beta_max: Optional[float] = None,
+    shares_outstanding_min: Optional[int] = None,
+    float_shares_min: Optional[int] = None,
+    market_cap_min: Optional[int] = None,
+    high_52w_max: Optional[float] = None,
+    low_52w_min: Optional[float] = None,
+    avg_volume_min: Optional[int] = None,
 ) -> List[Fundamentals]:
     """Fetch fundamentals for multiple tickers and filter based on thresholds."""
 
@@ -108,6 +142,37 @@ def screen(
         if de_max is not None and (f.de_ratio is None or f.de_ratio > de_max):
             continue
         if fcf_min is not None and (f.fcf is None or f.fcf < fcf_min):
+            continue
+        if dividend_yield_min is not None and (
+            f.dividend_yield is None or f.dividend_yield < dividend_yield_min
+        ):
+            continue
+        if dividend_payout_ratio_max is not None and (
+            f.dividend_payout_ratio is None
+            or f.dividend_payout_ratio > dividend_payout_ratio_max
+        ):
+            continue
+        if beta_max is not None and (f.beta is None or f.beta > beta_max):
+            continue
+        if shares_outstanding_min is not None and (
+            f.shares_outstanding is None or f.shares_outstanding < shares_outstanding_min
+        ):
+            continue
+        if float_shares_min is not None and (
+            f.float_shares is None or f.float_shares < float_shares_min
+        ):
+            continue
+        if market_cap_min is not None and (
+            f.market_cap is None or f.market_cap < market_cap_min
+        ):
+            continue
+        if high_52w_max is not None and (f.high_52w is None or f.high_52w > high_52w_max):
+            continue
+        if low_52w_min is not None and (f.low_52w is None or f.low_52w < low_52w_min):
+            continue
+        if avg_volume_min is not None and (
+            f.avg_volume is None or f.avg_volume < avg_volume_min
+        ):
             continue
 
         results.append(f)

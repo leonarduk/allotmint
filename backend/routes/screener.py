@@ -54,7 +54,8 @@ async def screener(
         page,
         SCREENER_TTL,
         lambda symbols=symbols,
-        peg_max=peg_max,
+
+      peg_max=peg_max,
         pe_max=pe_max,
         de_max=de_max,
         lt_de_max=lt_de_max,

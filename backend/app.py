@@ -9,9 +9,11 @@ by FastAPI.
 
 import asyncio
 import logging
+import os
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Security, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 
 from backend.routes.instrument import router as instrument_router
 from backend.routes.portfolio import router as portfolio_router
@@ -42,6 +44,20 @@ from backend.config import config
 from backend.utils import page_cache
 
 
+API_TOKEN = os.getenv("API_TOKEN")
+api_key_header = APIKeyHeader(name="X-API-Token", auto_error=False)
+
+
+async def require_token(token: str = Security(api_key_header)) -> None:
+    """Validate the provided API token if authentication is configured."""
+
+    if API_TOKEN and token != API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API token",
+        )
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -69,22 +85,23 @@ def create_app() -> FastAPI:
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.
-    # They are registered here on the main application instance.
-    app.include_router(portfolio_router)
+    # Sensitive routes are guarded by a simple API-token dependency.
+    protected = [Depends(require_token)]
+    app.include_router(portfolio_router, dependencies=protected)
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
     app.include_router(timeseries_edit_router)
     app.include_router(timeseries_admin_router)
-    app.include_router(transactions_router)
+    app.include_router(transactions_router, dependencies=protected)
     app.include_router(alerts_router)
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(support_router)
     app.include_router(query_router)
-    app.include_router(virtual_portfolio_router)
+    app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)
     app.include_router(agent_router)
-    app.include_router(trading_agent_router)
+    app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(movers_router)

@@ -24,6 +24,29 @@ Additional runtime settings:
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram.
 - `DATA_BUCKET` (environment variable): S3 bucket containing account data when running in AWS.
 
+## Authentication
+Sensitive endpoints such as portfolio or transaction data can be secured with a simple API token.
+
+1. Generate a token:
+
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+
+2. Export the token before starting the backend:
+
+   ```bash
+   export API_TOKEN="<token-from-step-1>"
+   ```
+
+3. Include the token in requests using the `X-API-Token` header:
+
+   ```bash
+   curl -H "X-API-Token: $API_TOKEN" http://localhost:8000/portfolio/alex
+   ```
+
+If `API_TOKEN` is unset, the API remains open which is convenient for local development and tests.
+
 ## Common workflows
 - **Start the backend**: `uvicorn app:app --reload --port 8000`
 - **Start the frontend**: `cd frontend && npm run dev`

@@ -11,7 +11,9 @@ builder function at a fixed interval.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict
@@ -20,6 +22,8 @@ CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 _refresh_tasks: Dict[str, asyncio.Task] = {}
+
+logger = logging.getLogger(__name__)
 
 
 def _cache_path(page_name: str) -> Path:
@@ -64,11 +68,22 @@ def schedule_refresh(page_name: str, ttl: int, builder: Callable[[], Any]) -> No
     if page_name in _refresh_tasks:
         return
 
+    async def _call_builder() -> Any:
+        if inspect.iscoroutinefunction(builder):
+            return await builder()
+        result = await asyncio.to_thread(builder)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
     async def _loop() -> None:
         try:
             while True:
-                data = builder()
-                save_cache(page_name, data)
+                try:
+                    data = await _call_builder()
+                    save_cache(page_name, data)
+                except Exception:
+                    logger.exception("Cache refresh failed for %s", page_name)
                 await asyncio.sleep(ttl)
         except asyncio.CancelledError:  # pragma: no cover - defensive
             pass

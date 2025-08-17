@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
   type ReactNode,
 } from "react";
 import { getConfig } from "./api";
@@ -56,11 +57,16 @@ const defaultTabs: TabsConfig = {
   scenario: true,
 };
 
-export const configContext = createContext<AppConfig>({
+export interface ConfigContextValue extends AppConfig {
+  refreshConfig: () => Promise<void>;
+}
+
+export const configContext = createContext<ConfigContextValue>({
   relativeViewEnabled: false,
   disabledTabs: [],
   tabs: defaultTabs,
   theme: "system",
+  refreshConfig: async () => {},
 });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
@@ -71,35 +77,45 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     theme: "system",
   });
 
-  useEffect(() => {
-    getConfig<RawConfig>()
-      .then((cfg) => {
-        const tabs: TabsConfig = { ...defaultTabs, ...(cfg.tabs ?? {}) };
-        const disabledTabs = new Set<string>(
-          Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
-        );
-        for (const [tab, enabled] of Object.entries(tabs) as [string, boolean][]) {
-          if (!enabled) disabledTabs.add(String(tab));
-        }
-        const theme = isTheme(cfg.theme) ? cfg.theme : "system";
-        setConfig({
-          relativeViewEnabled: Boolean(cfg.relative_view_enabled),
-          disabledTabs: Array.from(disabledTabs),
-          tabs,
-          theme,
-        });
-        applyTheme(theme);
-      })
-      .catch(() => {
-        /* ignore */
+  const refreshConfig = useCallback(async () => {
+    try {
+      const cfg = await getConfig<RawConfig>();
+      const tabs: TabsConfig = { ...defaultTabs, ...(cfg.tabs ?? {}) };
+      const disabledTabs = new Set<string>(
+        Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
+      );
+      for (const [tab, enabled] of Object.entries(tabs) as [
+        string,
+        boolean,
+      ][]) {
+        if (!enabled) disabledTabs.add(String(tab));
+      }
+      const theme = isTheme(cfg.theme) ? cfg.theme : "system";
+      setConfig({
+        relativeViewEnabled: Boolean(cfg.relative_view_enabled),
+        disabledTabs: Array.from(disabledTabs),
+        tabs,
+        theme,
       });
+      applyTheme(theme);
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  useEffect(() => {
+    refreshConfig();
+  }, [refreshConfig]);
 
   useEffect(() => {
     applyTheme(config.theme);
   }, [config.theme]);
 
-  return <configContext.Provider value={config}>{children}</configContext.Provider>;
+  return (
+    <configContext.Provider value={{ ...config, refreshConfig }}>
+      {children}
+    </configContext.Provider>
+  );
 }
 
 export function useConfig() {

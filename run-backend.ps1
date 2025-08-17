@@ -81,7 +81,6 @@ if ($cfg.PSObject.Properties.Name -contains 'offline_mode') {
 
 if (-not $offline) {
   Write-Host 'Installing backend requirements...' -ForegroundColor Yellow
-  python -m pip install --upgrade pip
   python -m pip install -r .\requirements.txt
 } else {
   Write-Host 'Offline mode detected; skipping dependency installation.' -ForegroundColor Yellow

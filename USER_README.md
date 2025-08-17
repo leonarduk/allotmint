@@ -24,6 +24,22 @@ Additional runtime settings:
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram.
 - `DATA_BUCKET` (environment variable): S3 bucket containing account data when running in AWS.
 
+### Authentication
+
+The backend can validate OAuth2/JWT tokens issued by **Amazon Cognito**. The
+user pool ID and app client ID are stored in **AWS Secrets Manager**:
+
+1. Create a secret (e.g. `allotmint-cognito`) with JSON data:
+   ```json
+   {"user_pool_id": "<pool id>", "app_client_id": "<client id>"}
+   ```
+2. Grant the backend IAM role permission to read this secret.
+3. Set environment variables `COGNITO_SECRET_NAME` (secret name) and
+   `AWS_REGION`.
+
+With these values configured the API will verify incoming JWTs using Cognito’s
+JWKS. Local development and tests skip verification when the secret is absent.
+
 ## Common workflows
 - **Start the backend**: `uvicorn app:app --reload --port 8000`
 - **Start the frontend**: `cd frontend && npm run dev`

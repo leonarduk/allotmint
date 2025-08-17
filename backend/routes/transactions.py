@@ -5,11 +5,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from backend.config import config
+from backend.auth import get_current_user
 
-router = APIRouter(tags=["transactions"])
+router = APIRouter(tags=["transactions"], dependencies=[Depends(get_current_user)])
 
 
 def _load_all_transactions() -> List[dict]:

@@ -14,7 +14,7 @@ import logging
 from datetime import date
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 
 from backend.common import (
@@ -26,9 +26,10 @@ from backend.common import (
     instrument_api,
     risk,
 )
+from backend.auth import get_current_user
 
 log = logging.getLogger("routes.portfolio")
-router = APIRouter(tags=["portfolio"])
+router = APIRouter(tags=["portfolio"], dependencies=[Depends(get_current_user)])
 _ALLOWED_DAYS = {1, 7, 30, 90, 365}
 
 

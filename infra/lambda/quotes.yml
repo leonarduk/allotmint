@@ -1,0 +1,42 @@
+Resources:
+  QuotesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Quotes
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: symbol
+          AttributeType: S
+      KeySchema:
+        - AttributeName: symbol
+          KeyType: HASH
+
+  QuotesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: backend.tasks.quotes.lambda_handler
+      Runtime: python3.11
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          QUOTES_TABLE: !Ref QuotesTable
+      Code:
+        S3Bucket: your-bucket
+        S3Key: quotes.zip
+
+  QuotesRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: rate(1 hour)
+      Targets:
+        - Arn: !GetAtt QuotesFunction.Arn
+          Id: QuotesFunctionTarget
+
+  QuotesPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref QuotesFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt QuotesRule.Arn

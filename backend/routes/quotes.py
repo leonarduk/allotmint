@@ -1,76 +1,45 @@
-"""Quote snapshot endpoint using Yahoo Finance."""
+"""Quote endpoint backed by DynamoDB."""
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
+import os
+from decimal import Decimal
 from typing import List, Dict, Any
-import logging
 
-from fastapi import APIRouter, Query, HTTPException
-import yfinance as yf
+import boto3
+from fastapi import APIRouter, Query
 
 router = APIRouter(prefix="/api")
-log = logging.getLogger("routes.quotes")
+TABLE_NAME = os.environ.get("QUOTES_TABLE", "Quotes")
+_dynamodb = None
+_table = None
 
 
-def _fetch(symbols: List[str]) -> List[Dict[str, Any]]:
-    try:
-        tickers = yf.Tickers(" ".join(symbols))
-    except Exception as exc:
-        log.exception("yf.Tickers failed for %s", symbols)
-        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {exc}") from exc
-    results: List[Dict[str, Any]] = []
-    for sym in symbols:
-        t = tickers.tickers.get(sym)
-        if not t:
-            continue
-        try:
-            fast = t.fast_info
-        except Exception:
-            fast = {}
-        name = None
-        try:
-            info = t.info
-            name = info.get("shortName") or info.get("longName")
-        except Exception:
-            name = None
-        last = fast.get("lastPrice") or fast.get("last_price")
-        open_ = fast.get("open")
-        high = fast.get("dayHigh") or fast.get("day_high")
-        low = fast.get("dayLow") or fast.get("day_low")
-        prev_close = fast.get("previousClose") or fast.get("regularMarketPreviousClose")
-        change = (last - prev_close) if (last is not None and prev_close is not None) else None
-        change_pct = (
-            (change / prev_close * 100) if (change is not None and prev_close not in (0, None)) else None
-        )
-        volume = fast.get("lastVolume") or fast.get("regularMarketVolume")
-        ts = fast.get("regularMarketTime")
-        if ts:
-            dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
-            ts_iso = dt.isoformat().replace("+00:00", "Z")
-        else:
-            ts_iso = None
-        results.append(
-            {
-                "name": name,
-                "symbol": sym,
-                "last": float(last) if last is not None else None,
-                "open": float(open_) if open_ is not None else None,
-                "high": float(high) if high is not None else None,
-                "low": float(low) if low is not None else None,
-                "change": float(change) if change is not None else None,
-                "changePct": float(change_pct) if change_pct is not None else None,
-                "volume": int(volume) if volume is not None else None,
-                "time": ts_iso,
-            }
-        )
-    return results
+def _get_table():
+    global _dynamodb, _table
+    if _table is None:
+        _dynamodb = boto3.resource("dynamodb")
+        _table = _dynamodb.Table(TABLE_NAME)
+    return _table
+
+
+def _convert_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: float(v) if isinstance(v, Decimal) else v for k, v in item.items()}
 
 
 @router.get("/quotes")
 async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
-    syms = [s.strip() for s in symbols.split(",") if s.strip()]
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not syms:
         return []
-    return await asyncio.to_thread(_fetch, syms)
+    table = _get_table()
+    results: List[Dict[str, Any]] = []
+    for sym in syms:
+        try:
+            resp = table.get_item(Key={"symbol": sym})
+        except Exception:
+            continue
+        item = resp.get("Item")
+        if item:
+            results.append(_convert_item(item))
+    return results

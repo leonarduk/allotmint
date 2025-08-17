@@ -67,6 +67,7 @@ class Config:
     approval_exempt_types: Optional[List[str]] = None
     approval_exempt_tickers: Optional[List[str]] = None
     tabs: TabsConfig = field(default_factory=TabsConfig)
+    cors_origins: Optional[List[str]] = None
 
 
 def _project_config_path() -> Path:
@@ -109,6 +110,15 @@ def load_config() -> Config:
         tabs_data.update(tabs_raw)
     tabs = TabsConfig(**tabs_data)
 
+    cors_raw = data.get("cors")
+    cors_origins = None
+    if isinstance(cors_raw, dict):
+        env = data.get("app_env")
+        if env:
+            cors_origins = cors_raw.get(env) or cors_raw.get("default")
+        else:
+            cors_origins = cors_raw.get("default")
+
     return Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
@@ -144,6 +154,7 @@ def load_config() -> Config:
         approval_exempt_types=data.get("approval_exempt_types"),
         approval_exempt_tickers=data.get("approval_exempt_tickers"),
         tabs=tabs,
+        cors_origins=cors_origins,
     )
 
 

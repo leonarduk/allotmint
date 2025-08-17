@@ -118,6 +118,18 @@ log_config: backend/logging.ini
 
 Adjust these values to change the environment or server behaviour.
 
+Environment-specific CORS whitelists are defined in the same file:
+
+```yaml
+cors:
+  local:
+    - http://localhost:3000
+  production:
+    - https://app.allotmint.io
+```
+
+The list matching `app_env` is applied to the backend's CORS middleware.
+
 Optional frontend tabs can be toggled in `config.yaml`:
 
 ```yaml

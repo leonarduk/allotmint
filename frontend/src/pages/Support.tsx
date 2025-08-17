@@ -169,58 +169,76 @@ export default function Support() {
         <p>Loading…</p>
       ) : (
         <form onSubmit={saveConfig}>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <h3>Feature Switches</h3>
-            {TAB_KEYS.map((tab) => (
-              <label key={tab} style={{ display: "block", fontWeight: 500 }}>
-                <input
-                  type="checkbox"
-                  checked={tabs[tab]}
-                  onChange={(e) => handleTabChange(tab, e.target.checked)}
-                />
-                {tab}
-              </label>
-            ))}
-          </div>
-          {Object.entries(config)
-            .filter(([k]) => k !== "tabs")
-            .map(([key, value]) => (
-              <div key={key} style={{ marginBottom: "0.5rem" }}>
-                {key === "theme" && typeof value === "string" ? (
-                  <div>
-                    <label style={{ display: "block", fontWeight: 500 }}>{key}</label>
-                    {["dark", "light", "system"].map((opt) => (
-                      <label key={opt} style={{ marginRight: "0.5rem" }}>
-                        <input
-                          type="radio"
-                          name="theme"
-                          value={opt}
-                          checked={value === opt}
-                          onChange={(e) => handleConfigChange(key, e.target.value)}
-                        />
-                        {opt}
-                      </label>
-                    ))}
-                  </div>
-                ) : typeof value === "boolean" ? (
-                  <label style={{ display: "block", fontWeight: 500 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "1rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <div>
+              <h3>Tabs Enabled</h3>
+              {TAB_KEYS.map((tab) => (
+                <label key={tab} style={{ display: "block", fontWeight: 500 }}>
+                  <input
+                    type="checkbox"
+                    checked={tabs[tab]}
+                    onChange={(e) => handleTabChange(tab, e.target.checked)}
+                  />
+                  {tab}
+                </label>
+              ))}
+            </div>
+            <div>
+              <h3>Other Switches</h3>
+              {Object.entries(config)
+                .filter(([k, v]) => k !== "tabs" && typeof v === "boolean")
+                .map(([key, value]) => (
+                  <label key={key} style={{ display: "block", fontWeight: 500 }}>
                     <input
                       type="checkbox"
-                      checked={value}
+                      checked={value as boolean}
                       onChange={(e) => handleConfigChange(key, e.target.checked)}
                     />
                     {key}
                   </label>
-                ) : (
-                  <input
-                    type="text"
-                    value={String(value ?? "")}
-                    onChange={(e) => handleConfigChange(key, e.target.value)}
-                    style={{ width: "100%" }}
-                  />
-                )}
-              </div>
-            ))}
+                ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: "0.5rem" }}>
+            <h3>Other parameters</h3>
+            {Object.entries(config)
+              .filter(([k, v]) => k !== "tabs" && typeof v !== "boolean")
+              .map(([key, value]) => (
+                <div key={key} style={{ marginBottom: "0.5rem" }}>
+                  {key === "theme" && typeof value === "string" ? (
+                    <div>
+                      <label style={{ display: "block", fontWeight: 500 }}>{key}</label>
+                      {["dark", "light", "system"].map((opt) => (
+                        <label key={opt} style={{ marginRight: "0.5rem" }}>
+                          <input
+                            type="radio"
+                            name="theme"
+                            value={opt}
+                            checked={value === opt}
+                            onChange={(e) => handleConfigChange(key, e.target.value)}
+                          />
+                          {opt}
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={String(value ?? "")}
+                      onChange={(e) => handleConfigChange(key, e.target.value)}
+                      style={{ width: "100%" }}
+                    />
+                  )}
+                </div>
+              ))}
+          </div>
           <button type="submit">Save</button>
           {configStatus === "saved" && (
             <span style={{ marginLeft: "0.5rem", color: "green" }}>Saved</span>

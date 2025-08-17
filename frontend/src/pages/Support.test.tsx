@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
 
 const mockGetConfig = vi.hoisted(() => vi.fn());
@@ -68,7 +68,7 @@ describe("Support page", () => {
 
   it("renders tab toggles and allows toggling", async () => {
     render(<Support />);
-    await screen.findByText(/Feature Switches/i);
+    await screen.findByText(/Tabs Enabled/i);
     const instrument = await screen.findByRole("checkbox", {
       name: /instrument/i,
     });
@@ -79,6 +79,31 @@ describe("Support page", () => {
     fireEvent.click(support);
     expect(instrument).not.toBeChecked();
     expect(support).not.toBeChecked();
+  });
+
+  it("separates switches from other parameters", async () => {
+    render(<Support />);
+    const switchesHeading = await screen.findByRole("heading", {
+      name: /Other Switches/i,
+    });
+    const switchesSection = switchesHeading.parentElement as HTMLElement;
+    expect(
+      within(switchesSection).getByRole("checkbox", { name: /flag/i })
+    ).toBeInTheDocument();
+    expect(
+      within(switchesSection).queryByRole("radio", { name: /dark/i })
+    ).toBeNull();
+
+    const paramsHeading = screen.getByRole("heading", {
+      name: /Other parameters/i,
+    });
+    const paramsSection = paramsHeading.parentElement as HTMLElement;
+    expect(
+      within(paramsSection).getByRole("radio", { name: /dark/i })
+    ).toBeInTheDocument();
+    expect(
+      within(paramsSection).queryByRole("checkbox", { name: /flag/i })
+    ).toBeNull();
   });
 
   it("allows selecting theme via radio buttons", async () => {

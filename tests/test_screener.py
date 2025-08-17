@@ -82,7 +82,6 @@ def test_screen_filters_based_on_thresholds(monkeypatch):
                 interest_coverage=10,
                 current_ratio=2.0,
                 quick_ratio=1.5,
-                fcf=1000,
             )
         return Fundamentals(
             ticker="BBB",
@@ -102,7 +101,6 @@ def test_screen_filters_based_on_thresholds(monkeypatch):
             interest_coverage=1.0,
             current_ratio=0.5,
             quick_ratio=0.4,
-            fcf=500,
         )
 
     monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
@@ -125,6 +123,5 @@ def test_screen_filters_based_on_thresholds(monkeypatch):
         interest_coverage_min=5.0,
         current_ratio_min=1.0,
         quick_ratio_min=1.0,
-        fcf_min=800,
     )
     assert [r.ticker for r in results] == ["AAA"]

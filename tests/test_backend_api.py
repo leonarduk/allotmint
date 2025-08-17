@@ -7,8 +7,8 @@ import backend.common.alerts as alerts
 
 client = TestClient(app)
 
-# ensure alerts do not raise due to missing config
-alerts.config.sns_topic_arn = "arn:dummy"
+# allow alerts to operate without SNS configuration
+alerts.config.sns_topic_arn = None
 
 
 def validate_timeseries(prices):

@@ -13,6 +13,12 @@ The AllotMint frontend is a React + TypeScript single-page app that visualises f
 * `npm run dev` – start the Vite development server.
 * `npm test` – execute the test suite with Vitest and Testing Library.
 
+## Installation
+
+1. Install dependencies with `npm install`.
+2. Run `npm run dev` and open the app in your browser.
+3. Use the browser's **Install** or **Add to Home Screen** option to install the PWA. The service worker caches static assets for offline use.
+
 ## Configuration
 
 Set one of the following environment variables to tell the UI where the backend lives:

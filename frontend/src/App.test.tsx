@@ -206,6 +206,42 @@ describe("App", () => {
     expect(mockTradingSignals).toHaveBeenCalled();
   });
 
+  it("renders support page with navigation", async () => {
+    window.history.pushState({}, "", "/support");
+
+    vi.doMock("./api", () => ({
+      getOwners: vi.fn().mockResolvedValue([]),
+      getGroups: vi.fn().mockResolvedValue([]),
+      getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getPortfolio: vi.fn(),
+      refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      listTimeseries: vi.fn().mockResolvedValue([]),
+      getConfig: vi.fn().mockResolvedValue({}),
+      updateConfig: vi.fn(),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getTradingSignals: vi.fn().mockResolvedValue([]),
+    }));
+
+    const { default: App } = await import("./App");
+
+    render(
+      <MemoryRouter initialEntries={["/support"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("navigation")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: /Support/i })
+    ).toBeInTheDocument();
+  });
+
   it("defaults to Movers view and orders tabs correctly", async () => {
     window.history.pushState({}, "", "/");
     mockTradingSignals.mockResolvedValue([]);

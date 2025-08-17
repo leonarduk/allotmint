@@ -217,12 +217,12 @@ def test_screener_endpoint(monkeypatch):
 
     def mock_fetch(ticker: str) -> Fundamentals:
         if ticker == "AAA":
-            return Fundamentals(ticker="AAA", peg_ratio=0.5)
-        return Fundamentals(ticker="BBB", peg_ratio=2.0)
+            return Fundamentals(ticker="AAA", peg_ratio=0.5, beta=1.0)
+        return Fundamentals(ticker="BBB", peg_ratio=2.0, beta=2.0)
 
     monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
 
-    resp = client.get("/screener?tickers=AAA,BBB&peg_max=1")
+    resp = client.get("/screener?tickers=AAA,BBB&peg_max=1&beta_max=1.5")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 1

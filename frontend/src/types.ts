@@ -176,6 +176,15 @@ export interface ScreenerResult {
     pe_ratio: number | null;
     de_ratio: number | null;
     fcf: number | null;
+    dividend_yield: number | null;
+    dividend_payout_ratio: number | null;
+    beta: number | null;
+    shares_outstanding: number | null;
+    float_shares: number | null;
+    market_cap: number | null;
+    high_52w: number | null;
+    low_52w: number | null;
+    avg_volume: number | null;
 }
 
 export interface SyntheticHolding {

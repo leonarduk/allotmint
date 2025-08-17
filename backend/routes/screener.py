@@ -24,6 +24,13 @@ async def screener(
     pe_max: float | None = Query(None),
     de_max: float | None = Query(None),
     fcf_min: float | None = Query(None),
+    pb_max: float | None = Query(None),
+    ps_max: float | None = Query(None),
+    pc_max: float | None = Query(None),
+    pfcf_max: float | None = Query(None),
+    pebitda_max: float | None = Query(None),
+    ev_ebitda_max: float | None = Query(None),
+    ev_revenue_max: float | None = Query(None),
 ):
     """Return tickers that meet the supplied screening criteria."""
 
@@ -31,7 +38,10 @@ async def screener(
     if not symbols:
         raise HTTPException(status_code=400, detail="No tickers supplied")
 
-    params = f"{','.join(symbols)}|{peg_max}|{pe_max}|{de_max}|{fcf_min}"
+    params = (
+        f"{','.join(symbols)}|{peg_max}|{pe_max}|{de_max}|{fcf_min}|"
+        f"{pb_max}|{ps_max}|{pc_max}|{pfcf_max}|{pebitda_max}|{ev_ebitda_max}|{ev_revenue_max}"
+    )
     page = "screener_" + hashlib.sha1(params.encode()).hexdigest()
     page_cache.schedule_refresh(
         page,
@@ -40,7 +50,14 @@ async def screener(
         peg_max=peg_max,
         pe_max=pe_max,
         de_max=de_max,
-        fcf_min=fcf_min: [
+        fcf_min=fcf_min,
+        pb_max=pb_max,
+        ps_max=ps_max,
+        pc_max=pc_max,
+        pfcf_max=pfcf_max,
+        pebitda_max=pebitda_max,
+        ev_ebitda_max=ev_ebitda_max,
+        ev_revenue_max=ev_revenue_max: [
             r.model_dump()
             for r in screen(
                 symbols,
@@ -48,6 +65,13 @@ async def screener(
                 pe_max=pe_max,
                 de_max=de_max,
                 fcf_min=fcf_min,
+                pb_max=pb_max,
+                ps_max=ps_max,
+                pc_max=pc_max,
+                pfcf_max=pfcf_max,
+                pebitda_max=pebitda_max,
+                ev_ebitda_max=ev_ebitda_max,
+                ev_revenue_max=ev_revenue_max,
             )
         ],
     )
@@ -63,6 +87,13 @@ async def screener(
             pe_max=pe_max,
             de_max=de_max,
             fcf_min=fcf_min,
+            pb_max=pb_max,
+            ps_max=ps_max,
+            pc_max=pc_max,
+            pfcf_max=pfcf_max,
+            pebitda_max=pebitda_max,
+            ev_ebitda_max=ev_ebitda_max,
+            ev_revenue_max=ev_revenue_max,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

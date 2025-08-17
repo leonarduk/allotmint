@@ -176,6 +176,13 @@ export interface ScreenerResult {
     pe_ratio: number | null;
     de_ratio: number | null;
     fcf: number | null;
+    pb_ratio: number | null;
+    ps_ratio: number | null;
+    pc_ratio: number | null;
+    pfcf_ratio: number | null;
+    p_ebitda: number | null;
+    ev_to_ebitda: number | null;
+    ev_to_revenue: number | null;
 }
 
 export interface SyntheticHolding {

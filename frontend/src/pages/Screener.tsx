@@ -12,6 +12,13 @@ export function Screener() {
   const [peMax, setPeMax] = useState("");
   const [deMax, setDeMax] = useState("");
   const [fcfMin, setFcfMin] = useState("");
+  const [pbMax, setPbMax] = useState("");
+  const [psMax, setPsMax] = useState("");
+  const [pcMax, setPcMax] = useState("");
+  const [pfcfMax, setPfcfMax] = useState("");
+  const [pEbitdaMax, setPEbitdaMax] = useState("");
+  const [evEbitdaMax, setEvEbitdaMax] = useState("");
+  const [evRevenueMax, setEvRevenueMax] = useState("");
 
   const [rows, setRows] = useState<ScreenerResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,6 +47,13 @@ export function Screener() {
         pe_max: peMax ? parseFloat(peMax) : undefined,
         de_max: deMax ? parseFloat(deMax) : undefined,
         fcf_min: fcfMin ? parseFloat(fcfMin) : undefined,
+        pb_max: pbMax ? parseFloat(pbMax) : undefined,
+        ps_max: psMax ? parseFloat(psMax) : undefined,
+        pc_max: pcMax ? parseFloat(pcMax) : undefined,
+        pfcf_max: pfcfMax ? parseFloat(pfcfMax) : undefined,
+        pebitda_max: pEbitdaMax ? parseFloat(pEbitdaMax) : undefined,
+        ev_ebitda_max: evEbitdaMax ? parseFloat(evEbitdaMax) : undefined,
+        ev_revenue_max: evRevenueMax ? parseFloat(evRevenueMax) : undefined,
       });
       setRows(data);
     } catch (e) {
@@ -108,6 +122,83 @@ export function Screener() {
             style={{ marginLeft: "0.25rem" }}
           />
         </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxPb")}
+          <input
+            aria-label={t("screener.maxPb")}
+            type="number"
+            value={pbMax}
+            onChange={(e) => setPbMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxPs")}
+          <input
+            aria-label={t("screener.maxPs")}
+            type="number"
+            value={psMax}
+            onChange={(e) => setPsMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxPc")}
+          <input
+            aria-label={t("screener.maxPc")}
+            type="number"
+            value={pcMax}
+            onChange={(e) => setPcMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxPfcf")}
+          <input
+            aria-label={t("screener.maxPfcf")}
+            type="number"
+            value={pfcfMax}
+            onChange={(e) => setPfcfMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxPebitda")}
+          <input
+            aria-label={t("screener.maxPebitda")}
+            type="number"
+            value={pEbitdaMax}
+            onChange={(e) => setPEbitdaMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxEvEbitda")}
+          <input
+            aria-label={t("screener.maxEvEbitda")}
+            type="number"
+            value={evEbitdaMax}
+            onChange={(e) => setEvEbitdaMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxEvRevenue")}
+          <input
+            aria-label={t("screener.maxEvRevenue")}
+            type="number"
+            value={evRevenueMax}
+            onChange={(e) => setEvRevenueMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
         <button type="submit" disabled={loading} style={{ marginLeft: "0.5rem" }}>
           {loading ? t("screener.loading") : t("screener.run")}
         </button>
@@ -130,6 +221,13 @@ export function Screener() {
               <th style={right} onClick={() => handleSort("pe_ratio")}>P/E</th>
               <th style={right} onClick={() => handleSort("de_ratio")}>D/E</th>
               <th style={right} onClick={() => handleSort("fcf")}>FCF</th>
+              <th style={right} onClick={() => handleSort("pb_ratio")}>P/B</th>
+              <th style={right} onClick={() => handleSort("ps_ratio")}>P/S</th>
+              <th style={right} onClick={() => handleSort("pc_ratio")}>P/C</th>
+              <th style={right} onClick={() => handleSort("pfcf_ratio")}>P/FCF</th>
+              <th style={right} onClick={() => handleSort("p_ebitda")}>P/EBITDA</th>
+              <th style={right} onClick={() => handleSort("ev_to_ebitda")}>EV/EBITDA</th>
+              <th style={right} onClick={() => handleSort("ev_to_revenue")}>EV/Revenue</th>
             </tr>
           </thead>
           <tbody>
@@ -148,6 +246,13 @@ export function Screener() {
                     ? new Intl.NumberFormat(i18n.language).format(r.fcf)
                     : "—"}
                 </td>
+                <td style={right}>{r.pb_ratio ?? "—"}</td>
+                <td style={right}>{r.ps_ratio ?? "—"}</td>
+                <td style={right}>{r.pc_ratio ?? "—"}</td>
+                <td style={right}>{r.pfcf_ratio ?? "—"}</td>
+                <td style={right}>{r.p_ebitda ?? "—"}</td>
+                <td style={right}>{r.ev_to_ebitda ?? "—"}</td>
+                <td style={right}>{r.ev_to_revenue ?? "—"}</td>
               </tr>
             ))}
           </tbody>

@@ -128,6 +128,13 @@ export const getScreener = (
     pe_max?: number;
     de_max?: number;
     fcf_min?: number;
+    pb_max?: number;
+    ps_max?: number;
+    pc_max?: number;
+    pfcf_max?: number;
+    pebitda_max?: number;
+    ev_ebitda_max?: number;
+    ev_revenue_max?: number;
   } = {},
 ) => {
   const params = new URLSearchParams({ tickers: tickers.join(",") });
@@ -135,6 +142,16 @@ export const getScreener = (
   if (criteria.pe_max != null) params.set("pe_max", String(criteria.pe_max));
   if (criteria.de_max != null) params.set("de_max", String(criteria.de_max));
   if (criteria.fcf_min != null) params.set("fcf_min", String(criteria.fcf_min));
+  if (criteria.pb_max != null) params.set("pb_max", String(criteria.pb_max));
+  if (criteria.ps_max != null) params.set("ps_max", String(criteria.ps_max));
+  if (criteria.pc_max != null) params.set("pc_max", String(criteria.pc_max));
+  if (criteria.pfcf_max != null) params.set("pfcf_max", String(criteria.pfcf_max));
+  if (criteria.pebitda_max != null)
+    params.set("pebitda_max", String(criteria.pebitda_max));
+  if (criteria.ev_ebitda_max != null)
+    params.set("ev_ebitda_max", String(criteria.ev_ebitda_max));
+  if (criteria.ev_revenue_max != null)
+    params.set("ev_revenue_max", String(criteria.ev_revenue_max));
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`);
 };
 

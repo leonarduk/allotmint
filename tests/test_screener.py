@@ -9,6 +9,14 @@ def test_fetch_fundamentals_parses_values(monkeypatch):
         "PERatio": "10.2",
         "DebtToEquityTTM": "0.5",
         "FreeCashFlowTTM": "1234",
+        "EPS": "5.0",
+        "GrossProfitTTM": "0.4",
+        "OperatingMarginTTM": "0.2",
+        "NetProfitMarginTTM": "0.1",
+        "EbitdaMarginTTM": "0.3",
+        "ReturnOnAssetsTTM": "0.15",
+        "ReturnOnEquityTTM": "0.25",
+        "ReturnOnInvestmentTTM": "0.2",
     }
 
     class MockResp:
@@ -35,15 +43,65 @@ def test_fetch_fundamentals_parses_values(monkeypatch):
     assert f.pe_ratio == 10.2
     assert f.de_ratio == 0.5
     assert f.fcf == 1234.0
+    assert f.eps == 5.0
+    assert f.gross_margin == 0.4
+    assert f.operating_margin == 0.2
+    assert f.net_margin == 0.1
+    assert f.ebitda_margin == 0.3
+    assert f.roa == 0.15
+    assert f.roe == 0.25
+    assert f.roi == 0.2
 
 
 def test_screen_filters_based_on_thresholds(monkeypatch):
     def mock_fetch(ticker):
         if ticker == "AAA":
-            return Fundamentals(ticker="AAA", peg_ratio=0.5, pe_ratio=10, de_ratio=0.5, fcf=1000)
-        return Fundamentals(ticker="BBB", peg_ratio=2.0, pe_ratio=15, de_ratio=1.5, fcf=500)
+            return Fundamentals(
+                ticker="AAA",
+                peg_ratio=0.5,
+                pe_ratio=10,
+                de_ratio=0.5,
+                fcf=1000,
+                eps=5,
+                gross_margin=0.4,
+                operating_margin=0.2,
+                net_margin=0.1,
+                ebitda_margin=0.3,
+                roa=0.15,
+                roe=0.2,
+                roi=0.18,
+            )
+        return Fundamentals(
+            ticker="BBB",
+            peg_ratio=2.0,
+            pe_ratio=15,
+            de_ratio=1.5,
+            fcf=500,
+            eps=1,
+            gross_margin=0.2,
+            operating_margin=0.05,
+            net_margin=0.02,
+            ebitda_margin=0.1,
+            roa=0.05,
+            roe=0.04,
+            roi=0.03,
+        )
 
     monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
 
-    results = screen(["AAA", "BBB"], peg_max=1.0, pe_max=20, de_max=1.0, fcf_min=800)
+    results = screen(
+        ["AAA", "BBB"],
+        peg_max=1.0,
+        pe_max=20,
+        de_max=1.0,
+        fcf_min=800,
+        eps_min=3,
+        gross_margin_min=0.3,
+        operating_margin_min=0.1,
+        net_margin_min=0.05,
+        ebitda_margin_min=0.2,
+        roa_min=0.1,
+        roe_min=0.15,
+        roi_min=0.1,
+    )
     assert [r.ticker for r in results] == ["AAA"]

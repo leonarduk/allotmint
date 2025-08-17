@@ -21,7 +21,21 @@ const mockGetScreener = vi.fn((tickers: string[]) =>
   Promise.resolve(
     tickers.map(
       (t) =>
-        ({ ticker: t, peg_ratio: null, pe_ratio: null, de_ratio: null, fcf: null } as ScreenerResult)
+        ({
+          ticker: t,
+          peg_ratio: null,
+          pe_ratio: null,
+          de_ratio: null,
+          fcf: null,
+          eps: null,
+          gross_margin: null,
+          operating_margin: null,
+          net_margin: null,
+          ebitda_margin: null,
+          roa: null,
+          roe: null,
+          roi: null,
+        } as ScreenerResult)
     )
   )
 );

@@ -140,6 +140,14 @@
     "maxPe": "Max P/E",
     "maxDe": "Max D/E",
     "minFcf": "Min FCF",
+    "minEps": "Min EPS",
+    "minGrossMargin": "Min Gross Margin",
+    "minOperatingMargin": "Min Operating Margin",
+    "minNetMargin": "Min Net Margin",
+    "minEbitdaMargin": "Min EBITDA Margin",
+    "minRoa": "Min ROA",
+    "minRoe": "Min ROE",
+    "minRoi": "Min ROI",
     "run": "Run",
     "loading": "Loading…"
   }

@@ -32,6 +32,14 @@ class Fundamentals(BaseModel):
     pe_ratio: Optional[float] = None
     de_ratio: Optional[float] = None
     fcf: Optional[float] = None
+    eps: Optional[float] = None
+    gross_margin: Optional[float] = None
+    operating_margin: Optional[float] = None
+    net_margin: Optional[float] = None
+    ebitda_margin: Optional[float] = None
+    roa: Optional[float] = None
+    roe: Optional[float] = None
+    roi: Optional[float] = None
 
 
 def _parse_float(value: Optional[str]) -> Optional[float]:
@@ -76,6 +84,16 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         pe_ratio=_parse_float(data.get("PERatio")),
         de_ratio=_parse_float(data.get("DebtToEquityTTM")),
         fcf=_parse_float(data.get("FreeCashFlowTTM")),
+        eps=_parse_float(data.get("EPS")),
+        gross_margin=_parse_float(data.get("GrossProfitTTM")),
+        operating_margin=_parse_float(data.get("OperatingMarginTTM")),
+        net_margin=_parse_float(data.get("NetProfitMarginTTM")),
+        ebitda_margin=_parse_float(
+            data.get("EbitdaMarginTTM") or data.get("EBITDAMarginTTM")
+        ),
+        roa=_parse_float(data.get("ReturnOnAssetsTTM")),
+        roe=_parse_float(data.get("ReturnOnEquityTTM")),
+        roi=_parse_float(data.get("ReturnOnInvestmentTTM")),
     )
 
     _CACHE[key] = (now, result)
@@ -90,6 +108,14 @@ def screen(
     pe_max: Optional[float] = None,
     de_max: Optional[float] = None,
     fcf_min: Optional[float] = None,
+    eps_min: Optional[float] = None,
+    gross_margin_min: Optional[float] = None,
+    operating_margin_min: Optional[float] = None,
+    net_margin_min: Optional[float] = None,
+    ebitda_margin_min: Optional[float] = None,
+    roa_min: Optional[float] = None,
+    roe_min: Optional[float] = None,
+    roi_min: Optional[float] = None,
 ) -> List[Fundamentals]:
     """Fetch fundamentals for multiple tickers and filter based on thresholds."""
 
@@ -108,6 +134,30 @@ def screen(
         if de_max is not None and (f.de_ratio is None or f.de_ratio > de_max):
             continue
         if fcf_min is not None and (f.fcf is None or f.fcf < fcf_min):
+            continue
+        if eps_min is not None and (f.eps is None or f.eps < eps_min):
+            continue
+        if gross_margin_min is not None and (
+            f.gross_margin is None or f.gross_margin < gross_margin_min
+        ):
+            continue
+        if operating_margin_min is not None and (
+            f.operating_margin is None or f.operating_margin < operating_margin_min
+        ):
+            continue
+        if net_margin_min is not None and (
+            f.net_margin is None or f.net_margin < net_margin_min
+        ):
+            continue
+        if ebitda_margin_min is not None and (
+            f.ebitda_margin is None or f.ebitda_margin < ebitda_margin_min
+        ):
+            continue
+        if roa_min is not None and (f.roa is None or f.roa < roa_min):
+            continue
+        if roe_min is not None and (f.roe is None or f.roe < roe_min):
+            continue
+        if roi_min is not None and (f.roi is None or f.roi < roi_min):
             continue
 
         results.append(f)

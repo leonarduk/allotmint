@@ -37,6 +37,14 @@ vi.mock("../api", () => ({
       pe_ratio: 10,
       de_ratio: 0.5,
       fcf: 1000,
+      eps: 2,
+      gross_margin: 0.4,
+      operating_margin: 0.2,
+      net_margin: 0.1,
+      ebitda_margin: 0.3,
+      roa: 0.1,
+      roe: 0.2,
+      roi: 0.15,
     },
   ]),
 }));
@@ -64,11 +72,14 @@ describe("Screener & Query page", () => {
     fireEvent.change(screen.getByLabelText(en.screener.maxPeg), {
       target: { value: "2" },
     });
+    fireEvent.change(screen.getByLabelText(en.screener.minRoe), {
+      target: { value: "5" },
+    });
 
     fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
 
     expect(await screen.findByText("1,000")).toBeInTheDocument();
-    expect(getScreener).toHaveBeenCalledWith(["AAA"], { peg_max: 2 });
+    expect(getScreener).toHaveBeenCalledWith(["AAA"], { peg_max: 2, roe_min: 5 });
   });
 
   it("submits query form and renders results with export links", async () => {

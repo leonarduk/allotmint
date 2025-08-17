@@ -131,6 +131,14 @@
     "maxPe": "P/E max",
     "maxDe": "D/E max",
     "minFcf": "FCF min",
+    "minEps": "BPA min",
+    "minGrossMargin": "Marge brute min",
+    "minOperatingMargin": "Marge opérationnelle min",
+    "minNetMargin": "Marge nette min",
+    "minEbitdaMargin": "Marge EBITDA min",
+    "minRoa": "ROA min",
+    "minRoe": "ROE min",
+    "minRoi": "ROI min",
     "run": "Exécuter",
     "loading": "Chargement…"
   }

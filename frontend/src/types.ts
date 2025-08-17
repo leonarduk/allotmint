@@ -176,6 +176,14 @@ export interface ScreenerResult {
     pe_ratio: number | null;
     de_ratio: number | null;
     fcf: number | null;
+    eps: number | null;
+    gross_margin: number | null;
+    operating_margin: number | null;
+    net_margin: number | null;
+    ebitda_margin: number | null;
+    roa: number | null;
+    roe: number | null;
+    roi: number | null;
 }
 
 export interface SyntheticHolding {

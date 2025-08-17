@@ -128,6 +128,14 @@ export const getScreener = (
     pe_max?: number;
     de_max?: number;
     fcf_min?: number;
+    eps_min?: number;
+    gross_margin_min?: number;
+    operating_margin_min?: number;
+    net_margin_min?: number;
+    ebitda_margin_min?: number;
+    roa_min?: number;
+    roe_min?: number;
+    roi_min?: number;
   } = {},
 ) => {
   const params = new URLSearchParams({ tickers: tickers.join(",") });
@@ -135,6 +143,18 @@ export const getScreener = (
   if (criteria.pe_max != null) params.set("pe_max", String(criteria.pe_max));
   if (criteria.de_max != null) params.set("de_max", String(criteria.de_max));
   if (criteria.fcf_min != null) params.set("fcf_min", String(criteria.fcf_min));
+  if (criteria.eps_min != null) params.set("eps_min", String(criteria.eps_min));
+  if (criteria.gross_margin_min != null)
+    params.set("gross_margin_min", String(criteria.gross_margin_min));
+  if (criteria.operating_margin_min != null)
+    params.set("operating_margin_min", String(criteria.operating_margin_min));
+  if (criteria.net_margin_min != null)
+    params.set("net_margin_min", String(criteria.net_margin_min));
+  if (criteria.ebitda_margin_min != null)
+    params.set("ebitda_margin_min", String(criteria.ebitda_margin_min));
+  if (criteria.roa_min != null) params.set("roa_min", String(criteria.roa_min));
+  if (criteria.roe_min != null) params.set("roe_min", String(criteria.roe_min));
+  if (criteria.roi_min != null) params.set("roi_min", String(criteria.roi_min));
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`);
 };
 

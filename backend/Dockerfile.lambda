@@ -1,0 +1,11 @@
+FROM public.ecr.aws/lambda/python:3.11
+
+# Install application dependencies
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code into the Lambda task root
+COPY backend/ /var/task/
+
+# Set the Lambda handler
+CMD ["backend.lambda_api.handler.lambda_handler"]

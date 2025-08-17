@@ -180,6 +180,14 @@ export interface ScreenerResult {
     current_ratio: number | null;
     quick_ratio: number | null;
     fcf: number | null;
+    eps: number | null;
+    gross_margin: number | null;
+    operating_margin: number | null;
+    net_margin: number | null;
+    ebitda_margin: number | null;
+    roa: number | null;
+    roe: number | null;
+    roi: number | null;
 }
 
 export interface SyntheticHolding {

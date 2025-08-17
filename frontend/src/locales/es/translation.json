@@ -135,6 +135,14 @@
     "minCurrentRatio": "Min Current Ratio",
     "minQuickRatio": "Min Quick Ratio",
     "minFcf": "FCF mín",
+    "minEps": "EPS mín",
+    "minGrossMargin": "Margen bruto mín",
+    "minOperatingMargin": "Margen operativo mín",
+    "minNetMargin": "Margen neto mín",
+    "minEbitdaMargin": "Margen EBITDA mín",
+    "minRoa": "ROA mín",
+    "minRoe": "ROE mín",
+    "minRoi": "ROI mín",
     "run": "Ejecutar",
     "loading": "Cargando…"
   }

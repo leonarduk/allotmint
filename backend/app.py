@@ -57,12 +57,12 @@ def create_app() -> FastAPI:
     app.state.background_tasks = []
 
     # ───────────────────────────── CORS ─────────────────────────────
-    # During development the frontend often runs on a different origin. We
-    # therefore allow every origin/method/header. A production deployment
-    # should tighten these values.
+    # The frontend origin varies by environment. Read the whitelist from
+    # configuration and fall back to permissive settings during development.
+    cors_origins = config.cors_origins or ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )

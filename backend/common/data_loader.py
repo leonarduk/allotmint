@@ -5,15 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import os
-import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from backend.config import config
 
 from backend.common.virtual_portfolio import VirtualPortfolio
-
-logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------
@@ -114,7 +111,7 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
         return []
     try:
         import boto3  # type: ignore
-    except ImportError:
+    except Exception:
         return []
 
     s3 = boto3.client("s3")
@@ -194,10 +191,8 @@ def load_account(
         key = f"{PLOTS_PREFIX}{owner}/{account}.json"
         try:
             import boto3  # type: ignore
-            from botocore.exceptions import BotoCoreError, ClientError
-
             obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
-        except (ClientError, BotoCoreError, ImportError) as exc:  # pragma: no cover - exercised via tests
+        except Exception as exc:  # pragma: no cover - exercised via tests
             raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
         body = obj.get("Body")
         txt = body.read().decode("utf-8-sig").strip() if body else ""
@@ -220,22 +215,13 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         key = f"{PLOTS_PREFIX}{owner}/person.json"
         try:
             import boto3  # type: ignore
-            from botocore.exceptions import BotoCoreError, ClientError
-
             obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
             body = obj.get("Body")
             txt = body.read().decode("utf-8-sig").strip() if body else ""
             if not txt:
                 return {}
             return json.loads(txt)
-        except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
-            logger.warning("Failed to load person meta %s: %s", key, exc)
-            return {}
-        except ImportError as exc:
-            logger.warning("boto3 not available for person meta: %s", exc)
-            return {}
-        except Exception as exc:
-            logger.warning("Failed to load person meta %s: %s", key, exc)
+        except Exception:
             return {}
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = data_root or paths.accounts_root
@@ -244,7 +230,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         return {}
     try:
         return _safe_json_load(path)
-    except (OSError, ValueError, json.JSONDecodeError):
+    except Exception:
         return {}
 
 

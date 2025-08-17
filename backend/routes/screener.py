@@ -23,6 +23,10 @@ async def screener(
     peg_max: float | None = Query(None),
     pe_max: float | None = Query(None),
     de_max: float | None = Query(None),
+    lt_de_max: float | None = Query(None),
+    interest_coverage_min: float | None = Query(None),
+    current_ratio_min: float | None = Query(None),
+    quick_ratio_min: float | None = Query(None),
     fcf_min: float | None = Query(None),
 ):
     """Return tickers that meet the supplied screening criteria."""
@@ -31,7 +35,10 @@ async def screener(
     if not symbols:
         raise HTTPException(status_code=400, detail="No tickers supplied")
 
-    params = f"{','.join(symbols)}|{peg_max}|{pe_max}|{de_max}|{fcf_min}"
+    params = (
+        f"{','.join(symbols)}|{peg_max}|{pe_max}|{de_max}|{lt_de_max}|"
+        f"{interest_coverage_min}|{current_ratio_min}|{quick_ratio_min}|{fcf_min}"
+    )
     page = "screener_" + hashlib.sha1(params.encode()).hexdigest()
     page_cache.schedule_refresh(
         page,
@@ -40,6 +47,10 @@ async def screener(
         peg_max=peg_max,
         pe_max=pe_max,
         de_max=de_max,
+        lt_de_max=lt_de_max,
+        interest_coverage_min=interest_coverage_min,
+        current_ratio_min=current_ratio_min,
+        quick_ratio_min=quick_ratio_min,
         fcf_min=fcf_min: [
             r.model_dump()
             for r in screen(
@@ -47,6 +58,10 @@ async def screener(
                 peg_max=peg_max,
                 pe_max=pe_max,
                 de_max=de_max,
+                lt_de_max=lt_de_max,
+                interest_coverage_min=interest_coverage_min,
+                current_ratio_min=current_ratio_min,
+                quick_ratio_min=quick_ratio_min,
                 fcf_min=fcf_min,
             )
         ],
@@ -62,6 +77,10 @@ async def screener(
             peg_max=peg_max,
             pe_max=pe_max,
             de_max=de_max,
+            lt_de_max=lt_de_max,
+            interest_coverage_min=interest_coverage_min,
+            current_ratio_min=current_ratio_min,
+            quick_ratio_min=quick_ratio_min,
             fcf_min=fcf_min,
         )
     except ValueError as e:

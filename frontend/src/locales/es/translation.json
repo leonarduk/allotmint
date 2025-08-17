@@ -130,6 +130,10 @@
     "maxPeg": "PEG máx",
     "maxPe": "P/E máx",
     "maxDe": "D/E máx",
+    "maxLtDe": "Max LT D/E",
+    "minInterestCoverage": "Min Interest Coverage",
+    "minCurrentRatio": "Min Current Ratio",
+    "minQuickRatio": "Min Quick Ratio",
     "minFcf": "FCF mín",
     "run": "Ejecutar",
     "loading": "Cargando…"

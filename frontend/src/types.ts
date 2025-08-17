@@ -175,6 +175,10 @@ export interface ScreenerResult {
     peg_ratio: number | null;
     pe_ratio: number | null;
     de_ratio: number | null;
+    lt_de_ratio: number | null;
+    interest_coverage: number | null;
+    current_ratio: number | null;
+    quick_ratio: number | null;
     fcf: number | null;
 }
 

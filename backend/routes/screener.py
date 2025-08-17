@@ -54,25 +54,22 @@ async def screener(
         page,
         SCREENER_TTL,
         lambda symbols=symbols,
-        peg_max=peg_max,
-        pe_max=pe_max,
-        de_max=de_max,
-
-        fcf_min=fcf_min,
-        eps_min=eps_min,
-        gross_margin_min=gross_margin_min,
-        operating_margin_min=operating_margin_min,
-        net_margin_min=net_margin_min,
-        ebitda_margin_min=ebitda_margin_min,
-        roa_min=roa_min,
-        roe_min=roe_min,
-        roi_min=roi_min: [
-
-        lt_de_max=lt_de_max,
-        interest_coverage_min=interest_coverage_min,
-        current_ratio_min=current_ratio_min,
-        quick_ratio_min=quick_ratio_min,
-        fcf_min=fcf_min: [
+               peg_max=peg_max,
+               pe_max=pe_max,
+               de_max=de_max,
+               lt_de_max=lt_de_max,
+               interest_coverage_min=interest_coverage_min,
+               current_ratio_min=current_ratio_min,
+               quick_ratio_min=quick_ratio_min,
+               fcf_min=fcf_min,
+               eps_min=eps_min,
+               gross_margin_min=gross_margin_min,
+               operating_margin_min=operating_margin_min,
+               net_margin_min=net_margin_min,
+               ebitda_margin_min=ebitda_margin_min,
+               roa_min=roa_min,
+               roe_min=roe_min,
+               roi_min=roi_min: [
             r.model_dump()
             for r in screen(
                 symbols,

@@ -100,6 +100,55 @@ def test_prices_refresh():
     assert "status" in resp.json()
 
 
+def test_screener_endpoint(monkeypatch):
+    from backend.screener import Fundamentals
+
+    captured = {}
+
+    def mock_screen(symbols, **kwargs):
+        captured["symbols"] = symbols
+        captured.update(kwargs)
+        return [Fundamentals(ticker="AAA")]
+
+    monkeypatch.setattr("backend.routes.screener.screen", mock_screen)
+    monkeypatch.setattr(
+        "backend.routes.screener.page_cache.schedule_refresh", lambda *a, **k: None
+    )
+    monkeypatch.setattr(
+        "backend.routes.screener.page_cache.is_stale", lambda *a, **k: True
+    )
+    monkeypatch.setattr(
+        "backend.routes.screener.page_cache.load_cache", lambda *a, **k: None
+    )
+
+    resp = client.get(
+        "/screener",
+        params={
+            "tickers": "AAA,BBB",
+            "peg_max": "1",
+            "pe_max": "2",
+            "de_max": "3",
+            "fcf_min": "4",
+            "pb_max": "5",
+            "ps_max": "6",
+            "pc_max": "7",
+            "pfcf_max": "8",
+            "pebitda_max": "9",
+            "ev_ebitda_max": "10",
+            "ev_revenue_max": "11",
+        },
+    )
+    assert resp.status_code == 200
+    assert captured["symbols"] == ["AAA", "BBB"]
+    assert captured["pb_max"] == 5.0
+    assert captured["ps_max"] == 6.0
+    assert captured["pc_max"] == 7.0
+    assert captured["pfcf_max"] == 8.0
+    assert captured["pebitda_max"] == 9.0
+    assert captured["ev_ebitda_max"] == 10.0
+    assert captured["ev_revenue_max"] == 11.0
+
+
 def test_group_instruments():
     groups = client.get("/groups").json()
     slug = groups[0]["slug"]
@@ -211,22 +260,6 @@ def test_alerts_endpoint(monkeypatch):
 #     elif format == "html":
 #         html = resp.text.lower()
 #         assert "<table" in html and "ft time series" in html
-
-def test_screener_endpoint(monkeypatch):
-    from backend.screener import Fundamentals
-
-    def mock_fetch(ticker: str) -> Fundamentals:
-        if ticker == "AAA":
-            return Fundamentals(ticker="AAA", peg_ratio=0.5)
-        return Fundamentals(ticker="BBB", peg_ratio=2.0)
-
-    monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
-
-    resp = client.get("/screener?tickers=AAA,BBB&peg_max=1")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 1
-    assert data[0]["ticker"] == "AAA"
 
 def test_var_endpoint_default():
     owners = client.get("/owners").json()

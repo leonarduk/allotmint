@@ -131,6 +131,13 @@
     "maxPe": "P/E máx",
     "maxDe": "D/E máx",
     "minFcf": "FCF mín",
+    "maxPb": "P/B máx",
+    "maxPs": "P/S máx",
+    "maxPc": "P/C máx",
+    "maxPfcf": "P/FCF máx",
+    "maxPebitda": "P/EBITDA máx",
+    "maxEvEbitda": "EV/EBITDA máx",
+    "maxEvRevenue": "EV/Receita máx",
     "run": "Executar",
     "loading": "Carregando…"
   }

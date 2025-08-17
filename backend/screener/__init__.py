@@ -32,6 +32,13 @@ class Fundamentals(BaseModel):
     pe_ratio: Optional[float] = None
     de_ratio: Optional[float] = None
     fcf: Optional[float] = None
+    pb_ratio: Optional[float] = None
+    ps_ratio: Optional[float] = None
+    pc_ratio: Optional[float] = None
+    pfcf_ratio: Optional[float] = None
+    p_ebitda: Optional[float] = None
+    ev_to_ebitda: Optional[float] = None
+    ev_to_revenue: Optional[float] = None
 
 
 def _parse_float(value: Optional[str]) -> Optional[float]:
@@ -76,7 +83,18 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         pe_ratio=_parse_float(data.get("PERatio")),
         de_ratio=_parse_float(data.get("DebtToEquityTTM")),
         fcf=_parse_float(data.get("FreeCashFlowTTM")),
+        pb_ratio=_parse_float(data.get("PriceToBookRatio")),
+        ps_ratio=_parse_float(data.get("PriceToSalesRatioTTM")),
+        pc_ratio=_parse_float(data.get("PriceToCashFlowRatio")),
+        pfcf_ratio=_parse_float(data.get("PriceToFreeCashFlowTTM")),
+        ev_to_ebitda=_parse_float(data.get("EVToEBITDA")),
+        ev_to_revenue=_parse_float(data.get("EVToRevenue")),
     )
+
+    market_cap = _parse_float(data.get("MarketCapitalization"))
+    ebitda = _parse_float(data.get("EBITDA"))
+    if market_cap is not None and ebitda not in (None, 0):
+        result.p_ebitda = market_cap / ebitda
 
     _CACHE[key] = (now, result)
 
@@ -90,6 +108,13 @@ def screen(
     pe_max: Optional[float] = None,
     de_max: Optional[float] = None,
     fcf_min: Optional[float] = None,
+    pb_max: Optional[float] = None,
+    ps_max: Optional[float] = None,
+    pc_max: Optional[float] = None,
+    pfcf_max: Optional[float] = None,
+    pebitda_max: Optional[float] = None,
+    ev_ebitda_max: Optional[float] = None,
+    ev_revenue_max: Optional[float] = None,
 ) -> List[Fundamentals]:
     """Fetch fundamentals for multiple tickers and filter based on thresholds."""
 
@@ -108,6 +133,26 @@ def screen(
         if de_max is not None and (f.de_ratio is None or f.de_ratio > de_max):
             continue
         if fcf_min is not None and (f.fcf is None or f.fcf < fcf_min):
+            continue
+        if pb_max is not None and (f.pb_ratio is None or f.pb_ratio > pb_max):
+            continue
+        if ps_max is not None and (f.ps_ratio is None or f.ps_ratio > ps_max):
+            continue
+        if pc_max is not None and (f.pc_ratio is None or f.pc_ratio > pc_max):
+            continue
+        if pfcf_max is not None and (f.pfcf_ratio is None or f.pfcf_ratio > pfcf_max):
+            continue
+        if pebitda_max is not None and (
+            f.p_ebitda is None or f.p_ebitda > pebitda_max
+        ):
+            continue
+        if ev_ebitda_max is not None and (
+            f.ev_to_ebitda is None or f.ev_to_ebitda > ev_ebitda_max
+        ):
+            continue
+        if ev_revenue_max is not None and (
+            f.ev_to_revenue is None or f.ev_to_revenue > ev_revenue_max
+        ):
             continue
 
         results.append(f)

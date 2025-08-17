@@ -1,78 +1,26 @@
-# React + TypeScript + Vite
+# AllotMint Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The AllotMint frontend is a React + TypeScript single-page app that visualises family investment data fetched from the backend API.
 
-Currently, two official plugins are available:
+## Interface
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react)
-  uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc)
-  uses [SWC](https://swc.rs/) for Fast Refresh
+* Portfolio viewer for individual owners and groups.
+* Watchlist, screener and other analysis pages.
+* A **Relative view** toggle in the portfolio table hides absolute columns and shows percentage-based metrics such as "Gain %" and "Weight %".
 
-## Expanding the ESLint configuration
+## Development scripts
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+* `npm run dev` – start the Vite development server.
+* `npm test` – execute the test suite with Vitest and Testing Library.
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Configuration
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+Set one of the following environment variables to tell the UI where the backend lives:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+* `VITE_ALLOTMINT_API_BASE` – full base URL to the backend.
+* `VITE_API_URL` – legacy fallback used when `VITE_ALLOTMINT_API_BASE` is unset.
 
-You can also
-install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x)
-and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom)
-for React-specific lint rules:
+If neither is provided the app falls back to `http://localhost:8000`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Runtime feature flags and tab visibility come from the backend's `config.yaml`. See the [backend setup instructions](../README.md#local-quick-start) for configuring and running the server.
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-## Relative view mode
-
-The main portfolio view includes a **Relative view** toggle. When enabled (the default), the holdings table hides the "Units", "Cost £", and "Gain £" columns and instead shows percentage-based metrics such as "Gain %" and a new "Weight %" column indicating each holding's share of the account. Uncheck the toggle to restore the absolute value columns.

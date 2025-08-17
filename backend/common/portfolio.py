@@ -26,6 +26,7 @@ from backend.common.constants import (
 from backend.common.data_loader import (
     list_plots,
     load_account,
+    resolve_paths,
     DATA_BUCKET_ENV,
     PLOTS_PREFIX,
 )
@@ -34,12 +35,14 @@ from backend.common.approvals import load_approvals
 
 
 # ───────────────────────── trades helpers ─────────────────────────
-def _local_trades_path(owner: str) -> Path:
-    return Path(config.accounts_root) / owner / "trades.csv"
+def _local_trades_path(owner: str, accounts_root: Optional[Path] = None) -> Path:
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
+    return root / owner / "trades.csv"
 
 
-def _load_trades_local(owner: str) -> List[Dict[str, Any]]:
-    path = _local_trades_path(owner)
+def _load_trades_local(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
+    path = _local_trades_path(owner, accounts_root)
     if not path.exists():
         return []
     with path.open(newline="", encoding="utf-8") as f:
@@ -66,10 +69,10 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
         return []
 
 
-def load_trades(owner: str) -> List[Dict[str, Any]]:
+def load_trades(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Public helper. Keeps us self-contained so there's no circular dependency."""
     return (
-        _load_trades_local(owner)
+        _load_trades_local(owner, accounts_root)
         if config.app_env == "local"
         else _load_trades_aws(owner)
     )
@@ -86,9 +89,11 @@ def _parse_date(s: str | None) -> Optional[dt.date]:
 
 
 # ─────────────────────── owners utility ──────────────────────────
-def list_owners() -> list[str]:
+def list_owners(accounts_root: Optional[Path] = None) -> list[str]:
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
     owners: list[str] = []
-    for pf in Path(config.accounts_root).glob("*/person.json"):
+    for pf in root.glob("*/person.json"):
         try:
             data = json.loads(pf.read_text())
             slug = data.get("owner") or data.get("slug")
@@ -100,15 +105,15 @@ def list_owners() -> list[str]:
 
 
 # ─────────────────────── owner-level builder ─────────────────────
-def build_owner_portfolio(owner: str) -> Dict[str, Any]:
+def build_owner_portfolio(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, Any]:
     today = dt.date.today()
 
-    plots = [p for p in list_plots() if p.get("owner") == owner]
+    plots = [p for p in list_plots(accounts_root) if p.get("owner") == owner]
     if not plots:
         raise FileNotFoundError(f"No plot for owner '{owner}'")
     accounts_meta = plots[0].get("accounts", [])
 
-    trades = load_trades(owner)
+    trades = load_trades(owner, accounts_root)
     trades_this = 0
     for t in trades:
         d = _parse_date(t.get("date"))
@@ -117,11 +122,11 @@ def build_owner_portfolio(owner: str) -> Dict[str, Any]:
     trades_rem = max(0, config.max_trades_per_month - trades_this)
 
     price_cache: dict[str, float] = {}
-    approvals = load_approvals(owner)
+    approvals = load_approvals(owner, accounts_root)
 
     accounts: List[Dict[str, Any]] = []
     for meta in accounts_meta:
-        raw = load_account(owner, meta)
+        raw = load_account(owner, meta, accounts_root)
         holdings_raw = raw.get("holdings", [])
 
         enriched = [

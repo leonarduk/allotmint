@@ -14,7 +14,7 @@ import logging
 from datetime import date
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.common import (
@@ -50,7 +50,7 @@ class GroupSummary(BaseModel):
 # Simple lists
 # ──────────────────────────────────────────────────────────────
 @router.get("/owners", response_model=List[OwnerSummary])
-async def owners():
+async def owners(request: Request):
     """
     Returns
         [
@@ -59,7 +59,7 @@ async def owners():
           ...
         ]
     """
-    return data_loader.list_plots()
+    return data_loader.list_plots(request.app.state.accounts_root)
 
 
 @router.get("/groups", response_model=List[GroupSummary])
@@ -79,7 +79,7 @@ async def groups():
 # Owner / group portfolios
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio/{owner}")
-async def portfolio(owner: str):
+async def portfolio(owner: str, request: Request):
     """Return the fully expanded portfolio for ``owner``.
 
     The helper function :func:`build_owner_portfolio` loads account data from
@@ -88,7 +88,7 @@ async def portfolio(owner: str):
     """
 
     try:
-        return portfolio_mod.build_owner_portfolio(owner)
+        return portfolio_mod.build_owner_portfolio(owner, request.app.state.accounts_root)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
 

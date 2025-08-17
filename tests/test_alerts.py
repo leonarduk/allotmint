@@ -5,11 +5,13 @@ import pytest
 import backend.common.alerts as alerts
 
 
-def test_publish_alert_requires_config(monkeypatch):
+def test_publish_alert_without_config(monkeypatch, caplog):
     alerts._RECENT_ALERTS.clear()
     monkeypatch.setattr(alerts.config, "sns_topic_arn", None, raising=False)
-    with pytest.raises(RuntimeError):
+    with caplog.at_level("INFO"):
         alerts.publish_sns_alert({"message": "hi"})
+    assert alerts._RECENT_ALERTS[0]["message"] == "hi"
+    assert "SNS topic ARN not configured" in caplog.text
 
 
 def test_publish_alert_success(monkeypatch):

@@ -15,7 +15,8 @@ def publish_sns_alert(alert: Dict) -> None:
     _RECENT_ALERTS.append(alert)
     topic_arn = config.sns_topic_arn
     if not topic_arn:
-        raise RuntimeError("missing SNS configuration")
+        logger.info("SNS topic ARN not configured; skipping publish")
+        return
 
     try:
         import boto3  # type: ignore

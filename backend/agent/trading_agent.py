@@ -46,7 +46,10 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
     """
 
     if publish:
-        publish_alert({"message": message})
+        try:
+            publish_alert({"message": message})
+        except RuntimeError:
+            logger.info("SNS topic ARN not configured; skipping publish")
 
     if (
         os.getenv("TELEGRAM_BOT_TOKEN")

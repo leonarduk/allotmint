@@ -228,34 +228,12 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minDividendYield")}
-          <input
-            aria-label={t("screener.minDividendYield")}
-            type="number"
-            value={dividendYieldMin}
-            onChange={(e) => setDividendYieldMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
           {t("screener.minGrossMargin")}
           <input
             aria-label={t("screener.minGrossMargin")}
             type="number"
             value={grossMarginMin}
             onChange={(e) => setGrossMarginMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.maxDividendPayoutRatio")}
-          <input
-            aria-label={t("screener.maxDividendPayoutRatio")}
-            type="number"
-            value={dividendPayoutRatioMax}
-            onChange={(e) => setDividendPayoutRatioMax(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />
@@ -272,34 +250,12 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.maxBeta")}
-          <input
-            aria-label={t("screener.maxBeta")}
-            type="number"
-            value={betaMax}
-            onChange={(e) => setBetaMax(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
           {t("screener.minNetMargin")}
           <input
             aria-label={t("screener.minNetMargin")}
             type="number"
             value={netMarginMin}
             onChange={(e) => setNetMarginMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minSharesOutstanding")}
-          <input
-            aria-label={t("screener.minSharesOutstanding")}
-            type="number"
-            value={sharesOutstandingMin}
-            onChange={(e) => setSharesOutstandingMin(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />
@@ -316,34 +272,12 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minFloatShares")}
-          <input
-            aria-label={t("screener.minFloatShares")}
-            type="number"
-            value={floatSharesMin}
-            onChange={(e) => setFloatSharesMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
           {t("screener.minRoa")}
           <input
             aria-label={t("screener.minRoa")}
             type="number"
             value={roaMin}
             onChange={(e) => setRoaMin(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.minMarketCap")}
-          <input
-            aria-label={t("screener.minMarketCap")}
-            type="number"
-            value={marketCapMin}
-            onChange={(e) => setMarketCapMin(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />
@@ -360,23 +294,89 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
-          {t("screener.max52WeekHigh")}
-          <input
-            aria-label={t("screener.max52WeekHigh")}
-            type="number"
-            value={high52wMax}
-            onChange={(e) => setHigh52wMax(e.target.value)}
-            step="any"
-            style={{ marginLeft: "0.25rem" }}
-          />
-        </label>
-        <label style={{ marginRight: "0.5rem" }}>
           {t("screener.minRoi")}
           <input
             aria-label={t("screener.minRoi")}
             type="number"
             value={roiMin}
             onChange={(e) => setRoiMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minDividendYield")}
+          <input
+            aria-label={t("screener.minDividendYield")}
+            type="number"
+            value={dividendYieldMin}
+            onChange={(e) => setDividendYieldMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxDividendPayoutRatio")}
+          <input
+            aria-label={t("screener.maxDividendPayoutRatio")}
+            type="number"
+            value={dividendPayoutRatioMax}
+            onChange={(e) => setDividendPayoutRatioMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxBeta")}
+          <input
+            aria-label={t("screener.maxBeta")}
+            type="number"
+            value={betaMax}
+            onChange={(e) => setBetaMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minSharesOutstanding")}
+          <input
+            aria-label={t("screener.minSharesOutstanding")}
+            type="number"
+            value={sharesOutstandingMin}
+            onChange={(e) => setSharesOutstandingMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minFloatShares")}
+          <input
+            aria-label={t("screener.minFloatShares")}
+            type="number"
+            value={floatSharesMin}
+            onChange={(e) => setFloatSharesMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minMarketCap")}
+          <input
+            aria-label={t("screener.minMarketCap")}
+            type="number"
+            value={marketCapMin}
+            onChange={(e) => setMarketCapMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.max52WeekHigh")}
+          <input
+            aria-label={t("screener.max52WeekHigh")}
+            type="number"
+            value={high52wMax}
+            onChange={(e) => setHigh52wMax(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />
@@ -501,14 +501,6 @@ export function Screener() {
                     ? new Intl.NumberFormat(i18n.language).format(r.fcf)
                     : "—"}
                 </td>
-                <td style={right}>{r.eps ?? "—"}</td>
-                <td style={right}>{r.gross_margin ?? "—"}</td>
-                <td style={right}>{r.operating_margin ?? "—"}</td>
-                <td style={right}>{r.net_margin ?? "—"}</td>
-                <td style={right}>{r.ebitda_margin ?? "—"}</td>
-                <td style={right}>{r.roa ?? "—"}</td>
-                <td style={right}>{r.roe ?? "—"}</td>
-                <td style={right}>{r.roi ?? "—"}</td>
                 <td style={right}>{r.dividend_yield ?? "—"}</td>
                 <td style={right}>{r.dividend_payout_ratio ?? "—"}</td>
                 <td style={right}>{r.beta ?? "—"}</td>
@@ -538,6 +530,14 @@ export function Screener() {
                     ? new Intl.NumberFormat(i18n.language).format(r.avg_volume)
                     : "—"}
                 </td>
+                <td style={right}>{r.eps ?? "—"}</td>
+                <td style={right}>{r.gross_margin ?? "—"}</td>
+                <td style={right}>{r.operating_margin ?? "—"}</td>
+                <td style={right}>{r.net_margin ?? "—"}</td>
+                <td style={right}>{r.ebitda_margin ?? "—"}</td>
+                <td style={right}>{r.roa ?? "—"}</td>
+                <td style={right}>{r.roe ?? "—"}</td>
+                <td style={right}>{r.roi ?? "—"}</td>
               </tr>
             ))}
           </tbody>

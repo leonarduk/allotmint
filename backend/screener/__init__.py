@@ -77,8 +77,6 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
     """Return key metrics for ``ticker`` using Alpha Vantage's ``OVERVIEW``
     endpoint, utilising a simple in-memory cache.
     """
-    if not settings.alpha_vantage_enabled:
-        raise RuntimeError("Alpha Vantage fetching disabled via config")
 
     api_key = settings.alpha_vantage_key
     if not api_key:
@@ -199,7 +197,6 @@ def screen(
             continue
         if fcf_min is not None and (f.fcf is None or f.fcf < fcf_min):
             continue
-
         if eps_min is not None and (f.eps is None or f.eps < eps_min):
             continue
         if gross_margin_min is not None and (
@@ -255,6 +252,7 @@ def screen(
             f.avg_volume is None or f.avg_volume < avg_volume_min
         ):
             continue
+
         results.append(f)
 
     return results

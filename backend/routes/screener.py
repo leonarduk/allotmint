@@ -36,6 +36,15 @@ async def screener(
     roa_min: float | None = Query(None),
     roe_min: float | None = Query(None),
     roi_min: float | None = Query(None),
+    dividend_yield_min: float | None = Query(None),
+    dividend_payout_ratio_max: float | None = Query(None),
+    beta_max: float | None = Query(None),
+    shares_outstanding_min: int | None = Query(None),
+    float_shares_min: int | None = Query(None),
+    market_cap_min: int | None = Query(None),
+    high_52w_max: float | None = Query(None),
+    low_52w_min: float | None = Query(None),
+    avg_volume_min: int | None = Query(None),
 ):
     """Return tickers that meet the supplied screening criteria."""
 
@@ -49,6 +58,24 @@ async def screener(
         f"{ebitda_margin_min}|{roa_min}|{roe_min}|{roi_min}"
         f"{peg_max}|{pe_max}|{de_max}|{lt_de_max}|"
         f"{interest_coverage_min}|{current_ratio_min}|{quick_ratio_min}|{fcf_min}"
+    )
+    params = "|".join(
+        [
+            ",".join(symbols),
+            str(peg_max),
+            str(pe_max),
+            str(de_max),
+            str(fcf_min),
+            str(dividend_yield_min),
+            str(dividend_payout_ratio_max),
+            str(beta_max),
+            str(shares_outstanding_min),
+            str(float_shares_min),
+            str(market_cap_min),
+            str(high_52w_max),
+            str(low_52w_min),
+            str(avg_volume_min),
+        ]
     )
     page = "screener_" + hashlib.sha1(params.encode()).hexdigest()
     page_cache.schedule_refresh(

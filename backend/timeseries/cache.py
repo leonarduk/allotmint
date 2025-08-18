@@ -236,7 +236,13 @@ def load_stooq_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame
     )
 
 
-def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
+# Track cache file mtimes to detect updates
+_CACHE_FILE_MTIMES: Dict[str, float] = {}
+
+
+@lru_cache(maxsize=512)
+def _load_meta_timeseries_cached(ticker: str, exchange: str, days: int) -> pd.DataFrame:
+    """LRU-backed loader for Meta timeseries."""
     cache = str(meta_timeseries_cache_path(ticker, exchange))
     return _rolling_cache(
         fetch_meta_timeseries,
@@ -246,6 +252,26 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
         ticker=ticker,
         exchange=exchange,
     )
+
+
+def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
+    """Load Meta timeseries with in-process caching and mutation safety."""
+    global OFFLINE_MODE
+
+    # If offline mode toggles, clear in-memory cache
+    if OFFLINE_MODE != config.offline_mode:
+        OFFLINE_MODE = config.offline_mode
+        _load_meta_timeseries_cached.cache_clear()
+        _CACHE_FILE_MTIMES.clear()
+
+    path = meta_timeseries_cache_path(ticker, exchange)
+    mtime = path.stat().st_mtime if path.exists() else 0.0
+    prev = _CACHE_FILE_MTIMES.get(str(path))
+    if prev is not None and prev != mtime:
+        _load_meta_timeseries_cached.cache_clear()
+    _CACHE_FILE_MTIMES[str(path)] = mtime
+
+    return _load_meta_timeseries_cached(ticker, exchange, days).copy()
 
 # ──────────────────────────────────────────────────────────────
 # In-process LRU for *ranges* (no duplicate IO per request)

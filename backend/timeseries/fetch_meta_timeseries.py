@@ -82,11 +82,6 @@ def fetch_meta_timeseries(
         logger.warning("Ticker pattern looks invalid: %s", ticker)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
-    if not is_valid_ticker(ticker, exchange):
-        logger.info("Skipping unrecognized ticker %s.%s", ticker, exchange)
-        record_skipped_ticker(ticker, exchange, reason="unknown")
-        return pd.DataFrame(columns=STANDARD_COLUMNS)
-
     if end_date is None:
         end_date = date.today() - timedelta(days=1)
     if start_date is None:
@@ -111,6 +106,11 @@ def fetch_meta_timeseries(
         )
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
         return df
+
+    if not is_valid_ticker(ticker, exchange):
+        logger.info("Skipping unrecognized ticker %s.%s", ticker, exchange)
+        record_skipped_ticker(ticker, exchange, reason="unknown")
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     # Weekday grid we want to fill
     expected_dates = set(pd.bdate_range(start_date, end_date).date)

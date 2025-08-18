@@ -139,6 +139,7 @@ describe("App", () => {
           theme: "system",
           relativeViewEnabled: false,
           tabs: { ...allTabs, movers: false },
+          refreshConfig: async () => {},
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
@@ -188,7 +189,12 @@ describe("App", () => {
 
     render(
       <configContext.Provider
-        value={{ theme: "system", relativeViewEnabled: false, tabs: allTabs }}
+        value={{
+          theme: "system",
+          relativeViewEnabled: false,
+          tabs: allTabs,
+          refreshConfig: async () => {},
+        }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
           <App />

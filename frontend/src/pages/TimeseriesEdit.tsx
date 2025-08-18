@@ -36,7 +36,9 @@ function parseCsv(text: string): PriceEntry[] {
           : val === undefined || val === ""
           ? null
           : Number(val);
-      obj[key] = parsed as PriceEntry[typeof key];
+      (
+        obj as Record<keyof PriceEntry, PriceEntry[keyof PriceEntry]>
+      )[key] = parsed as PriceEntry[typeof key];
     });
     return obj as PriceEntry;
   });

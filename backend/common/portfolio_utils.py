@@ -22,6 +22,7 @@ from backend.common import portfolio as portfolio_mod
 from backend.common.portfolio_loader import list_portfolios          # existing helper
 from backend.common.instruments import get_instrument_meta
 from backend.timeseries.cache import load_meta_timeseries_range, load_meta_timeseries
+from backend.utils.timeseries_helpers import get_scaling_override, apply_scaling
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
@@ -416,8 +417,6 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
     and write it to *data/prices/latest_prices.json* in the canonical
     shape used by the rest of the backend.
     """
-    from backend.timeseries.cache import fetch_meta_timeseries
-
     tickers = list_all_unique_tickers()
     snapshot: Dict[str, Dict[str, str | float]] = {}
 
@@ -427,21 +426,34 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             cutoff = today - timedelta(days=days)
             ticker_only, exchange = (t.split(".", 1) + ["L"])[:2]
 
-            df = fetch_meta_timeseries(
-                ticker=ticker_only, exchange=exchange, start_date=cutoff, end_date=today
+            df = load_meta_timeseries_range(
+                ticker=ticker_only,
+                exchange=exchange,
+                start_date=cutoff,
+                end_date=today,
             )
 
             if df is not None and not df.empty:
+                # apply scaling overrides (e.g., GBX -> GBP)
+                scale = get_scaling_override(ticker_only, exchange, None)
+                df = apply_scaling(df, scale)
+                if scale != 1 and "Close_gbp" in df.columns:
+                    df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+
                 # Map lowercase column names to their actual counterparts
                 name_map = {c.lower(): c for c in df.columns}
 
-                # Access the close column in a case-insensitive manner
-                if "close" in name_map:
+                close_col = (
+                    name_map.get("close_gbp")
+                    or name_map.get("close")
+                    or name_map.get("adj close")
+                    or name_map.get("adj_close")
+                )
+                if close_col:
                     latest_row = df.iloc[-1]
-                    close_col = name_map["close"]
                     snapshot[t] = {
                         "last_price": float(latest_row[close_col]),
-                        "last_price_date": latest_row["Date"].strftime("%Y-%m-%d"),
+                        "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
                     }
         except Exception as e:
             logger.warning("Could not get timeseries for %s: %s", t, e)

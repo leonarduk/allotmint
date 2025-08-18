@@ -83,14 +83,18 @@ describe("Screener & Query page", () => {
     });
     fireEvent.change(screen.getByLabelText(en.screener.minRoe), {
       target: { value: "5" },
-    fireEvent.change(screen.getByLabelText(en.screener.minDividendYield), {
-      target: { value: "1" },
     });
 
     fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
 
     expect(await screen.findByText("1,000")).toBeInTheDocument();
     expect(getScreener).toHaveBeenCalledWith(["AAA"], { peg_max: 2, roe_min: 5 });
+
+    fireEvent.change(screen.getByLabelText(en.screener.minDividendYield), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
+
     expect(await screen.findByText("1.2")).toBeInTheDocument();
     expect(getScreener).toHaveBeenCalledWith(["AAA"], {
       peg_max: 2,

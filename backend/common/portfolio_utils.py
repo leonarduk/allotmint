@@ -237,13 +237,18 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             tkr = (h.get("ticker") or "").upper()
             if not tkr:
                 continue
-            meta = get_instrument_meta(tkr)
+
+            sym, inferred = (tkr.split(".", 1) + [None])[:2]
+            exch = (h.get("exchange") or inferred or "L").upper()
+            full_tkr = f"{sym}.{exch}"
+
+            meta = get_instrument_meta(full_tkr)
 
             row = rows.setdefault(
-                tkr,
+                full_tkr,
                 {
-                    "ticker":           tkr,
-                    "name":             meta.get("name") or h.get("name", tkr),
+                    "ticker":           full_tkr,
+                    "name":             meta.get("name") or h.get("name", full_tkr),
                     "currency":         meta.get("currency") or h.get("currency"),
                     "units":            0.0,
                     "market_value_gbp": 0.0,
@@ -262,7 +267,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             row["units"] += _safe_num(h.get("units"))
 
             if row.get("currency") is None:
-                meta = get_security_meta(tkr)
+                meta = get_security_meta(full_tkr)
                 if meta and meta.get("currency"):
                     row["currency"] = meta["currency"]
 
@@ -280,7 +285,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
 
             # attach snapshot if present – overrides derived values above
-            snap = _PRICE_SNAPSHOT.get(tkr)
+            snap = _PRICE_SNAPSHOT.get(full_tkr)
             price = snap.get("last_price") if isinstance(snap, dict) else None
             if price and price == price:  # guard against None/NaN/0
                 row["last_price_gbp"] = price
@@ -344,8 +349,10 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
             units = _safe_num(h.get("units"))
             if not units:
                 continue
-            exch = (h.get("exchange") or "L").upper()
-            holdings.append((tkr.split(".", 1)[0], exch, units))
+
+            sym, inferred = (tkr.split(".", 1) + [None])[:2]
+            exch = (h.get("exchange") or inferred or "L").upper()
+            holdings.append((sym, exch, units))
 
     if not holdings:
         return {"history": [], "max_drawdown": None}

@@ -9,9 +9,11 @@ by FastAPI.
 
 import asyncio
 import logging
+import os
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Security, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 
 from backend.routes.instrument import router as instrument_router
 from backend.routes.portfolio import router as portfolio_router
@@ -39,7 +41,22 @@ from backend.common.portfolio_utils import (
     refresh_snapshot_in_memory,
 )
 from backend.config import config
+from backend.common.data_loader import resolve_paths
 from backend.utils import page_cache
+
+
+API_TOKEN = os.getenv("API_TOKEN")
+api_key_header = APIKeyHeader(name="X-API-Token", auto_error=False)
+
+
+async def require_token(token: str = Security(api_key_header)) -> None:
+    """Validate the provided API token if authentication is configured."""
+
+    if API_TOKEN and token != API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API token",
+        )
 
 
 def create_app() -> FastAPI:
@@ -56,35 +73,41 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Allotmint API", version="1.0", docs_url="/docs")
     app.state.background_tasks = []
 
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    app.state.repo_root = paths.repo_root
+    app.state.accounts_root = paths.accounts_root
+    app.state.virtual_pf_root = paths.virtual_pf_root
+
     # ───────────────────────────── CORS ─────────────────────────────
-    # During development the frontend often runs on a different origin. We
-    # therefore allow every origin/method/header. A production deployment
-    # should tighten these values.
+    # The frontend origin varies by environment. Read the whitelist from
+    # configuration and fall back to permissive settings during development.
+    cors_origins = config.cors_origins or ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.
-    # They are registered here on the main application instance.
-    app.include_router(portfolio_router)
+    # Sensitive routes are guarded by a simple API-token dependency.
+    protected = [Depends(require_token)]
+    app.include_router(portfolio_router, dependencies=protected)
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
     app.include_router(timeseries_edit_router)
     app.include_router(timeseries_admin_router)
-    app.include_router(transactions_router)
+    app.include_router(transactions_router, dependencies=protected)
     app.include_router(alerts_router)
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(support_router)
     app.include_router(query_router)
-    app.include_router(virtual_portfolio_router)
+    app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)
     app.include_router(agent_router)
-    app.include_router(trading_agent_router)
+    app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(movers_router)

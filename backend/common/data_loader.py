@@ -5,37 +5,43 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import os
-from typing import Any, Dict, List
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 from backend.config import config
 
 from backend.common.virtual_portfolio import VirtualPortfolio
 
+
 # ------------------------------------------------------------------
 # Paths
 # ------------------------------------------------------------------
-if config.repo_root and ":" not in str(config.repo_root) and Path(config.repo_root).exists():
-    REPO_ROOT = Path(config.repo_root)
-else:
-    REPO_ROOT = Path(__file__).resolve().parents[2]
+@dataclass(frozen=True)
+class ResolvedPaths:
+    repo_root: Path
+    accounts_root: Path
+    virtual_pf_root: Path
 
-# Ensure other modules see the resolved repo root
-try:
-    config.repo_root = REPO_ROOT
-except Exception:
-    pass
 
-if config.accounts_root and ":" not in str(config.accounts_root) and Path(config.accounts_root).exists():
-    DATA_ROOT = Path(config.accounts_root)
-else:
-    DATA_ROOT = REPO_ROOT / "data" / "accounts"
+def resolve_paths(
+    repo_root: Optional[Path | str] = None,
+    accounts_root: Optional[Path | str] = None,
+) -> ResolvedPaths:
+    """Return fully resolved repository and accounts paths."""
 
-# Ensure other modules see the resolved accounts root
-try:
-    config.accounts_root = DATA_ROOT
-except Exception:
-    pass
-_VIRTUAL_PF_ROOT = REPO_ROOT / "data" / "virtual_portfolios"
+    if repo_root and ":" not in str(repo_root) and Path(repo_root).exists():
+        repo_path = Path(repo_root)
+    else:
+        repo_path = Path(__file__).resolve().parents[2]
+
+    if accounts_root and ":" not in str(accounts_root) and Path(accounts_root).exists():
+        accounts_path = Path(accounts_root)
+    else:
+        accounts_path = repo_path / "data" / "accounts"
+
+    virtual_root = repo_path / "data" / "virtual_portfolios"
+    return ResolvedPaths(repo_path, accounts_path, virtual_root)
+
 
 # For future AWS use
 DATA_BUCKET_ENV = "DATA_BUCKET"
@@ -48,12 +54,14 @@ PLOTS_PREFIX = "accounts/"
 _METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
 
 
-def _list_local_plots() -> List[Dict[str, Any]]:
+def _list_local_plots(data_root: Optional[Path] = None) -> List[Dict[str, Any]]:
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = data_root or paths.accounts_root
     results: List[Dict[str, Any]] = []
-    if not DATA_ROOT.exists():
+    if not root.exists():
         return results
 
-    for owner_dir in sorted(DATA_ROOT.iterdir()):
+    for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
             continue
 
@@ -147,10 +155,10 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
 # ------------------------------------------------------------------
 # Public discovery API
 # ------------------------------------------------------------------
-def list_plots() -> List[Dict[str, Any]]:
+def list_plots(data_root: Optional[Path] = None) -> List[Dict[str, Any]]:
     if config.app_env == "aws":
         return _list_aws_plots()
-    return _list_local_plots()
+    return _list_local_plots(data_root)
 
 
 # ------------------------------------------------------------------
@@ -169,7 +177,11 @@ def _safe_json_load(path: Path) -> Dict[str, Any]:
 # ------------------------------------------------------------------
 # Account loaders
 # ------------------------------------------------------------------
-def load_account(owner: str, account: str) -> Dict[str, Any]:
+def load_account(
+    owner: str,
+    account: str,
+    data_root: Optional[Path] = None,
+) -> Dict[str, Any]:
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
@@ -188,11 +200,13 @@ def load_account(owner: str, account: str) -> Dict[str, Any]:
             raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
         return json.loads(txt)
 
-    path = DATA_ROOT / owner / f"{account}.json"
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = data_root or paths.accounts_root
+    path = root / owner / f"{account}.json"
     return _safe_json_load(path)
 
 
-def load_person_meta(owner: str) -> Dict[str, Any]:
+def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:
     """Load per-owner metadata (dob, etc.). Returns {} if not found."""
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
@@ -209,7 +223,9 @@ def load_person_meta(owner: str) -> Dict[str, Any]:
             return json.loads(txt)
         except Exception:
             return {}
-    path = DATA_ROOT / owner / "person.json"
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = data_root or paths.accounts_root
+    path = root / owner / "person.json"
     if not path.exists():
         return {}
     try:
@@ -223,23 +239,29 @@ def load_person_meta(owner: str) -> Dict[str, Any]:
 # ------------------------------------------------------------------
 
 
-def _virtual_portfolio_path(name: str) -> Path:
-    return _VIRTUAL_PF_ROOT / f"{name}.json"
+def _virtual_portfolio_path(name: str, root: Optional[Path] = None) -> Path:
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    vf_root = root or paths.virtual_pf_root
+    return vf_root / f"{name}.json"
 
 
-def list_virtual_portfolios() -> list[str]:
-    if not _VIRTUAL_PF_ROOT.exists():
+def list_virtual_portfolios(root: Optional[Path] = None) -> list[str]:
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    vf_root = root or paths.virtual_pf_root
+    if not vf_root.exists():
         return []
-    return sorted(p.stem for p in _VIRTUAL_PF_ROOT.glob("*.json"))
+    return sorted(p.stem for p in vf_root.glob("*.json"))
 
 
-def load_virtual_portfolio(name: str) -> VirtualPortfolio:
-    path = _virtual_portfolio_path(name)
+def load_virtual_portfolio(name: str, root: Optional[Path] = None) -> VirtualPortfolio:
+    path = _virtual_portfolio_path(name, root)
     data = _safe_json_load(path)
     return VirtualPortfolio.model_validate(data)
 
 
-def save_virtual_portfolio(pf: VirtualPortfolio) -> None:
-    _VIRTUAL_PF_ROOT.mkdir(parents=True, exist_ok=True)
-    path = _virtual_portfolio_path(pf.name)
+def save_virtual_portfolio(pf: VirtualPortfolio, root: Optional[Path] = None) -> None:
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    vf_root = root or paths.virtual_pf_root
+    vf_root.mkdir(parents=True, exist_ok=True)
+    path = vf_root / f"{pf.name}.json"
     path.write_text(pf.model_dump_json(indent=2))

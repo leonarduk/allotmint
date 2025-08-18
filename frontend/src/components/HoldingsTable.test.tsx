@@ -14,8 +14,10 @@ const defaultConfig: AppConfig = {
         timeseries: true,
         watchlist: true,
         movers: true,
+        dataadmin: true,
         virtual: true,
         support: true,
+        scenario: true,
     },
 };
 import type { Holding } from "../types";
@@ -86,7 +88,9 @@ describe("HoldingsTable", () => {
 
     const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig>) =>
         render(
-            <configContext.Provider value={{ ...defaultConfig, ...cfg }}>
+            <configContext.Provider
+                value={{ ...defaultConfig, ...cfg, refreshConfig: async () => {} }}
+            >
                 {ui}
             </configContext.Provider>,
         );

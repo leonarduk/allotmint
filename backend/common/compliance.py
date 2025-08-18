@@ -4,11 +4,12 @@ import json
 from collections import defaultdict
 from datetime import datetime, date
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from backend.config import config
 from backend.common.approvals import load_approvals, is_approval_valid
 from backend.common.instruments import get_instrument_meta
+from backend.common.data_loader import resolve_paths
 
 
 def _parse_date(val: str | None) -> date | None:
@@ -20,7 +21,7 @@ def _parse_date(val: str | None) -> date | None:
         return None
 
 
-def load_transactions(owner: str) -> List[Dict[str, Any]]:
+def load_transactions(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Load all transactions for ``owner`` sorted by date.
 
     Raises
@@ -28,7 +29,9 @@ def load_transactions(owner: str) -> List[Dict[str, Any]]:
     FileNotFoundError
         If the owner's directory does not exist.
     """
-    owner_dir = Path(config.accounts_root) / owner
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
+    owner_dir = root / owner
     if not owner_dir.exists():
         raise FileNotFoundError(owner)
 
@@ -50,11 +53,11 @@ def load_transactions(owner: str) -> List[Dict[str, Any]]:
     return results
 
 
-def check_owner(owner: str) -> Dict[str, Any]:
+def check_owner(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, Any]:
     """Return compliance warnings for an owner."""
-    txs = load_transactions(owner)
+    txs = load_transactions(owner, accounts_root)
     warnings: List[str] = []
-    approvals = load_approvals(owner)
+    approvals = load_approvals(owner, accounts_root)
     exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
     exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
 

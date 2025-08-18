@@ -1,76 +1,48 @@
-"""Quote snapshot endpoint using Yahoo Finance."""
-
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
-from typing import List, Dict, Any
-import logging
+"""Quotes API backed by `yfinance`.
 
-from fastapi import APIRouter, Query, HTTPException
+This module exposes a single endpoint that fetches the latest quotes for the
+requested symbols using ``yfinance``.  It intentionally registers the imported
+``yfinance`` module as ``backend.routes.quotes.yf`` in ``sys.modules`` so that
+tests can monkeypatch ``yf.Tickers`` using a dotted import path.
+"""
+
+import sys
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, HTTPException, Query
 import yfinance as yf
 
+# Expose ``yf`` as a submodule for monkeypatching in tests
+sys.modules[__name__ + ".yf"] = yf
+
+
 router = APIRouter(prefix="/api")
-log = logging.getLogger("routes.quotes")
-
-
-def _fetch(symbols: List[str]) -> List[Dict[str, Any]]:
-    try:
-        tickers = yf.Tickers(" ".join(symbols))
-    except Exception as exc:
-        log.exception("yf.Tickers failed for %s", symbols)
-        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {exc}") from exc
-    results: List[Dict[str, Any]] = []
-    for sym in symbols:
-        t = tickers.tickers.get(sym)
-        if not t:
-            continue
-        try:
-            fast = t.fast_info
-        except Exception:
-            fast = {}
-        name = None
-        try:
-            info = t.info
-            name = info.get("shortName") or info.get("longName")
-        except Exception:
-            name = None
-        last = fast.get("lastPrice") or fast.get("last_price")
-        open_ = fast.get("open")
-        high = fast.get("dayHigh") or fast.get("day_high")
-        low = fast.get("dayLow") or fast.get("day_low")
-        prev_close = fast.get("previousClose") or fast.get("regularMarketPreviousClose")
-        change = (last - prev_close) if (last is not None and prev_close is not None) else None
-        change_pct = (
-            (change / prev_close * 100) if (change is not None and prev_close not in (0, None)) else None
-        )
-        volume = fast.get("lastVolume") or fast.get("regularMarketVolume")
-        ts = fast.get("regularMarketTime")
-        if ts:
-            dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
-            ts_iso = dt.isoformat().replace("+00:00", "Z")
-        else:
-            ts_iso = None
-        results.append(
-            {
-                "name": name,
-                "symbol": sym,
-                "last": float(last) if last is not None else None,
-                "open": float(open_) if open_ is not None else None,
-                "high": float(high) if high is not None else None,
-                "low": float(low) if low is not None else None,
-                "change": float(change) if change is not None else None,
-                "changePct": float(change_pct) if change_pct is not None else None,
-                "volume": int(volume) if volume is not None else None,
-                "time": ts_iso,
-            }
-        )
-    return results
 
 
 @router.get("/quotes")
 async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
-    syms = [s.strip() for s in symbols.split(",") if s.strip()]
+    """Return quote data for the provided comma-separated ``symbols``."""
+
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not syms:
         return []
-    return await asyncio.to_thread(_fetch, syms)
+
+    try:
+        tickers = yf.Tickers(" ".join(syms)).tickers
+    except Exception as exc:  # pragma: no cover - exercised in tests
+        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {exc}") from exc
+
+    results: List[Dict[str, Any]] = []
+    for sym in syms:
+        ticker = tickers.get(sym)
+        if ticker is None:
+            continue
+        info = getattr(ticker, "info", {})
+        price = info.get("regularMarketPrice")
+        if price is not None:
+            results.append({"symbol": sym, "price": price})
+
+    return results
+

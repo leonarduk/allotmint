@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from backend.config import config
+from backend.common.data_loader import resolve_paths
 
 
-def load_approvals(owner: str) -> Dict[str, date]:
+def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, date]:
     """Return mapping of ticker -> approval date for ``owner``.
 
     Expects ``approvals.json`` in the owner's accounts directory containing either
@@ -18,7 +19,9 @@ def load_approvals(owner: str) -> Dict[str, date]:
     ``"approvals"`` containing that list.  Ticker symbols are normalised to
     uppercase.
     """
-    path = Path(config.accounts_root) / owner / "approvals.json"
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
+    path = root / owner / "approvals.json"
     if not path.exists():
         return {}
     try:

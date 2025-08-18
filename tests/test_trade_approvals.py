@@ -37,12 +37,11 @@ def test_compliance_checks_approval(monkeypatch, tmp_path):
         ],
     }
     (owner_dir / "isa_transactions.json").write_text(json.dumps(txs))
-    monkeypatch.setattr(config, "accounts_root", tmp_path)
 
-    res = check_owner("bob")
+    res = check_owner("bob", accounts_root=tmp_path)
     assert any("without approval" in w.lower() for w in res["warnings"])
 
     approvals = {"approvals": [{"ticker": "ADM.L", "approved_on": "2024-06-04"}]}
     (owner_dir / "approvals.json").write_text(json.dumps(approvals))
-    res = check_owner("bob")
+    res = check_owner("bob", accounts_root=tmp_path)
     assert not any("without approval" in w.lower() for w in res["warnings"])

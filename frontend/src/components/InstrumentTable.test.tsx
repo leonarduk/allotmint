@@ -14,8 +14,10 @@ const defaultConfig: AppConfig = {
         timeseries: true,
         watchlist: true,
         movers: true,
+        dataadmin: true,
         virtual: true,
         support: true,
+        scenario: true,
     },
 };
 
@@ -138,7 +140,13 @@ describe("InstrumentTable", () => {
 
     it("hides absolute columns in relative view", () => {
         render(
-            <configContext.Provider value={{ ...defaultConfig, relativeViewEnabled: true }}>
+            <configContext.Provider
+                value={{
+                    ...defaultConfig,
+                    relativeViewEnabled: true,
+                    refreshConfig: async () => {},
+                }}
+            >
                 <InstrumentTable rows={rows} />
             </configContext.Provider>,
         );

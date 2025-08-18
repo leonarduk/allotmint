@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
 import i18n from "../i18n";
@@ -20,14 +20,18 @@ const defaultConfig: AppConfig = {
     timeseries: true,
     watchlist: true,
     movers: true,
+    dataadmin: true,
     virtual: true,
     support: true,
+    scenario: true,
   },
 };
 
 const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) =>
   render(
-    <configContext.Provider value={{ ...defaultConfig, ...cfg }}>
+    <configContext.Provider
+      value={{ ...defaultConfig, ...cfg, refreshConfig: async () => {} }}
+    >
       {ui}
     </configContext.Provider>,
   );
@@ -223,7 +227,9 @@ describe("GroupPortfolioView", () => {
     expect(valueEl).toHaveTextContent("£300.00");
 
     const bobCheckbox = screen.getByLabelText(/bob isa/i);
-    fireEvent.click(bobCheckbox);
+    await act(async () => {
+      fireEvent.click(bobCheckbox);
+    });
     await waitFor(() => {
       expect(valueEl).toHaveTextContent("£100.00");
     });

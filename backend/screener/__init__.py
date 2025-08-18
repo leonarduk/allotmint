@@ -252,7 +252,6 @@ def screen(
             f.avg_volume is None or f.avg_volume < avg_volume_min
         ):
             continue
-
         results.append(f)
 
     return results

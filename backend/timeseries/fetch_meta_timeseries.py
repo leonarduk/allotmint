@@ -210,6 +210,7 @@ def run_all_tickers(
                 ok.append(t)
         except Exception as exc:
             logger.warning("[WARN] %s: %s", t, exc)
+    logger.info("Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok))
     return ok
 
 
@@ -226,6 +227,9 @@ def load_timeseries_data(
                 out[t] = df
         except Exception as exc:
             logger.warning("Load fail %s: %s", t, exc)
+    logger.info(
+        "Bulk load complete: %d updated, %d skipped", len(out), len(tickers) - len(out)
+    )
     return out
 
 

@@ -141,7 +141,7 @@ def _rolling_cache(
     exchange: str,
 ) -> pd.DataFrame:
 
-    logger.info("Rolling cache: %s", cache_path)
+    logger.debug("Rolling cache: %s", cache_path)
     # Only look up to yesterday (we have close prices only)
     cutoff, today = _weekday_range(datetime.today().date() - timedelta(days=1), days)
 

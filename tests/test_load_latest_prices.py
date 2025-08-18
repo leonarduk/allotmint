@@ -23,3 +23,15 @@ def test_load_latest_prices_selects_close_column(monkeypatch, data, expected):
 
     prices = holding_utils.load_latest_prices(["ABC.L"])
     assert prices["ABC.L"] == expected
+
+
+def test_load_latest_prices_applies_scaling(monkeypatch):
+    df = pd.DataFrame({"Date": [1], "Close": [20.0]})
+
+    monkeypatch.setattr(
+        holding_utils, "load_meta_timeseries_range", lambda *a, **k: df
+    )
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.5)
+
+    prices = holding_utils.load_latest_prices(["ABC.L"])
+    assert prices["ABC.L"] == 10.0

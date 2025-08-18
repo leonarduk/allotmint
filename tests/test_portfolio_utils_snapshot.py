@@ -3,7 +3,6 @@ from datetime import date
 import pandas as pd
 
 from backend.common import portfolio_utils
-from backend.timeseries import cache as ts_cache
 
 
 def test_refresh_snapshot_case_insensitive_close(monkeypatch, tmp_path):
@@ -12,7 +11,8 @@ def test_refresh_snapshot_case_insensitive_close(monkeypatch, tmp_path):
     df = pd.DataFrame({"Date": [pd.Timestamp(today)], "Close": [123.45]})
 
     monkeypatch.setattr(portfolio_utils, "list_all_unique_tickers", lambda: [ticker])
-    monkeypatch.setattr(ts_cache, "fetch_meta_timeseries", lambda **kwargs: df)
+    monkeypatch.setattr(portfolio_utils, "load_meta_timeseries_range", lambda **kwargs: df)
+    monkeypatch.setattr(portfolio_utils, "get_scaling_override", lambda *a, **k: 1)
     monkeypatch.setattr(portfolio_utils, "_PRICES_PATH", tmp_path / "latest_prices.json")
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
 
@@ -35,7 +35,8 @@ def test_refresh_snapshot_skips_missing_close(monkeypatch, tmp_path):
     df = pd.DataFrame({"Date": [pd.Timestamp(today)], "High": [1.23]})
 
     monkeypatch.setattr(portfolio_utils, "list_all_unique_tickers", lambda: [ticker])
-    monkeypatch.setattr(ts_cache, "fetch_meta_timeseries", lambda **kwargs: df)
+    monkeypatch.setattr(portfolio_utils, "load_meta_timeseries_range", lambda **kwargs: df)
+    monkeypatch.setattr(portfolio_utils, "get_scaling_override", lambda *a, **k: 1)
     monkeypatch.setattr(portfolio_utils, "_PRICES_PATH", tmp_path / "latest_prices.json")
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
 

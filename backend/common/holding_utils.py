@@ -81,6 +81,12 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 # no data -> don't write a zero; just continue
                 continue
 
+            # apply instrument-specific scaling (e.g., GBX -> GBP)
+            scale = get_scaling_override(ticker, exchange, None)
+            df = apply_scaling(df, scale)
+            if scale != 1 and "Close_gbp" in df.columns:
+                df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+
             # prefer GBP-close column if present
             close_col = None
             for col in ("Close_gbp", "Close", "close_gbp", "close"):

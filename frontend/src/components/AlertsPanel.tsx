@@ -14,11 +14,21 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
     if (threshold !== undefined) setAlertSettings(user, threshold);
   };
 
-  if (loading || error || !alerts?.length) return null;
+  if (loading || error || !alerts) return null;
+
+  const importAlert = alerts.find((a) => a.ticker === "TRADES");
+  const otherAlerts = alerts.filter((a) => a.ticker !== "TRADES");
+
+  if (!importAlert && otherAlerts.length === 0) return null;
 
   return (
     <div style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "1rem" }}>
       <strong>Alerts</strong>
+      {importAlert && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <em>{importAlert.message}</em>
+        </div>
+      )}
       <div style={{ marginTop: "0.5rem" }}>
         <label>
           Threshold %:{" "}
@@ -33,13 +43,15 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
           Save
         </button>
       </div>
-      <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
-        {alerts.map((a, i) => (
-          <li key={i}>
-            <strong>{a.ticker}</strong>: {a.message}
-          </li>
-        ))}
-      </ul>
+      {otherAlerts.length > 0 && (
+        <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+          {otherAlerts.map((a, i) => (
+            <li key={i}>
+              <strong>{a.ticker}</strong>: {a.message}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

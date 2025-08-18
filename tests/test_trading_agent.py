@@ -1,6 +1,8 @@
 import pytest
+import shutil
 from backend.common import portfolio_utils
 from backend.agent.trading_agent import send_trade_alert, run
+from backend.agent import trading_agent
 
 # Alias to match the terminology of "generate_signals"
 generate_signals = portfolio_utils.check_price_alerts
@@ -179,3 +181,16 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
     run()
 
     assert sent and "AAA" in sent[0]
+
+
+def test_log_trade_recreates_directory(tmp_path, monkeypatch):
+    trade_path = tmp_path / "trades" / "trade_log.csv"
+    trade_path.parent.mkdir(parents=True)
+    shutil.rmtree(trade_path.parent)
+    monkeypatch.setattr(trading_agent, "TRADE_LOG_PATH", trade_path)
+
+    assert not trade_path.parent.exists()
+
+    trading_agent._log_trade("AAA", "BUY", 1.0)
+
+    assert trade_path.exists()

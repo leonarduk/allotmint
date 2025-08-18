@@ -38,22 +38,46 @@ def _nearest_weekday(d: dt.date, forward: bool) -> dt.date:
     return d
 
 
-def _resolve_full_ticker(ticker: str, latest: Dict[str, float]) -> Optional[str]:
+def _build_exchange_map(tickers: List[str]) -> Dict[str, str]:
+    mapping: Dict[str, str] = {}
+    for t in tickers:
+        sym, ex = (t.split(".", 1) + [None])[:2]
+        if ex:
+            mapping[sym.upper()] = ex.upper()
+            continue
+        meta = get_security_meta(t)
+        ex_meta = meta.get("exchange") if meta else None
+        if ex_meta:
+            mapping[sym.upper()] = ex_meta.upper()
+    return mapping
+
+
+def _resolve_full_ticker(ticker: str, latest: Dict[str, float]) -> Optional[tuple[str, str]]:
     """
-    Prefer exact key in latest prices (e.g., 'XDEV.L'); otherwise match by base symbol.
+    Return `(symbol, exchange)` for *ticker*.
+    Prefer exact key in latest prices; otherwise consult cached portfolio metadata.
     """
     t = (ticker or "").upper()
-    if t in latest:
-        return t
+    if not t:
+        return None
+    if "." in t:
+        sym, ex = t.split(".", 1)
+        return sym, ex
     base = t.split(".", 1)[0]
     for k in latest.keys():
-        if k.split(".", 1)[0] == base:
-            return k
+        sym, ex = (k.split(".", 1) + [None])[:2]
+        if sym == base and ex:
+            return sym, ex
+    ex = _TICKER_EXCHANGE_MAP.get(base)
+    if ex:
+        return base, ex
     return None
 
 
 # Load once; callers can restart process to refresh or we can add a reload later.
-_LATEST_PRICES: Dict[str, float] = load_latest_prices(list_all_unique_tickers())
+_ALL_TICKERS: List[str] = list_all_unique_tickers()
+_TICKER_EXCHANGE_MAP: Dict[str, str] = _build_exchange_map(_ALL_TICKERS)
+_LATEST_PRICES: Dict[str, float] = load_latest_prices(_ALL_TICKERS)
 
 
 # ───────────────────────────────────────────────────────────────
@@ -67,8 +91,10 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
     if not ticker:
         return []
 
-    full = _resolve_full_ticker(ticker, _LATEST_PRICES) or ticker.upper()
-    sym, ex = (full.split(".", 1) + ["L"])[:2]
+    resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
+    if not resolved:
+        return []
+    sym, ex = resolved
 
     # Only fetch if not cached
     if not has_cached_meta_timeseries(sym, ex):
@@ -117,9 +143,8 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
 # Last price + %-changes helpers
 # ───────────────────────────────────────────────────────────────
 
-def _close_on(full: str, d: dt.date) -> Optional[float]:
-    """Return close price for ``full`` ticker on date ``d`` if available."""
-    sym, ex = (full.split(".", 1) + ["L"])[:2]
+def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
+    """Return close price for ``sym.ex`` ticker on date ``d`` if available."""
     snap = _nearest_weekday(d, forward=False)
     df = load_meta_timeseries_range(sym, ex, start_date=snap, end_date=snap)
     if df is None or df.empty:
@@ -139,12 +164,13 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
     today = dt.date.today()
     yday = today - dt.timedelta(days=1)
 
-    full = _resolve_full_ticker(ticker, _LATEST_PRICES)
-    if not full:
+    resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
+    if not resolved:
         return None
 
-    px_now = _close_on(full, yday)
-    px_then = _close_on(full, yday - dt.timedelta(days=days))
+    sym, ex = resolved
+    px_now = _close_on(sym, ex, yday)
+    px_then = _close_on(sym, ex, yday - dt.timedelta(days=days))
     if px_now is None or px_then is None or px_then == 0:
         return None
     return (px_now / px_then - 1.0) * 100.0
@@ -160,8 +186,12 @@ def top_movers(tickers: List[str], days: int, limit: int = 10) -> Dict[str, List
         change = price_change_pct(t, days)
         if change is None:
             continue
-        full = _resolve_full_ticker(t, _LATEST_PRICES) or t.upper()
-        last_px = _close_on(full, yday)
+        resolved = _resolve_full_ticker(t, _LATEST_PRICES)
+        if not resolved:
+            continue
+        sym, ex = resolved
+        full = f"{sym}.{ex}" if ex else sym
+        last_px = _close_on(sym, ex, yday)
         meta = get_security_meta(full) or {}
         rows.append(
             {
@@ -186,16 +216,16 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
     today = dt.date.today()
     yday = today - dt.timedelta(days=1)
 
-    full = _resolve_full_ticker(ticker, _LATEST_PRICES)
-    if not full:
+    resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
+    if not resolved:
         return {
             "last_price_gbp": None,
             "last_price_date": None,
             "change_7d_pct": None,
             "change_30d_pct": None,
         }
-
-    last_px = _close_on(full, yday)
+    sym, ex = resolved
+    last_px = _close_on(sym, ex, yday)
 
     return {
         "last_price_gbp": last_px,

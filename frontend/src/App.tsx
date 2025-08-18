@@ -28,6 +28,7 @@ import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
+import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
 
 type Mode =
@@ -388,6 +389,7 @@ export default function App() {
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}
+      {mode === "support" && <Support />}
       {mode === "scenario" && <ScenarioTester />}
     </div>
   );

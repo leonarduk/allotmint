@@ -36,6 +36,15 @@ async def screener(
     roa_min: float | None = Query(None),
     roe_min: float | None = Query(None),
     roi_min: float | None = Query(None),
+    dividend_yield_min: float | None = Query(None),
+    dividend_payout_ratio_max: float | None = Query(None),
+    beta_max: float | None = Query(None),
+    shares_outstanding_min: int | None = Query(None),
+    float_shares_min: int | None = Query(None),
+    market_cap_min: int | None = Query(None),
+    high_52w_max: float | None = Query(None),
+    low_52w_min: float | None = Query(None),
+    avg_volume_min: int | None = Query(None),
 ):
     """Return tickers that meet the supplied screening criteria."""
 
@@ -43,11 +52,37 @@ async def screener(
     if not symbols:
         raise HTTPException(status_code=400, detail="No tickers supplied")
 
-    params = (
-        f"{','.join(symbols)}|{peg_max}|{pe_max}|{de_max}|{fcf_min}|"
-        f"{eps_min}|{gross_margin_min}|{operating_margin_min}|{net_margin_min}|"
-        f"{ebitda_margin_min}|{roa_min}|{roe_min}|{roi_min}|{lt_de_max}|"
-        f"{interest_coverage_min}|{current_ratio_min}|{quick_ratio_min}|{fcf_min}"
+    params = "|".join(
+        [
+            ",".join(symbols),
+            str(peg_max),
+            str(pe_max),
+            str(de_max),
+            str(fcf_min),
+            str(eps_min),
+            str(fcf_min),
+            str(gross_margin_min),
+            str(operating_margin_min),
+            str(net_margin_min),        
+            str(ebitda_margin_min),
+            str(roa_min),
+            str(roe_min),
+            str(roi_min),
+            str(lt_de_max),
+            str(interest_coverage_min),
+            str(current_ratio_min),
+            str(quick_ratio_min),
+            str(fcf_min),
+            str(dividend_yield_min),
+            str(dividend_payout_ratio_max),
+            str(beta_max),
+            str(shares_outstanding_min),
+            str(float_shares_min),
+            str(market_cap_min),
+            str(high_52w_max),
+            str(low_52w_min),
+            str(avg_volume_min),
+        ]
     )
     page = "screener_" + hashlib.sha1(params.encode()).hexdigest()
     page_cache.schedule_refresh(
@@ -58,7 +93,8 @@ async def screener(
       peg_max=peg_max,
         pe_max=pe_max,
         de_max=de_max,
-        lt_de_max=lt_de_max,
+
+      lt_de_max=lt_de_max,
         interest_coverage_min=interest_coverage_min,
         current_ratio_min=current_ratio_min,
         quick_ratio_min=quick_ratio_min,
@@ -70,7 +106,17 @@ async def screener(
         ebitda_margin_min=ebitda_margin_min,
         roa_min=roa_min,
         roe_min=roe_min,
-        roi_min=roi_min: [
+        roi_min=roi_min,
+        fcf_min=fcf_min,
+        dividend_yield_min=dividend_yield_min,
+        dividend_payout_ratio_max=dividend_payout_ratio_max,
+        beta_max=beta_max,
+        shares_outstanding_min=shares_outstanding_min,
+        float_shares_min=float_shares_min,
+        market_cap_min=market_cap_min,
+        high_52w_max=high_52w_max,
+        low_52w_min=low_52w_min,
+        avg_volume_min=avg_volume_min: [
             r.model_dump()
             for r in screen(
                 symbols,
@@ -90,6 +136,15 @@ async def screener(
                 roa_min=roa_min,
                 roe_min=roe_min,
                 roi_min=roi_min,
+                dividend_yield_min=dividend_yield_min,
+                dividend_payout_ratio_max=dividend_payout_ratio_max,
+                beta_max=beta_max,
+                shares_outstanding_min=shares_outstanding_min,
+                float_shares_min=float_shares_min,
+                market_cap_min=market_cap_min,
+                high_52w_max=high_52w_max,
+                low_52w_min=low_52w_min,
+                avg_volume_min=avg_volume_min,
             )
         ],
     )
@@ -117,6 +172,15 @@ async def screener(
             roa_min=roa_min,
             roe_min=roe_min,
             roi_min=roi_min,
+            dividend_yield_min=dividend_yield_min,
+            dividend_payout_ratio_max=dividend_payout_ratio_max,
+            beta_max=beta_max,
+            shares_outstanding_min=shares_outstanding_min,
+            float_shares_min=float_shares_min,
+            market_cap_min=market_cap_min,
+            high_52w_max=high_52w_max,
+            low_52w_min=low_52w_min,
+            avg_volume_min=avg_volume_min,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

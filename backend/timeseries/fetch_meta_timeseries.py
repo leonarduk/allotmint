@@ -204,7 +204,7 @@ def run_all_tickers(
 
     ok: list[str] = []
     for t in tickers:
-        sym, ex = (t.split(".", 1) + [exchange])[:2]
+        sym, ex = (re.split(r"[._]", t, 1) + [exchange])[:2]
         try:
             if not load_meta_timeseries(sym, ex, days).empty:
                 ok.append(t)

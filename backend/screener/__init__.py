@@ -221,8 +221,7 @@ def screen(
         if roe_min is not None and (f.roe is None or f.roe < roe_min):
             continue
         if roi_min is not None and (f.roi is None or f.roi < roi_min):
-
-          
+            continue
         if dividend_yield_min is not None and (
             f.dividend_yield is None or f.dividend_yield < dividend_yield_min
         ):
@@ -253,9 +252,7 @@ def screen(
         if avg_volume_min is not None and (
             f.avg_volume is None or f.avg_volume < avg_volume_min
         ):
-
             continue
-
         results.append(f)
 
     return results

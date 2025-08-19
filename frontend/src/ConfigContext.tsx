@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { getConfig } from "./api";
+import { tabPlugins } from "./tabPlugins";
 
 export interface TabsConfig {
   [key: string]: boolean;
@@ -41,27 +42,16 @@ export interface AppConfig {
 
 export interface RawConfig {
   relative_view_enabled?: boolean;
-  tabs?: Partial<TabsConfig>;
+  // backend may return entries for plugins unknown to the frontend
+  tabs?: Record<string, unknown>;
   disabled_tabs?: string[];
   theme?: string;
 }
 
-const defaultTabs: TabsConfig = {
-  group: true,
-  owner: true,
-  instrument: true,
-  performance: true,
-  transactions: true,
-  screener: true,
-  timeseries: true,
-  watchlist: true,
-  movers: true,
-  dataadmin: true,
-  virtual: true,
-  support: true,
-  reports: true,
-  scenario: true,
-};
+// build a default tabs object from the registered tab plugins
+const defaultTabs = Object.fromEntries(
+  Object.keys(tabPlugins).map((id) => [id, false]),
+) as TabsConfig;
 
 export interface ConfigContextValue extends AppConfig {
   refreshConfig: () => Promise<void>;
@@ -86,15 +76,18 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const refreshConfig = useCallback(async () => {
     try {
       const cfg = await getConfig<RawConfig>();
-      const tabs = { ...defaultTabs, ...(cfg.tabs ?? {}) } as TabsConfig;
+      const rawTabs =
+        cfg && cfg.tabs && typeof cfg.tabs === "object" && !Array.isArray(cfg.tabs)
+          ? (cfg.tabs as Record<string, unknown>)
+          : {};
+      const tabs = Object.fromEntries(
+        Object.keys(tabPlugins).map((id) => [id, Boolean(rawTabs[id])]),
+      ) as TabsConfig;
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );
-      for (const [tab, enabled] of Object.entries(tabs) as [
-        string,
-        boolean,
-      ][]) {
-        if (!enabled) disabledTabs.add(String(tab));
+      for (const [tab, enabled] of Object.entries(tabs)) {
+        if (!enabled) disabledTabs.add(tab);
       }
       const theme = isTheme(cfg.theme) ? cfg.theme : "system";
       setConfig({

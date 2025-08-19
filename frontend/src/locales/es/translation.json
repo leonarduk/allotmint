@@ -149,6 +149,15 @@
     "minRoa": "ROA mín",
     "minRoe": "ROE mín",
     "minRoi": "ROI mín",
+    "minDividendYield": "Min Dividend Yield",
+    "maxDividendPayoutRatio": "Max Dividend Payout Ratio",
+    "maxBeta": "Max Beta",
+    "minSharesOutstanding": "Min Shares Outstanding",
+    "minFloatShares": "Min Float Shares",
+    "minMarketCap": "Min Market Cap",
+    "max52WeekHigh": "Max 52W High",
+    "min52WeekLow": "Min 52W Low",
+    "minAvgVolume": "Min Avg Volume",
     "run": "Ejecutar",
     "loading": "Cargando…"
   }

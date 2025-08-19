@@ -82,11 +82,6 @@ def fetch_meta_timeseries(
         logger.warning("Ticker pattern looks invalid: %s", ticker)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
-    if not is_valid_ticker(ticker, exchange):
-        logger.info("Skipping unrecognized ticker %s.%s", ticker, exchange)
-        record_skipped_ticker(ticker, exchange, reason="unknown")
-        return pd.DataFrame(columns=STANDARD_COLUMNS)
-
     if end_date is None:
         end_date = date.today() - timedelta(days=1)
     if start_date is None:
@@ -111,6 +106,11 @@ def fetch_meta_timeseries(
         )
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
         return df
+
+    if not is_valid_ticker(ticker, exchange):
+        logger.info("Skipping unrecognized ticker %s.%s", ticker, exchange)
+        record_skipped_ticker(ticker, exchange, reason="unknown")
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     # Weekday grid we want to fill
     expected_dates = set(pd.bdate_range(start_date, end_date).date)
@@ -204,12 +204,13 @@ def run_all_tickers(
 
     ok: list[str] = []
     for t in tickers:
-        sym, ex = (t.split(".", 1) + [exchange])[:2]
+        sym, ex = (re.split(r"[._]", t, 1) + [exchange])[:2]
         try:
             if not load_meta_timeseries(sym, ex, days).empty:
                 ok.append(t)
         except Exception as exc:
             logger.warning("[WARN] %s: %s", t, exc)
+    logger.info("Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok))
     return ok
 
 
@@ -226,6 +227,9 @@ def load_timeseries_data(
                 out[t] = df
         except Exception as exc:
             logger.warning("Load fail %s: %s", t, exc)
+    logger.info(
+        "Bulk load complete: %d updated, %d skipped", len(out), len(tickers) - len(out)
+    )
     return out
 
 

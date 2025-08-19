@@ -18,3 +18,17 @@ def test_run_all_tickers_accepts_full_tickers():
     assert out == ["AAA.L", "BBB"]
     assert calls == [("AAA", "L", 10), ("BBB", "N", 10)]
 
+
+def test_run_all_tickers_handles_underscore_and_dot():
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return pd.DataFrame({"Date": [1], "Close": [2]})
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        out = run_all_tickers(["ADBE_N", "AZN.L"], exchange="Q", days=5)
+
+    assert out == ["ADBE_N", "AZN.L"]
+    assert calls == [("ADBE", "N", 5), ("AZN", "L", 5)]
+

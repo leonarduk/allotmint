@@ -11,6 +11,8 @@ import { getConfig } from "./api";
 
 export interface TabsConfig {
   [key: string]: boolean;
+  group: boolean;
+  owner: boolean;
   instrument: boolean;
   performance: boolean;
   transactions: boolean;
@@ -45,6 +47,8 @@ export interface RawConfig {
 }
 
 const defaultTabs: TabsConfig = {
+  group: true,
+  owner: true,
   instrument: true,
   performance: true,
   transactions: true,
@@ -82,7 +86,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const refreshConfig = useCallback(async () => {
     try {
       const cfg = await getConfig<RawConfig>();
-      const tabs: TabsConfig = { ...defaultTabs, ...(cfg.tabs ?? {}) };
+      const tabs = { ...defaultTabs, ...(cfg.tabs ?? {}) } as TabsConfig;
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );

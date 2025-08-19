@@ -24,6 +24,15 @@ export function Screener() {
   const [roaMin, setRoaMin] = useState("");
   const [roeMin, setRoeMin] = useState("");
   const [roiMin, setRoiMin] = useState("");
+  const [dividendYieldMin, setDividendYieldMin] = useState("");
+  const [dividendPayoutRatioMax, setDividendPayoutRatioMax] = useState("");
+  const [betaMax, setBetaMax] = useState("");
+  const [sharesOutstandingMin, setSharesOutstandingMin] = useState("");
+  const [floatSharesMin, setFloatSharesMin] = useState("");
+  const [marketCapMin, setMarketCapMin] = useState("");
+  const [high52wMax, setHigh52wMax] = useState("");
+  const [low52wMin, setLow52wMin] = useState("");
+  const [avgVolumeMin, setAvgVolumeMin] = useState("");
 
   const [rows, setRows] = useState<ScreenerResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,6 +85,25 @@ export function Screener() {
         roa_min: roaMin ? parseFloat(roaMin) : undefined,
         roe_min: roeMin ? parseFloat(roeMin) : undefined,
         roi_min: roiMin ? parseFloat(roiMin) : undefined,
+        dividend_yield_min: dividendYieldMin
+          ? parseFloat(dividendYieldMin)
+          : undefined,
+        dividend_payout_ratio_max: dividendPayoutRatioMax
+          ? parseFloat(dividendPayoutRatioMax)
+          : undefined,
+        beta_max: betaMax ? parseFloat(betaMax) : undefined,
+        shares_outstanding_min: sharesOutstandingMin
+          ? parseFloat(sharesOutstandingMin)
+          : undefined,
+        float_shares_min: floatSharesMin
+          ? parseFloat(floatSharesMin)
+          : undefined,
+        market_cap_min: marketCapMin
+          ? parseFloat(marketCapMin)
+          : undefined,
+        high_52w_max: high52wMax ? parseFloat(high52wMax) : undefined,
+        low_52w_min: low52wMin ? parseFloat(low52wMin) : undefined,
+        avg_volume_min: avgVolumeMin ? parseFloat(avgVolumeMin) : undefined,
       });
       setRows(data);
     } catch (e) {
@@ -200,12 +228,34 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minDividendYield")}
+          <input
+            aria-label={t("screener.minDividendYield")}
+            type="number"
+            value={dividendYieldMin}
+            onChange={(e) => setDividendYieldMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
           {t("screener.minGrossMargin")}
           <input
             aria-label={t("screener.minGrossMargin")}
             type="number"
             value={grossMarginMin}
             onChange={(e) => setGrossMarginMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxDividendPayoutRatio")}
+          <input
+            aria-label={t("screener.maxDividendPayoutRatio")}
+            type="number"
+            value={dividendPayoutRatioMax}
+            onChange={(e) => setDividendPayoutRatioMax(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />
@@ -222,12 +272,34 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.maxBeta")}
+          <input
+            aria-label={t("screener.maxBeta")}
+            type="number"
+            value={betaMax}
+            onChange={(e) => setBetaMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
           {t("screener.minNetMargin")}
           <input
             aria-label={t("screener.minNetMargin")}
             type="number"
             value={netMarginMin}
             onChange={(e) => setNetMarginMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minSharesOutstanding")}
+          <input
+            aria-label={t("screener.minSharesOutstanding")}
+            type="number"
+            value={sharesOutstandingMin}
+            onChange={(e) => setSharesOutstandingMin(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />
@@ -244,12 +316,34 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minFloatShares")}
+          <input
+            aria-label={t("screener.minFloatShares")}
+            type="number"
+            value={floatSharesMin}
+            onChange={(e) => setFloatSharesMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
           {t("screener.minRoa")}
           <input
             aria-label={t("screener.minRoa")}
             type="number"
             value={roaMin}
             onChange={(e) => setRoaMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minMarketCap")}
+          <input
+            aria-label={t("screener.minMarketCap")}
+            type="number"
+            value={marketCapMin}
+            onChange={(e) => setMarketCapMin(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />
@@ -266,12 +360,45 @@ export function Screener() {
           />
         </label>
         <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.max52WeekHigh")}
+          <input
+            aria-label={t("screener.max52WeekHigh")}
+            type="number"
+            value={high52wMax}
+            onChange={(e) => setHigh52wMax(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
           {t("screener.minRoi")}
           <input
             aria-label={t("screener.minRoi")}
             type="number"
             value={roiMin}
             onChange={(e) => setRoiMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.min52WeekLow")}
+          <input
+            aria-label={t("screener.min52WeekLow")}
+            type="number"
+            value={low52wMin}
+            onChange={(e) => setLow52wMin(e.target.value)}
+            step="any"
+            style={{ marginLeft: "0.25rem" }}
+          />
+        </label>
+        <label style={{ marginRight: "0.5rem" }}>
+          {t("screener.minAvgVolume")}
+          <input
+            aria-label={t("screener.minAvgVolume")}
+            type="number"
+            value={avgVolumeMin}
+            onChange={(e) => setAvgVolumeMin(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />
@@ -318,6 +445,40 @@ export function Screener() {
               <th style={right} onClick={() => handleSort("roa")}>ROA</th>
               <th style={right} onClick={() => handleSort("roe")}>ROE</th>
               <th style={right} onClick={() => handleSort("roi")}>ROI</th>
+              <th style={right} onClick={() => handleSort("dividend_yield")}>
+                Div%
+              </th>
+              <th
+                style={right}
+                onClick={() => handleSort("dividend_payout_ratio")}
+              >
+                Payout
+              </th>
+              <th style={right} onClick={() => handleSort("beta")}>Beta</th>
+              <th
+                style={right}
+                onClick={() => handleSort("shares_outstanding")}
+              >
+                Shares
+              </th>
+              <th
+                style={right}
+                onClick={() => handleSort("float_shares")}
+              >
+                Float
+              </th>
+              <th style={right} onClick={() => handleSort("market_cap")}>
+                MktCap
+              </th>
+              <th style={right} onClick={() => handleSort("high_52w")}>
+                52wH
+              </th>
+              <th style={right} onClick={() => handleSort("low_52w")}>
+                52wL
+              </th>
+              <th style={right} onClick={() => handleSort("avg_volume")}>
+                AvgVol
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -348,6 +509,35 @@ export function Screener() {
                 <td style={right}>{r.roa ?? "—"}</td>
                 <td style={right}>{r.roe ?? "—"}</td>
                 <td style={right}>{r.roi ?? "—"}</td>
+                <td style={right}>{r.dividend_yield ?? "—"}</td>
+                <td style={right}>{r.dividend_payout_ratio ?? "—"}</td>
+                <td style={right}>{r.beta ?? "—"}</td>
+                <td style={right}>
+                  {r.shares_outstanding != null
+                    ? new Intl.NumberFormat(i18n.language).format(
+                        r.shares_outstanding,
+                      )
+                    : "—"}
+                </td>
+                <td style={right}>
+                  {r.float_shares != null
+                    ? new Intl.NumberFormat(i18n.language).format(
+                        r.float_shares,
+                      )
+                    : "—"}
+                </td>
+                <td style={right}>
+                  {r.market_cap != null
+                    ? new Intl.NumberFormat(i18n.language).format(r.market_cap)
+                    : "—"}
+                </td>
+                <td style={right}>{r.high_52w ?? "—"}</td>
+                <td style={right}>{r.low_52w ?? "—"}</td>
+                <td style={right}>
+                  {r.avg_volume != null
+                    ? new Intl.NumberFormat(i18n.language).format(r.avg_volume)
+                    : "—"}
+                </td>
               </tr>
             ))}
           </tbody>

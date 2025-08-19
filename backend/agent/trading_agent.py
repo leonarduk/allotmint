@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import logging
 import os
+from pathlib import Path
 
 from backend.common.alerts import publish_alert
 from backend.utils.telegram_utils import send_message, redact_token
@@ -46,7 +47,10 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
     """
 
     if publish:
-        publish_alert({"message": message})
+        try:
+            publish_alert({"message": message})
+        except RuntimeError:
+            logger.info("SNS topic ARN not configured; skipping publish")
 
     if (
         os.getenv("TELEGRAM_BOT_TOKEN")
@@ -111,6 +115,7 @@ def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = 
 
     ts = ts or datetime.utcnow()
     header = not TRADE_LOG_PATH.exists()
+    TRADE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     with TRADE_LOG_PATH.open("a", newline="") as f:
         writer = csv.DictWriter(
             f, fieldnames=["timestamp", "ticker", "action", "price"]

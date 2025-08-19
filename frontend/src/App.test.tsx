@@ -58,6 +58,7 @@ describe("App", () => {
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
@@ -86,6 +87,7 @@ describe("App", () => {
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       listTimeseries: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
@@ -117,12 +119,15 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       getTradingSignals: vi.fn().mockResolvedValue([]),
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
     const { configContext } = await import("./ConfigContext");
 
     const allTabs = {
+      group: true,
+      owner: true,
       instrument: true,
       performance: true,
       transactions: true,
@@ -142,6 +147,7 @@ describe("App", () => {
           theme: "system",
           relativeViewEnabled: false,
           tabs: { ...allTabs, movers: false },
+          refreshConfig: async () => {},
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
@@ -171,12 +177,15 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       getTradingSignals: mockTradingSignals,
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
     const { configContext } = await import("./ConfigContext");
 
     const allTabs = {
+      group: true,
+      owner: true,
       instrument: true,
       performance: true,
       transactions: true,
@@ -192,7 +201,12 @@ describe("App", () => {
 
     render(
       <configContext.Provider
-        value={{ theme: "system", relativeViewEnabled: false, tabs: allTabs }}
+        value={{
+          theme: "system",
+          relativeViewEnabled: false,
+          tabs: allTabs,
+          refreshConfig: async () => {},
+        }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
           <App />
@@ -204,6 +218,43 @@ describe("App", () => {
     expect(moversTab).toHaveStyle("font-weight: bold");
     expect(await screen.findByText(/No signals\./i)).toBeInTheDocument();
     expect(mockTradingSignals).toHaveBeenCalled();
+  });
+
+  it("renders support page with navigation", async () => {
+    window.history.pushState({}, "", "/support");
+
+    vi.doMock("./api", () => ({
+      getOwners: vi.fn().mockResolvedValue([]),
+      getGroups: vi.fn().mockResolvedValue([]),
+      getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getPortfolio: vi.fn(),
+      refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      listTimeseries: vi.fn().mockResolvedValue([]),
+      getConfig: vi.fn().mockResolvedValue({}),
+      updateConfig: vi.fn(),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getTradingSignals: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+    }));
+
+    const { default: App } = await import("./App");
+
+    render(
+      <MemoryRouter initialEntries={["/support"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("navigation")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: /Support/i })
+    ).toBeInTheDocument();
   });
 
   it("defaults to Movers view and orders tabs correctly", async () => {
@@ -226,6 +277,7 @@ describe("App", () => {
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       getTradingSignals: mockTradingSignals,
       listTimeseries: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");

@@ -7,8 +7,8 @@ import backend.common.alerts as alerts
 
 client = TestClient(app)
 
-# ensure alerts do not raise due to missing config
-alerts.config.sns_topic_arn = "arn:dummy"
+# allow alerts to operate without SNS configuration
+alerts.config.sns_topic_arn = None
 
 
 def validate_timeseries(prices):
@@ -217,7 +217,7 @@ def test_screener_endpoint(monkeypatch):
 
     def mock_fetch(ticker: str) -> Fundamentals:
         if ticker == "AAA":
-            return Fundamentals(ticker="AAA", peg_ratio=0.5, roe=0.2)
+           return Fundamentals(ticker="AAA", peg_ratio=0.5, roe=0.2)
         return Fundamentals(ticker="BBB", peg_ratio=2.0, roe=0.1)
 
     monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)

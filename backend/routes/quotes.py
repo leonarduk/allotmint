@@ -1,10 +1,5 @@
-"""Quote endpoint backed by DynamoDB."""
-
 from __future__ import annotations
 
-import os
-from decimal import Decimal
-from typing import List, Dict, Any
 
 import boto3
 import yfinance as yf
@@ -17,36 +12,50 @@ _dynamodb = None
 _table = None
 sys.modules[__name__ + ".yf"] = yf
 
+"""Quotes API backed by `yfinance`.
 
-def _get_table():
-    global _dynamodb, _table
-    if _table is None:
-        _dynamodb = boto3.resource("dynamodb")
-        _table = _dynamodb.Table(TABLE_NAME)
-    return _table
+This module exposes a single endpoint that fetches the latest quotes for the
+requested symbols using ``yfinance``.  It intentionally registers the imported
+``yfinance`` module as ``backend.routes.quotes.yf`` in ``sys.modules`` so that
+tests can monkeypatch ``yf.Tickers`` using a dotted import path.
+"""
+
+import sys
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, HTTPException, Query
+import yfinance as yf
+
+# Expose ``yf`` as a submodule for monkeypatching in tests
+sys.modules[__name__ + ".yf"] = yf
 
 
-def _convert_item(item: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: float(v) if isinstance(v, Decimal) else v for k, v in item.items()}
+router = APIRouter(prefix="/api")
 
 
 @router.get("/quotes")
 async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
+    """Return quote data for the provided comma-separated ``symbols``."""
+
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not syms:
         return []
-    try:
-        yf.Tickers(" ".join(syms))
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {exc}")
     table = _get_table()
+
+    try:
+        tickers = yf.Tickers(" ".join(syms)).tickers
+    except Exception as exc:  # pragma: no cover - exercised in tests
+        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {exc}") from exc
+
     results: List[Dict[str, Any]] = []
     for sym in syms:
-        try:
-            resp = table.get_item(Key={"symbol": sym})
-        except Exception:
+        ticker = tickers.get(sym)
+        if ticker is None:
             continue
-        item = resp.get("Item")
-        if item:
-            results.append(_convert_item(item))
+        info = getattr(ticker, "info", {})
+        price = info.get("regularMarketPrice")
+        if price is not None:
+            results.append({"symbol": sym, "price": price})
+
     return results
+

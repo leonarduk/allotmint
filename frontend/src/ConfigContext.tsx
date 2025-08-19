@@ -8,12 +8,9 @@ import {
   type ReactNode,
 } from "react";
 import { getConfig } from "./api";
-import { tabPlugins } from "./tabPlugins";
 
 export interface TabsConfig {
   [key: string]: boolean;
-  group: boolean;
-  owner: boolean;
   instrument: boolean;
   performance: boolean;
   transactions: boolean;
@@ -42,22 +39,24 @@ export interface AppConfig {
 
 export interface RawConfig {
   relative_view_enabled?: boolean;
-  // backend may return entries for plugins unknown to the frontend
-  tabs?: Record<string, unknown>;
+  tabs?: Partial<TabsConfig>;
   disabled_tabs?: string[];
   theme?: string;
 }
 
-// build a default tabs object from the registered tab plugins
-const defaultTabs = Object.fromEntries(
-  tabPlugins.map((p) => [p.id, true]),
-) as TabsConfig;
-
-const defaultConfig: AppConfig = {
-  relativeViewEnabled: false,
-  disabledTabs: [],
-  tabs: defaultTabs,
-  theme: "system",
+const defaultTabs: TabsConfig = {
+  instrument: true,
+  performance: true,
+  transactions: true,
+  screener: true,
+  timeseries: true,
+  watchlist: true,
+  movers: true,
+  dataadmin: true,
+  virtual: true,
+  support: true,
+  reports: true,
+  scenario: true,
 };
 
 export interface ConfigContextValue extends AppConfig {
@@ -65,30 +64,33 @@ export interface ConfigContextValue extends AppConfig {
 }
 
 export const configContext = createContext<ConfigContextValue>({
-  ...defaultConfig,
+  relativeViewEnabled: false,
+  disabledTabs: [],
+  tabs: defaultTabs,
+  theme: "system",
   refreshConfig: async () => {},
 });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<AppConfig>(defaultConfig);
-  const [error, setError] = useState<string | null>(null);
+  const [config, setConfig] = useState<AppConfig>({
+    relativeViewEnabled: false,
+    disabledTabs: [],
+    tabs: defaultTabs,
+    theme: "system",
+  });
 
   const refreshConfig = useCallback(async () => {
     try {
-      setError(null);
       const cfg = await getConfig<RawConfig>();
-      const rawTabs =
-        cfg && cfg.tabs && typeof cfg.tabs === "object" && !Array.isArray(cfg.tabs)
-          ? (cfg.tabs as Record<string, unknown>)
-          : {};
-      const tabs = Object.fromEntries(
-        tabPlugins.map((p) => [p.id, Boolean(rawTabs[p.id])]),
-      ) as TabsConfig;
+      const tabs: TabsConfig = { ...defaultTabs, ...(cfg.tabs ?? {}) };
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );
-      for (const [tab, enabled] of Object.entries(tabs)) {
-        if (!enabled) disabledTabs.add(tab);
+      for (const [tab, enabled] of Object.entries(tabs) as [
+        string,
+        boolean,
+      ][]) {
+        if (!enabled) disabledTabs.add(String(tab));
       }
       const theme = isTheme(cfg.theme) ? cfg.theme : "system";
       setConfig({
@@ -98,10 +100,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         theme,
       });
       applyTheme(theme);
-    } catch (err) {
-      console.warn("Failed to fetch configuration", err);
-      setConfig(defaultConfig);
-      setError("Cannot reach server");
+    } catch {
+      /* ignore */
     }
   }, []);
 
@@ -115,19 +115,6 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   return (
     <configContext.Provider value={{ ...config, refreshConfig }}>
-      {error && (
-        <div
-          role="alert"
-          style={{
-            background: "#fcc",
-            padding: "0.5rem",
-            textAlign: "center",
-            marginBottom: "0.5rem",
-          }}
-        >
-          {error} <button onClick={refreshConfig}>Retry</button>
-        </div>
-      )}
       {children}
     </configContext.Provider>
   );

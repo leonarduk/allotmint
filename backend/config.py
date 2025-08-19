@@ -4,10 +4,7 @@ from dataclasses import dataclass, asdict, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional, Dict, Any, overload, List
-from environs import Env
 import yaml
-
-env = Env()
 
 
 @dataclass
@@ -20,21 +17,15 @@ class TabsConfig:
     trading: bool = True
     timeseries: bool = True
     watchlist: bool = True
-    movers: bool = True
-    group: bool = True
-    owner: bool = True
-    dataadmin: bool = True
     virtual: bool = True
     support: bool = True
     reports: bool = True
-    scenario: bool = True
 
 
 @dataclass
 class Config:
     # basic app environment
     app_env: Optional[str] = None
-    disable_auth: bool = False
 
     # messaging / alerts
     sns_topic_arn: Optional[str] = None
@@ -56,17 +47,14 @@ class Config:
     selenium_headless: Optional[bool] = None
 
     # misc complex config
-    error_summary: Dict[str, Any] = field(default_factory=dict)
+    error_summary: Optional[dict] = None
     offline_mode: Optional[bool] = None
     relative_view_enabled: Optional[bool] = None
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
     fx_proxy_url: Optional[str] = None
-    alpha_vantage_enabled: bool = True
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
-    stooq_timeout: Optional[int] = None
-    stooq_requests_per_minute: Optional[int] = None
 
     # new vars
     max_trades_per_month: Optional[int] = None
@@ -91,7 +79,6 @@ def _project_config_path() -> Path:
 def load_config() -> Config:
     """Load configuration from config.yaml only (no env overrides)."""
     path = _project_config_path()
-    env.read_env(path.with_name(".env"))
     data: Dict[str, Any] = {}
 
     if path.exists():
@@ -127,25 +114,17 @@ def load_config() -> Config:
     cors_raw = data.get("cors")
     cors_origins = None
     if isinstance(cors_raw, dict):
-        app_env = data.get("app_env")
-        if app_env:
-            cors_origins = cors_raw.get(app_env) or cors_raw.get("default")
+        env = data.get("app_env")
+        if env:
+            cors_origins = cors_raw.get(env) or cors_raw.get("default")
         else:
             cors_origins = cors_raw.get("default")
 
-    error_summary_raw = data.get("error_summary")
-    error_summary = error_summary_raw if isinstance(error_summary_raw, dict) else {}
-
     return Config(
         app_env=data.get("app_env"),
-        disable_auth=env.bool("DISABLE_AUTH", default=data.get("disable_auth", False)),
-        sns_topic_arn=env.str("SNS_TOPIC_ARN", default=data.get("sns_topic_arn")),
-        telegram_bot_token=env.str(
-            "TELEGRAM_BOT_TOKEN", default=data.get("telegram_bot_token")
-        ),
-        telegram_chat_id=env.str(
-            "TELEGRAM_CHAT_ID", default=data.get("telegram_chat_id")
-        ),
+        sns_topic_arn=data.get("sns_topic_arn"),
+        telegram_bot_token=data.get("telegram_bot_token"),
+        telegram_chat_id=data.get("telegram_chat_id"),
         portfolio_xml_path=data.get("portfolio_xml_path"),
         transactions_output_root=data.get("transactions_output_root"),
         uvicorn_port=data.get("uvicorn_port"),
@@ -156,21 +135,16 @@ def load_config() -> Config:
         ft_url_template=data.get("ft_url_template"),
         selenium_user_agent=data.get("selenium_user_agent"),
         selenium_headless=data.get("selenium_headless"),
-        error_summary=error_summary,
+        error_summary=data.get("error_summary"),
         offline_mode=data.get("offline_mode"),
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
         fx_proxy_url=data.get("fx_proxy_url"),
-        alpha_vantage_enabled=data.get("alpha_vantage_enabled", True),
-        alpha_vantage_key=env.str(
-            "ALPHA_VANTAGE_KEY", default=data.get("alpha_vantage_key")
-        ),
+        alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get(
             "fundamentals_cache_ttl_seconds"
         ),
-        stooq_timeout=data.get("stooq_timeout"),
-        stooq_requests_per_minute=data.get("stooq_requests_per_minute"),
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),
         repo_root=repo_root,

@@ -1,14 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  getGroupInstruments,
-  getGroups,
-  getOwners,
-  getPortfolio,
-  refreshPrices,
-  API_BASE,
-} from "./api";
+import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
 
 import type {
   GroupSummary,
@@ -35,10 +28,22 @@ import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
-import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
-import { tabPlugins } from "./tabPlugins";
-type Mode = (typeof tabPlugins)[number]["id"];
+
+type Mode =
+  | "owner"
+  | "group"
+  | "instrument"
+  | "transactions"
+  | "performance"
+  | "screener"
+  | "timeseries"
+  | "watchlist"
+  | "movers"
+  | "dataadmin"
+  | "reports"
+  | "support"
+  | "scenario";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -84,9 +89,26 @@ export default function App() {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
+  const [backendUnavailable, setBackendUnavailable] = useState(false);
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
+
+  const modes: Mode[] = [
+    "movers",
+    "group",
+    "instrument",
+    "owner",
+    "performance",
+    "transactions",
+    "screener",
+    "timeseries",
+    "watchlist",
+    "dataadmin",
+    "reports",
+    "support",
+    "scenario",
+  ];
 
   function pathFor(m: Mode) {
     switch (m) {
@@ -182,6 +204,17 @@ export default function App() {
     if (groupsReq.data) setGroups(groupsReq.data);
   }, [groupsReq.data]);
 
+  useEffect(() => {
+    if (ownersReq.error || groupsReq.error) {
+      setBackendUnavailable(true);
+    }
+  }, [ownersReq.error, groupsReq.error]);
+
+  useEffect(() => {
+    if (ownersReq.data && groupsReq.data) {
+      setBackendUnavailable(false);
+    }
+  }, [ownersReq.data, groupsReq.data]);
   // redirect to defaults if no selection provided
   useEffect(() => {
     if (mode === "owner" && !selectedOwner && owners.length) {
@@ -243,23 +276,10 @@ export default function App() {
     }
   }
 
-  const ownersExhausted =
-    ownersReq.error && ownersReq.attempt >= ownersReq.maxAttempts;
-  const groupsExhausted =
-    groupsReq.error && groupsReq.attempt >= groupsReq.maxAttempts;
-  const backendError = ownersExhausted
-    ? ownersReq.error
-    : groupsExhausted
-    ? groupsReq.error
-    : null;
-
-  if (backendError) {
+  if (backendUnavailable) {
     return (
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-        Unable to reach API at {API_BASE}; is the backend running?
-        <div style={{ marginTop: "0.5rem", color: "red" }}>
-          {backendError.message}
-        </div>
+        Backend unavailable—retrying…
       </div>
     );
   }
@@ -269,20 +289,18 @@ export default function App() {
       <LanguageSwitcher />
       <AlertsPanel />
       <nav style={{ margin: "1rem 0" }}>
-        {tabPlugins
-          .slice()
-          .sort((a, b) => a.priority - b.priority)
-          .filter((p) => tabs[p.id] !== false)
-          .map((p) => (
+        {modes
+          .filter((m) => tabs[m] !== false)
+          .map((m) => (
             <Link
-              key={p.id}
-              to={pathFor(p.id)}
+              key={m}
+              to={pathFor(m)}
               style={{
                 marginRight: "1rem",
-                fontWeight: mode === p.id ? "bold" : undefined,
+                fontWeight: mode === m ? "bold" : undefined,
               }}
             >
-              {t(`app.modes.${p.id}`)}
+              {t(`app.modes.${m}`)}
             </Link>
           ))}
       </nav>
@@ -333,9 +351,9 @@ export default function App() {
           <GroupPortfolioView
             slug={selectedGroup}
             onSelectMember={(owner) => {
-              setMode("group");
-              setSelectedGroup(owner);
-              navigate(`/?group=${owner}`);
+              setMode("owner");
+              setSelectedOwner(owner);
+              navigate(`/member/${owner}`);
             }}
           />
         </>
@@ -377,7 +395,6 @@ export default function App() {
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}
-      {mode === "support" && <Support />}
       {mode === "scenario" && <ScenarioTester />}
     </div>
   );

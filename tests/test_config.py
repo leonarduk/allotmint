@@ -14,6 +14,11 @@ def test_tabs_defaults_true():
     cfg = config_module.load_config()
     assert cfg.tabs.instrument is True
     assert cfg.tabs.support is True
+    assert cfg.tabs.movers is True
+    assert cfg.tabs.group is True
+    assert cfg.tabs.owner is True
+    assert cfg.tabs.dataadmin is True
+    assert cfg.tabs.scenario is True
 
 
 def test_theme_loaded():

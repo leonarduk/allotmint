@@ -84,6 +84,15 @@ def schedule_refresh(page_name: str, ttl: int, builder: Callable[[], Any]) -> No
                     save_cache(page_name, data)
                 except Exception:
                     logger.exception("Cache refresh failed for %s", page_name)
+                    # Immediately retry on failure so the cache can still be
+                    # populated without waiting for the next scheduled
+                    # interval.  This makes the refresh logic resilient to
+                    # short "ttl" values and slower platforms where the
+                    # first attempt may take longer than expected (for
+                    # example on Windows CI where thread start-up can be
+                    # noticeably slower).  By continuing here we skip the
+                    # sleep below and run the builder again right away.
+                    continue
                 await asyncio.sleep(ttl)
         except asyncio.CancelledError:  # pragma: no cover - defensive
             pass

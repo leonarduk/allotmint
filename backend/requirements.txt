@@ -42,3 +42,4 @@ requests~=2.32.3
 peewee~=3.18.2
 numpy~=2.3.1
 pyarrow~=21.0.0
+reportlab~=3.6.12

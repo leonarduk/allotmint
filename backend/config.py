@@ -19,6 +19,7 @@ class TabsConfig:
     watchlist: bool = True
     virtual: bool = True
     support: bool = True
+    reports: bool = True
 
 
 @dataclass

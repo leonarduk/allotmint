@@ -47,3 +47,4 @@ tabs:
   watchlist: false
   virtual: false
   support: true
+  reports: true

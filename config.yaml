@@ -51,4 +51,5 @@ tabs:
   dataadmin: true
   virtual: false
   support: true
+  reports: true
   scenario: true

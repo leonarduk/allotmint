@@ -23,6 +23,7 @@ class TabsConfig:
     dataadmin: bool = True
     virtual: bool = True
     support: bool = True
+    reports: bool = True
     scenario: bool = True
 
 

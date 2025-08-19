@@ -1,5 +1,17 @@
 from __future__ import annotations
 
+
+import boto3
+import yfinance as yf
+import sys
+from fastapi import APIRouter, Query, HTTPException
+
+router = APIRouter(prefix="/api")
+TABLE_NAME = os.environ.get("QUOTES_TABLE", "Quotes")
+_dynamodb = None
+_table = None
+sys.modules[__name__ + ".yf"] = yf
+
 """Quotes API backed by `yfinance`.
 
 This module exposes a single endpoint that fetches the latest quotes for the
@@ -28,6 +40,7 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not syms:
         return []
+    table = _get_table()
 
     try:
         tickers = yf.Tickers(" ".join(syms)).tickers

@@ -17,6 +17,7 @@
       "watchlist": "Watchlist",
       "movers": "Movers",
       "dataadmin": "Data Admin",
+      "reports": "Relatórios",
       "support": "Suporte",
       "scenario": "Testador de Cenários"
     }
@@ -105,6 +106,11 @@
       "error": "Erro",
       "sending": "Enviando..."
     }
+  },
+  "reports": {
+    "title": "Relatórios",
+    "csv": "Baixar CSV",
+    "pdf": "Baixar PDF"
   },
   "loadingPortfolio": "Carregando portfólio…",
   "portfolio": "Portfólio",

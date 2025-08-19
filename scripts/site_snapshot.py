@@ -11,6 +11,7 @@ How to use:
    per-page Markdown files, and a combined PDF manual.
 """
 
+import argparse
 import asyncio
 from collections import deque
 from pathlib import Path
@@ -22,7 +23,8 @@ from fpdf import FPDF
 from markdownify import markdownify
 from playwright.async_api import async_playwright
 
-BASE_URL = "https://example.com"  # Change to your server
+# Default base URL can be overridden via CLI
+BASE_URL = "https://example.com"
 OUTPUT_DIR = Path("site_manual")
 SCREENSHOT_DIR = OUTPUT_DIR / "screenshots"
 MARKDOWN_DIR = OUTPUT_DIR / "markdown"
@@ -49,8 +51,8 @@ def crawl_site():
         pages.append((url, soup))
 
         for link in soup.select("a[href]"):
-            full = urljoin(url, link["href"])
-            if full.startswith("http") and is_same_domain(full):
+            full = urljoin(url, link["href"]).split("#")[0].rstrip("/")
+            if full.startswith("http") and is_same_domain(full) and full not in visited:
                 queue.append(full)
 
     return pages
@@ -65,7 +67,8 @@ async def take_snapshots(pages):
         browser = await p.chromium.launch(headless=True)
         for idx, (url, soup) in enumerate(pages, 1):
             page = await browser.new_page()
-            await page.goto(url)
+            await page.goto(url, wait_until="networkidle")
+            await page.wait_for_load_state("networkidle")
             screenshot = SCREENSHOT_DIR / f"{idx:03}.png"
             await page.screenshot(path=str(screenshot), full_page=True)
             await page.close()
@@ -73,6 +76,15 @@ async def take_snapshots(pages):
         await browser.close()
 
     return results
+
+
+def extract_summary(soup: BeautifulSoup) -> str:
+    """Return first non-empty paragraph text as a summary."""
+    for p in soup.select("p"):
+        text = p.get_text(strip=True)
+        if text:
+            return text
+    return ""
 
 
 def build_docs(entries):
@@ -83,7 +95,8 @@ def build_docs(entries):
     for idx, url, soup, img_path in entries:
         title = soup.title.string.strip() if soup.title else url
         text = markdownify(str(soup.body)) if soup.body else ""
-        md_content = f"# {title}\n\nURL: {url}\n\n{text}"
+        summary = extract_summary(soup)
+        md_content = f"# {title}\n\nURL: {url}\n\n**Summary:** {summary}\n\n{text}"
 
         # Markdown manual
         md_file = MARKDOWN_DIR / f"{idx:03}_{title.replace(' ', '_')}.md"
@@ -99,7 +112,17 @@ def build_docs(entries):
     pdf.output(str(OUTPUT_DIR / "manual.pdf"))
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Crawl website and create manual")
+    parser.add_argument("base_url", nargs="?", default=BASE_URL, help="Base URL to crawl")
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+    global BASE_URL
+    BASE_URL = args.base_url.rstrip("/")
+
     pages = crawl_site()
     entries = asyncio.run(take_snapshots(pages))
     build_docs(entries)

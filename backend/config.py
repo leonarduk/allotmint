@@ -17,8 +17,13 @@ class TabsConfig:
     trading: bool = True
     timeseries: bool = True
     watchlist: bool = True
+    movers: bool = True
+    group: bool = True
+    owner: bool = True
+    dataadmin: bool = True
     virtual: bool = True
     support: bool = True
+    scenario: bool = True
 
 
 @dataclass

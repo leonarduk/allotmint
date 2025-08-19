@@ -11,6 +11,8 @@ import { getConfig } from "./api";
 
 export interface TabsConfig {
   [key: string]: boolean;
+  group: boolean;
+  owner: boolean;
   instrument: boolean;
   performance: boolean;
   transactions: boolean;
@@ -44,6 +46,8 @@ export interface RawConfig {
 }
 
 const defaultTabs: TabsConfig = {
+  group: true,
+  owner: true,
   instrument: true,
   performance: true,
   transactions: true,

@@ -57,6 +57,7 @@ describe("App", () => {
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
@@ -84,6 +85,7 @@ describe("App", () => {
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       listTimeseries: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
@@ -114,12 +116,15 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       getTradingSignals: vi.fn().mockResolvedValue([]),
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
     const { configContext } = await import("./ConfigContext");
 
     const allTabs = {
+      group: true,
+      owner: true,
       instrument: true,
       performance: true,
       transactions: true,
@@ -168,12 +173,15 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       getTradingSignals: mockTradingSignals,
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
     const { configContext } = await import("./ConfigContext");
 
     const allTabs = {
+      group: true,
+      owner: true,
       instrument: true,
       performance: true,
       transactions: true,
@@ -228,6 +236,7 @@ describe("App", () => {
       updateConfig: vi.fn(),
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       getTradingSignals: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
@@ -263,6 +272,7 @@ describe("App", () => {
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       getTradingSignals: mockTradingSignals,
       listTimeseries: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");

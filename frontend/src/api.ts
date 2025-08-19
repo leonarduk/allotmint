@@ -21,6 +21,7 @@ import type {
   MoverRow,
   TimeseriesSummary,
   ScenarioResult,
+  TradeSuggestion,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -352,3 +353,14 @@ export const getValueAtRisk = (
     `${API_BASE}/var/${owner}${qs ? `?${qs}` : ""}`
   );
 };
+
+/** Request trade suggestions to rebalance a portfolio. */
+export const getRebalance = (
+  actual: Record<string, number>,
+  target: Record<string, number>,
+) =>
+  fetchJson<TradeSuggestion[]>(`${API_BASE}/rebalance`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actual, target }),
+  });

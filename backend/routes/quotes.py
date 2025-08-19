@@ -1,61 +1,32 @@
+# backend/routes/quotes.py
 from __future__ import annotations
 
-
-import boto3
-import yfinance as yf
-import sys
-from fastapi import APIRouter, Query, HTTPException
-
-router = APIRouter(prefix="/api")
-TABLE_NAME = os.environ.get("QUOTES_TABLE", "Quotes")
-_dynamodb = None
-_table = None
-sys.modules[__name__ + ".yf"] = yf
-
-"""Quotes API backed by `yfinance`.
-
-This module exposes a single endpoint that fetches the latest quotes for the
-requested symbols using ``yfinance``.  It intentionally registers the imported
-``yfinance`` module as ``backend.routes.quotes.yf`` in ``sys.modules`` so that
-tests can monkeypatch ``yf.Tickers`` using a dotted import path.
-"""
-
-import sys
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from fastapi import APIRouter, HTTPException, Query
+
 import yfinance as yf
 
-# Expose ``yf`` as a submodule for monkeypatching in tests
-sys.modules[__name__ + ".yf"] = yf
-
-
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", tags=["quotes"])
 
 
 @router.get("/quotes")
-async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
-    """Return quote data for the provided comma-separated ``symbols``."""
-
+def get_quotes(symbols: str = Query("")) -> List[Dict[str, float]]:
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not syms:
         return []
-    table = _get_table()
-
     try:
-        tickers = yf.Tickers(" ".join(syms)).tickers
-    except Exception as exc:  # pragma: no cover - exercised in tests
-        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {exc}") from exc
+        data = yf.Tickers(" ".join(syms))
+    except Exception as e:  # pragma: no cover - error path tested via monkeypatch
+        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {e}")
 
-    results: List[Dict[str, Any]] = []
+    results: List[Dict[str, float]] = []
     for sym in syms:
-        ticker = tickers.get(sym)
-        if ticker is None:
+        ticker = data.tickers.get(sym)
+        if not ticker:
             continue
-        info = getattr(ticker, "info", {})
-        price = info.get("regularMarketPrice")
+        price = ticker.info.get("regularMarketPrice")
         if price is not None:
-            results.append({"symbol": sym, "price": price})
-
+            results.append({"symbol": sym, "price": float(price)})
     return results
 

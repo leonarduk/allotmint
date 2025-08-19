@@ -1,17 +1,21 @@
-import { getAlerts, getAlertSettings, setAlertSettings } from "../api";
+import * as api from "../api";
 import type { Alert } from "../types";
 import { useFetch } from "../hooks/useFetch";
 import { useEffect, useState } from "react";
 export function AlertsPanel({ user = "default" }: { user?: string }) {
-  const { data: alerts, loading, error } = useFetch<Alert[]>(getAlerts, []);
+  const { data: alerts, loading, error } = useFetch<Alert[]>(api.getAlerts, []);
   const [threshold, setThreshold] = useState<number>();
 
   useEffect(() => {
-    getAlertSettings(user).then((r) => setThreshold(r.threshold));
+    if (api.getAlertSettings) {
+      api.getAlertSettings(user).then((r) => setThreshold(r.threshold));
+    }
   }, [user]);
 
   const save = () => {
-    if (threshold !== undefined) setAlertSettings(user, threshold);
+    if (threshold !== undefined && api.setAlertSettings) {
+      api.setAlertSettings(user, threshold);
+    }
   };
 
   if (loading || error || !alerts?.length) return null;

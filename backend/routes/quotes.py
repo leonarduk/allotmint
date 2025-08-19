@@ -1,45 +1,31 @@
-"""Quote endpoint backed by DynamoDB."""
-
+# backend/routes/quotes.py
 from __future__ import annotations
 
-import os
-from decimal import Decimal
-from typing import List, Dict, Any
+from typing import Dict, List
 
-import boto3
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
-router = APIRouter(prefix="/api")
-TABLE_NAME = os.environ.get("QUOTES_TABLE", "Quotes")
-_dynamodb = None
-_table = None
+import yfinance as yf
 
-
-def _get_table():
-    global _dynamodb, _table
-    if _table is None:
-        _dynamodb = boto3.resource("dynamodb")
-        _table = _dynamodb.Table(TABLE_NAME)
-    return _table
-
-
-def _convert_item(item: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: float(v) if isinstance(v, Decimal) else v for k, v in item.items()}
+router = APIRouter(prefix="/api", tags=["quotes"])
 
 
 @router.get("/quotes")
-async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
+def get_quotes(symbols: str = Query("")) -> List[Dict[str, float]]:
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not syms:
         return []
-    table = _get_table()
-    results: List[Dict[str, Any]] = []
+    try:
+        data = yf.Tickers(" ".join(syms))
+    except Exception as e:  # pragma: no cover - error path tested via monkeypatch
+        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {e}")
+
+    results: List[Dict[str, float]] = []
     for sym in syms:
-        try:
-            resp = table.get_item(Key={"symbol": sym})
-        except Exception:
+        ticker = data.tickers.get(sym)
+        if not ticker:
             continue
-        item = resp.get("Item")
-        if item:
-            results.append(_convert_item(item))
+        price = ticker.info.get("regularMarketPrice")
+        if price is not None:
+            results.append({"symbol": sym, "price": float(price)})
     return results

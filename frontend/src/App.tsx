@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
+import {
+  getGroupInstruments,
+  getGroups,
+  getOwners,
+  getPortfolio,
+  refreshPrices,
+} from "./api";
 
 import type {
   GroupSummary,
@@ -30,21 +36,8 @@ import { useConfig } from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
 import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
-
-type Mode =
-  | "owner"
-  | "group"
-  | "instrument"
-  | "transactions"
-  | "performance"
-  | "screener"
-  | "timeseries"
-  | "watchlist"
-  | "movers"
-  | "dataadmin"
-  | "reports"
-  | "support"
-  | "scenario";
+import { tabPlugins } from "./tabPlugins";
+type Mode = (typeof tabPlugins)[number]["id"];
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -94,22 +87,6 @@ export default function App() {
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
-
-  const modes: Mode[] = [
-    "movers",
-    "group",
-    "instrument",
-    "owner",
-    "performance",
-    "transactions",
-    "screener",
-    "timeseries",
-    "watchlist",
-    "dataadmin",
-    "reports",
-    "support",
-    "scenario",
-  ];
 
   function pathFor(m: Mode) {
     switch (m) {
@@ -290,18 +267,20 @@ export default function App() {
       <LanguageSwitcher />
       <AlertsPanel />
       <nav style={{ margin: "1rem 0" }}>
-        {modes
-          .filter((m) => tabs[m] !== false)
-          .map((m) => (
+        {tabPlugins
+          .slice()
+          .sort((a, b) => a.priority - b.priority)
+          .filter((p) => tabs[p.id] !== false)
+          .map((p) => (
             <Link
-              key={m}
-              to={pathFor(m)}
+              key={p.id}
+              to={pathFor(p.id)}
               style={{
                 marginRight: "1rem",
-                fontWeight: mode === m ? "bold" : undefined,
+                fontWeight: mode === p.id ? "bold" : undefined,
               }}
             >
-              {t(`app.modes.${m}`)}
+              {t(`app.modes.${p.id}`)}
             </Link>
           ))}
       </nav>

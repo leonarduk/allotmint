@@ -1,4 +1,20 @@
-
+export const tabPlugins = {
+  group: {},
+  owner: {},
+  instrument: {},
+  performance: {},
+  transactions: {},
+  screener: {},
+  timeseries: {},
+  watchlist: {},
+  movers: {},
+  dataadmin: {},
+  virtual: {},
+  support: {},
+  reports: {},
+  scenario: {},
+};
+export type TabPluginId = keyof typeof tabPlugins;
 export const tabPlugins = [
   { id: "movers", priority: 0 },
   { id: "group", priority: 10 },

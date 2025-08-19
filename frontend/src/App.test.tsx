@@ -1,6 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import {
+  clearTabPlugins,
+  getTabPlugins,
+  registerTabPlugin,
+} from "./pluginRegistry";
 
 const mockTradingSignals = vi.fn();
 
@@ -308,5 +313,24 @@ describe("App", () => {
       "Support",
       "Scenario Tester",
     ]);
+  });
+
+  it("orders plugins by priority and ignores disabled ones", () => {
+    clearTabPlugins();
+    registerTabPlugin({ id: "a", Component: () => null, priority: 10 });
+    registerTabPlugin({
+      id: "b",
+      Component: () => null,
+      priority: 5,
+    });
+    registerTabPlugin({
+      id: "c",
+      Component: () => null,
+      priority: 20,
+      isEnabled: () => false,
+    });
+
+    const plugins = getTabPlugins();
+    expect(plugins.map((p) => p.id)).toEqual(["a", "b"]);
   });
 });

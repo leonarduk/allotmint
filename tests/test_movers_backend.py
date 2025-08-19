@@ -9,10 +9,14 @@ def test_price_change_pct(monkeypatch):
         def today(cls):
             return cls(2023, 1, 9)
     monkeypatch.setattr(ia.dt, "date", FixedDate)
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: t)
+    monkeypatch.setattr(
+        ia,
+        "_resolve_full_ticker",
+        lambda t, latest: (t.split(".", 1)[0], t.split(".", 1)[1] if "." in t else "L"),
+    )
     monkeypatch.setattr(ia, "_LATEST_PRICES", {})
 
-    def fake_close_on(full: str, d: dt.date):
+    def fake_close_on(sym: str, ex: str, d: dt.date):
         if d == dt.date(2023, 1, 8):
             return 110.0
         if d == dt.date(2023, 1, 1):
@@ -31,9 +35,13 @@ def test_top_movers(monkeypatch):
         def today(cls):
             return cls(2023, 1, 9)
     monkeypatch.setattr(ia.dt, "date", FixedDate)
-    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: t)
+    monkeypatch.setattr(
+        ia,
+        "_resolve_full_ticker",
+        lambda t, latest: (t.split(".", 1)[0], t.split(".", 1)[1] if "." in t else "L"),
+    )
     monkeypatch.setattr(ia, "_LATEST_PRICES", {})
-    monkeypatch.setattr(ia, "_close_on", lambda full, d: 100.0)
+    monkeypatch.setattr(ia, "_close_on", lambda sym, ex, d: 100.0)
     monkeypatch.setattr(
         ia,
         "price_change_pct",

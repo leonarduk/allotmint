@@ -45,6 +45,15 @@ vi.mock("../api", () => ({
       roa: 0.1,
       roe: 0.2,
       roi: 0.15,
+      dividend_yield: 2,
+      dividend_payout_ratio: 40,
+      beta: 1.2,
+      shares_outstanding: 1000,
+      float_shares: 800,
+      market_cap: 5000,
+      high_52w: 150,
+      low_52w: 90,
+      avg_volume: 2000,
     },
   ]),
 }));
@@ -78,8 +87,23 @@ describe("Screener & Query page", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
 
-    expect(await screen.findByText("1,000")).toBeInTheDocument();
-    expect(getScreener).toHaveBeenCalledWith(["AAA"], { peg_max: 2, roe_min: 5 });
+    const values = await screen.findAllByText("1,000");
+    expect(values.length).toBeGreaterThan(0);
+    expect(getScreener).toHaveBeenCalledWith(
+      ["AAA"],
+      expect.objectContaining({ peg_max: 2, roe_min: 5 }),
+    );
+
+    fireEvent.change(screen.getByLabelText(en.screener.minDividendYield), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
+
+    expect(await screen.findByText("1.2")).toBeInTheDocument();
+    expect(getScreener).toHaveBeenCalledWith(
+      ["AAA"],
+      expect.objectContaining({ peg_max: 2, dividend_yield_min: 1 }),
+    );
   });
 
   it("submits query form and renders results with export links", async () => {

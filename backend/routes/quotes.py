@@ -29,3 +29,4 @@ def get_quotes(symbols: str = Query("")) -> List[Dict[str, float]]:
         if price is not None:
             results.append({"symbol": sym, "price": float(price)})
     return results
+

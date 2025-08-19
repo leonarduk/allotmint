@@ -141,6 +141,15 @@ export const getScreener = (
     roa_min?: number;
     roe_min?: number;
     roi_min?: number;
+    dividend_yield_min?: number;
+    dividend_payout_ratio_max?: number;
+    beta_max?: number;
+    shares_outstanding_min?: number;
+    float_shares_min?: number;
+    market_cap_min?: number;
+    high_52w_max?: number;
+    low_52w_min?: number;
+    avg_volume_min?: number;
   } = {},
 ) => {
   const params = new URLSearchParams({ tickers: tickers.join(",") });
@@ -167,6 +176,29 @@ export const getScreener = (
   if (criteria.roa_min != null) params.set("roa_min", String(criteria.roa_min));
   if (criteria.roe_min != null) params.set("roe_min", String(criteria.roe_min));
   if (criteria.roi_min != null) params.set("roi_min", String(criteria.roi_min));
+  if (criteria.dividend_yield_min != null)
+    params.set("dividend_yield_min", String(criteria.dividend_yield_min));
+  if (criteria.dividend_payout_ratio_max != null)
+    params.set(
+      "dividend_payout_ratio_max",
+      String(criteria.dividend_payout_ratio_max),
+    );
+  if (criteria.beta_max != null) params.set("beta_max", String(criteria.beta_max));
+  if (criteria.shares_outstanding_min != null)
+    params.set(
+      "shares_outstanding_min",
+      String(criteria.shares_outstanding_min),
+    );
+  if (criteria.float_shares_min != null)
+    params.set("float_shares_min", String(criteria.float_shares_min));
+  if (criteria.market_cap_min != null)
+    params.set("market_cap_min", String(criteria.market_cap_min));
+  if (criteria.high_52w_max != null)
+    params.set("high_52w_max", String(criteria.high_52w_max));
+  if (criteria.low_52w_min != null)
+    params.set("low_52w_min", String(criteria.low_52w_min));
+  if (criteria.avg_volume_min != null)
+    params.set("avg_volume_min", String(criteria.avg_volume_min));
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`);
 };
 

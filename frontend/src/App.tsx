@@ -28,6 +28,7 @@ import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
+import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
 
 type Mode =
@@ -41,6 +42,7 @@ type Mode =
   | "watchlist"
   | "movers"
   | "dataadmin"
+  | "reports"
   | "support"
   | "scenario";
 
@@ -104,6 +106,7 @@ export default function App() {
     "timeseries",
     "watchlist",
     "dataadmin",
+    "reports",
     "support",
     "scenario",
   ];
@@ -122,6 +125,8 @@ export default function App() {
         return "/movers";
       case "scenario":
         return "/scenario";
+      case "reports":
+        return "/reports";
       default:
         return `/${m}`;
     }
@@ -161,6 +166,9 @@ export default function App() {
         break;
       case "support":
         newMode = "support";
+        break;
+      case "reports":
+        newMode = "reports";
         break;
       case "scenario":
         newMode = "scenario";
@@ -388,6 +396,7 @@ export default function App() {
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}
+      {mode === "support" && <Support />}
       {mode === "scenario" && <ScenarioTester />}
     </div>
   );

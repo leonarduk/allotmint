@@ -1,6 +1,8 @@
 import pytest
+import shutil
 from backend.common import portfolio_utils
 from backend.agent.trading_agent import send_trade_alert, run
+from backend.agent import trading_agent
 
 # Alias to match the terminology of "generate_signals"
 generate_signals = portfolio_utils.check_price_alerts
@@ -8,8 +10,8 @@ generate_signals = portfolio_utils.check_price_alerts
 
 def test_generate_signals_buy_sell_actions(monkeypatch):
     snapshot = {
-        "AAA": {"last_price": 110.0},
-        "BBB": {"last_price": 90.0},
+        "AAA.L": {"last_price": 110.0},
+        "BBB.L": {"last_price": 90.0},
     }
     portfolio = {
         "accounts": [
@@ -29,11 +31,11 @@ def test_generate_signals_buy_sell_actions(monkeypatch):
     alerts = generate_signals(threshold_pct=0.05)
     assert len(alerts) == 2
     actions = {a["ticker"]: ("sell" if a["change_pct"] > 0 else "buy") for a in alerts}
-    assert actions == {"AAA": "sell", "BBB": "buy"}
+    assert actions == {"AAA.L": "sell", "BBB.L": "buy"}
 
 
 def test_generate_signals_emits_alerts(monkeypatch):
-    snapshot = {"AAA": {"last_price": 110.0}}
+    snapshot = {"AAA.L": {"last_price": 110.0}}
     portfolio = {
         "accounts": [
             {"holdings": [{"ticker": "AAA", "units": 1, "cost_gbp": 100}]}
@@ -51,7 +53,7 @@ def test_generate_signals_emits_alerts(monkeypatch):
 
     alerts = generate_signals(threshold_pct=0.05)
     assert alerts == published
-    assert published and published[0]["ticker"] == "AAA"
+    assert published and published[0]["ticker"] == "AAA.L"
 
 
 def test_send_trade_alert_sns_only(monkeypatch):
@@ -179,3 +181,16 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
     run()
 
     assert sent and "AAA" in sent[0]
+
+
+def test_log_trade_recreates_directory(tmp_path, monkeypatch):
+    trade_path = tmp_path / "trades" / "trade_log.csv"
+    trade_path.parent.mkdir(parents=True)
+    shutil.rmtree(trade_path.parent)
+    monkeypatch.setattr(trading_agent, "TRADE_LOG_PATH", trade_path)
+
+    assert not trade_path.parent.exists()
+
+    trading_agent._log_trade("AAA", "BUY", 1.0)
+
+    assert trade_path.exists()

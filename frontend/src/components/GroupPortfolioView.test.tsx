@@ -13,6 +13,8 @@ const defaultConfig: AppConfig = {
   relativeViewEnabled: false,
   theme: "system",
   tabs: {
+    group: true,
+    owner: true,
     instrument: true,
     performance: true,
     transactions: true,
@@ -20,14 +22,18 @@ const defaultConfig: AppConfig = {
     timeseries: true,
     watchlist: true,
     movers: true,
+    dataadmin: true,
     virtual: true,
     support: true,
+    scenario: true,
   },
 };
 
 const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) =>
   render(
-    <configContext.Provider value={{ ...defaultConfig, ...cfg }}>
+    <configContext.Provider
+      value={{ ...defaultConfig, ...cfg, refreshConfig: async () => {} }}
+    >
       {ui}
     </configContext.Provider>,
   );

@@ -29,17 +29,20 @@ export function ScreenerPage() {
 
   return (
     <>
-      <select
-        value={watchlist}
-        onChange={(e) => setWatchlist(e.target.value as WatchlistName)}
-        style={{ marginBottom: "0.5rem" }}
-      >
-        {(Object.keys(WATCHLISTS) as WatchlistName[]).map((name) => (
-          <option key={name} value={name}>
-            {name}
-          </option>
-        ))}
-      </select>
+      <label style={{ display: "inline-block", marginBottom: "0.5rem" }}>
+        Watchlist:
+        <select
+          value={watchlist}
+          onChange={(e) => setWatchlist(e.target.value as WatchlistName)}
+          style={{ marginLeft: "0.25rem" }}
+        >
+          {(Object.keys(WATCHLISTS) as WatchlistName[]).map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <table className={tableStyles.table}>
         <thead>
@@ -82,6 +85,13 @@ export function ScreenerPage() {
               key={r.ticker}
               onClick={() => setTicker(r.ticker)}
               className={tableStyles.clickable}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  setTicker(r.ticker);
+                }
+              }}
             >
               <td className={tableStyles.cell}>{r.ticker}</td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>

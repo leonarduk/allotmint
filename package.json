@@ -4,5 +4,8 @@
   "devDependencies": {
     "concurrently": "^9.2.0"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "scripts": {
+    "test": "cd frontend && npm test --"
+  }
 }

@@ -1,17 +1,16 @@
 import datetime
 import re
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
-from backend.utils.html_render import render_timeseries_html
 from backend.config import config
-from pathlib import Path
+from backend.utils.html_render import render_timeseries_html
 
-STANDARD_COLUMNS = [
-    "Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"
-]
+STANDARD_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]
+
 
 def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) -> pd.DataFrame:
     if scale is None or scale == 1:
@@ -32,12 +31,11 @@ def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) ->
 
     return df
 
+
 import json
 
 
-def get_scaling_override(
-    ticker: str, exchange: str, requested_scaling: Optional[float]
-) -> float:
+def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional[float]) -> float:
     if requested_scaling is not None:
         return requested_scaling
 
@@ -58,8 +56,11 @@ def get_scaling_override(
 
     # Try: exact -> base -> per-exchange wildcard -> global wildcard
     candidates = [
-        (ex, ticker), (ex, base),
-        (ex, "*"), ("*", base), ("*", "*"),
+        (ex, ticker),
+        (ex, base),
+        (ex, "*"),
+        ("*", base),
+        ("*", "*"),
     ]
     for ex_key, t_key in candidates:
         if ex_key in ov and t_key in ov[ex_key]:
@@ -68,6 +69,7 @@ def get_scaling_override(
             except Exception:
                 pass
     return 1.0
+
 
 def handle_timeseries_response(
     df: pd.DataFrame,
@@ -89,6 +91,7 @@ def handle_timeseries_response(
     else:
         return render_timeseries_html(df, title, subtitle)
 
+
 # ── new helper ──────────────────────────────────────────────
 def _nearest_weekday(d: datetime.date, forward: bool) -> datetime.date:
     """
@@ -97,9 +100,10 @@ def _nearest_weekday(d: datetime.date, forward: bool) -> datetime.date:
     forward=True  -> Friday->Mon (skip weekend forward)
     forward=False -> Saturday/Sunday->Fri (skip weekend backward)
     """
-    while d.weekday() >= 5:   # 5 = Saturday, 6 = Sunday
+    while d.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
         d += datetime.timedelta(days=1 if forward else -1)
     return d
+
 
 def _is_isin(ticker: str) -> bool:
     base = re.split(r"[.:]", ticker)[0].upper()

@@ -1,5 +1,6 @@
 import json
 from datetime import date
+
 import pandas as pd
 
 from backend.common import portfolio_utils

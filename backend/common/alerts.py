@@ -32,6 +32,7 @@ def publish_sns_alert(alert: Dict) -> None:
 def publish_alert(alert: Dict) -> None:
     publish_sns_alert(alert)
 
+
 def get_recent_alerts(limit: int = 50) -> List[Dict]:
     """Return recent alerts, most recent last."""
     return _RECENT_ALERTS[-limit:]

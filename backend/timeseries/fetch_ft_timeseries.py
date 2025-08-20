@@ -16,10 +16,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from backend.config import get_config
 from backend.utils.currency_utils import currency_from_isin
-from backend.utils.timeseries_helpers import _is_isin, STANDARD_COLUMNS
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS, _is_isin
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ft_timeseries")
+
 
 def init_driver(headless: Optional[bool] = None, user_agent: Optional[str] = None) -> webdriver.Chrome:
     """Initialise a Selenium Chrome driver using shared configuration.
@@ -44,12 +45,14 @@ def init_driver(headless: Optional[bool] = None, user_agent: Optional[str] = Non
         options.add_argument(f"user-agent={user_agent}")
     return webdriver.Chrome(options=options)
 
+
 def _build_ft_ticker(ticker: str) -> Optional[str]:
     """Return an FT-compatible symbol like 'IE00B4L5Y983:GBP', or None."""
     if _is_isin(ticker):
         isin = re.split(r"[.:]", ticker)[0].upper()
         return f"{isin}:{currency_from_isin(ticker)}"
     return None
+
 
 def fetch_ft_timeseries_range(
     ticker: str,
@@ -61,7 +64,9 @@ def fetch_ft_timeseries_range(
     user_agent: Optional[str] = None,
 ) -> pd.DataFrame:
     cfg = get_config()
-    template = url_template or cfg.get("ft_url_template", "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}")
+    template = url_template or cfg.get(
+        "ft_url_template", "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
+    )
     url = template.format(ticker=ticker)
     logger.info(f"Navigating to {url}")
     driver = init_driver(headless=headless, user_agent=user_agent)
@@ -69,9 +74,7 @@ def fetch_ft_timeseries_range(
     try:
         driver.get(url)
         logger.debug("Waiting for historical price table...")
-        WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "table.mod-ui-table"))
-        )
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table.mod-ui-table")))
 
         # Handle cookie banner
         try:
@@ -114,6 +117,7 @@ def fetch_ft_timeseries_range(
     finally:
         logger.debug("Closing Selenium driver")
         driver.quit()
+
 
 def fetch_ft_timeseries(
     ticker: str,
@@ -160,8 +164,7 @@ if __name__ == "__main__":
         args.ticker,
         days=args.days,
         url_template=args.ft_url_template or cfg.get("ft_url_template"),
-        headless=
-        args.selenium_headless if args.selenium_headless is not None else cfg.get("selenium_headless", True),
+        headless=args.selenium_headless if args.selenium_headless is not None else cfg.get("selenium_headless", True),
         user_agent=args.selenium_user_agent or cfg.get("selenium_user_agent"),
     )
     print(df.head())

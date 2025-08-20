@@ -39,11 +39,6 @@ error_summary: '[object Object]'
 
 tabs:
   instrument: true
-  performance: false
-  transactions: false
-  screener: false
-  trading: false
-  timeseries: true
-  watchlist: false
-  virtual: false
   support: true
+  timeseries: true
+  reports: true

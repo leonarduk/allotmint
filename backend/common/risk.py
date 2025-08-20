@@ -6,7 +6,6 @@ historical-simulation Value-at-Risk (VaR) for a portfolio owner.
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Dict
 
 import numpy as np

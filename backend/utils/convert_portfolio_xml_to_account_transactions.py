@@ -16,7 +16,9 @@ override these values on the command line.
 
 Usage
 -----
-    python convert_portfolio_xml_to_account_transactions.py [--xml-path path/to/investments.xml] [--output-root data/accounts]
+    python convert_portfolio_xml_to_account_transactions.py \\
+        [--xml-path path/to/investments.xml] \\
+        [--output-root data/accounts]
 
 Requires `pandas` (install with `pip install pandas`).
 """
@@ -30,13 +32,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from backend.config import config
-
 import pandas as pd
+
+from backend.config import config
 
 ###############################################################################
 # Helpers
 ###############################################################################
+
 
 def _safe_int(value: str | None) -> int | None:
     try:
@@ -44,9 +47,11 @@ def _safe_int(value: str | None) -> int | None:
     except ValueError:
         return None
 
+
 def _get_ref(elem: ET.Element, tag: str) -> str | None:
     tag_elem = elem.find(tag)
     return tag_elem.get("reference") if tag_elem is not None else None
+
 
 def _normalise_account_name(name: str) -> Tuple[str, str]:
     """Split **"Steve ISA Cash" -> ("steve", "isa")**, used for output paths."""
@@ -55,9 +60,11 @@ def _normalise_account_name(name: str) -> Tuple[str, str]:
         return parts[0].lower(), parts[1].lower()
     return "unknown", "unknown"
 
+
 ###############################################################################
 # Core extraction logic
 ###############################################################################
+
 
 def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
     """Return *all* transactions as a DataFrame with an *account* column."""
@@ -66,8 +73,7 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
 
     # Map account-id -> account-name so we can resolve names later
     account_names: dict[str, str] = {
-        acc.get("id"): acc.findtext("name") or f"Account {acc.get('id')}"
-        for acc in root.findall(".//accounts/account")
+        acc.get("id"): acc.findtext("name") or f"Account {acc.get('id')}" for acc in root.findall(".//accounts/account")
     }
 
     records: List[Dict[str, Any]] = []
@@ -128,9 +134,11 @@ def extract_transactions_by_account(xml_path: str) -> pd.DataFrame:
 
     return pd.DataFrame.from_records(records)
 
+
 ###############################################################################
 # Output helpers
 ###############################################################################
+
 
 def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
     """Write *one JSON file per account* mirroring holdings-generation structure."""
@@ -159,14 +167,14 @@ def write_account_json(df: pd.DataFrame, out_dir: str) -> None:
 
         print(f"Wrote {json_path} ({len(group)} transactions)")
 
+
 ###############################################################################
 # CLI entry-point
 ###############################################################################
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Extract and normalise transactions per account"
-    )
+    parser = argparse.ArgumentParser(description="Extract and normalise transactions per account")
     parser.add_argument(
         "--xml-path",
         default=config.portfolio_xml_path,
@@ -187,6 +195,7 @@ def main() -> None:
 
     df = extract_transactions_by_account(xml_path=xml)
     write_account_json(df, output_root)
+
 
 if __name__ == "__main__":
     main()

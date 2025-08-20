@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from backend.common.alerts import get_recent_alerts
 from backend import alerts as alert_utils
+from backend.common.alerts import get_recent_alerts
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 

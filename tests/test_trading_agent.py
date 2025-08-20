@@ -1,8 +1,8 @@
-import pytest
 import shutil
-from backend.common import portfolio_utils
-from backend.agent.trading_agent import send_trade_alert, run
+
 from backend.agent import trading_agent
+from backend.agent.trading_agent import run, send_trade_alert
+from backend.common import portfolio_utils
 
 # Alias to match the terminology of "generate_signals"
 generate_signals = portfolio_utils.check_price_alerts
@@ -36,11 +36,7 @@ def test_generate_signals_buy_sell_actions(monkeypatch):
 
 def test_generate_signals_emits_alerts(monkeypatch):
     snapshot = {"AAA": {"last_price": 110.0}}
-    portfolio = {
-        "accounts": [
-            {"holdings": [{"ticker": "AAA", "units": 1, "cost_gbp": 100}]}
-        ]
-    }
+    portfolio = {"accounts": [{"holdings": [{"ticker": "AAA", "units": 1, "cost_gbp": 100}]}]}
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", snapshot)
     monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [portfolio])
 
@@ -80,12 +76,8 @@ def test_send_trade_alert_with_telegram(monkeypatch):
     published = {}
     telegram_msgs = []
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", lambda alert: published.update(alert)
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg)
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: published.update(alert))
+    monkeypatch.setattr("backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg))
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
 
@@ -102,12 +94,8 @@ def test_send_trade_alert_no_publish_with_telegram(monkeypatch):
     def fake_publish(alert):
         published["called"] = True
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", fake_publish
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg)
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", fake_publish)
+    monkeypatch.setattr("backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg))
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
 
@@ -140,9 +128,7 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
         "backend.agent.trading_agent.prices.load_prices_for_tickers",
         fake_load_prices,
     )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", lambda alert: None
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: None)
 
     run()
 
@@ -151,9 +137,7 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
 
 def test_run_sends_telegram_when_not_aws(monkeypatch):
     # Trigger a BUY signal for ticker AAA
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"]
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"])
 
     def fake_load_prices(tickers, days=60):
         import pandas as pd
@@ -161,17 +145,11 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
         data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
         return pd.DataFrame(data)
 
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices
-    )
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.publish_alert", lambda alert: None
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr("backend.agent.trading_agent.publish_alert", lambda alert: None)
 
     sent: list[str] = []
-    monkeypatch.setattr(
-        "backend.agent.trading_agent.send_message", lambda msg: sent.append(msg)
-    )
+    monkeypatch.setattr("backend.agent.trading_agent.send_message", lambda msg: sent.append(msg))
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
     monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
     from backend.agent import trading_agent

@@ -15,7 +15,7 @@ import pandas as pd
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 router = APIRouter(
@@ -49,9 +49,7 @@ env = Environment(
 
 def _render_html(df: pd.DataFrame, title: str) -> str:
     """Return a minimal HTML document with a styled table."""
-    table_html = df.to_html(
-        classes="dataframe table table-striped", index=False, border=0
-    )
+    table_html = df.to_html(classes="dataframe table table-striped", index=False, border=0)
     template = env.get_template("timeseries.html")
     return template.render(title=title, table_html=table_html)
 

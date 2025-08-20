@@ -2,15 +2,14 @@ from __future__ import annotations
 
 """Data loading helpers for AllotMint."""
 
-from pathlib import Path
 import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.config import config
-
 from backend.common.virtual_portfolio import VirtualPortfolio
+from backend.config import config
 
 
 # ------------------------------------------------------------------
@@ -86,10 +85,12 @@ def _list_local_plots(data_root: Optional[Path] = None) -> List[Dict[str, Any]]:
             seen.add(al)
             dedup.append(a)
 
-        results.append({
-            "owner": owner_dir.name,
-            "accounts": dedup,
-        })
+        results.append(
+            {
+                "owner": owner_dir.name,
+                "accounts": dedup,
+            }
+        )
 
     return results
 
@@ -146,10 +147,7 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
         else:
             break
 
-    return [
-        {"owner": owner, "accounts": accounts}
-        for owner, accounts in sorted(owners.items())
-    ]
+    return [{"owner": owner, "accounts": accounts} for owner, accounts in sorted(owners.items())]
 
 
 # ------------------------------------------------------------------
@@ -185,12 +183,11 @@ def load_account(
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
-            raise FileNotFoundError(
-                f"Missing {DATA_BUCKET_ENV} env var for AWS account loading"
-            )
+            raise FileNotFoundError(f"Missing {DATA_BUCKET_ENV} env var for AWS account loading")
         key = f"{PLOTS_PREFIX}{owner}/{account}.json"
         try:
             import boto3  # type: ignore
+
             obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
         except Exception as exc:  # pragma: no cover - exercised via tests
             raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
@@ -215,6 +212,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         key = f"{PLOTS_PREFIX}{owner}/person.json"
         try:
             import boto3  # type: ignore
+
             obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
             body = obj.get("Body")
             txt = body.read().decode("utf-8-sig").strip() if body else ""

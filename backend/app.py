@@ -15,35 +15,33 @@ from fastapi import Depends, FastAPI, HTTPException, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 
-from backend.routes.instrument import router as instrument_router
-from backend.routes.portfolio import router as portfolio_router
-from backend.routes.timeseries_meta import router as timeseries_router
-from backend.routes.timeseries_edit import router as timeseries_edit_router
-from backend.routes.timeseries_admin import router as timeseries_admin_router
-
-from backend.routes.transactions import router as transactions_router
-from backend.routes.alerts import router as alerts_router
-from backend.routes.compliance import router as compliance_router
-from backend.routes.screener import router as screener_router
-from backend.routes.support import router as support_router
-from backend.routes.query import router as query_router
-from backend.routes.virtual_portfolio import router as virtual_portfolio_router
-from backend.routes.metrics import router as metrics_router
-from backend.routes.agent import router as agent_router
-from backend.routes.trading_agent import router as trading_agent_router
-from backend.routes.config import router as config_router
-from backend.routes.quotes import router as quotes_router
-from backend.routes.movers import router as movers_router
-from backend.routes.scenario import router as scenario_router
+from backend.common.data_loader import resolve_paths
 from backend.common.portfolio_utils import (
     _load_snapshot,
     refresh_snapshot_async,
     refresh_snapshot_in_memory,
 )
 from backend.config import config
-from backend.common.data_loader import resolve_paths
+from backend.routes.agent import router as agent_router
+from backend.routes.alerts import router as alerts_router
+from backend.routes.compliance import router as compliance_router
+from backend.routes.config import router as config_router
+from backend.routes.instrument import router as instrument_router
+from backend.routes.metrics import router as metrics_router
+from backend.routes.movers import router as movers_router
+from backend.routes.portfolio import router as portfolio_router
+from backend.routes.query import router as query_router
+from backend.routes.quotes import router as quotes_router
+from backend.routes.scenario import router as scenario_router
+from backend.routes.screener import router as screener_router
+from backend.routes.support import router as support_router
+from backend.routes.timeseries_admin import router as timeseries_admin_router
+from backend.routes.timeseries_edit import router as timeseries_edit_router
+from backend.routes.timeseries_meta import router as timeseries_router
+from backend.routes.trading_agent import router as trading_agent_router
+from backend.routes.transactions import router as transactions_router
+from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 from backend.utils import page_cache
-
 
 API_TOKEN = os.getenv("API_TOKEN")
 api_key_header = APIKeyHeader(name="X-API-Token", auto_error=False)
@@ -124,6 +122,7 @@ def create_app() -> FastAPI:
     skip_warm = bool(config.skip_snapshot_warm)
 
     if not skip_warm:
+
         @app.on_event("startup")
         async def _warm_snapshot() -> None:
             """Pre-fetch recent price data so the first request is fast."""
@@ -157,6 +156,4 @@ def create_app() -> FastAPI:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        create_app(), host="0.0.0.0", port=config.uvicorn_port or 8000
-    )
+    uvicorn.run(create_app(), host="0.0.0.0", port=config.uvicorn_port or 8000)

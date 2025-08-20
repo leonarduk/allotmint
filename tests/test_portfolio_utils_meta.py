@@ -6,4 +6,3 @@ def test_get_security_meta_includes_sector_and_region():
     assert meta is not None
     assert "sector" in meta and meta["sector"]
     assert "region" in meta and meta["region"]
-

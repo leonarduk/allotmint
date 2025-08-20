@@ -15,15 +15,15 @@ from __future__ import annotations
 
 import datetime as dt
 from functools import lru_cache
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from backend.common.constants import OWNER, ACCOUNTS, HOLDINGS
+from backend.common.constants import ACCOUNTS, HOLDINGS, OWNER
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.holding_utils import load_latest_prices
-from backend.common.portfolio_utils import list_all_unique_tickers, get_security_meta
+from backend.common.portfolio_utils import get_security_meta, list_all_unique_tickers
 from backend.timeseries.cache import (
-    load_meta_timeseries_range,
     has_cached_meta_timeseries,
+    load_meta_timeseries_range,
 )
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 
@@ -143,17 +143,14 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
 # Last price + %-changes helpers
 # ───────────────────────────────────────────────────────────────
 
+
 def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
     """Return close price for ``sym.ex`` ticker on date ``d`` if available."""
     snap = _nearest_weekday(d, forward=False)
     df = load_meta_timeseries_range(sym, ex, start_date=snap, end_date=snap)
     if df is None or df.empty:
         return None
-    col = (
-        "close_gbp"
-        if "close_gbp" in df.columns
-        else ("Close_gbp" if "Close_gbp" in df.columns else None)
-    )
+    col = "close_gbp" if "close_gbp" in df.columns else ("Close_gbp" if "Close_gbp" in df.columns else None)
     if col is None:
         col = "close" if "close" in df.columns else ("Close" if "Close" in df.columns else None)
     return float(df[col].iloc[0]) if col else None

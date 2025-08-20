@@ -34,9 +34,7 @@ async def timeseries_admin() -> list[dict[str, Any]]:
         completeness = len(df) / bdays * 100
         latest_source = df.iloc[-1]["Source"] if "Source" in df.columns else None
         main_source = (
-            df["Source"].value_counts().idxmax()
-            if "Source" in df.columns and not df["Source"].dropna().empty
-            else None
+            df["Source"].value_counts().idxmax() if "Source" in df.columns and not df["Source"].dropna().empty else None
         )
         meta = get_instrument_meta(f"{ticker}.{exchange}")
         summaries.append(

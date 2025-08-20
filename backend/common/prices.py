@@ -17,23 +17,24 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Optional, Iterable, Dict, List
+from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
+
+from backend.common.holding_utils import load_latest_prices as _load_latest_prices
+from backend.common.portfolio_loader import list_portfolios
+from backend.common.portfolio_utils import (
+    check_price_alerts,
+    list_all_unique_tickers,
+    refresh_snapshot_in_memory,
+)
 
 # ──────────────────────────────────────────────────────────────
 # Local imports
 # ──────────────────────────────────────────────────────────────
 from backend.config import config
-from backend.common.portfolio_loader import list_portfolios
-from backend.common.portfolio_utils import (
-    list_all_unique_tickers,
-    refresh_snapshot_in_memory,
-    check_price_alerts,
-)
-from backend.common.holding_utils import load_latest_prices as _load_latest_prices
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import _nearest_weekday
 
@@ -94,6 +95,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
 
     return snapshot
 
+
 # ──────────────────────────────────────────────────────────────
 # Securities universe : derived from portfolios
 # ──────────────────────────────────────────────────────────────
@@ -113,6 +115,7 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                 }
     return securities
 
+
 def get_security_meta(ticker: str) -> Optional[Dict]:
     """Always fetch fresh metadata derived from latest portfolios."""
     return _build_securities_from_portfolios().get(ticker.upper())
@@ -123,9 +126,11 @@ def get_security_meta(ticker: str) -> Optional[Dict]:
 # ──────────────────────────────────────────────────────────────
 _price_cache: Dict[str, float] = {}
 
+
 def get_price_gbp(ticker: str) -> Optional[float]:
     """Return the cached last close in GBP, or None if unseen."""
     return _price_cache.get(ticker.upper())
+
 
 # ──────────────────────────────────────────────────────────────
 # Refresh logic
@@ -161,6 +166,7 @@ def refresh_prices() -> Dict:
         "timestamp": datetime.utcnow().isoformat(),
     }
 
+
 # ──────────────────────────────────────────────────────────────
 # Ad-hoc helpers
 # ──────────────────────────────────────────────────────────────
@@ -182,6 +188,7 @@ def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
             prices[full] = float(df.iloc[-1]["close"])
     return prices
 
+
 def load_prices_for_tickers(
     tickers: Iterable[str],
     days: int = 365,
@@ -190,7 +197,7 @@ def load_prices_for_tickers(
     Fetch historical daily closes for a list of tickers and return a
     concatenated dataframe; keeps each original suffix (e.g. '.L').
     """
-    end_date   = _nearest_weekday(datetime.today().date(), forward=True)
+    end_date = _nearest_weekday(datetime.today().date(), forward=True)
     start_date = _nearest_weekday(end_date - timedelta(days=days), forward=False)
 
     frames: List[pd.DataFrame] = []
@@ -206,6 +213,7 @@ def load_prices_for_tickers(
             logger.warning(f"Failed to fetch prices for {full}: {exc}")
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
 
 # ──────────────────────────────────────────────────────────────
 # CLI test

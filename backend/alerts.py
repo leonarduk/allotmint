@@ -7,6 +7,7 @@ percentage an alert is published through :mod:`backend.common.alerts`.
 User thresholds are persisted in a tiny JSON file under ``data`` which acts
 as a lightweight database suitable for tests and development environments.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,17 +15,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
-from backend.config import config
 from backend.common.alerts import publish_alert
+from backend.config import config
 
 DEFAULT_THRESHOLD_PCT = 0.05  # default 5% threshold
 
 # Path used to store user specific thresholds
-_SETTINGS_PATH = (
-    (config.repo_root or Path(__file__).resolve().parents[1])
-    / "data"
-    / "alert_thresholds.json"
-)
+_SETTINGS_PATH = (config.repo_root or Path(__file__).resolve().parents[1]) / "data" / "alert_thresholds.json"
 
 # In-memory cache of settings
 _USER_THRESHOLDS: Dict[str, float] = {}
@@ -37,9 +34,7 @@ def _load_settings() -> None:
         return
     try:
         if _SETTINGS_PATH.exists():
-            _USER_THRESHOLDS = {
-                k: float(v) for k, v in json.loads(_SETTINGS_PATH.read_text()).items()
-            }
+            _USER_THRESHOLDS = {k: float(v) for k, v in json.loads(_SETTINGS_PATH.read_text()).items()}
     except Exception:
         _USER_THRESHOLDS = {}
 

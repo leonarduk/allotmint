@@ -1,9 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.local_api.main import app
-from backend.common.instruments import get_instrument_meta
 import backend.common.alerts as alerts
+from backend.common.instruments import get_instrument_meta
+from backend.local_api.main import app
 
 client = TestClient(app)
 
@@ -212,12 +212,13 @@ def test_alerts_endpoint(monkeypatch):
 #         html = resp.text.lower()
 #         assert "<table" in html and "ft time series" in html
 
+
 def test_screener_endpoint(monkeypatch):
     from backend.screener import Fundamentals
 
     def mock_fetch(ticker: str) -> Fundamentals:
         if ticker == "AAA":
-           return Fundamentals(ticker="AAA", peg_ratio=0.5, roe=0.2)
+            return Fundamentals(ticker="AAA", peg_ratio=0.5, roe=0.2)
         return Fundamentals(ticker="BBB", peg_ratio=2.0, roe=0.1)
 
     monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
@@ -227,6 +228,7 @@ def test_screener_endpoint(monkeypatch):
     data = resp.json()
     assert len(data) == 1
     assert data[0]["ticker"] == "AAA"
+
 
 def test_var_endpoint_default():
     owners = client.get("/owners").json()

@@ -2,24 +2,24 @@
 from __future__ import annotations
 
 import datetime as dt
-from datetime import date, timedelta
 import logging
+from datetime import date, timedelta
 from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from backend.common.approvals import is_approval_valid
 from backend.common.constants import (
     ACQUIRED_DATE,
     COST_BASIS_GBP,
     EFFECTIVE_COST_BASIS_GBP,
-    UNITS,
     TICKER,
+    UNITS,
 )
-from backend.config import config
 from backend.common.instruments import get_instrument_meta
+from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries_range
-from backend.utils.timeseries_helpers import get_scaling_override, apply_scaling
-from backend.common.approvals import is_approval_valid
+from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
 logger = logging.getLogger(__name__)
 
@@ -129,9 +129,7 @@ def _close_column(df: pd.DataFrame) -> Optional[str]:
 
 
 # ─────── cost basis (single source of truth) ───────
-def _derived_cost_basis_close_px(
-    ticker: str, exchange: str, acq: dt.date, cache: dict[str, float]
-) -> Optional[float]:
+def _derived_cost_basis_close_px(ticker: str, exchange: str, acq: dt.date, cache: dict[str, float]) -> Optional[float]:
     """
     Find a scaled close price near acquisition date (±2 weekdays). Cached by key.
     """
@@ -172,8 +170,7 @@ def _get_price_for_date_scaled(
     field.  For close prices we prefer the GBP-converted column when
     available, falling back to the regular close.
     """
-    df = load_meta_timeseries_range(ticker=ticker, exchange=exchange,
-                                    start_date=d, end_date=d)
+    df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
         return None
 
@@ -251,6 +248,7 @@ def enrich_holding(
 
     account_ccy = (h.get("currency") or "GBP").upper()
     from backend.common.portfolio_utils import get_security_meta  # local import to avoid circular
+
     sec_meta = get_security_meta(full) or {}
     instr_meta = meta or {}
     # Merge metadata giving precedence to instrument files over
@@ -329,9 +327,7 @@ def enrich_holding(
         days = (today - acq).days
         out["days_held"] = days
         eligible = days >= config.hold_days_min
-        out["eligible_on"] = (
-            acq + dt.timedelta(days=config.hold_days_min)
-        ).isoformat()
+        out["eligible_on"] = (acq + dt.timedelta(days=config.hold_days_min)).isoformat()
         out["days_until_eligible"] = max(0, config.hold_days_min - days)
     else:
         out["days_held"] = None
@@ -343,9 +339,7 @@ def enrich_holding(
     exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
     exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
     needs_approval = not (
-        ticker.upper() in exempt_tickers
-        or full.upper() in exempt_tickers
-        or instr_type in exempt_types
+        ticker.upper() in exempt_tickers or full.upper() in exempt_tickers or instr_type in exempt_types
     )
     approved = False
     if approvals and needs_approval:
@@ -363,7 +357,7 @@ def enrich_holding(
     cost_for_gain = float(out.get(EFFECTIVE_COST_BASIS_GBP) or 0.0) or ecb
 
     # Current price as of "yesterday" (app constraint)
-    asof_date = (today - dt.timedelta(days=1))
+    asof_date = today - dt.timedelta(days=1)
     px = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
 
     units = float(out.get(UNITS, 0) or 0)
@@ -389,7 +383,7 @@ def enrich_holding(
     else:
         out["market_value_gbp"] = None
         out["gain_gbp"] = None
-        out["unrealised_gain_gbp"] = None   # keep both spellings
+        out["unrealised_gain_gbp"] = None  # keep both spellings
         out["unrealized_gain_gbp"] = None
         out["gain_pct"] = None
 
@@ -404,11 +398,13 @@ def enrich_holding(
 
     return out
 
+
 # top-level helper
 def _is_cash(full: str, account_ccy: str = "GBP") -> bool:
     f = (full or "").upper()
     # allow several spellings
     return f in {f"CASH.{account_ccy}", f"{account_ccy}.CASH", "CASH"}
+
 
 def _cash_name(full: str, account_ccy: str = "GBP") -> str:
     return f"Cash ({account_ccy})"

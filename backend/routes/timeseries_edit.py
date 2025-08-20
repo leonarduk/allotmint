@@ -26,9 +26,7 @@ def _load_timeseries(ticker: str, exchange: str) -> pd.DataFrame:
 
 
 @router.get("/edit")
-async def get_timeseries_edit(
-    ticker: str = Query(...), exchange: str = Query("L")
-) -> JSONResponse:
+async def get_timeseries_edit(ticker: str = Query(...), exchange: str = Query("L")) -> JSONResponse:
     df = _load_timeseries(ticker, exchange)
     if not df.empty:
         df = df.copy()
@@ -37,9 +35,7 @@ async def get_timeseries_edit(
 
 
 @router.post("/edit")
-async def post_timeseries_edit(
-    request: Request, ticker: str = Query(...), exchange: str = Query("L")
-) -> JSONResponse:
+async def post_timeseries_edit(request: Request, ticker: str = Query(...), exchange: str = Query("L")) -> JSONResponse:
     content_type = request.headers.get("content-type", "")
     try:
         if "text/csv" in content_type:

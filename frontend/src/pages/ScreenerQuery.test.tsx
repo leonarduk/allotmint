@@ -88,7 +88,9 @@ describe("Screener & Query page", () => {
     fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
 
     expect(await screen.findAllByText("1,000")).toHaveLength(2);
-    expect(getScreener).toHaveBeenCalledWith(
+    expect((await screen.findAllByText("1,000")).length).toBeGreaterThan(0);
+    expect(getScreener).toHaveBeenNthCalledWith(
+      1,
       ["AAA"],
       expect.objectContaining({ peg_max: 2, roe_min: 5 })
     );

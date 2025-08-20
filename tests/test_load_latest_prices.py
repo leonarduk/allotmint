@@ -1,7 +1,7 @@
 import pandas as pd
-from backend.common import holding_utils
-
 import pytest
+
+from backend.common import holding_utils
 
 
 @pytest.mark.parametrize(
@@ -17,9 +17,7 @@ def test_load_latest_prices_selects_close_column(monkeypatch, data, expected):
     def fake_load_meta_timeseries_range(ticker, exchange, start_date, end_date):
         return pd.DataFrame(data)
 
-    monkeypatch.setattr(
-        holding_utils, "load_meta_timeseries_range", fake_load_meta_timeseries_range
-    )
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load_meta_timeseries_range)
 
     prices = holding_utils.load_latest_prices(["ABC.L"])
     assert prices["ABC.L"] == expected
@@ -28,9 +26,7 @@ def test_load_latest_prices_selects_close_column(monkeypatch, data, expected):
 def test_load_latest_prices_applies_scaling(monkeypatch):
     df = pd.DataFrame({"Date": [1], "Close": [20.0]})
 
-    monkeypatch.setattr(
-        holding_utils, "load_meta_timeseries_range", lambda *a, **k: df
-    )
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: df)
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.5)
 
     prices = holding_utils.load_latest_prices(["ABC.L"])

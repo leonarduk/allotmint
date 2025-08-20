@@ -2,11 +2,10 @@ from __future__ import annotations
 
 """API route for basic stock screening based on valuation metrics."""
 
+import hashlib
 from typing import List
 
-import hashlib
-
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend.screener import Fundamentals, screen
 from backend.utils import page_cache
@@ -86,32 +85,7 @@ async def screener(
     page_cache.schedule_refresh(
         page,
         SCREENER_TTL,
-        lambda symbols=symbols,
-               peg_max=peg_max,
-               pe_max=pe_max,
-               de_max=de_max,
-               lt_de_max=lt_de_max,
-               interest_coverage_min=interest_coverage_min,
-               current_ratio_min=current_ratio_min,
-               quick_ratio_min=quick_ratio_min,
-               fcf_min=fcf_min,
-               eps_min=eps_min,
-               gross_margin_min=gross_margin_min,
-               operating_margin_min=operating_margin_min,
-               net_margin_min=net_margin_min,
-               ebitda_margin_min=ebitda_margin_min,
-               roa_min=roa_min,
-               roe_min=roe_min,
-               roi_min=roi_min,
-               dividend_yield_min=dividend_yield_min,
-               dividend_payout_ratio_max=dividend_payout_ratio_max,
-               beta_max=beta_max,
-               shares_outstanding_min=shares_outstanding_min,
-               float_shares_min=float_shares_min,
-               market_cap_min=market_cap_min,
-               high_52w_max=high_52w_max,
-               low_52w_min=low_52w_min,
-               avg_volume_min=avg_volume_min: [
+        lambda: [
             r.model_dump()
             for r in screen(
                 symbols,

@@ -1,6 +1,5 @@
 import sys
 from types import SimpleNamespace
-import pytest
 
 import backend.common.alerts as alerts
 
@@ -20,7 +19,9 @@ def test_publish_alert_success(monkeypatch):
 
     def fake_client(name):
         assert name == "sns"
-        return SimpleNamespace(publish=lambda TopicArn, Message: sent.update({"TopicArn": TopicArn, "Message": Message}))
+        return SimpleNamespace(
+            publish=lambda TopicArn, Message: sent.update({"TopicArn": TopicArn, "Message": Message})
+        )
 
     monkeypatch.setattr(alerts.config, "sns_topic_arn", "arn:example")
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))

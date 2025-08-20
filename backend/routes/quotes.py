@@ -11,8 +11,8 @@ tests can monkeypatch ``yf.Tickers`` using a dotted import path.
 import sys
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, Query
 import yfinance as yf
+from fastapi import APIRouter, HTTPException, Query
 
 # Expose ``yf`` as a submodule for monkeypatching in tests
 sys.modules[__name__ + ".yf"] = yf
@@ -45,4 +45,3 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
             results.append({"symbol": sym, "price": price})
 
     return results
-

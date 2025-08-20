@@ -1,24 +1,31 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, Dict, Any, overload, List
+from typing import Any, Dict, List, Optional, overload
+
 import yaml
 
 
 @dataclass
 class TabsConfig:
-    instrument: bool = True
-    performance: bool = True
-    transactions: bool = True
-    screener: bool = True
-    query: bool = True
-    trading: bool = True
-    timeseries: bool = True
-    watchlist: bool = True
-    virtual: bool = True
-    support: bool = True
+    group: bool = False
+    owner: bool = False
+    instrument: bool = False
+    performance: bool = False
+    transactions: bool = False
+    screener: bool = False
+    query: bool = False
+    trading: bool = False
+    timeseries: bool = False
+    watchlist: bool = False
+    movers: bool = False
+    dataadmin: bool = False
+    virtual: bool = False
+    support: bool = False
+    scenario: bool = False
+    reports: bool = False
 
 
 @dataclass
@@ -95,14 +102,10 @@ def load_config() -> Config:
     repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
 
     accounts_root_raw = data.get("accounts_root")
-    accounts_root = (
-        (repo_root / accounts_root_raw).resolve() if accounts_root_raw else None
-    )
+    accounts_root = (repo_root / accounts_root_raw).resolve() if accounts_root_raw else None
 
     prices_json_raw = data.get("prices_json")
-    prices_json = (
-        (repo_root / prices_json_raw).resolve() if prices_json_raw else None
-    )
+    prices_json = (repo_root / prices_json_raw).resolve() if prices_json_raw else None
 
     tabs_raw = data.get("tabs")
     tabs_data = asdict(TabsConfig())
@@ -141,9 +144,7 @@ def load_config() -> Config:
         timeseries_cache_base=data.get("timeseries_cache_base"),
         fx_proxy_url=data.get("fx_proxy_url"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
-        fundamentals_cache_ttl_seconds=data.get(
-            "fundamentals_cache_ttl_seconds"
-        ),
+        fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),
         repo_root=repo_root,
@@ -173,6 +174,7 @@ def get_config_dict() -> Dict[str, Any]:
 def get_config() -> Dict[str, Any]: ...
 @overload
 def get_config(key: str, default: Any = None) -> Any: ...
+
 
 def get_config(key: Optional[str] = None, default: Any = None):
     """

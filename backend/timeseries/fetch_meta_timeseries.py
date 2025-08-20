@@ -8,14 +8,16 @@ and merges the first successful result. Helpers return snapshots
     supplement from Stooq, Alpha Vantage, then FT.
   - Added ticker sanity-check and quieter logging for expected fall-backs.
 """
+
 from __future__ import annotations
 
 import logging
 import re
-from datetime import date, timedelta, datetime
-from typing import List, Optional, Dict
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional
 
 import pandas as pd
+
 from backend.config import config as app_config
 
 config = app_config
@@ -24,14 +26,14 @@ OFFLINE_MODE = config.offline_mode
 # ──────────────────────────────────────────────────────────────
 # Local imports
 # ──────────────────────────────────────────────────────────────
-from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
-from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
-from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.timeseries.fetch_alphavantage_timeseries import (
     fetch_alphavantage_timeseries_range,
 )
-from backend.utils.timeseries_helpers import (_nearest_weekday, _is_isin, STANDARD_COLUMNS)
+from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
+from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
+from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS, _is_isin, _nearest_weekday
 
 logger = logging.getLogger("meta_timeseries")
 
@@ -39,7 +41,6 @@ logger = logging.getLogger("meta_timeseries")
 # Helpers
 # ──────────────────────────────────────────────────────────────
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:[-\.][A-Z]{1,3})?$")
-
 
 
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
@@ -50,12 +51,12 @@ def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
     return df.sort_values("Date").reset_index(drop=True)
 
 
-def _coverage_ratio(df: pd.DataFrame,
-                    expected: set[date]) -> float:
+def _coverage_ratio(df: pd.DataFrame, expected: set[date]) -> float:
     if df.empty or not expected:
         return 0.0
     present = set(pd.to_datetime(df["Date"]).dt.date)
     return len(present & expected) / len(expected)
+
 
 # ──────────────────────────────────────────────────────────────
 # Core fetch
@@ -66,7 +67,7 @@ def fetch_meta_timeseries(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     *,
-    min_coverage: float = 0.95,          # 95 % of trading days
+    min_coverage: float = 0.95,  # 95 % of trading days
 ) -> pd.DataFrame:
     """
     Fetch price history from Yahoo, Stooq, FT - only as much as needed.
@@ -88,7 +89,7 @@ def fetch_meta_timeseries(
         start_date = end_date - timedelta(days=365)
 
     start_date = _nearest_weekday(start_date, forward=False)
-    end_date   = _nearest_weekday(end_date,   forward=True)
+    end_date = _nearest_weekday(end_date, forward=True)
 
     if ticker.upper() == "CASH" or exchange.upper() == "CASH":
         dates = pd.bdate_range(start_date, end_date)
@@ -125,8 +126,7 @@ def fetch_meta_timeseries(
 
     # ── 1 · Yahoo ─────────────────────────────────────────────
     try:
-        yahoo = fetch_yahoo_timeseries_range(ticker, exchange,
-                                             start_date, end_date)
+        yahoo = fetch_yahoo_timeseries_range(ticker, exchange, start_date, end_date)
         if not yahoo.empty:
             data.append(yahoo)
             if _coverage_ratio(yahoo, expected_dates) >= min_coverage:
@@ -136,8 +136,7 @@ def fetch_meta_timeseries(
 
     # ── 2 · Stooq (fill gaps only if needed) ──────────────────
     try:
-        stooq = fetch_stooq_timeseries_range(ticker, exchange,
-                                             start_date, end_date)
+        stooq = fetch_stooq_timeseries_range(ticker, exchange, start_date, end_date)
         if not stooq.empty:
             combined = _merge([*data, stooq])
             if _coverage_ratio(combined, expected_dates) >= min_coverage:
@@ -148,9 +147,7 @@ def fetch_meta_timeseries(
 
     # ── 3 · Alpha Vantage (fill gaps if still needed) ─────────
     try:
-        av = fetch_alphavantage_timeseries_range(
-            ticker, exchange, start_date, end_date
-        )
+        av = fetch_alphavantage_timeseries_range(ticker, exchange, start_date, end_date)
         if not av.empty:
             combined = _merge([*data, av])
             if _coverage_ratio(combined, expected_dates) >= min_coverage:
@@ -166,8 +163,7 @@ def fetch_meta_timeseries(
         data.append(ft_df)
 
     if not data:
-        logger.warning("No data sources succeeded for %s.%s",
-                       ticker, exchange)
+        logger.warning("No data sources succeeded for %s.%s", ticker, exchange)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     df = _merge(data)
@@ -189,11 +185,10 @@ def fetch_ft_df(ticker, end_date, start_date):
         logger.info("FT miss for %s: %s", ticker, exc)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
+
 # ──────────────────────────────────────────────────────────────
 # Cache-aware batch helpers (local import) ─────────────────────
-def run_all_tickers(
-    tickers: List[str], exchange: str = "L", days: int = 365
-) -> List[str]:
+def run_all_tickers(tickers: List[str], exchange: str = "L", days: int = 365) -> List[str]:
     """Warm-up helper - returns tickers that produced data.
 
     ``tickers`` may contain base symbols ("VOD") or full tickers ("VOD.L").
@@ -214,11 +209,10 @@ def run_all_tickers(
     return ok
 
 
-def load_timeseries_data(
-    tickers: List[str], exchange: str = "L", days: int = 365
-) -> Dict[str, pd.DataFrame]:
+def load_timeseries_data(tickers: List[str], exchange: str = "L", days: int = 365) -> Dict[str, pd.DataFrame]:
     """Return {ticker: dataframe} using the parquet cache."""
     from backend.timeseries.cache import load_meta_timeseries
+
     out: dict[str, pd.DataFrame] = {}
     for t in tickers:
         try:
@@ -227,9 +221,7 @@ def load_timeseries_data(
                 out[t] = df
         except Exception as exc:
             logger.warning("Load fail %s: %s", t, exc)
-    logger.info(
-        "Bulk load complete: %d updated, %d skipped", len(out), len(tickers) - len(out)
-    )
+    logger.info("Bulk load complete: %d updated, %d skipped", len(out), len(tickers) - len(out))
     return out
 
 
@@ -242,4 +234,3 @@ if __name__ == "__main__":
 
     df = fetch_meta_timeseries("1", "", start_date=cutoff, end_date=today)
     print("Returned: %s", df.head())
-

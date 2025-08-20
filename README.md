@@ -25,7 +25,7 @@ For setup and usage instructions, see the [USER_README](USER_README.md).
 | Layer    | Choice                                       |
 |----------|----------------------------------------------|
 | Frontend | React + TypeScript → S3 + CloudFront         |
-| Backend  | AWS Lambda (Python 3.12) behind API Gateway  |
+| Backend  | AWS Lambda (Python 3.11, FastAPI via Mangum) behind API Gateway |
 | Storage  | S3 JSON / CSV (no RDBMS)                     |
 | IaC      | AWS CDK (Py)                                 |
 
@@ -225,19 +225,27 @@ python scripts/run_trading_agent.py --tickers AAPL MSFT --thresholds 0.1 0.2 --i
 
 ## Deploy to AWS
 
-The project includes an AWS CDK stack that provisions an S3 bucket and
-CloudFront distribution for the frontend. To deploy the site:
+All infrastructure is managed with AWS CDK. The FastAPI backend runs on AWS
+Lambda via the Mangum adapter. The Lambda entry point lives in
+`backend/lambda_api/handler.py`:
+
+```python
+from mangum import Mangum
+from backend.app import create_app
+
+lambda_handler = Mangum(create_app())
+```
+
+Deploy the backend API and static site stacks:
 
 ```bash
 # build the frontend assets first
 cd frontend
 npm install
 npm run build
-cd ..
-
-# deploy the static site stack
-cd cdk
+cd ../cdk
 cdk bootstrap   # only required once per AWS account/region
+cdk deploy BackendLambdaStack
 cdk deploy StaticSiteStack
 ```
 

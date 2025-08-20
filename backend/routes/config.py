@@ -6,7 +6,7 @@ from typing import Any, Dict
 import yaml
 from fastapi import APIRouter, HTTPException
 
-from backend.config import get_config_dict, load_config, _project_config_path
+from backend.config import _project_config_path, get_config_dict, load_config
 
 router = APIRouter(prefix="/config", tags=["config"])
 

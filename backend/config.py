@@ -125,6 +125,9 @@ def load_config() -> Config:
         else:
             cors_origins = cors_raw.get("default")
 
+    error_summary_raw = data.get("error_summary")
+    error_summary = error_summary_raw if isinstance(error_summary_raw, dict) else None
+
     return Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
@@ -140,7 +143,7 @@ def load_config() -> Config:
         ft_url_template=data.get("ft_url_template"),
         selenium_user_agent=data.get("selenium_user_agent"),
         selenium_headless=data.get("selenium_headless"),
-        error_summary=data.get("error_summary"),
+        error_summary=error_summary,
         offline_mode=data.get("offline_mode"),
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),

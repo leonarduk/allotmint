@@ -3,7 +3,7 @@
 
 How to use:
 1. Install dependencies:
-   pip install requests beautifulsoup4 fpdf markdownify playwright
+   pip install requests beautifulsoup4 fpdf markdownify playwright pillow
    playwright install  # downloads headless browsers
 2. Edit BASE_URL to point to your server.
 3. Run: python scripts/site_snapshot.py

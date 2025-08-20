@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { API_BASE, getConfig, updateConfig } from "../api";
 import { useConfig } from "../ConfigContext";
+import Menu from "../components/Menu";
 
 const TAB_KEYS = [
   "instrument",
@@ -136,6 +137,7 @@ export default function Support() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+      <Menu />
       <h1>{t("support.title")}</h1>
       <p>
         <strong>{t("support.online")}</strong> {online ? t("support.onlineYes") : t("support.onlineNo")}

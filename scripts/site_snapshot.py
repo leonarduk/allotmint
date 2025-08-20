@@ -3,7 +3,7 @@
 
 How to use:
 1. Install dependencies:
-   pip install requests beautifulsoup4 fpdf markdownify playwright pillow
+   pip install beautifulsoup4 fpdf markdownify playwright pillow
    playwright install  # downloads headless browsers
 2. Edit BASE_URL to point to your server.
 3. Run: python scripts/site_snapshot.py
@@ -17,7 +17,6 @@ from collections import deque
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
-import requests
 from bs4 import BeautifulSoup
 from fpdf import FPDF
 from markdownify import markdownify
@@ -34,26 +33,33 @@ def is_same_domain(url: str) -> bool:
     return urlparse(url).netloc == urlparse(BASE_URL).netloc
 
 
-def crawl_site():
-    """Breadth-first crawl of pages within BASE_URL."""
+async def crawl_site():
+    """Breadth-first crawl of pages within BASE_URL using Playwright."""
     visited, pages = set(), []
     queue = deque([BASE_URL])
 
-    while queue:
-        url = queue.popleft()
-        if url in visited:
-            continue
-        visited.add(url)
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        while queue:
+            url = queue.popleft()
+            if url in visited:
+                continue
+            visited.add(url)
 
-        resp = requests.get(url)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-        pages.append((url, soup))
+            page = await browser.new_page()
+            await page.goto(url, wait_until="networkidle")
+            html = await page.content()
+            await page.close()
 
-        for link in soup.select("a[href]"):
-            full = urljoin(url, link["href"]).split("#")[0].rstrip("/")
-            if full.startswith("http") and is_same_domain(full) and full not in visited:
-                queue.append(full)
+            soup = BeautifulSoup(html, "html.parser")
+            pages.append((url, soup))
+
+            for link in soup.select("a[href]"):
+                full = urljoin(url, link["href"]).split("#")[0].rstrip("/")
+                if full.startswith("http") and is_same_domain(full) and full not in visited:
+                    queue.append(full)
+
+        await browser.close()
 
     return pages
 
@@ -123,7 +129,7 @@ def main():
     global BASE_URL
     BASE_URL = args.base_url.rstrip("/")
 
-    pages = crawl_site()
+    pages = asyncio.run(crawl_site())
     entries = asyncio.run(take_snapshots(pages))
     build_docs(entries)
 

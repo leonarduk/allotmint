@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { memo } from "react";
+import type { CSSProperties, ChangeEventHandler } from "react";
 
 type Option = {
   value: string;
@@ -9,11 +10,11 @@ type Props = {
   label: string;
   options: Option[];
   value: string;
-  onChange: (value: string) => void;
+  onChange: ChangeEventHandler<HTMLSelectElement>;
   style?: CSSProperties;
 };
 
-export function Selector({ label, options, value, onChange, style }: Props) {
+function SelectorComponent({ label, options, value, onChange, style }: Props) {
   return (
     <label
       style={{
@@ -26,7 +27,7 @@ export function Selector({ label, options, value, onChange, style }: Props) {
       {label}:
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         style={{ marginLeft: "0.5rem" }}
       >
         {options.map((o) => (
@@ -38,5 +39,7 @@ export function Selector({ label, options, value, onChange, style }: Props) {
     </label>
   );
 }
+
+export const Selector = memo(SelectorComponent);
 
 export type { Option };

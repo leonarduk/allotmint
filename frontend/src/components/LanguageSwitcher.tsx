@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import i18n from "i18next";
 
 const LANGUAGES = [
@@ -9,7 +9,7 @@ const LANGUAGES = [
   { code: "pt", flag: "🇵🇹" },
 ];
 
-export function LanguageSwitcher() {
+export const LanguageSwitcher = memo(function LanguageSwitcher() {
   const [current, setCurrent] = useState(i18n.language);
 
   useEffect(() => {
@@ -53,5 +53,5 @@ export function LanguageSwitcher() {
       ))}
     </div>
   );
-}
+});
 

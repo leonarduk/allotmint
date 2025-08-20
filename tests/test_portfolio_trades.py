@@ -2,6 +2,7 @@ import sys
 from types import SimpleNamespace
 
 import backend.common.portfolio as portfolio
+from botocore.exceptions import ClientError
 
 
 def test_load_trades_aws_success(monkeypatch):
@@ -29,12 +30,12 @@ def test_load_trades_aws_success(monkeypatch):
     assert trades == [{"date": "2024-02-01", "ticker": "AAPL", "units": "5"}]
 
 
-def test_load_trades_aws_missing(monkeypatch):
+def test_load_trades_aws_missing(monkeypatch, caplog):
     monkeypatch.setenv("DATA_BUCKET", "bucket")
     monkeypatch.setattr(portfolio.config, "app_env", "aws", raising=False)
 
     def fake_get_object(*, Bucket, Key):
-        raise Exception("not found")
+        raise ClientError({"Error": {"Code": "NoSuchKey", "Message": "not found"}}, "GetObject")
 
     def fake_client(name):
         assert name == "s3"
@@ -42,5 +43,7 @@ def test_load_trades_aws_missing(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
-    trades = portfolio.load_trades("bob")
+    with caplog.at_level("WARNING"):
+        trades = portfolio.load_trades("bob")
     assert trades == []
+    assert any("Failed to fetch trades" in r.message for r in caplog.records)

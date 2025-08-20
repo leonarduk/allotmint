@@ -34,7 +34,7 @@ def _parse_date(val) -> Optional[dt.date]:
         return val.date()
     try:
         return dt.datetime.fromisoformat(str(val)).date()
-    except Exception:
+    except ValueError:
         return None
 
 
@@ -107,7 +107,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             key = f"{ticker}.{exchange}"
             result[key] = val
 
-        except Exception as e:
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             # keep logging, but don't poison the map with zeros
             logger.warning("latest price fetch failed for %s: %s", full, e)
 
@@ -191,7 +191,7 @@ def _get_price_for_date_scaled(
 
     try:
         return float(df.iloc[0][col])
-    except Exception:
+    except (ValueError, TypeError, KeyError, IndexError):
         return None
 
 

@@ -35,3 +35,16 @@ def test_load_latest_prices_applies_scaling(monkeypatch):
 
     prices = holding_utils.load_latest_prices(["ABC.L"])
     assert prices["ABC.L"] == 10.0
+
+
+def test_load_latest_prices_handles_errors(monkeypatch, caplog):
+    def boom(*args, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", boom)
+
+    with caplog.at_level("WARNING"):
+        prices = holding_utils.load_latest_prices(["ABC.L"])
+
+    assert prices == {}
+    assert "latest price fetch failed" in caplog.text

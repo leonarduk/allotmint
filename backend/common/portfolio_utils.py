@@ -82,7 +82,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
         data = json.loads(_PRICES_PATH.read_text())
         ts = datetime.fromtimestamp(_PRICES_PATH.stat().st_mtime)
         return data, ts
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError) as exc:
         logger.error("Failed to parse snapshot %s: %s", _PRICES_PATH, exc)
         return {}, None
 
@@ -121,7 +121,7 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
     path = INSTRUMENTS_DIR / (exch or "Unknown") / f"{sym}.json"
     try:
         data = json.loads(path.read_text())
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return None
     return {
         "name": data.get("name", ticker.upper()),
@@ -455,7 +455,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                         "last_price": float(latest_row[close_col]),
                         "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
                     }
-        except Exception as e:
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("Could not get timeseries for %s: %s", t, e)
 
     # store in-memory
@@ -466,7 +466,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
         _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
         _PRICES_PATH.write_text(json.dumps(snapshot, indent=2))
         logger.info("Wrote %d prices to %s", len(snapshot), _PRICES_PATH)
-    except Exception as e:
+    except OSError as e:
         logger.warning("Failed to write latest_prices.json: %s", e)
 
     logger.info("Refreshed %d price entries", len(snapshot))

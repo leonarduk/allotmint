@@ -225,9 +225,10 @@ python scripts/run_trading_agent.py --tickers AAPL MSFT --thresholds 0.1 0.2 --i
 
 ## Deploy to AWS
 
-All infrastructure is managed with AWS CDK. The FastAPI backend runs on AWS
-Lambda via the Mangum adapter. The Lambda entry point lives in
-`backend/lambda_api/handler.py`:
+Infrastructure is managed exclusively with AWS CDK. The FastAPI backend runs
+on AWS Lambda via the Mangum adapter, and the Lambda entry point lives in
+`backend/lambda_api/handler.py`. Serverless Framework configurations are no
+longer used:
 
 ```python
 from mangum import Mangum

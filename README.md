@@ -29,6 +29,8 @@ For setup and usage instructions, see the [USER_README](USER_README.md).
 | Storage  | S3 JSON / CSV (no RDBMS)                     |
 | IaC      | AWS CDK (Py)                                 |
 
+The backend, CI/CD workflows, and tests all target Python 3.12.
+
 ## Watchlist
 
 The repo includes a lightweight Yahoo Finance watchlist. Run it locally with:

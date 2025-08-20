@@ -25,7 +25,7 @@ class BackendLambdaStack(Stack):
             code=_lambda.Code.from_asset(
                 str(backend_path),
                 bundling=_lambda.BundlingOptions(
-                    image=_lambda.Runtime.PYTHON_3_11.bundling_image,
+                    image=_lambda.Runtime.PYTHON_3_12.bundling_image,
                     command=[
                         "bash",
                         "-c",
@@ -33,7 +33,7 @@ class BackendLambdaStack(Stack):
                     ],
                 ),
             ),
-            compatible_runtimes=[_lambda.Runtime.PYTHON_3_11],
+            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
         )
 
         backend_code = _lambda.Code.from_asset(str(backend_path))
@@ -41,7 +41,7 @@ class BackendLambdaStack(Stack):
         backend_fn = _lambda.Function(
             self,
             "BackendLambda",
-            runtime=_lambda.Runtime.PYTHON_3_11,
+            runtime=_lambda.Runtime.PYTHON_3_12,
             handler="backend.lambda_api.handler.lambda_handler",
             code=backend_code,
             layers=[dependencies_layer],
@@ -53,7 +53,7 @@ class BackendLambdaStack(Stack):
         refresh_fn = _lambda.Function(
             self,
             "PriceRefreshLambda",
-            runtime=_lambda.Runtime.PYTHON_3_11,
+            runtime=_lambda.Runtime.PYTHON_3_12,
             handler="backend.lambda_api.price_refresh.lambda_handler",
             code=backend_code,
             layers=[dependencies_layer],

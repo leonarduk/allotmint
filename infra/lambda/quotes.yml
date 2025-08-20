@@ -15,7 +15,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       Handler: backend.tasks.quotes.lambda_handler
-      Runtime: python3.11
+      Runtime: python3.12
       Timeout: 60
       MemorySize: 256
       Environment:

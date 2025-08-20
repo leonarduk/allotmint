@@ -1,6 +1,3 @@
-import io
-
-import pandas as pd
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
@@ -21,6 +18,7 @@ def test_run_query_json():
     data = resp.json()
     assert any(row["ticker"] == "HFEL.L" for row in data["results"])
     assert "var" in data["results"][0]
+
 
 def test_save_and_load_query(tmp_path):
     slug = "test-query"

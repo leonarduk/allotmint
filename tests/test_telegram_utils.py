@@ -1,8 +1,8 @@
+import logging
 from types import SimpleNamespace
 from unittest.mock import patch
-import logging
+
 import requests
-import pytest
 
 import backend.utils.telegram_utils as telegram_utils
 
@@ -13,6 +13,7 @@ def test_send_message_requires_config(monkeypatch):
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", None, raising=False)
     # should silently return when config missing
     telegram_utils.send_message("hi")
+
 
 def test_log_handler_without_config(monkeypatch):
     """Logging via ``TelegramLogHandler`` should not raise without credentials."""
@@ -80,9 +81,7 @@ def test_sends_messages_after_ttl(monkeypatch):
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
 
-    times = iter(
-        [1000.0] * 3 + [1000.0 + telegram_utils.MESSAGE_TTL_SECONDS + 1] * 3
-    )
+    times = iter([1000.0] * 3 + [1000.0 + telegram_utils.MESSAGE_TTL_SECONDS + 1] * 3)
     monkeypatch.setattr(telegram_utils.time, "time", lambda: next(times))
     monkeypatch.setattr(telegram_utils.time, "sleep", lambda s: None)
 
@@ -106,10 +105,12 @@ def test_handles_http_429(monkeypatch, caplog):
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
 
-    responses = iter([
-        SimpleNamespace(status_code=429, raise_for_status=lambda: None),
-        SimpleNamespace(status_code=200, raise_for_status=lambda: None),
-    ])
+    responses = iter(
+        [
+            SimpleNamespace(status_code=429, raise_for_status=lambda: None),
+            SimpleNamespace(status_code=200, raise_for_status=lambda: None),
+        ]
+    )
 
     calls = []
 
@@ -119,9 +120,7 @@ def test_handles_http_429(monkeypatch, caplog):
 
     monkeypatch.setattr(telegram_utils.time, "sleep", lambda s: None)
 
-    with patch("backend.utils.telegram_utils.requests.post", fake_post), caplog.at_level(
-        logging.WARNING
-    ):
+    with patch("backend.utils.telegram_utils.requests.post", fake_post), caplog.at_level(logging.WARNING):
         telegram_utils.send_message("rate")
 
     assert len(calls) == 2
@@ -138,13 +137,12 @@ def test_handles_timeout(monkeypatch, caplog):
     def fake_post(url, data, timeout):
         raise telegram_utils.req_exc.Timeout()
 
-    with patch("backend.utils.telegram_utils.requests.post", fake_post), caplog.at_level(
-        logging.WARNING
-    ):
+    with patch("backend.utils.telegram_utils.requests.post", fake_post), caplog.at_level(logging.WARNING):
         telegram_utils.send_message("timeout")
 
     assert any("timeout" in r.message.lower() for r in caplog.records)
-    
+
+
 def test_redacts_token_from_errors(monkeypatch, caplog):
     telegram_utils.RECENT_MESSAGES.clear()
     monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)

@@ -11,25 +11,26 @@ Set TIMESERIES_CACHE_BASE to control where the parquet files live, e.g.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, date
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Dict
 
 import pandas as pd
+import requests
+
+from backend.common.instruments import get_instrument_meta
+from backend.config import config
 
 # ──────────────────────────────────────────────────────────────
 # Remote fetchers
 # ──────────────────────────────────────────────────────────────
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
+from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
-from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
-from backend.utils.timeseries_helpers import _nearest_weekday, get_scaling_override, apply_scaling
 from backend.utils.fx_rates import fetch_fx_rate_range
-from backend.config import config
-from backend.common.instruments import get_instrument_meta
-import requests
+from backend.utils.timeseries_helpers import _nearest_weekday, apply_scaling, get_scaling_override
 
 OFFLINE_MODE = config.offline_mode
 
@@ -100,6 +101,7 @@ def _ensure_local_dir(path: str) -> None:
     if not _CACHE_BASE.startswith("s3://"):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
 
+
 # ──────────────────────────────────────────────────────────────
 # Weekend-safe window helper
 # ──────────────────────────────────────────────────────────────
@@ -107,6 +109,7 @@ def _weekday_range(today: date, days: int) -> tuple[date, date]:
     today = _nearest_weekday(today, forward=False)  # Fri if Sat/Sun
     cutoff = _nearest_weekday(today - timedelta(days=days), forward=True)
     return cutoff, today
+
 
 # ──────────────────────────────────────────────────────────────
 # Parquet I/O helpers
@@ -127,6 +130,7 @@ def _save_parquet(df: pd.DataFrame, path: str) -> None:
     _ensure_local_dir(path)
     df.to_parquet(path, index=False)
     logger.debug("Saved cache to %s (%s rows)", path, len(df))
+
 
 # ──────────────────────────────────────────────────────────────
 # Rolling parquet cache (disk/S3)
@@ -195,6 +199,7 @@ def _rolling_cache(
     )
     _save_parquet(combined, cache_path)
     return _ensure_schema(combined[combined["Date"].dt.date >= cutoff].reset_index(drop=True))
+
 
 # ──────────────────────────────────────────────────────────────
 # Public *disk* loaders (Yahoo / Stooq / FT / Meta)
@@ -273,6 +278,7 @@ def load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
 
     return _load_meta_timeseries_cached(ticker, exchange, days).copy()
 
+
 # ──────────────────────────────────────────────────────────────
 # In-process LRU for *ranges* (no duplicate IO per request)
 # ──────────────────────────────────────────────────────────────
@@ -318,9 +324,7 @@ def _memoized_range(
     return _memoized_range_cached(ticker, exchange, start_iso, end_iso).copy()
 
 
-def _convert_to_gbp(
-    df: pd.DataFrame, ticker: str, exchange: str, start: date, end: date
-) -> pd.DataFrame:
+def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, end: date) -> pd.DataFrame:
     """Convert OHLC prices to GBP if needed based on instrument currency."""
 
     meta = get_instrument_meta(f"{ticker}.{exchange}")
@@ -370,6 +374,7 @@ def _convert_to_gbp(
             merged[f"{col}_gbp"] = merged[col] * merged["Rate"]
     return merged.drop(columns=["Rate"])
 
+
 # ──────────────────────────────────────────────────────────────
 # Public helper: explicit date range
 # ──────────────────────────────────────────────────────────────
@@ -387,9 +392,7 @@ def load_meta_timeseries_range(
             try:
                 df = _convert_to_gbp(df, ticker, exchange, s, e)
             except ValueError as exc:
-                logger.warning(
-                    "Skipping FX conversion for %s.%s: %s", ticker, exchange, exc
-                )
+                logger.warning("Skipping FX conversion for %s.%s: %s", ticker, exchange, exc)
                 return _empty_ts()
             return df
     return _empty_ts()
@@ -402,6 +405,7 @@ def has_cached_meta_timeseries(ticker: str, exchange: str) -> bool:
 
 def meta_timeseries_cache_path(ticker: str, exchange: str) -> Path:
     return Path(_cache_path("meta", f"{ticker.upper()}_{exchange.upper()}.parquet"))
+
 
 # NOTE: keep arg order to avoid breaking existing callers
 def get_price_for_date(exchange, ticker, date, field="Close"):

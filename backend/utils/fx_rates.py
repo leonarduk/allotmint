@@ -1,6 +1,6 @@
+import logging
 from datetime import date, timedelta
 from functools import lru_cache
-import logging
 
 import pandas as pd
 import yfinance as yf

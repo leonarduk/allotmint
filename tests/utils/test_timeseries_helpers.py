@@ -1,8 +1,8 @@
+import builtins
 import datetime as dt
 import json
-import builtins
+
 import pandas as pd
-import pytest
 
 import backend.utils.timeseries_helpers as th
 

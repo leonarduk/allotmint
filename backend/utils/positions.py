@@ -5,10 +5,10 @@ from typing import Union
 
 import pandas as pd
 
-
 # ------------------------------------------------------------------ #
 #  Public helpers
 # ------------------------------------------------------------------ #
+
 
 def get_unique_tickers(xml_file: str, cutoff_date: Union[str, datetime, None] = None) -> list[str]:
     df = extract_holdings_from_transactions(xml_file, by_account=False, cutoff_date=cutoff_date)
@@ -30,7 +30,7 @@ def extract_holdings_from_transactions(
     - Adds acquired_date: most recent BUY or TRANSFER_IN per security
     """
 
-    SHARE_SCALE = 10 ** 8
+    SHARE_SCALE = 10**8
     TYPE_SIGN = {
         "BUY": 1,
         "SELL": -1,
@@ -58,8 +58,8 @@ def extract_holdings_from_transactions(
         if not sid:
             continue
         sec_meta[sid] = {
-            "name":   s.findtext("name", ""),
-            "isin":   s.findtext("isin", ""),
+            "name": s.findtext("name", ""),
+            "isin": s.findtext("isin", ""),
             "ticker": s.findtext("tickerSymbol", ""),
         }
 
@@ -116,12 +116,12 @@ def extract_holdings_from_transactions(
             acq_date = acquisition_dates.get(acct, {}).get(sid, "")
             rows.append(
                 {
-                    "account":       acct,
-                    "securityId":    sid,
-                    "name":          meta.get("name", ""),
-                    "ticker":        meta.get("ticker", ""),
-                    "isin":          meta.get("isin", ""),
-                    "quantity":      qty,
+                    "account": acct,
+                    "securityId": sid,
+                    "name": meta.get("name", ""),
+                    "ticker": meta.get("ticker", ""),
+                    "isin": meta.get("isin", ""),
+                    "quantity": qty,
                     "acquired_date": acq_date,
                 }
             )
@@ -154,5 +154,4 @@ if __name__ == "__main__":
     print(f"\nRebuilt {len(df)} positions")
 
     pd.set_option("display.max_rows", None)
-    print(df.to_string(index=False,
-                       formatters={"quantity": "{:,.4f}".format}))
+    print(df.to_string(index=False, formatters={"quantity": "{:,.4f}".format}))

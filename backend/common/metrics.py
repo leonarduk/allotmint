@@ -6,9 +6,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.common.compliance import load_transactions
 from backend.common import portfolio as portfolio_mod
-
+from backend.common.compliance import load_transactions
 
 METRICS_DIR = Path(__file__).resolve().parents[2] / "data" / "metrics"
 
@@ -140,4 +139,3 @@ def compute_and_store_metrics(
     }
     _metrics_path(owner).write_text(json.dumps(metrics))
     return metrics
-

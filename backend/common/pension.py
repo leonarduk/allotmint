@@ -14,7 +14,7 @@ Returns dict with fields used in API response.
 """
 
 import datetime as dt
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 DEFAULT_ANNUITY_MULTIPLE = 20  # crude capitalisation proxy
 

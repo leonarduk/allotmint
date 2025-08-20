@@ -1,7 +1,5 @@
-from pathlib import Path
-
-from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 from backend.timeseries import ticker_validator
+from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 
 
 def test_invalid_ticker_skipped(monkeypatch, tmp_path):

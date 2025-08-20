@@ -11,22 +11,22 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import date, timedelta, datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 
 from backend.common import portfolio as portfolio_mod
-from backend.common.portfolio_loader import list_portfolios          # existing helper
 from backend.common.instruments import get_instrument_meta
-from backend.timeseries.cache import load_meta_timeseries_range, load_meta_timeseries
-from backend.utils.timeseries_helpers import get_scaling_override, apply_scaling
+from backend.common.portfolio_loader import list_portfolios  # existing helper
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
 )
+from backend.timeseries.cache import load_meta_timeseries, load_meta_timeseries_range
+from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
 logger = logging.getLogger("portfolio_utils")
 
@@ -57,6 +57,7 @@ def compute_var(df: pd.DataFrame, confidence: float = 0.95) -> float | None:
     last_price = float(closes.iloc[-1])
     var = -var_pct * last_price
     return float(var)
+
 
 # ──────────────────────────────────────────────────────────────
 # Numeric helper
@@ -104,9 +105,7 @@ def refresh_snapshot_in_memory(
         timestamp = datetime.utcnow()
     _PRICE_SNAPSHOT = new_snapshot
     _PRICE_SNAPSHOT_TS = timestamp
-    logger.debug(
-        "In-memory price snapshot refreshed, %d tickers", len(_PRICE_SNAPSHOT)
-    )
+    logger.debug("In-memory price snapshot refreshed, %d tickers", len(_PRICE_SNAPSHOT))
 
 
 # ──────────────────────────────────────────────────────────────
@@ -157,7 +156,9 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                 }
     return securities
 
+
 _SECURITIES = _build_securities_from_portfolios()
+
 
 def get_security_meta(ticker: str) -> Dict | None:
     """Return {'ticker', 'name', …} for *ticker*.
@@ -178,6 +179,7 @@ def get_security_meta(ticker: str) -> Dict | None:
 # list_all_unique_tickers
 # ----------------------------------------------------------------------
 ACCOUNTS_DIR = Path(__file__).resolve().parents[2] / "data" / "accounts"
+
 
 def list_all_unique_tickers() -> List[str]:
     portfolios = list_portfolios() + [vp.as_portfolio_dict() for vp in list_virtual_portfolios()]
@@ -213,10 +215,12 @@ def list_all_unique_tickers() -> List[str]:
                     )
 
     logger.info(
-        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, "
-        "%d unique tickers, %d null tickers",
-        len(portfolios), total_accounts, total_holdings,
-        len(tickers), null_ticker_count,
+        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, " "%d unique tickers, %d null tickers",
+        len(portfolios),
+        total_accounts,
+        total_holdings,
+        len(tickers),
+        null_ticker_count,
     )
     return sorted(tickers)
 
@@ -248,17 +252,17 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             row = rows.setdefault(
                 full_tkr,
                 {
-                    "ticker":           full_tkr,
-                    "name":             meta.get("name") or h.get("name", full_tkr),
-                    "currency":         meta.get("currency") or h.get("currency"),
-                    "units":            0.0,
+                    "ticker": full_tkr,
+                    "name": meta.get("name") or h.get("name", full_tkr),
+                    "currency": meta.get("currency") or h.get("currency"),
+                    "units": 0.0,
                     "market_value_gbp": 0.0,
-                    "gain_gbp":         0.0,
-                    "cost_gbp":         0.0,
-                    "last_price_gbp":   None,
-                    "last_price_date":  None,
-                    "change_7d_pct":    None,
-                    "change_30d_pct":   None,
+                    "gain_gbp": 0.0,
+                    "cost_gbp": 0.0,
+                    "last_price_gbp": None,
+                    "last_price_date": None,
+                    "change_7d_pct": None,
+                    "change_30d_pct": None,
                     "instrument_type": meta.get("instrumentType") or meta.get("instrument_type"),
                 },
             )
@@ -273,11 +277,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                     row["currency"] = meta["currency"]
 
             # attach snapshot if present
-            cost = _safe_num(
-                h.get("cost_gbp")
-                or h.get("cost_basis_gbp")
-                or h.get("effective_cost_basis_gbp")
-            )
+            cost = _safe_num(h.get("cost_gbp") or h.get("cost_basis_gbp") or h.get("effective_cost_basis_gbp"))
             row["cost_gbp"] += cost
 
             # if holdings already carry market value / gain, include them so we
@@ -286,7 +286,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
 
             # attach snapshot if present – overrides derived values above
-            snap = _PRICE_SNAPSHOT.get(full_tkr)
+            snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(sym)
             price = snap.get("last_price") if isinstance(snap, dict) else None
             if price and price == price:  # guard against None/NaN/0
                 row["last_price_gbp"] = price
@@ -295,8 +295,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                 row["change_30d_pct"] = snap.get("change_30d_pct")
                 row["market_value_gbp"] = round(row["units"] * price, 2)
                 row["gain_gbp"] = (
-                    round(row["market_value_gbp"] - row["cost_gbp"], 2)
-                    if row["cost_gbp"] else row["gain_gbp"]
+                    round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
                 )
 
             # pass-through misc attributes (first non-null wins)
@@ -387,21 +386,11 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
             {
                 "date": row.Date.isoformat(),
                 "value": round(float(row.value), 2),
-                "daily_return": (
-                    float(row.daily_return) if pd.notna(row.daily_return) else None
-                ),
-                "weekly_return": (
-                    float(row.weekly_return) if pd.notna(row.weekly_return) else None
-                ),
-                "cumulative_return": (
-                    float(row.cumulative_return)
-                    if pd.notna(row.cumulative_return)
-                    else None
-                ),
+                "daily_return": (float(row.daily_return) if pd.notna(row.daily_return) else None),
+                "weekly_return": (float(row.weekly_return) if pd.notna(row.weekly_return) else None),
+                "cumulative_return": (float(row.cumulative_return) if pd.notna(row.cumulative_return) else None),
                 "running_max": round(float(row.running_max), 2),
-                "drawdown": (
-                    float(row.drawdown) if pd.notna(row.drawdown) else None
-                ),
+                "drawdown": (float(row.drawdown) if pd.notna(row.drawdown) else None),
             }
         )
 
@@ -477,14 +466,13 @@ def refresh_snapshot_async(days: int = 365) -> asyncio.Task:
 
     async def _runner() -> None:
         try:
-            await asyncio.to_thread(
-                refresh_snapshot_in_memory_from_timeseries, days=days
-            )
+            await asyncio.to_thread(refresh_snapshot_in_memory_from_timeseries, days=days)
         except asyncio.CancelledError:  # pragma: no cover - defensive
             logger.info("refresh_snapshot_async cancelled")
             raise
 
     return asyncio.create_task(_runner())
+
 
 # ──────────────────────────────────────────────────────────────
 # Alert helpers
@@ -502,10 +490,11 @@ def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
                 continue
             change_pct = (mv - cost) / cost
             if abs(change_pct) >= threshold_pct:
+                ticker = row["ticker"].split(".")[0]
                 alert = {
-                    "ticker": row["ticker"],
+                    "ticker": ticker,
                     "change_pct": round(change_pct, 4),
-                    "message": f"{row['ticker']} change {change_pct*100:.1f}% vs cost basis",
+                    "message": f"{ticker} change {change_pct*100:.1f}% vs cost basis",
                 }
                 publish_alert(alert)
                 alerts.append(alert)

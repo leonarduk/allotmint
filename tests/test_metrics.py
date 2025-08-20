@@ -1,10 +1,10 @@
 import datetime as dt
-from pathlib import Path
 
-from backend.common import metrics as metrics_mod
-from backend.app import create_app
-from backend.config import config
 from fastapi.testclient import TestClient
+
+from backend.app import create_app
+from backend.common import metrics as metrics_mod
+from backend.config import config
 
 
 def _sample_txs():
@@ -21,15 +21,11 @@ def test_turnover_and_holding_period(monkeypatch, tmp_path):
     turnover = metrics_mod.calculate_portfolio_turnover("test", txs, portfolio_value=100)
     assert turnover == (10000 + 12000 + 5000) / 100 / 100
 
-    avg = metrics_mod.calculate_average_holding_period(
-        "test", txs, as_of=dt.date(2024, 4, 1)
-    )
+    avg = metrics_mod.calculate_average_holding_period("test", txs, as_of=dt.date(2024, 4, 1))
     # periods: AAA 31 days, BBB 31 days -> average 31
     assert avg == 31
 
-    metrics = metrics_mod.compute_and_store_metrics(
-        "test", txs, as_of=dt.date(2024, 4, 1), portfolio_value=100
-    )
+    metrics = metrics_mod.compute_and_store_metrics("test", txs, as_of=dt.date(2024, 4, 1), portfolio_value=100)
     path = tmp_path / "test_metrics.json"
     assert path.exists()
     assert metrics["turnover"] == turnover

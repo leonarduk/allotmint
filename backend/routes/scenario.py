@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, Query
 
-from backend.utils.scenario_tester import apply_price_shock
 from backend.common.portfolio_loader import list_portfolios
+from backend.utils.scenario_tester import apply_price_shock
 
 router = APIRouter(tags=["scenario"])
 

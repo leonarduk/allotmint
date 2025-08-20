@@ -1,4 +1,5 @@
 import pytest
+
 from backend.utils.currency_utils import currency_from_isin
 
 

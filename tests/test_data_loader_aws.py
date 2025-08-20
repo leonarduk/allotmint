@@ -43,7 +43,7 @@ def test_load_account_from_s3(monkeypatch):
         def get_object(Bucket, Key):
             assert Bucket == "bucket"
             assert Key == "accounts/Alice/ISA.json"
-            return {"Body": io.BytesIO(b"{\"balance\": 10}")}
+            return {"Body": io.BytesIO(b'{"balance": 10}')}
 
         return SimpleNamespace(get_object=get_object)
 
@@ -61,7 +61,7 @@ def test_load_person_meta_from_s3(monkeypatch):
 
         def get_object(Bucket, Key):
             if Key == "accounts/Alice/person.json":
-                return {"Body": io.BytesIO(b"{\"dob\": \"1980\"}")}
+                return {"Body": io.BytesIO(b'{"dob": "1980"}')}
             raise Exception("NoSuchKey")
 
         return SimpleNamespace(get_object=get_object)

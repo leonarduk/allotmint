@@ -25,6 +25,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
       getTimeseries: vi.fn(),
       saveTimeseries: vi.fn(),
@@ -54,6 +55,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
@@ -80,6 +82,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
@@ -109,6 +112,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
@@ -163,6 +167,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
@@ -218,6 +223,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
         .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
@@ -255,6 +261,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
         .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),

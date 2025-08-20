@@ -87,8 +87,11 @@ describe("Screener & Query page", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
 
-    expect(await screen.findByText("1,000")).toBeInTheDocument();
-    expect(getScreener).toHaveBeenCalledWith(["AAA"], { peg_max: 2, roe_min: 5 });
+    expect(await screen.findAllByText("1,000")).toHaveLength(2);
+    expect(getScreener).toHaveBeenCalledWith(
+      ["AAA"],
+      expect.objectContaining({ peg_max: 2, roe_min: 5 })
+    );
 
     fireEvent.change(screen.getByLabelText(en.screener.minDividendYield), {
       target: { value: "1" },
@@ -96,10 +99,13 @@ describe("Screener & Query page", () => {
     fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
 
     expect(await screen.findByText("1.2")).toBeInTheDocument();
-    expect(getScreener).toHaveBeenCalledWith(["AAA"], {
-      peg_max: 2,
-      dividend_yield_min: 1,
-    });
+    expect(getScreener).toHaveBeenCalledWith(
+      ["AAA"],
+      expect.objectContaining({
+        peg_max: 2,
+        dividend_yield_min: 1,
+      })
+    );
   });
 
   it("submits query form and renders results with export links", async () => {

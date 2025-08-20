@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
@@ -20,16 +20,18 @@ import { PerformanceDashboard } from "./components/PerformanceDashboard";
 
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
-import { ScreenerQuery } from "./pages/ScreenerQuery";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
-import { TimeseriesEdit } from "./pages/TimeseriesEdit";
-import Watchlist from "./pages/Watchlist";
-import TopMovers from "./pages/TopMovers";
 import { useConfig } from "./ConfigContext";
-import DataAdmin from "./pages/DataAdmin";
-import Support from "./pages/Support";
-import ScenarioTester from "./pages/ScenarioTester";
+
+const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
+const TimeseriesEdit = lazy(() =>
+  import("./pages/TimeseriesEdit").then((m) => ({ default: m.TimeseriesEdit })),
+);
+const Watchlist = lazy(() => import("./pages/Watchlist"));
+const TopMovers = lazy(() => import("./pages/TopMovers"));
+const DataAdmin = lazy(() => import("./pages/DataAdmin"));
+const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 
 type Mode =
   | "owner"
@@ -279,7 +281,8 @@ export default function App() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+    <Suspense fallback={<div>Loading...</div>}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <LanguageSwitcher />
       <AlertsPanel />
       <nav style={{ margin: "1rem 0" }}>
@@ -389,9 +392,9 @@ export default function App() {
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}
-      {mode === "support" && <Support />}
       {mode === "scenario" && <ScenarioTester />}
-    </div>
+      </div>
+    </Suspense>
   );
 }
 

@@ -1,13 +1,12 @@
-# backend/common/portfolio_loader.py
-from __future__ import annotations
-
-"""
-Build rich "portfolio" dictionaries that the rest of the backend expects.
+"""Build rich "portfolio" dictionaries that the rest of the backend expects.
 
 - list_portfolios()           -> [{ owner, person, accounts:[...] }, ...]
 - load_portfolio(owner)       -> { ... }   (single owner helper, not used elsewhere)
 """
 
+from __future__ import annotations
+
+import json
 import logging
 from typing import Dict, List
 
@@ -32,7 +31,7 @@ def _load_accounts_for_owner(owner: str, acct_names: List[str]) -> List[Dict]:
             accounts.append(acct)
         except FileNotFoundError:
             log.warning("Account file missing: %s/%s.json", owner, name)
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
             log.warning("Failed to parse %s/%s.json -> %s", owner, name, exc)
     return accounts
 

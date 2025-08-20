@@ -1,14 +1,18 @@
-from __future__ import annotations
-
 """Helpers for loading and validating trade approvals."""
 
+from __future__ import annotations
+
 import json
+import logging
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional
 
 from backend.config import config
 from backend.common.data_loader import resolve_paths
+
+
+logger = logging.getLogger(__name__)
 
 
 def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, date]:
@@ -26,7 +30,8 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
         return {}
     try:
         data = json.loads(path.read_text())
-    except Exception:
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.error("Failed to load approvals for %s: %s", owner, exc)
         return {}
     entries = data.get("approvals") if isinstance(data, dict) else data
     if not isinstance(entries, list):
@@ -37,7 +42,8 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
         when = row.get("approved_on") or row.get("date")
         try:
             out[ticker] = datetime.fromisoformat(str(when)).date()
-        except Exception:
+        except ValueError as exc:
+            logger.warning("Invalid approval date %s for %s: %s", when, ticker, exc)
             continue
     return out
 

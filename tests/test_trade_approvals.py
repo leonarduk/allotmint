@@ -3,6 +3,7 @@ from datetime import date, timedelta
 
 from backend.common.holding_utils import enrich_holding
 from backend.common.compliance import check_owner
+from backend.common.approvals import load_approvals
 from backend.config import config
 
 
@@ -45,3 +46,14 @@ def test_compliance_checks_approval(monkeypatch, tmp_path):
     (owner_dir / "approvals.json").write_text(json.dumps(approvals))
     res = check_owner("bob", accounts_root=tmp_path)
     assert not any("without approval" in w.lower() for w in res["warnings"])
+
+
+def test_load_approvals_bad_json(tmp_path, caplog):
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    (owner_dir / "approvals.json").write_text("{bad json")
+
+    with caplog.at_level("ERROR"):
+        approvals = load_approvals("alice", accounts_root=tmp_path)
+    assert approvals == {}
+    assert "Failed to load approvals" in caplog.text

@@ -4,6 +4,21 @@ from types import SimpleNamespace
 import backend.common.portfolio as portfolio
 
 
+class FakeClientError(Exception):
+    pass
+
+
+def _patch_boto(monkeypatch, get_object):
+    def fake_client(name):
+        assert name == "s3"
+        return SimpleNamespace(get_object=get_object)
+
+    fake_ex = SimpleNamespace(BotoCoreError=Exception, ClientError=FakeClientError)
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+    monkeypatch.setitem(sys.modules, "botocore", SimpleNamespace(exceptions=fake_ex))
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", fake_ex)
+
+
 def test_load_trades_aws_success(monkeypatch):
     monkeypatch.setenv("DATA_BUCKET", "bucket")
     monkeypatch.setattr(portfolio.config, "app_env", "aws", raising=False)
@@ -19,28 +34,22 @@ def test_load_trades_aws_success(monkeypatch):
         assert Key == "accounts/alice/trades.csv"
         return {"Body": FakeBody()}
 
-    def fake_client(name):
-        assert name == "s3"
-        return SimpleNamespace(get_object=fake_get_object)
-
-    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+    _patch_boto(monkeypatch, fake_get_object)
 
     trades = portfolio.load_trades("alice")
     assert trades == [{"date": "2024-02-01", "ticker": "AAPL", "units": "5"}]
 
 
-def test_load_trades_aws_missing(monkeypatch):
+def test_load_trades_aws_client_error(monkeypatch, caplog):
     monkeypatch.setenv("DATA_BUCKET", "bucket")
     monkeypatch.setattr(portfolio.config, "app_env", "aws", raising=False)
 
     def fake_get_object(*, Bucket, Key):
-        raise Exception("not found")
+        raise FakeClientError("boom")
 
-    def fake_client(name):
-        assert name == "s3"
-        return SimpleNamespace(get_object=fake_get_object)
+    _patch_boto(monkeypatch, fake_get_object)
 
-    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
-
-    trades = portfolio.load_trades("bob")
+    with caplog.at_level("ERROR"):
+        trades = portfolio.load_trades("bob")
     assert trades == []
+    assert "Failed to fetch trades" in caplog.text

@@ -38,6 +38,8 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
     except json.JSONDecodeError as exc:
         logger.warning("Invalid instrument JSON %s: %s", path, exc)
         return {}
-    except Exception as exc:
-        logger.exception("Unexpected error loading instrument metadata for %s", path)
+    except Exception:
+        logger.exception(
+            "Unexpected error loading instrument metadata for %s", path
+        )
         raise

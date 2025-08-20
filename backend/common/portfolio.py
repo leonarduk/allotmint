@@ -1,28 +1,20 @@
-# backend/common/portfolio.py
-from __future__ import annotations
-
-"""
-Owner-level portfolio builder for AllotMint
-==========================================
+"""Owner-level portfolio builder for AllotMint.
 
 - build_owner_portfolio(owner)
 - list_owners()
 """
 
+from __future__ import annotations
+
 import csv
 import datetime as dt
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from backend.config import config
-from backend.common.constants import (
-    ACQUIRED_DATE,
-    COST_BASIS_GBP,
-    UNITS,
-    TICKER,
-)
 from backend.common.data_loader import (
     list_plots,
     load_account,
@@ -32,6 +24,8 @@ from backend.common.data_loader import (
 )
 from backend.common.holding_utils import enrich_holding
 from backend.common.approvals import load_approvals
+
+logger = logging.getLogger(__name__)
 
 
 # ───────────────────────── trades helpers ─────────────────────────
@@ -57,7 +51,12 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
     key = f"{PLOTS_PREFIX}{owner}/trades.csv"
     try:
         import boto3  # type: ignore
+        from botocore.exceptions import BotoCoreError, ClientError  # type: ignore
+    except ImportError as exc:
+        logger.error("boto3 unavailable: %s", exc)
+        return []
 
+    try:
         s3 = boto3.client("s3")
         obj = s3.get_object(Bucket=bucket, Key=key)
         body = obj.get("Body")
@@ -65,7 +64,11 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
             return []
         data = body.read().decode("utf-8").splitlines()
         return list(csv.DictReader(data))
-    except Exception:
+    except (BotoCoreError, ClientError) as exc:
+        logger.error("Failed to fetch trades from %s/%s: %s", bucket, key, exc)
+        return []
+    except UnicodeDecodeError as exc:
+        logger.error("Failed to decode trades for %s/%s: %s", bucket, key, exc)
         return []
 
 
@@ -84,7 +87,7 @@ def _parse_date(s: str | None) -> Optional[dt.date]:
         return None
     try:
         return dt.datetime.fromisoformat(s).date()
-    except Exception:
+    except ValueError:
         return None
 
 
@@ -99,7 +102,8 @@ def list_owners(accounts_root: Optional[Path] = None) -> list[str]:
             slug = data.get("owner") or data.get("slug")
             if slug:
                 owners.append(slug)
-        except Exception:
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Invalid owner metadata %s: %s", pf, exc)
             continue
     return owners
 

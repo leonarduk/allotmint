@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import date, timedelta, datetime
+from datetime import timedelta, datetime
 from pathlib import Path
 from typing import Dict, List, Any
 
@@ -82,7 +82,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
         data = json.loads(_PRICES_PATH.read_text())
         ts = datetime.fromtimestamp(_PRICES_PATH.stat().st_mtime)
         return data, ts
-    except Exception as exc:
+    except (json.JSONDecodeError, OSError) as exc:
         logger.error("Failed to parse snapshot %s: %s", _PRICES_PATH, exc)
         return {}, None
 
@@ -121,7 +121,7 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
     path = INSTRUMENTS_DIR / (exch or "Unknown") / f"{sym}.json"
     try:
         data = json.loads(path.read_text())
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return None
     return {
         "name": data.get("name", ticker.upper()),
@@ -246,9 +246,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             meta = get_instrument_meta(full_tkr)
 
             row = rows.setdefault(
-                full_tkr,
+                tkr,
                 {
-                    "ticker":           full_tkr,
+                    "ticker":           tkr,
                     "name":             meta.get("name") or h.get("name", full_tkr),
                     "currency":         meta.get("currency") or h.get("currency"),
                     "units":            0.0,
@@ -286,7 +286,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
 
             # attach snapshot if present – overrides derived values above
-            snap = _PRICE_SNAPSHOT.get(full_tkr)
+            snap = _PRICE_SNAPSHOT.get(tkr) or _PRICE_SNAPSHOT.get(full_tkr)
             price = snap.get("last_price") if isinstance(snap, dict) else None
             if price and price == price:  # guard against None/NaN/0
                 row["last_price_gbp"] = price

@@ -67,7 +67,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs } = useConfig();
+  const { tabs, disabledTabs } = useConfig();
 
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -170,7 +170,7 @@ export default function App() {
         newMode = segs.length === 0 && params.has("group") ? "group" : "movers";
     }
 
-    if (tabs[newMode] === false) {
+    if (tabs[newMode] !== true || disabledTabs?.includes(newMode)) {
       setMode("movers");
       navigate("/movers", { replace: true });
       return;
@@ -188,7 +188,7 @@ export default function App() {
     } else if (newMode === "group") {
       setSelectedGroup(params.get("group") ?? "");
     }
-  }, [location.pathname, location.search, tabs, navigate]);
+  }, [location.pathname, location.search, tabs, disabledTabs, navigate]);
 
   useEffect(() => {
     if (ownersReq.data) setOwners(ownersReq.data);
@@ -284,7 +284,7 @@ export default function App() {
       <AlertsPanel />
       <nav style={{ margin: "1rem 0" }}>
         {modes
-          .filter((m) => tabs[m] !== false)
+          .filter((m) => tabs[m] === true && !disabledTabs?.includes(m))
           .map((m) => (
             <Link
               key={m}

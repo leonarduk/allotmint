@@ -7,6 +7,8 @@ const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
     theme: "system",
     tabs: {
+        group: true,
+        owner: true,
         instrument: true,
         performance: true,
         transactions: true,
@@ -18,6 +20,7 @@ const defaultConfig: AppConfig = {
         virtual: true,
         support: true,
         scenario: true,
+        reports: true,
     },
 };
 

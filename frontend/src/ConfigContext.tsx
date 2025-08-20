@@ -11,6 +11,8 @@ import { getConfig } from "./api";
 
 export interface TabsConfig {
   [key: string]: boolean;
+  group: boolean;
+  owner: boolean;
   instrument: boolean;
   performance: boolean;
   transactions: boolean;
@@ -22,6 +24,7 @@ export interface TabsConfig {
   virtual: boolean;
   support: boolean;
   scenario: boolean;
+  reports: boolean;
 }
 
 export interface AppConfig {
@@ -44,17 +47,20 @@ export interface RawConfig {
 }
 
 const defaultTabs: TabsConfig = {
-  instrument: true,
-  performance: true,
-  transactions: true,
-  screener: true,
-  timeseries: true,
-  watchlist: true,
-  movers: true,
-  dataadmin: true,
-  virtual: true,
-  support: true,
-  scenario: true,
+  group: false,
+  owner: false,
+  instrument: false,
+  performance: false,
+  transactions: false,
+  screener: false,
+  timeseries: false,
+  watchlist: false,
+  movers: false,
+  dataadmin: false,
+  virtual: false,
+  support: false,
+  scenario: false,
+  reports: false,
 };
 
 export interface ConfigContextValue extends AppConfig {

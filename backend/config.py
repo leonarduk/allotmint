@@ -9,16 +9,22 @@ import yaml
 
 @dataclass
 class TabsConfig:
-    instrument: bool = True
-    performance: bool = True
-    transactions: bool = True
-    screener: bool = True
-    query: bool = True
-    trading: bool = True
-    timeseries: bool = True
-    watchlist: bool = True
-    virtual: bool = True
-    support: bool = True
+    group: bool = False
+    owner: bool = False
+    instrument: bool = False
+    performance: bool = False
+    transactions: bool = False
+    screener: bool = False
+    query: bool = False
+    trading: bool = False
+    timeseries: bool = False
+    watchlist: bool = False
+    movers: bool = False
+    dataadmin: bool = False
+    virtual: bool = False
+    support: bool = False
+    scenario: bool = False
+    reports: bool = False
 
 
 @dataclass

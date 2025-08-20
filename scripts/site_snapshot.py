@@ -3,15 +3,18 @@
 
 How to use:
 1. Install dependencies:
-   pip install requests beautifulsoup4 fpdf markdownify playwright
+   pip install requests beautifulsoup4 fpdf Pillow markdownify playwright
    playwright install  # downloads headless browsers
 2. Edit BASE_URL to point to your server.
 3. Run: python scripts/site_snapshot.py
 4. Output appears in the "site_manual" directory with screenshots,
    per-page Markdown files, and a combined PDF manual.
+
+Pillow provides image support for FPDF; without it, PDFs are generated without screenshots.
 """
 
 import asyncio
+import logging
 from collections import deque
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -94,7 +97,14 @@ def build_docs(entries):
         pdf.set_font("Arial", size=14)
         pdf.multi_cell(0, 8, md_content)
         pdf.ln(5)
-        pdf.image(str(img_path), w=180)
+        try:
+            pdf.image(str(img_path), w=180)
+        except OSError as exc:
+            logging.warning(
+                "Skipping image %s because Pillow is not installed or failed to read it: %s",
+                img_path,
+                exc,
+            )
 
     pdf.output(str(OUTPUT_DIR / "manual.pdf"))
 

@@ -64,27 +64,34 @@ export function TopMoversPage() {
   return (
     <>
       <div style={{ marginBottom: "0.5rem" }}>
-        <select
-          value={watchlist}
-          onChange={(e) => setWatchlist(e.target.value as WatchlistOption)}
-          style={{ marginRight: "0.5rem" }}
-        >
-          {WATCHLIST_OPTIONS.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value as PeriodKey)}
-        >
-          {(Object.keys(PERIODS) as PeriodKey[]).map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+        <label style={{ marginRight: "0.5rem" }}>
+          Watchlist:
+          <select
+            value={watchlist}
+            onChange={(e) => setWatchlist(e.target.value as WatchlistOption)}
+            style={{ marginLeft: "0.25rem" }}
+          >
+            {WATCHLIST_OPTIONS.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Period:
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as PeriodKey)}
+            style={{ marginLeft: "0.25rem" }}
+          >
+            {(Object.keys(PERIODS) as PeriodKey[]).map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <table className={tableStyles.table}>

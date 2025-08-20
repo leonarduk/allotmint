@@ -12,7 +12,7 @@ import { ConfigProvider } from './ConfigContext'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ConfigProvider>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/virtual" element={<VirtualPortfolio />} />
           <Route path="/*" element={<App />} />

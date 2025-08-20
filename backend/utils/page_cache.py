@@ -82,7 +82,9 @@ def schedule_refresh(page_name: str, ttl: int, builder: Callable[[], Any]) -> No
                 try:
                     data = await _call_builder()
                     save_cache(page_name, data)
-                except Exception:
+                except Exception as exc:
+                    if isinstance(exc, asyncio.CancelledError):  # pragma: no cover - defensive
+                        raise
                     logger.exception("Cache refresh failed for %s", page_name)
                     # Immediately retry on failure so the cache can still be
                     # populated without waiting for the next scheduled

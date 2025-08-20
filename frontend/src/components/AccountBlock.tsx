@@ -2,11 +2,11 @@
  *  AccountBlock.tsx   ─ merged, consolidated version
  * ------------------------------------------------------------------ */
 
-import { useState } from "react";
-import type { Account } from "../types";
-import { HoldingsTable } from "./HoldingsTable";
-import { InstrumentDetail } from "./InstrumentDetail";
-import { money } from "../lib/money";
+import {useState} from "react";
+import type {Account} from "../types";
+import {HoldingsTable} from "./HoldingsTable";
+import {InstrumentDetail} from "./InstrumentDetail";
+import {money} from "../lib/money";
 import i18n from "../i18n";
 
 /* ──────────────────────────────────────────────────────────────
@@ -18,11 +18,7 @@ type Props = {
   onToggle?: () => void;
 };
 
-export function AccountBlock({
-  account,
-  selected = true,
-  onToggle,
-}: Props) {
+export function AccountBlock({account, selected = true, onToggle}: Props) {
   const [selectedInstrument, setSelectedInstrument] = useState<{
     ticker: string;
     name: string;
@@ -35,14 +31,14 @@ export function AccountBlock({
         padding: "1rem",
       }}
     >
-      <h2 style={{ marginTop: 0 }}>
+      <h2 style={{marginTop: 0}}>
         {onToggle && (
           <input
             type="checkbox"
             checked={selected}
             onChange={onToggle}
             aria-label={account.account_type}
-            style={{ marginRight: "0.5rem" }}
+            style={{marginRight: "0.5rem"}}
           />
         )}
         {account.account_type} ({account.currency})
@@ -50,15 +46,15 @@ export function AccountBlock({
 
       {selected && (
         <>
-          <div style={{ marginBottom: "0.5rem" }}>
+          <div style={{marginBottom: "0.5rem"}}>
             Est&nbsp;Value:&nbsp;{money(account.value_estimate_gbp)}
           </div>
 
           {account.last_updated && (
-            <div style={{ fontSize: "0.8rem", color: "#666" }}>
+            <div style={{fontSize: "0.8rem", color: "#666"}}>
               Last updated:&nbsp;
               {new Intl.DateTimeFormat(i18n.language).format(
-                new Date(account.last_updated),
+                new Date(account.last_updated)
               )}
             </div>
           )}
@@ -66,7 +62,7 @@ export function AccountBlock({
           <HoldingsTable
             holdings={account.holdings}
             onSelectInstrument={(ticker, name) =>
-              setSelectedInstrument({ ticker, name })
+              setSelectedInstrument({ticker, name})
             }
           />
 

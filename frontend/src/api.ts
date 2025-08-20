@@ -34,7 +34,10 @@ export const API_BASE =
 /* ------------------------------------------------------------------ */
 /* Generic fetch helper                                                */
 /* ------------------------------------------------------------------ */
-export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+export async function fetchJson<T>(
+  url: string,
+  init?: RequestInit
+): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
@@ -47,16 +50,14 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
 /* ------------------------------------------------------------------ */
 
 /** List all owners and their available accounts. */
-export const getOwners = () =>
-  fetchJson<OwnerSummary[]>(`${API_BASE}/owners`);
+export const getOwners = () => fetchJson<OwnerSummary[]>(`${API_BASE}/owners`);
 
 /** Fetch the portfolio tree for a single owner. */
 export const getPortfolio = (owner: string) =>
   fetchJson<Portfolio>(`${API_BASE}/portfolio/${owner}`);
 
 /** List the configured groups (e.g. "adults", "children"). */
-export const getGroups = () =>
-  fetchJson<GroupSummary[]>(`${API_BASE}/groups`);
+export const getGroups = () => fetchJson<GroupSummary[]>(`${API_BASE}/groups`);
 
 /** Get the aggregated portfolio for a group of owners. */
 export const getGroupPortfolio = (slug: string) =>
@@ -64,50 +65,44 @@ export const getGroupPortfolio = (slug: string) =>
 
 /** Trigger a price refresh in the backend and return snapshot metadata. */
 export const refreshPrices = () =>
-  fetchJson<{ status: string; tickers: number; timestamp?: string | null }>(
+  fetchJson<{status: string; tickers: number; timestamp?: string | null}>(
     `${API_BASE}/prices/refresh`,
-    { method: "POST" }
+    {method: "POST"}
   );
 
 /** Fetch quote snapshots for a list of symbols. */
 export const getQuotes = (symbols: string[]) => {
-  const params = new URLSearchParams({ symbols: symbols.join(",") });
+  const params = new URLSearchParams({symbols: symbols.join(",")});
   return fetchJson<QuoteRow[]>(`${API_BASE}/api/quotes?${params.toString()}`);
 };
 
 /** Retrieve top movers across tickers for a period. */
-export const getTopMovers = (
-  tickers: string[],
-  days: number,
-  limit = 10,
-) => {
+export const getTopMovers = (tickers: string[], days: number, limit = 10) => {
   const params = new URLSearchParams({
     tickers: tickers.join(","),
     days: String(days),
   });
   if (limit) params.set("limit", String(limit));
-  return fetchJson<{ gainers: MoverRow[]; losers: MoverRow[] }>(
-    `${API_BASE}/movers?${params.toString()}`,
+  return fetchJson<{gainers: MoverRow[]; losers: MoverRow[]}>(
+    `${API_BASE}/movers?${params.toString()}`
   );
 };
 
 /** Retrieve top movers for a group portfolio. */
-export const getGroupMovers = (
-  slug: string,
-  days: number,
-  limit = 10,
-) => {
-  const params = new URLSearchParams({ days: String(days) });
+export const getGroupMovers = (slug: string, days: number, limit = 10) => {
+  const params = new URLSearchParams({days: String(days)});
   if (limit) params.set("limit", String(limit));
-  return fetchJson<{ gainers: MoverRow[]; losers: MoverRow[] }>(
-    `${API_BASE}/portfolio-group/${slug}/movers?${params.toString()}`,
+  return fetchJson<{gainers: MoverRow[]; losers: MoverRow[]}>(
+    `${API_BASE}/portfolio-group/${slug}/movers?${params.toString()}`
   );
 };
 
 /** Apply a price shock scenario to all portfolios. */
 export const runScenario = (ticker: string, pct: number) => {
-  const params = new URLSearchParams({ ticker, pct: String(pct) });
-  return fetchJson<ScenarioResult[]>(`${API_BASE}/scenario?${params.toString()}`);
+  const params = new URLSearchParams({ticker, pct: String(pct)});
+  return fetchJson<ScenarioResult[]>(
+    `${API_BASE}/scenario?${params.toString()}`
+  );
 };
 
 /** Retrieve per-ticker aggregation for a group portfolio. */
@@ -118,7 +113,9 @@ export const getGroupInstruments = (slug: string) =>
 
 /** Fetch performance metrics for an owner */
 export const getPerformance = (owner: string, days = 365) =>
-  fetchJson<PerformancePoint[]>(`${API_BASE}/performance/${owner}?days=${days}`);
+  fetchJson<PerformancePoint[]>(
+    `${API_BASE}/performance/${owner}?days=${days}`
+  );
 
 /** Run a simple fundamentals screen across a list of tickers. */
 export const getScreener = (
@@ -149,13 +146,14 @@ export const getScreener = (
     high_52w_max?: number;
     low_52w_min?: number;
     avg_volume_min?: number;
-  } = {},
+  } = {}
 ) => {
-  const params = new URLSearchParams({ tickers: tickers.join(",") });
+  const params = new URLSearchParams({tickers: tickers.join(",")});
   if (criteria.peg_max != null) params.set("peg_max", String(criteria.peg_max));
   if (criteria.pe_max != null) params.set("pe_max", String(criteria.pe_max));
   if (criteria.de_max != null) params.set("de_max", String(criteria.de_max));
-  if (criteria.lt_de_max != null) params.set("lt_de_max", String(criteria.lt_de_max));
+  if (criteria.lt_de_max != null)
+    params.set("lt_de_max", String(criteria.lt_de_max));
   if (criteria.interest_coverage_min != null)
     params.set("interest_coverage_min", String(criteria.interest_coverage_min));
   if (criteria.current_ratio_min != null)
@@ -180,13 +178,14 @@ export const getScreener = (
   if (criteria.dividend_payout_ratio_max != null)
     params.set(
       "dividend_payout_ratio_max",
-      String(criteria.dividend_payout_ratio_max),
+      String(criteria.dividend_payout_ratio_max)
     );
-  if (criteria.beta_max != null) params.set("beta_max", String(criteria.beta_max));
+  if (criteria.beta_max != null)
+    params.set("beta_max", String(criteria.beta_max));
   if (criteria.shares_outstanding_min != null)
     params.set(
       "shares_outstanding_min",
-      String(criteria.shares_outstanding_min),
+      String(criteria.shares_outstanding_min)
     );
   if (criteria.float_shares_min != null)
     params.set("float_shares_min", String(criteria.float_shares_min));
@@ -198,7 +197,9 @@ export const getScreener = (
     params.set("low_52w_min", String(criteria.low_52w_min));
   if (criteria.avg_volume_min != null)
     params.set("avg_volume_min", String(criteria.avg_volume_min));
-  return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`);
+  return fetchJson<ScreenerResult[]>(
+    `${API_BASE}/screener?${params.toString()}`
+  );
 };
 
 /**
@@ -212,26 +213,33 @@ export const getScreener = (
  * @param days   rolling window (default 365)
  */
 export const getInstrumentDetail = (ticker: string, days = 365) =>
-  fetchJson<{ prices: unknown; positions: unknown; currency?: string | null }>(
+  fetchJson<{prices: unknown; positions: unknown; currency?: string | null}>(
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(
       ticker
     )}&days=${days}&format=json`
   );
 
-
 export const getTimeseries = (ticker: string, exchange = "L") =>
-  fetchJson<PriceEntry[]>(`${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`);
+  fetchJson<PriceEntry[]>(
+    `${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`
+  );
 
-export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntry[]) =>
-  fetchJson<{ status: string; rows: number }>(`${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(rows),
-  });
+export const saveTimeseries = (
+  ticker: string,
+  exchange: string,
+  rows: PriceEntry[]
+) =>
+  fetchJson<{status: string; rows: number}>(
+    `${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`,
+    {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(rows),
+    }
+  );
 
 export const listTimeseries = () =>
   fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`);
-
 
 export const getTransactions = (params: {
   owner?: string;
@@ -245,7 +253,9 @@ export const getTransactions = (params: {
   if (params.start) query.set("start", params.start);
   if (params.end) query.set("end", params.end);
   const qs = query.toString();
-  return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
+  return fetchJson<Transaction[]>(
+    `${API_BASE}/transactions${qs ? `?${qs}` : ""}`
+  );
 };
 
 /** Retrieve recent alert messages from backend. */
@@ -253,14 +263,14 @@ export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts`);
 
 /** Retrieve alert threshold for a user. */
 export const getAlertSettings = (user: string) =>
-  fetchJson<{ threshold: number }>(`${API_BASE}/alerts/settings/${user}`);
+  fetchJson<{threshold: number}>(`${API_BASE}/alerts/settings/${user}`);
 
 /** Update alert threshold for a user. */
 export const setAlertSettings = (user: string, threshold: number) =>
-  fetchJson<{ threshold: number }>(`${API_BASE}/alerts/settings/${user}` , {
+  fetchJson<{threshold: number}>(`${API_BASE}/alerts/settings/${user}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ threshold }),
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({threshold}),
   });
 
 /** Retrieve trading signals generated by the backend. */
@@ -281,22 +291,22 @@ export const getVirtualPortfolio = (id: number | string) =>
 export const createVirtualPortfolio = (vp: VirtualPortfolio) =>
   fetchJson<VirtualPortfolio>(`${API_BASE}/virtual-portfolios`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify(vp),
   });
 
 export const updateVirtualPortfolio = (
   id: number | string,
-  vp: VirtualPortfolio,
+  vp: VirtualPortfolio
 ) =>
   fetchJson<VirtualPortfolio>(`${API_BASE}/virtual-portfolios/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify(vp),
   });
 
 export const deleteVirtualPortfolio = (id: number | string) =>
-  fetchJson<{ status: string }>(`${API_BASE}/virtual-portfolios/${id}`, {
+  fetchJson<{status: string}>(`${API_BASE}/virtual-portfolios/${id}`, {
     method: "DELETE",
   });
 
@@ -308,10 +318,9 @@ export const getConfig = <T = Record<string, unknown>>() =>
 export const updateConfig = (cfg: Record<string, unknown>) =>
   fetchJson<Record<string, unknown>>(`${API_BASE}/config`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify(cfg),
   });
-
 
 /** Execute a custom query against the backend. */
 export const runCustomQuery = (params: CustomQuery) => {
@@ -323,16 +332,16 @@ export const runCustomQuery = (params: CustomQuery) => {
   if (params.metrics?.length) query.set("metrics", params.metrics.join(","));
   query.set("format", "json");
   return fetchJson<Record<string, unknown>[]>(
-    `${API_BASE}/custom-query/run?${query.toString()}`,
+    `${API_BASE}/custom-query/run?${query.toString()}`
   );
 };
 
 /** Persist a query definition on the backend. */
 export const saveCustomQuery = (name: string, params: CustomQuery) =>
-  fetchJson<{ id: string }>(`${API_BASE}/custom-query/save`, {
+  fetchJson<{id: string}>(`${API_BASE}/custom-query/save`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, ...params }),
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name, ...params}),
   });
 
 /** List saved queries available on the backend. */
@@ -341,7 +350,7 @@ export const listSavedQueries = () =>
 /** Fetch rolling Value at Risk series for an owner. */
 export const getValueAtRisk = (
   owner: string,
-  opts: { days?: number; confidence?: number } = {}
+  opts: {days?: number; confidence?: number} = {}
 ) => {
   const params = new URLSearchParams();
   if (opts.days != null) params.set("days", String(opts.days));

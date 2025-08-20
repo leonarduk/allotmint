@@ -1,8 +1,8 @@
-import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { GroupPortfolioView } from "./GroupPortfolioView";
+import {render, screen, waitFor, fireEvent, act} from "@testing-library/react";
+import {describe, it, expect, vi, afterEach} from "vitest";
+import {GroupPortfolioView} from "./GroupPortfolioView";
 import i18n from "../i18n";
-import { configContext, type AppConfig } from "../ConfigContext";
+import {configContext, type AppConfig} from "../ConfigContext";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -30,13 +30,16 @@ const defaultConfig: AppConfig = {
   },
 };
 
-const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) =>
+const renderWithConfig = (
+  ui: React.ReactElement,
+  cfg: Partial<AppConfig> = {}
+) =>
   render(
     <configContext.Provider
-      value={{ ...defaultConfig, ...cfg, refreshConfig: async () => {} }}
+      value={{...defaultConfig, ...cfg, refreshConfig: async () => {}}}
     >
       {ui}
-    </configContext.Provider>,
+    </configContext.Provider>
   );
 
 describe("GroupPortfolioView", () => {
@@ -86,12 +89,9 @@ describe("GroupPortfolioView", () => {
 
     expect(screen.getByText("alice")).toBeInTheDocument();
     expect(screen.getByText("bob")).toBeInTheDocument();
-    expect(screen.getByText("66.67%"))
-      .toBeInTheDocument();
-    expect(screen.getByText("25.00%"))
-      .toBeInTheDocument();
-    expect(screen.getByText("-4.76%"))
-      .toBeInTheDocument();
+    expect(screen.getByText("66.67%")).toBeInTheDocument();
+    expect(screen.getByText("25.00%")).toBeInTheDocument();
+    expect(screen.getByText("-4.76%")).toBeInTheDocument();
     expect(screen.queryByText("Total Value")).toBeNull();
   });
 
@@ -169,7 +169,6 @@ describe("GroupPortfolioView", () => {
     expect(handler).toHaveBeenCalledWith("alice");
   });
 
-
   const locales = ["en", "fr", "de", "es", "pt"] as const;
 
   it.each(locales)("renders select group message in %s", async (lng) => {
@@ -182,16 +181,12 @@ describe("GroupPortfolioView", () => {
     await i18n.changeLanguage(lng);
     vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("boom"));
     render(<GroupPortfolioView slug="all" />);
-    await waitFor(() =>
-      screen.getByText(`${i18n.t("common.error")}: boom`)
-    );
+    await waitFor(() => screen.getByText(`${i18n.t("common.error")}: boom`));
   });
 
   it.each(locales)("renders loading message in %s", async (lng) => {
     await i18n.changeLanguage(lng);
-    vi.spyOn(global, "fetch").mockImplementation(
-      () => new Promise(() => {})
-    );
+    vi.spyOn(global, "fetch").mockImplementation(() => new Promise(() => {}));
     render(<GroupPortfolioView slug="all" />);
     expect(screen.getByText(i18n.t("common.loading"))).toBeInTheDocument();
   });

@@ -8,7 +8,10 @@ class ResizeObserver {
     this.cb = cb;
   }
   observe() {
-    this.cb([{ contentRect: { width: 400, height: 400 } } as ResizeObserverEntry], this);
+    this.cb(
+      [{contentRect: {width: 400, height: 400}} as ResizeObserverEntry],
+      this
+    );
   }
   unobserve() {}
   disconnect() {}

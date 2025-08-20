@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import {render, screen} from "@testing-library/react";
+import {describe, it, expect, vi} from "vitest";
 
 vi.mock("../api", () => ({
   listTimeseries: vi.fn().mockResolvedValue([
@@ -21,11 +21,8 @@ import DataAdmin from "./DataAdmin";
 describe("DataAdmin page", () => {
   it("renders table and ticker links to edit page", async () => {
     render(<DataAdmin />);
-    const link = await screen.findByRole("link", { name: "ABC" });
+    const link = await screen.findByRole("link", {name: "ABC"});
     expect(screen.getByRole("table")).toBeInTheDocument();
-    expect(link).toHaveAttribute(
-      "href",
-      "/timeseries?ticker=ABC&exchange=L",
-    );
+    expect(link).toHaveAttribute("href", "/timeseries?ticker=ABC&exchange=L");
   });
 });

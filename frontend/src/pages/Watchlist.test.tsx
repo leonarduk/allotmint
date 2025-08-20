@@ -1,13 +1,13 @@
-import { render, screen, fireEvent, act } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import {render, screen, fireEvent, act} from "@testing-library/react";
+import {describe, it, expect, vi, beforeEach} from "vitest";
 
 vi.mock("../api", () => ({
   getQuotes: vi.fn(),
 }));
 
-import { Watchlist } from "./Watchlist";
-import { getQuotes } from "../api";
-import type { QuoteRow } from "../types";
+import {Watchlist} from "./Watchlist";
+import {getQuotes} from "../api";
+import type {QuoteRow} from "../types";
 
 const sampleRows: QuoteRow[] = [
   {
@@ -65,7 +65,9 @@ describe("Watchlist page", () => {
   });
 
   it("shows error message when API fails", async () => {
-    (getQuotes as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    (getQuotes as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("boom")
+    );
     localStorage.setItem("watchlistSymbols", "AAA");
 
     render(<Watchlist />);
@@ -110,4 +112,3 @@ describe("Watchlist page", () => {
     vi.useRealTimers();
   });
 });
-

@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import {useEffect, useState} from "react";
 import i18n from "i18next";
 
 const LANGUAGES = [
-  { code: "en", flag: "🇬🇧" },
-  { code: "fr", flag: "🇫🇷" },
-  { code: "de", flag: "🇩🇪" },
-  { code: "es", flag: "🇪🇸" },
-  { code: "pt", flag: "🇵🇹" },
+  {code: "en", flag: "🇬🇧"},
+  {code: "fr", flag: "🇫🇷"},
+  {code: "de", flag: "🇩🇪"},
+  {code: "es", flag: "🇪🇸"},
+  {code: "pt", flag: "🇵🇹"},
 ];
 
 export function LanguageSwitcher() {
@@ -54,4 +54,3 @@ export function LanguageSwitcher() {
     </div>
   );
 }
-

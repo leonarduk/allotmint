@@ -7,7 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { getConfig } from "./api";
+import {getConfig} from "./api";
 
 export interface TabsConfig {
   [key: string]: boolean;
@@ -75,7 +75,7 @@ export const configContext = createContext<ConfigContextValue>({
   refreshConfig: async () => {},
 });
 
-export function ConfigProvider({ children }: { children: ReactNode }) {
+export function ConfigProvider({children}: {children: ReactNode}) {
   const [config, setConfig] = useState<AppConfig>({
     relativeViewEnabled: false,
     disabledTabs: [],
@@ -86,9 +86,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const refreshConfig = useCallback(async () => {
     try {
       const cfg = await getConfig<RawConfig>();
-      const tabs = { ...defaultTabs, ...(cfg.tabs ?? {}) } as TabsConfig;
+      const tabs = {...defaultTabs, ...(cfg.tabs ?? {})} as TabsConfig;
       const disabledTabs = new Set<string>(
-        Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
+        Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : []
       );
       for (const [tab, enabled] of Object.entries(tabs) as [
         string,
@@ -118,7 +118,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, [config.theme]);
 
   return (
-    <configContext.Provider value={{ ...config, refreshConfig }}>
+    <configContext.Provider value={{...config, refreshConfig}}>
       {children}
     </configContext.Provider>
   );
@@ -141,4 +141,3 @@ function applyTheme(theme: AppConfig["theme"]) {
     root.removeAttribute("data-theme");
   }
 }
-

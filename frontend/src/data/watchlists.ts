@@ -359,7 +359,6 @@ export const FTSE350 = Array.from(new Set([...FTSE100, ...FTSE250]));
 
 export const FTSEAllShare = [...FTSE350];
 
-
 export const WATCHLISTS = {
   "FTSE 100": FTSE100,
   "FTSE 250": FTSE250,

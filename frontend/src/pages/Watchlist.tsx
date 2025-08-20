@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { useTranslation } from "react-i18next";
-import { getQuotes } from "../api";
-import type { QuoteRow } from "../types";
+import {useEffect, useState, useMemo, useCallback} from "react";
+import {useTranslation} from "react-i18next";
+import {getQuotes} from "../api";
+import type {QuoteRow} from "../types";
 
 const DEFAULT_SYMBOLS =
   "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,USDGBP=X,EURGBP=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
@@ -34,13 +34,13 @@ function formatVol(val: number | null): string {
 
 function formatTime(val: string | null): string {
   if (!val) return "—";
-  return new Date(val).toLocaleString("en-GB", { timeZone: "Europe/London" });
+  return new Date(val).toLocaleString("en-GB", {timeZone: "Europe/London"});
 }
 
 export function Watchlist() {
-  const { t } = useTranslation();
-  const [symbols, setSymbols] = useState(() =>
-    localStorage.getItem("watchlistSymbols") || DEFAULT_SYMBOLS,
+  const {t} = useTranslation();
+  const [symbols, setSymbols] = useState(
+    () => localStorage.getItem("watchlistSymbols") || DEFAULT_SYMBOLS
   );
   const [rows, setRows] = useState<QuoteRow[]>([]);
   const [auto, setAuto] = useState(true);
@@ -49,8 +49,12 @@ export function Watchlist() {
   const [asc, setAsc] = useState(true);
 
   const symbolList = useMemo(
-    () => symbols.split(",").map((s) => s.trim()).filter(Boolean),
-    [symbols],
+    () =>
+      symbols
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [symbols]
   );
 
   const fetchData = useCallback(async () => {
@@ -89,7 +93,9 @@ export function Watchlist() {
       if (typeof va === "string" && typeof vb === "string") {
         return asc ? va.localeCompare(vb) : vb.localeCompare(va);
       }
-      return asc ? (va as number) - (vb as number) : (vb as number) - (va as number);
+      return asc
+        ? (va as number) - (vb as number)
+        : (vb as number) - (va as number);
     });
     return data;
   }, [rows, sortKey, asc]);
@@ -105,9 +111,9 @@ export function Watchlist() {
 
   return (
     <div>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div style={{marginBottom: "0.5rem"}}>
         <input
-          style={{ width: "100%" }}
+          style={{width: "100%"}}
           value={symbols}
           onChange={(e) => setSymbols(e.target.value)}
         />
@@ -120,40 +126,42 @@ export function Watchlist() {
           marginBottom: "0.5rem",
         }}
       >
-        <label style={{ display: "flex", alignItems: "center" }}>
+        <label style={{display: "flex", alignItems: "center"}}>
           <input
             type="checkbox"
             checked={auto}
             onChange={(e) => setAuto(e.target.checked)}
-          />{" "}Auto-refresh
+          />{" "}
+          Auto-refresh
         </label>
         <button onClick={fetchData}>{t("watchlist.refresh")}</button>
       </div>
       {error && (
-        <div style={{ color: "red", marginBottom: "0.5rem" }}>{error}</div>
+        <div style={{color: "red", marginBottom: "0.5rem"}}>{error}</div>
       )}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div style={{overflowX: "auto"}}>
+        <table style={{width: "100%", borderCollapse: "collapse"}}>
           <thead>
             <tr>
               {[
-                { k: "name", l: "Name" },
-                { k: "symbol", l: "Symbol" },
-                { k: "last", l: "Last" },
-                { k: "open", l: "Open" },
-                { k: "high", l: "High" },
-                { k: "low", l: "Low" },
-                { k: "change", l: "Chg" },
-                { k: "changePct", l: "Chg %" },
-                { k: "volume", l: "Vol" },
-                { k: "time", l: "Time" },
+                {k: "name", l: "Name"},
+                {k: "symbol", l: "Symbol"},
+                {k: "last", l: "Last"},
+                {k: "open", l: "Open"},
+                {k: "high", l: "High"},
+                {k: "low", l: "Low"},
+                {k: "change", l: "Chg"},
+                {k: "changePct", l: "Chg %"},
+                {k: "volume", l: "Vol"},
+                {k: "time", l: "Time"},
               ].map((c) => (
                 <th
                   key={c.k}
                   onClick={() => toggleSort(c.k as keyof QuoteRow)}
                   style={{
                     cursor: "pointer",
-                    textAlign: c.k === "name" || c.k === "symbol" ? "left" : "right",
+                    textAlign:
+                      c.k === "name" || c.k === "symbol" ? "left" : "right",
                     borderBottom: "1px solid #ccc",
                     padding: "4px 6px",
                     whiteSpace: "nowrap",
@@ -166,7 +174,11 @@ export function Watchlist() {
           </thead>
           <tbody>
             {sorted.map((r) => {
-              const color = r.change ? (r.change > 0 ? "green" : "red") : undefined;
+              const color = r.change
+                ? r.change > 0
+                  ? "green"
+                  : "red"
+                : undefined;
               const pctBg =
                 r.changePct != null && r.changePct !== 0
                   ? r.changePct > 0
@@ -187,17 +199,17 @@ export function Watchlist() {
                   >
                     {r.name || "—"}
                   </td>
-                  <td style={{ padding: "4px 6px" }}>{r.symbol}</td>
-                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                  <td style={{padding: "4px 6px"}}>{r.symbol}</td>
+                  <td style={{textAlign: "right", padding: "4px 6px"}}>
                     {formatPrice(r.symbol, r.last)}
                   </td>
-                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                  <td style={{textAlign: "right", padding: "4px 6px"}}>
                     {formatPrice(r.symbol, r.open)}
                   </td>
-                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                  <td style={{textAlign: "right", padding: "4px 6px"}}>
                     {formatPrice(r.symbol, r.high)}
                   </td>
-                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                  <td style={{textAlign: "right", padding: "4px 6px"}}>
                     {formatPrice(r.symbol, r.low)}
                   </td>
                   <td
@@ -219,10 +231,10 @@ export function Watchlist() {
                   >
                     {formatPct(r.changePct)}
                   </td>
-                  <td style={{ textAlign: "right", padding: "4px 6px" }}>
+                  <td style={{textAlign: "right", padding: "4px 6px"}}>
                     {formatVol(r.volume)}
                   </td>
-                  <td style={{ padding: "4px 6px" }}>{formatTime(r.time)}</td>
+                  <td style={{padding: "4px 6px"}}>{formatTime(r.time)}</td>
                 </tr>
               );
             })}

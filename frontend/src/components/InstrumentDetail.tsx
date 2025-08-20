@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import {useEffect, useState} from "react";
+import {Link} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 import {
   Line,
   LineChart,
@@ -9,12 +9,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getInstrumentDetail } from "../api";
-import { money, percent } from "../lib/money";
-import { translateInstrumentType } from "../lib/instrumentType";
+import {getInstrumentDetail} from "../api";
+import {money, percent} from "../lib/money";
+import {translateInstrumentType} from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
-import { useConfig } from "../ConfigContext";
+import {useConfig} from "../ConfigContext";
 
 type Props = {
   ticker: string;
@@ -60,8 +60,8 @@ export function InstrumentDetail({
   instrument_type, // ← comes from props now
   onClose,
 }: Props) {
-  const { t } = useTranslation();
-  const { relativeViewEnabled } = useConfig();
+  const {t} = useTranslation();
+  const {relativeViewEnabled} = useConfig();
   const [data, setData] = useState<{
     prices: Price[];
     positions: Position[];
@@ -99,14 +99,14 @@ export function InstrumentDetail({
   const editLink = `/timeseries?ticker=${encodeURIComponent(tickerBase)}&exchange=${encodeURIComponent(exch)}`;
 
   const rawPrices = (data?.prices ?? [])
-    .map((p) => ({ date: p.date, close_gbp: toNum(p.close_gbp ?? p.close) }))
+    .map((p) => ({date: p.date, close_gbp: toNum(p.close_gbp ?? p.close)}))
     .filter((p) => Number.isFinite(p.close_gbp));
 
   const withChanges = rawPrices.map((p, i) => {
     const prev = rawPrices[i - 1];
     const change_gbp = prev ? p.close_gbp - prev.close_gbp : NaN;
     const change_pct = prev ? (change_gbp / prev.close_gbp) * 100 : NaN;
-    return { ...p, change_gbp, change_pct };
+    return {...p, change_gbp, change_pct};
   });
 
   const prices = withChanges.map((p, i, arr) => {
@@ -144,11 +144,11 @@ export function InstrumentDetail({
   const close30 = lookup(30);
   const change7dPct =
     Number.isFinite(latestClose) && Number.isFinite(close7)
-      ? ((latestClose / close7 - 1) * 100)
+      ? (latestClose / close7 - 1) * 100
       : NaN;
   const change30dPct =
     Number.isFinite(latestClose) && Number.isFinite(close30)
-      ? ((latestClose / close30 - 1) * 100)
+      ? (latestClose / close30 - 1) * 100
       : NaN;
 
   const positions = data?.positions ?? [];
@@ -168,17 +168,18 @@ export function InstrumentDetail({
         boxShadow: "-4px 0 8px rgba(0,0,0,0.5)",
       }}
     >
-      <button onClick={onClose} style={{ float: "right" }}>
+      <button onClick={onClose} style={{float: "right"}}>
         ✕
       </button>
-      <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
-      <div style={{ fontSize: "0.85rem", color: "#aaa" }}>
-        {ticker} • {displayCurrency} • {translateInstrumentType(t, instrument_type)} • {" "}
-        <Link to={editLink} style={{ color: "#00d8ff", textDecoration: "none" }}>
+      <h2 style={{marginBottom: "0.2rem"}}>{name}</h2>
+      <div style={{fontSize: "0.85rem", color: "#aaa"}}>
+        {ticker} • {displayCurrency} •{" "}
+        {translateInstrumentType(t, instrument_type)} •{" "}
+        <Link to={editLink} style={{color: "#00d8ff", textDecoration: "none"}}>
           {t("instrumentDetail.edit")}
         </Link>
       </div>
-      <div style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
+      <div style={{fontSize: "0.85rem", marginBottom: "1rem"}}>
         <span
           style={{
             color: Number.isFinite(change7dPct)
@@ -188,7 +189,8 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          {t("instrumentDetail.change7d")} {loading ? t("app.loading") : percent(change7dPct, 1)}
+          {t("instrumentDetail.change7d")}{" "}
+          {loading ? t("app.loading") : percent(change7dPct, 1)}
         </span>
         {" • "}
         <span
@@ -200,28 +202,31 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          {t("instrumentDetail.change30d")} {loading ? t("app.loading") : percent(change30dPct, 1)}
+          {t("instrumentDetail.change30d")}{" "}
+          {loading ? t("app.loading") : percent(change30dPct, 1)}
         </span>
       </div>
-      {err && <p style={{ color: "red" }}>{err}</p>}
+      {err && <p style={{color: "red"}}>{err}</p>}
 
       {/* Chart */}
-      <div style={{ marginBottom: "0.5rem" }}>
-        <label style={{ fontSize: "0.85rem", marginRight: "1rem" }}>
+      <div style={{marginBottom: "0.5rem"}}>
+        <label style={{fontSize: "0.85rem", marginRight: "1rem"}}>
           {t("instrumentDetail.range")}
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           >
             <option value={7}>{t("instrumentDetail.rangeOptions.1w")}</option>
             <option value={30}>{t("instrumentDetail.rangeOptions.1m")}</option>
             <option value={365}>{t("instrumentDetail.rangeOptions.1y")}</option>
-            <option value={3650}>{t("instrumentDetail.rangeOptions.10y")}</option>
+            <option value={3650}>
+              {t("instrumentDetail.rangeOptions.10y")}
+            </option>
             <option value={0}>{t("instrumentDetail.rangeOptions.max")}</option>
           </select>
         </label>
-        <label style={{ fontSize: "0.85rem" }}>
+        <label style={{fontSize: "0.85rem"}}>
           <input
             type="checkbox"
             checked={showBollinger}
@@ -246,7 +251,10 @@ export function InstrumentDetail({
           <LineChart data={prices}>
             <XAxis dataKey="date" hide />
             <YAxis domain={["auto", "auto"]} />
-            <Tooltip wrapperStyle={{ color: "#000" }} labelStyle={{ color: "#000" }} />
+            <Tooltip
+              wrapperStyle={{color: "#000"}}
+              labelStyle={{color: "#000"}}
+            />
             {showBollinger && (
               <>
                 <Line
@@ -278,24 +286,34 @@ export function InstrumentDetail({
       )}
 
       {/* Positions */}
-      <h3 style={{ marginTop: "1.5rem" }}>{t("instrumentDetail.positions")}</h3>
+      <h3 style={{marginTop: "1.5rem"}}>{t("instrumentDetail.positions")}</h3>
       <table
         className={tableStyles.table}
-        style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
+        style={{fontSize: "0.85rem", marginBottom: "1rem"}}
       >
         <thead>
           <tr>
-            <th className={tableStyles.cell}>{t("instrumentDetail.columns.account")}</th>
+            <th className={tableStyles.cell}>
+              {t("instrumentDetail.columns.account")}
+            </th>
             {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.units")}</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t("instrumentDetail.columns.units")}
+              </th>
             )}
             {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.market")}</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t("instrumentDetail.columns.market")}
+              </th>
             )}
             {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.gain")}</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t("instrumentDetail.columns.gain")}
+              </th>
             )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.gainPct")}</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t("instrumentDetail.columns.gainPct")}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -304,7 +322,7 @@ export function InstrumentDetail({
               <td
                 colSpan={relativeViewEnabled ? 2 : 5}
                 className={`${tableStyles.cell} ${tableStyles.center}`}
-                style={{ color: "#888" }}
+                style={{color: "#888"}}
               >
                 {t("app.loading")}
               </td>
@@ -315,7 +333,7 @@ export function InstrumentDetail({
                 <td className={tableStyles.cell}>
                   <Link
                     to={`/member/${encodeURIComponent(pos.owner)}`}
-                    style={{ color: "#00d8ff", textDecoration: "none" }}
+                    style={{color: "#00d8ff", textDecoration: "none"}}
                   >
                     {pos.owner} – {pos.account}
                   </Link>
@@ -334,9 +352,10 @@ export function InstrumentDetail({
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
                     style={{
-                      color: toNum(pos.unrealised_gain_gbp) >= 0
-                        ? "lightgreen"
-                        : "red",
+                      color:
+                        toNum(pos.unrealised_gain_gbp) >= 0
+                          ? "lightgreen"
+                          : "red",
                     }}
                   >
                     {money(pos.unrealised_gain_gbp)}
@@ -344,7 +363,9 @@ export function InstrumentDetail({
                 )}
                 <td
                   className={`${tableStyles.cell} ${tableStyles.right}`}
-                  style={{ color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red" }}
+                  style={{
+                    color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red",
+                  }}
                 >
                   {percent(pos.gain_pct, 1)}
                 </td>
@@ -355,7 +376,7 @@ export function InstrumentDetail({
               <td
                 colSpan={relativeViewEnabled ? 2 : 5}
                 className={`${tableStyles.cell} ${tableStyles.center}`}
-                style={{ color: "#888" }}
+                style={{color: "#888"}}
               >
                 {t("instrumentDetail.noPositions")}
               </td>
@@ -368,14 +389,22 @@ export function InstrumentDetail({
       <h3>{t("instrumentDetail.recentPrices")}</h3>
       <table
         className={tableStyles.table}
-        style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
+        style={{fontSize: "0.85rem", marginBottom: "1rem"}}
       >
         <thead>
           <tr>
-            <th className={tableStyles.cell}>{t("instrumentDetail.priceColumns.date")}</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.priceColumns.close")}</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.priceColumns.delta")}</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.priceColumns.deltaPct")}</th>
+            <th className={tableStyles.cell}>
+              {t("instrumentDetail.priceColumns.date")}
+            </th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t("instrumentDetail.priceColumns.close")}
+            </th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t("instrumentDetail.priceColumns.delta")}
+            </th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t("instrumentDetail.priceColumns.deltaPct")}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -384,7 +413,7 @@ export function InstrumentDetail({
               <td
                 colSpan={4}
                 className={`${tableStyles.cell} ${tableStyles.center}`}
-                style={{ color: "#888" }}
+                style={{color: "#888"}}
               >
                 {t("app.loading")}
               </td>
@@ -403,7 +432,7 @@ export function InstrumentDetail({
                   <tr key={p.date}>
                     <td className={tableStyles.cell}>
                       {new Intl.DateTimeFormat(i18n.language).format(
-                        new Date(p.date),
+                        new Date(p.date)
                       )}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
@@ -411,13 +440,13 @@ export function InstrumentDetail({
                     </td>
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}
-                      style={{ color: colour }}
+                      style={{color: colour}}
                     >
                       {money(p.change_gbp)}
                     </td>
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}
-                      style={{ color: colour }}
+                      style={{color: colour}}
                     >
                       {percent(p.change_pct, 2)}
                     </td>
@@ -429,7 +458,7 @@ export function InstrumentDetail({
               <td
                 colSpan={4}
                 className={`${tableStyles.cell} ${tableStyles.center}`}
-                style={{ color: "#888" }}
+                style={{color: "#888"}}
               >
                 {t("instrumentDetail.noPriceData")}
               </td>

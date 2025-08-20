@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import {useEffect, useState} from "react";
 import {
   getVirtualPortfolios,
   getVirtualPortfolio,
@@ -27,7 +27,9 @@ export function VirtualPortfolio() {
     getVirtualPortfolios()
       .then(setPortfolios)
       .catch((e) => setError(String(e)));
-    getOwners().then(setOwners).catch((e) => setError(String(e)));
+    getOwners()
+      .then(setOwners)
+      .catch((e) => setError(String(e)));
   }, []);
 
   async function load(id: number) {
@@ -46,22 +48,25 @@ export function VirtualPortfolio() {
     setAccounts((prev) =>
       prev.includes(account)
         ? prev.filter((a) => a !== account)
-        : [...prev, account],
+        : [...prev, account]
     );
   }
 
   function updateHolding(
     idx: number,
     field: keyof SyntheticHolding,
-    value: string | number | undefined,
+    value: string | number | undefined
   ) {
     setHoldings((prev) =>
-      prev.map((h, i) => (i === idx ? { ...h, [field]: value } : h)),
+      prev.map((h, i) => (i === idx ? {...h, [field]: value} : h))
     );
   }
 
   function addHolding() {
-    setHoldings((prev) => [...prev, { ticker: "", units: 0, price: undefined, purchase_date: "" }]);
+    setHoldings((prev) => [
+      ...prev,
+      {ticker: "", units: 0, price: undefined, purchase_date: ""},
+    ]);
   }
 
   function removeHolding(idx: number) {
@@ -71,7 +76,7 @@ export function VirtualPortfolio() {
   async function handleSave() {
     setMessage(null);
     setError(null);
-    const payload: VP = { name, accounts, holdings };
+    const payload: VP = {name, accounts, holdings};
     try {
       if (selected != null) {
         await updateVirtualPortfolio(selected, payload);
@@ -104,10 +109,10 @@ export function VirtualPortfolio() {
     <div>
       <h1>Virtual Portfolios</h1>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {message && <p style={{ color: "green" }}>{message}</p>}
+      {error && <p style={{color: "red"}}>{error}</p>}
+      {message && <p style={{color: "green"}}>{message}</p>}
 
-      <div style={{ marginBottom: "1rem" }}>
+      <div style={{marginBottom: "1rem"}}>
         <label>
           Select
           <select
@@ -116,7 +121,7 @@ export function VirtualPortfolio() {
               const id = e.target.value ? Number(e.target.value) : null;
               if (id) load(id);
             }}
-            style={{ marginLeft: "0.5rem" }}
+            style={{marginLeft: "0.5rem"}}
           >
             <option value="">New…</option>
             {portfolios.map((p) => (
@@ -128,27 +133,27 @@ export function VirtualPortfolio() {
         </label>
       </div>
 
-      <div style={{ marginBottom: "1rem" }}>
+      <div style={{marginBottom: "1rem"}}>
         <label>
           Name
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            style={{ marginLeft: "0.5rem" }}
+            style={{marginLeft: "0.5rem"}}
           />
         </label>
       </div>
 
-      <fieldset style={{ marginBottom: "1rem" }}>
+      <fieldset style={{marginBottom: "1rem"}}>
         <legend>Include Accounts</legend>
         {owners.map((o) => (
-          <div key={o.owner} style={{ marginBottom: "0.25rem" }}>
+          <div key={o.owner} style={{marginBottom: "0.25rem"}}>
             <strong>{o.owner}</strong>
             {o.accounts.map((a) => {
               const val = `${o.owner}:${a}`;
               return (
-                <label key={val} style={{ marginLeft: "0.5rem" }}>
+                <label key={val} style={{marginLeft: "0.5rem"}}>
                   <input
                     type="checkbox"
                     checked={accounts.includes(val)}
@@ -162,9 +167,9 @@ export function VirtualPortfolio() {
         ))}
       </fieldset>
 
-      <div style={{ marginBottom: "1rem" }}>
+      <div style={{marginBottom: "1rem"}}>
         <h3>Synthetic Holdings</h3>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table style={{width: "100%", borderCollapse: "collapse"}}>
           <thead>
             <tr>
               <th>Ticker</th>
@@ -217,17 +222,17 @@ export function VirtualPortfolio() {
             ))}
           </tbody>
         </table>
-        <button onClick={addHolding} style={{ marginTop: "0.5rem" }}>
+        <button onClick={addHolding} style={{marginTop: "0.5rem"}}>
           Add Holding
         </button>
       </div>
 
-      <div style={{ marginTop: "1rem" }}>
-        <button onClick={handleSave} style={{ marginRight: "0.5rem" }}>
+      <div style={{marginTop: "1rem"}}>
+        <button onClick={handleSave} style={{marginRight: "0.5rem"}}>
           Save
         </button>
         {selected != null && (
-          <button onClick={handleDelete} style={{ marginRight: "0.5rem" }}>
+          <button onClick={handleDelete} style={{marginRight: "0.5rem"}}>
             Delete
           </button>
         )}
@@ -238,4 +243,3 @@ export function VirtualPortfolio() {
 }
 
 export default VirtualPortfolio;
-

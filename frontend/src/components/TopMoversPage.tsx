@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {useCallback, useEffect, useMemo, useState} from "react";
+import {useNavigate} from "react-router-dom";
 
-import { getTopMovers, getGroupInstruments, getTradingSignals } from "../api";
-import type { MoverRow, TradingSignal } from "../types";
-import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
-import { InstrumentDetail } from "./InstrumentDetail";
+import {getTopMovers, getGroupInstruments, getTradingSignals} from "../api";
+import type {MoverRow, TradingSignal} from "../types";
+import {WATCHLISTS, type WatchlistName} from "../data/watchlists";
+import {InstrumentDetail} from "./InstrumentDetail";
 
-import { useFetch } from "../hooks/useFetch";
-import { useSortableTable } from "../hooks/useSortableTable";
+import {useFetch} from "../hooks/useFetch";
+import {useSortableTable} from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 
-const PERIODS = { "1d": 1, "1w": 7, "1m": 30, "3m": 90, "1y": 365 } as const;
+const PERIODS = {"1d": 1, "1w": 7, "1m": 30, "3m": 90, "1y": 365} as const;
 type PeriodKey = keyof typeof PERIODS;
 type WatchlistOption = WatchlistName | "Portfolio";
 const WATCHLIST_OPTIONS: WatchlistOption[] = [
@@ -32,42 +32,37 @@ export function TopMoversPage() {
       return getGroupInstruments("all").then((rows) =>
         getTopMovers(
           rows.map((r) => r.ticker),
-          PERIODS[period],
-        ),
+          PERIODS[period]
+        )
       );
     }
     return getTopMovers(WATCHLISTS[watchlist], PERIODS[period]);
   }, [watchlist, period]);
-  const { data, loading, error } = useFetch(fetchMovers, [watchlist, period]);
+  const {data, loading, error} = useFetch(fetchMovers, [watchlist, period]);
   const rows = useMemo(() => {
     if (!data) return [];
     return [...data.gainers, ...data.losers];
   }, [data]);
 
-  const { sorted, handleSort } = useSortableTable<MoverRow>(
-    rows,
-    "change_pct",
-  );
+  const {sorted, handleSort} = useSortableTable<MoverRow>(rows, "change_pct");
 
   useEffect(() => {
     getTradingSignals()
       .then(setSignals)
-      .catch((e) =>
-        setSignalsError(e instanceof Error ? e.message : String(e)),
-      )
+      .catch((e) => setSignalsError(e instanceof Error ? e.message : String(e)))
       .finally(() => setSignalsLoading(false));
   }, []);
 
   if (loading) return <p>Loading…</p>;
-  if (error) return <p style={{ color: "red" }}>{error.message}</p>;
+  if (error) return <p style={{color: "red"}}>{error.message}</p>;
 
   return (
     <>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div style={{marginBottom: "0.5rem"}}>
         <select
           value={watchlist}
           onChange={(e) => setWatchlist(e.target.value as WatchlistOption)}
-          style={{ marginRight: "0.5rem" }}
+          style={{marginRight: "0.5rem"}}
         >
           {WATCHLIST_OPTIONS.map((name) => (
             <option key={name} value={name}>
@@ -133,7 +128,7 @@ export function TopMoversPage() {
               <td className={tableStyles.cell}>{r.name}</td>
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: r.change_pct >= 0 ? "green" : "red" }}
+                style={{color: r.change_pct >= 0 ? "green" : "red"}}
               >
                 {r.change_pct.toFixed(2)}
               </td>
@@ -144,22 +139,24 @@ export function TopMoversPage() {
       {signalsLoading ? (
         <p>Loading…</p>
       ) : signalsError ? (
-        <p style={{ color: "red" }}>{signalsError}</p>
+        <p style={{color: "red"}}>{signalsError}</p>
       ) : signals.length === 0 ? (
         <p>No signals.</p>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+        <table
+          style={{width: "100%", borderCollapse: "collapse", marginTop: "1rem"}}
+        >
           <thead>
             <tr>
-              <th style={{ textAlign: "left", padding: "4px" }}>Ticker</th>
-              <th style={{ textAlign: "left", padding: "4px" }}>Action</th>
-              <th style={{ textAlign: "left", padding: "4px" }}>Reason</th>
+              <th style={{textAlign: "left", padding: "4px"}}>Ticker</th>
+              <th style={{textAlign: "left", padding: "4px"}}>Action</th>
+              <th style={{textAlign: "left", padding: "4px"}}>Reason</th>
             </tr>
           </thead>
           <tbody>
             {signals.map((s) => (
               <tr key={s.ticker}>
-                <td style={{ padding: "4px" }}>
+                <td style={{padding: "4px"}}>
                   <a
                     href="#"
                     onClick={(e) => {
@@ -170,8 +167,8 @@ export function TopMoversPage() {
                     {s.ticker}
                   </a>
                 </td>
-                <td style={{ padding: "4px" }}>{s.action}</td>
-                <td style={{ padding: "4px" }}>{s.reason}</td>
+                <td style={{padding: "4px"}}>{s.action}</td>
+                <td style={{padding: "4px"}}>{s.reason}</td>
               </tr>
             ))}
           </tbody>

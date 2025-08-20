@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type {CSSProperties} from "react";
 
 type Option = {
   value: string;
@@ -13,7 +13,7 @@ type Props = {
   style?: CSSProperties;
 };
 
-export function Selector({ label, options, value, onChange, style }: Props) {
+export function Selector({label, options, value, onChange, style}: Props) {
   return (
     <label
       style={{
@@ -27,7 +27,7 @@ export function Selector({ label, options, value, onChange, style }: Props) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={{ marginLeft: "0.5rem" }}
+        style={{marginLeft: "0.5rem"}}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -39,4 +39,4 @@ export function Selector({ label, options, value, onChange, style }: Props) {
   );
 }
 
-export type { Option };
+export type {Option};

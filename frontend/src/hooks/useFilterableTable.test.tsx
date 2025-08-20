@@ -1,13 +1,13 @@
-import { renderHook, act } from "@testing-library/react";
-import { useFilterableTable, type Filter } from "./useFilterableTable";
+import {renderHook, act} from "@testing-library/react";
+import {useFilterableTable, type Filter} from "./useFilterableTable";
 
-type Row = { name: string; age: number; active: boolean };
+type Row = {name: string; age: number; active: boolean};
 
 const rows: Row[] = [
-  { name: "Aaron", age: 20, active: false },
-  { name: "Bob", age: 25, active: false },
-  { name: "Alice", age: 30, active: true },
-  { name: "Carol", age: 35, active: true },
+  {name: "Aaron", age: 20, active: false},
+  {name: "Bob", age: 25, active: false},
+  {name: "Alice", age: 30, active: true},
+  {name: "Carol", age: 35, active: true},
 ];
 
 const filters: Record<string, Filter<Row, unknown>> = {
@@ -27,9 +27,7 @@ const filters: Record<string, Filter<Row, unknown>> = {
 
 describe("useFilterableTable", () => {
   it("filters and sorts rows", () => {
-    const { result } = renderHook(() =>
-      useFilterableTable(rows, "age", filters)
-    );
+    const {result} = renderHook(() => useFilterableTable(rows, "age", filters));
 
     expect(result.current.rows.map((r) => r.name)).toEqual([
       "Aaron",
@@ -54,10 +52,7 @@ describe("useFilterableTable", () => {
     ]);
 
     act(() => result.current.setFilter("onlyActive", true));
-    expect(result.current.rows.map((r) => r.name)).toEqual([
-      "Carol",
-      "Alice",
-    ]);
+    expect(result.current.rows.map((r) => r.name)).toEqual(["Carol", "Alice"]);
 
     // eslint-disable-next-line no-constant-condition
     if (false) {

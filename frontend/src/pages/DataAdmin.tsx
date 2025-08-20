@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { listTimeseries } from "../api";
-import type { TimeseriesSummary } from "../types";
+import {useEffect, useState} from "react";
+import {useTranslation} from "react-i18next";
+import {listTimeseries} from "../api";
+import type {TimeseriesSummary} from "../types";
 
 export default function DataAdmin() {
-  const { t } = useTranslation();
+  const {t} = useTranslation();
   const [rows, setRows] = useState<TimeseriesSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,11 +15,11 @@ export default function DataAdmin() {
   }, []);
 
   if (error) {
-    return <p style={{ color: "red" }}>{error}</p>;
+    return <p style={{color: "red"}}>{error}</p>;
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+    <div style={{maxWidth: 900, margin: "0 auto", padding: "1rem"}}>
       <h2>{t("app.modes.dataadmin")}</h2>
       <table>
         <thead>
@@ -38,7 +38,9 @@ export default function DataAdmin() {
           {rows.map((r) => (
             <tr key={`${r.ticker}.${r.exchange}`}>
               <td>
-                <a href={`/timeseries?ticker=${encodeURIComponent(r.ticker)}&exchange=${encodeURIComponent(r.exchange)}`}>
+                <a
+                  href={`/timeseries?ticker=${encodeURIComponent(r.ticker)}&exchange=${encodeURIComponent(r.exchange)}`}
+                >
                   {r.ticker}
                 </a>
               </td>

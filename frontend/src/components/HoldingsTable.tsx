@@ -1,26 +1,22 @@
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import type { Holding } from "../types";
-import { money, percent } from "../lib/money";
-import { translateInstrumentType } from "../lib/instrumentType";
-import { useSortableTable } from "../hooks/useSortableTable";
+import {useState} from "react";
+import {useTranslation} from "react-i18next";
+import type {Holding} from "../types";
+import {money, percent} from "../lib/money";
+import {translateInstrumentType} from "../lib/instrumentType";
+import {useSortableTable} from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
-import { useConfig } from "../ConfigContext";
-import { isSupportedFx } from "../lib/fx";
+import {useConfig} from "../ConfigContext";
+import {isSupportedFx} from "../lib/fx";
 
 type Props = {
   holdings: Holding[];
   onSelectInstrument?: (ticker: string, name: string) => void;
 };
 
-
-export function HoldingsTable({
-  holdings,
-  onSelectInstrument,
-}: Props) {
-  const { t } = useTranslation();
-  const { relativeViewEnabled } = useConfig();
+export function HoldingsTable({holdings, onSelectInstrument}: Props) {
+  const {t} = useTranslation();
+  const {relativeViewEnabled} = useConfig();
 
   const [filters, setFilters] = useState({
     ticker: "",
@@ -40,19 +36,19 @@ export function HoldingsTable({
   });
 
   const toggleColumn = (key: keyof typeof visibleColumns) => {
-    setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
+    setVisibleColumns((prev) => ({...prev, [key]: !prev[key]}));
   };
 
   const handleFilterChange = (key: keyof typeof filters, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({...prev, [key]: value}));
   };
 
   // derive cost/market/gain/gain_pct
   const computed = holdings.map((h) => {
     const cost =
       (h.cost_basis_gbp ?? 0) > 0
-        ? h.cost_basis_gbp ?? 0
-        : h.effective_cost_basis_gbp ?? 0;
+        ? (h.cost_basis_gbp ?? 0)
+        : (h.effective_cost_basis_gbp ?? 0);
 
     const market = h.market_value_gbp ?? 0;
     const gain =
@@ -67,7 +63,7 @@ export function HoldingsTable({
           ? (gain / cost) * 100
           : 0;
 
-    return { ...h, cost, market, gain, gain_pct };
+    return {...h, cost, market, gain, gain_pct};
   });
 
   const totalMarket = computed.reduce((sum, h) => sum + (h.market ?? 0), 0);
@@ -78,9 +74,23 @@ export function HoldingsTable({
 
   // apply filters
   const filtered = rows.filter((h) => {
-    if (filters.ticker && !h.ticker.toLowerCase().includes(filters.ticker.toLowerCase())) return false;
-    if (filters.name && !(h.name ?? "").toLowerCase().includes(filters.name.toLowerCase())) return false;
-    if (filters.instrument_type && !(h.instrument_type ?? "").toLowerCase().includes(filters.instrument_type.toLowerCase())) return false;
+    if (
+      filters.ticker &&
+      !h.ticker.toLowerCase().includes(filters.ticker.toLowerCase())
+    )
+      return false;
+    if (
+      filters.name &&
+      !(h.name ?? "").toLowerCase().includes(filters.name.toLowerCase())
+    )
+      return false;
+    if (
+      filters.instrument_type &&
+      !(h.instrument_type ?? "")
+        .toLowerCase()
+        .includes(filters.instrument_type.toLowerCase())
+    )
+      return false;
 
     if (filters.units) {
       const minUnits = parseFloat(filters.units);
@@ -98,7 +108,12 @@ export function HoldingsTable({
   });
 
   // sort
-  const { sorted: sortedRows, sortKey, asc, handleSort } = useSortableTable(filtered, "ticker");
+  const {
+    sorted: sortedRows,
+    sortKey,
+    asc,
+    handleSort,
+  } = useSortableTable(filtered, "ticker");
 
   if (!sortedRows.length) return null;
 
@@ -112,10 +127,10 @@ export function HoldingsTable({
 
   return (
     <>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div style={{marginBottom: "0.5rem"}}>
         Columns:
         {columnLabels.map(([key, label]) => (
-          <label key={key} style={{ marginLeft: "0.5rem" }}>
+          <label key={key} style={{marginLeft: "0.5rem"}}>
             <input
               type="checkbox"
               checked={visibleColumns[key]}
@@ -125,7 +140,7 @@ export function HoldingsTable({
           </label>
         ))}
       </div>
-      <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
+      <table className={tableStyles.table} style={{marginBottom: "1rem"}}>
         <thead>
           <tr>
             <th className={tableStyles.cell}>
@@ -147,7 +162,9 @@ export function HoldingsTable({
               <input
                 placeholder="Type"
                 value={filters.instrument_type}
-                onChange={(e) => handleFilterChange("instrument_type", e.target.value)}
+                onChange={(e) =>
+                  handleFilterChange("instrument_type", e.target.value)
+                }
               />
             </th>
             {!relativeViewEnabled && visibleColumns.units && (
@@ -174,7 +191,9 @@ export function HoldingsTable({
                 <input
                   placeholder="Gain %"
                   value={filters.gain_pct}
-                  onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
+                  onChange={(e) =>
+                    handleFilterChange("gain_pct", e.target.value)
+                  }
                 />
               </th>
             )}
@@ -185,7 +204,9 @@ export function HoldingsTable({
               <select
                 aria-label="Sell eligible"
                 value={filters.sell_eligible}
-                onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
+                onChange={(e) =>
+                  handleFilterChange("sell_eligible", e.target.value)
+                }
               >
                 <option value="">All</option>
                 <option value="true">Yes</option>
@@ -194,16 +215,24 @@ export function HoldingsTable({
             </th>
           </tr>
           <tr>
-            <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("ticker")}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort("ticker")}
+            >
               Ticker{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
             </th>
-            <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("name")}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort("name")}
+            >
               Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
             </th>
             <th className={tableStyles.cell}>CCY</th>
             <th className={tableStyles.cell}>Type</th>
             {!relativeViewEnabled && visibleColumns.units && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                Units
+              </th>
             )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}>Px £</th>
             {!relativeViewEnabled && visibleColumns.cost && (
@@ -215,7 +244,9 @@ export function HoldingsTable({
               </th>
             )}
             {!relativeViewEnabled && visibleColumns.market && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                Mkt £
+              </th>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
               <th
@@ -246,13 +277,16 @@ export function HoldingsTable({
             >
               Days&nbsp;Held{sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
             </th>
-            <th className={`${tableStyles.cell} ${tableStyles.center}`}>Eligible?</th>
+            <th className={`${tableStyles.cell} ${tableStyles.center}`}>
+              Eligible?
+            </th>
           </tr>
         </thead>
 
         <tbody>
           {sortedRows.map((h) => {
-            const handleClick = () => onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+            const handleClick = () =>
+              onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
             return (
               <tr key={h.ticker + h.acquired_date}>
                 <td className={tableStyles.cell}>
@@ -278,7 +312,10 @@ export function HoldingsTable({
                     <button
                       type="button"
                       onClick={() =>
-                        onSelectInstrument?.(`${h.currency!}GBP.FX`, h.currency!)
+                        onSelectInstrument?.(
+                          `${h.currency!}GBP.FX`,
+                          h.currency!
+                        )
                       }
                       style={{
                         color: "dodgerblue",
@@ -293,31 +330,41 @@ export function HoldingsTable({
                       {h.currency}
                     </button>
                   ) : (
-                    h.currency ?? "—"
+                    (h.currency ?? "—")
                   )}
                 </td>
-                <td className={tableStyles.cell}>{translateInstrumentType(t, h.instrument_type)}</td>
+                <td className={tableStyles.cell}>
+                  {translateInstrumentType(t, h.instrument_type)}
+                </td>
                 {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.current_price_gbp)}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {money(h.current_price_gbp)}
+                </td>
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
-                    title={(h.cost_basis_gbp ?? 0) > 0 ? "Actual purchase cost" : "Inferred from price on acquisition date"}
+                    title={
+                      (h.cost_basis_gbp ?? 0) > 0
+                        ? "Actual purchase cost"
+                        : "Inferred from price on acquisition date"
+                    }
                   >
                     {money(h.cost)}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.market && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {money(h.market)}
+                  </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{ color: (h.gain ?? 0) >= 0 ? "lightgreen" : "red" }}
+                    style={{color: (h.gain ?? 0) >= 0 ? "lightgreen" : "red"}}
                   >
                     {money(h.gain)}
                   </td>
@@ -325,23 +372,33 @@ export function HoldingsTable({
                 {visibleColumns.gain_pct && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{ color: (h.gain_pct ?? 0) >= 0 ? "lightgreen" : "red" }}
+                    style={{
+                      color: (h.gain_pct ?? 0) >= 0 ? "lightgreen" : "red",
+                    }}
                   >
                     {percent(h.gain_pct ?? 0, 1)}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{percent(h.weight_pct ?? 0, 1)}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {percent(h.weight_pct ?? 0, 1)}
+                </td>
                 <td className={tableStyles.cell}>
                   {h.acquired_date && !isNaN(Date.parse(h.acquired_date))
-                    ? new Intl.DateTimeFormat(i18n.language).format(new Date(h.acquired_date))
+                    ? new Intl.DateTimeFormat(i18n.language).format(
+                        new Date(h.acquired_date)
+                      )
                     : "—"}
                 </td>
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{h.days_held ?? "—"}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {h.days_held ?? "—"}
+                </td>
                 <td
                   className={`${tableStyles.cell} ${tableStyles.center}`}
-                  style={{ color: h.sell_eligible ? "lightgreen" : "gold" }}
+                  style={{color: h.sell_eligible ? "lightgreen" : "gold"}}
                 >
-                  {h.sell_eligible ? "✓ Eligible" : `✗ ${h.days_until_eligible ?? ""}`}
+                  {h.sell_eligible
+                    ? "✓ Eligible"
+                    : `✗ ${h.days_until_eligible ?? ""}`}
                 </td>
               </tr>
             );
@@ -351,4 +408,3 @@ export function HoldingsTable({
     </>
   );
 }
-

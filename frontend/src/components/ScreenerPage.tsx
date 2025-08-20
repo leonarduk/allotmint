@@ -1,13 +1,12 @@
-import { useState, useCallback } from "react";
-import { getScreener } from "../api";
-import type { ScreenerResult } from "../types";
-import { InstrumentDetail } from "./InstrumentDetail";
-import { useSortableTable } from "../hooks/useSortableTable";
-import { useFetch } from "../hooks/useFetch";
+import {useState, useCallback} from "react";
+import {getScreener} from "../api";
+import type {ScreenerResult} from "../types";
+import {InstrumentDetail} from "./InstrumentDetail";
+import {useSortableTable} from "../hooks/useSortableTable";
+import {useFetch} from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
-import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
+import {WATCHLISTS, type WatchlistName} from "../data/watchlists";
 import i18n from "../i18n";
-
 
 export function ScreenerPage() {
   const [watchlist, setWatchlist] = useState<WatchlistName>("FTSE 100");
@@ -22,17 +21,17 @@ export function ScreenerPage() {
   } = useFetch<ScreenerResult[]>(fetchScreener, [watchlist]);
   const [ticker, setTicker] = useState<string | null>(null);
 
-  const { sorted, handleSort } = useSortableTable(rows ?? [], "peg_ratio");
+  const {sorted, handleSort} = useSortableTable(rows ?? [], "peg_ratio");
 
   if (loading) return <p>Loading…</p>;
-  if (error) return <p style={{ color: "red" }}>{error.message}</p>;
+  if (error) return <p style={{color: "red"}}>{error.message}</p>;
 
   return (
     <>
       <select
         value={watchlist}
         onChange={(e) => setWatchlist(e.target.value as WatchlistName)}
-        style={{ marginBottom: "0.5rem" }}
+        style={{marginBottom: "0.5rem"}}
       >
         {(Object.keys(WATCHLISTS) as WatchlistName[]).map((name) => (
           <option key={name} value={name}>

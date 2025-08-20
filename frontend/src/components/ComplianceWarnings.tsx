@@ -1,13 +1,13 @@
-import { useCallback } from "react";
-import { getCompliance } from "../api";
-import type { ComplianceResult } from "../types";
-import { useFetch } from "../hooks/useFetch";
+import {useCallback} from "react";
+import {getCompliance} from "../api";
+import type {ComplianceResult} from "../types";
+import {useFetch} from "../hooks/useFetch";
 
 interface Props {
   owners: string[];
 }
 
-export function ComplianceWarnings({ owners }: Props) {
+export function ComplianceWarnings({owners}: Props) {
   const fetchCompliance = useCallback(async () => {
     const entries: Record<string, ComplianceResult> = {};
     await Promise.all(
@@ -27,7 +27,7 @@ export function ComplianceWarnings({ owners }: Props) {
     return entries;
   }, [owners]);
 
-  const { data, loading, error } = useFetch<Record<string, ComplianceResult>>(
+  const {data, loading, error} = useFetch<Record<string, ComplianceResult>>(
     fetchCompliance,
     [owners],
     owners.length > 0
@@ -36,7 +36,7 @@ export function ComplianceWarnings({ owners }: Props) {
   if (!owners.length || loading || error) return null;
 
   const ownersWithWarnings = owners.filter(
-    (o) => (data?.[o]?.warnings ?? []).length,
+    (o) => (data?.[o]?.warnings ?? []).length
   );
 
   if (!ownersWithWarnings.length) return null;
@@ -52,9 +52,9 @@ export function ComplianceWarnings({ owners }: Props) {
       }}
     >
       {ownersWithWarnings.map((o) => (
-        <div key={o} style={{ marginBottom: "0.5rem" }}>
+        <div key={o} style={{marginBottom: "0.5rem"}}>
           <strong>{o}</strong>
-          <ul style={{ margin: "0.25rem 0 0 1.25rem" }}>
+          <ul style={{margin: "0.25rem 0 0 1.25rem"}}>
             {(data?.[o]?.warnings ?? []).map((w) => (
               <li key={`${o}-${w}`}>{w}</li>
             ))}

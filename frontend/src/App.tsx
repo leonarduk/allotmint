@@ -1,7 +1,13 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
+import {useEffect, useState} from "react";
+import {useNavigate, useLocation, Link} from "react-router-dom";
+import {useTranslation} from "react-i18next";
+import {
+  getGroupInstruments,
+  getGroups,
+  getOwners,
+  getPortfolio,
+  refreshPrices,
+} from "./api";
 
 import type {
   GroupSummary,
@@ -10,23 +16,23 @@ import type {
   Portfolio,
 } from "./types";
 
-import { OwnerSelector } from "./components/OwnerSelector";
-import { GroupSelector } from "./components/GroupSelector";
-import { PortfolioView } from "./components/PortfolioView";
-import { GroupPortfolioView } from "./components/GroupPortfolioView";
-import { InstrumentTable } from "./components/InstrumentTable";
-import { TransactionsPage } from "./components/TransactionsPage";
-import { PerformanceDashboard } from "./components/PerformanceDashboard";
+import {OwnerSelector} from "./components/OwnerSelector";
+import {GroupSelector} from "./components/GroupSelector";
+import {PortfolioView} from "./components/PortfolioView";
+import {GroupPortfolioView} from "./components/GroupPortfolioView";
+import {InstrumentTable} from "./components/InstrumentTable";
+import {TransactionsPage} from "./components/TransactionsPage";
+import {PerformanceDashboard} from "./components/PerformanceDashboard";
 
-import { AlertsPanel } from "./components/AlertsPanel";
-import { ComplianceWarnings } from "./components/ComplianceWarnings";
-import { ScreenerQuery } from "./pages/ScreenerQuery";
+import {AlertsPanel} from "./components/AlertsPanel";
+import {ComplianceWarnings} from "./components/ComplianceWarnings";
+import {ScreenerQuery} from "./pages/ScreenerQuery";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
-import { LanguageSwitcher } from "./components/LanguageSwitcher";
-import { TimeseriesEdit } from "./pages/TimeseriesEdit";
+import {LanguageSwitcher} from "./components/LanguageSwitcher";
+import {TimeseriesEdit} from "./pages/TimeseriesEdit";
 import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
-import { useConfig } from "./ConfigContext";
+import {useConfig} from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
 import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
@@ -49,33 +55,46 @@ type Mode =
 const path = window.location.pathname.split("/").filter(Boolean);
 const params = new URLSearchParams(window.location.search);
 const initialMode: Mode =
-  path[0] === "member" ? "owner" :
-  path[0] === "instrument" ? "instrument" :
-  path[0] === "transactions" ? "transactions" :
-  path[0] === "performance" ? "performance" :
-  path[0] === "screener" ? "screener" :
-  path[0] === "timeseries" ? "timeseries" :
-  path[0] === "watchlist" ? "watchlist" :
-  path[0] === "movers" ? "movers" :
-  path[0] === "dataadmin" ? "dataadmin" :
-  path[0] === "support" ? "support" :
-  path[0] === "scenario" ? "scenario" :
-  path.length === 0 && params.has("group") ? "group" : "movers";
+  path[0] === "member"
+    ? "owner"
+    : path[0] === "instrument"
+      ? "instrument"
+      : path[0] === "transactions"
+        ? "transactions"
+        : path[0] === "performance"
+          ? "performance"
+          : path[0] === "screener"
+            ? "screener"
+            : path[0] === "timeseries"
+              ? "timeseries"
+              : path[0] === "watchlist"
+                ? "watchlist"
+                : path[0] === "movers"
+                  ? "movers"
+                  : path[0] === "dataadmin"
+                    ? "dataadmin"
+                    : path[0] === "support"
+                      ? "support"
+                      : path[0] === "scenario"
+                        ? "scenario"
+                        : path.length === 0 && params.has("group")
+                          ? "group"
+                          : "movers";
 const initialSlug = path[1] ?? "";
 
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
-  const { tabs, disabledTabs } = useConfig();
+  const {t} = useTranslation();
+  const {tabs, disabledTabs} = useConfig();
 
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
-    initialMode === "owner" ? initialSlug : "",
+    initialMode === "owner" ? initialSlug : ""
   );
   const [selectedGroup, setSelectedGroup] = useState(
-    initialMode === "instrument" ? initialSlug : params.get("group") ?? "",
+    initialMode === "instrument" ? initialSlug : (params.get("group") ?? "")
   );
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -88,7 +107,9 @@ export default function App() {
 
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
-  const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
+  const [priceRefreshError, setPriceRefreshError] = useState<string | null>(
+    null
+  );
   const [backendUnavailable, setBackendUnavailable] = useState(false);
 
   const ownersReq = useFetchWithRetry(getOwners);
@@ -172,12 +193,12 @@ export default function App() {
 
     if (tabs[newMode] !== true || disabledTabs?.includes(newMode)) {
       setMode("movers");
-      navigate("/movers", { replace: true });
+      navigate("/movers", {replace: true});
       return;
     }
     if (newMode === "movers" && location.pathname !== "/movers") {
       setMode("movers");
-      navigate("/movers", { replace: true });
+      navigate("/movers", {replace: true});
       return;
     }
     setMode(newMode);
@@ -214,17 +235,17 @@ export default function App() {
     if (mode === "owner" && !selectedOwner && owners.length) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
-      navigate(`/member/${owner}`, { replace: true });
+      navigate(`/member/${owner}`, {replace: true});
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
       setSelectedGroup(slug);
-      navigate(`/instrument/${slug}`, { replace: true });
+      navigate(`/instrument/${slug}`, {replace: true});
     }
     if (mode === "group" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
       setSelectedGroup(slug);
-      navigate(`/?group=${slug}`, { replace: true });
+      navigate(`/?group=${slug}`, {replace: true});
     }
   }, [mode, selectedOwner, selectedGroup, owners, groups, navigate]);
 
@@ -272,17 +293,17 @@ export default function App() {
 
   if (backendUnavailable) {
     return (
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+      <div style={{maxWidth: 900, margin: "0 auto", padding: "1rem"}}>
         Backend unavailable—retrying…
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+    <div style={{maxWidth: 900, margin: "0 auto", padding: "1rem"}}>
       <LanguageSwitcher />
       <AlertsPanel />
-      <nav style={{ margin: "1rem 0" }}>
+      <nav style={{margin: "1rem 0"}}>
         {modes
           .filter((m) => tabs[m] === true && !disabledTabs?.includes(m))
           .map((m) => (
@@ -299,18 +320,21 @@ export default function App() {
           ))}
       </nav>
 
-      <div style={{ marginBottom: "1rem" }}>
+      <div style={{marginBottom: "1rem"}}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
           {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
         </button>
         {lastPriceRefresh && (
-          <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
-            {t("app.last")}{" "}
-            {new Date(lastPriceRefresh).toLocaleString()}
+          <span
+            style={{marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666"}}
+          >
+            {t("app.last")} {new Date(lastPriceRefresh).toLocaleString()}
           </span>
         )}
         {priceRefreshError && (
-          <span style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}>
+          <span
+            style={{marginLeft: "0.5rem", color: "red", fontSize: "0.85rem"}}
+          >
             {priceRefreshError}
           </span>
         )}
@@ -338,9 +362,7 @@ export default function App() {
             onSelect={setSelectedGroup}
           />
           <ComplianceWarnings
-            owners={
-              groups.find((g) => g.slug === selectedGroup)?.members ?? []
-            }
+            owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
           />
           <GroupPortfolioView
             slug={selectedGroup}
@@ -361,7 +383,7 @@ export default function App() {
             selected={selectedGroup}
             onSelect={setSelectedGroup}
           />
-          {err && <p style={{ color: "red" }}>{err}</p>}
+          {err && <p style={{color: "red"}}>{err}</p>}
           {loading ? (
             <p>{t("app.loading")}</p>
           ) : (
@@ -394,4 +416,3 @@ export default function App() {
     </div>
   );
 }
-

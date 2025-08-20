@@ -1,4 +1,4 @@
-import type { TFunction } from "i18next";
+import type {TFunction} from "i18next";
 
 const TYPE_KEYS: Record<string, string> = {
   equity: "instrumentType.equity",
@@ -12,8 +12,8 @@ const TYPE_KEYS: Record<string, string> = {
 
 export function translateInstrumentType(t: TFunction, type?: string | null) {
   if (!type) {
-    return t("instrumentType.other", { defaultValue: t("common.other") });
+    return t("instrumentType.other", {defaultValue: t("common.other")});
   }
   const key = TYPE_KEYS[type.toLowerCase()];
-  return t(key || "instrumentType.other", { defaultValue: type });
+  return t(key || "instrumentType.other", {defaultValue: type});
 }

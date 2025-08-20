@@ -1,46 +1,53 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, type Mock } from "vitest";
-import { ComplianceWarnings } from "./ComplianceWarnings";
-import { getCompliance } from "../api";
+import {render, screen, waitFor} from "@testing-library/react";
+import {describe, it, expect, vi, type Mock} from "vitest";
+import {ComplianceWarnings} from "./ComplianceWarnings";
+import {getCompliance} from "../api";
 
 vi.mock("../api", () => ({
-    getCompliance: vi.fn(),
+  getCompliance: vi.fn(),
 }));
 
 describe("ComplianceWarnings", () => {
-    it("does not render when there are no warnings", async () => {
-        const mock = getCompliance as unknown as Mock;
-        mock.mockResolvedValue({ owner: "alice", warnings: [], trade_counts: {} });
+  it("does not render when there are no warnings", async () => {
+    const mock = getCompliance as unknown as Mock;
+    mock.mockResolvedValue({owner: "alice", warnings: [], trade_counts: {}});
 
-        render(<ComplianceWarnings owners={["alice"]} />);
+    render(<ComplianceWarnings owners={["alice"]} />);
 
-        await waitFor(() => {
-            expect(mock).toHaveBeenCalled();
-        });
-
-        expect(screen.queryByText("alice")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(mock).toHaveBeenCalled();
     });
 
-    it("renders warnings when present", async () => {
-        const mock = getCompliance as unknown as Mock;
-        mock.mockResolvedValue({ owner: "alice", warnings: ["Issue"], trade_counts: {} });
+    expect(screen.queryByText("alice")).not.toBeInTheDocument();
+  });
 
-        render(<ComplianceWarnings owners={["alice"]} />);
-
-        await screen.findByText("Issue");
+  it("renders warnings when present", async () => {
+    const mock = getCompliance as unknown as Mock;
+    mock.mockResolvedValue({
+      owner: "alice",
+      warnings: ["Issue"],
+      trade_counts: {},
     });
 
-    it("only shows owners with warnings", async () => {
-        const mock = getCompliance as unknown as Mock;
-        mock
-            .mockResolvedValueOnce({ owner: "alice", warnings: [], trade_counts: {} })
-            .mockResolvedValueOnce({ owner: "bob", warnings: ["Issue"], trade_counts: {} });
+    render(<ComplianceWarnings owners={["alice"]} />);
 
-        render(<ComplianceWarnings owners={["alice", "bob"]} />);
+    await screen.findByText("Issue");
+  });
 
-        await screen.findByText("Issue");
-        expect(screen.queryByText("alice")).not.toBeInTheDocument();
-        expect(screen.getByText("bob")).toBeInTheDocument();
-    });
+  it("only shows owners with warnings", async () => {
+    const mock = getCompliance as unknown as Mock;
+    mock
+      .mockResolvedValueOnce({owner: "alice", warnings: [], trade_counts: {}})
+      .mockResolvedValueOnce({
+        owner: "bob",
+        warnings: ["Issue"],
+        trade_counts: {},
+      });
 
+    render(<ComplianceWarnings owners={["alice", "bob"]} />);
+
+    await screen.findByText("Issue");
+    expect(screen.queryByText("alice")).not.toBeInTheDocument();
+    expect(screen.getByText("bob")).toBeInTheDocument();
+  });
 });

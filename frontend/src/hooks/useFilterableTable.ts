@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import {useMemo, useState} from "react";
 
 export type Filter<T, V> = {
   value: V;
@@ -7,7 +7,7 @@ export type Filter<T, V> = {
 
 export function useFilterableTable<
   T,
-  F extends Record<string, Filter<T, unknown>>
+  F extends Record<string, Filter<T, unknown>>,
 >(rows: T[], initialSortKey: keyof T, initialFilters: F) {
   const [sortKey, setSortKey] = useState<keyof T>(initialSortKey);
   const [asc, setAsc] = useState(true);
@@ -22,16 +22,19 @@ export function useFilterableTable<
     }
   }
 
-  function setFilter<FKey extends keyof F>(name: FKey, value: F[FKey]["value"]) {
+  function setFilter<FKey extends keyof F>(
+    name: FKey,
+    value: F[FKey]["value"]
+  ) {
     setFilters((prev) => ({
       ...prev,
-      [name]: { ...prev[name], value },
+      [name]: {...prev[name], value},
     }));
   }
 
   const filtered = useMemo(() => {
     return rows.filter((row) =>
-      Object.values(filters).every(({ value, predicate }) =>
+      Object.values(filters).every(({value, predicate}) =>
         predicate(row, value)
       )
     );
@@ -52,9 +55,16 @@ export function useFilterableTable<
 
   const filterValues = useMemo(() => {
     return Object.fromEntries(
-      Object.entries(filters).map(([k, { value }]) => [k, value])
-    ) as { [K in keyof F]: F[K]["value"] };
+      Object.entries(filters).map(([k, {value}]) => [k, value])
+    ) as {[K in keyof F]: F[K]["value"]};
   }, [filters]);
 
-  return { rows: sorted, sortKey, asc, handleSort, filters: filterValues, setFilter };
+  return {
+    rows: sorted,
+    sortKey,
+    asc,
+    handleSort,
+    filters: filterValues,
+    setFilter,
+  };
 }

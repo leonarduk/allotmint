@@ -1,4 +1,4 @@
-import { useEffect, useState, type DependencyList } from "react";
+import {useEffect, useState, type DependencyList} from "react";
 
 /**
  * Small helper hook that wraps an async function and provides
@@ -19,38 +19,40 @@ export function useFetch<T>(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    if (!enabled) {
+  useEffect(
+    () => {
+      if (!enabled) {
+        setData(null);
+        return;
+      }
+
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
       setData(null);
-      return;
-    }
 
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setData(null);
+      fn()
+        .then((res) => {
+          if (!cancelled) setData(res);
+        })
+        .catch((e) => {
+          if (!cancelled) {
+            setError(e instanceof Error ? e : new Error(String(e)));
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
 
-    fn()
-      .then((res) => {
-        if (!cancelled) setData(res);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e : new Error(String(e)));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      return () => {
+        cancelled = true;
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [enabled, fn, ...deps]
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [enabled, fn, ...deps]);
-
-  return { data, loading, error };
+  return {data, loading, error};
 }
 
 export default useFetch;

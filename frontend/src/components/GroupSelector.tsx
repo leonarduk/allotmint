@@ -1,6 +1,6 @@
-import { useEffect } from "react";
-import type { GroupSummary } from "../types";
-import { Selector } from "./Selector";
+import {useEffect} from "react";
+import type {GroupSummary} from "../types";
+import {Selector} from "./Selector";
 
 type Props = {
   groups: GroupSummary[];
@@ -8,7 +8,7 @@ type Props = {
   onSelect: (slug: string) => void;
 };
 
-export function GroupSelector({ groups, selected, onSelect }: Props) {
+export function GroupSelector({groups, selected, onSelect}: Props) {
   // Auto-select first group if none selected yet
   useEffect(() => {
     if (!selected && groups.length > 0) {
@@ -21,7 +21,7 @@ export function GroupSelector({ groups, selected, onSelect }: Props) {
       label="Group"
       value={selected}
       onChange={onSelect}
-      options={groups.map((g) => ({ value: g.slug, label: g.name }))}
+      options={groups.map((g) => ({value: g.slug, label: g.name}))}
     />
   );
 }

@@ -1,18 +1,18 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi } from "vitest";
-import { TopMoversPage } from "./TopMoversPage";
-import type { MoverRow } from "../types";
+import {render, screen, fireEvent, waitFor} from "@testing-library/react";
+import {MemoryRouter} from "react-router-dom";
+import {describe, it, expect, vi} from "vitest";
+import {TopMoversPage} from "./TopMoversPage";
+import type {MoverRow} from "../types";
 
 vi.mock("../data/watchlists", () => ({
-  WATCHLISTS: { "FTSE 100": ["AAA", "BBB"] },
+  WATCHLISTS: {"FTSE 100": ["AAA", "BBB"]},
 }));
 
 const mockGetTopMovers = vi.fn(() =>
   Promise.resolve({
-    gainers: [{ ticker: "AAA", name: "AAA", change_pct: 5 } as MoverRow],
-    losers: [{ ticker: "BBB", name: "BBB", change_pct: -2 } as MoverRow],
-  }),
+    gainers: [{ticker: "AAA", name: "AAA", change_pct: 5} as MoverRow],
+    losers: [{ticker: "BBB", name: "BBB", change_pct: -2} as MoverRow],
+  })
 );
 const mockGetGroupInstruments = vi.fn(() =>
   Promise.resolve([
@@ -24,24 +24,19 @@ const mockGetGroupInstruments = vi.fn(() =>
       market_value_gbp: 0,
       gain_gbp: 0,
     },
-  ]),
+  ])
 );
 const mockGetTradingSignals = vi.fn(() =>
-  Promise.resolve([
-    { ticker: "AAA", action: "buy", reason: "go long" },
-  ]),
+  Promise.resolve([{ticker: "AAA", action: "buy", reason: "go long"}])
 );
 
 vi.mock("../api", () => ({
-  getTopMovers: (
-    ...args: Parameters<typeof mockGetTopMovers>
-  ) => mockGetTopMovers(...args),
-  getGroupInstruments: (
-    ...args: Parameters<typeof mockGetGroupInstruments>
-  ) => mockGetGroupInstruments(...args),
-  getTradingSignals: (
-    ...args: Parameters<typeof mockGetTradingSignals>
-  ) => mockGetTradingSignals(...args),
+  getTopMovers: (...args: Parameters<typeof mockGetTopMovers>) =>
+    mockGetTopMovers(...args),
+  getGroupInstruments: (...args: Parameters<typeof mockGetGroupInstruments>) =>
+    mockGetGroupInstruments(...args),
+  getTradingSignals: (...args: Parameters<typeof mockGetTradingSignals>) =>
+    mockGetTradingSignals(...args),
 }));
 
 vi.mock("./InstrumentDetail", () => ({
@@ -64,23 +59,23 @@ describe("TopMoversPage", () => {
     render(
       <MemoryRouter>
         <TopMoversPage />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     await waitFor(() =>
-      expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"),
+      expect(mockGetGroupInstruments).toHaveBeenCalledWith("all")
     );
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1),
+      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1)
     );
     expect((await screen.findAllByText("AAA")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("BBB")).length).toBeGreaterThan(0);
 
     const selects = screen.getAllByRole("combobox");
     const periodSelect = selects[1];
-    fireEvent.change(periodSelect, { target: { value: "1w" } });
+    fireEvent.change(periodSelect, {target: {value: "1w"}});
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["CCC"], 7),
+      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["CCC"], 7)
     );
   });
 
@@ -88,19 +83,19 @@ describe("TopMoversPage", () => {
     render(
       <MemoryRouter>
         <TopMoversPage />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1),
+      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1)
     );
 
     const selects = await screen.findAllByRole("combobox");
     const watchlistSelect = selects[0];
-    fireEvent.change(watchlistSelect, { target: { value: "FTSE 100" } });
+    fireEvent.change(watchlistSelect, {target: {value: "FTSE 100"}});
 
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 1),
+      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 1)
     );
   });
 
@@ -108,10 +103,10 @@ describe("TopMoversPage", () => {
     render(
       <MemoryRouter>
         <TopMoversPage />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
-    const button = await screen.findByRole("button", { name: "AAA" });
+    const button = await screen.findByRole("button", {name: "AAA"});
     fireEvent.click(button);
     expect(await screen.findByTestId("detail")).toHaveTextContent("AAA");
   });
@@ -120,20 +115,20 @@ describe("TopMoversPage", () => {
     render(
       <MemoryRouter>
         <TopMoversPage />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     const gainerCell = await screen.findByText("5.00");
     const loserCell = await screen.findByText("-2.00");
-    expect(gainerCell).toHaveStyle({ color: "rgb(0, 128, 0)" });
-    expect(loserCell).toHaveStyle({ color: "rgb(255, 0, 0)" });
+    expect(gainerCell).toHaveStyle({color: "rgb(0, 128, 0)"});
+    expect(loserCell).toHaveStyle({color: "rgb(255, 0, 0)"});
   });
 
   it("renders trading signals table", async () => {
     render(
       <MemoryRouter>
         <TopMoversPage />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
     await waitFor(() => expect(mockGetTradingSignals).toHaveBeenCalled());
     expect(await screen.findByText("go long")).toBeInTheDocument();

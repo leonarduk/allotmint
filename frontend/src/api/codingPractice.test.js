@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import {describe, it, expect, beforeEach, vi} from "vitest";
 import {
   getPuzzles,
   createPuzzle,
   updatePuzzle,
   deletePuzzle,
 } from "./codingPractice.js";
-import { API_BASE } from "../api";
+import {API_BASE} from "../api";
 
 describe("coding practice api", () => {
   beforeEach(() => {
@@ -21,17 +21,26 @@ describe("coding practice api", () => {
   });
 
   it("creates puzzle", async () => {
-    await createPuzzle({ title: "x" });
-    expect(fetch).toHaveBeenCalledWith(`${API_BASE}/codingpractice`, expect.objectContaining({ method: "POST" }));
+    await createPuzzle({title: "x"});
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE}/codingpractice`,
+      expect.objectContaining({method: "POST"})
+    );
   });
 
   it("updates puzzle", async () => {
-    await updatePuzzle("1", { title: "y" });
-    expect(fetch).toHaveBeenCalledWith(`${API_BASE}/codingpractice/1`, expect.objectContaining({ method: "PUT" }));
+    await updatePuzzle("1", {title: "y"});
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE}/codingpractice/1`,
+      expect.objectContaining({method: "PUT"})
+    );
   });
 
   it("deletes puzzle", async () => {
     await deletePuzzle("1");
-    expect(fetch).toHaveBeenCalledWith(`${API_BASE}/codingpractice/1`, expect.objectContaining({ method: "DELETE" }));
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE}/codingpractice/1`,
+      expect.objectContaining({method: "DELETE"})
+    );
   });
 });

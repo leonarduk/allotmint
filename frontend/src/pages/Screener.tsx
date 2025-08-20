@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { getScreener } from "../api";
-import type { ScreenerResult } from "../types";
-import { useSortableTable } from "../hooks/useSortableTable";
-import { InstrumentDetail } from "../components/InstrumentDetail";
+import {useState} from "react";
+import {useTranslation} from "react-i18next";
+import {getScreener} from "../api";
+import type {ScreenerResult} from "../types";
+import {useSortableTable} from "../hooks/useSortableTable";
+import {InstrumentDetail} from "../components/InstrumentDetail";
 import i18n from "../i18n";
 
 export function Screener() {
@@ -38,12 +38,12 @@ export function Screener() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const { t } = useTranslation();
+  const {t} = useTranslation();
 
-  const { sorted, handleSort } = useSortableTable(rows, "peg_ratio");
+  const {sorted, handleSort} = useSortableTable(rows, "peg_ratio");
 
-  const cell = { padding: "4px 6px" } as const;
-  const right = { ...cell, textAlign: "right", cursor: "pointer" } as const;
+  const cell = {padding: "4px 6px"} as const;
+  const right = {...cell, textAlign: "right", cursor: "pointer"} as const;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -67,9 +67,7 @@ export function Screener() {
         current_ratio_min: currentRatioMin
           ? parseFloat(currentRatioMin)
           : undefined,
-        quick_ratio_min: quickRatioMin
-          ? parseFloat(quickRatioMin)
-          : undefined,
+        quick_ratio_min: quickRatioMin ? parseFloat(quickRatioMin) : undefined,
         fcf_min: fcfMin ? parseFloat(fcfMin) : undefined,
         eps_min: epsMin ? parseFloat(epsMin) : undefined,
         gross_margin_min: grossMarginMin
@@ -98,9 +96,7 @@ export function Screener() {
         float_shares_min: floatSharesMin
           ? parseFloat(floatSharesMin)
           : undefined,
-        market_cap_min: marketCapMin
-          ? parseFloat(marketCapMin)
-          : undefined,
+        market_cap_min: marketCapMin ? parseFloat(marketCapMin) : undefined,
         high_52w_max: high52wMax ? parseFloat(high52wMax) : undefined,
         low_52w_min: low52wMin ? parseFloat(low52wMin) : undefined,
         avg_volume_min: avgVolumeMin ? parseFloat(avgVolumeMin) : undefined,
@@ -116,8 +112,8 @@ export function Screener() {
 
   return (
     <div>
-      <form onSubmit={handleSubmit} style={{ marginBottom: "1rem" }}>
-        <label style={{ marginRight: "0.5rem" }}>
+      <form onSubmit={handleSubmit} style={{marginBottom: "1rem"}}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.tickers")}
           <input
             aria-label={t("screener.tickers")}
@@ -125,10 +121,10 @@ export function Screener() {
             value={tickers}
             onChange={(e) => setTickers(e.target.value)}
             placeholder="AAPL,MSFT,…"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.maxPeg")}
           <input
             aria-label={t("screener.maxPeg")}
@@ -136,10 +132,10 @@ export function Screener() {
             value={pegMax}
             onChange={(e) => setPegMax(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.maxPe")}
           <input
             aria-label={t("screener.maxPe")}
@@ -147,10 +143,10 @@ export function Screener() {
             value={peMax}
             onChange={(e) => setPeMax(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.maxDe")}
           <input
             aria-label={t("screener.maxDe")}
@@ -158,10 +154,10 @@ export function Screener() {
             value={deMax}
             onChange={(e) => setDeMax(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.maxLtDe")}
           <input
             aria-label={t("screener.maxLtDe")}
@@ -169,10 +165,10 @@ export function Screener() {
             value={ltDeMax}
             onChange={(e) => setLtDeMax(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minInterestCoverage")}
           <input
             aria-label={t("screener.minInterestCoverage")}
@@ -180,10 +176,10 @@ export function Screener() {
             value={interestCoverageMin}
             onChange={(e) => setInterestCoverageMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minCurrentRatio")}
           <input
             aria-label={t("screener.minCurrentRatio")}
@@ -191,10 +187,10 @@ export function Screener() {
             value={currentRatioMin}
             onChange={(e) => setCurrentRatioMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minQuickRatio")}
           <input
             aria-label={t("screener.minQuickRatio")}
@@ -202,10 +198,10 @@ export function Screener() {
             value={quickRatioMin}
             onChange={(e) => setQuickRatioMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minFcf")}
           <input
             aria-label={t("screener.minFcf")}
@@ -213,10 +209,10 @@ export function Screener() {
             value={fcfMin}
             onChange={(e) => setFcfMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minEps")}
           <input
             aria-label={t("screener.minEps")}
@@ -224,10 +220,10 @@ export function Screener() {
             value={epsMin}
             onChange={(e) => setEpsMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minDividendYield")}
           <input
             aria-label={t("screener.minDividendYield")}
@@ -235,10 +231,10 @@ export function Screener() {
             value={dividendYieldMin}
             onChange={(e) => setDividendYieldMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minGrossMargin")}
           <input
             aria-label={t("screener.minGrossMargin")}
@@ -246,10 +242,10 @@ export function Screener() {
             value={grossMarginMin}
             onChange={(e) => setGrossMarginMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.maxDividendPayoutRatio")}
           <input
             aria-label={t("screener.maxDividendPayoutRatio")}
@@ -257,10 +253,10 @@ export function Screener() {
             value={dividendPayoutRatioMax}
             onChange={(e) => setDividendPayoutRatioMax(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minOperatingMargin")}
           <input
             aria-label={t("screener.minOperatingMargin")}
@@ -268,10 +264,10 @@ export function Screener() {
             value={operatingMarginMin}
             onChange={(e) => setOperatingMarginMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.maxBeta")}
           <input
             aria-label={t("screener.maxBeta")}
@@ -279,10 +275,10 @@ export function Screener() {
             value={betaMax}
             onChange={(e) => setBetaMax(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minNetMargin")}
           <input
             aria-label={t("screener.minNetMargin")}
@@ -290,10 +286,10 @@ export function Screener() {
             value={netMarginMin}
             onChange={(e) => setNetMarginMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minSharesOutstanding")}
           <input
             aria-label={t("screener.minSharesOutstanding")}
@@ -301,10 +297,10 @@ export function Screener() {
             value={sharesOutstandingMin}
             onChange={(e) => setSharesOutstandingMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minEbitdaMargin")}
           <input
             aria-label={t("screener.minEbitdaMargin")}
@@ -312,10 +308,10 @@ export function Screener() {
             value={ebitdaMarginMin}
             onChange={(e) => setEbitdaMarginMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minFloatShares")}
           <input
             aria-label={t("screener.minFloatShares")}
@@ -323,10 +319,10 @@ export function Screener() {
             value={floatSharesMin}
             onChange={(e) => setFloatSharesMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minRoa")}
           <input
             aria-label={t("screener.minRoa")}
@@ -334,10 +330,10 @@ export function Screener() {
             value={roaMin}
             onChange={(e) => setRoaMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minMarketCap")}
           <input
             aria-label={t("screener.minMarketCap")}
@@ -345,10 +341,10 @@ export function Screener() {
             value={marketCapMin}
             onChange={(e) => setMarketCapMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minRoe")}
           <input
             aria-label={t("screener.minRoe")}
@@ -356,10 +352,10 @@ export function Screener() {
             value={roeMin}
             onChange={(e) => setRoeMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.max52WeekHigh")}
           <input
             aria-label={t("screener.max52WeekHigh")}
@@ -367,10 +363,10 @@ export function Screener() {
             value={high52wMax}
             onChange={(e) => setHigh52wMax(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minRoi")}
           <input
             aria-label={t("screener.minRoi")}
@@ -378,10 +374,10 @@ export function Screener() {
             value={roiMin}
             onChange={(e) => setRoiMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.min52WeekLow")}
           <input
             aria-label={t("screener.min52WeekLow")}
@@ -389,10 +385,10 @@ export function Screener() {
             value={low52wMin}
             onChange={(e) => setLow52wMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label style={{marginRight: "0.5rem"}}>
           {t("screener.minAvgVolume")}
           <input
             aria-label={t("screener.minAvgVolume")}
@@ -400,36 +396,54 @@ export function Screener() {
             value={avgVolumeMin}
             onChange={(e) => setAvgVolumeMin(e.target.value)}
             step="any"
-            style={{ marginLeft: "0.25rem" }}
+            style={{marginLeft: "0.25rem"}}
           />
         </label>
-        <button type="submit" disabled={loading} style={{ marginLeft: "0.5rem" }}>
+        <button type="submit" disabled={loading} style={{marginLeft: "0.5rem"}}>
           {loading ? t("screener.loading") : t("screener.run")}
         </button>
       </form>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p style={{color: "red"}}>{error}</p>}
       {loading && <p>{t("screener.loading")}</p>}
 
       {rows.length > 0 && !loading && (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table style={{width: "100%", borderCollapse: "collapse"}}>
           <thead>
             <tr>
               <th
-                style={{ ...cell, cursor: "pointer" }}
+                style={{...cell, cursor: "pointer"}}
                 onClick={() => handleSort("ticker")}
               >
                 Ticker
               </th>
-              <th style={right} onClick={() => handleSort("peg_ratio")}>PEG</th>
-              <th style={right} onClick={() => handleSort("pe_ratio")}>P/E</th>
-              <th style={right} onClick={() => handleSort("de_ratio")}>D/E</th>
-              <th style={right} onClick={() => handleSort("lt_de_ratio")}>LT D/E</th>
-              <th style={right} onClick={() => handleSort("interest_coverage")}>IntCov</th>
-              <th style={right} onClick={() => handleSort("current_ratio")}>Curr</th>
-              <th style={right} onClick={() => handleSort("quick_ratio")}>Quick</th>
-              <th style={right} onClick={() => handleSort("fcf")}>FCF</th>
-              <th style={right} onClick={() => handleSort("eps")}>EPS</th>
+              <th style={right} onClick={() => handleSort("peg_ratio")}>
+                PEG
+              </th>
+              <th style={right} onClick={() => handleSort("pe_ratio")}>
+                P/E
+              </th>
+              <th style={right} onClick={() => handleSort("de_ratio")}>
+                D/E
+              </th>
+              <th style={right} onClick={() => handleSort("lt_de_ratio")}>
+                LT D/E
+              </th>
+              <th style={right} onClick={() => handleSort("interest_coverage")}>
+                IntCov
+              </th>
+              <th style={right} onClick={() => handleSort("current_ratio")}>
+                Curr
+              </th>
+              <th style={right} onClick={() => handleSort("quick_ratio")}>
+                Quick
+              </th>
+              <th style={right} onClick={() => handleSort("fcf")}>
+                FCF
+              </th>
+              <th style={right} onClick={() => handleSort("eps")}>
+                EPS
+              </th>
               <th style={right} onClick={() => handleSort("gross_margin")}>
                 Gross Margin
               </th>
@@ -442,9 +456,15 @@ export function Screener() {
               <th style={right} onClick={() => handleSort("ebitda_margin")}>
                 EBITDA Margin
               </th>
-              <th style={right} onClick={() => handleSort("roa")}>ROA</th>
-              <th style={right} onClick={() => handleSort("roe")}>ROE</th>
-              <th style={right} onClick={() => handleSort("roi")}>ROI</th>
+              <th style={right} onClick={() => handleSort("roa")}>
+                ROA
+              </th>
+              <th style={right} onClick={() => handleSort("roe")}>
+                ROE
+              </th>
+              <th style={right} onClick={() => handleSort("roi")}>
+                ROI
+              </th>
               <th style={right} onClick={() => handleSort("dividend_yield")}>
                 Div%
               </th>
@@ -454,17 +474,16 @@ export function Screener() {
               >
                 Payout
               </th>
-              <th style={right} onClick={() => handleSort("beta")}>Beta</th>
+              <th style={right} onClick={() => handleSort("beta")}>
+                Beta
+              </th>
               <th
                 style={right}
                 onClick={() => handleSort("shares_outstanding")}
               >
                 Shares
               </th>
-              <th
-                style={right}
-                onClick={() => handleSort("float_shares")}
-              >
+              <th style={right} onClick={() => handleSort("float_shares")}>
                 Float
               </th>
               <th style={right} onClick={() => handleSort("market_cap")}>
@@ -486,7 +505,7 @@ export function Screener() {
               <tr
                 key={r.ticker}
                 onClick={() => setSelected(r.ticker)}
-                style={{ cursor: "pointer" }}
+                style={{cursor: "pointer"}}
               >
                 <td style={cell}>{r.ticker}</td>
                 <td style={right}>{r.peg_ratio ?? "—"}</td>
@@ -515,14 +534,14 @@ export function Screener() {
                 <td style={right}>
                   {r.shares_outstanding != null
                     ? new Intl.NumberFormat(i18n.language).format(
-                        r.shares_outstanding,
+                        r.shares_outstanding
                       )
                     : "—"}
                 </td>
                 <td style={right}>
                   {r.float_shares != null
                     ? new Intl.NumberFormat(i18n.language).format(
-                        r.float_shares,
+                        r.float_shares
                       )
                     : "—"}
                 </td>
@@ -556,4 +575,3 @@ export function Screener() {
 }
 
 export default Screener;
-

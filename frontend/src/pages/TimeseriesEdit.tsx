@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import type { ChangeEvent } from "react";
-import { getTimeseries, saveTimeseries } from "../api";
-import type { PriceEntry } from "../types";
+import {useState, useEffect} from "react";
+import type {ChangeEvent} from "react";
+import {getTimeseries, saveTimeseries} from "../api";
+import type {PriceEntry} from "../types";
 
 function parseCsv(text: string): PriceEntry[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
@@ -19,7 +19,7 @@ function parseCsv(text: string): PriceEntry[] {
     "Source",
   ];
   const unexpected = cols.filter(
-    (c) => !allowedCols.includes(c as keyof PriceEntry),
+    (c) => !allowedCols.includes(c as keyof PriceEntry)
   );
   if (unexpected.length)
     throw new Error(`Unexpected column(s): ${unexpected.join(", ")}`);
@@ -34,11 +34,10 @@ function parseCsv(text: string): PriceEntry[] {
         key === "Date" || key === "Ticker" || key === "Source"
           ? val
           : val === undefined || val === ""
-          ? null
-          : Number(val);
-      (
-        obj as Record<keyof PriceEntry, PriceEntry[keyof PriceEntry]>
-      )[key] = parsed as PriceEntry[typeof key];
+            ? null
+            : Number(val);
+      (obj as Record<keyof PriceEntry, PriceEntry[keyof PriceEntry]>)[key] =
+        parsed as PriceEntry[typeof key];
     });
     return obj as PriceEntry;
   });
@@ -100,27 +99,27 @@ export function TimeseriesEdit() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+    <div style={{maxWidth: 900, margin: "0 auto", padding: "1rem"}}>
       <h2>Timeseries Editor</h2>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div style={{marginBottom: "0.5rem"}}>
         <label>
-          Ticker {" "}
+          Ticker{" "}
           <input value={ticker} onChange={(e) => setTicker(e.target.value)} />
         </label>{" "}
         <label>
-          Exchange {" "}
+          Exchange{" "}
           <input
             value={exchange}
             onChange={(e) => setExchange(e.target.value)}
-            style={{ width: "4rem" }}
+            style={{width: "4rem"}}
           />
         </label>{" "}
         <button onClick={handleLoad} disabled={!ticker}>
           Load
         </button>
       </div>
-      <div style={{ marginBottom: "0.5rem", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div style={{marginBottom: "0.5rem", overflowX: "auto"}}>
+        <table style={{width: "100%", borderCollapse: "collapse"}}>
           <thead>
             <tr>
               <th>Date</th>
@@ -144,7 +143,7 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = { ...copy[i], Date: e.target.value };
+                        copy[i] = {...copy[i], Date: e.target.value};
                         return copy;
                       })
                     }
@@ -160,7 +159,10 @@ export function TimeseriesEdit() {
                         const copy = [...rs];
                         copy[i] = {
                           ...copy[i],
-                          Open: e.target.value === "" ? null : Number(e.target.value),
+                          Open:
+                            e.target.value === ""
+                              ? null
+                              : Number(e.target.value),
                         };
                         return copy;
                       })
@@ -177,7 +179,10 @@ export function TimeseriesEdit() {
                         const copy = [...rs];
                         copy[i] = {
                           ...copy[i],
-                          High: e.target.value === "" ? null : Number(e.target.value),
+                          High:
+                            e.target.value === ""
+                              ? null
+                              : Number(e.target.value),
                         };
                         return copy;
                       })
@@ -194,7 +199,10 @@ export function TimeseriesEdit() {
                         const copy = [...rs];
                         copy[i] = {
                           ...copy[i],
-                          Low: e.target.value === "" ? null : Number(e.target.value),
+                          Low:
+                            e.target.value === ""
+                              ? null
+                              : Number(e.target.value),
                         };
                         return copy;
                       })
@@ -211,7 +219,10 @@ export function TimeseriesEdit() {
                         const copy = [...rs];
                         copy[i] = {
                           ...copy[i],
-                          Close: e.target.value === "" ? null : Number(e.target.value),
+                          Close:
+                            e.target.value === ""
+                              ? null
+                              : Number(e.target.value),
                         };
                         return copy;
                       })
@@ -228,7 +239,10 @@ export function TimeseriesEdit() {
                         const copy = [...rs];
                         copy[i] = {
                           ...copy[i],
-                          Volume: e.target.value === "" ? null : Number(e.target.value),
+                          Volume:
+                            e.target.value === ""
+                              ? null
+                              : Number(e.target.value),
                         };
                         return copy;
                       })
@@ -242,7 +256,7 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = { ...copy[i], Ticker: e.target.value };
+                        copy[i] = {...copy[i], Ticker: e.target.value};
                         return copy;
                       })
                     }
@@ -255,7 +269,7 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = { ...copy[i], Source: e.target.value };
+                        copy[i] = {...copy[i], Source: e.target.value};
                         return copy;
                       })
                     }
@@ -276,7 +290,7 @@ export function TimeseriesEdit() {
           </tbody>
         </table>
       </div>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div style={{marginBottom: "0.5rem"}}>
         <button
           onClick={() =>
             setRows((rs) => [
@@ -297,14 +311,14 @@ export function TimeseriesEdit() {
           Add Row
         </button>
       </div>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div style={{marginBottom: "0.5rem"}}>
         <input type="file" accept=".csv" onChange={handleFile} />{" "}
         <button onClick={handleSave} disabled={!ticker || !rows.length}>
           Save
         </button>
       </div>
-      {status && <p style={{ color: "green" }}>{status}</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {status && <p style={{color: "green"}}>{status}</p>}
+      {error && <p style={{color: "red"}}>{error}</p>}
     </div>
   );
 }

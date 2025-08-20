@@ -1,8 +1,8 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
-import { ScreenerPage } from "./ScreenerPage";
-import type { ScreenerResult } from "../types";
-import { WATCHLISTS } from "../data/watchlists";
+import {render, screen, fireEvent, waitFor} from "@testing-library/react";
+import {describe, it, expect, vi} from "vitest";
+import {ScreenerPage} from "./ScreenerPage";
+import type {ScreenerResult} from "../types";
+import {WATCHLISTS} from "../data/watchlists";
 
 vi.mock("./InstrumentDetail", () => ({
   InstrumentDetail: vi.fn(() => null),
@@ -35,12 +35,12 @@ const mockGetScreener = vi.fn((tickers: string[]) =>
           roa: null,
           roe: null,
           roi: null,
-        } as ScreenerResult)
+        }) as ScreenerResult
     )
   )
 );
 
-vi.mock("../api", () => ({ getScreener: (t: string[]) => mockGetScreener(t) }));
+vi.mock("../api", () => ({getScreener: (t: string[]) => mockGetScreener(t)}));
 
 describe("ScreenerPage", () => {
   it("renders watchlists and switches between them", async () => {
@@ -49,7 +49,7 @@ describe("ScreenerPage", () => {
     const select = await screen.findByRole("combobox");
     // options present
     for (const name of Object.keys(WATCHLISTS)) {
-      expect(screen.getByRole("option", { name })).toBeInTheDocument();
+      expect(screen.getByRole("option", {name})).toBeInTheDocument();
     }
 
     await waitFor(() =>
@@ -57,14 +57,14 @@ describe("ScreenerPage", () => {
     );
     expect(await screen.findByText("AAA.L")).toBeInTheDocument();
 
-    fireEvent.change(select, { target: { value: "FTSE 250" } });
+    fireEvent.change(select, {target: {value: "FTSE 250"}});
     await waitFor(() =>
       expect(mockGetScreener).toHaveBeenCalledWith(WATCHLISTS["FTSE 250"])
     );
     expect(await screen.findByText("BBB.L")).toBeInTheDocument();
 
     const selectAfter250 = await screen.findByRole("combobox");
-    fireEvent.change(selectAfter250, { target: { value: "FTSE 350" } });
+    fireEvent.change(selectAfter250, {target: {value: "FTSE 350"}});
     await waitFor(() =>
       expect(mockGetScreener).toHaveBeenCalledWith(WATCHLISTS["FTSE 350"])
     );
@@ -72,7 +72,7 @@ describe("ScreenerPage", () => {
     expect(await screen.findByText("BBB.L")).toBeInTheDocument();
 
     const selectAfter350 = await screen.findByRole("combobox");
-    fireEvent.change(selectAfter350, { target: { value: "FTSE All-Share" } });
+    fireEvent.change(selectAfter350, {target: {value: "FTSE All-Share"}});
     await waitFor(() =>
       expect(mockGetScreener).toHaveBeenCalledWith(WATCHLISTS["FTSE All-Share"])
     );

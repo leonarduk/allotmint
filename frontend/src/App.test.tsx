@@ -1,7 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { TabsConfig } from "./ConfigContext";
+import {render, screen, within} from "@testing-library/react";
+import {MemoryRouter} from "react-router-dom";
+import {describe, expect, it, vi, beforeEach} from "vitest";
+import type {TabsConfig} from "./ConfigContext";
 
 const mockTradingSignals = vi.fn();
 
@@ -54,25 +54,27 @@ describe("App", () => {
     vi.mock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([
-        { slug: "family", name: "Family", members: [] },
-        { slug: "kids", name: "Kids", members: [] },
+        {slug: "family", name: "Family", members: []},
+        {slug: "kids", name: "Kids", members: []},
       ]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
-      getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({owner: "", warnings: [], trade_counts: {}}),
       getTimeseries: vi.fn(),
       saveTimeseries: vi.fn(),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getAlertSettings: vi.fn().mockResolvedValue({threshold: 0}),
     }));
 
-    const { default: App } = await import("./App");
+    const {default: App} = await import("./App");
 
     render(
       <MemoryRouter initialEntries={["/instrument/kids"]}>
         <App />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     const select = await screen.findByLabelText(/group/i, {
@@ -91,28 +93,30 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
-      getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({owner: "", warnings: [], trade_counts: {}}),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getAlertSettings: vi.fn().mockResolvedValue({threshold: 0}),
     }));
 
-    const { default: App } = await import("./App");
-    const { configContext } = await import("./ConfigContext");
+    const {default: App} = await import("./App");
+    const {configContext} = await import("./ConfigContext");
 
     render(
       <configContext.Provider
         value={{
           theme: "system",
           relativeViewEnabled: false,
-          tabs: { ...baseTabs, timeseries: true },
+          tabs: {...baseTabs, timeseries: true},
           refreshConfig: async () => {},
         }}
       >
         <MemoryRouter initialEntries={["/timeseries?ticker=ABC&exchange=L"]}>
           <App />
         </MemoryRouter>
-      </configContext.Provider>,
+      </configContext.Provider>
     );
 
     expect(await screen.findByText("Timeseries Editor")).toBeInTheDocument();
@@ -128,33 +132,35 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
-      getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({owner: "", warnings: [], trade_counts: {}}),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       listTimeseries: vi.fn().mockResolvedValue([]),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getAlertSettings: vi.fn().mockResolvedValue({threshold: 0}),
     }));
 
-    const { default: App } = await import("./App");
-    const { configContext } = await import("./ConfigContext");
+    const {default: App} = await import("./App");
+    const {configContext} = await import("./ConfigContext");
 
     render(
       <configContext.Provider
         value={{
           theme: "system",
           relativeViewEnabled: false,
-          tabs: { ...baseTabs, dataadmin: true },
+          tabs: {...baseTabs, dataadmin: true},
           refreshConfig: async () => {},
         }}
       >
         <MemoryRouter initialEntries={["/dataadmin"]}>
           <App />
         </MemoryRouter>
-      </configContext.Provider>,
+      </configContext.Provider>
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Data Admin" })
+      await screen.findByRole("heading", {name: "Data Admin"})
     ).toBeInTheDocument();
   });
 
@@ -168,33 +174,33 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
-      getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
+      getCompliance: vi.fn().mockResolvedValue({owner: "", warnings: []}),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       getTradingSignals: vi.fn().mockResolvedValue([]),
-      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getTopMovers: vi.fn().mockResolvedValue({gainers: [], losers: []}),
+      getAlertSettings: vi.fn().mockResolvedValue({threshold: 0}),
     }));
 
-    const { default: App } = await import("./App");
-    const { configContext } = await import("./ConfigContext");
+    const {default: App} = await import("./App");
+    const {configContext} = await import("./ConfigContext");
 
     render(
       <configContext.Provider
         value={{
           theme: "system",
           relativeViewEnabled: false,
-          tabs: { ...allTabs, movers: false },
+          tabs: {...allTabs, movers: false},
           refreshConfig: async () => {},
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
           <App />
         </MemoryRouter>
-      </configContext.Provider>,
+      </configContext.Provider>
     );
 
-    expect(screen.queryByRole("link", { name: /movers/i })).toBeNull();
+    expect(screen.queryByRole("link", {name: /movers/i})).toBeNull();
   });
 
   it("allows navigation to enabled tabs", async () => {
@@ -209,16 +215,16 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
-      getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
+      getCompliance: vi.fn().mockResolvedValue({owner: "", warnings: []}),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       getTradingSignals: mockTradingSignals,
-      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getTopMovers: vi.fn().mockResolvedValue({gainers: [], losers: []}),
+      getAlertSettings: vi.fn().mockResolvedValue({threshold: 0}),
     }));
 
-    const { default: App } = await import("./App");
-    const { configContext } = await import("./ConfigContext");
+    const {default: App} = await import("./App");
+    const {configContext} = await import("./ConfigContext");
 
     render(
       <configContext.Provider
@@ -232,10 +238,10 @@ describe("App", () => {
         <MemoryRouter initialEntries={["/movers"]}>
           <App />
         </MemoryRouter>
-      </configContext.Provider>,
+      </configContext.Provider>
     );
 
-    const moversTab = await screen.findByRole("link", { name: /movers/i });
+    const moversTab = await screen.findByRole("link", {name: /movers/i});
     expect(moversTab).toHaveStyle("font-weight: bold");
     expect(await screen.findByText(/No signals\./i)).toBeInTheDocument();
     expect(mockTradingSignals).toHaveBeenCalled();
@@ -253,38 +259,38 @@ describe("App", () => {
       getAlerts: vi.fn().mockResolvedValue([]),
       getCompliance: vi
         .fn()
-        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        .mockResolvedValue({owner: "", warnings: [], trade_counts: {}}),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       listTimeseries: vi.fn().mockResolvedValue([]),
       getConfig: vi.fn().mockResolvedValue({}),
       updateConfig: vi.fn(),
-      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getTopMovers: vi.fn().mockResolvedValue({gainers: [], losers: []}),
       getTradingSignals: vi.fn().mockResolvedValue([]),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getAlertSettings: vi.fn().mockResolvedValue({threshold: 0}),
     }));
 
-    const { default: App } = await import("./App");
-    const { configContext } = await import("./ConfigContext");
+    const {default: App} = await import("./App");
+    const {configContext} = await import("./ConfigContext");
 
     render(
       <configContext.Provider
         value={{
           theme: "system",
           relativeViewEnabled: false,
-          tabs: { ...baseTabs, support: true },
+          tabs: {...baseTabs, support: true},
           refreshConfig: async () => {},
         }}
       >
         <MemoryRouter initialEntries={["/support"]}>
           <App />
         </MemoryRouter>
-      </configContext.Provider>,
+      </configContext.Provider>
     );
 
     expect(await screen.findByRole("navigation")).toBeInTheDocument();
     expect(
-      await screen.findByRole("heading", { name: /Support/i })
+      await screen.findByRole("heading", {name: /Support/i})
     ).toBeInTheDocument();
   });
 
@@ -301,17 +307,17 @@ describe("App", () => {
       getAlerts: vi.fn().mockResolvedValue([]),
       getCompliance: vi
         .fn()
-        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        .mockResolvedValue({owner: "", warnings: [], trade_counts: {}}),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
-      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getTopMovers: vi.fn().mockResolvedValue({gainers: [], losers: []}),
       getTradingSignals: mockTradingSignals,
       listTimeseries: vi.fn().mockResolvedValue([]),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getAlertSettings: vi.fn().mockResolvedValue({threshold: 0}),
     }));
 
-    const { default: App } = await import("./App");
-    const { configContext } = await import("./ConfigContext");
+    const {default: App} = await import("./App");
+    const {configContext} = await import("./ConfigContext");
 
     render(
       <configContext.Provider
@@ -325,10 +331,10 @@ describe("App", () => {
         <MemoryRouter initialEntries={["/"]}>
           <App />
         </MemoryRouter>
-      </configContext.Provider>,
+      </configContext.Provider>
     );
 
-    const moversLink = await screen.findByRole("link", { name: /movers/i });
+    const moversLink = await screen.findByRole("link", {name: /movers/i});
     expect(moversLink).toHaveStyle("font-weight: bold");
 
     const nav = screen.getByRole("navigation");
@@ -359,32 +365,32 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
-      getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
+      getCompliance: vi.fn().mockResolvedValue({owner: "", warnings: []}),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       getTradingSignals: vi.fn().mockResolvedValue([]),
-      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getTopMovers: vi.fn().mockResolvedValue({gainers: [], losers: []}),
+      getAlertSettings: vi.fn().mockResolvedValue({threshold: 0}),
     }));
 
-    const { default: App } = await import("./App");
-    const { configContext } = await import("./ConfigContext");
+    const {default: App} = await import("./App");
+    const {configContext} = await import("./ConfigContext");
 
     render(
       <configContext.Provider
         value={{
           theme: "system",
           relativeViewEnabled: false,
-          tabs: { ...baseTabs, movers: true },
+          tabs: {...baseTabs, movers: true},
           refreshConfig: async () => {},
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
           <App />
         </MemoryRouter>
-      </configContext.Provider>,
+      </configContext.Provider>
     );
 
-    expect(screen.queryByRole("link", { name: /Instrument/i })).toBeNull();
+    expect(screen.queryByRole("link", {name: /Instrument/i})).toBeNull();
   });
 });

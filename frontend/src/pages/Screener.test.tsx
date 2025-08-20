@@ -1,8 +1,8 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
-import { Screener } from "./Screener";
+import {render, screen, fireEvent, waitFor} from "@testing-library/react";
+import {describe, it, expect, vi} from "vitest";
+import {Screener} from "./Screener";
 import * as api from "../api";
-import type { ScreenerResult } from "../types";
+import type {ScreenerResult} from "../types";
 
 vi.mock("../api");
 
@@ -27,11 +27,21 @@ describe("Screener", () => {
 
     render(<Screener />);
 
-    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
-    fireEvent.change(screen.getByLabelText(/Max LT D\/E/i), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText(/Min Interest Coverage/i), { target: { value: "5" } });
-    fireEvent.change(screen.getByLabelText(/Min Current Ratio/i), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText(/Min Quick Ratio/i), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText(/Tickers/i), {
+      target: {value: "AAA"},
+    });
+    fireEvent.change(screen.getByLabelText(/Max LT D\/E/i), {
+      target: {value: "1"},
+    });
+    fireEvent.change(screen.getByLabelText(/Min Interest Coverage/i), {
+      target: {value: "5"},
+    });
+    fireEvent.change(screen.getByLabelText(/Min Current Ratio/i), {
+      target: {value: "1"},
+    });
+    fireEvent.change(screen.getByLabelText(/Min Quick Ratio/i), {
+      target: {value: "1"},
+    });
 
     fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
 
@@ -57,4 +67,3 @@ describe("Screener", () => {
     expect(screen.getByText("1.5")).toBeInTheDocument();
   });
 });
-

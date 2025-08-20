@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import {useMemo, useState} from "react";
 
 export function useSortableTable<T>(rows: T[], initialSortKey: keyof T) {
   const [sortKey, setSortKey] = useState<keyof T>(initialSortKey);
@@ -26,5 +26,5 @@ export function useSortableTable<T>(rows: T[], initialSortKey: keyof T) {
     });
   }, [rows, sortKey, asc]);
 
-  return { sorted, sortKey, asc, handleSort };
+  return {sorted, sortKey, asc, handleSort};
 }

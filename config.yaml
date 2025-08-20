@@ -35,7 +35,7 @@ selenium_headless: true
 approval_valid_days: 2
 approval_exempt_types: ETF
 approval_exempt_tickers: ''
-error_summary: '[object Object]'
+error_summary: {}
 
 tabs:
   movers: true

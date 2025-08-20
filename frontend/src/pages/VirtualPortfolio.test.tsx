@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import VirtualPortfolio from "./VirtualPortfolio";
 import * as api from "../api";
+import type { OwnerSummary, VirtualPortfolio as VirtualPortfolioType } from "../types";
 
 vi.mock("../api");
 
@@ -12,17 +13,22 @@ const mockGetVirtualPortfolio = vi.mocked(api.getVirtualPortfolio);
 describe("VirtualPortfolio page", () => {
   it("loads portfolios and allows selecting one", async () => {
     mockGetVirtualPortfolios.mockResolvedValueOnce([
-      { id: 1, name: "Test VP" } as any,
+      {
+        id: 1,
+        name: "Test VP",
+        accounts: [],
+        holdings: [],
+      } as VirtualPortfolioType,
     ]);
     mockGetOwners.mockResolvedValueOnce([
-      { owner: "Bob", accounts: ["A1"] } as any,
+      { owner: "Bob", accounts: ["A1"] } as OwnerSummary,
     ]);
     mockGetVirtualPortfolio.mockResolvedValueOnce({
       id: 1,
       name: "Test VP",
       accounts: ["Bob:A1"],
       holdings: [],
-    } as any);
+    } as VirtualPortfolioType);
 
     render(<VirtualPortfolio />);
 

@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import ScenarioTester from "./ScenarioTester";
 import * as api from "../api";
+import type { ScenarioResult } from "../types";
 
 vi.mock("../api");
 
@@ -10,7 +11,12 @@ const mockRunScenario = vi.mocked(api.runScenario);
 describe("ScenarioTester page", () => {
   it("runs scenario and displays results", async () => {
     mockRunScenario.mockResolvedValueOnce([
-      { ticker: "AAA", impact: 123 } as any,
+      {
+        owner: "Test Owner",
+        total_value_estimate_gbp: 123,
+        ticker: "AAA",
+        impact: 123,
+      } as unknown as ScenarioResult,
     ]);
 
     render(<ScenarioTester />);

@@ -56,5 +56,16 @@ describe("Screener", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("1.5")).toBeInTheDocument();
   });
-});
 
+
+  it("shows error message on failure", async () => {
+    mockGetScreener.mockRejectedValueOnce(new Error("fail"));
+
+    render(<Screener />);
+
+    fireEvent.change(screen.getByLabelText(/Tickers/i), { target: { value: "AAA" } });
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    expect(await screen.findByText("fail")).toBeInTheDocument();
+  });
+});

@@ -142,6 +142,7 @@ describe("App", () => {
       movers: true,
       dataadmin: true,
       virtual: true,
+      reports: true,
       support: true,
       scenario: true,
     };
@@ -200,6 +201,7 @@ describe("App", () => {
       movers: true,
       dataadmin: true,
       virtual: true,
+      reports: true,
       support: true,
       scenario: true,
     };

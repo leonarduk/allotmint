@@ -145,6 +145,7 @@ tabs:
   timeseries: true
   watchlist: true
   virtual: true
+  reports: true
   support: true
 ```
 

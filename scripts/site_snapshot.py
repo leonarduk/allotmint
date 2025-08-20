@@ -91,7 +91,7 @@ def build_docs(entries):
 
         # PDF section
         pdf.add_page()
-        pdf.set_font("Arial", size=14)
+        pdf.set_font("Helvetica", size=14)
         pdf.multi_cell(0, 8, md_content)
         pdf.ln(5)
         pdf.image(str(img_path), w=180)

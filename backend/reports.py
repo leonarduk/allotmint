@@ -7,8 +7,11 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+except ModuleNotFoundError:
+    pass
 
 from backend.common import portfolio_utils
 from backend.config import config

@@ -25,25 +25,25 @@ from fpdf import FPDF
 from markdownify import markdownify
 from playwright.async_api import async_playwright
 
-BASE_URL = "https://example.com"  # Change to your server
 OUTPUT_DIR = Path("site_manual")
 SCREENSHOT_DIR = OUTPUT_DIR / "screenshots"
 MARKDOWN_DIR = OUTPUT_DIR / "markdown"
 
 
-def is_same_domain(url: str) -> bool:
-    return urlparse(url).netloc == urlparse(BASE_URL).netloc
+def is_same_domain(url: str, base_url: str) -> bool:
+    return urlparse(url).netloc == urlparse(base_url).netloc
 
 
-def crawl_site():
-    """Breadth-first crawl of pages within BASE_URL."""
+def crawl_site(base_url: str):
+    """Breadth-first crawl of pages within base_url."""
     visited, pages = set(), []
-    queue = deque([BASE_URL])
+    queue = deque([base_url])
 
     while queue:
         url = queue.popleft()
         if url in visited:
             continue
+        print(f"Crawling {url}")
         visited.add(url)
 
         resp = requests.get(url)
@@ -52,6 +52,7 @@ def crawl_site():
         pages.append((url, soup))
 
         for link in soup.select("a[href]"):
+            print(f"Crawling {link['href']}")
             full = urljoin(url, link["href"])
             if full.startswith("http") and is_same_domain(full):
                 queue.append(full)
@@ -109,11 +110,13 @@ def build_docs(entries):
     pdf.output(str(OUTPUT_DIR / "manual.pdf"))
 
 
-def main():
-    pages = crawl_site()
+def main(url: str):
+    pages = crawl_site(base_url = url)
     entries = asyncio.run(take_snapshots(pages))
     build_docs(entries)
 
 
 if __name__ == "__main__":
-    main()
+    base_url = "http://localhost:5173/"  # Change to your server
+
+    main(url = base_url)

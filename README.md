@@ -45,8 +45,9 @@ npm i && npm run dev
 
 ## Backend dependencies
 
-All backend Python dependencies live in the top-level `requirements.txt` file.
-Workflows and helper scripts install from this list, so update it when new packages are needed.
+Runtime Python dependencies live in `requirements.txt` and development tooling
+is listed in `requirements-dev.txt`. Workflows and helper scripts install from
+these files, so update them when new packages are needed.
 
 ## Page cache
 
@@ -154,7 +155,7 @@ cd allotmint
 
 # set up Python venv for CDK & backend (optional)
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 
 # configure API settings
 # (see config.yaml for app_env, uvicorn_port, reload and log_config)
@@ -301,11 +302,11 @@ secrets, as they are no longer required.
 
 ## 🎬 Generating the Overview Video
 
-Install the video dependencies first. The `requirements.txt` file includes
+Install the video dependencies first. The `requirements-dev.txt` file includes
 `moviepy` and `gTTS`:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 Save an image named `presenter.png` in the `scripts` directory, then run:

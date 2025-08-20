@@ -2,7 +2,6 @@ from pathlib import Path
 
 from aws_cdk import (
     Stack,
-    BundlingOptions,
     aws_apigateway as apigw,
     aws_lambda as _lambda,
     aws_events as events,
@@ -25,13 +24,12 @@ class BackendLambdaStack(Stack):
             "BackendDependencies",
             code=_lambda.Code.from_asset(
                 str(backend_path),
-                bundling=BundlingOptions(
+                bundling=_lambda.BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_12.bundling_image,
-                    user="root",
                     command=[
                         "bash",
                         "-c",
-                        "dnf install -y freetype-devel libpng-devel libjpeg-turbo-devel && pip install -r requirements.txt -t /asset-output/python",
+                        "pip install -r requirements.txt -t /asset-output/python",
                     ],
                 ),
             ),

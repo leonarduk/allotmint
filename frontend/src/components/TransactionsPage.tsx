@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
+import type { ChangeEventHandler } from "react";
 import type { OwnerSummary, Transaction } from "../types";
 import { getTransactions } from "../api";
 import { Selector } from "./Selector";
@@ -42,13 +43,23 @@ export function TransactionsPage({ owners }: Props) {
     return Array.from(set);
   }, [owner, owners]);
 
+  const handleOwnerChange = useCallback<ChangeEventHandler<HTMLSelectElement>>(
+    (e) => setOwner(e.target.value),
+    [],
+  );
+
+  const handleAccountChange = useCallback<ChangeEventHandler<HTMLSelectElement>>(
+    (e) => setAccount(e.target.value),
+    [],
+  );
+
   return (
     <div>
       <div style={{ marginBottom: "1rem" }}>
         <Selector
           label={t("owner.label")}
           value={owner}
-          onChange={setOwner}
+          onChange={handleOwnerChange}
           options={[
             { value: "", label: "All" },
             ...owners.map((o) => ({ value: o.owner, label: o.owner })),
@@ -57,7 +68,7 @@ export function TransactionsPage({ owners }: Props) {
         <Selector
           label="Account"
           value={account}
-          onChange={setAccount}
+          onChange={handleAccountChange}
           options={[
             { value: "", label: "All" },
             ...accountOptions.map((a) => ({ value: a, label: a })),

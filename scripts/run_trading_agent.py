@@ -2,29 +2,17 @@
 """Command-line helper to run the trading agent."""
 
 import argparse
+from typing import Iterable, Optional
 
 from backend.agent.trading_agent import run
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the trading agent")
     parser.add_argument(
         "--tickers", nargs="+", help="List of tickers to analyse", default=None
     )
-    parser.add_argument(
-        "--thresholds",
-        type=float,
-        nargs="+",
-        help="Threshold values for each ticker",
-        default=None,
-    )
-    parser.add_argument(
-        "--indicator",
-        type=str,
-        help="Technical indicator to use",
-        default=None,
-    )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> None:

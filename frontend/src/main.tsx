@@ -7,6 +7,7 @@ import './i18n'
 import App from './App.tsx'
 import VirtualPortfolio from './pages/VirtualPortfolio'
 import Reports from './pages/Reports'
+import Support from './pages/Support'
 import './i18n'
 import { ConfigProvider } from './ConfigContext'
 

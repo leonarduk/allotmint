@@ -87,6 +87,7 @@ describe("Screener & Query page", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
 
+    expect(await screen.findAllByText("1,000")).toHaveLength(2);
     expect((await screen.findAllByText("1,000")).length).toBeGreaterThan(0);
     expect(getScreener).toHaveBeenNthCalledWith(
       1,
@@ -100,10 +101,12 @@ describe("Screener & Query page", () => {
     fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
 
     expect(await screen.findByText("1.2")).toBeInTheDocument();
-    expect(getScreener).toHaveBeenNthCalledWith(
-      2,
+    expect(getScreener).toHaveBeenCalledWith(
       ["AAA"],
-      expect.objectContaining({ peg_max: 2, dividend_yield_min: 1 })
+      expect.objectContaining({
+        peg_max: 2,
+        dividend_yield_min: 1,
+      })
     );
   });
 

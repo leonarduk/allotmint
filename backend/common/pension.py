@@ -26,7 +26,7 @@ def _age_from_dob(dob_str: Optional[str], today: Optional[dt.date] = None) -> Op
     today = today or dt.date.today()
     try:
         dob = dt.date.fromisoformat(dob_str)
-    except Exception:  # noqa: BLE001
+    except ValueError:
         return None
     return (today - dob).days / 365.25
 

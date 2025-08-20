@@ -26,7 +26,7 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
         return {}
     try:
         data = json.loads(path.read_text())
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return {}
     entries = data.get("approvals") if isinstance(data, dict) else data
     if not isinstance(entries, list):
@@ -37,7 +37,7 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
         when = row.get("approved_on") or row.get("date")
         try:
             out[ticker] = datetime.fromisoformat(str(when)).date()
-        except Exception:
+        except (TypeError, ValueError):
             continue
     return out
 

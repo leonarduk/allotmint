@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getGroupInstruments, getGroups, getOwners, getPortfolio, refreshPrices } from "./api";
 
@@ -23,6 +23,8 @@ import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { useConfig } from "./ConfigContext";
+import Menu from "./components/Menu";
+import { Mode } from "./modes";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
@@ -32,20 +34,7 @@ const Watchlist = lazy(() => import("./pages/Watchlist"));
 const TopMovers = lazy(() => import("./pages/TopMovers"));
 const DataAdmin = lazy(() => import("./pages/DataAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
-
-type Mode =
-  | "owner"
-  | "group"
-  | "instrument"
-  | "transactions"
-  | "performance"
-  | "screener"
-  | "timeseries"
-  | "watchlist"
-  | "movers"
-  | "dataadmin"
-  | "support"
-  | "scenario";
+const SupportPage = lazy(() => import("./pages/Support"));
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -95,40 +84,6 @@ export default function App() {
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
-
-  const modes: Mode[] = [
-    "movers",
-    "group",
-    "instrument",
-    "owner",
-    "performance",
-    "transactions",
-    "screener",
-    "timeseries",
-    "watchlist",
-    "dataadmin",
-    "support",
-    "scenario",
-  ];
-
-  function pathFor(m: Mode) {
-    switch (m) {
-      case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/movers";
-      case "instrument":
-        return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
-      case "owner":
-        return selectedOwner ? `/member/${selectedOwner}` : "/member";
-      case "performance":
-        return selectedOwner ? `/performance/${selectedOwner}` : "/performance";
-      case "movers":
-        return "/movers";
-      case "scenario":
-        return "/scenario";
-      default:
-        return `/${m}`;
-    }
-  }
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
@@ -285,22 +240,9 @@ export default function App() {
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <LanguageSwitcher />
       <AlertsPanel />
-      <nav style={{ margin: "1rem 0" }}>
-        {modes
-          .filter((m) => tabs[m] === true && !disabledTabs?.includes(m))
-          .map((m) => (
-            <Link
-              key={m}
-              to={pathFor(m)}
-              style={{
-                marginRight: "1rem",
-                fontWeight: mode === m ? "bold" : undefined,
-              }}
-            >
-              {t(`app.modes.${m}`)}
-            </Link>
-          ))}
-      </nav>
+      {mode !== "support" && (
+        <Menu selectedOwner={selectedOwner} selectedGroup={selectedGroup} />
+      )}
 
       <div style={{ marginBottom: "1rem" }}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
@@ -391,6 +333,7 @@ export default function App() {
       {mode === "timeseries" && <TimeseriesEdit />}
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
+      {mode === "support" && <SupportPage />}
       {mode === "movers" && <TopMovers />}
       {mode === "scenario" && <ScenarioTester />}
       </div>

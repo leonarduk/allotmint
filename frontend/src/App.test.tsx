@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { Suspense } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { TabsConfig } from "./ConfigContext";
@@ -72,7 +73,9 @@ describe("App", () => {
 
     render(
       <MemoryRouter initialEntries={["/instrument/kids"]}>
-        <App />
+        <Suspense fallback={<div />}>
+          <App />
+        </Suspense>
       </MemoryRouter>,
     );
 
@@ -112,7 +115,9 @@ describe("App", () => {
         }}
       >
         <MemoryRouter initialEntries={["/timeseries?ticker=ABC&exchange=L"]}>
-          <App />
+          <Suspense fallback={<div />}>
+            <App />
+          </Suspense>
         </MemoryRouter>
       </configContext.Provider>,
     );
@@ -151,7 +156,9 @@ describe("App", () => {
         }}
       >
         <MemoryRouter initialEntries={["/dataadmin"]}>
-          <App />
+          <Suspense fallback={<div />}>
+            <App />
+          </Suspense>
         </MemoryRouter>
       </configContext.Provider>,
     );

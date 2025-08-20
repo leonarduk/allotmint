@@ -22,8 +22,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from backend.common.portfolio_loader import list_portfolios
-from backend.timeseries.cache import load_meta_timeseries_range
 from backend.common.portfolio_utils import get_security_meta
+from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
 templates_dir = Path(__file__).resolve().parent.parent / "templates"
@@ -35,6 +35,7 @@ env = Environment(
 # Group the instrument endpoints under their own router to keep ``app.py``
 # tidy and allow reuse across different deployment targets.
 router = APIRouter(prefix="/instrument", tags=["instrument"])
+
 
 # ────────────────────────────────────────────────────────────────
 # helpers
@@ -80,21 +81,13 @@ def _positions_for_ticker(tkr: str, last_close: float | None) -> List[Dict[str, 
                     continue
 
                 units = h.get("units") or h.get("quantity")
-                mv_gbp = (
-                    None
-                    if units is None or last_close is None
-                    else round(units * last_close, 2)
-                )
+                mv_gbp = None if units is None or last_close is None else round(units * last_close, 2)
 
                 gain_gbp = h.get("gain_gbp")
                 gain_pct = h.get("gain_pct")
                 if gain_gbp is None and mv_gbp is not None:
                     # fall back to cost basis when explicit gain is missing
-                    cost = (
-                        h.get("effective_cost_basis_gbp")
-                        or h.get("cost_basis_gbp")
-                        or h.get("cost_basis")
-                    )
+                    cost = h.get("effective_cost_basis_gbp") or h.get("cost_basis_gbp") or h.get("cost_basis")
                     try:
                         cost_f = float(cost) if cost is not None else None
                     except (TypeError, ValueError):
@@ -132,11 +125,7 @@ def _render_html(
 ) -> str:
     """Render a minimal HTML page summarising price and position data."""
     prices_tbl = df[["Date", "Close"]].tail(30).to_html(index=False, classes="prices")
-    pos_tbl = (
-        pd.DataFrame(positions).to_html(index=False, classes="positions")
-        if positions
-        else None
-    )
+    pos_tbl = pd.DataFrame(positions).to_html(index=False, classes="positions") if positions else None
 
     begin, end = _as_iso(df.iloc[0]["Date"]), _as_iso(df.iloc[-1]["Date"])
 
@@ -234,12 +223,7 @@ async def instrument(
             assigns["close_gbp"] = lambda d: d["close_gbp"].astype(float)
             currency = "GBP"
 
-        prices = (
-            df[cols]
-            .rename(columns=rename)
-            .assign(**assigns)
-            .to_dict(orient="records")
-        )
+        prices = df[cols].rename(columns=rename).assign(**assigns).to_dict(orient="records")
         payload = {
             "ticker": ticker,
             "from": start.isoformat(),

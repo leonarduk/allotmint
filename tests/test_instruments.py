@@ -32,4 +32,3 @@ def test_unexpected_error_propagates(monkeypatch, tmp_path, caplog):
         with pytest.raises(RuntimeError):
             instruments.get_instrument_meta("ERR.TKR")
     assert "Unexpected error loading" in caplog.text
-

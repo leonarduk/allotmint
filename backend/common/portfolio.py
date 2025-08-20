@@ -16,22 +16,16 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from backend.config import config
-from backend.common.constants import (
-    ACQUIRED_DATE,
-    COST_BASIS_GBP,
-    UNITS,
-    TICKER,
-)
+from backend.common.approvals import load_approvals
 from backend.common.data_loader import (
+    DATA_BUCKET_ENV,
+    PLOTS_PREFIX,
     list_plots,
     load_account,
     resolve_paths,
-    DATA_BUCKET_ENV,
-    PLOTS_PREFIX,
 )
 from backend.common.holding_utils import enrich_holding
-from backend.common.approvals import load_approvals
+from backend.config import config
 
 
 # ───────────────────────── trades helpers ─────────────────────────
@@ -71,11 +65,7 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
 
 def load_trades(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Public helper. Keeps us self-contained so there's no circular dependency."""
-    return (
-        _load_trades_local(owner, accounts_root)
-        if config.app_env == "local"
-        else _load_trades_aws(owner)
-    )
+    return _load_trades_local(owner, accounts_root) if config.app_env == "local" else _load_trades_aws(owner)
 
 
 # ───────────────────────── generic helpers ───────────────────────
@@ -129,9 +119,7 @@ def build_owner_portfolio(owner: str, accounts_root: Optional[Path] = None) -> D
         raw = load_account(owner, meta, accounts_root)
         holdings_raw = raw.get("holdings", [])
 
-        enriched = [
-            enrich_holding(h, today, price_cache, approvals) for h in holdings_raw
-        ]
+        enriched = [enrich_holding(h, today, price_cache, approvals) for h in holdings_raw]
         val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in enriched)
 
         accounts.append(

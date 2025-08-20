@@ -3,10 +3,11 @@ import os
 from datetime import date, datetime
 from pathlib import Path
 
-from backend.config import config
 from positions import extract_holdings_from_transactions
-from backend.common.approvals import load_approvals, is_approval_valid
+
+from backend.common.approvals import is_approval_valid, load_approvals
 from backend.common.instruments import get_instrument_meta
+from backend.config import config
 
 
 def normalize_account(account: str) -> tuple[str, str]:
@@ -33,7 +34,7 @@ def generate_json_holdings(xml_path: str, output_base_dir: str | Path = config.a
             "account_type": account_type.upper(),
             "currency": "GBP",
             "last_updated": today,
-            "holdings": []
+            "holdings": [],
         }
 
         approvals = load_approvals(owner)
@@ -53,9 +54,7 @@ def generate_json_holdings(xml_path: str, output_base_dir: str | Path = config.a
             exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
             exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
 
-            needs_approval = not (
-                meta_tkr in exempt_tickers or instr_type in exempt_types
-            )
+            needs_approval = not (meta_tkr in exempt_tickers or instr_type in exempt_types)
 
             approved = False
             if needs_approval:
@@ -63,14 +62,11 @@ def generate_json_holdings(xml_path: str, output_base_dir: str | Path = config.a
                 if appr_on:
                     approved = is_approval_valid(appr_on, date.today())
 
-            sell_eligible = (
-                (days_held is not None and days_held >= config.hold_days_min)
-                and (approved or not needs_approval)
+            sell_eligible = (days_held is not None and days_held >= config.hold_days_min) and (
+                approved or not needs_approval
             )
-            days_until_eligible = None if sell_eligible else (
-                None
-                if days_held is None
-                else max(0, config.hold_days_min - days_held)
+            days_until_eligible = (
+                None if sell_eligible else (None if days_held is None else max(0, config.hold_days_min - days_held))
             )
 
             raw_ticker = str(row.get("ticker", "")).strip()

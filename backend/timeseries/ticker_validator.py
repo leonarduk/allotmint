@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from datetime import datetime
 
 from backend.common.instruments import get_instrument_meta
 

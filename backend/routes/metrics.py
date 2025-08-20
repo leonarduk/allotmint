@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter
 
-from backend.common.metrics import compute_and_store_metrics, load_metrics
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
+from backend.common.metrics import compute_and_store_metrics, load_metrics
 
 router = APIRouter(tags=["metrics"])
 

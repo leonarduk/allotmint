@@ -1,5 +1,5 @@
-import sys
 import logging
+import sys
 
 
 def test_prices_import_does_not_configure_root_logger():

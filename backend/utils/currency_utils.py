@@ -14,6 +14,7 @@ ISIN_TO_CURRENCY = {
     # Add more as needed
 }
 
+
 def currency_from_isin(isin: str) -> str:
     """
     Extracts currency from ISIN prefix using ISO 3166 mapping.

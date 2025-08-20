@@ -24,11 +24,7 @@ def lambda_handler(event, context):
     result = refresh_prices()
 
     # honour environment flag so trading agent can be toggled per deployment
-    if (
-        os.getenv("ALLOTMINT_ENABLE_TRADING_AGENT", "").lower()
-        in {"1", "true", "yes"}
-        and trading_agent is not None
-    ):
+    if os.getenv("ALLOTMINT_ENABLE_TRADING_AGENT", "").lower() in {"1", "true", "yes"} and trading_agent is not None:
         trading_agent.run()
 
     return result

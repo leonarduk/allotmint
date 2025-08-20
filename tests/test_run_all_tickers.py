@@ -1,5 +1,6 @@
-import pandas as pd
 from unittest.mock import patch
+
+import pandas as pd
 
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 
@@ -31,4 +32,3 @@ def test_run_all_tickers_handles_underscore_and_dot():
 
     assert out == ["ADBE_N", "AZN.L"]
     assert calls == [("ADBE", "N", 5), ("AZN", "L", 5)]
-

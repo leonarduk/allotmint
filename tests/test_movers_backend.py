@@ -1,6 +1,8 @@
 import datetime as dt
-from backend.common import instrument_api as ia
+
 import pytest
+
+from backend.common import instrument_api as ia
 
 
 def test_price_change_pct(monkeypatch):
@@ -8,6 +10,7 @@ def test_price_change_pct(monkeypatch):
         @classmethod
         def today(cls):
             return cls(2023, 1, 9)
+
     monkeypatch.setattr(ia.dt, "date", FixedDate)
     monkeypatch.setattr(
         ia,
@@ -34,6 +37,7 @@ def test_top_movers(monkeypatch):
         @classmethod
         def today(cls):
             return cls(2023, 1, 9)
+
     monkeypatch.setattr(ia.dt, "date", FixedDate)
     monkeypatch.setattr(
         ia,

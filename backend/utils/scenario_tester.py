@@ -6,8 +6,8 @@ from copy import deepcopy
 from typing import Any, Dict
 
 from backend.common.constants import (
-    EFFECTIVE_COST_BASIS_GBP,
     COST_BASIS_GBP,
+    EFFECTIVE_COST_BASIS_GBP,
 )
 from backend.common.prices import get_price_gbp
 
@@ -35,11 +35,7 @@ def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float)
                     cached = get_price_gbp(tkr)
                     price = float(cached or 0.0)
                 new_price = price * factor
-                cost = float(
-                    h.get(EFFECTIVE_COST_BASIS_GBP)
-                    or h.get(COST_BASIS_GBP)
-                    or 0.0
-                )
+                cost = float(h.get(EFFECTIVE_COST_BASIS_GBP) or h.get(COST_BASIS_GBP) or 0.0)
                 mv = units * new_price
                 gain = mv - cost
                 h["price"] = h["current_price_gbp"] = round(new_price, 4)

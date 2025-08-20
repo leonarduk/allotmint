@@ -487,6 +487,13 @@ export function Screener() {
                 key={r.ticker}
                 onClick={() => setSelected(r.ticker)}
                 style={{ cursor: "pointer" }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    setSelected(r.ticker);
+                  }
+                }}
               >
                 <td style={cell}>{r.ticker}</td>
                 <td style={right}>{r.peg_ratio ?? "—"}</td>

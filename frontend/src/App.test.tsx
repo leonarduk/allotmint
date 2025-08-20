@@ -62,6 +62,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
       getTimeseries: vi.fn(),
       saveTimeseries: vi.fn(),
@@ -94,6 +95,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
@@ -133,6 +135,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
@@ -175,6 +178,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
@@ -216,6 +220,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
@@ -248,6 +253,53 @@ describe("App", () => {
     expect(mockTradingSignals).toHaveBeenCalled();
   });
 
+  it("renders support page with navigation", async () => {
+    window.history.pushState({}, "", "/support");
+
+    vi.doMock("./api", () => ({
+      getOwners: vi.fn().mockResolvedValue([]),
+      getGroups: vi.fn().mockResolvedValue([]),
+      getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getPortfolio: vi.fn(),
+      refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      listTimeseries: vi.fn().mockResolvedValue([]),
+      getConfig: vi.fn().mockResolvedValue({}),
+      updateConfig: vi.fn(),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getTradingSignals: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+    }));
+
+    const { default: App } = await import("./App");
+    const { configContext } = await import("./ConfigContext");
+
+    render(
+      <configContext.Provider
+        value={{
+          theme: "system",
+          relativeViewEnabled: false,
+          tabs: { ...baseTabs, support: true },
+          refreshConfig: async () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={["/support"]}>
+          <App />
+        </MemoryRouter>
+      </configContext.Provider>,
+    );
+
+    expect(await screen.findByRole("navigation")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: /Support/i })
+    ).toBeInTheDocument();
+  });
 
   it("defaults to Movers view and orders tabs correctly", async () => {
     window.history.pushState({}, "", "/");
@@ -260,6 +312,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
         .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),

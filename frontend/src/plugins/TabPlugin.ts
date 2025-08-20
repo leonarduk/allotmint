@@ -15,7 +15,7 @@ export interface TabPlugin {
   /** Unique identifier corresponding to the app mode (e.g. "movers"). */
   id: string;
   /** React component rendered when the tab is selected. */
-  component: ComponentType<any>;
+  component: ComponentType<unknown>;
   /** Lower numbers appear further to the left in the navigation bar. */
   priority: number;
   /** Build a URL path for the tab based on current selections. */

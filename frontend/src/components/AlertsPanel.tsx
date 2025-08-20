@@ -18,32 +18,44 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
     }
   };
 
-  if (loading || error || !alerts?.length) return null;
+  const importAlert = alerts?.find((a) => a.ticker === "IMPORT");
+  const otherAlerts = alerts?.filter((a) => a.ticker !== "IMPORT") ?? [];
+
+  if (loading || error || (!importAlert && otherAlerts.length === 0)) return null;
 
   return (
     <div style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "1rem" }}>
       <strong>Alerts</strong>
-      <div style={{ marginTop: "0.5rem" }}>
-        <label>
-          Threshold %:{" "}
-          <input
-            type="number"
-            value={threshold ?? ""}
-            onChange={(e) => setThreshold(parseFloat(e.target.value))}
-            style={{ width: "4rem" }}
-          />
-        </label>
-        <button onClick={save} style={{ marginLeft: "0.5rem" }}>
-          Save
-        </button>
-      </div>
-      <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
-        {alerts.map((a, i) => (
-          <li key={i}>
-            <strong>{a.ticker}</strong>: {a.message}
-          </li>
-        ))}
-      </ul>
+      {importAlert && (
+        <div data-testid="import-status" style={{ marginTop: "0.5rem" }}>
+          {importAlert.message}
+        </div>
+      )}
+      {otherAlerts.length > 0 && (
+        <>
+          <div style={{ marginTop: "0.5rem" }}>
+            <label>
+              Threshold %:{" "}
+              <input
+                type="number"
+                value={threshold ?? ""}
+                onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                style={{ width: "4rem" }}
+              />
+            </label>
+            <button onClick={save} style={{ marginLeft: "0.5rem" }}>
+              Save
+            </button>
+          </div>
+          <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+            {otherAlerts.map((a, i) => (
+              <li key={i}>
+                <strong>{a.ticker}</strong>: {a.message}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

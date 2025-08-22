@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import csv
 import logging
+import csv
 import os
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional

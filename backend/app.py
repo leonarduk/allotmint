@@ -11,9 +11,9 @@ import asyncio
 import logging
 import os
 
-from fastapi import Depends, FastAPI, HTTPException, Security, status
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import APIKeyHeader
+from fastapi.security import OAuth2PasswordRequestForm
 
 from backend.routes.instrument import router as instrument_router
 from backend.routes.portfolio import router as portfolio_router
@@ -43,20 +43,7 @@ from backend.common.portfolio_utils import (
 from backend.config import config
 from backend.common.data_loader import resolve_paths
 from backend.utils import page_cache
-
-
-API_TOKEN = os.getenv("API_TOKEN")
-api_key_header = APIKeyHeader(name="X-API-Token", auto_error=False)
-
-
-async def require_token(token: str = Security(api_key_header)) -> None:
-    """Validate the provided API token if authentication is configured."""
-
-    if API_TOKEN and token != API_TOKEN:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing API token",
-        )
+from backend.auth import authenticate_user, create_access_token, get_current_user
 
 
 def create_app() -> FastAPI:
@@ -91,8 +78,8 @@ def create_app() -> FastAPI:
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.
-    # Sensitive routes are guarded by a simple API-token dependency.
-    protected = [Depends(require_token)]
+    # Sensitive routes are guarded by a JWT-based dependency.
+    protected = [Depends(get_current_user)]
     app.include_router(portfolio_router, dependencies=protected)
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
@@ -112,6 +99,14 @@ def create_app() -> FastAPI:
     app.include_router(quotes_router)
     app.include_router(movers_router)
     app.include_router(scenario_router)
+
+    @app.post("/token")
+    async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+        user = authenticate_user(form_data.username, form_data.password)
+        if not user:
+            raise HTTPException(status_code=400, detail="Incorrect username or password")
+        token = create_access_token(user)
+        return {"access_token": token, "token_type": "bearer"}
 
     # ────────────────────── Health-check endpoint ─────────────────────
     @app.get("/health")

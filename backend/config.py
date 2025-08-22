@@ -55,7 +55,7 @@ class Config:
     selenium_headless: Optional[bool] = None
 
     # misc complex config
-    error_summary: Optional[dict] = None
+    error_summary: Dict[str, Any] = field(default_factory=dict)
     offline_mode: Optional[bool] = None
     relative_view_enabled: Optional[bool] = None
     theme: Optional[str] = None
@@ -130,7 +130,7 @@ def load_config() -> Config:
             cors_origins = cors_raw.get("default")
 
     error_summary_raw = data.get("error_summary")
-    error_summary = error_summary_raw if isinstance(error_summary_raw, dict) else None
+    error_summary = error_summary_raw if isinstance(error_summary_raw, dict) else {}
 
     return Config(
         app_env=data.get("app_env"),

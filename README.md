@@ -47,9 +47,16 @@ npm i && npm run dev
 
 ## Backend dependencies
 
-Runtime Python dependencies live in `requirements.txt` and development tooling
-is listed in `requirements-dev.txt`. Workflows and helper scripts install from
-these files, so update them when new packages are needed.
+Runtime Python dependencies live in `requirements.txt`. Development tooling
+(CDK, Playwright, moviepy, etc.) is listed in `requirements-dev.txt`. Install
+both when working locally:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Workflows and helper scripts install from these files, so update them when new
+packages are needed.
 
 ### Environment variables
 
@@ -227,11 +234,13 @@ cd frontend && npm test
 
 ## Error summary helper
 
-Use the `run_with_error_summary.py` script to capture error lines when running
-commands. A log file `error_summary.log` will be created with a summary of
-errors which you can attach when reporting bugs. Optionally set a default
-command in `config.yaml` under `error_summary.default_command` so the script
-can run without CLI arguments:
+An optional `error_summary` section in `config.yaml` stores settings for the
+`run_with_error_summary.py` utility. When the field is missing the backend falls
+back to an empty mapping so the script can still be used with explicit
+arguments. You can capture error lines by running the helper which writes them
+to `error_summary.log`. Optionally set a default command in
+`config.yaml` under `error_summary.default_command` so the script can run
+without CLI arguments:
 
 ```yaml
 error_summary:
@@ -337,7 +346,7 @@ Install the video dependencies first. The `requirements-dev.txt` file includes
 `moviepy` and `gTTS`:
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 Save an image named `presenter.png` in the `scripts` directory, then run:
@@ -347,3 +356,7 @@ python scripts/make_allotmint_video.py
 ```
 
 The script will produce `allotmint_video.mp4` in the repository root.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

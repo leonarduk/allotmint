@@ -4,6 +4,10 @@ from fastapi.testclient import TestClient
 
 
 client = TestClient(app)
+token = client.post(
+    "/token", data={"username": "testuser", "password": "password"}
+).json()["access_token"]
+client.headers.update({"Authorization": f"Bearer {token}"})
 
 
 def test_group_movers_endpoint(monkeypatch):

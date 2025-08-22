@@ -196,11 +196,12 @@ def test_log_trade_recreates_directory(tmp_path, monkeypatch):
     assert trade_path.exists()
 
 
-def test_run_trading_agent_removed_options():
+@pytest.mark.parametrize(
+    "args",
+    [["--thresholds", "1"], ["--indicator", "sma"]],
+)
+def test_run_trading_agent_removed_options(args):
     from scripts import run_trading_agent
 
     with pytest.raises(SystemExit):
-        run_trading_agent.parse_args(["--thresholds", "1"])
-
-    with pytest.raises(SystemExit):
-        run_trading_agent.parse_args(["--indicator", "sma"])
+        run_trading_agent.parse_args(args)

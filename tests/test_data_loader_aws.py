@@ -3,6 +3,7 @@ import sys
 from types import SimpleNamespace
 
 import backend.common.data_loader as dl
+from botocore.exceptions import ClientError
 
 
 def test_list_aws_plots(monkeypatch):
@@ -62,7 +63,7 @@ def test_load_person_meta_from_s3(monkeypatch):
         def get_object(Bucket, Key):
             if Key == "accounts/Alice/person.json":
                 return {"Body": io.BytesIO(b"{\"dob\": \"1980\"}")}
-            raise Exception("NoSuchKey")
+            raise ClientError({"Error": {"Code": "NoSuchKey"}}, "get_object")
 
         return SimpleNamespace(get_object=get_object)
 

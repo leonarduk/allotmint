@@ -4,7 +4,10 @@ from dataclasses import dataclass, asdict, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional, Dict, Any, overload, List
+from environs import Env
 import yaml
+
+env = Env()
 
 
 @dataclass
@@ -84,6 +87,7 @@ def _project_config_path() -> Path:
 def load_config() -> Config:
     """Load configuration from config.yaml only (no env overrides)."""
     path = _project_config_path()
+    env.read_env(path.with_name(".env"))
     data: Dict[str, Any] = {}
 
     if path.exists():
@@ -119,9 +123,9 @@ def load_config() -> Config:
     cors_raw = data.get("cors")
     cors_origins = None
     if isinstance(cors_raw, dict):
-        env = data.get("app_env")
-        if env:
-            cors_origins = cors_raw.get(env) or cors_raw.get("default")
+        app_env = data.get("app_env")
+        if app_env:
+            cors_origins = cors_raw.get(app_env) or cors_raw.get("default")
         else:
             cors_origins = cors_raw.get("default")
 
@@ -130,9 +134,13 @@ def load_config() -> Config:
 
     return Config(
         app_env=data.get("app_env"),
-        sns_topic_arn=data.get("sns_topic_arn"),
-        telegram_bot_token=data.get("telegram_bot_token"),
-        telegram_chat_id=data.get("telegram_chat_id"),
+        sns_topic_arn=env.str("SNS_TOPIC_ARN", default=data.get("sns_topic_arn")),
+        telegram_bot_token=env.str(
+            "TELEGRAM_BOT_TOKEN", default=data.get("telegram_bot_token")
+        ),
+        telegram_chat_id=env.str(
+            "TELEGRAM_CHAT_ID", default=data.get("telegram_chat_id")
+        ),
         portfolio_xml_path=data.get("portfolio_xml_path"),
         transactions_output_root=data.get("transactions_output_root"),
         uvicorn_port=data.get("uvicorn_port"),
@@ -149,7 +157,9 @@ def load_config() -> Config:
         theme=data.get("theme"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
         fx_proxy_url=data.get("fx_proxy_url"),
-        alpha_vantage_key=data.get("alpha_vantage_key"),
+        alpha_vantage_key=env.str(
+            "ALPHA_VANTAGE_KEY", default=data.get("alpha_vantage_key")
+        ),
         fundamentals_cache_ttl_seconds=data.get(
             "fundamentals_cache_ttl_seconds"
         ),

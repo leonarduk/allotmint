@@ -58,6 +58,24 @@ pip install -r requirements.txt -r requirements-dev.txt
 Workflows and helper scripts install from these files, so update them when new
 packages are needed.
 
+### Environment variables
+
+Sensitive settings are loaded from environment variables rather than
+`config.yaml`. Create a `.env` file (copy from `.env.example`) to keep them in
+one place:
+
+```
+cp .env.example .env
+# then edit .env with values such as
+ALPHA_VANTAGE_KEY=your-alpha-vantage-api-key
+SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:allotmint   # optional
+TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ      # optional
+TELEGRAM_CHAT_ID=123456789                                  # optional
+```
+
+Alternatively export variables in your shell. Unset variables simply disable
+their corresponding integrations.
+
 ## Page cache
 
 Expensive API routes cache their JSON responses under `data/cache/<page>.json`.

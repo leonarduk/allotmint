@@ -1,8 +1,10 @@
 # Node / React
 node_modules/
+
 dist/
 build/
 .env*
+!.env.example
 
 # Python
 __pycache__/

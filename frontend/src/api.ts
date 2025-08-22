@@ -32,11 +32,38 @@ export const API_BASE =
   import.meta.env.VITE_API_URL ??
   "http://localhost:8000";
 
+let authToken: string | null = null;
+export const setAuthToken = (token: string | null) => {
+  authToken = token;
+};
+
+export async function login(
+  username: string,
+  password: string,
+): Promise<string> {
+  const body = new URLSearchParams({ username, password });
+  const res = await fetch(`${API_BASE}/token`, {
+    method: "POST",
+    body,
+  });
+  if (!res.ok) {
+    throw new Error("Login failed");
+  }
+  const data = (await res.json()) as { access_token: string };
+  setAuthToken(data.access_token);
+  return data.access_token;
+}
+
 /* ------------------------------------------------------------------ */
 /* Generic fetch helper                                                */
 /* ------------------------------------------------------------------ */
-export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+export async function fetchJson<T>(
+  url: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+  const res = await fetch(url, { ...init, headers });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
   }

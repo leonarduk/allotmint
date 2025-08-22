@@ -6,6 +6,10 @@ from backend.common.instruments import get_instrument_meta
 import backend.common.alerts as alerts
 
 client = TestClient(app)
+token = client.post(
+    "/token", data={"username": "testuser", "password": "password"}
+).json()["access_token"]
+client.headers.update({"Authorization": f"Bearer {token}"})
 
 # allow alerts to operate without SNS configuration
 alerts.config.sns_topic_arn = None

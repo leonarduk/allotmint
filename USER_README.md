@@ -24,6 +24,43 @@ Additional runtime settings:
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram.
 - `DATA_BUCKET` (environment variable): S3 bucket containing account data when running in AWS.
 
+## Brokerage data import
+AllotMint can pull transactions and holdings from brokerage accounts using
+Plaid's Investments API. The helper script lives in
+`scripts/refresh_broker_data.py` and can run locally or as an AWS Lambda
+scheduled task.
+
+1. **Create Plaid credentials** and obtain access tokens for each brokerage
+   account you wish to sync. Tokens are organised in a JSON mapping:
+
+   ```json
+   {
+     "alex": {"isa": "access-token-1", "sipp": "access-token-2"}
+   }
+   ```
+
+2. **Set environment variables** used by the importer:
+
+   ```bash
+   export PLAID_CLIENT_ID="..."
+   export PLAID_SECRET="..."
+   export DATA_BUCKET="<s3-bucket-with-account-data>"
+   ```
+
+3. **Run the refresh script** with the token mapping:
+
+   ```bash
+   python scripts/refresh_broker_data.py tokens.json
+   ```
+
+   The script fetches recent transactions and holdings and merges them into the
+   S3 bucket under `accounts/<owner>/<account>.json` and
+   `transactions/<owner>/<account>_transactions.json`.
+
+To schedule periodic updates, package the script as a Lambda function and set
+the `PLAID_ACCESS_TOKENS` environment variable to the JSON mapping. Trigger the
+`lambda_handler` on a schedule using Amazon EventBridge.
+
 ## Authentication
 Sensitive endpoints such as portfolio or transaction data can be secured with a simple API token.
 

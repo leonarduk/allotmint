@@ -329,3 +329,7 @@ python scripts/make_allotmint_video.py
 ```
 
 The script will produce `allotmint_video.mp4` in the repository root.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

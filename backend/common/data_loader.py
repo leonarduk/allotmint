@@ -234,6 +234,9 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         except ImportError as exc:
             logger.warning("boto3 not available for person meta: %s", exc)
             return {}
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Unexpected error fetching person meta %s: %s", key, exc)
+            return {}
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = data_root or paths.accounts_root
     path = root / owner / "person.json"

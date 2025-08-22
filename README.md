@@ -216,11 +216,13 @@ cd frontend && npm test
 
 ## Error summary helper
 
-Use the `run_with_error_summary.py` script to capture error lines when running
-commands. A log file `error_summary.log` will be created with a summary of
-errors which you can attach when reporting bugs. Optionally set a default
-command in `config.yaml` under `error_summary.default_command` so the script
-can run without CLI arguments:
+An optional `error_summary` section in `config.yaml` stores settings for the
+`run_with_error_summary.py` utility. When the field is missing the backend falls
+back to an empty mapping so the script can still be used with explicit
+arguments. You can capture error lines by running the helper which writes them
+to `error_summary.log`. Optionally set a default command in
+`config.yaml` under `error_summary.default_command` so the script can run
+without CLI arguments:
 
 ```yaml
 error_summary:

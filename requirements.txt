@@ -38,6 +38,7 @@ click~=8.1
 pyarrow~=21.0.0
 numexpr~=2.11.0
 python-dateutil~=2.9.0post0
+python-dotenv~=1.0.1
 certifi~=2025.7.14
 starlette~=0.47.2
 pydantic~=2.11.7

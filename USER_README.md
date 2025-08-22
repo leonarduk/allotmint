@@ -18,11 +18,12 @@ Runtime options live in `config.yaml`:
 - `tabs`: enable or disable optional frontend tabs.
 - `offline_mode`: load FX data from local parquet files.
 
-Additional runtime settings:
+Additional runtime settings (environment variables):
 
+- `ALPHA_VANTAGE_KEY`: API key for Alpha Vantage data.
 - `SNS_TOPIC_ARN`: publish alerts to an AWS SNS topic.
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram.
-- `DATA_BUCKET` (environment variable): S3 bucket containing account data when running in AWS.
+- `DATA_BUCKET`: S3 bucket containing account data when running in AWS.
 
 ## Authentication
 Sensitive endpoints such as portfolio or transaction data can be secured with a simple API token.

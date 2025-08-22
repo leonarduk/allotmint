@@ -51,6 +51,20 @@ Runtime Python dependencies live in `requirements.txt` and development tooling
 is listed in `requirements-dev.txt`. Workflows and helper scripts install from
 these files, so update them when new packages are needed.
 
+### Environment variables
+
+Sensitive settings are loaded from environment variables rather than
+`config.yaml`. Before starting the backend export any required keys:
+
+```
+export ALPHA_VANTAGE_KEY="<your alpha vantage api key>"
+export SNS_TOPIC_ARN="<optional sns topic arn>"
+export TELEGRAM_BOT_TOKEN="<optional telegram bot token>"
+export TELEGRAM_CHAT_ID="<optional telegram chat id>"
+```
+
+Unset variables simply disable their corresponding integrations.
+
 ## Page cache
 
 Expensive API routes cache their JSON responses under `data/cache/<page>.json`.

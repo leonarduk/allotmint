@@ -4,6 +4,7 @@ from dataclasses import dataclass, asdict, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional, Dict, Any, overload, List
+import os
 import yaml
 
 
@@ -130,9 +131,11 @@ def load_config() -> Config:
 
     return Config(
         app_env=data.get("app_env"),
-        sns_topic_arn=data.get("sns_topic_arn"),
-        telegram_bot_token=data.get("telegram_bot_token"),
-        telegram_chat_id=data.get("telegram_chat_id"),
+        sns_topic_arn=os.getenv("SNS_TOPIC_ARN", data.get("sns_topic_arn")),
+        telegram_bot_token=os.getenv(
+            "TELEGRAM_BOT_TOKEN", data.get("telegram_bot_token")
+        ),
+        telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID", data.get("telegram_chat_id")),
         portfolio_xml_path=data.get("portfolio_xml_path"),
         transactions_output_root=data.get("transactions_output_root"),
         uvicorn_port=data.get("uvicorn_port"),
@@ -149,7 +152,9 @@ def load_config() -> Config:
         theme=data.get("theme"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
         fx_proxy_url=data.get("fx_proxy_url"),
-        alpha_vantage_key=data.get("alpha_vantage_key"),
+        alpha_vantage_key=os.getenv(
+            "ALPHA_VANTAGE_KEY", data.get("alpha_vantage_key")
+        ),
         fundamentals_cache_ttl_seconds=data.get(
             "fundamentals_cache_ttl_seconds"
         ),

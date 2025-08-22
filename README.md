@@ -108,7 +108,7 @@ and [backend/common/constants.py](backend/common/constants.py) for currency labe
 The project is split into a Python FastAPI backend and a React/TypeScript
 frontend. The two communicate over HTTP which makes it easy to work on either
 side in isolation. Copy `config.example.yaml` to `config.yaml` for local
-defaults. Backend runtime options are stored in `config.yaml`:
+defaults and `.env.example` to `.env` for secrets. Backend runtime options are stored in `config.yaml`:
 
 ```yaml
 app_env: local
@@ -119,7 +119,7 @@ log_config: backend/logging.ini
 
 Adjust these values to change the environment or server behaviour.
 Secrets such as `ALPHA_VANTAGE_KEY`, `TELEGRAM_BOT_TOKEN`, and
-`TELEGRAM_CHAT_ID` are read from environment variables.
+`TELEGRAM_CHAT_ID` are read from environment variables or a `.env` file.
 
 Environment-specific CORS whitelists are defined in the same file:
 

@@ -3,8 +3,8 @@
 ## Environment Setup
 - **Python**: Install dependencies with `pip install -r requirements.txt`.
 - **Frontend**: From `frontend`, install packages via `npm install`.
-- **Configuration**: Copy `config.example.yaml` to `config.yaml` and adjust for
-  local or AWS environments. Provide secrets via environment variables.
+- **Configuration**: Copy `config.example.yaml` to `config.yaml` and `.env.example`
+  to `.env` for local or AWS environments. Provide secrets via environment variables.
 
 ## Common Troubleshooting Steps
 - Verify that Python (3.12) and Node.js versions meet project requirements.

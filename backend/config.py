@@ -7,6 +7,9 @@ from typing import Any, Dict, List, Optional, overload
 
 import os
 import yaml
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 @dataclass

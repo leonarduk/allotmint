@@ -10,9 +10,9 @@ AllotMint helps families track and manage investments like tending an allotment.
 3. **Frontend dependencies**: change into the `frontend/` folder and run `npm install`
 
 ## Configuration
-Copy `config.example.yaml` to `config.yaml` for local defaults. Secrets are
-supplied via environment variables.
-
+Copy `config.example.yaml` to `config.yaml` for local defaults and
+`.env.example` to `.env` to define secrets via environment variables.
+=
 Runtime options live in `config.yaml`:
 
 - `app_env`: `local` for local development or `aws` for Lambda.
@@ -21,7 +21,7 @@ Runtime options live in `config.yaml`:
 - `tabs`: enable or disable optional frontend tabs.
 - `offline_mode`: load FX data from local parquet files.
 
-Additional runtime settings:
+Additional runtime settings (place these in your `.env` file or export them):
 
 - `ALPHA_VANTAGE_KEY`: Alpha Vantage API key.
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram.

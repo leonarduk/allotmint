@@ -7,6 +7,10 @@ from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_utils
 
 client = TestClient(app)
+token = client.post(
+    "/token", data={"username": "testuser", "password": "password"}
+).json()["access_token"]
+client.headers.update({"Authorization": f"Bearer {token}"})
 
 
 @pytest.fixture

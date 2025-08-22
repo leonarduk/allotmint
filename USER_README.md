@@ -12,7 +12,7 @@ AllotMint helps families track and manage investments like tending an allotment.
 ## Configuration
 Copy `config.example.yaml` to `config.yaml` for local defaults and
 `.env.example` to `.env` to define secrets via environment variables.
-
+=
 Runtime options live in `config.yaml`:
 
 - `app_env`: `local` for local development or `aws` for Lambda.

@@ -47,9 +47,16 @@ npm i && npm run dev
 
 ## Backend dependencies
 
-Runtime Python dependencies live in `requirements.txt` and development tooling
-is listed in `requirements-dev.txt`. Workflows and helper scripts install from
-these files, so update them when new packages are needed.
+Runtime Python dependencies live in `requirements.txt`. Development tooling
+(CDK, Playwright, moviepy, etc.) is listed in `requirements-dev.txt`. Install
+both when working locally:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Workflows and helper scripts install from these files, so update them when new
+packages are needed.
 
 ## Page cache
 
@@ -319,7 +326,7 @@ Install the video dependencies first. The `requirements-dev.txt` file includes
 `moviepy` and `gTTS`:
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 Save an image named `presenter.png` in the `scripts` directory, then run:

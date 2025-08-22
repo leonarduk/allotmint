@@ -44,4 +44,13 @@ describe("VirtualPortfolio page", () => {
     const accountCheckbox = screen.getByLabelText("A1") as HTMLInputElement;
     expect(accountCheckbox.checked).toBe(true);
   });
+
+  it("shows error when loading portfolios fails", async () => {
+    mockGetVirtualPortfolios.mockRejectedValueOnce(new Error("fail"));
+    mockGetOwners.mockResolvedValueOnce([]);
+
+    render(<VirtualPortfolio />);
+
+    expect(await screen.findByText(/fail/)).toBeInTheDocument();
+  });
 });

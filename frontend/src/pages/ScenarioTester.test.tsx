@@ -28,4 +28,16 @@ describe("ScenarioTester page", () => {
     await waitFor(() => expect(mockRunScenario).toHaveBeenCalledWith("AAA", 5));
     expect(screen.getByText(/"ticker": "AAA"/)).toBeInTheDocument();
   });
+
+  it("shows error message on failure", async () => {
+    mockRunScenario.mockRejectedValueOnce(new Error("fail"));
+
+    render(<ScenarioTester />);
+
+    fireEvent.change(screen.getByPlaceholderText("Ticker"), { target: { value: "AAA" } });
+    fireEvent.change(screen.getByPlaceholderText("% Change"), { target: { value: "5" } });
+    fireEvent.click(screen.getByText("Apply"));
+
+    expect(await screen.findByText("fail")).toBeInTheDocument();
+  });
 });

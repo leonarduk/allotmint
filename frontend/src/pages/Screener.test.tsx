@@ -9,6 +9,9 @@ vi.mock("../api");
 const mockGetScreener = vi.mocked(api.getScreener);
 
 describe("Screener", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
   it("renders new ratio columns", async () => {
     mockGetScreener.mockResolvedValueOnce([
       {
@@ -55,6 +58,14 @@ describe("Screener", () => {
     expect(screen.getAllByText("10")).toHaveLength(2);
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("1.5")).toBeInTheDocument();
+  });
+
+  it("does not submit without tickers", async () => {
+    render(<Screener />);
+
+    fireEvent.submit(screen.getByText(/Run/i).closest("form")!);
+
+    await waitFor(() => expect(mockGetScreener).not.toHaveBeenCalled());
   });
 
 

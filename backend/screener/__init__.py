@@ -81,7 +81,9 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
 
     api_key = settings.alpha_vantage_key
     if not api_key:
-        raise RuntimeError("Alpha Vantage API key not configured; set alpha_vantage_key in config.yaml")
+        raise RuntimeError(
+            "Alpha Vantage API key not configured; set ALPHA_VANTAGE_KEY in the environment"
+        )
 
     key = (ticker.upper(), date.today().isoformat())
     now = datetime.utcnow()

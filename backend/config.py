@@ -5,6 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, overload
 
+import os
 import yaml
 
 
@@ -83,7 +84,7 @@ def _project_config_path() -> Path:
 
 @lru_cache(maxsize=1)
 def load_config() -> Config:
-    """Load configuration from config.yaml only (no env overrides)."""
+    """Load configuration from config.yaml with environment overrides."""
     path = _project_config_path()
     data: Dict[str, Any] = {}
 
@@ -122,11 +123,16 @@ def load_config() -> Config:
         else:
             cors_origins = cors_raw.get("default")
 
+    alpha_vantage_key = os.getenv("ALPHA_VANTAGE_KEY") or data.get("alpha_vantage_key")
+    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN") or data.get("telegram_bot_token")
+    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID") or data.get("telegram_chat_id")
+    sns_topic_arn = os.getenv("SNS_TOPIC_ARN") or data.get("sns_topic_arn")
+
     return Config(
         app_env=data.get("app_env"),
-        sns_topic_arn=data.get("sns_topic_arn"),
-        telegram_bot_token=data.get("telegram_bot_token"),
-        telegram_chat_id=data.get("telegram_chat_id"),
+        sns_topic_arn=sns_topic_arn,
+        telegram_bot_token=telegram_bot_token,
+        telegram_chat_id=telegram_chat_id,
         portfolio_xml_path=data.get("portfolio_xml_path"),
         transactions_output_root=data.get("transactions_output_root"),
         uvicorn_port=data.get("uvicorn_port"),
@@ -143,7 +149,7 @@ def load_config() -> Config:
         theme=data.get("theme"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
         fx_proxy_url=data.get("fx_proxy_url"),
-        alpha_vantage_key=data.get("alpha_vantage_key"),
+        alpha_vantage_key=alpha_vantage_key,
         fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),

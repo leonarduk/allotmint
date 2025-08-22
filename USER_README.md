@@ -10,6 +10,9 @@ AllotMint helps families track and manage investments like tending an allotment.
 3. **Frontend dependencies**: change into the `frontend/` folder and run `npm install`
 
 ## Configuration
+Copy `config.example.yaml` to `config.yaml` for local defaults. Secrets are
+supplied via environment variables.
+
 Runtime options live in `config.yaml`:
 
 - `app_env`: `local` for local development or `aws` for Lambda.
@@ -20,9 +23,10 @@ Runtime options live in `config.yaml`:
 
 Additional runtime settings:
 
-- `SNS_TOPIC_ARN`: publish alerts to an AWS SNS topic.
+- `ALPHA_VANTAGE_KEY`: Alpha Vantage API key.
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram.
-- `DATA_BUCKET` (environment variable): S3 bucket containing account data when running in AWS.
+- `SNS_TOPIC_ARN`: publish alerts to an AWS SNS topic.
+- `DATA_BUCKET`: S3 bucket containing account data when running in AWS.
 
 ## Authentication
 Sensitive endpoints such as portfolio or transaction data can be secured with a simple API token.

@@ -13,7 +13,9 @@ from __future__ import annotations
 import logging
 import re
 from datetime import date, timedelta, datetime
-from typing import List, Optional, Dict
+from functools import lru_cache
+from pathlib import Path
+from typing import List, Optional, Dict, Tuple
 
 import pandas as pd
 from backend.config import config as app_config
@@ -30,7 +32,11 @@ from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_ran
 from backend.timeseries.fetch_alphavantage_timeseries import (
     fetch_alphavantage_timeseries_range,
 )
-from backend.utils.timeseries_helpers import (_nearest_weekday, _is_isin, STANDARD_COLUMNS)
+from backend.utils.timeseries_helpers import (
+    _nearest_weekday,
+    _is_isin,
+    STANDARD_COLUMNS,
+)
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 
 logger = logging.getLogger("meta_timeseries")
@@ -40,6 +46,47 @@ logger = logging.getLogger("meta_timeseries")
 # ──────────────────────────────────────────────────────────────
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:[-\.][A-Z]{1,3})?$")
 
+
+INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
+
+
+@lru_cache(maxsize=2048)
+def _resolve_exchange_from_metadata(symbol: str) -> str:
+    """Return exchange code for *symbol* using instrument metadata if possible."""
+    sym = symbol.upper()
+    for ex_dir in INSTRUMENTS_DIR.iterdir():
+        if not ex_dir.is_dir() or ex_dir.name.lower() == "cash":
+            continue
+        if (ex_dir / f"{sym}.json").exists():
+            return ex_dir.name.upper()
+    return ""
+
+
+def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, str]:
+    """Resolve base symbol and exchange from inputs and metadata."""
+    sym, suffix = (re.split(r"[._]", ticker, 1) + [""])[:2]
+    provided = (exchange or "").upper()
+    suffix = suffix.upper()
+    if suffix and provided and suffix != provided:
+        logger.debug(
+            "Exchange mismatch for %s: suffix %s vs argument %s", ticker, suffix, provided
+        )
+    ex = suffix or provided
+
+    meta_ex = _resolve_exchange_from_metadata(sym)
+    if not ex and meta_ex:
+        ex = meta_ex
+        logger.debug("Resolved exchange for %s via metadata: %s", sym, ex)
+    elif ex and meta_ex and ex != meta_ex:
+        logger.debug(
+            "Exchange metadata mismatch for %s: using %s but metadata %s",
+            sym,
+            ex,
+            meta_ex,
+        )
+    elif not ex:
+        logger.debug("No exchange information for %s; continuing without exchange", sym)
+    return sym.upper(), ex.upper()
 
 
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
@@ -62,7 +109,7 @@ def _coverage_ratio(df: pd.DataFrame,
 # ──────────────────────────────────────────────────────────────
 def fetch_meta_timeseries(
     ticker: str,
-    exchange: str = "L",
+    exchange: str = "",
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     *,
@@ -73,7 +120,7 @@ def fetch_meta_timeseries(
 
     Returns DF[Date, Open, High, Low, Close, Volume, Ticker, Source].
     """
-    # ── Guard rails ────────────────────────────────────────────
+    # ── Guard rails & resolution ───────────────────────────────
     if not ticker or not ticker.strip():
         logger.warning("Ticker pattern looks invalid: empty or whitespace")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
@@ -81,6 +128,10 @@ def fetch_meta_timeseries(
     if not _TICKER_RE.match(ticker):
         logger.warning("Ticker pattern looks invalid: %s", ticker)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
+
+    raw_ticker = ticker
+    ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
+    logger.debug("Resolved %s to %s.%s", raw_ticker, ticker, exchange)
 
     if end_date is None:
         end_date = date.today() - timedelta(days=1)
@@ -195,37 +246,43 @@ def fetch_ft_df(ticker, end_date, start_date):
 # ──────────────────────────────────────────────────────────────
 # Cache-aware batch helpers (local import) ─────────────────────
 def run_all_tickers(
-    tickers: List[str], exchange: str = "L", days: int = 365
+    tickers: List[str], exchange: str = "", days: int = 365
 ) -> List[str]:
     """Warm-up helper - returns tickers that produced data.
 
     ``tickers`` may contain base symbols ("VOD") or full tickers ("VOD.L").
     When a ticker includes an exchange suffix, it takes precedence over the
-    ``exchange`` argument.
+    ``exchange`` argument. If neither provides an exchange, resolve via
+    instrument metadata.
     """
     from backend.timeseries.cache import load_meta_timeseries
 
     ok: list[str] = []
     for t in tickers:
-        sym, ex = (re.split(r"[._]", t, 1) + [exchange])[:2]
+        sym, ex = _resolve_ticker_exchange(t, exchange)
+        logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
         try:
             if not load_meta_timeseries(sym, ex, days).empty:
                 ok.append(t)
         except Exception as exc:
             logger.warning("[WARN] %s: %s", t, exc)
-    logger.info("Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok))
+    logger.info(
+        "Bulk warm-up complete: %d updated, %d skipped", len(ok), len(tickers) - len(ok)
+    )
     return ok
 
 
 def load_timeseries_data(
-    tickers: List[str], exchange: str = "L", days: int = 365
+    tickers: List[str], exchange: str = "", days: int = 365
 ) -> Dict[str, pd.DataFrame]:
     """Return {ticker: dataframe} using the parquet cache."""
     from backend.timeseries.cache import load_meta_timeseries
     out: dict[str, pd.DataFrame] = {}
     for t in tickers:
+        sym, ex = _resolve_ticker_exchange(t, exchange)
+        logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
         try:
-            df = load_meta_timeseries(t, exchange, days)
+            df = load_meta_timeseries(sym, ex, days)
             if not df.empty:
                 out[t] = df
         except Exception as exc:

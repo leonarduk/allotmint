@@ -42,6 +42,16 @@ def stub_group_portfolio(monkeypatch):
     )
 
 
+@pytest.fixture
+def mock_refresh_prices(monkeypatch):
+    """Stub out refresh_prices to avoid expensive operations."""
+
+    def _refresh() -> dict:
+        return {"tickers": [], "snapshot": {}, "timestamp": "stub"}
+
+    monkeypatch.setattr("backend.common.prices.refresh_prices", _refresh)
+
+
 def validate_timeseries(prices):
     assert isinstance(prices, list)
     assert len(prices) > 0
@@ -125,7 +135,7 @@ def test_invalid_account():
     assert resp.status_code == 404
 
 
-def test_prices_refresh():
+def test_prices_refresh(mock_refresh_prices):
     resp = client.post("/prices/refresh")
     assert resp.status_code == 200
     assert "status" in resp.json()
@@ -211,7 +221,7 @@ def test_yahoo_timeseries_html():
     assert ticker.lower() in html
 
 
-def test_alerts_endpoint(monkeypatch):
+def test_alerts_endpoint(mock_refresh_prices, monkeypatch):
     alerts._RECENT_ALERTS.clear()
     monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))
     client.post("/prices/refresh")

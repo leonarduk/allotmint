@@ -1,4 +1,5 @@
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.local_api.main import app
@@ -13,6 +14,79 @@ client.headers.update({"Authorization": f"Bearer {token}"})
 
 # allow alerts to operate without SNS configuration
 alerts.config.sns_topic_arn = None
+
+
+@pytest.fixture(autouse=True)
+def mock_group_portfolio(monkeypatch):
+    """Provide a lightweight group portfolio for known slugs."""
+
+    def _build(slug: str):
+        if slug == "stub":
+            return {
+                "slug": slug,
+                "accounts": [
+                    {
+                        "name": "stub",
+                        "value_estimate_gbp": 100.0,
+                        "holdings": [
+                            {
+                                "ticker": "STUB",
+                                "name": "Stub Corp",
+                                "units": 1.0,
+                                "market_value_gbp": 100.0,
+                                "gain_gbp": 10.0,
+                                "cost_basis_gbp": 90.0,
+                                "day_change_gbp": 1.0,
+                            }
+                        ],
+                    }
+                ],
+                "total_value_estimate_gbp": 100.0,
+            }
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    monkeypatch.setattr(
+        "backend.common.group_portfolio.build_group_portfolio", _build
+    )
+
+
+@pytest.fixture
+def mock_refresh_prices(monkeypatch):
+    """Stub out refresh_prices to avoid expensive operations."""
+
+    def _refresh() -> dict:
+        return {"tickers": [], "snapshot": {}, "timestamp": "stub"}
+
+    monkeypatch.setattr("backend.common.prices.refresh_prices", _refresh)
+
+
+@pytest.fixture
+def mock_timeseries_for_ticker(monkeypatch):
+    """Provide a small static timeseries for any ticker except FAKETICK."""
+
+    def _fake_timeseries(ticker: str, days: int = 365):
+        if ticker == "FAKETICK":
+            return []
+        return [
+            {"date": "2024-01-01", "close": 1.0},
+            {"date": "2024-01-02", "close": 1.1},
+        ]
+
+    monkeypatch.setattr(
+        "backend.common.instrument_api.timeseries_for_ticker", _fake_timeseries
+    )
+
+
+@pytest.fixture
+def mock_positions_for_ticker(monkeypatch):
+    """Return a minimal positions list for any ticker."""
+
+    def _fake_positions(group_slug: str, ticker: str):
+        return [{"gain_pct": 0.0}]
+
+    monkeypatch.setattr(
+        "backend.common.instrument_api.positions_for_ticker", _fake_positions
+    )
 
 
 def validate_timeseries(prices):
@@ -49,13 +123,11 @@ def test_groups():
 
 
 def test_valid_group_portfolio():
-    groups = client.get("/groups").json()
-    assert groups, "No groups found"
-    group_slug = groups[0]["slug"]
-    resp = client.get(f"/portfolio-group/{group_slug}")
+    slug = "stub"
+    resp = client.get(f"/portfolio-group/{slug}")
     assert resp.status_code == 200
     data = resp.json()
-    assert "slug" in data and data["slug"] == group_slug
+    assert "slug" in data and data["slug"] == slug
     assert "accounts" in data and isinstance(data["accounts"], list)
     assert data["accounts"], "Accounts list should not be empty"
     assert "total_value_estimate_gbp" in data
@@ -98,15 +170,14 @@ def test_invalid_account():
     assert resp.status_code == 404
 
 
-def test_prices_refresh():
+def test_prices_refresh(mock_refresh_prices):
     resp = client.post("/prices/refresh")
     assert resp.status_code == 200
     assert "status" in resp.json()
 
 
 def test_group_instruments():
-    groups = client.get("/groups").json()
-    slug = groups[0]["slug"]
+    slug = "stub"
     resp = client.get(f"/portfolio-group/{slug}/instruments")
     assert resp.status_code == 200
     instruments = resp.json()
@@ -184,7 +255,7 @@ def test_yahoo_timeseries_html():
     assert ticker.lower() in html
 
 
-def test_alerts_endpoint(monkeypatch):
+def test_alerts_endpoint(mock_refresh_prices, monkeypatch):
     alerts._RECENT_ALERTS.clear()
     monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))
     client.post("/prices/refresh")

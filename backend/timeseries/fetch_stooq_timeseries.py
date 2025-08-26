@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
+from backend.config import config
 
 logger = logging.getLogger("stooq_timeseries")
 
@@ -72,7 +73,11 @@ def fetch_stooq_timeseries_range(
 
     logger.debug(f"Fetching Stooq data with URL: {BASE_URL} and params: {params}")
     try:
-        response = requests.get(BASE_URL, params=params)
+        response = requests.get(
+            BASE_URL,
+            params=params,
+            timeout=config.stooq_timeout or 10,
+        )
         if not response.ok:
             raise Exception(f"HTTP error {response.status_code} for {full_ticker}")
 
@@ -99,6 +104,9 @@ def fetch_stooq_timeseries_range(
 
         return df[["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]]
 
+    except requests.exceptions.Timeout:
+        logger.warning("Stooq request timed out for %s", full_ticker)
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
     except Exception as e:
         logger.error(f"Failed to fetch Stooq data for {full_ticker}: {e}")
         raise

@@ -64,6 +64,7 @@ class Config:
     alpha_vantage_enabled: bool = True
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
+    stooq_timeout: Optional[int] = None
 
     # new vars
     max_trades_per_month: Optional[int] = None
@@ -165,6 +166,7 @@ def load_config() -> Config:
         fundamentals_cache_ttl_seconds=data.get(
             "fundamentals_cache_ttl_seconds"
         ),
+        stooq_timeout=data.get("stooq_timeout"),
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),
         repo_root=repo_root,

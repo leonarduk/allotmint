@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+import requests
 from datetime import date
 from types import SimpleNamespace
 
@@ -29,7 +30,7 @@ def test_stooq_rate_limit_disables_until_next_day(monkeypatch):
 
     calls = []
 
-    def rate_limit_get(url, params):
+    def rate_limit_get(url, params, **kwargs):
         calls.append("hit")
         return SimpleNamespace(ok=True, status_code=200, text="Exceeded the daily hits limit")
 
@@ -39,7 +40,7 @@ def test_stooq_rate_limit_disables_until_next_day(monkeypatch):
         fst.fetch_stooq_timeseries_range("AAA", "L", Day1(2024, 1, 1), Day1(2024, 1, 1))
     assert len(calls) == 1
 
-    def fail_get(url, params):
+    def fail_get(url, params, **kwargs):
         raise AssertionError("should not call requests.get while disabled")
 
     monkeypatch.setattr(fst.requests, "get", fail_get)
@@ -49,7 +50,7 @@ def test_stooq_rate_limit_disables_until_next_day(monkeypatch):
 
     monkeypatch.setattr(fst, "date", Day2)
 
-    def ok_get(url, params):
+    def ok_get(url, params, **kwargs):
         calls.append("ok")
         return SimpleNamespace(ok=True, status_code=200, text=_csv_response())
 
@@ -89,3 +90,20 @@ def test_meta_timeseries_handles_stooq_rate_limit(monkeypatch):
     df = fetch_meta_timeseries.fetch_meta_timeseries("AAA", "L", start_date=date(2024,1,1), end_date=date(2024,1,2))
     assert not df.empty
     assert df["Source"].iloc[0] == "FT"
+
+
+def test_stooq_timeout_returns_empty(monkeypatch, caplog):
+    fst.STOOQ_DISABLED_UNTIL = date.min
+    monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)
+    monkeypatch.setattr(fst, "record_skipped_ticker", lambda *a, **k: None)
+
+    def timeout_get(*a, **k):
+        raise requests.exceptions.Timeout
+
+    monkeypatch.setattr(fst.requests, "get", timeout_get)
+    with caplog.at_level("WARNING"):
+        df = fst.fetch_stooq_timeseries_range(
+            "AAA", "L", date(2024, 1, 1), date(2024, 1, 2)
+        )
+    assert df.empty
+    assert "timed out" in caplog.text.lower()

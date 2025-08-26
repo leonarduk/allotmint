@@ -24,3 +24,8 @@ def test_tabs_defaults_true():
 def test_theme_loaded():
     cfg = config_module.load_config()
     assert cfg.theme == "system"
+
+
+def test_stooq_timeout_loaded():
+    cfg = config_module.load_config()
+    assert cfg.stooq_timeout == 10

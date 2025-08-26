@@ -52,6 +52,35 @@ def mock_refresh_prices(monkeypatch):
     monkeypatch.setattr("backend.common.prices.refresh_prices", _refresh)
 
 
+@pytest.fixture
+def mock_timeseries_for_ticker(monkeypatch):
+    """Provide a small static timeseries for any ticker except FAKETICK."""
+
+    def _fake_timeseries(ticker: str, days: int = 365):
+        if ticker == "FAKETICK":
+            return []
+        return [
+            {"date": "2024-01-01", "close": 1.0},
+            {"date": "2024-01-02", "close": 1.1},
+        ]
+
+    monkeypatch.setattr(
+        "backend.common.instrument_api.timeseries_for_ticker", _fake_timeseries
+    )
+
+
+@pytest.fixture
+def mock_positions_for_ticker(monkeypatch):
+    """Return a minimal positions list for any ticker."""
+
+    def _fake_positions(group_slug: str, ticker: str):
+        return [{"gain_pct": 0.0}]
+
+    monkeypatch.setattr(
+        "backend.common.instrument_api.positions_for_ticker", _fake_positions
+    )
+
+
 def validate_timeseries(prices):
     assert isinstance(prices, list)
     assert len(prices) > 0
@@ -184,7 +213,9 @@ def test_compliance_invalid_owner():
     assert resp.status_code == 404
 
 
-def test_instrument_detail_valid():
+def test_instrument_detail_valid(
+    mock_timeseries_for_ticker, mock_positions_for_ticker
+):
     groups = client.get("/groups").json()
     slug = groups[0]["slug"]
     instruments = client.get(f"/portfolio-group/{slug}/instruments").json()
@@ -205,7 +236,9 @@ def test_instrument_detail_valid():
     pytest.skip("No instrument with available price data")
 
 
-def test_instrument_detail_not_found():
+def test_instrument_detail_not_found(
+    mock_timeseries_for_ticker, mock_positions_for_ticker
+):
     groups = client.get("/groups").json()
     slug = groups[0]["slug"]
     resp = client.get(f"/portfolio-group/{slug}/instrument/FAKETICK")

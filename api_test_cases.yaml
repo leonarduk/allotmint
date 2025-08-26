@@ -1,0 +1,4 @@
+- method: GET
+  url: https://httpbin.org/get
+- method: GET
+  url: https://httpbin.org/status/404

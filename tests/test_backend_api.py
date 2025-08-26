@@ -27,6 +27,43 @@ def client():
         backend_config.config.offline_mode = previous
 
 
+@pytest.fixture
+def stub_group_portfolio(monkeypatch):
+    """Return a minimal group portfolio to avoid heavy enrichment."""
+
+    def _build(slug: str):
+        return {
+            "slug": slug,
+            "accounts": [
+                {
+                    "name": "stub",
+                    "value_estimate_gbp": 100.0,
+                    "holdings": [
+                        {
+                            "ticker": "STUB",
+                            "day_change_gbp": 1.0,
+                        }
+                    ],
+                }
+            ],
+            "total_value_estimate_gbp": 100.0,
+        }
+
+    monkeypatch.setattr(
+        "backend.common.group_portfolio.build_group_portfolio", _build
+    )
+
+
+@pytest.fixture
+def mock_refresh_prices(monkeypatch):
+    """Stub out refresh_prices to avoid expensive operations."""
+
+    def _refresh() -> dict:
+        return {"tickers": [], "snapshot": {}, "timestamp": "stub"}
+
+    monkeypatch.setattr("backend.common.prices.refresh_prices", _refresh)
+
+
 def validate_timeseries(prices):
     assert isinstance(prices, list)
     assert len(prices) > 0
@@ -60,7 +97,7 @@ def test_groups(client):
     assert isinstance(resp.json(), list)
 
 
-def test_valid_group_portfolio(client):
+def test_valid_group_portfolio(stub_group_portfolio):
     groups = client.get("/groups").json()
     assert groups, "No groups found"
     group_slug = groups[0]["slug"]
@@ -110,7 +147,7 @@ def test_invalid_account(client):
     assert resp.status_code == 404
 
 
-def test_prices_refresh(client):
+def test_prices_refresh(mock_refresh_prices):
     resp = client.post("/prices/refresh")
     assert resp.status_code == 200
     assert "status" in resp.json()
@@ -196,7 +233,7 @@ def test_yahoo_timeseries_html(client):
     assert ticker.lower() in html
 
 
-def test_alerts_endpoint(client, monkeypatch):
+def test_alerts_endpoint(mock_refresh_prices, monkeypatch):
     alerts._RECENT_ALERTS.clear()
     monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))
     client.post("/prices/refresh")

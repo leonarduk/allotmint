@@ -57,3 +57,5 @@ websockets~=15.0.1
 win_inet_pton~=1.1.0
 wsproto~=1.2.0
 yfinance~=0.2.65
+pyjwt
+fastapi

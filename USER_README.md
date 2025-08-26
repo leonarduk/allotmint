@@ -17,6 +17,7 @@ Runtime options live in `config.yaml`:
 - `reload`: enables auto-reload for development.
 - `tabs`: enable or disable optional frontend tabs.
 - `offline_mode`: load FX data from local parquet files.
+- `alpha_vantage_enabled`: set to `false` to skip Alpha Vantage API calls.
 
 Additional runtime settings are supplied via environment variables. Copy
 `.env.example` to `.env` and fill in values such as:

@@ -61,6 +61,7 @@ class Config:
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
     fx_proxy_url: Optional[str] = None
+    alpha_vantage_enabled: bool = True
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
 
@@ -157,6 +158,7 @@ def load_config() -> Config:
         theme=data.get("theme"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
         fx_proxy_url=data.get("fx_proxy_url"),
+        alpha_vantage_enabled=data.get("alpha_vantage_enabled", True),
         alpha_vantage_key=env.str(
             "ALPHA_VANTAGE_KEY", default=data.get("alpha_vantage_key")
         ),

@@ -1,7 +1,10 @@
 import { InstrumentTable } from "../components/InstrumentTable";
+import type { ComponentProps } from "react";
 import type { TabPlugin } from "./TabPlugin";
 
-const plugin: TabPlugin = {
+type Props = ComponentProps<typeof InstrumentTable>;
+
+const plugin: TabPlugin<Props> = {
   id: "instrument",
   component: InstrumentTable,
   priority: 20,

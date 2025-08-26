@@ -50,7 +50,7 @@ export interface RawConfig {
 
 // build a default tabs object from the registered tab plugins
 const defaultTabs = Object.fromEntries(
-  Object.keys(tabPlugins).map((id) => [id, false]),
+  tabPlugins.map((p) => [p.id, false]),
 ) as TabsConfig;
 
 export interface ConfigContextValue extends AppConfig {
@@ -81,7 +81,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
           ? (cfg.tabs as Record<string, unknown>)
           : {};
       const tabs = Object.fromEntries(
-        Object.keys(tabPlugins).map((id) => [id, Boolean(rawTabs[id])]),
+        tabPlugins.map((p) => [p.id, Boolean(rawTabs[p.id])]),
       ) as TabsConfig;
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],

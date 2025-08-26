@@ -44,6 +44,10 @@ from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_
 
 logger = logging.getLogger("meta_timeseries")
 
+# Flag to indicate Stooq should be skipped for the rest of the day once the
+# rate limit is encountered.
+_STOOQ_LIMIT_REACHED: bool = False
+
 # ──────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────
@@ -189,18 +193,23 @@ def fetch_meta_timeseries(
         logger.info("Yahoo miss for %s.%s: %s", ticker, exchange, exc)
 
     # ── 2 · Stooq (fill gaps only if needed) ──────────────────
-    try:
-        stooq = fetch_stooq_timeseries_range(ticker, exchange,
-                                             start_date, end_date)
-        if not stooq.empty:
-            combined = _merge([*data, stooq])
-            if _coverage_ratio(combined, expected_dates) >= min_coverage:
-                return combined
-            data.append(stooq)
-    except StooqRateLimitError as exc:
-        logger.info("Stooq rate limit for %s.%s: %s", ticker, exchange, exc)
-    except Exception as exc:
-        logger.info("Stooq miss for %s.%s: %s", ticker, exchange, exc)
+    global _STOOQ_LIMIT_REACHED
+    if not _STOOQ_LIMIT_REACHED:
+        try:
+            stooq = fetch_stooq_timeseries_range(ticker, exchange,
+                                                 start_date, end_date)
+            if not stooq.empty:
+                combined = _merge([*data, stooq])
+                if _coverage_ratio(combined, expected_dates) >= min_coverage:
+                    return combined
+                data.append(stooq)
+        except StooqRateLimitError as exc:
+            _STOOQ_LIMIT_REACHED = True
+            logger.info("Stooq rate limit for %s.%s: %s", ticker, exchange, exc)
+        except Exception as exc:
+            logger.info("Stooq miss for %s.%s: %s", ticker, exchange, exc)
+    else:
+        logger.debug("Skipping Stooq for %s.%s due to prior rate limit", ticker, exchange)
 
     # ── 3 · Alpha Vantage (fill gaps if still needed) ─────────
     if config.alpha_vantage_enabled:

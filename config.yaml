@@ -7,7 +7,7 @@ prices_json: data/prices/latest_prices.json
 risk_free_rate: 0.01
 timeseries_cache_base: data/timeseries
 fx_proxy_url: ''
-alpha_vantage_enabled: true
+alpha_vantage_enabled: false
 fundamentals_cache_ttl_seconds: 86400
 cors:
   local:

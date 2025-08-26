@@ -216,7 +216,7 @@ def fetch_meta_timeseries(
         except Exception as exc:
             logger.info("Alpha Vantage miss for %s.%s: %s", ticker, exchange, exc)
     else:
-        logger.info("Alpha Vantage disabled; skipping for %s.%s", ticker, exchange)
+        logger.debug("Alpha Vantage disabled; skipping for %s.%s", ticker, exchange)
 
     # ── 4 · FT fallback – last resort ─────────────────────────
     ft_df = fetch_ft_df(ticker, end_date, start_date)

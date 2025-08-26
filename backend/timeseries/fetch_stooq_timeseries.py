@@ -50,8 +50,8 @@ def fetch_stooq_timeseries_range(
     """
     global STOOQ_DISABLED_UNTIL
     if date.today() < STOOQ_DISABLED_UNTIL:
-        logger.info("Stooq disabled until %s", STOOQ_DISABLED_UNTIL)
-        raise StooqRateLimitError("Stooq temporarily disabled due to rate limiting")
+        logger.debug("Stooq disabled until %s", STOOQ_DISABLED_UNTIL)
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
     if not is_valid_ticker(ticker, exchange):
         logger.info("Skipping Stooq fetch for unrecognized ticker %s.%s", ticker, exchange)
         record_skipped_ticker(ticker, exchange, reason="unknown")

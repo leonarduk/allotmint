@@ -15,6 +15,33 @@ client.headers.update({"Authorization": f"Bearer {token}"})
 alerts.config.sns_topic_arn = None
 
 
+@pytest.fixture
+def stub_group_portfolio(monkeypatch):
+    """Return a minimal group portfolio to avoid heavy enrichment."""
+
+    def _build(slug: str):
+        return {
+            "slug": slug,
+            "accounts": [
+                {
+                    "name": "stub",
+                    "value_estimate_gbp": 100.0,
+                    "holdings": [
+                        {
+                            "ticker": "STUB",
+                            "day_change_gbp": 1.0,
+                        }
+                    ],
+                }
+            ],
+            "total_value_estimate_gbp": 100.0,
+        }
+
+    monkeypatch.setattr(
+        "backend.common.group_portfolio.build_group_portfolio", _build
+    )
+
+
 def validate_timeseries(prices):
     assert isinstance(prices, list)
     assert len(prices) > 0
@@ -48,7 +75,7 @@ def test_groups():
     assert isinstance(resp.json(), list)
 
 
-def test_valid_group_portfolio():
+def test_valid_group_portfolio(stub_group_portfolio):
     groups = client.get("/groups").json()
     assert groups, "No groups found"
     group_slug = groups[0]["slug"]

@@ -7,11 +7,17 @@ import requests
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
-# Setup logger
 logger = logging.getLogger("stooq_timeseries")
-logging.basicConfig(level=logging.DEBUG)
 
 BASE_URL = "https://stooq.com/q/d/l/"
+
+
+class StooqRateLimitError(RuntimeError):
+    """Raised when the Stooq daily hit limit has been exceeded."""
+
+
+# Stooq requests are disabled until this date if the rate limit is hit
+STOOQ_DISABLED_UNTIL: date = date.min
 
 
 def get_stooq_suffix(exchange: str) -> str:
@@ -42,6 +48,10 @@ def fetch_stooq_timeseries_range(
     """
     Fetch historical Stooq data using date range.
     """
+    global STOOQ_DISABLED_UNTIL
+    if date.today() < STOOQ_DISABLED_UNTIL:
+        logger.info("Stooq disabled until %s", STOOQ_DISABLED_UNTIL)
+        raise StooqRateLimitError("Stooq temporarily disabled due to rate limiting")
     if not is_valid_ticker(ticker, exchange):
         logger.info("Skipping Stooq fetch for unrecognized ticker %s.%s", ticker, exchange)
         record_skipped_ticker(ticker, exchange, reason="unknown")
@@ -68,6 +78,8 @@ def fetch_stooq_timeseries_range(
 
         if "Exceeded the daily hits limit" in response.text:
             logger.warning("Stooq: Exceeded the daily hits limit")
+            STOOQ_DISABLED_UNTIL = date.today() + timedelta(days=1)
+            raise StooqRateLimitError("Exceeded the daily hits limit")
 
         df = pd.read_csv(StringIO(response.text))
         if df.empty:

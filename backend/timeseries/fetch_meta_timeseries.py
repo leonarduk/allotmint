@@ -27,7 +27,10 @@ OFFLINE_MODE = config.offline_mode
 # Local imports
 # ──────────────────────────────────────────────────────────────
 from backend.timeseries.fetch_ft_timeseries import fetch_ft_timeseries
-from backend.timeseries.fetch_stooq_timeseries import fetch_stooq_timeseries_range
+from backend.timeseries.fetch_stooq_timeseries import (
+    fetch_stooq_timeseries_range,
+    StooqRateLimitError,
+)
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.timeseries.fetch_alphavantage_timeseries import (
     fetch_alphavantage_timeseries_range,
@@ -194,6 +197,8 @@ def fetch_meta_timeseries(
             if _coverage_ratio(combined, expected_dates) >= min_coverage:
                 return combined
             data.append(stooq)
+    except StooqRateLimitError as exc:
+        logger.info("Stooq rate limit for %s.%s: %s", ticker, exchange, exc)
     except Exception as exc:
         logger.info("Stooq miss for %s.%s: %s", ticker, exchange, exc)
 

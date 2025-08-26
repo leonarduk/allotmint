@@ -10,13 +10,20 @@ by FastAPI.
 import asyncio
 import logging
 import os
+from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 
 from backend.routes.instrument import router as instrument_router
-from backend.routes.portfolio import router as portfolio_router
+from backend.routes.portfolio import (
+    router as portfolio_router,
+    owners,
+    groups,
+    OwnerSummary,
+    GroupSummary,
+)
 from backend.routes.timeseries_meta import router as timeseries_router
 from backend.routes.timeseries_edit import router as timeseries_edit_router
 from backend.routes.timeseries_admin import router as timeseries_admin_router
@@ -85,6 +92,26 @@ def create_app() -> FastAPI:
     # The API surface is composed of a few routers grouped by concern.
     # Sensitive routes are guarded by a JWT-based dependency.
     protected = [Depends(get_current_user)]
+
+    # Public portfolio endpoints that don't require authentication
+    public_portfolio_router = APIRouter()
+    public_portfolio_router.add_api_route(
+        "/owners",
+        owners,
+        response_model=List[OwnerSummary],
+        tags=["portfolio"],
+        methods=["GET"],
+    )
+    public_portfolio_router.add_api_route(
+        "/groups",
+        groups,
+        response_model=List[GroupSummary],
+        tags=["portfolio"],
+        methods=["GET"],
+    )
+    app.include_router(public_portfolio_router)
+
+    # Remaining portfolio endpoints remain protected
     app.include_router(portfolio_router, dependencies=protected)
     app.include_router(instrument_router)
     app.include_router(timeseries_router)

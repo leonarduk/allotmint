@@ -23,11 +23,11 @@ STOOQ_DISABLED_UNTIL: date = date.min
 
 def get_stooq_suffix(exchange: str) -> str:
     exchange_map = {
-        "L": ".UK", "LSE": ".UK", "UK": ".UK",
+        "L": ".UK", "LSE": ".UK", "UK": ".UK", "LON": ".UK", "XLON": ".UK",
         "NASDAQ": ".US", "NYSE": ".US", "US": ".US", "AMEX": ".US",
         "XETRA": ".DE", "DE": ".DE",
         "F": ".F",
-        "TO" : ".TO"
+        "TO" : ".TO", "TSX": ".TO"
 
     }
     suffix = exchange_map.get(exchange.upper())

@@ -7,9 +7,7 @@ import requests
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
-# Setup logger
 logger = logging.getLogger("stooq_timeseries")
-logging.basicConfig(level=logging.DEBUG)
 
 BASE_URL = "https://stooq.com/q/d/l/"
 

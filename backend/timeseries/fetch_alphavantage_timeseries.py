@@ -10,7 +10,6 @@ from backend.config import config
 
 # Setup logger
 logger = logging.getLogger("alphavantage_timeseries")
-logging.basicConfig(level=logging.DEBUG)
 
 BASE_URL = "https://www.alphavantage.co/query"
 

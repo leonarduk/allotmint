@@ -77,6 +77,8 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
     """Return key metrics for ``ticker`` using Alpha Vantage's ``OVERVIEW``
     endpoint, utilising a simple in-memory cache.
     """
+    if not settings.alpha_vantage_enabled:
+        raise RuntimeError("Alpha Vantage fetching disabled via config")
 
     api_key = settings.alpha_vantage_key
     if not api_key:

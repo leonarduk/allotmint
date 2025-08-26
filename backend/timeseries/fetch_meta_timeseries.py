@@ -147,17 +147,20 @@ def fetch_meta_timeseries(
         logger.info("Stooq miss for %s.%s: %s", ticker, exchange, exc)
 
     # ── 3 · Alpha Vantage (fill gaps if still needed) ─────────
-    try:
-        av = fetch_alphavantage_timeseries_range(
-            ticker, exchange, start_date, end_date
-        )
-        if not av.empty:
-            combined = _merge([*data, av])
-            if _coverage_ratio(combined, expected_dates) >= min_coverage:
-                return combined
-            data.append(av)
-    except Exception as exc:
-        logger.info("Alpha Vantage miss for %s.%s: %s", ticker, exchange, exc)
+    if config.alpha_vantage_enabled:
+        try:
+            av = fetch_alphavantage_timeseries_range(
+                ticker, exchange, start_date, end_date
+            )
+            if not av.empty:
+                combined = _merge([*data, av])
+                if _coverage_ratio(combined, expected_dates) >= min_coverage:
+                    return combined
+                data.append(av)
+        except Exception as exc:
+            logger.info("Alpha Vantage miss for %s.%s: %s", ticker, exchange, exc)
+    else:
+        logger.info("Alpha Vantage disabled; skipping for %s.%s", ticker, exchange)
 
     # ── 4 · FT fallback – last resort ─────────────────────────
     ft_df = fetch_ft_df(ticker, end_date, start_date)

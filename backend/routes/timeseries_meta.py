@@ -1,9 +1,11 @@
 from datetime import date, timedelta
 
+import logging
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
+from backend.common import instrument_api
 from backend.timeseries import fetch_timeseries
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.html_render import render_timeseries_html
@@ -13,15 +15,47 @@ from backend.utils.timeseries_helpers import (
 )
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
+logger = logging.getLogger("routes.timeseries")
+
+
+def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
+    t = (ticker or "").upper()
+    if not t:
+        raise HTTPException(status_code=400, detail="Ticker is required")
+
+    if exchange:
+        sym = t.split(".", 1)[0]
+        ex = exchange.upper()
+        logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
+        return sym, ex
+
+    if "." in t:
+        sym, ex = t.split(".", 1)
+        logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
+        return sym, ex
+
+    resolved = instrument_api._resolve_full_ticker(
+        t, instrument_api._LATEST_PRICES
+    )
+    if not resolved:
+        logger.debug("Could not infer exchange for %s", t)
+        raise HTTPException(
+            status_code=400, detail=f"Exchange not provided and could not be inferred for {ticker}"
+        )
+    sym, ex = resolved
+    logger.debug("Resolved %s.%s (inferred exchange)", sym, ex)
+    return sym, ex
 
 @router.get("/meta", response_class=HTMLResponse)
 async def get_meta_timeseries(
     ticker: str = Query(...),
-    exchange: str = Query("L"),
+    exchange: str | None = Query(None),
     days: int = Query(365, ge=0, le=36500),
     format: str = Query("html", pattern="^(html|json|csv)$"),
     scaling: float = Query(1.0, ge=0.00001, le=1_000_000),
 ):
+    ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
+
     if days <= 0:
         start_date = date(1900, 1, 1)
     else:

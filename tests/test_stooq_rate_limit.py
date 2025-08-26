@@ -12,6 +12,12 @@ def _csv_response():
     return "Date,Open,High,Low,Close,Volume\n2024-01-01,1,1,1,1,0\n"
 
 
+def test_get_stooq_suffix_aliases():
+    assert fst.get_stooq_suffix("LON") == ".UK"
+    assert fst.get_stooq_suffix("XLON") == ".UK"
+    assert fst.get_stooq_suffix("TSX") == ".TO"
+
+
 def test_stooq_rate_limit_disables_until_next_day(monkeypatch):
     class Day1(date):
         @classmethod

@@ -186,7 +186,7 @@ def fetch_meta_timeseries(
             if _coverage_ratio(yahoo, expected_dates) >= min_coverage:
                 return yahoo
     except Exception as exc:
-        logger.info("Yahoo miss for %s.%s: %s", ticker, exchange, exc)
+        logger.debug("Yahoo miss for %s.%s: %s", ticker, exchange, exc)
 
     # ── 2 · Stooq (fill gaps only if needed) ──────────────────
     try:
@@ -198,9 +198,9 @@ def fetch_meta_timeseries(
                 return combined
             data.append(stooq)
     except StooqRateLimitError as exc:
-        logger.info("Stooq rate limit for %s.%s: %s", ticker, exchange, exc)
+        logger.debug("Stooq rate limit for %s.%s: %s", ticker, exchange, exc)
     except Exception as exc:
-        logger.info("Stooq miss for %s.%s: %s", ticker, exchange, exc)
+        logger.debug("Stooq miss for %s.%s: %s", ticker, exchange, exc)
 
     # ── 3 · Alpha Vantage (fill gaps if still needed) ─────────
     if config.alpha_vantage_enabled:
@@ -214,7 +214,7 @@ def fetch_meta_timeseries(
                     return combined
                 data.append(av)
         except Exception as exc:
-            logger.info("Alpha Vantage miss for %s.%s: %s", ticker, exchange, exc)
+            logger.debug("Alpha Vantage miss for %s.%s: %s", ticker, exchange, exc)
     else:
         logger.debug("Alpha Vantage disabled; skipping for %s.%s", ticker, exchange)
 
@@ -225,8 +225,8 @@ def fetch_meta_timeseries(
         data.append(ft_df)
 
     if not data:
-        logger.warning("No data sources succeeded for %s.%s",
-                       ticker, exchange)
+        logger.info("No data sources succeeded for %s.%s",
+                    ticker, exchange)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
     df = _merge(data)
@@ -240,12 +240,12 @@ def fetch_meta_timeseries(
 
 def fetch_ft_df(ticker, end_date, start_date):
     try:
-        logger.info(f"Falling back to FT for {ticker}")
+        logger.debug(f"Falling back to FT for {ticker}")
         days = (end_date - start_date).days or 1
         ft_df = fetch_ft_timeseries(ticker, days)
         return ft_df
     except Exception as exc:
-        logger.info("FT miss for %s: %s", ticker, exc)
+        logger.debug("FT miss for %s: %s", ticker, exc)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
 # ──────────────────────────────────────────────────────────────

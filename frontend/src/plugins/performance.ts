@@ -1,7 +1,10 @@
 import { PerformanceDashboard } from "../components/PerformanceDashboard";
+import type { ComponentProps } from "react";
 import type { TabPlugin } from "./TabPlugin";
 
-const plugin: TabPlugin = {
+type Props = ComponentProps<typeof PerformanceDashboard>;
+
+const plugin: TabPlugin<Props> = {
   id: "performance",
   component: PerformanceDashboard,
   priority: 40,

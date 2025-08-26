@@ -1,7 +1,10 @@
 import { GroupPortfolioView } from "../components/GroupPortfolioView";
+import type { ComponentProps } from "react";
 import type { TabPlugin } from "./TabPlugin";
 
-const plugin: TabPlugin = {
+type Props = ComponentProps<typeof GroupPortfolioView>;
+
+const plugin: TabPlugin<Props> = {
   id: "group",
   component: GroupPortfolioView,
   priority: 10,

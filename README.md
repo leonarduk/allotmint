@@ -264,6 +264,14 @@ optional:
 python scripts/run_trading_agent.py --tickers AAPL MSFT --thresholds 0.1 0.2 --indicator RSI
 ```
 
+## API endpoint tester
+
+Execute a set of HTTP calls listed in `api_test_cases.yaml` and summarise the results with GPT:
+
+```bash
+python scripts/ai_api_tester.py
+```
+
 ## Deploy to AWS
 
 The project includes an AWS CDK stack that provisions an S3 bucket and

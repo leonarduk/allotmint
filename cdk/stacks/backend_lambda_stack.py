@@ -2,12 +2,12 @@ from pathlib import Path
 
 from aws_cdk import (
     Stack,
-    BundlingOptions,
     aws_apigateway as apigw,
     aws_lambda as _lambda,
     aws_events as events,
     aws_events_targets as targets,
 )
+from aws_cdk.aws_lambda_python_alpha import PythonFunction
 from constructs import Construct
 
 
@@ -20,44 +20,25 @@ class BackendLambdaStack(Stack):
         project_root = Path(__file__).resolve().parents[2]
         backend_path = project_root / "backend"
 
-        dependencies_layer = _lambda.LayerVersion(
-            self,
-            "BackendDependencies",
-            code=_lambda.Code.from_asset(
-                str(backend_path),
-                bundling=BundlingOptions(
-                    image=_lambda.Runtime.PYTHON_3_11.bundling_image,
-                    command=[
-                        "bash",
-                        "-c",
-                        "pip install -r requirements.txt -t /asset-output/python",
-                    ],
-                ),
-            ),
-            compatible_runtimes=[_lambda.Runtime.PYTHON_3_11],
-        )
-
-        backend_code = _lambda.Code.from_asset(str(backend_path))
-
-        backend_fn = _lambda.Function(
+        backend_fn = PythonFunction(
             self,
             "BackendLambda",
+            entry=str(backend_path),
             runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="backend.lambda_api.handler.lambda_handler",
-            code=backend_code,
-            layers=[dependencies_layer],
+            index="lambda_api/handler.py",
+            handler="lambda_handler",
         )
 
         apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)
 
         # Scheduled function to refresh prices daily
-        refresh_fn = _lambda.Function(
+        refresh_fn = PythonFunction(
             self,
             "PriceRefreshLambda",
+            entry=str(backend_path),
             runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="backend.lambda_api.price_refresh.lambda_handler",
-            code=backend_code,
-            layers=[dependencies_layer],
+            index="lambda_api/price_refresh.py",
+            handler="lambda_handler",
         )
 
         events.Rule(

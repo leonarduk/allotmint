@@ -119,7 +119,7 @@ def fetch_meta_timeseries(
     data: list[pd.DataFrame] = []
 
     if _is_isin(ticker=ticker):
-        ft_df = fetch_ft_df(ticker, end_date, start_date)
+        ft_df = fetch_ft_df(ticker, exchange, end_date, start_date)
 
         if not ft_df.empty:
             return ft_df
@@ -157,7 +157,7 @@ def fetch_meta_timeseries(
         logger.info("Alpha Vantage miss for %s.%s: %s", ticker, exchange, exc)
 
     # ── 4 · FT fallback – last resort ─────────────────────────
-    ft_df = fetch_ft_df(ticker, end_date, start_date)
+    ft_df = fetch_ft_df(ticker, exchange, end_date, start_date)
 
     if not ft_df.empty:
         data.append(ft_df)
@@ -175,14 +175,15 @@ def fetch_meta_timeseries(
     return df
 
 
-def fetch_ft_df(ticker, end_date, start_date):
+def fetch_ft_df(ticker, exchange, end_date, start_date):
+    full_symbol = f"{ticker}.{exchange}"
     try:
-        logger.info(f"Falling back to FT for {ticker}")
+        logger.info(f"Falling back to FT for {full_symbol}")
         days = (end_date - start_date).days or 1
-        ft_df = fetch_ft_timeseries(ticker, days)
+        ft_df = fetch_ft_timeseries(full_symbol, days)
         return ft_df
     except Exception as exc:
-        logger.info("FT miss for %s: %s", ticker, exc)
+        logger.info("FT miss for %s: %s", full_symbol, exc)
         return pd.DataFrame(columns=STANDARD_COLUMNS)
 
 

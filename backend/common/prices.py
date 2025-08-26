@@ -34,6 +34,7 @@ from backend.common.portfolio_utils import (
     check_price_alerts,
 )
 from backend.common.holding_utils import load_latest_prices as _load_latest_prices
+from backend.common import instrument_api
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import _nearest_weekday
 
@@ -80,7 +81,15 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         }
 
         if last is not None:
-            sym, exch = (full.split(".", 1) + ["L"])[:2]
+            resolved = instrument_api._resolve_full_ticker(full, latest)
+            if resolved:
+                sym, exch = resolved
+            else:
+                sym = full.split(".", 1)[0]
+                exch = "L"
+                logger.debug(
+                    "Could not resolve exchange for %s; defaulting to L", full
+                )
 
             px_7 = _close_on(sym, exch, yday - timedelta(days=7))
             px_30 = _close_on(sym, exch, yday - timedelta(days=30))
@@ -176,8 +185,18 @@ def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
 
     prices: Dict[str, float] = {}
     for full in tickers:
-        ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
-        df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
+        resolved = instrument_api._resolve_full_ticker(full, prices)
+        if resolved:
+            ticker_only, exchange = resolved
+        else:
+            ticker_only = full.split(".", 1)[0]
+            exchange = "L"
+            logger.debug(
+                "Could not resolve exchange for %s; defaulting to L", full
+            )
+        df = load_meta_timeseries_range(
+            ticker_only, exchange, start_date=start_date, end_date=end_date
+        )
         if df is not None and not df.empty:
             prices[full] = float(df.iloc[-1]["close"])
     return prices
@@ -197,8 +216,18 @@ def load_prices_for_tickers(
 
     for full in tickers:
         try:
-            ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
-            df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
+            resolved = instrument_api._resolve_full_ticker(full, {})
+            if resolved:
+                ticker_only, exchange = resolved
+            else:
+                ticker_only = full.split(".", 1)[0]
+                exchange = "L"
+                logger.debug(
+                    "Could not resolve exchange for %s; defaulting to L", full
+                )
+            df = load_meta_timeseries_range(
+                ticker_only, exchange, start_date=start_date, end_date=end_date
+            )
             if not df.empty:
                 df["Ticker"] = full  # restore suffix for display
                 frames.append(df)

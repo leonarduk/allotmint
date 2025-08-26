@@ -63,12 +63,16 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     end_date = date.today() - timedelta(days=1)
     start_date = end_date - timedelta(days=365)
 
+    from backend.common import instrument_api
+
     for full in full_tickers:
-        # --- parse "TICKER[.EXCHANGE]" ---
-        if "." in full:
-            ticker, exchange = full.split(".", 1)
+        resolved = instrument_api._resolve_full_ticker(full, result)
+        if resolved:
+            ticker, exchange = resolved
         else:
-            ticker, exchange = full, "L"
+            ticker = full.split(".", 1)[0]
+            exchange = "L"
+            logger.debug("Could not resolve exchange for %s; defaulting to L", full)
 
         try:
             df = load_meta_timeseries_range(
@@ -215,10 +219,17 @@ def get_effective_cost_basis_gbp(
     if booked > 0:
         return round(booked, 2)
 
+    from backend.common import instrument_api
+
     full = (h.get(TICKER) or "").upper()
     parts = full.split(".", 1)
     ticker = parts[0]
-    exchange = parts[1] if len(parts) > 1 else "L"
+    resolved = instrument_api._resolve_full_ticker(full, price_cache)
+    if resolved:
+        ticker, exchange = resolved
+    else:
+        exchange = "L"
+        logger.debug("Could not resolve exchange for %s; defaulting to L", full)
     acq = _parse_date(h.get(ACQUIRED_DATE))
 
     close_px = None
@@ -294,9 +305,16 @@ def enrich_holding(
 
         return out
 
+    from backend.common import instrument_api
+
     parts = full.split(".", 1)
     ticker = parts[0]
-    exchange = parts[1] if len(parts) > 1 else "L"
+    resolved = instrument_api._resolve_full_ticker(full, price_cache)
+    if resolved:
+        ticker, exchange = resolved
+    else:
+        exchange = "L"
+        logger.debug("Could not resolve exchange for %s; defaulting to L", full)
 
     out["currency"] = meta.get("currency")
     out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type")

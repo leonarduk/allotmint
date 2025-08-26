@@ -10,6 +10,7 @@ fx_proxy_url: ''
 alpha_vantage_enabled: false
 fundamentals_cache_ttl_seconds: 86400
 stooq_timeout: 10
+stooq_requests_per_minute: 60
 cors:
   local:
     - http://localhost:3000

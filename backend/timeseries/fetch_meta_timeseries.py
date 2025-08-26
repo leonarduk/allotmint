@@ -261,9 +261,21 @@ def run_all_tickers(
     instrument metadata.
     """
     from backend.timeseries.cache import load_meta_timeseries
+    import time
 
     ok: list[str] = []
-    for t in tickers:
+    delay = 0.0
+    if getattr(config, "stooq_requests_per_minute", None):
+        try:
+            rpm = float(config.stooq_requests_per_minute)
+            if rpm > 0:
+                delay = 60.0 / rpm
+        except Exception:
+            pass
+
+    for idx, t in enumerate(tickers):
+        if delay and idx:
+            time.sleep(delay)
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
         try:

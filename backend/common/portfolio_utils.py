@@ -231,6 +231,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
     """
     if isinstance(portfolio, VirtualPortfolio):
         portfolio = portfolio.as_portfolio_dict()
+    from backend.common import instrument_api
     rows: Dict[str, dict] = {}
 
     for account in portfolio.get("accounts", []):
@@ -239,7 +240,15 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             if not tkr:
                 continue
 
-            sym, inferred = (tkr.split(".", 1) + [None])[:2]
+            resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
+            if resolved:
+                sym, inferred = resolved
+            else:
+                sym, inferred = (tkr.split(".", 1) + [None])[:2]
+                if not h.get("exchange"):
+                    logger.debug(
+                        "Could not resolve exchange for %s; defaulting to L", tkr
+                    )
             exch = (h.get("exchange") or inferred or "L").upper()
             full_tkr = f"{sym}.{exch}"
 
@@ -341,6 +350,8 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
     except FileNotFoundError:
         raise
 
+    from backend.common import instrument_api
+
     holdings: List[tuple[str, str, float]] = []  # (ticker, exchange, units)
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
@@ -351,7 +362,15 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
             if not units:
                 continue
 
-            sym, inferred = (tkr.split(".", 1) + [None])[:2]
+            resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
+            if resolved:
+                sym, inferred = resolved
+            else:
+                sym, inferred = (tkr.split(".", 1) + [None])[:2]
+                if not h.get("exchange"):
+                    logger.debug(
+                        "Could not resolve exchange for %s; defaulting to L", tkr
+                    )
             exch = (h.get("exchange") or inferred or "L").upper()
             holdings.append((sym, exch, units))
 
@@ -419,12 +438,21 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
     """
     tickers = list_all_unique_tickers()
     snapshot: Dict[str, Dict[str, str | float]] = {}
+    from backend.common import instrument_api
 
     for t in tickers:
         try:
             today = datetime.today().date()
             cutoff = today - timedelta(days=days)
-            ticker_only, exchange = (t.split(".", 1) + ["L"])[:2]
+            resolved = instrument_api._resolve_full_ticker(t, _PRICE_SNAPSHOT)
+            if resolved:
+                ticker_only, exchange = resolved
+            else:
+                ticker_only = t.split(".", 1)[0]
+                exchange = "L"
+                logger.debug(
+                    "Could not resolve exchange for %s; defaulting to L", t
+                )
 
             df = load_meta_timeseries_range(
                 ticker=ticker_only,

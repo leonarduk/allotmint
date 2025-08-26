@@ -18,7 +18,6 @@ from backend.config import get_config
 from backend.utils.currency_utils import currency_from_isin
 from backend.utils.timeseries_helpers import _is_isin, STANDARD_COLUMNS
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ft_timeseries")
 
 def init_driver(headless: Optional[bool] = None, user_agent: Optional[str] = None) -> webdriver.Chrome:

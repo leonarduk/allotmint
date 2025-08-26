@@ -18,7 +18,6 @@ from backend.config import get_config
 from backend.utils.currency_utils import currency_from_isin
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS, _is_isin
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ft_timeseries")
 
 
@@ -144,6 +143,7 @@ def fetch_ft_timeseries(
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     parser = argparse.ArgumentParser(description="Fetch FT timeseries data")
     parser.add_argument("ticker", help="Ticker or ISIN to fetch")
     parser.add_argument("--days", type=int, default=365)

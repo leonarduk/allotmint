@@ -59,3 +59,4 @@ wsproto~=1.2.0
 yfinance~=0.2.65
 pyjwt
 fastapi
+python-multipart

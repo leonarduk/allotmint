@@ -331,9 +331,9 @@ export default function App() {
           <GroupPortfolioView
             slug={selectedGroup}
             onSelectMember={(owner) => {
-              setMode("owner");
-              setSelectedOwner(owner);
-              navigate(`/member/${owner}`);
+              setMode("group");
+              setSelectedGroup(owner);
+              navigate(`/?group=${owner}`);
             }}
           />
         </>

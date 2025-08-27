@@ -17,6 +17,7 @@ const WATCHLIST_OPTIONS: WatchlistOption[] = [
   ...(Object.keys(WATCHLISTS) as WatchlistName[]),
   "Portfolio",
 ];
+const PUBLIC_FALLBACK: WatchlistName = "FTSE 100";
 
 export function TopMoversPage() {
   const [watchlist, setWatchlist] = useState<WatchlistOption>("Portfolio");
@@ -26,6 +27,7 @@ export function TopMoversPage() {
   const [signals, setSignals] = useState<TradingSignal[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsError, setSignalsError] = useState<string | null>(null);
+  const [authWarning, setAuthWarning] = useState<string | null>(null);
 
   const fetchMovers = useCallback(() => {
     if (watchlist === "Portfolio") {
@@ -50,6 +52,13 @@ export function TopMoversPage() {
   );
 
   useEffect(() => {
+    if (error && error.message.includes("401") && watchlist === "Portfolio") {
+      setWatchlist(PUBLIC_FALLBACK);
+      setAuthWarning("Please log in to view movers for your portfolio.");
+    }
+  }, [error, watchlist]);
+
+  useEffect(() => {
     getTradingSignals()
       .then(setSignals)
       .catch((e) =>
@@ -59,14 +68,21 @@ export function TopMoversPage() {
   }, []);
 
   if (loading) return <p>Loading…</p>;
+  if (error && error.message.includes("401")) return null;
   if (error) return <p style={{ color: "red" }}>{error.message}</p>;
 
   return (
     <>
+      {authWarning && (
+        <p style={{ color: "red", marginBottom: "0.5rem" }}>{authWarning}</p>
+      )}
       <div style={{ marginBottom: "0.5rem" }}>
         <select
           value={watchlist}
-          onChange={(e) => setWatchlist(e.target.value as WatchlistOption)}
+          onChange={(e) => {
+            setWatchlist(e.target.value as WatchlistOption);
+            setAuthWarning(null);
+          }}
           style={{ marginRight: "0.5rem" }}
         >
           {WATCHLIST_OPTIONS.map((name) => (

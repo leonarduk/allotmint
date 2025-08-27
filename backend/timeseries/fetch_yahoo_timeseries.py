@@ -104,6 +104,8 @@ def fetch_yahoo_timeseries_range(ticker: str, exchange: str, start_date: date, e
         if df.empty:
             raise ValueError(f"No data returned for {full_ticker} between {start_date} and {end_date}")
 
+        logger.info(f"Fetched {len(df)} rows for {full_ticker}")
+
         return normalize_history(df, full_ticker, "Yahoo")
 
     except Exception as e:

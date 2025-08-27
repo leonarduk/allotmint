@@ -37,12 +37,33 @@ function deriveInitial() {
 export function useRouteMode(): RouteState {
   const navigate = useNavigate();
   const location = useLocation();
-  const { tabs, disabledTabs } = useConfig();
+const { tabs, disabledTabs } = useConfig();
 
   const initial = deriveInitial();
   const [mode, setMode] = useState<Mode>(initial.mode);
   const [selectedOwner, setSelectedOwner] = useState(initial.owner);
   const [selectedGroup, setSelectedGroup] = useState(initial.group);
+
+  function pathFor(m: Mode) {
+    switch (m) {
+      case "group":
+        return selectedGroup ? `/?group=${selectedGroup}` : "/movers";
+      case "instrument":
+        return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
+      case "owner":
+        return selectedOwner ? `/member/${selectedOwner}` : "/member";
+      case "performance":
+        return selectedOwner
+          ? `/performance/${selectedOwner}`
+          : "/performance";
+      case "movers":
+        return "/movers";
+      case "scenario":
+        return "/scenario";
+      default:
+        return `/${m}`;
+    }
+  }
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
@@ -87,8 +108,20 @@ export function useRouteMode(): RouteState {
     }
 
     if (tabs[newMode] !== true || disabledTabs?.includes(newMode)) {
-      setMode("movers");
-      navigate("/movers", { replace: true });
+      const firstEnabled = Object.entries(tabs).find(
+        ([m, enabled]) =>
+          enabled === true && !disabledTabs?.includes(m as Mode),
+      )?.[0] as Mode | undefined;
+
+      if (firstEnabled) {
+        if (mode !== firstEnabled) setMode(firstEnabled);
+        const targetPath = pathFor(firstEnabled);
+        if (location.pathname !== targetPath)
+          navigate(targetPath, { replace: true });
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn("No enabled tabs available for navigation");
+      }
       return;
     }
     if (newMode === "movers" && location.pathname !== "/movers") {

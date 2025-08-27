@@ -59,7 +59,16 @@ export function TopMoversPage() {
   }, []);
 
   if (loading) return <p>Loading…</p>;
-  if (error) return <p style={{ color: "red" }}>{error.message}</p>;
+  if (error) {
+    const match = error.message.match(/^HTTP (\d+)\s+[–-]\s+(.*)$/);
+    const status = match?.[1];
+    const msg = match?.[2] ?? error.message;
+    return (
+      <p style={{ color: "red" }}>
+        Failed to load movers{status ? ` (HTTP ${status})` : ""}: {msg}
+      </p>
+    );
+  }
 
   return (
     <>

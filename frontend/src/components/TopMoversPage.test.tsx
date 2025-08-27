@@ -138,4 +138,16 @@ describe("TopMoversPage", () => {
     await waitFor(() => expect(mockGetTradingSignals).toHaveBeenCalled());
     expect(await screen.findByText("go long")).toBeInTheDocument();
   });
+
+  it("shows HTTP status when fetch fails", async () => {
+    mockGetTopMovers.mockRejectedValueOnce(
+      new Error("HTTP 401 – Unauthorized"),
+    );
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/HTTP 401/)).toBeInTheDocument();
+  });
 });

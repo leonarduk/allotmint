@@ -26,15 +26,25 @@ export function TopMoversPage() {
   const [signals, setSignals] = useState<TradingSignal[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsError, setSignalsError] = useState<string | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
 
-  const fetchMovers = useCallback(() => {
+  const fetchMovers = useCallback(async () => {
     if (watchlist === "Portfolio") {
-      return getGroupInstruments("all").then((rows) =>
-        getTopMovers(
+      try {
+        const rows = await getGroupInstruments("all");
+        setNeedsLogin(false);
+        return getTopMovers(
           rows.map((r) => r.ticker),
           PERIODS[period],
-        ),
-      );
+        );
+      } catch (e) {
+        if (e instanceof Error && /^HTTP 401/.test(e.message)) {
+          setNeedsLogin(true);
+          setWatchlist("FTSE 100");
+          return getTopMovers(WATCHLISTS["FTSE 100"], PERIODS[period]);
+        }
+        throw e;
+      }
     }
     return getTopMovers(WATCHLISTS[watchlist], PERIODS[period]);
   }, [watchlist, period]);
@@ -95,6 +105,12 @@ export function TopMoversPage() {
           ))}
         </select>
       </div>
+
+      {needsLogin && (
+        <p style={{ color: "red" }}>
+          Please log in to view portfolio-based movers.
+        </p>
+      )}
 
       <table className={tableStyles.table}>
         <thead>

@@ -50,28 +50,27 @@ export interface RawConfig {
 
 // build a default tabs object from the registered tab plugins
 const defaultTabs = Object.fromEntries(
-  tabPlugins.map((p) => [p.id, false]),
+  tabPlugins.map((p) => [p.id, true]),
 ) as TabsConfig;
+
+const defaultConfig: AppConfig = {
+  relativeViewEnabled: false,
+  disabledTabs: [],
+  tabs: defaultTabs,
+  theme: "system",
+};
 
 export interface ConfigContextValue extends AppConfig {
   refreshConfig: () => Promise<void>;
 }
 
 export const configContext = createContext<ConfigContextValue>({
-  relativeViewEnabled: false,
-  disabledTabs: [],
-  tabs: defaultTabs,
-  theme: "system",
+  ...defaultConfig,
   refreshConfig: async () => {},
 });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<AppConfig>({
-    relativeViewEnabled: false,
-    disabledTabs: [],
-    tabs: defaultTabs,
-    theme: "system",
-  });
+  const [config, setConfig] = useState<AppConfig>(defaultConfig);
 
   const refreshConfig = useCallback(async () => {
     try {
@@ -97,8 +96,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         theme,
       });
       applyTheme(theme);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.warn("Failed to fetch configuration", err);
+      setConfig(defaultConfig);
     }
   }, []);
 

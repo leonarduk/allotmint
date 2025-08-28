@@ -34,6 +34,7 @@ class TabsConfig:
 class Config:
     # basic app environment
     app_env: Optional[str] = None
+    disable_auth: bool = False
 
     # messaging / alerts
     sns_topic_arn: Optional[str] = None
@@ -137,6 +138,7 @@ def load_config() -> Config:
 
     return Config(
         app_env=data.get("app_env"),
+        disable_auth=env.bool("DISABLE_AUTH", default=data.get("disable_auth", False)),
         sns_topic_arn=env.str("SNS_TOPIC_ARN", default=data.get("sns_topic_arn")),
         telegram_bot_token=env.str(
             "TELEGRAM_BOT_TOKEN", default=data.get("telegram_bot_token")

@@ -90,8 +90,8 @@ def create_app() -> FastAPI:
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.
-    # Sensitive routes are guarded by a JWT-based dependency.
-    protected = [Depends(get_current_user)]
+    # Sensitive routes are guarded by a JWT-based dependency unless disabled.
+    protected = [] if config.disable_auth else [Depends(get_current_user)]
 
     # Public portfolio endpoints that don't require authentication
     public_portfolio_router = APIRouter()

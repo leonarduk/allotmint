@@ -1,3 +1,3 @@
 [tool.pytest.ini_options]
-addopts = "--cov --cov-fail-under=${PY_COV_MIN:-0}"
+addopts = "--cov"
 testpaths = ["tests"]

@@ -190,9 +190,9 @@ describe("HoldingsTable", () => {
         expect(screen.queryByText('XYZ')).toBeNull();
     });
 
-    it("persists view preset selection", () => {
-        const mixedHoldings: Holding[] = [
-            ...holdings,
+      it("persists view preset selection", () => {
+          const mixedHoldings: Holding[] = [
+              ...holdings,
             {
                 ticker: 'BND1',
                 name: 'Bond Holding',
@@ -217,6 +217,15 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={mixedHoldings} />);
         expect(screen.getByPlaceholderText('Type')).toHaveValue('Bond');
         expect(screen.getByText('BND1')).toBeInTheDocument();
-        expect(screen.queryByText('AAA')).toBeNull();
-    });
-});
+          expect(screen.queryByText('AAA')).toBeNull();
+      });
+
+      it("shows controls and fallback when no rows match", () => {
+          localStorage.setItem("holdingsTableViewPreset", "Bond");
+          render(<HoldingsTable holdings={holdings} />);
+          expect(screen.getByText('View:')).toBeInTheDocument();
+          expect(screen.getByText('No holdings match the current filters.')).toBeInTheDocument();
+          fireEvent.click(screen.getByRole('button', { name: 'All' }));
+          expect(screen.getByText('AAA')).toBeInTheDocument();
+      });
+  });

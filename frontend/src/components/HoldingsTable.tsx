@@ -121,8 +121,6 @@ export function HoldingsTable({
   // sort
   const { sorted: sortedRows, sortKey, asc, handleSort } = useSortableTable(filtered, "ticker");
 
-  if (!sortedRows.length) return null;
-
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", "Units"],
     ["cost", "Cost"],
@@ -184,7 +182,8 @@ export function HoldingsTable({
           </label>
         ))}
       </div>
-      <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
+      {sortedRows.length ? (
+        <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
         <thead>
           <tr>
             <th className={tableStyles.cell}>
@@ -406,7 +405,10 @@ export function HoldingsTable({
             );
           })}
         </tbody>
-      </table>
+        </table>
+      ) : (
+        <p>No holdings match the current filters.</p>
+      )}
     </>
   );
 }

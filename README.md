@@ -37,7 +37,7 @@ The repo includes a lightweight Yahoo Finance watchlist. Run it locally with:
 
 ```
 # backend
-uvicorn app:app --reload --port 8000
+uvicorn app:app --reload --port 8000 --host 0.0.0.0
 
 # frontend
 npm i && npm run dev
@@ -139,6 +139,7 @@ side in isolation. Backend runtime options are stored in `config.yaml`:
 
 ```yaml
 app_env: local
+uvicorn_host: 0.0.0.0
 uvicorn_port: 8000
 reload: true
 log_config: backend/logging.ini
@@ -186,7 +187,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 
 # configure API settings
-# (see config.yaml for app_env, uvicorn_port, reload and log_config)
+# (see config.yaml for app_env, uvicorn_host, uvicorn_port, reload and log_config)
 ./run-local-api.sh    # or use run-backend.ps1 on Windows
 
 # in another shell install React deps and start Vite on :5173

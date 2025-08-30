@@ -89,6 +89,26 @@ Sensitive endpoints such as portfolio or transaction data can be secured with a 
 
 If `API_TOKEN` is unset, the API remains open which is convenient for local development and tests.
 
+## Using a remote backend
+If the backend API is not running on `http://localhost:8000`, configure the
+frontend to use the correct base URL.
+
+1. Set `VITE_ALLOTMINT_API_BASE` before starting the frontend:
+
+   ```bash
+   export VITE_ALLOTMINT_API_BASE="https://api.example.com"
+   cd frontend && npm run dev
+   ```
+
+2. Or create a `.env` file inside `frontend/` with:
+
+   ```
+   VITE_ALLOTMINT_API_BASE=https://api.example.com
+   ```
+
+If the variable is unset the UI defaults to `http://localhost:8000` (or
+`VITE_API_URL` if defined).
+
 ## Common workflows
 - **Start the backend**: `uvicorn app:app --reload --port 8000`
 - **Start the frontend**: `cd frontend && npm run dev`

@@ -131,6 +131,12 @@ The backend exposes Value at Risk (VaR) metrics for each portfolio.
 See [backend/common/portfolio_utils.py](backend/common/portfolio_utils.py) for the return series that feed the calculation
 and [backend/common/constants.py](backend/common/constants.py) for currency labels.
 
+## Portfolio reports
+
+`GET /reports/{owner}` compiles realized gains, income and performance metrics
+for a portfolio. Pass `format=csv` or `format=pdf` to download the report in
+your preferred format.
+
 ## Local Quick-start
 
 The project is split into a Python FastAPI backend and a React/TypeScript

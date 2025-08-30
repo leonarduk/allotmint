@@ -78,15 +78,23 @@ def create_app() -> FastAPI:
     app.state.virtual_pf_root = paths.virtual_pf_root
 
     # ───────────────────────────── CORS ─────────────────────────────
-    # The frontend origin varies by environment. Read the whitelist from
-    # configuration and fall back to permissive settings during development.
-    cors_origins = config.cors_origins or ["*"]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # The frontend origin varies by environment. Use a whitelist when provided
+    # and fall back to a regex that accepts any localhost port during
+    # development.
+    if config.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=config.cors_origins,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    else:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.

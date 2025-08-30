@@ -398,6 +398,13 @@ export function HoldingsTable({
                 <td
                   className={`${tableStyles.cell} ${tableStyles.center}`}
                   style={{ color: h.sell_eligible ? "lightgreen" : "gold" }}
+                  title={
+                    h.next_eligible_sell_date
+                      ? new Intl.DateTimeFormat(i18n.language).format(
+                          new Date(h.next_eligible_sell_date)
+                        )
+                      : undefined
+                  }
                 >
                   {h.sell_eligible ? "✓ Eligible" : `✗ ${h.days_until_eligible ?? ""}`}
                 </td>

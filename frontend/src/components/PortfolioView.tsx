@@ -51,8 +51,7 @@ export function PortfolioView({ data, loading, error }: Props) {
         Portfolio: <span data-testid="owner-name">{data.owner}</span>
       </h1>
       <div style={{ marginBottom: "1rem" }}>
-        As of {new Intl.DateTimeFormat(i18n.language).format(new Date(data.as_of))} •
-        Trades this month: {data.trades_this_month} / 20 (Remaining: {data.trades_remaining})
+        As of {new Intl.DateTimeFormat(i18n.language).format(new Date(data.as_of))}
       </div>
       <div style={{ marginBottom: "2rem" }}>
         Approx Total: {money(totalValue)}

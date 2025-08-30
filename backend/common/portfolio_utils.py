@@ -137,7 +137,9 @@ def _currency_from_file(ticker: str) -> str | None:
 
 def _build_securities_from_portfolios() -> Dict[str, Dict]:
     securities: Dict[str, Dict] = {}
-    portfolios = list_portfolios() + [vp.as_portfolio_dict() for vp in list_virtual_portfolios()]
+    portfolios = list_portfolios() + [
+        vp.as_portfolio_dict() for vp in list_virtual_portfolios()
+    ]
     for pf in portfolios:
         for acct in pf.get("accounts", []):
             for h in acct.get("holdings", []):
@@ -182,7 +184,9 @@ ACCOUNTS_DIR = Path(__file__).resolve().parents[2] / "data" / "accounts"
 
 
 def list_all_unique_tickers() -> List[str]:
-    portfolios = list_portfolios() + [vp.as_portfolio_dict() for vp in list_virtual_portfolios()]
+    portfolios = list_portfolios() + [
+        vp.as_portfolio_dict() for vp in list_virtual_portfolios()
+    ]
     tickers: set[str] = set()
     total_accounts = 0
     total_holdings = 0
@@ -215,7 +219,8 @@ def list_all_unique_tickers() -> List[str]:
                     )
 
     logger.info(
-        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, " "%d unique tickers, %d null tickers",
+        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, "
+        "%d unique tickers, %d null tickers",
         len(portfolios),
         total_accounts,
         total_holdings,
@@ -236,6 +241,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
     if isinstance(portfolio, VirtualPortfolio):
         portfolio = portfolio.as_portfolio_dict()
     from backend.common import instrument_api
+
     rows: Dict[str, dict] = {}
 
     for account in portfolio.get("accounts", []):
@@ -272,7 +278,8 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                     "last_price_date": None,
                     "change_7d_pct": None,
                     "change_30d_pct": None,
-                    "instrument_type": meta.get("instrumentType") or meta.get("instrument_type"),
+                    "instrument_type": meta.get("instrumentType")
+                    or meta.get("instrument_type"),
                 },
             )
 
@@ -286,7 +293,11 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                     row["currency"] = meta["currency"]
 
             # attach snapshot if present
-            cost = _safe_num(h.get("cost_gbp") or h.get("cost_basis_gbp") or h.get("effective_cost_basis_gbp"))
+            cost = _safe_num(
+                h.get("cost_gbp")
+                or h.get("cost_basis_gbp")
+                or h.get("effective_cost_basis_gbp")
+            )
             row["cost_gbp"] += cost
 
             # if holdings already carry market value / gain, include them so we
@@ -304,7 +315,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                 row["change_30d_pct"] = snap.get("change_30d_pct")
                 row["market_value_gbp"] = round(row["units"] * price, 2)
                 row["gain_gbp"] = (
-                    round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
+                    round(row["market_value_gbp"] - row["cost_gbp"], 2)
+                    if row["cost_gbp"]
+                    else row["gain_gbp"]
                 )
 
             # pass-through misc attributes (first non-null wins)
@@ -322,7 +335,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
 # ──────────────────────────────────────────────────────────────
 # Performance helpers
 # ──────────────────────────────────────────────────────────────
-def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
+def compute_owner_performance(
+    owner: str, days: int = 365, include_cash: bool = True
+) -> Dict[str, Any]:
     """Return daily portfolio values and returns for an ``owner``.
 
     The calculation uses current holdings and fetches closing prices from the
@@ -340,6 +355,16 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
             "drawdown": -0.18,              # % drop from running max
         }
 
+    Parameters
+    ----------
+    owner:
+        Portfolio owner slug.
+    days:
+        Number of trailing days of history to include.
+    include_cash:
+        Whether to include cash holdings in the calculation. When ``False``,
+        positions whose ticker starts with ``"CASH"`` are ignored.
+
     Returns ``{"history": [], "max_drawdown": None}`` if the owner or
     timeseries data is missing.
     """
@@ -356,6 +381,8 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
         for h in acct.get("holdings", []):
             tkr = (h.get("ticker") or "").upper()
             if not tkr:
+                continue
+            if not include_cash and tkr.split(".")[0] == "CASH":
                 continue
             units = _safe_num(h.get("units"))
             if not units:
@@ -405,9 +432,17 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
             {
                 "date": row.Date.isoformat(),
                 "value": round(float(row.value), 2),
-                "daily_return": (float(row.daily_return) if pd.notna(row.daily_return) else None),
-                "weekly_return": (float(row.weekly_return) if pd.notna(row.weekly_return) else None),
-                "cumulative_return": (float(row.cumulative_return) if pd.notna(row.cumulative_return) else None),
+                "daily_return": (
+                    float(row.daily_return) if pd.notna(row.daily_return) else None
+                ),
+                "weekly_return": (
+                    float(row.weekly_return) if pd.notna(row.weekly_return) else None
+                ),
+                "cumulative_return": (
+                    float(row.cumulative_return)
+                    if pd.notna(row.cumulative_return)
+                    else None
+                ),
                 "running_max": round(float(row.running_max), 2),
                 "drawdown": (float(row.drawdown) if pd.notna(row.drawdown) else None),
             }
@@ -439,9 +474,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             else:
                 ticker_only = t.split(".", 1)[0]
                 exchange = "L"
-                logger.debug(
-                    "Could not resolve exchange for %s; defaulting to L", t
-                )
+                logger.debug("Could not resolve exchange for %s; defaulting to L", t)
 
             df = load_meta_timeseries_range(
                 ticker=ticker_only,
@@ -455,7 +488,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                 scale = get_scaling_override(ticker_only, exchange, None)
                 df = apply_scaling(df, scale)
                 if scale != 1 and "Close_gbp" in df.columns:
-                    df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+                    df["Close_gbp"] = (
+                        pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
+                    )
 
                 # Map lowercase column names to their actual counterparts
                 name_map = {c.lower(): c for c in df.columns}
@@ -470,7 +505,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                     latest_row = df.iloc[-1]
                     snapshot[t] = {
                         "last_price": float(latest_row[close_col]),
-                        "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
+                        "last_price_date": pd.to_datetime(latest_row["Date"]).strftime(
+                            "%Y-%m-%d"
+                        ),
                     }
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("Could not get timeseries for %s: %s", t, e)
@@ -494,7 +531,9 @@ def refresh_snapshot_async(days: int = 365) -> asyncio.Task:
 
     async def _runner() -> None:
         try:
-            await asyncio.to_thread(refresh_snapshot_in_memory_from_timeseries, days=days)
+            await asyncio.to_thread(
+                refresh_snapshot_in_memory_from_timeseries, days=days
+            )
         except asyncio.CancelledError:  # pragma: no cover - defensive
             logger.info("refresh_snapshot_async cancelled")
             raise

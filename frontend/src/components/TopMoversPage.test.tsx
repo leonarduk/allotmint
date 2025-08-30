@@ -14,17 +14,11 @@ const mockGetTopMovers = vi.fn(() =>
     losers: [{ ticker: "BBB", name: "BBB", change_pct: -2 } as MoverRow],
   }),
 );
-const mockGetGroupInstruments = vi.fn(() =>
-  Promise.resolve([
-    {
-      ticker: "CCC",
-      name: "CCC",
-      currency: null,
-      units: 0,
-      market_value_gbp: 0,
-      gain_gbp: 0,
-    },
-  ]),
+const mockGetGroupMovers = vi.fn(() =>
+  Promise.resolve({
+    gainers: [{ ticker: "AAA", name: "AAA", change_pct: 5 } as MoverRow],
+    losers: [{ ticker: "BBB", name: "BBB", change_pct: -2 } as MoverRow],
+  }),
 );
 const mockGetTradingSignals = vi.fn(() =>
   Promise.resolve([
@@ -36,9 +30,9 @@ vi.mock("../api", () => ({
   getTopMovers: (
     ...args: Parameters<typeof mockGetTopMovers>
   ) => mockGetTopMovers(...args),
-  getGroupInstruments: (
-    ...args: Parameters<typeof mockGetGroupInstruments>
-  ) => mockGetGroupInstruments(...args),
+  getGroupMovers: (
+    ...args: Parameters<typeof mockGetGroupMovers>
+  ) => mockGetGroupMovers(...args),
   getTradingSignals: (
     ...args: Parameters<typeof mockGetTradingSignals>
   ) => mockGetTradingSignals(...args),
@@ -68,10 +62,7 @@ describe("TopMoversPage", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"),
-    );
-    await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1),
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
     );
     expect((await screen.findAllByText("AAA")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("BBB")).length).toBeGreaterThan(0);
@@ -80,7 +71,7 @@ describe("TopMoversPage", () => {
     const periodSelect = selects[1];
     fireEvent.change(periodSelect, { target: { value: "1w" } });
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["CCC"], 7),
+      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7, 10, 0),
     );
   });
 
@@ -92,7 +83,7 @@ describe("TopMoversPage", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1),
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
     );
 
     const selects = await screen.findAllByRole("combobox");
@@ -140,7 +131,7 @@ describe("TopMoversPage", () => {
   });
 
   it("shows HTTP status when fetch fails", async () => {
-    mockGetTopMovers.mockRejectedValueOnce(
+    mockGetGroupMovers.mockRejectedValueOnce(
       new Error("HTTP 401 – Unauthorized"),
     );
     render(
@@ -152,7 +143,7 @@ describe("TopMoversPage", () => {
   });
 
   it("falls back to FTSE 100 and prompts login on 401", async () => {
-    mockGetGroupInstruments.mockRejectedValueOnce(
+    mockGetGroupMovers.mockRejectedValueOnce(
       new Error("HTTP 401 – Unauthorized"),
     );
     render(
@@ -172,5 +163,24 @@ describe("TopMoversPage", () => {
     expect(
       await screen.findByText(/log in to view portfolio-based movers/i),
     ).toBeInTheDocument();
+  });
+
+  it("passes min weight when exclude checkbox checked", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
+    );
+
+    const checkbox = screen.getByLabelText(/Exclude positions/i);
+    fireEvent.click(checkbox);
+
+    await waitFor(() =>
+      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 1, 10, 0.5),
+    );
   });
 });

@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { listTimeseries } from "../api";
+import { useNavigate } from "react-router-dom";
+import {
+  listTimeseries,
+  refetchTimeseries,
+  rebuildTimeseriesCache,
+} from "../api";
 import type { TimeseriesSummary } from "../types";
 
 export default function DataAdmin() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<TimeseriesSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,6 +23,16 @@ export default function DataAdmin() {
   if (error) {
     return <p style={{ color: "red" }}>{error}</p>;
   }
+
+  const handleRefetch = (ticker: string, exchange: string) => {
+    refetchTimeseries(ticker, exchange).catch((e) => alert(String(e)));
+  };
+
+  const handleRebuild = (ticker: string, exchange: string) => {
+    rebuildTimeseriesCache(ticker, exchange).catch((e) =>
+      alert(String(e)),
+    );
+  };
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
@@ -32,6 +48,7 @@ export default function DataAdmin() {
             <th>Completeness %</th>
             <th>Latest Source</th>
             <th>Main Source</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -49,6 +66,28 @@ export default function DataAdmin() {
               <td>{r.completeness.toFixed(2)}</td>
               <td>{r.latest_source ?? ""}</td>
               <td>{r.main_source ?? ""}</td>
+              <td>
+                <button
+                  type="button"
+                  onClick={() => handleRefetch(r.ticker, r.exchange)}
+                >
+                  Refetch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRebuild(r.ticker, r.exchange)}
+                  style={{ marginLeft: "0.25rem" }}
+                >
+                  Rebuild cache
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/instrument/${r.ticker}`)}
+                  style={{ marginLeft: "0.25rem" }}
+                >
+                  Open instrument
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>

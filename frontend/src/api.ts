@@ -263,6 +263,18 @@ export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntr
 export const listTimeseries = () =>
   fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`);
 
+export const refetchTimeseries = (ticker: string, exchange: string) =>
+  fetchJson<{ status: string; rows: number }>(
+    `${API_BASE}/timeseries/admin/${encodeURIComponent(ticker)}/${encodeURIComponent(exchange)}/refetch`,
+    { method: "POST" },
+  );
+
+export const rebuildTimeseriesCache = (ticker: string, exchange: string) =>
+  fetchJson<{ status: string; rows: number }>(
+    `${API_BASE}/timeseries/admin/${encodeURIComponent(ticker)}/${encodeURIComponent(exchange)}/rebuild_cache`,
+    { method: "POST" },
+  );
+
 
 export const getTransactions = (params: {
   owner?: string;

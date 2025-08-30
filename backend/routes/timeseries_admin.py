@@ -5,7 +5,11 @@ import pandas as pd
 from fastapi import APIRouter
 
 from backend.common.instruments import get_instrument_meta
-from backend.timeseries.cache import _ensure_schema
+from backend.timeseries.cache import (
+    _ensure_schema,
+    load_meta_timeseries,
+    meta_timeseries_cache_path,
+)
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
 
@@ -50,3 +54,22 @@ async def timeseries_admin() -> list[dict[str, Any]]:
             }
         )
     return summaries
+
+
+@router.post("/admin/{ticker}/{exchange}/refetch")
+async def refetch_timeseries(ticker: str, exchange: str) -> dict[str, Any]:
+    """Fetch latest timeseries data for a ticker/exchange pair."""
+    df = load_meta_timeseries(ticker.upper(), exchange.upper(), days=3650)
+    return {"status": "ok", "rows": len(df)}
+
+
+@router.post("/admin/{ticker}/{exchange}/rebuild_cache")
+async def rebuild_cache(ticker: str, exchange: str) -> dict[str, Any]:
+    """Delete and rebuild the timeseries cache for a ticker/exchange pair."""
+    t = ticker.upper()
+    e = exchange.upper()
+    path = meta_timeseries_cache_path(t, e)
+    if path.exists():
+        path.unlink()
+    df = load_meta_timeseries(t, e, days=3650)
+    return {"status": "ok", "rows": len(df)}

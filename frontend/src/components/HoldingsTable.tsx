@@ -360,7 +360,14 @@ export function HoldingsTable({
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.current_price_gbp)}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {money(h.current_price_gbp)}
+                  {h.latest_source && (
+                    <span style={{ marginLeft: "0.25rem", color: "gray" }}>
+                      Source: {h.latest_source}
+                    </span>
+                  )}
+                </td>
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}

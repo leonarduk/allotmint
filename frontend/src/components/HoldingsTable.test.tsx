@@ -41,6 +41,8 @@ describe("HoldingsTable", () => {
             cost_basis_gbp: 100,
             market_value_gbp: 150,
             gain_gbp: 50,
+            current_price_gbp: 30,
+            latest_source: "Feed",
             acquired_date: "2024-01-01",
             days_held: 100,
             sell_eligible: true,
@@ -175,6 +177,12 @@ describe("HoldingsTable", () => {
         fireEvent.click(checkbox);
         expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
     });
+
+    it("shows price source when available", () => {
+        render(<HoldingsTable holdings={holdings}/>);
+        expect(screen.getByText(/Source: Feed/)).toBeInTheDocument();
+    });
+});
 
     it("applies sell-eligible quick filter", () => {
         render(<HoldingsTable holdings={holdings} />);

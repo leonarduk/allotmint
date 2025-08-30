@@ -15,7 +15,10 @@ def test_enrich_holding_requires_approval(monkeypatch):
         "units": 1,
         "cost_basis_gbp": 1.0,
     }
-    monkeypatch.setattr("backend.common.holding_utils._get_price_for_date_scaled", lambda *a, **k: 1.0)
+    monkeypatch.setattr(
+        "backend.common.holding_utils._get_price_for_date_scaled",
+        lambda *a, **k: (1.0, None),
+    )
     out = enrich_holding(holding, today, {}, {})
     assert out["sell_eligible"] is False
     expect_date = (date.fromisoformat(acq) + timedelta(days=config.hold_days_min)).isoformat()

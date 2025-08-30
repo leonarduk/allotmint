@@ -270,6 +270,8 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                     "ticker": full_tkr,
                     "name": meta.get("name") or h.get("name", full_tkr),
                     "currency": meta.get("currency") or h.get("currency"),
+                    "sector": meta.get("sector") or h.get("sector"),
+                    "region": meta.get("region") or h.get("region"),
                     "units": 0.0,
                     "market_value_gbp": 0.0,
                     "gain_gbp": 0.0,
@@ -287,10 +289,19 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             # accumulate units & cost (allow for differing field names)
             row["units"] += _safe_num(h.get("units"))
 
-            if row.get("currency") is None:
+            if (
+                row.get("currency") is None
+                or row.get("sector") is None
+                or row.get("region") is None
+            ):
                 meta = get_security_meta(full_tkr)
-                if meta and meta.get("currency"):
-                    row["currency"] = meta["currency"]
+                if meta:
+                    if row.get("currency") is None and meta.get("currency"):
+                        row["currency"] = meta["currency"]
+                    if row.get("sector") is None and meta.get("sector"):
+                        row["sector"] = meta["sector"]
+                    if row.get("region") is None and meta.get("region"):
+                        row["region"] = meta["region"]
 
             # attach snapshot if present
             cost = _safe_num(
@@ -321,7 +332,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                 )
 
             # pass-through misc attributes (first non-null wins)
-            for k in ("asset_class", "region", "owner"):
+            for k in ("asset_class", "region", "owner", "sector"):
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
 
@@ -330,6 +341,45 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
         r["gain_pct"] = (r["gain_gbp"] / cost * 100.0) if cost else None
 
     return list(rows.values())
+
+
+def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str) -> List[dict]:
+    """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
+    rows = aggregate_by_ticker(portfolio)
+    groups: Dict[str, dict] = {}
+    for r in rows:
+        key = r.get(field) or "Unknown"
+        g = groups.setdefault(
+            key,
+            {
+                field: key,
+                "market_value_gbp": 0.0,
+                "gain_gbp": 0.0,
+                "cost_gbp": 0.0,
+            },
+        )
+        g["market_value_gbp"] += _safe_num(r.get("market_value_gbp"))
+        g["gain_gbp"] += _safe_num(r.get("gain_gbp"))
+        g["cost_gbp"] += _safe_num(r.get("cost_gbp"))
+
+    total_cost = sum(g["cost_gbp"] for g in groups.values())
+    for g in groups.values():
+        cost = g["cost_gbp"]
+        g["gain_pct"] = (g["gain_gbp"] / cost * 100.0) if cost else None
+        g["contribution_pct"] = (
+            (g["gain_gbp"] / total_cost * 100.0) if total_cost else None
+        )
+    return list(groups.values())
+
+
+def aggregate_by_sector(portfolio: dict | VirtualPortfolio) -> List[dict]:
+    """Return aggregated holdings grouped by sector with return contribution."""
+    return _aggregate_by_field(portfolio, "sector")
+
+
+def aggregate_by_region(portfolio: dict | VirtualPortfolio) -> List[dict]:
+    """Return aggregated holdings grouped by region with return contribution."""
+    return _aggregate_by_field(portfolio, "region")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -564,7 +614,7 @@ def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
                 continue
             change_pct = (mv - cost) / cost
             if abs(change_pct) >= threshold_pct:
-                ticker = row["ticker"].split(".")[0]
+                ticker = row["ticker"]
                 alert = {
                     "ticker": ticker,
                     "change_pct": round(change_pct, 4),

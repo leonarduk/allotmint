@@ -7,7 +7,7 @@
 name: 'Dependency Review'
 on:
   push:
-    branches: [master]
+    branches: [main]
 
 permissions:
   contents: read

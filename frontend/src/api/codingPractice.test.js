@@ -17,7 +17,10 @@ describe("coding practice api", () => {
 
   it("fetches puzzles", async () => {
     await getPuzzles();
-    expect(fetch).toHaveBeenCalledWith(`${API_BASE}/codingpractice`, undefined);
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE}/codingpractice`,
+      expect.objectContaining({ headers: expect.any(Headers) })
+    );
   });
 
   it("creates puzzle", async () => {

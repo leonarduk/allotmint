@@ -35,7 +35,12 @@ export const API_BASE =
 /* Generic fetch helper                                                */
 /* ------------------------------------------------------------------ */
 export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const headers = new Headers(init?.headers);
+  const token = import.meta.env.VITE_API_TOKEN;
+  if (token) {
+    headers.set("X-API-Token", token);
+  }
+  const res = await fetch(url, { ...init, headers });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
   }

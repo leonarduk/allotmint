@@ -1,4 +1,5 @@
 """API endpoints exposing portfolio performance metrics."""
+from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
@@ -69,3 +70,19 @@ async def group_max_drawdown(slug: str, days: int = 365):
         return {"group": slug, "max_drawdown": val}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
+
+        
+@router.get("/performance/{owner}")
+async def performance(owner: str, days: int = 365, exclude_cash: bool = False):
+    """Return portfolio performance metrics for ``owner``.
+
+    Set ``exclude_cash`` to true to ignore cash holdings when reconstructing the
+    return series.
+    """
+    try:
+        result = portfolio_utils.compute_owner_performance(
+            owner, days=days, include_cash=not exclude_cash
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    return {"owner": owner, **result}

@@ -25,4 +25,29 @@ describe("ValueAtRisk component", () => {
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
   });
+
+  it("renders placeholder when data missing and triggers recomputation", async () => {
+    const fetchMock = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      } as unknown as Response)
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ owner: "alice", var: {} }),
+      } as unknown as Response);
+
+    render(<ValueAtRisk owner="alice" />);
+
+    await waitFor(() =>
+      screen.getByText(/No VaR data available\./i)
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+  });
 });

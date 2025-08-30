@@ -44,12 +44,13 @@ type Props = {
   slug: string;
   /** when clicking an owner you may want to jump to the member tab */
   onSelectMember?: (owner: string) => void;
+  onTradeInfo?: (info: { trades_this_month?: number; trades_remaining?: number } | null) => void;
 };
 
 /* ────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────── */
-export function GroupPortfolioView({ slug, onSelectMember }: Props) {
+export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props) {
   const fetchPortfolio = useCallback(() => getGroupPortfolio(slug), [slug]);
   const { data: portfolio, loading, error } = useFetch<GroupPortfolio>(
     fetchPortfolio,
@@ -89,6 +90,18 @@ export function GroupPortfolioView({ slug, onSelectMember }: Props) {
       })
       .catch(() => {});
   }, [slug]);
+
+    if (onTradeInfo) {
+      onTradeInfo(
+        portfolio
+          ? {
+              trades_this_month: portfolio.trades_this_month,
+              trades_remaining: portfolio.trades_remaining,
+            }
+          : null,
+      );
+    }
+  }, [portfolio, onTradeInfo]);
 
   /* ── early‑return states ───────────────────────────────── */
   if (!slug) return <p>{t("group.select")}</p>;

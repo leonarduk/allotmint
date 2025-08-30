@@ -195,12 +195,16 @@ def load_account(
         txt = body.read().decode("utf-8-sig").strip() if body else ""
         if not txt:
             raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
-        return json.loads(txt)
+        data = json.loads(txt)
+        data.setdefault("account_type", account)
+        return data
 
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = data_root or paths.accounts_root
     path = root / owner / f"{account}.json"
-    return _safe_json_load(path)
+    data = _safe_json_load(path)
+    data.setdefault("account_type", account)
+    return data
 
 
 def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:

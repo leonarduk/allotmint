@@ -83,10 +83,11 @@ def create_app() -> FastAPI:
     else:
         protected = [Depends(get_current_user)]
     app.include_router(portfolio_router, dependencies=protected)
+    app.include_router(performance_router, dependencies=protected)
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
     app.include_router(timeseries_edit_router)
-    app.include_router(timeseries_admin_router)
+    app.include_router(timeseries_admin_router, dependencies=protected)
     app.include_router(transactions_router, dependencies=protected)
     app.include_router(alerts_router)
     app.include_router(compliance_router)
@@ -107,7 +108,9 @@ def create_app() -> FastAPI:
     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         user = authenticate_user(form_data.username, form_data.password)
         if not user:
-            raise HTTPException(status_code=400, detail="Incorrect username or password")
+            raise HTTPException(
+                status_code=400, detail="Incorrect username or password"
+            )
         token = create_access_token(user)
         return {"access_token": token, "token_type": "bearer"}
 

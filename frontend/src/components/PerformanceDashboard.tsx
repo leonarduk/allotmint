@@ -23,6 +23,7 @@ export function PerformanceDashboard({ owner }: Props) {
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
+  const [excludeCash, setExcludeCash] = useState<boolean>(false);
 
   useEffect(() => {
     if (!owner) return;
@@ -31,11 +32,15 @@ export function PerformanceDashboard({ owner }: Props) {
     setVarData([]);
     const reqDays = days === 0 ? 36500 : days;
     Promise.all([
-      getPerformance(owner, reqDays),
-      getValueAtRisk(owner, { days: reqDays, confidence: 95 }),
       getAlphaVsBenchmark(owner, "VWRL.L", reqDays),
       getTrackingError(owner, "VWRL.L", reqDays),
       getMaxDrawdown(owner, reqDays),
+      getPerformance(owner, reqDays, excludeCash),
+      getValueAtRisk(owner, {
+        days: reqDays,
+        confidence: 95,
+        excludeCash,
+      }),
     ])
       .then(([perf, varSeries, alphaRes, teRes, mdRes]) => {
         setData(perf);
@@ -45,7 +50,7 @@ export function PerformanceDashboard({ owner }: Props) {
         setMaxDrawdown(mdRes.max_drawdown);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, [owner, days]);
+  }, [owner, days, excludeCash]);
 
   if (!owner) return <p>Select a member.</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
@@ -67,6 +72,15 @@ export function PerformanceDashboard({ owner }: Props) {
             <option value={3650}>10Y</option>
             <option value={0}>MAX</option>
           </select>
+        </label>
+        <label style={{ fontSize: "0.85rem", marginLeft: "1rem" }}>
+          Exclude cash
+          <input
+            type="checkbox"
+            checked={excludeCash}
+            onChange={(e) => setExcludeCash(e.target.checked)}
+            style={{ marginLeft: "0.25rem" }}
+          />
         </label>
       </div>
       <div

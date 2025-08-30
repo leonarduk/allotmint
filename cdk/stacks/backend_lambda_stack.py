@@ -30,7 +30,7 @@ class BackendLambdaStack(Stack):
                     command=[
                         "bash",
                         "-c",
-                        "pip install -r requirements.txt -t /asset-output/python",
+                        "dnf install -y freetype-devel libpng-devel libjpeg-turbo-devel && pip install -r requirements.txt -t /asset-output/python",
                     ],
                 ),
             ),

@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
-// import { Mode, MODES } from "../modes";
+import { type Mode, MODES } from "../modes";
 
 interface MenuProps {
   selectedOwner?: string;

@@ -41,6 +41,11 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
     headers.set("X-API-Token", token);
   }
   const res = await fetch(url, { ...init, headers });
+  if (res.status === 401 && !token) {
+    console.warn(
+      "VITE_API_TOKEN is not set and request returned 401. See README.md#local-quick-start for configuration."
+    );
+  }
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
   }

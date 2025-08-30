@@ -245,11 +245,11 @@ cd frontend && npm test
 ```
 
 The `PY_COV_MIN` environment variable lets you enforce a minimum coverage
-percentage during `pytest` runs. It defaults to `0`, so set it when you want a
-threshold:
+percentage during `pytest` runs. Use it together with `PYTEST_ADDOPTS` to pass
+the desired threshold to `pytest`:
 
 ```bash
-PY_COV_MIN=80 pytest
+PY_COV_MIN=80 PYTEST_ADDOPTS="--cov-fail-under=$PY_COV_MIN" pytest
 ```
 
 ## Error summary helper

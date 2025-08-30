@@ -6,6 +6,10 @@ from fastapi.testclient import TestClient
 from backend.local_api.main import app
 
 client = TestClient(app)
+token = client.post(
+    "/token", data={"username": "testuser", "password": "password"}
+).json()["access_token"]
+client.headers.update({"Authorization": f"Bearer {token}"})
 
 # Shared mock data
 mock_owners = [

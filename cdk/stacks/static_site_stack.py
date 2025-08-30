@@ -36,7 +36,9 @@ class StaticSiteStack(Stack):
             "StaticSiteDistribution",
             default_root_object="index.html",
             default_behavior=cloudfront.BehaviorOptions(
-                origin=origins.S3Origin(site_bucket, origin_access_identity=oai),
+                origin=origins.S3BucketOrigin.with_origin_access_identity(
+                    site_bucket, origin_access_identity=oai
+                ),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
             ),
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,

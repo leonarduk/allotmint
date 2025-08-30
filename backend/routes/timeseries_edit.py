@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import io
+import logging
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
+from backend.common import instrument_api
 from backend.timeseries.cache import (
     EXPECTED_COLS,
     _ensure_schema,
@@ -13,6 +15,36 @@ from backend.timeseries.cache import (
 )
 
 router = APIRouter(prefix="/timeseries", tags=["timeseries"])
+logger = logging.getLogger("routes.timeseries")
+
+
+def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
+    t = (ticker or "").upper()
+    if not t:
+        raise HTTPException(status_code=400, detail="Ticker is required")
+
+    if exchange:
+        sym = t.split(".", 1)[0]
+        ex = exchange.upper()
+        logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
+        return sym, ex
+
+    if "." in t:
+        sym, ex = t.split(".", 1)
+        logger.debug("Resolved %s.%s (provided exchange)", sym, ex)
+        return sym, ex
+
+    resolved = instrument_api._resolve_full_ticker(
+        t, instrument_api._LATEST_PRICES
+    )
+    if not resolved:
+        logger.debug("Could not infer exchange for %s", t)
+        raise HTTPException(
+            status_code=400, detail=f"Exchange not provided and could not be inferred for {ticker}"
+        )
+    sym, ex = resolved
+    logger.debug("Resolved %s.%s (inferred exchange)", sym, ex)
+    return sym, ex
 
 
 def _load_timeseries(ticker: str, exchange: str) -> pd.DataFrame:
@@ -26,7 +58,10 @@ def _load_timeseries(ticker: str, exchange: str) -> pd.DataFrame:
 
 
 @router.get("/edit")
-async def get_timeseries_edit(ticker: str = Query(...), exchange: str = Query("L")) -> JSONResponse:
+async def get_timeseries_edit(
+    ticker: str = Query(...), exchange: str | None = Query(None)
+) -> JSONResponse:
+    ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
     df = _load_timeseries(ticker, exchange)
     if not df.empty:
         df = df.copy()
@@ -35,7 +70,10 @@ async def get_timeseries_edit(ticker: str = Query(...), exchange: str = Query("L
 
 
 @router.post("/edit")
-async def post_timeseries_edit(request: Request, ticker: str = Query(...), exchange: str = Query("L")) -> JSONResponse:
+async def post_timeseries_edit(
+    request: Request, ticker: str = Query(...), exchange: str | None = Query(None)
+) -> JSONResponse:
+    ticker, exchange = _resolve_ticker_exchange(ticker, exchange)
     content_type = request.headers.get("content-type", "")
     try:
         if "text/csv" in content_type:

@@ -17,6 +17,7 @@
       "watchlist": "Watchlist",
       "movers": "Movers",
       "dataadmin": "Data Admin",
+      "reports": "Relatórios",
       "support": "Suporte",
       "scenario": "Testador de Cenários"
     }
@@ -106,6 +107,11 @@
       "sending": "Enviando..."
     }
   },
+  "reports": {
+    "title": "Relatórios",
+    "csv": "Baixar CSV",
+    "pdf": "Baixar PDF"
+  },
   "loadingPortfolio": "Carregando portfólio…",
   "portfolio": "Portfólio",
   "asOf": "Em {{date}} • Negociações este mês: {{trades}} / 20 (Restantes: {{remaining}})",
@@ -135,6 +141,16 @@
     "minCurrentRatio": "Min Current Ratio",
     "minQuickRatio": "Min Quick Ratio",
     "minFcf": "FCF mín",
+    "minDividendYield": "Min Dividend Yield",
+    "maxDividendPayoutRatio": "Max Dividend Payout Ratio",
+    "maxBeta": "Max Beta",
+    "minSharesOutstanding": "Min Shares Outstanding",
+    "minFloatShares": "Min Float Shares",
+    "minMarketCap": "Min Market Cap",
+    "max52WeekHigh": "Max 52W High",
+    "max52WeekLow": "Max 52W Low",
+    "min52WeekLow": "Min 52W Low",
+    "minAvgVolume": "Min Avg Volume",
     "minEps": "EPS mín",
     "minGrossMargin": "Margem bruta mín",
     "minOperatingMargin": "Margem operacional mín",
@@ -150,6 +166,7 @@
     "minFloatShares": "Min Float Shares",
     "minMarketCap": "Min Market Cap",
     "max52WeekHigh": "Max 52W High",
+    "max52WeekLow": "Max 52W Low",
     "min52WeekLow": "Min 52W Low",
     "minAvgVolume": "Min Avg Volume",
     "run": "Executar",

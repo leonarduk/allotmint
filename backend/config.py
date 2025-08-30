@@ -1,35 +1,30 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, asdict, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional, overload
-
-import os
+from typing import Optional, Dict, Any, overload, List
 import yaml
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 @dataclass
 class TabsConfig:
-    group: bool = False
-    owner: bool = False
-    instrument: bool = False
-    performance: bool = False
-    transactions: bool = False
-    screener: bool = False
-    query: bool = False
-    trading: bool = False
-    timeseries: bool = False
-    watchlist: bool = False
-    movers: bool = False
-    dataadmin: bool = False
-    virtual: bool = False
-    support: bool = False
-    scenario: bool = False
-    reports: bool = False
+    instrument: bool = True
+    performance: bool = True
+    transactions: bool = True
+    screener: bool = True
+    query: bool = True
+    trading: bool = True
+    timeseries: bool = True
+    watchlist: bool = True
+    movers: bool = True
+    group: bool = True
+    owner: bool = True
+    dataadmin: bool = True
+    virtual: bool = True
+    support: bool = True
+    reports: bool = True
+    scenario: bool = True
 
 
 @dataclass
@@ -59,12 +54,16 @@ class Config:
     # misc complex config
     error_summary: Optional[dict] = None
     offline_mode: Optional[bool] = None
+    disable_auth: Optional[bool] = None
     relative_view_enabled: Optional[bool] = None
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
     fx_proxy_url: Optional[str] = None
+
+    alpha_vantage_enabled: Optional[bool] = None
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
+    stooq_timeout: Optional[int] = None
 
     # new vars
     max_trades_per_month: Optional[int] = None
@@ -87,7 +86,7 @@ def _project_config_path() -> Path:
 
 @lru_cache(maxsize=1)
 def load_config() -> Config:
-    """Load configuration from config.yaml with environment overrides."""
+    """Load configuration from config.yaml only (no env overrides)."""
     path = _project_config_path()
     data: Dict[str, Any] = {}
 
@@ -106,10 +105,14 @@ def load_config() -> Config:
     repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
 
     accounts_root_raw = data.get("accounts_root")
-    accounts_root = (repo_root / accounts_root_raw).resolve() if accounts_root_raw else None
+    accounts_root = (
+        (repo_root / accounts_root_raw).resolve() if accounts_root_raw else None
+    )
 
     prices_json_raw = data.get("prices_json")
-    prices_json = (repo_root / prices_json_raw).resolve() if prices_json_raw else None
+    prices_json = (
+        (repo_root / prices_json_raw).resolve() if prices_json_raw else None
+    )
 
     tabs_raw = data.get("tabs")
     tabs_data = asdict(TabsConfig())
@@ -126,16 +129,11 @@ def load_config() -> Config:
         else:
             cors_origins = cors_raw.get("default")
 
-    alpha_vantage_key = os.getenv("ALPHA_VANTAGE_KEY") or data.get("alpha_vantage_key")
-    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN") or data.get("telegram_bot_token")
-    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID") or data.get("telegram_chat_id")
-    sns_topic_arn = os.getenv("SNS_TOPIC_ARN") or data.get("sns_topic_arn")
-
     return Config(
         app_env=data.get("app_env"),
-        sns_topic_arn=sns_topic_arn,
-        telegram_bot_token=telegram_bot_token,
-        telegram_chat_id=telegram_chat_id,
+        sns_topic_arn=data.get("sns_topic_arn"),
+        telegram_bot_token=data.get("telegram_bot_token"),
+        telegram_chat_id=data.get("telegram_chat_id"),
         portfolio_xml_path=data.get("portfolio_xml_path"),
         transactions_output_root=data.get("transactions_output_root"),
         uvicorn_port=data.get("uvicorn_port"),
@@ -148,12 +146,16 @@ def load_config() -> Config:
         selenium_headless=data.get("selenium_headless"),
         error_summary=data.get("error_summary"),
         offline_mode=data.get("offline_mode"),
+        disable_auth=data.get("disable_auth"),
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),
         timeseries_cache_base=data.get("timeseries_cache_base"),
         fx_proxy_url=data.get("fx_proxy_url"),
-        alpha_vantage_key=alpha_vantage_key,
-        fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
+        alpha_vantage_key=data.get("alpha_vantage_key"),
+        fundamentals_cache_ttl_seconds=data.get(
+            "fundamentals_cache_ttl_seconds"
+        ),
+        stooq_timeout=data.get("stooq_timeout"),
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),
         repo_root=repo_root,
@@ -183,7 +185,6 @@ def get_config_dict() -> Dict[str, Any]:
 def get_config() -> Dict[str, Any]: ...
 @overload
 def get_config(key: str, default: Any = None) -> Any: ...
-
 
 def get_config(key: Optional[str] = None, default: Any = None):
     """

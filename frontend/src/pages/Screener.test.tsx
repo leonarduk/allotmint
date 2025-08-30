@@ -2,7 +2,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { Screener } from "./Screener";
 import * as api from "../api";
-import type { ScreenerResult } from "../types";
 
 vi.mock("../api");
 
@@ -22,7 +21,7 @@ describe("Screener", () => {
         current_ratio: 2,
         quick_ratio: 1.5,
         fcf: 1000,
-      } as ScreenerResult,
+      },
     ]);
 
     render(<Screener />);

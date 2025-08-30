@@ -1,4 +1,5 @@
-from backend.screener import Fundamentals, fetch_fundamentals, screen
+import pytest
+from backend.screener import fetch_fundamentals, screen, Fundamentals
 
 
 def test_fetch_fundamentals_parses_values(monkeypatch):
@@ -123,7 +124,7 @@ def test_screen_filters_based_on_thresholds(monkeypatch):
             roa=0.05,
             roe=0.04,
             roi=0.03,
-            lt_de_ratio=2.0,
+            lt_de_ratio=2.
             interest_coverage=1.0,
             current_ratio=0.5,
             quick_ratio=0.4,

@@ -83,7 +83,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
         data = json.loads(_PRICES_PATH.read_text())
         ts = datetime.fromtimestamp(_PRICES_PATH.stat().st_mtime)
         return data, ts
-    except Exception as exc:
+    except (OSError, json.JSONDecodeError) as exc:
         logger.error("Failed to parse snapshot %s: %s", _PRICES_PATH, exc)
         return {}, None
 
@@ -120,7 +120,7 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
     path = INSTRUMENTS_DIR / (exch or "Unknown") / f"{sym}.json"
     try:
         data = json.loads(path.read_text())
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return None
     return {
         "name": data.get("name", ticker.upper()),
@@ -235,6 +235,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
     """
     if isinstance(portfolio, VirtualPortfolio):
         portfolio = portfolio.as_portfolio_dict()
+    from backend.common import instrument_api
     rows: Dict[str, dict] = {}
 
     for account in portfolio.get("accounts", []):
@@ -243,7 +244,15 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             if not tkr:
                 continue
 
-            sym, inferred = (tkr.split(".", 1) + [None])[:2]
+            resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
+            if resolved:
+                sym, inferred = resolved
+            else:
+                sym, inferred = (tkr.split(".", 1) + [None])[:2]
+                if not h.get("exchange"):
+                    logger.debug(
+                        "Could not resolve exchange for %s; defaulting to L", tkr
+                    )
             exch = (h.get("exchange") or inferred or "L").upper()
             full_tkr = f"{sym}.{exch}"
 
@@ -340,6 +349,8 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
     except FileNotFoundError:
         raise
 
+    from backend.common import instrument_api
+
     holdings: List[tuple[str, str, float]] = []  # (ticker, exchange, units)
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
@@ -350,7 +361,15 @@ def compute_owner_performance(owner: str, days: int = 365) -> Dict[str, Any]:
             if not units:
                 continue
 
-            sym, inferred = (tkr.split(".", 1) + [None])[:2]
+            resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
+            if resolved:
+                sym, inferred = resolved
+            else:
+                sym, inferred = (tkr.split(".", 1) + [None])[:2]
+                if not h.get("exchange"):
+                    logger.debug(
+                        "Could not resolve exchange for %s; defaulting to L", tkr
+                    )
             exch = (h.get("exchange") or inferred or "L").upper()
             holdings.append((sym, exch, units))
 
@@ -408,12 +427,21 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
     """
     tickers = list_all_unique_tickers()
     snapshot: Dict[str, Dict[str, str | float]] = {}
+    from backend.common import instrument_api
 
     for t in tickers:
         try:
             today = datetime.today().date()
             cutoff = today - timedelta(days=days)
-            ticker_only, exchange = (t.split(".", 1) + ["L"])[:2]
+            resolved = instrument_api._resolve_full_ticker(t, _PRICE_SNAPSHOT)
+            if resolved:
+                ticker_only, exchange = resolved
+            else:
+                ticker_only = t.split(".", 1)[0]
+                exchange = "L"
+                logger.debug(
+                    "Could not resolve exchange for %s; defaulting to L", t
+                )
 
             df = load_meta_timeseries_range(
                 ticker=ticker_only,
@@ -444,7 +472,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                         "last_price": float(latest_row[close_col]),
                         "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
                     }
-        except Exception as e:
+        except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("Could not get timeseries for %s: %s", t, e)
 
     # store in-memory
@@ -455,7 +483,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
         _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
         _PRICES_PATH.write_text(json.dumps(snapshot, indent=2))
         logger.info("Wrote %d prices to %s", len(snapshot), _PRICES_PATH)
-    except Exception as e:
+    except OSError as e:
         logger.warning("Failed to write latest_prices.json: %s", e)
 
     logger.info("Refreshed %d price entries", len(snapshot))

@@ -7,9 +7,6 @@ on:
 jobs:
   frontend-tests:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,7 +19,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Run tests
+        working-directory: frontend
         run: npm test -- --run

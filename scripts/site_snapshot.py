@@ -3,63 +3,59 @@
 
 How to use:
 1. Install dependencies:
-   pip install beautifulsoup4 fpdf markdownify playwright pillow
+   pip install requests beautifulsoup4 fpdf Pillow markdownify playwright
    playwright install  # downloads headless browsers
 2. Edit BASE_URL to point to your server.
 3. Run: python scripts/site_snapshot.py
 4. Output appears in the "site_manual" directory with screenshots,
    per-page Markdown files, and a combined PDF manual.
+
+Pillow provides image support for FPDF; without it, PDFs are generated without screenshots.
 """
 
-import argparse
 import asyncio
+import logging
 from collections import deque
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
+import requests
 from bs4 import BeautifulSoup
 from fpdf import FPDF
 from markdownify import markdownify
 from playwright.async_api import async_playwright
 
-# Default base URL can be overridden via CLI
-BASE_URL = "https://example.com"
 OUTPUT_DIR = Path("site_manual")
 SCREENSHOT_DIR = OUTPUT_DIR / "screenshots"
 MARKDOWN_DIR = OUTPUT_DIR / "markdown"
 
 
-def is_same_domain(url: str) -> bool:
-    return urlparse(url).netloc == urlparse(BASE_URL).netloc
+def is_same_domain(url: str, base_url: str) -> bool:
+    return urlparse(url).netloc == urlparse(base_url).netloc
 
 
-async def crawl_site():
-    """Breadth-first crawl of pages within BASE_URL using Playwright."""
+def crawl_site(base_url: str):
+    """Breadth-first crawl of pages within base_url."""
     visited, pages = set(), []
-    queue = deque([BASE_URL])
+    queue = deque([base_url])
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        while queue:
-            url = queue.popleft()
-            if url in visited:
-                continue
-            visited.add(url)
+    while queue:
+        url = queue.popleft()
+        if url in visited:
+            continue
+        print(f"Crawling {url}")
+        visited.add(url)
 
-            page = await browser.new_page()
-            await page.goto(url, wait_until="networkidle")
-            html = await page.content()
-            await page.close()
+        resp = requests.get(url)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        pages.append((url, soup))
 
-            soup = BeautifulSoup(html, "html.parser")
-            pages.append((url, soup))
-
-            for link in soup.select("a[href]"):
-                full = urljoin(url, link["href"]).split("#")[0].rstrip("/")
-                if full.startswith("http") and is_same_domain(full) and full not in visited:
-                    queue.append(full)
-
-        await browser.close()
+        for link in soup.select("a[href]"):
+            print(f"Crawling {link['href']}")
+            full = urljoin(url, link["href"])
+            if full.startswith("http") and is_same_domain(full):
+                queue.append(full)
 
     return pages
 
@@ -73,8 +69,7 @@ async def take_snapshots(pages):
         browser = await p.chromium.launch(headless=True)
         for idx, (url, soup) in enumerate(pages, 1):
             page = await browser.new_page()
-            await page.goto(url, wait_until="networkidle")
-            await page.wait_for_load_state("networkidle")
+            await page.goto(url)
             screenshot = SCREENSHOT_DIR / f"{idx:03}.png"
             await page.screenshot(path=str(screenshot), full_page=True)
             await page.close()
@@ -82,15 +77,6 @@ async def take_snapshots(pages):
         await browser.close()
 
     return results
-
-
-def extract_summary(soup: BeautifulSoup) -> str:
-    """Return first non-empty paragraph text as a summary."""
-    for p in soup.select("p"):
-        text = p.get_text(strip=True)
-        if text:
-            return text
-    return ""
 
 
 def build_docs(entries):
@@ -101,8 +87,7 @@ def build_docs(entries):
     for idx, url, soup, img_path in entries:
         title = soup.title.string.strip() if soup.title else url
         text = markdownify(str(soup.body)) if soup.body else ""
-        summary = extract_summary(soup)
-        md_content = f"# {title}\n\nURL: {url}\n\n**Summary:** {summary}\n\n{text}"
+        md_content = f"# {title}\n\nURL: {url}\n\n{text}"
 
         # Markdown manual
         md_file = MARKDOWN_DIR / f"{idx:03}_{title.replace(' ', '_')}.md"
@@ -110,29 +95,28 @@ def build_docs(entries):
 
         # PDF section
         pdf.add_page()
-        pdf.set_font("Arial", size=14)
+        pdf.set_font("Helvetica", size=14)
         pdf.multi_cell(0, 8, md_content)
         pdf.ln(5)
-        pdf.image(str(img_path), w=180)
+        try:
+            pdf.image(str(img_path), w=180)
+        except OSError as exc:
+            logging.warning(
+                "Skipping image %s because Pillow is not installed or failed to read it: %s",
+                img_path,
+                exc,
+            )
 
     pdf.output(str(OUTPUT_DIR / "manual.pdf"))
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Crawl website and create manual")
-    parser.add_argument("base_url", nargs="?", default=BASE_URL, help="Base URL to crawl")
-    return parser.parse_args()
-
-
-def main():
-    args = parse_args()
-    global BASE_URL
-    BASE_URL = args.base_url.rstrip("/")
-
-    pages = asyncio.run(crawl_site())
+def main(url: str):
+    pages = crawl_site(base_url = url)
     entries = asyncio.run(take_snapshots(pages))
     build_docs(entries)
 
 
 if __name__ == "__main__":
-    main()
+    base_url = "http://localhost:5173/"  # Change to your server
+
+    main(url = base_url)

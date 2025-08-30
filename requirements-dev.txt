@@ -1,0 +1,11 @@
+aws-cdk-lib~=2.151.0
+constructs~=10.3.0
+gtts~=2.5.4
+jinja2~=3.1.4
+mangum-cli~=0.1.0
+moviepy~=2.2.1
+openai~=1.51.0
+playwright~=1.49.0
+pytest-cov~=6.2.1
+pytest~=8.4.1
+reportlab~=4.2.5

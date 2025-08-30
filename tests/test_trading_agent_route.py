@@ -8,6 +8,10 @@ def test_trading_agent_signals_route(monkeypatch):
     monkeypatch.setattr("backend.agent.trading_agent.run", lambda: fake_signals)
     app = create_app()
     with TestClient(app) as client:
+        token = client.post(
+            "/token", data={"username": "testuser", "password": "password"}
+        ).json()["access_token"]
+        client.headers.update({"Authorization": f"Bearer {token}"})
         resp = client.get("/trading-agent/signals")
     assert resp.status_code == 200
     assert resp.json() == fake_signals

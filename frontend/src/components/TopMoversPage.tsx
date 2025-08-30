@@ -47,7 +47,12 @@ export function TopMoversPage() {
         );
         setPortfolioTotal(total);
         setNeedsLogin(false);
-        return getGroupMovers("all", PERIODS[period]);
+        return getGroupMovers(
+          "all",
+          PERIODS[period],
+          10,
+          excludeSmall ? MIN_WEIGHT : 0,
+        );
       } catch (e) {
         if (e instanceof Error && /^HTTP 401/.test(e.message)) {
           setNeedsLogin(true);
@@ -60,8 +65,8 @@ export function TopMoversPage() {
     }
     setPortfolioTotal(null);
     return getTopMovers(WATCHLISTS[watchlist], PERIODS[period]);
-  }, [watchlist, period]);
-  const { data, loading, error } = useFetch(fetchMovers, [watchlist, period]);
+  }, [watchlist, period, excludeSmall]);
+  const { data, loading, error } = useFetch(fetchMovers, [watchlist, period, excludeSmall]);
   type ExtendedMoverRow = MoverRow & {
     delta_gbp?: number | null;
     pct_portfolio?: number | null;

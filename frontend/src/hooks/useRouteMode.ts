@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useConfig } from "../ConfigContext";
-import { Mode } from "../modes";
+import type { Mode } from "../modes";
 
 interface RouteState {
   mode: Mode;

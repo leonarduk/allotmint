@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
     app.include_router(timeseries_edit_router)
-    app.include_router(timeseries_admin_router)
+    app.include_router(timeseries_admin_router, dependencies=protected)
     app.include_router(transactions_router, dependencies=protected)
     app.include_router(alerts_router)
     app.include_router(compliance_router)

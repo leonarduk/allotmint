@@ -2,7 +2,9 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from backend.auth import get_current_user
 
 from backend.common.instruments import get_instrument_meta
 from backend.timeseries.cache import (
@@ -11,7 +13,9 @@ from backend.timeseries.cache import (
     meta_timeseries_cache_path,
 )
 
-router = APIRouter(prefix="/timeseries", tags=["timeseries"])
+router = APIRouter(
+    prefix="/timeseries", tags=["timeseries"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("/admin")

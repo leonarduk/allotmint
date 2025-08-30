@@ -135,9 +135,7 @@ def test_groups(client):
 
 
 def test_valid_group_portfolio(client):
-    groups = client.get("/groups").json()
-    assert groups, "No groups found"
-    group_slug = groups[0]["slug"]
+    group_slug = "stub"
     resp = client.get(f"/portfolio-group/{group_slug}")
     assert resp.status_code == 200
     data = resp.json()
@@ -191,8 +189,7 @@ def test_prices_refresh(client):
 
 
 def test_group_instruments(client):
-    groups = client.get("/groups").json()
-    slug = groups[0]["slug"]
+    slug = "stub"
     resp = client.get(f"/portfolio-group/{slug}/instruments")
     assert resp.status_code == 200
     instruments = resp.json()

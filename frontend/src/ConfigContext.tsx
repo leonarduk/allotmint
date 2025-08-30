@@ -71,9 +71,11 @@ export const configContext = createContext<ConfigContextValue>({
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(defaultConfig);
+  const [error, setError] = useState<string | null>(null);
 
   const refreshConfig = useCallback(async () => {
     try {
+      setError(null);
       const cfg = await getConfig<RawConfig>();
       const rawTabs =
         cfg && cfg.tabs && typeof cfg.tabs === "object" && !Array.isArray(cfg.tabs)
@@ -99,6 +101,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.warn("Failed to fetch configuration", err);
       setConfig(defaultConfig);
+      setError("Cannot reach server");
     }
   }, []);
 
@@ -112,6 +115,19 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   return (
     <configContext.Provider value={{ ...config, refreshConfig }}>
+      {error && (
+        <div
+          role="alert"
+          style={{
+            background: "#fcc",
+            padding: "0.5rem",
+            textAlign: "center",
+            marginBottom: "0.5rem",
+          }}
+        >
+          {error} <button onClick={refreshConfig}>Retry</button>
+        </div>
+      )}
       {children}
     </configContext.Provider>
   );

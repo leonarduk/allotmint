@@ -291,10 +291,14 @@ npm install
 npm run build
 cd ..
 
-# deploy the static site stack
+# deploy the static site stack only
 cd cdk
 cdk bootstrap   # only required once per AWS account/region
-cdk deploy StaticSiteStack
+DEPLOY_BACKEND=false cdk deploy StaticSiteStack
+
+# or include the backend Lambda stack
+DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack
+# equivalently: cdk deploy BackendLambdaStack StaticSiteStack -c deploy_backend=true
 ```
 
 The bucket remains private and CloudFront uses an origin access identity

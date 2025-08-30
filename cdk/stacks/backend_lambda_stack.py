@@ -27,6 +27,7 @@ class BackendLambdaStack(Stack):
                 str(backend_path),
                 bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_12.bundling_image,
+                    user="root",
                     command=[
                         "bash",
                         "-c",

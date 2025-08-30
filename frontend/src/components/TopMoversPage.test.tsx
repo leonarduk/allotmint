@@ -91,23 +91,26 @@ describe("TopMoversPage", () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() =>
-      expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"),
-    );
-    await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1),
-      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
-    );
+      await waitFor(() =>
+        expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"),
+      );
+      await waitFor(() =>
+        expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
+      );
     expect((await screen.findAllByText("AAA")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("BBB")).length).toBeGreaterThan(0);
 
     const selects = screen.getAllByRole("combobox");
     const periodSelect = selects[1];
     fireEvent.change(periodSelect, { target: { value: "1w" } });
-    await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7),
-      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7, 10, 0),
-    );
+      await waitFor(() =>
+        expect(mockGetGroupMovers).toHaveBeenLastCalledWith(
+          "all",
+          7,
+          10,
+          0,
+        ),
+      );
   });
 
   it("fetches watchlist instruments when selecting FTSE 100", async () => {

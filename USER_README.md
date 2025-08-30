@@ -13,6 +13,7 @@ AllotMint helps families track and manage investments like tending an allotment.
 Runtime options live in `config.yaml`:
 
 - `app_env`: `local` for local development or `aws` for Lambda.
+- `uvicorn_host`: host interface for the local FastAPI server.
 - `uvicorn_port`: port for the local FastAPI server.
 - `reload`: enables auto-reload for development.
 - `tabs`: enable or disable optional frontend tabs.
@@ -110,7 +111,7 @@ If the variable is unset the UI defaults to `http://localhost:8000` (or
 `VITE_API_URL` if defined).
 
 ## Common workflows
-- **Start the backend**: `uvicorn app:app --reload --port 8000`
+- **Start the backend**: `uvicorn app:app --reload --port 8000 --host 0.0.0.0`
 - **Start the frontend**: `cd frontend && npm run dev`
 - **Run tests**:
   - Backend: `pytest`

@@ -6,6 +6,7 @@ import backend.common.alerts as alerts
 
 def test_publish_alert_without_config(monkeypatch, caplog):
     alerts._RECENT_ALERTS.clear()
+    alerts._RECENT_ALERT_SIGNATURES.clear()
     monkeypatch.setattr(alerts.config, "sns_topic_arn", None, raising=False)
     with caplog.at_level("INFO"):
         alerts.publish_sns_alert({"message": "hi"})
@@ -15,6 +16,7 @@ def test_publish_alert_without_config(monkeypatch, caplog):
 
 def test_publish_alert_success(monkeypatch):
     alerts._RECENT_ALERTS.clear()
+    alerts._RECENT_ALERT_SIGNATURES.clear()
     sent = {}
 
     def fake_client(name):

@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getTopMovers, getGroupInstruments, getTradingSignals } from "../api";
+import {
+  getTopMovers,
+  getGroupInstruments,
+  getTradingSignals,
+  getGroupMovers,
+} from "../api";
 import type { MoverRow, TradingSignal } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
@@ -27,34 +32,57 @@ export function TopMoversPage() {
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsError, setSignalsError] = useState<string | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
+  const [portfolioTotal, setPortfolioTotal] = useState<number | null>(null);
 
   const fetchMovers = useCallback(async () => {
     if (watchlist === "Portfolio") {
       try {
         const rows = await getGroupInstruments("all");
-        setNeedsLogin(false);
-        return getTopMovers(
-          rows.map((r) => r.ticker),
-          PERIODS[period],
+        const total = rows.reduce(
+          (sum, r) => sum + (r.market_value_gbp ?? 0),
+          0,
         );
+        setPortfolioTotal(total);
+        setNeedsLogin(false);
+        return getGroupMovers("all", PERIODS[period]);
       } catch (e) {
         if (e instanceof Error && /^HTTP 401/.test(e.message)) {
           setNeedsLogin(true);
           setWatchlist("FTSE 100");
+          setPortfolioTotal(null);
           return getTopMovers(WATCHLISTS["FTSE 100"], PERIODS[period]);
         }
         throw e;
       }
     }
+    setPortfolioTotal(null);
     return getTopMovers(WATCHLISTS[watchlist], PERIODS[period]);
   }, [watchlist, period]);
   const { data, loading, error } = useFetch(fetchMovers, [watchlist, period]);
-  const rows = useMemo(() => {
+  type ExtendedMoverRow = MoverRow & {
+    delta_gbp?: number | null;
+    pct_portfolio?: number | null;
+  };
+  const rows: ExtendedMoverRow[] = useMemo(() => {
     if (!data) return [];
-    return [...data.gainers, ...data.losers];
-  }, [data]);
+    const combined = [...data.gainers, ...data.losers];
+    if (watchlist === "Portfolio") {
+      return combined.map((r) => ({
+        ...r,
+        delta_gbp:
+          r.market_value_gbp != null
+            ? (r.market_value_gbp * r.change_pct) / 100
+            : null,
+        pct_portfolio:
+          r.market_value_gbp != null && portfolioTotal
+            ? (r.market_value_gbp / portfolioTotal) * 100
+            : null,
+      }));
+    }
+    return combined;
+  }, [data, watchlist, portfolioTotal]);
 
-  const { sorted, handleSort } = useSortableTable<MoverRow>(
+  const { sorted, handleSort } = useSortableTable<ExtendedMoverRow>(
     rows,
     "change_pct",
   );
@@ -140,6 +168,12 @@ export function TopMoversPage() {
             >
               %
             </th>
+            {watchlist === "Portfolio" && (
+              <>
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ £</th>
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>% of portfolio</th>
+              </>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -169,6 +203,18 @@ export function TopMoversPage() {
               >
                 {r.change_pct.toFixed(2)}
               </td>
+              {watchlist === "Portfolio" && (
+                <>
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {r.delta_gbp != null ? r.delta_gbp.toFixed(2) : ""}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {r.pct_portfolio != null
+                      ? r.pct_portfolio.toFixed(2)
+                      : ""}
+                  </td>
+                </>
+              )}
             </tr>
           ))}
         </tbody>

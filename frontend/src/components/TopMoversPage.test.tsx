@@ -14,6 +14,26 @@ const mockGetTopMovers = vi.fn(() =>
     losers: [{ ticker: "BBB", name: "BBB", change_pct: -2 } as MoverRow],
   }),
 );
+const mockGetGroupMovers = vi.fn(() =>
+  Promise.resolve({
+    gainers: [
+      {
+        ticker: "AAA",
+        name: "AAA",
+        change_pct: 5,
+        market_value_gbp: 100,
+      } as MoverRow,
+    ],
+    losers: [
+      {
+        ticker: "BBB",
+        name: "BBB",
+        change_pct: -2,
+        market_value_gbp: 50,
+      } as MoverRow,
+    ],
+  }),
+);
 const mockGetGroupInstruments = vi.fn(() =>
   Promise.resolve([
     {
@@ -39,6 +59,9 @@ vi.mock("../api", () => ({
   getGroupInstruments: (
     ...args: Parameters<typeof mockGetGroupInstruments>
   ) => mockGetGroupInstruments(...args),
+  getGroupMovers: (
+    ...args: Parameters<typeof mockGetGroupMovers>
+  ) => mockGetGroupMovers(...args),
   getTradingSignals: (
     ...args: Parameters<typeof mockGetTradingSignals>
   ) => mockGetTradingSignals(...args),
@@ -71,7 +94,7 @@ describe("TopMoversPage", () => {
       expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"),
     );
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1),
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1),
     );
     expect((await screen.findAllByText("AAA")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("BBB")).length).toBeGreaterThan(0);
@@ -80,7 +103,7 @@ describe("TopMoversPage", () => {
     const periodSelect = selects[1];
     fireEvent.change(periodSelect, { target: { value: "1w" } });
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["CCC"], 7),
+      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7),
     );
   });
 
@@ -92,7 +115,7 @@ describe("TopMoversPage", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenCalledWith(["CCC"], 1),
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1),
     );
 
     const selects = await screen.findAllByRole("combobox");
@@ -140,7 +163,7 @@ describe("TopMoversPage", () => {
   });
 
   it("shows HTTP status when fetch fails", async () => {
-    mockGetTopMovers.mockRejectedValueOnce(
+    mockGetGroupMovers.mockRejectedValueOnce(
       new Error("HTTP 401 – Unauthorized"),
     );
     render(

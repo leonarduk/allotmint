@@ -13,7 +13,10 @@ client.headers.update({"Authorization": f"Bearer {token}"})
 def test_group_movers_endpoint(monkeypatch):
     def fake_summaries(slug: str):
         assert slug == "demo"
-        return [{"ticker": "AAA"}, {"ticker": "BBB"}]
+        return [
+            {"ticker": "AAA", "market_value_gbp": 100.0},
+            {"ticker": "BBB", "market_value_gbp": 50.0},
+        ]
 
     def fake_top_movers(tickers, days, limit):
         assert tickers == ["AAA", "BBB"]
@@ -32,3 +35,5 @@ def test_group_movers_endpoint(monkeypatch):
     data = resp.json()
     assert [g["ticker"] for g in data["gainers"]] == ["AAA"]
     assert [loser["ticker"] for loser in data["losers"]] == ["BBB"]
+    assert data["gainers"][0]["market_value_gbp"] == 100.0
+    assert data["losers"][0]["market_value_gbp"] == 50.0

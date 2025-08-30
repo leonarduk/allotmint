@@ -85,6 +85,24 @@ export type InstrumentSummary = {
     change_30d_pct?: number | null;
 };
 
+export type SectorContribution = {
+    sector: string;
+    market_value_gbp: number;
+    gain_gbp: number;
+    cost_gbp: number;
+    gain_pct?: number | null;
+    contribution_pct?: number | null;
+};
+
+export type RegionContribution = {
+    region: string;
+    market_value_gbp: number;
+    gain_gbp: number;
+    cost_gbp: number;
+    gain_pct?: number | null;
+    contribution_pct?: number | null;
+};
+
 export interface PerformancePoint {
     date: string;
     value: number;

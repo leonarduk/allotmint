@@ -16,8 +16,14 @@ The AllotMint frontend is a React + TypeScript single-page app that visualises f
 ## Installation
 
 1. Install dependencies with `npm install`.
-2. Run `npm run dev` and open the app in your browser.
-3. Use the browser's **Install** or **Add to Home Screen** option to install the PWA. The service worker caches static assets for offline use.
+2. Ensure the backend API is running. From the repository root you can start it with `./run-local-api.sh`, which serves `http://localhost:8000` by default.
+3. If the backend runs elsewhere, set `VITE_ALLOTMINT_API_BASE` (or the legacy `VITE_API_URL`) before starting the dev server, e.g.:
+
+   ```bash
+   export VITE_ALLOTMINT_API_BASE=http://localhost:8000
+   ```
+4. Run `npm run dev` and open the app in your browser.
+5. Use the browser's **Install** or **Add to Home Screen** option to install the PWA. The service worker caches static assets for offline use.
 
 ## Configuration
 

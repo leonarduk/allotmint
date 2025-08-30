@@ -386,6 +386,22 @@ export const getValueAtRisk = (
   );
 };
 
+/** Trigger a backend recomputation of VaR for an owner. */
+export const recomputeValueAtRisk = (
+  owner: string,
+  opts: { days?: number; confidence?: number } = {}
+) => {
+  const params = new URLSearchParams();
+  if (opts.days != null) params.set("days", String(opts.days));
+  if (opts.confidence != null)
+    params.set("confidence", String(opts.confidence));
+  const qs = params.toString();
+  return fetchJson<{ owner: string; var: unknown }>(
+    `${API_BASE}/var/${owner}/recompute${qs ? `?${qs}` : ""}`,
+    { method: "POST" }
+  );
+};
+
 /** Request trade suggestions to rebalance a portfolio. */
 export const getRebalance = (
   actual: Record<string, number>,

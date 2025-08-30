@@ -1,5 +1,8 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
+vi.mock("../api", () => ({
+    getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
+}));
 import { HoldingsTable } from "./HoldingsTable";
 import { configContext, type AppConfig } from "../ConfigContext";
 

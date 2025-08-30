@@ -164,10 +164,11 @@ def refresh_prices() -> Dict:
     check_price_alerts()
 
     logger.debug(f"Snapshot written to {path}")
+    ts = datetime.utcnow().isoformat() + "Z"
     return {
         "tickers": tickers,
         "snapshot": snapshot,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": ts,
     }
 
 # ──────────────────────────────────────────────────────────────

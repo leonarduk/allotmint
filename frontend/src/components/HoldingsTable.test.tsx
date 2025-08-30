@@ -39,6 +39,7 @@ describe("HoldingsTable", () => {
             market_value_gbp: 150,
             gain_gbp: 50,
             acquired_date: "2024-01-01",
+            last_price_date: "2024-01-01",
             days_held: 100,
             sell_eligible: true,
             days_until_eligible: 0,
@@ -160,6 +161,13 @@ describe("HoldingsTable", () => {
         fireEvent.change(select, { target: { value: "true" } });
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("Test Holding")).toBeNull();
+    });
+
+    it("shows last price date badge when available", () => {
+        render(<HoldingsTable holdings={holdings} />);
+        const row = screen.getByText("AAA").closest("tr");
+        const badge = within(row!).getByTitle("2024-01-01");
+        expect(badge).toBeInTheDocument();
     });
 
     it("allows toggling columns", () => {

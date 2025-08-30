@@ -302,7 +302,19 @@ export function HoldingsTable({
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.current_price_gbp)}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {money(h.current_price_gbp)}
+                  {h.last_price_date && (
+                    <span
+                      className={tableStyles.badge}
+                      title={h.last_price_date}
+                    >
+                      {new Intl.DateTimeFormat(i18n.language).format(
+                        new Date(h.last_price_date),
+                      )}
+                    </span>
+                  )}
+                </td>
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}

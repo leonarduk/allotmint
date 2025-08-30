@@ -564,7 +564,7 @@ def check_price_alerts(threshold_pct: float = 0.1) -> List[Dict]:
                 continue
             change_pct = (mv - cost) / cost
             if abs(change_pct) >= threshold_pct:
-                ticker = row["ticker"].split(".")[0]
+                ticker = row["ticker"]
                 alert = {
                     "ticker": ticker,
                     "change_pct": round(change_pct, 4),

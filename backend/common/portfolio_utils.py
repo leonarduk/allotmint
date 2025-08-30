@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
@@ -538,9 +539,12 @@ def _tracking_error(name: str, benchmark: str, days: int = 365, *, group: bool =
     if port_ret.empty:
         return None
     diff = port_ret - bench_ret
-    if diff.empty:
+    if diff.count() < 2:
         return None
-    return float(diff.std())
+    std = diff.std()
+    if not math.isfinite(std):
+        return None
+    return float(std)
 
 
 def _max_drawdown(name: str, days: int = 365, *, group: bool = False) -> float | None:

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getValueAtRisk } from "../api";
+import { getValueAtRisk, recomputeValueAtRisk } from "../api";
 
 interface Props {
   owner: string;
@@ -21,8 +21,15 @@ export function ValueAtRisk({ owner }: Props) {
       getValueAtRisk(owner, { days, confidence: 99 }),
     ])
       .then(([d95, d99]) => {
-        setVar95(d95.length ? d95[d95.length - 1].var : null);
-        setVar99(d99.length ? d99[d99.length - 1].var : null);
+        const v95 = d95.length ? d95[d95.length - 1].var : null;
+        const v99 = d99.length ? d99[d99.length - 1].var : null;
+        setVar95(v95);
+        setVar99(v99);
+        if (v95 == null && v99 == null) {
+          // attempt to refresh data on the backend
+          recomputeValueAtRisk(owner, { days, confidence: 95 }).catch(() => {});
+          recomputeValueAtRisk(owner, { days, confidence: 99 }).catch(() => {});
+        }
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -53,7 +60,12 @@ export function ValueAtRisk({ owner }: Props) {
       </div>
       {loading && <div>Loading…</div>}
       {err && <div style={{ color: "red" }}>{err}</div>}
-      {!loading && !err && (
+      {!loading && !err && var95 == null && var99 == null && (
+        <div style={{ fontStyle: "italic", color: "#666" }}>
+          No VaR data available.
+        </div>
+      )}
+      {!loading && !err && !(var95 == null && var99 == null) && (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           <li>95%: {format(var95)}</li>
           <li>99%: {format(var99)}</li>

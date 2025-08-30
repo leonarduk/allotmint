@@ -88,23 +88,17 @@ async def portfolio(owner: str, request: Request):
     """
 
     try:
-        return portfolio_mod.build_owner_portfolio(owner, request.app.state.accounts_root)
+        return portfolio_mod.build_owner_portfolio(
+            owner, request.app.state.accounts_root
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
-
-
-@router.get("/performance/{owner}")
-async def performance(owner: str, days: int = 365):
-    """Return portfolio performance metrics for ``owner``."""
-    try:
-        result = portfolio_utils.compute_owner_performance(owner, days=days)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Owner not found")
-    return {"owner": owner, **result}
 
 
 @router.get("/var/{owner}")
-async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
+async def portfolio_var(
+    owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False
+):
     """Return historical-simulation VaR for ``owner``.
 
     Parameters
@@ -116,13 +110,18 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
         Quantile for losses in (0, 1) or, alternatively, a percentage in the
         range 0–100. Both ``0.95`` and ``95`` will request the 95 % quantile.
         Defaults to 0.95 (95 %); 0.99 is also common.
+    exclude_cash:
+        If ``True``, cash holdings are ignored when reconstructing the
+        portfolio returns used for VaR.
 
     Returns a JSON object ``{"owner": owner, "as_of": <today>, "var": {...}}``.
     Raises 404 if the owner does not exist and 400 for invalid parameters.
     """
 
     try:
-        var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
+        var = risk.compute_portfolio_var(
+            owner, days=days, confidence=confidence, include_cash=not exclude_cash
+        )
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
@@ -134,6 +133,24 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
         "var": var,
         "sharpe_ratio": sharpe,
     }
+
+
+@router.post("/var/{owner}/recompute")
+async def portfolio_var_recompute(owner: str, days: int = 365, confidence: float = 0.95):
+    """Force recomputation of VaR for ``owner``.
+
+    This endpoint mirrors :func:`portfolio_var` but is intended to be called
+    when cached data is missing. It recalculates the metrics and returns the
+    result without additional metadata.
+    """
+
+    try:
+        var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"owner": owner, "var": var}
 
 
 @router.get("/portfolio-group/{slug}")
@@ -167,6 +184,7 @@ async def group_movers(
     slug: str,
     days: int = Query(1, description="Lookback window"),
     limit: int = Query(10, description="Max results per side"),
+    min_weight: float = Query(0.0, description="Exclude positions below this percent"),
 ):
     """Return top gainers and losers for a group portfolio."""
 
@@ -193,7 +211,21 @@ async def group_movers(
     if not tickers:
         return {"gainers": [], "losers": []}
 
-    movers = instrument_api.top_movers(tickers, days, limit)
+    # Compute weights in percent for filtering
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
+    weight_map = {
+        s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
+        if total_mv
+        else 0.0
+        for s in summaries
+        if s.get("ticker")
+    }
+
+
+    movers = instrument_api.top_movers(tickers, days, limit,        
+                                       min_weight=min_weight,
+                                       weights=weight_map,
+                                      )
     for side in ("gainers", "losers"):
         for row in movers.get(side, []):
             mv = market_values.get(row["ticker"].upper())
@@ -201,7 +233,6 @@ async def group_movers(
                 mv = market_values.get(row["ticker"].split(".")[0])
             row["market_value_gbp"] = mv
     return movers
-
 
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str):

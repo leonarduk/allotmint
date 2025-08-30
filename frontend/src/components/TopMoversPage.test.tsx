@@ -16,7 +16,8 @@ const mockGetTopMovers = vi.fn(() =>
 );
 const mockGetGroupMovers = vi.fn(() =>
   Promise.resolve({
-    gainers: [
+
+  gainers: [
       {
         ticker: "AAA",
         name: "AAA",
@@ -95,6 +96,7 @@ describe("TopMoversPage", () => {
     );
     await waitFor(() =>
       expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1),
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
     );
     expect((await screen.findAllByText("AAA")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("BBB")).length).toBeGreaterThan(0);
@@ -104,6 +106,7 @@ describe("TopMoversPage", () => {
     fireEvent.change(periodSelect, { target: { value: "1w" } });
     await waitFor(() =>
       expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7),
+      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7, 10, 0),
     );
   });
 
@@ -115,7 +118,7 @@ describe("TopMoversPage", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1),
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
     );
 
     const selects = await screen.findAllByRole("combobox");
@@ -175,7 +178,7 @@ describe("TopMoversPage", () => {
   });
 
   it("falls back to FTSE 100 and prompts login on 401", async () => {
-    mockGetGroupInstruments.mockRejectedValueOnce(
+    mockGetGroupMovers.mockRejectedValueOnce(
       new Error("HTTP 401 – Unauthorized"),
     );
     render(
@@ -195,5 +198,24 @@ describe("TopMoversPage", () => {
     expect(
       await screen.findByText(/log in to view portfolio-based movers/i),
     ).toBeInTheDocument();
+  });
+
+  it("passes min weight when exclude checkbox checked", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
+    );
+
+    const checkbox = screen.getByLabelText(/Exclude positions/i);
+    fireEvent.click(checkbox);
+
+    await waitFor(() =>
+      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 1, 10, 0.5),
+    );
   });
 });

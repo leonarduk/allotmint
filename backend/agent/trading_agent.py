@@ -141,7 +141,7 @@ def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
         except FileNotFoundError:
             continue
         max_dd = perf.get("max_drawdown")
-        if max_dd is None:
+        if max_dd is None or not (-1.0 <= max_dd <= 0.0):
             continue
         if abs(max_dd) >= threshold:
             send_trade_alert(

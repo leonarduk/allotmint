@@ -14,6 +14,7 @@ export function PerformanceDashboard({ owner }: Props) {
   const [varData, setVarData] = useState<ValueAtRiskPoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
+  const [excludeCash, setExcludeCash] = useState<boolean>(false);
 
   useEffect(() => {
     if (!owner) return;
@@ -22,15 +23,19 @@ export function PerformanceDashboard({ owner }: Props) {
     setVarData([]);
     const reqDays = days === 0 ? 36500 : days;
     Promise.all([
-      getPerformance(owner, reqDays),
-      getValueAtRisk(owner, { days: reqDays, confidence: 95 }),
+      getPerformance(owner, reqDays, excludeCash),
+      getValueAtRisk(owner, {
+        days: reqDays,
+        confidence: 95,
+        excludeCash,
+      }),
     ])
       .then(([perf, varSeries]) => {
         setData(perf);
         setVarData(varSeries);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, [owner, days]);
+  }, [owner, days, excludeCash]);
 
   if (!owner) return <p>Select a member.</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
@@ -52,6 +57,15 @@ export function PerformanceDashboard({ owner }: Props) {
             <option value={3650}>10Y</option>
             <option value={0}>MAX</option>
           </select>
+        </label>
+        <label style={{ fontSize: "0.85rem", marginLeft: "1rem" }}>
+          Exclude cash
+          <input
+            type="checkbox"
+            checked={excludeCash}
+            onChange={(e) => setExcludeCash(e.target.checked)}
+            style={{ marginLeft: "0.25rem" }}
+          />
         </label>
       </div>
       <h2>Portfolio Value</h2>

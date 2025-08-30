@@ -18,10 +18,12 @@ def test_group_movers_endpoint(monkeypatch):
             {"ticker": "BBB", "market_value_gbp": 50.0},
         ]
 
-    def fake_top_movers(tickers, days, limit):
+    def fake_top_movers(tickers, days, limit, *, min_weight, weights):
         assert tickers == ["AAA", "BBB"]
         assert days == 7
         assert limit == 5
+        assert min_weight == 0.5
+        assert weights == {"AAA": 50.0, "BBB": 50.0}
         return {
             "gainers": [{"ticker": "AAA", "name": "AAA", "change_pct": 5}],
             "losers": [{"ticker": "BBB", "name": "BBB", "change_pct": -3}],
@@ -30,7 +32,7 @@ def test_group_movers_endpoint(monkeypatch):
     monkeypatch.setattr(ia, "instrument_summaries_for_group", fake_summaries)
     monkeypatch.setattr(ia, "top_movers", fake_top_movers)
 
-    resp = client.get("/portfolio-group/demo/movers?days=7&limit=5")
+    resp = client.get("/portfolio-group/demo/movers?days=7&limit=5&min_weight=0.5")
     assert resp.status_code == 200
     data = resp.json()
     assert [g["ticker"] for g in data["gainers"]] == ["AAA"]

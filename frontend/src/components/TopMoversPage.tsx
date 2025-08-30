@@ -33,6 +33,9 @@ export function TopMoversPage() {
   const [signalsError, setSignalsError] = useState<string | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
   const [portfolioTotal, setPortfolioTotal] = useState<number | null>(null);
+  const [excludeSmall, setExcludeSmall] = useState(false);
+
+  const MIN_WEIGHT = 0.5;
 
   const fetchMovers = useCallback(async () => {
     if (watchlist === "Portfolio") {
@@ -139,6 +142,17 @@ export function TopMoversPage() {
             ))}
           </select>
         </label>
+        {watchlist === "Portfolio" && (
+          <label style={{ marginLeft: "0.5rem" }}>
+            <input
+              type="checkbox"
+              checked={excludeSmall}
+              onChange={(e) => setExcludeSmall(e.target.checked)}
+              style={{ marginRight: "0.25rem" }}
+            />
+            Exclude positions &lt;{MIN_WEIGHT}%
+          </label>
+        )}
       </div>
 
       {needsLogin && (

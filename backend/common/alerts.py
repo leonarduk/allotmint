@@ -26,10 +26,11 @@ def publish_sns_alert(alert: Dict) -> None:
     instrument = alert.get("instrument")
     state = alert.get("state")
 
+    now = datetime.utcnow()
+
     if instrument is not None and state is not None:
         previous_state = _LAST_ALERT_STATE.get(instrument)
         last_time = _LAST_ALERT_TIME.get(instrument)
-        now = datetime.utcnow()
 
         # Only publish when state changes and at most once per hour.
         if previous_state == state:
@@ -37,10 +38,7 @@ def publish_sns_alert(alert: Dict) -> None:
         if last_time and now - last_time < timedelta(hours=1):
             return
 
-        _LAST_ALERT_STATE[instrument] = bool(state)
-        _LAST_ALERT_TIME[instrument] = now
-
-    alert["timestamp"] = datetime.utcnow().isoformat()
+    alert["timestamp"] = now.isoformat()
     _RECENT_ALERTS.append(alert)
     topic_arn = config.sns_topic_arn
     if not topic_arn:
@@ -53,8 +51,14 @@ def publish_sns_alert(alert: Dict) -> None:
         boto3.client("sns").publish(TopicArn=topic_arn, Message=alert["message"])
     except ModuleNotFoundError:
         logger.warning("SNS topic ARN set but boto3 not installed")
+        return
     except Exception as exc:
         logger.warning("SNS publish failed: %s", exc)
+        return
+
+    if instrument is not None and state is not None:
+        _LAST_ALERT_STATE[instrument] = bool(state)
+        _LAST_ALERT_TIME[instrument] = now
 
 
 # Backwards compatibility shim

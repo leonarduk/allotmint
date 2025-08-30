@@ -57,7 +57,8 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
     if not 0 < confidence < 1:
         raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
-    perf = portfolio_utils.compute_owner_performance(owner, days=days)
+    # exclude any instruments flagged in the price snapshot until refreshed
+    perf = portfolio_utils.compute_owner_performance(owner, days=days, include_flagged=False)
     history = perf.get("history", []) if isinstance(perf, dict) else perf
     if not history:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}

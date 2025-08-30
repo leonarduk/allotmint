@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import type { Holding } from "../types";
+import type { Holding, InstrumentDetailMini } from "../types";
 import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -56,7 +56,7 @@ export function HoldingsTable({
   });
 
   const [sparkRange, setSparkRange] = useState<7 | 30 | 180>(30);
-  const [sparks, setSparks] = useState<Record<string, Record<string, any[]>>>({});
+  const [sparks, setSparks] = useState<Record<string, InstrumentDetailMini>>({});
 
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -72,7 +72,7 @@ export function HoldingsTable({
       if (sparks[t]) return;
       getInstrumentDetail(t, 180)
         .then((d) => {
-          const m = (d as any).mini;
+          const m = d?.mini;
           if (m) {
             setSparks((prev) => ({ ...prev, [t]: m }));
           }
@@ -80,6 +80,7 @@ export function HoldingsTable({
         .catch(() => {});
     });
   }, [holdings, sparks]);
+  useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
     }

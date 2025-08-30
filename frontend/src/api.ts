@@ -3,6 +3,7 @@
 import type {
   GroupPortfolio,
   GroupSummary,
+  InstrumentDetailMini,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -271,7 +272,7 @@ export const getInstrumentDetail = (ticker: string, days = 365) =>
   fetchJson<{
     prices: unknown;
     positions: unknown;
-    mini?: unknown;
+    mini?: InstrumentDetailMini;
     currency?: string | null;
   }>(
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(

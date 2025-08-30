@@ -98,7 +98,8 @@ export default function DataAdmin() {
                 </button>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

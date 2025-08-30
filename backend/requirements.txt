@@ -39,6 +39,5 @@ starlette~=0.47.2
 pydantic~=2.11.7
 requests~=2.32.3
 peewee~=3.18.2
-reportlab~=3.6.12
 PyJWT~=2.9.0
 python-multipart~=0.0.20

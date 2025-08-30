@@ -124,7 +124,7 @@ def test_screen_filters_based_on_thresholds(monkeypatch):
             roa=0.05,
             roe=0.04,
             roi=0.03,
-            lt_de_ratio=2.
+            lt_de_ratio=2.0,
             interest_coverage=1.0,
             current_ratio=0.5,
             quick_ratio=0.4,

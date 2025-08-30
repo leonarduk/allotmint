@@ -7,8 +7,10 @@ import backend.common.alerts as alerts
 
 def test_publish_alert_without_config(monkeypatch, caplog):
     alerts._RECENT_ALERTS.clear()
+    alerts._RECENT_ALERT_SIGNATURES.clear()
     alerts._LAST_ALERT_STATE.clear()
     alerts._LAST_ALERT_TIME.clear()
+
     monkeypatch.setattr(alerts.config, "sns_topic_arn", None, raising=False)
     with caplog.at_level("INFO"):
         alerts.publish_sns_alert({"message": "hi"})
@@ -20,6 +22,7 @@ def test_publish_alert_without_config(monkeypatch, caplog):
 
 def test_publish_alert_success(monkeypatch):
     alerts._RECENT_ALERTS.clear()
+    alerts._RECENT_ALERT_SIGNATURES.clear()
     alerts._LAST_ALERT_STATE.clear()
     alerts._LAST_ALERT_TIME.clear()
     sent = {}

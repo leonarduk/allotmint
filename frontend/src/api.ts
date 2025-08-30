@@ -45,6 +45,7 @@ export async function login(
   const res = await fetch(`${API_BASE}/token`, {
     method: "POST",
     body,
+    credentials: "include",
   });
   if (!res.ok) {
     throw new Error("Login failed");
@@ -63,7 +64,7 @@ export async function fetchJson<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const res = await fetch(url, { ...init, headers });
+  const res = await fetch(url, { ...init, headers, credentials: "include" });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
   }

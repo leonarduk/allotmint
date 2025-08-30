@@ -366,6 +366,7 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
             return df
         fx["Date"] = pd.to_datetime(fx["Date"])
 
+    fx["Rate"] = pd.to_numeric(fx["Rate"], errors="coerce")
     merged = df.merge(fx, on="Date", how="left")
     merged["Rate"] = merged["Rate"].ffill().bfill()
     for col in ["Open", "High", "Low", "Close"]:

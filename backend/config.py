@@ -58,6 +58,8 @@ class Config:
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
     fx_proxy_url: Optional[str] = None
+
+    alpha_vantage_enabled: Optional[bool] = None
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
     stooq_timeout: Optional[int] = None

@@ -114,7 +114,6 @@ async def screener(
         roa_min=roa_min,
         roe_min=roe_min,
         roi_min=roi_min,
-        fcf_min=fcf_min,
         dividend_yield_min=dividend_yield_min,
         dividend_payout_ratio_max=dividend_payout_ratio_max,
         beta_max=beta_max,

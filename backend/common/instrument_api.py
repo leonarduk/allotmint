@@ -269,6 +269,7 @@ def positions_for_ticker(group_slug: str, ticker: str) -> List[Dict[str, Any]]:
                         "sell_eligible": h.get("sell_eligible"),
                         "days_until_eligible": h.get("days_until_eligible"),
                         "eligible_on": h.get("eligible_on"),
+                        "next_eligible_sell_date": h.get("next_eligible_sell_date"),
                     }
                 )
     return rows

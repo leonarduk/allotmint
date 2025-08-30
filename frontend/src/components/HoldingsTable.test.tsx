@@ -57,6 +57,7 @@ describe("HoldingsTable", () => {
             days_held: 0,
             sell_eligible: false,
             days_until_eligible: 10,
+            next_eligible_sell_date: "2024-07-20",
         },
         {
             ticker: "GBXH",
@@ -124,6 +125,8 @@ describe("HoldingsTable", () => {
         const row = screen.getByText("Test Holding").closest("tr");
         const cell = within(row!).getByText("✗ 10");
         expect(cell).toBeInTheDocument();
+        const expected = new Intl.DateTimeFormat('en').format(new Date('2024-07-20'));
+        expect(cell).toHaveAttribute('title', expected);
     });
 
     it("creates FX pair buttons for currency and skips GBX", () => {

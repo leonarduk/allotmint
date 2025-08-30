@@ -24,6 +24,7 @@ import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import Menu from "./components/Menu";
 import { useRoute } from "./RouteContext";
 import PriceRefreshControls from "./components/PriceRefreshControls";
+import { Header } from "./components/Header";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
@@ -44,6 +45,7 @@ export default function MainApp() {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
+  const [tradeInfo, setTradeInfo] = useState<{ tradesThisMonth: number; tradesRemaining: number } | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -99,7 +101,13 @@ export default function MainApp() {
       setLoading(true);
       setErr(null);
       getPortfolio(selectedOwner)
-        .then(setPortfolio)
+        .then((p) => {
+          setPortfolio(p);
+          setTradeInfo({
+            tradesThisMonth: p.trades_this_month,
+            tradesRemaining: p.trades_remaining,
+          });
+        })
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));
     }
@@ -138,6 +146,11 @@ export default function MainApp() {
       {mode !== "support" && (
         <Menu selectedOwner={selectedOwner} selectedGroup={selectedGroup} />
       )}
+
+      <Header
+        tradesThisMonth={tradeInfo?.tradesThisMonth}
+        tradesRemaining={tradeInfo?.tradesRemaining}
+      />
 
       <PriceRefreshControls
         mode={mode}
@@ -180,6 +193,16 @@ export default function MainApp() {
               setSelectedOwner(owner);
               navigate(`/member/${owner}`);
             }}
+            onTradeInfo={(info) =>
+              setTradeInfo(
+                info
+                  ? {
+                      tradesThisMonth: info.trades_this_month ?? 0,
+                      tradesRemaining: info.trades_remaining ?? 0,
+                    }
+                  : null,
+              )
+            }
           />
         </>
       )}

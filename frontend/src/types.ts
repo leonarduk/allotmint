@@ -22,6 +22,7 @@ export interface Holding {
     days_held?: number;
     sell_eligible?: boolean;
     days_until_eligible?: number | null;
+    next_eligible_sell_date?: string | null;
 }
 
 export type Account = {

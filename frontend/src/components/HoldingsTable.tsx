@@ -131,11 +131,21 @@ export function HoldingsTable({
   ];
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  useEffect(() => {
+    if (tableHeaderRef.current) {
+      setHeaderHeight(tableHeaderRef.current.getBoundingClientRect().height);
+    }
+  }, []);
+
   const rowVirtualizer = useVirtualizer({
     count: sortedRows.length,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => 40,
     overscan: 5,
+    scrollMargin: headerHeight,
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
   const paddingTop = virtualRows.length ? virtualRows[0].start : 0;
@@ -205,7 +215,7 @@ export function HoldingsTable({
           style={{ maxHeight: "400px", overflowY: "auto", marginBottom: "1rem" }}
         >
         <table className={tableStyles.table}>
-        <thead>
+        <thead ref={tableHeaderRef}>
           <tr>
             <th className={tableStyles.cell}>
               <input

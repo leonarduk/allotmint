@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
@@ -8,6 +8,7 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 type Props = {
   holdings: Holding[];
@@ -109,6 +110,22 @@ export function HoldingsTable({
     ["gain", "Gain"],
     ["gain_pct", "Gain %"],
   ];
+
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: sortedRows.length,
+    getScrollElement: () => bodyRef.current,
+    estimateSize: () => 40,
+    overscan: 5,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const paddingTop = virtualRows.length ? virtualRows[0].start : 0;
+  const paddingBottom = virtualRows.length
+    ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+    : 0;
+  const items = virtualRows.length
+    ? virtualRows
+    : sortedRows.map((_, index) => ({ index, start: index * 40, end: (index + 1) * 40 }));
 
   return (
     <>
@@ -250,9 +267,19 @@ export function HoldingsTable({
           </tr>
         </thead>
 
-        <tbody>
-          {sortedRows.map((h) => {
-            const handleClick = () => onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+        <tbody
+          ref={bodyRef}
+          style={{ display: "block", maxHeight: "400px", overflowY: "auto" }}
+        >
+          {paddingTop > 0 && (
+            <tr style={{ height: paddingTop }}>
+              <td colSpan={20} style={{ padding: 0, border: "none" }} />
+            </tr>
+          )}
+          {items.map((virtualRow) => {
+            const h = sortedRows[virtualRow.index];
+            const handleClick = () =>
+              onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
             return (
               <tr key={h.ticker + h.acquired_date}>
                 <td className={tableStyles.cell}>
@@ -296,13 +323,17 @@ export function HoldingsTable({
                     h.currency ?? "—"
                   )}
                 </td>
-                <td className={tableStyles.cell}>{translateInstrumentType(t, h.instrument_type)}</td>
+                <td className={tableStyles.cell}>
+                  {translateInstrumentType(t, h.instrument_type)}
+                </td>
                 {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.current_price_gbp)}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {money(h.current_price_gbp)}
+                </td>
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
@@ -312,7 +343,9 @@ export function HoldingsTable({
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.market && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {money(h.market)}
+                  </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td
@@ -330,22 +363,35 @@ export function HoldingsTable({
                     {percent(h.gain_pct ?? 0, 1)}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{percent(h.weight_pct ?? 0, 1)}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {percent(h.weight_pct ?? 0, 1)}
+                </td>
                 <td className={tableStyles.cell}>
                   {h.acquired_date && !isNaN(Date.parse(h.acquired_date))
-                    ? new Intl.DateTimeFormat(i18n.language).format(new Date(h.acquired_date))
+                    ? new Intl.DateTimeFormat(i18n.language).format(
+                        new Date(h.acquired_date),
+                      )
                     : "—"}
                 </td>
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{h.days_held ?? "—"}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {h.days_held ?? "—"}
+                </td>
                 <td
                   className={`${tableStyles.cell} ${tableStyles.center}`}
                   style={{ color: h.sell_eligible ? "lightgreen" : "gold" }}
                 >
-                  {h.sell_eligible ? "✓ Eligible" : `✗ ${h.days_until_eligible ?? ""}`}
+                  {h.sell_eligible
+                    ? "✓ Eligible"
+                    : `✗ ${h.days_until_eligible ?? ""}`}
                 </td>
               </tr>
             );
           })}
+          {paddingBottom > 0 && (
+            <tr style={{ height: paddingBottom }}>
+              <td colSpan={20} style={{ padding: 0, border: "none" }} />
+            </tr>
+          )}
         </tbody>
       </table>
     </>

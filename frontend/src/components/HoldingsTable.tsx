@@ -130,10 +130,10 @@ export function HoldingsTable({
     ["gain_pct", "Gain %"],
   ];
 
-  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: sortedRows.length,
-    getScrollElement: () => bodyRef.current,
+    getScrollElement: () => tableContainerRef.current,
     estimateSize: () => 40,
     overscan: 5,
   });
@@ -200,7 +200,11 @@ export function HoldingsTable({
         ))}
       </div>
       {sortedRows.length ? (
-        <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
+        <div
+          ref={tableContainerRef}
+          style={{ maxHeight: "400px", overflowY: "auto", marginBottom: "1rem" }}
+        >
+        <table className={tableStyles.table}>
         <thead>
           <tr>
             <th className={tableStyles.cell}>
@@ -325,10 +329,7 @@ export function HoldingsTable({
           </tr>
         </thead>
 
-        <tbody
-          ref={bodyRef}
-          style={{ display: "block", maxHeight: "400px", overflowY: "auto" }}
-        >
+        <tbody>
           {paddingTop > 0 && (
             <tr style={{ height: paddingTop }}>
               <td colSpan={20} style={{ padding: 0, border: "none" }} />
@@ -452,6 +453,7 @@ export function HoldingsTable({
           )}
         </tbody>
         </table>
+        </div>
       ) : (
         <p>No holdings match the current filters.</p>
       )}

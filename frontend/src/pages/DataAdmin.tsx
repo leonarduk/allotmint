@@ -47,7 +47,7 @@ export default function DataAdmin() {
               <td>{r.earliest}</td>
               <td>{r.latest}</td>
               <td>{r.completeness.toFixed(2)}</td>
-              <td>{r.latest_source ?? ""}</td>
+              <td>{r.latest_source ? `Source: ${r.latest_source}` : ""}</td>
               <td>{r.main_source ?? ""}</td>
             </tr>
           ))}

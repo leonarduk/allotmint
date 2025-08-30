@@ -16,6 +16,7 @@ export interface Holding {
     gain_gbp?: number;
     gain_pct?: number;
     current_price_gbp?: number | null;
+    latest_source?: string | null;
     day_change_gbp?: number;
     instrument_type?: string | null;
 

@@ -165,18 +165,18 @@ def _get_price_for_date_scaled(
     exchange: str,
     d: dt.date,
     field: str = "Close_gbp",
-) -> Optional[float]:
+) -> tuple[Optional[float], Optional[str]]:
     if ticker.upper() in {"CASH", "GBP.CASH", "CASH.GBP"}:
-        return 1.0
+        return 1.0, None
 
     """
     Load a single-day DF, apply scaling override and return the requested
-    field.  For close prices we prefer the GBP-converted column when
-    available, falling back to the regular close.
+    field together with its source. For close prices we prefer the
+    GBP-converted column when available, falling back to the regular close.
     """
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
-        return None
+        return None, None
 
     scale = get_scaling_override(ticker, exchange, None)
     df = apply_scaling(df, scale)
@@ -188,12 +188,17 @@ def _get_price_for_date_scaled(
     else:
         col = nm.get(field.lower())
     if not col or df.empty:
-        return None
+        return None, None
 
     try:
-        return float(df.iloc[0][col])
+        price = float(df.iloc[0][col])
     except (ValueError, TypeError, KeyError, IndexError):
-        return None
+        return None, None
+
+    src = df.iloc[0].get("Source")
+    if pd.isna(src):
+        src = None
+    return price, src
 
 
 def get_effective_cost_basis_gbp(
@@ -376,16 +381,17 @@ def enrich_holding(
 
     # Current price as of "yesterday" (app constraint)
     asof_date = today - dt.timedelta(days=1)
-    px = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
+    px, px_source = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
 
     units = float(out.get(UNITS, 0) or 0)
 
     out["price"] = px  # legacy name used in parts of UI
     out["current_price_gbp"] = px
+    out["latest_source"] = px_source
 
     # price one day before to calculate day-on-day change
     prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
-    prev_px = _get_price_for_date_scaled(ticker, exchange, prev_date, field="Close_gbp")
+    prev_px, _ = _get_price_for_date_scaled(ticker, exchange, prev_date, field="Close_gbp")
 
     if px is not None:
         mv = round(units * float(px), 2)

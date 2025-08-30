@@ -1,20 +1,22 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import './index.css'
-import './styles/responsive.css'
-import './i18n'
-import App from './App.tsx'
-import VirtualPortfolio from './pages/VirtualPortfolio'
-import Reports from './pages/Reports'
-import Support from './pages/Support'
-import './i18n'
-import { ConfigProvider } from './ConfigContext'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import './index.css';
+import './styles/responsive.css';
+import './i18n';
+import App from './App.tsx';
+import VirtualPortfolio from './pages/VirtualPortfolio';
+import Reports from './pages/Reports';
+import Support from './pages/Support';
+import './i18n';
+import { ConfigProvider } from './ConfigContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ConfigProvider>
-      <BrowserRouter>
+      <BrowserRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <Routes>
           <Route path="/support" element={<Support />} />
           <Route path="/reports" element={<Reports />} />
@@ -23,5 +25,5 @@ createRoot(document.getElementById('root')!).render(
         </Routes>
       </BrowserRouter>
     </ConfigProvider>
-  </StrictMode>,
-)
+  </StrictMode>
+);

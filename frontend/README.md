@@ -4,14 +4,20 @@ The AllotMint frontend is a React + TypeScript single-page app that visualises f
 
 ## Interface
 
-* Portfolio viewer for individual owners and groups.
-* Watchlist, screener and other analysis pages.
-* A **Relative view** toggle in the portfolio table hides absolute columns and shows percentage-based metrics such as "Gain %" and "Weight %".
+- Portfolio viewer for individual owners and groups.
+- Watchlist, screener and other analysis pages.
+- A **Relative view** toggle in the portfolio table hides absolute columns and shows percentage-based metrics such as "Gain %" and "Weight %".
 
 ## Development scripts
 
-* `npm run dev` – start the Vite development server.
-* `npm test` – execute the test suite with Vitest and Testing Library.
+- `npm run dev` – start the Vite development server.
+- `npm test` – execute the test suite with Vitest and Testing Library.
+
+## Routing
+
+The app opts into upcoming React Router v7 behavior by enabling the
+`v7_startTransition` and `v7_relativeSplatPath` flags. This allows testing
+future navigation features ahead of the final release.
 
 ## Installation
 
@@ -23,8 +29,8 @@ The AllotMint frontend is a React + TypeScript single-page app that visualises f
 
 Set one of the following environment variables to tell the UI where the backend lives:
 
-* `VITE_ALLOTMINT_API_BASE` – full base URL to the backend.
-* `VITE_API_URL` – legacy fallback used when `VITE_ALLOTMINT_API_BASE` is unset.
+- `VITE_ALLOTMINT_API_BASE` – full base URL to the backend.
+- `VITE_API_URL` – legacy fallback used when `VITE_ALLOTMINT_API_BASE` is unset.
 
 If neither is provided the app falls back to `http://localhost:8000`.
 
@@ -37,11 +43,11 @@ provides the component to render and optional metadata such as a
 `priority` value. Plugins are registered in `src/pluginRegistry.ts`.
 
 ```ts
-import { registerTabPlugin } from "./pluginRegistry";
-import MyTab from "./pages/MyTab";
+import { registerTabPlugin } from './pluginRegistry';
+import MyTab from './pages/MyTab';
 
 registerTabPlugin({
-  id: "myTab",
+  id: 'myTab',
   Component: MyTab,
   priority: 50, // higher numbers appear earlier
 });
@@ -50,4 +56,3 @@ registerTabPlugin({
 Plugins with higher priority numbers are displayed before lower ones. A
 plugin can be disabled by setting `isEnabled` to `false` or providing a
 function that returns `false`.
-

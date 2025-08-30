@@ -95,7 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(query_router)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)
-    app.include_router(performance_router)
+    app.include_router(performance_router, dependencies=protected)
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(config_router)

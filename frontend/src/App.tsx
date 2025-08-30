@@ -255,9 +255,16 @@ export default function App() {
   }
 
   if (backendUnavailable) {
+    const backendError =
+      ownersReq.error?.message || groupsReq.error?.message;
     return (
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
         Backend unavailable—retrying…
+        {backendError && (
+          <div style={{ marginTop: "0.5rem", color: "red" }}>
+            {backendError}
+          </div>
+        )}
       </div>
     );
   }

@@ -88,20 +88,18 @@ if (-not $offline) {
 
 # ───────────── env + defaults (PS 5.1) ────────
 $env:ALLOTMINT_ENV = Coalesce $cfg.app_env 'local'
-$host      = Coalesce $cfg.uvicorn_host '0.0.0.0'
 $port      = Coalesce $cfg.uvicorn_port $Port
 $logConfig = Coalesce $cfg.log_config   'logging.ini'
 $reloadRaw = Coalesce $cfg.reload       $true
 $reload    = [bool]$reloadRaw
 
 # ───────────── start server ───────────────────
-Write-Host "Starting AllotMint Local API on http://$host:$port ..." -ForegroundColor Green
+Write-Host "Starting AllotMint Local API on http://localhost:$port ..." -ForegroundColor Green
 
 $arguments = @(
   'backend.local_api.main:app',
   '--reload-dir', 'backend',
   '--port', $port,
-  '--host', $host,
   '--log-config', $logConfig,
   '--app-dir', '.'
 )

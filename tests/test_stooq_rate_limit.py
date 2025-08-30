@@ -29,6 +29,11 @@ def test_stooq_rate_limit_disables_until_next_day(monkeypatch):
         def today(cls):
             return cls(2024, 1, 2)
 
+    class Day3(date):
+        @classmethod
+        def today(cls):
+            return cls(2024, 1, 3)
+
     monkeypatch.setattr(fst, "date", Day1)
     fst.STOOQ_DISABLED_UNTIL = Day1.min
     monkeypatch.setattr(fst, "is_valid_ticker", lambda *a, **k: True)
@@ -56,13 +61,18 @@ def test_stooq_rate_limit_disables_until_next_day(monkeypatch):
 
     monkeypatch.setattr(fst, "date", Day2)
 
+    with pytest.raises(fst.StooqRateLimitError):
+        fst.fetch_stooq_timeseries_range("AAA", "L", Day1(2024, 1, 1), Day2(2024, 1, 2))
+
+    monkeypatch.setattr(fst, "date", Day3)
+
     def ok_get(url, params, **kwargs):
         calls.append("ok")
         return SimpleNamespace(ok=True, status_code=200, text=_csv_response())
 
     monkeypatch.setattr(fst.requests, "get", ok_get)
 
-    df = fst.fetch_stooq_timeseries_range("AAA", "L", Day1(2024, 1, 1), Day2(2024, 1, 2))
+    df = fst.fetch_stooq_timeseries_range("AAA", "L", Day1(2024, 1, 1), Day3(2024, 1, 3))
     assert not df.empty
     assert len(calls) == 2
     fst.STOOQ_DISABLED_UNTIL = Day1.min

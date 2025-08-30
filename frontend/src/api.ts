@@ -124,9 +124,11 @@ export const getGroupMovers = (
   slug: string,
   days: number,
   limit = 10,
+  minWeight = 0,
 ) => {
   const params = new URLSearchParams({ days: String(days) });
   if (limit) params.set("limit", String(limit));
+  if (minWeight) params.set("min_weight", String(minWeight));
   return fetchJson<{ gainers: MoverRow[]; losers: MoverRow[] }>(
     `${API_BASE}/portfolio-group/${slug}/movers?${params.toString()}`,
   );

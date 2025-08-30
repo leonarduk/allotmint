@@ -167,6 +167,7 @@ async def group_movers(
     slug: str,
     days: int = Query(1, description="Lookback window"),
     limit: int = Query(10, description="Max results per side"),
+    min_weight: float = Query(0.0, description="Exclude positions below this percent"),
 ):
     """Return top gainers and losers for a group portfolio."""
 
@@ -176,10 +177,28 @@ async def group_movers(
         summaries = instrument_api.instrument_summaries_for_group(slug)
     except Exception:
         raise HTTPException(status_code=404, detail="Group not found")
+
     tickers = [s.get("ticker") for s in summaries if s.get("ticker")]
     if not tickers:
         return {"gainers": [], "losers": []}
-    return instrument_api.top_movers(tickers, days, limit)
+
+    # Compute weights in percent for filtering
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
+    weight_map = {
+        s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
+        if total_mv
+        else 0.0
+        for s in summaries
+        if s.get("ticker")
+    }
+
+    return instrument_api.top_movers(
+        tickers,
+        days,
+        limit,
+        min_weight=min_weight,
+        weights=weight_map,
+    )
 
 
 @router.get("/account/{owner}/{account}")

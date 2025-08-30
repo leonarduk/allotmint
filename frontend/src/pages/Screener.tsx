@@ -377,8 +377,8 @@ export function Screener() {
           <input
             aria-label={t("screener.max52WeekLow")}
             type="number"
-            value={low52wMax}
-            onChange={(e) => setLow52wMax(e.target.value)}
+            value={high52wMax}
+            onChange={(e) => setHigh52wMax(e.target.value)}
             step="any"
             style={{ marginLeft: "0.25rem" }}
           />

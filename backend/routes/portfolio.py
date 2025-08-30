@@ -136,6 +136,24 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
     }
 
 
+@router.post("/var/{owner}/recompute")
+async def portfolio_var_recompute(owner: str, days: int = 365, confidence: float = 0.95):
+    """Force recomputation of VaR for ``owner``.
+
+    This endpoint mirrors :func:`portfolio_var` but is intended to be called
+    when cached data is missing. It recalculates the metrics and returns the
+    result without additional metadata.
+    """
+
+    try:
+        var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"owner": owner, "var": var}
+
+
 @router.get("/portfolio-group/{slug}")
 async def portfolio_group(slug: str):
     """Return the aggregated portfolio for a group.

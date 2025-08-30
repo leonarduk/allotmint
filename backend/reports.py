@@ -7,8 +7,13 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missing
+    letter = None
+    canvas = None
 
 from backend.common import portfolio_utils
 from backend.config import config
@@ -131,6 +136,8 @@ def report_to_csv(data: ReportData) -> bytes:
 
 
 def report_to_pdf(data: ReportData) -> bytes:
+    if canvas is None:
+        raise RuntimeError("reportlab is required for PDF output")
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
     text = c.beginText(40, 750)

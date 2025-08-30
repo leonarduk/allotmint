@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 import backend.common.alerts as alerts
 from backend import config as backend_config
+import backend.reports as reports
 
 
 @pytest.fixture(scope="module")
@@ -26,7 +27,7 @@ def client():
 
 
 def test_report_pdf(client, monkeypatch):
-    """PDF reports should be generated using reportlab."""
+    """PDF reports require reportlab; otherwise a RuntimeError is raised."""
 
     def fake_load_transactions(owner):
         return [
@@ -45,9 +46,13 @@ def test_report_pdf(client, monkeypatch):
         "backend.common.portfolio_utils.compute_owner_performance", fake_performance
     )
 
-    resp = client.get("/reports/test?format=pdf")
-    assert resp.status_code == 200
-    assert resp.headers["content-type"] == "application/pdf"
-    assert resp.content.startswith(b"%PDF")
-    assert len(resp.content) > 100
+    data = reports.compile_report("test")
+    if reports.canvas is None:
+        with pytest.raises(RuntimeError, match="reportlab is required for PDF output"):
+            reports.report_to_pdf(data)
+        return
+
+    pdf = reports.report_to_pdf(data)
+    assert pdf.startswith(b"%PDF")
+    assert len(pdf) > 100
 

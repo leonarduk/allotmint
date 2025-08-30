@@ -147,8 +147,17 @@ export const getGroupInstruments = (slug: string) =>
   );
 
 /** Fetch performance metrics for an owner */
-export const getPerformance = (owner: string, days = 365) =>
-  fetchJson<PerformancePoint[]>(`${API_BASE}/performance/${owner}?days=${days}`);
+export const getPerformance = (
+  owner: string,
+  days = 365,
+  excludeCash = false,
+) => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (excludeCash) params.set("exclude_cash", "1");
+  return fetchJson<{ owner: string; history: PerformancePoint[] }>(
+    `${API_BASE}/performance/${owner}?${params.toString()}`,
+  ).then((res) => res.history);
+};
 
 /** Run a simple fundamentals screen across a list of tickers. */
 export const getScreener = (
@@ -386,12 +395,13 @@ export const listSavedQueries = () =>
 /** Fetch rolling Value at Risk series for an owner. */
 export const getValueAtRisk = (
   owner: string,
-  opts: { days?: number; confidence?: number } = {}
+  opts: { days?: number; confidence?: number; excludeCash?: boolean } = {},
 ) => {
   const params = new URLSearchParams();
   if (opts.days != null) params.set("days", String(opts.days));
   if (opts.confidence != null)
     params.set("confidence", String(opts.confidence));
+  if (opts.excludeCash) params.set("exclude_cash", "1");
   const qs = params.toString();
   return fetchJson<ValueAtRiskPoint[]>(
     `${API_BASE}/var/${owner}${qs ? `?${qs}` : ""}`

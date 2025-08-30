@@ -88,23 +88,17 @@ async def portfolio(owner: str, request: Request):
     """
 
     try:
-        return portfolio_mod.build_owner_portfolio(owner, request.app.state.accounts_root)
+        return portfolio_mod.build_owner_portfolio(
+            owner, request.app.state.accounts_root
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
-
-
-@router.get("/performance/{owner}")
-async def performance(owner: str, days: int = 365):
-    """Return portfolio performance metrics for ``owner``."""
-    try:
-        result = portfolio_utils.compute_owner_performance(owner, days=days)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Owner not found")
-    return {"owner": owner, **result}
 
 
 @router.get("/var/{owner}")
-async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
+async def portfolio_var(
+    owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False
+):
     """Return historical-simulation VaR for ``owner``.
 
     Parameters
@@ -116,13 +110,18 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95):
         Quantile for losses in (0, 1) or, alternatively, a percentage in the
         range 0–100. Both ``0.95`` and ``95`` will request the 95 % quantile.
         Defaults to 0.95 (95 %); 0.99 is also common.
+    exclude_cash:
+        If ``True``, cash holdings are ignored when reconstructing the
+        portfolio returns used for VaR.
 
     Returns a JSON object ``{"owner": owner, "as_of": <today>, "var": {...}}``.
     Raises 404 if the owner does not exist and 400 for invalid parameters.
     """
 
     try:
-        var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
+        var = risk.compute_portfolio_var(
+            owner, days=days, confidence=confidence, include_cash=not exclude_cash
+        )
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")

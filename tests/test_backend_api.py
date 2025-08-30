@@ -270,8 +270,8 @@ def test_yahoo_timeseries_html(client):
     assert ticker.lower() in html
 
 
-def test_alerts_endpoint(monkeypatch):
-    alerts._RECENT_ALERTS.clear()
+def test_alerts_endpoint(client, monkeypatch):
+    alerts.clear_state()
     monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))
     client.post("/prices/refresh")
     resp = client.get("/alerts")

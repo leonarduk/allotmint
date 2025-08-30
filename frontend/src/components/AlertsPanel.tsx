@@ -5,10 +5,14 @@ import { useEffect, useState } from "react";
 export function AlertsPanel({ user = "default" }: { user?: string }) {
   const { data: alerts, loading, error } = useFetch<Alert[]>(api.getAlerts, []);
   const [threshold, setThreshold] = useState<number>();
+  const [settingsError, setSettingsError] = useState(false);
 
   useEffect(() => {
     if (api.getAlertSettings) {
-      api.getAlertSettings(user).then((r) => setThreshold(r.threshold));
+      api
+        .getAlertSettings(user)
+        .then((r) => setThreshold(r.threshold))
+        .catch(() => setSettingsError(true));
     }
   }, [user]);
 
@@ -18,10 +22,20 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
     }
   };
 
+  if (loading) return null;
+
+  if (error || settingsError) {
+    return (
+      <div style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "1rem" }}>
+        Cannot reach server
+      </div>
+    );
+  }
+
   const importAlert = alerts?.find((a) => a.ticker === "IMPORT");
   const otherAlerts = alerts?.filter((a) => a.ticker !== "IMPORT") ?? [];
 
-  if (loading || error || (!importAlert && otherAlerts.length === 0)) return null;
+  if (!importAlert && otherAlerts.length === 0) return null;
 
   return (
     <div style={{ border: "1px solid #ccc", padding: "0.5rem", marginBottom: "1rem" }}>

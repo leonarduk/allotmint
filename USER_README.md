@@ -119,5 +119,6 @@ If the variable is unset the UI defaults to `http://localhost:8000` (or
 - **Run the trading agent**: `python scripts/run_trading_agent.py --tickers AAPL MSFT`
 - **Deploy to AWS**:
   1. `cd frontend && npm run build`
-  2. `cd cdk && cdk deploy StaticSiteStack`
+  2. `cd cdk && DEPLOY_BACKEND=false cdk deploy StaticSiteStack`
+  3. To include the backend: `DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack`
 

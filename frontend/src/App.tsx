@@ -7,6 +7,7 @@ import {
   getOwners,
   getPortfolio,
   refreshPrices,
+  API_BASE,
 } from "./api";
 
 import type {
@@ -83,7 +84,6 @@ export default function App() {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
-  const [backendUnavailable, setBackendUnavailable] = useState(false);
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
@@ -182,17 +182,6 @@ export default function App() {
     if (groupsReq.data) setGroups(groupsReq.data);
   }, [groupsReq.data]);
 
-  useEffect(() => {
-    if (ownersReq.error || groupsReq.error) {
-      setBackendUnavailable(true);
-    }
-  }, [ownersReq.error, groupsReq.error]);
-
-  useEffect(() => {
-    if (ownersReq.data && groupsReq.data) {
-      setBackendUnavailable(false);
-    }
-  }, [ownersReq.data, groupsReq.data]);
   // redirect to defaults if no selection provided
   useEffect(() => {
     if (mode === "owner" && !selectedOwner && owners.length) {
@@ -254,17 +243,23 @@ export default function App() {
     }
   }
 
-  if (backendUnavailable) {
-    const backendError =
-      ownersReq.error?.message || groupsReq.error?.message;
+  const ownersExhausted =
+    ownersReq.error && ownersReq.attempt >= ownersReq.maxAttempts;
+  const groupsExhausted =
+    groupsReq.error && groupsReq.attempt >= groupsReq.maxAttempts;
+  const backendError = ownersExhausted
+    ? ownersReq.error
+    : groupsExhausted
+    ? groupsReq.error
+    : null;
+
+  if (backendError) {
     return (
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-        Backend unavailable—retrying…
-        {backendError && (
-          <div style={{ marginTop: "0.5rem", color: "red" }}>
-            {backendError}
-          </div>
-        )}
+        Unable to reach API at {API_BASE}; is the backend running?
+        <div style={{ marginTop: "0.5rem", color: "red" }}>
+          {backendError.message}
+        </div>
       </div>
     );
   }

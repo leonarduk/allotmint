@@ -131,6 +131,12 @@ The backend exposes Value at Risk (VaR) metrics for each portfolio.
 See [backend/common/portfolio_utils.py](backend/common/portfolio_utils.py) for the return series that feed the calculation
 and [backend/common/constants.py](backend/common/constants.py) for currency labels.
 
+## Portfolio reports
+
+`GET /reports/{owner}` compiles realized gains, income and performance metrics
+for a portfolio. Pass `format=csv` or `format=pdf` to download the report in
+your preferred format.
+
 ## Local Quick-start
 
 The project is split into a Python FastAPI backend and a React/TypeScript
@@ -285,10 +291,14 @@ npm install
 npm run build
 cd ..
 
-# deploy the static site stack
+# deploy the static site stack only
 cd cdk
 cdk bootstrap   # only required once per AWS account/region
-cdk deploy StaticSiteStack
+DEPLOY_BACKEND=false cdk deploy StaticSiteStack
+
+# or include the backend Lambda stack
+DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack
+# equivalently: cdk deploy BackendLambdaStack StaticSiteStack -c deploy_backend=true
 ```
 
 The bucket remains private and CloudFront uses an origin access identity

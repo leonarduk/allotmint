@@ -42,6 +42,6 @@ requests~=2.32.3
 peewee~=3.18.2
 numpy~=2.3.1
 pyarrow~=21.0.0
-reportlab~=3.6.12
+reportlab>=4.2.0
 PyJWT~=2.9.0
 python-multipart~=0.0.20

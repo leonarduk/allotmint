@@ -162,6 +162,22 @@ async def group_instruments(slug: str):
     return portfolio_utils.aggregate_by_ticker(gp)
 
 
+@router.get("/portfolio-group/{slug}/sectors")
+async def group_sectors(slug: str):
+    """Return return contribution aggregated by sector."""
+
+    gp = group_portfolio.build_group_portfolio(slug)
+    return portfolio_utils.aggregate_by_sector(gp)
+
+
+@router.get("/portfolio-group/{slug}/regions")
+async def group_regions(slug: str):
+    """Return return contribution aggregated by region."""
+
+    gp = group_portfolio.build_group_portfolio(slug)
+    return portfolio_utils.aggregate_by_region(gp)
+
+
 @router.get("/portfolio-group/{slug}/movers")
 async def group_movers(
     slug: str,

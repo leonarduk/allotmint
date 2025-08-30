@@ -22,6 +22,8 @@ import type {
   TimeseriesSummary,
   ScenarioResult,
   TradeSuggestion,
+  SectorContribution,
+  RegionContribution,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -142,6 +144,18 @@ export const runScenario = (ticker: string, pct: number) => {
 export const getGroupInstruments = (slug: string) =>
   fetchJson<InstrumentSummary[]>(
     `${API_BASE}/portfolio-group/${slug}/instruments`
+  );
+
+/** Retrieve return contribution aggregated by sector for a group portfolio. */
+export const getGroupSectorContributions = (slug: string) =>
+  fetchJson<SectorContribution[]>(
+    `${API_BASE}/portfolio-group/${slug}/sectors`
+  );
+
+/** Retrieve return contribution aggregated by region for a group portfolio. */
+export const getGroupRegionContributions = (slug: string) =>
+  fetchJson<RegionContribution[]>(
+    `${API_BASE}/portfolio-group/${slug}/regions`
   );
 
 /** Fetch performance metrics for an owner */

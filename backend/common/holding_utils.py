@@ -299,6 +299,7 @@ def enrich_holding(
         out["sell_eligible"] = True
         out["eligible_on"] = None
         out["days_until_eligible"] = 0
+        out["next_eligible_sell_date"] = None
         out["cost_basis_source"] = "cash"
 
         return out
@@ -331,6 +332,7 @@ def enrich_holding(
         out["sell_eligible"] = False
         out["eligible_on"] = None
         out["days_until_eligible"] = None
+        out["next_eligible_sell_date"] = None
         out["price"] = None
         out["current_price_gbp"] = None
         out["cost_basis_source"] = "none"
@@ -345,13 +347,16 @@ def enrich_holding(
         days = (today - acq).days
         out["days_held"] = days
         eligible = days >= config.hold_days_min
-        out["eligible_on"] = (acq + dt.timedelta(days=config.hold_days_min)).isoformat()
+        next_date = acq + dt.timedelta(days=config.hold_days_min)
+        out["eligible_on"] = next_date.isoformat()
+        out["next_eligible_sell_date"] = next_date.isoformat()
         out["days_until_eligible"] = max(0, config.hold_days_min - days)
     else:
         out["days_held"] = None
         eligible = False
         out["eligible_on"] = None
         out["days_until_eligible"] = None
+        out["next_eligible_sell_date"] = None
 
     instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
     exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}

@@ -22,6 +22,7 @@ export interface Holding {
     days_held?: number;
     sell_eligible?: boolean;
     days_until_eligible?: number | null;
+    next_eligible_sell_date?: string | null;
 }
 
 export type Account = {
@@ -149,6 +150,7 @@ export interface MoverRow {
     change_pct: number;
     last_price_gbp?: number | null;
     last_price_date?: string | null;
+    market_value_gbp?: number | null;
 }
 
 export type Alert = {

@@ -34,8 +34,10 @@ protobuf~=6.31.1
 pyarrow~=21.0.0
 pycparser~=2.21
 pydantic~=2.11.7
+pyjwt~=2.9.0
 pysocks~=1.7.1
 python-dateutil~=2.9.0post0
+python-multipart~=0.0.20
 pytz~=2025.2
 pyyaml~=6.0.2
 requests~=2.32.3
@@ -57,6 +59,3 @@ websockets~=15.0.1
 win_inet_pton~=1.1.0
 wsproto~=1.2.0
 yfinance~=0.2.65
-pyjwt
-fastapi
-python-multipart

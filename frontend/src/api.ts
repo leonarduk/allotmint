@@ -268,7 +268,12 @@ export const getScreener = (
  * @param days   rolling window (default 365)
  */
 export const getInstrumentDetail = (ticker: string, days = 365) =>
-  fetchJson<{ prices: unknown; positions: unknown; currency?: string | null }>(
+  fetchJson<{
+    prices: unknown;
+    positions: unknown;
+    mini?: unknown;
+    currency?: string | null;
+  }>(
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(
       ticker
     )}&days=${days}&format=json`

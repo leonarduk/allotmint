@@ -8,6 +8,8 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
+import { getInstrumentDetail } from "../api";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 const VIEW_PRESETS = [
@@ -53,6 +55,9 @@ export function HoldingsTable({
     gain_pct: true,
   });
 
+  const [sparkRange, setSparkRange] = useState<7 | 30 | 180>(30);
+  const [sparks, setSparks] = useState<Record<string, Record<string, any[]>>>({});
+
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -62,6 +67,19 @@ export function HoldingsTable({
   };
 
   useEffect(() => {
+    const tickers = Array.from(new Set(holdings.map((h) => h.ticker)));
+    tickers.forEach((t) => {
+      if (sparks[t]) return;
+      getInstrumentDetail(t, 180)
+        .then((d) => {
+          const m = (d as any).mini;
+          if (m) {
+            setSparks((prev) => ({ ...prev, [t]: m }));
+          }
+        })
+        .catch(() => {});
+    });
+  }, [holdings, sparks]);
     if (typeof window !== "undefined") {
       localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
     }
@@ -132,6 +150,20 @@ export function HoldingsTable({
   return (
     <>
       <div style={{ marginBottom: "0.5rem" }}>
+        Range:
+        {[7, 30, 180].map((d) => (
+          <label key={d} style={{ marginLeft: "0.5rem" }}>
+            <input
+              type="radio"
+              name="sparkRange"
+              checked={sparkRange === d}
+              onChange={() => setSparkRange(d as 7 | 30 | 180)}
+            />
+            {d}d
+          </label>
+        ))}
+      </div>
+      <div style={{ marginBottom: "0.5rem" }}>
         View:
         {VIEW_PRESETS.map((p) => (
           <button
@@ -201,6 +233,7 @@ export function HoldingsTable({
               />
             </th>
             <th className={tableStyles.cell}></th>
+            <th className={tableStyles.cell}></th>
             <th className={tableStyles.cell}>
               <input
                 placeholder="Type"
@@ -258,6 +291,7 @@ export function HoldingsTable({
             <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("name")}>
               Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
             </th>
+            <th className={tableStyles.cell}>Trend</th>
             <th className={tableStyles.cell}>CCY</th>
             <th className={tableStyles.cell}>Type</th>
             {!relativeViewEnabled && visibleColumns.units && (
@@ -331,6 +365,15 @@ export function HoldingsTable({
                   </button>
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
+                <td className={tableStyles.cell} style={{ width: "80px" }}>
+                  {sparks[h.ticker]?.[String(sparkRange)]?.length ? (
+                    <ResponsiveContainer width="100%" height={40}>
+                      <LineChart data={sparks[h.ticker][String(sparkRange)]} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                        <Line type="monotone" dataKey="close_gbp" stroke="#8884d8" dot={false} strokeWidth={1} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : null}
+                </td>
                 <td className={tableStyles.cell}>
                   {isSupportedFx(h.currency) ? (
                     <button

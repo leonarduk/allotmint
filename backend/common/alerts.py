@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List
 
 from backend.config import config
@@ -8,9 +8,38 @@ logger = logging.getLogger("alerts")
 
 _RECENT_ALERTS: List[Dict] = []
 
+# Track last published state and time per instrument to throttle alerts and only
+# emit notifications when the state changes (e.g. threshold crossed vs. not).
+_LAST_ALERT_STATE: Dict[str, bool] = {}
+_LAST_ALERT_TIME: Dict[str, datetime] = {}
+
 
 def publish_sns_alert(alert: Dict) -> None:
-    """Store alert and send via SNS if configured."""
+    """Store alert and send via SNS if configured.
+
+    Alerts may include ``instrument`` and ``state`` fields indicating the
+    subject of the alert and whether a threshold was crossed.  When present,
+    alerts are throttled to one per instrument per hour and are only published
+    when the state changes.
+    """
+
+    instrument = alert.get("instrument")
+    state = alert.get("state")
+
+    if instrument is not None and state is not None:
+        previous_state = _LAST_ALERT_STATE.get(instrument)
+        last_time = _LAST_ALERT_TIME.get(instrument)
+        now = datetime.utcnow()
+
+        # Only publish when state changes and at most once per hour.
+        if previous_state == state:
+            return
+        if last_time and now - last_time < timedelta(hours=1):
+            return
+
+        _LAST_ALERT_STATE[instrument] = bool(state)
+        _LAST_ALERT_TIME[instrument] = now
+
     alert["timestamp"] = datetime.utcnow().isoformat()
     _RECENT_ALERTS.append(alert)
     topic_arn = config.sns_topic_arn

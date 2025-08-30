@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
@@ -8,6 +8,14 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
+
+const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
+const VIEW_PRESETS = [
+  { label: "All", value: "" },
+  { label: "ETF", value: "ETF" },
+  { label: "Equity", value: "Equity" },
+  { label: "Bond", value: "Bond" },
+];
 
 type Props = {
   holdings: Holding[];
@@ -31,6 +39,12 @@ export function HoldingsTable({
     sell_eligible: "",
   });
 
+  const [viewPreset, setViewPreset] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : localStorage.getItem(VIEW_PRESET_STORAGE_KEY) || ""
+  );
+
   const [visibleColumns, setVisibleColumns] = useState({
     units: true,
     cost: true,
@@ -46,6 +60,13 @@ export function HoldingsTable({
   const handleFilterChange = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
+    }
+    setFilters((prev) => ({ ...prev, instrument_type: viewPreset }));
+  }, [viewPreset]);
 
   // derive cost/market/gain/gain_pct
   const computed = holdings.map((h) => {
@@ -112,6 +133,44 @@ export function HoldingsTable({
 
   return (
     <>
+      <div style={{ marginBottom: "0.5rem" }}>
+        View:
+        {VIEW_PRESETS.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => setViewPreset(p.value)}
+            style={{
+              marginLeft: "0.5rem",
+              fontWeight: viewPreset === p.value ? "bold" : "normal",
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ marginBottom: "0.5rem" }}>
+        Quick Filters:
+        <button
+          type="button"
+          style={{ marginLeft: "0.5rem" }}
+          onClick={() => handleFilterChange("sell_eligible", "true")}
+        >
+          Sell-eligible
+        </button>
+        <button
+          type="button"
+          style={{ marginLeft: "0.5rem" }}
+          onClick={() => {
+            const val = prompt("Minimum Gain %", "10");
+            if (val !== null) {
+              handleFilterChange("gain_pct", val);
+            }
+          }}
+        >
+          Gain% &gt; x
+        </button>
+      </div>
       <div style={{ marginBottom: "0.5rem" }}>
         Columns:
         {columnLabels.map(([key, label]) => (

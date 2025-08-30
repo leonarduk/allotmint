@@ -1,5 +1,5 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { HoldingsTable } from "./HoldingsTable";
 import { configContext, type AppConfig } from "../ConfigContext";
 
@@ -27,6 +27,9 @@ const defaultConfig: AppConfig = {
 import type { Holding } from "../types";
 
 describe("HoldingsTable", () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
     const holdings: Holding[] = [
         {
             ticker: "AAA",
@@ -168,5 +171,52 @@ describe("HoldingsTable", () => {
         const checkbox = screen.getByLabelText("Units");
         fireEvent.click(checkbox);
         expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
+    });
+
+    it("applies sell-eligible quick filter", () => {
+        render(<HoldingsTable holdings={holdings} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Sell-eligible' }));
+        expect(screen.getByLabelText('Sell eligible')).toHaveValue('true');
+        expect(screen.getByText('AAA')).toBeInTheDocument();
+        expect(screen.queryByText('Test Holding')).toBeNull();
+    });
+
+    it("applies gain percentage quick filter", () => {
+        vi.spyOn(window, 'prompt').mockReturnValue('10');
+        render(<HoldingsTable holdings={holdings} />);
+        fireEvent.click(screen.getByRole('button', { name: /Gain%/ }));
+        expect(screen.getByPlaceholderText('Gain %')).toHaveValue('10');
+        expect(screen.getByText('AAA')).toBeInTheDocument();
+        expect(screen.queryByText('XYZ')).toBeNull();
+    });
+
+    it("persists view preset selection", () => {
+        const mixedHoldings: Holding[] = [
+            ...holdings,
+            {
+                ticker: 'BND1',
+                name: 'Bond Holding',
+                currency: 'GBP',
+                instrument_type: 'Bond',
+                units: 1,
+                price: 0,
+                cost_basis_gbp: 100,
+                market_value_gbp: 100,
+                gain_gbp: 0,
+                acquired_date: '',
+                days_held: 0,
+                sell_eligible: false,
+                days_until_eligible: 0,
+            },
+        ];
+        const { unmount } = render(<HoldingsTable holdings={mixedHoldings} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Bond' }));
+        expect(screen.getByText('BND1')).toBeInTheDocument();
+        expect(screen.queryByText('AAA')).toBeNull();
+        unmount();
+        render(<HoldingsTable holdings={mixedHoldings} />);
+        expect(screen.getByPlaceholderText('Type')).toHaveValue('Bond');
+        expect(screen.getByText('BND1')).toBeInTheDocument();
+        expect(screen.queryByText('AAA')).toBeNull();
     });
 });

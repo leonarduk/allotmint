@@ -88,6 +88,14 @@ Sensitive endpoints such as portfolio or transaction data can be secured with a 
    curl -H "X-API-Token: $API_TOKEN" http://localhost:8000/portfolio/alex
    ```
 
+   Another example fetching the list of owners:
+
+   ```bash
+   curl -H "X-API-Token: $API_TOKEN" http://localhost:8000/owners
+   ```
+
+   Omitting the header when `API_TOKEN` is set will result in `401 Unauthorized`.
+
 If `API_TOKEN` is unset, the API remains open which is convenient for local development and tests.
 
 ## Using a remote backend

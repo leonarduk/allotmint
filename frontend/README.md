@@ -35,8 +35,15 @@ future navigation features ahead of the final release.
 
 Set one of the following environment variables to tell the UI where the backend lives:
 
-- `VITE_ALLOTMINT_API_BASE` – full base URL to the backend.
-- `VITE_API_URL` – legacy fallback used when `VITE_ALLOTMINT_API_BASE` is unset.
+* `VITE_ALLOTMINT_API_BASE` – full base URL to the backend.
+* `VITE_API_URL` – legacy fallback used when `VITE_ALLOTMINT_API_BASE` is unset.
+* `VITE_API_TOKEN` – optional token sent as `X-API-Token` with every request.
+
+To provide the token, add it to your environment or a `.env` file in `frontend`:
+
+```
+VITE_API_TOKEN=your-token-here
+```
 
 If neither is provided the app falls back to `http://localhost:8000`.
 

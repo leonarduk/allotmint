@@ -205,6 +205,11 @@ npm run dev
 open http://localhost:5173/
 ```
 
+- **Authentication**:
+  - Set `API_TOKEN` and include it as an `X-API-Token` header in requests, or
+  - Leave `API_TOKEN` unset to disable authentication during local development.
+  See the [Authentication](USER_README.md#authentication) section for details.
+
 ## Alerts
 
 Trading alerts support multiple transports that are enabled via environment

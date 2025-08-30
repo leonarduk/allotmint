@@ -14,6 +14,7 @@ export function useFetchWithRetry<T>(
 ) {
   const [attempt, setAttempt] = useState(1);
   const result = useFetch(fn, [attempt]);
+  const unauthorized = result.error?.message.includes("HTTP 401") ?? false;
 
   useEffect(() => {
     if (!result.error) return;

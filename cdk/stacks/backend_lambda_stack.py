@@ -1,12 +1,12 @@
 from pathlib import Path
 
 from aws_cdk import (
+    BundlingOptions,
     Stack,
     aws_apigateway as apigw,
-    aws_lambda as _lambda,
     aws_events as events,
     aws_events_targets as targets,
-    BundlingOptions,
+    aws_lambda as _lambda,
 )
 from constructs import Construct
 

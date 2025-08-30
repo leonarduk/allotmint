@@ -195,7 +195,19 @@ async def group_movers(
     except Exception:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    tickers = [s.get("ticker") for s in summaries if s.get("ticker")]
+    market_values = {}
+    tickers = []
+    for s in summaries:
+        t = s.get("ticker")
+        if not t:
+            continue
+        tickers.append(t)
+        mv = s.get("market_value_gbp")
+        if mv is not None:
+            t_upper = t.upper()
+            market_values[t_upper] = mv
+            market_values[t_upper.split(".")[0]] = mv
+
     if not tickers:
         return {"gainers": [], "losers": []}
 
@@ -209,14 +221,18 @@ async def group_movers(
         if s.get("ticker")
     }
 
-    return instrument_api.top_movers(
-        tickers,
-        days,
-        limit,
-        min_weight=min_weight,
-        weights=weight_map,
-    )
 
+    movers = instrument_api.top_movers(tickers, days, limit,        
+                                       min_weight=min_weight,
+                                       weights=weight_map,
+                                      )
+    for side in ("gainers", "losers"):
+        for row in movers.get(side, []):
+            mv = market_values.get(row["ticker"].upper())
+            if mv is None:
+                mv = market_values.get(row["ticker"].split(".")[0])
+            row["market_value_gbp"] = mv
+    return movers
 
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str):

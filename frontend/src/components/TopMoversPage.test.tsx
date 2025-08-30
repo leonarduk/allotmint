@@ -16,9 +16,36 @@ const mockGetTopMovers = vi.fn(() =>
 );
 const mockGetGroupMovers = vi.fn(() =>
   Promise.resolve({
-    gainers: [{ ticker: "AAA", name: "AAA", change_pct: 5 } as MoverRow],
-    losers: [{ ticker: "BBB", name: "BBB", change_pct: -2 } as MoverRow],
+
+  gainers: [
+      {
+        ticker: "AAA",
+        name: "AAA",
+        change_pct: 5,
+        market_value_gbp: 100,
+      } as MoverRow,
+    ],
+    losers: [
+      {
+        ticker: "BBB",
+        name: "BBB",
+        change_pct: -2,
+        market_value_gbp: 50,
+      } as MoverRow,
+    ],
   }),
+);
+const mockGetGroupInstruments = vi.fn(() =>
+  Promise.resolve([
+    {
+      ticker: "CCC",
+      name: "CCC",
+      currency: null,
+      units: 0,
+      market_value_gbp: 0,
+      gain_gbp: 0,
+    },
+  ]),
 );
 const mockGetTradingSignals = vi.fn(() =>
   Promise.resolve([
@@ -30,6 +57,9 @@ vi.mock("../api", () => ({
   getTopMovers: (
     ...args: Parameters<typeof mockGetTopMovers>
   ) => mockGetTopMovers(...args),
+  getGroupInstruments: (
+    ...args: Parameters<typeof mockGetGroupInstruments>
+  ) => mockGetGroupInstruments(...args),
   getGroupMovers: (
     ...args: Parameters<typeof mockGetGroupMovers>
   ) => mockGetGroupMovers(...args),
@@ -62,6 +92,10 @@ describe("TopMoversPage", () => {
     );
 
     await waitFor(() =>
+      expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"),
+    );
+    await waitFor(() =>
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1),
       expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
     );
     expect((await screen.findAllByText("AAA")).length).toBeGreaterThan(0);
@@ -71,6 +105,7 @@ describe("TopMoversPage", () => {
     const periodSelect = selects[1];
     fireEvent.change(periodSelect, { target: { value: "1w" } });
     await waitFor(() =>
+      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7),
       expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7, 10, 0),
     );
   });

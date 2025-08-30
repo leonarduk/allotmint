@@ -1,4 +1,4 @@
-export const tabPlugins = {
+export const tabPluginMap = {
   group: {},
   owner: {},
   instrument: {},
@@ -14,8 +14,8 @@ export const tabPlugins = {
   reports: {},
   scenario: {},
 };
-export type TabPluginId = keyof typeof tabPlugins;
-export const tabPlugins = [
+export type TabPluginId = keyof typeof tabPluginMap;
+export const orderedTabPlugins = [
   { id: "movers", priority: 0 },
   { id: "group", priority: 10 },
   { id: "instrument", priority: 20 },
@@ -30,4 +30,4 @@ export const tabPlugins = [
   { id: "support", priority: 110 },
   { id: "scenario", priority: 120 },
 ] as const;
-export type TabPlugin = typeof tabPlugins[number];
+export type TabPlugin = typeof orderedTabPlugins[number];

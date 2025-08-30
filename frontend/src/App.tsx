@@ -36,8 +36,8 @@ import { useConfig } from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
 import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
-import { tabPlugins } from "./tabPlugins";
-type Mode = (typeof tabPlugins)[number]["id"];
+import { orderedTabPlugins } from "./tabPlugins";
+type Mode = (typeof orderedTabPlugins)[number]["id"];
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -267,7 +267,7 @@ export default function App() {
       <LanguageSwitcher />
       <AlertsPanel />
       <nav style={{ margin: "1rem 0" }}>
-        {tabPlugins
+        {orderedTabPlugins
           .slice()
           .sort((a, b) => a.priority - b.priority)
           .filter((p) => tabs[p.id] !== false)

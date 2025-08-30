@@ -44,7 +44,7 @@ def fetch_alphavantage_timeseries_range(
     api_key: str | None = None,
 ) -> pd.DataFrame:
     """Fetch historical Alpha Vantage data using a date range."""
-    if not config.alpha_vantage_enabled:
+    if api_key is None and not config.alpha_vantage_enabled:
         logger.info("Alpha Vantage fetching disabled via config")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     if not is_valid_ticker(ticker, exchange):

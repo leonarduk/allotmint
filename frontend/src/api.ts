@@ -175,6 +175,7 @@ export const getScreener = (
     float_shares_min?: number;
     market_cap_min?: number;
     high_52w_max?: number;
+    low_52w_max?: number;
     low_52w_min?: number;
     avg_volume_min?: number;
   } = {},
@@ -222,6 +223,8 @@ export const getScreener = (
     params.set("market_cap_min", String(criteria.market_cap_min));
   if (criteria.high_52w_max != null)
     params.set("high_52w_max", String(criteria.high_52w_max));
+  if (criteria.low_52w_max != null)
+    params.set("low_52w_max", String(criteria.low_52w_max));
   if (criteria.low_52w_min != null)
     params.set("low_52w_min", String(criteria.low_52w_min));
   if (criteria.avg_volume_min != null)

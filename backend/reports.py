@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
-try:
-    from reportlab.lib.pagesizes import letter
-    from reportlab.pdfgen import canvas
-except ModuleNotFoundError:
-    pass
+# try:
+#     from reportlab.lib.pagesizes import letter
+#     from reportlab.pdfgen import canvas
+# except ModuleNotFoundError:
+#     pass
 
 from backend.common import portfolio_utils
 from backend.config import config
@@ -135,12 +135,12 @@ def report_to_csv(data: ReportData) -> bytes:
 
 def report_to_pdf(data: ReportData) -> bytes:
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=letter)
-    text = c.beginText(40, 750)
-    for k, v in data.to_dict().items():
-        text.textLine(f"{k}: {v}")
-    c.drawText(text)
-    c.showPage()
-    c.save()
+    # # c = canvas.Canvas(buf, pagesize=letter)
+    # text = c.beginText(40, 750)
+    # for k, v in data.to_dict().items():
+    #     text.textLine(f"{k}: {v}")
+    # c.drawText(text)
+    # c.showPage()
+    # c.save()
     return buf.getvalue()
 

@@ -11,6 +11,14 @@ import { isSupportedFx } from "../lib/fx";
 import { getInstrumentDetail } from "../api";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 
+const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
+const VIEW_PRESETS = [
+  { label: "All", value: "" },
+  { label: "ETF", value: "ETF" },
+  { label: "Equity", value: "Equity" },
+  { label: "Bond", value: "Bond" },
+];
+
 type Props = {
   holdings: Holding[];
   onSelectInstrument?: (ticker: string, name: string) => void;
@@ -32,6 +40,12 @@ export function HoldingsTable({
     gain_pct: "",
     sell_eligible: "",
   });
+
+  const [viewPreset, setViewPreset] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : localStorage.getItem(VIEW_PRESET_STORAGE_KEY) || ""
+  );
 
   const [visibleColumns, setVisibleColumns] = useState({
     units: true,
@@ -66,6 +80,11 @@ export function HoldingsTable({
         .catch(() => {});
     });
   }, [holdings, sparks]);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
+    }
+    setFilters((prev) => ({ ...prev, instrument_type: viewPreset }));
+  }, [viewPreset]);
 
   // derive cost/market/gain/gain_pct
   const computed = holdings.map((h) => {
@@ -120,8 +139,6 @@ export function HoldingsTable({
   // sort
   const { sorted: sortedRows, sortKey, asc, handleSort } = useSortableTable(filtered, "ticker");
 
-  if (!sortedRows.length) return null;
-
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", "Units"],
     ["cost", "Cost"],
@@ -147,6 +164,44 @@ export function HoldingsTable({
         ))}
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
+        View:
+        {VIEW_PRESETS.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => setViewPreset(p.value)}
+            style={{
+              marginLeft: "0.5rem",
+              fontWeight: viewPreset === p.value ? "bold" : "normal",
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ marginBottom: "0.5rem" }}>
+        Quick Filters:
+        <button
+          type="button"
+          style={{ marginLeft: "0.5rem" }}
+          onClick={() => handleFilterChange("sell_eligible", "true")}
+        >
+          Sell-eligible
+        </button>
+        <button
+          type="button"
+          style={{ marginLeft: "0.5rem" }}
+          onClick={() => {
+            const val = prompt("Minimum Gain %", "10");
+            if (val !== null) {
+              handleFilterChange("gain_pct", val);
+            }
+          }}
+        >
+          Gain% &gt; x
+        </button>
+      </div>
+      <div style={{ marginBottom: "0.5rem" }}>
         Columns:
         {columnLabels.map(([key, label]) => (
           <label key={key} style={{ marginLeft: "0.5rem" }}>
@@ -159,7 +214,8 @@ export function HoldingsTable({
           </label>
         ))}
       </div>
-      <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
+      {sortedRows.length ? (
+        <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
         <thead>
           <tr>
             <th className={tableStyles.cell}>
@@ -392,7 +448,10 @@ export function HoldingsTable({
             );
           })}
         </tbody>
-      </table>
+        </table>
+      ) : (
+        <p>No holdings match the current filters.</p>
+      )}
     </>
   );
 }

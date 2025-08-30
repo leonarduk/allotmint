@@ -186,13 +186,33 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
     return (px_now / px_then - 1.0) * 100.0
 
 
-def top_movers(tickers: List[str], days: int, limit: int = 10) -> Dict[str, List[Dict[str, Any]]]:
-    """Return top gainers and losers for ``tickers`` over ``days``."""
+def top_movers(
+    tickers: List[str],
+    days: int,
+    limit: int = 10,
+    *,
+    min_weight: float = 0.0,
+    weights: Optional[Dict[str, float]] = None,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Return top gainers and losers for ``tickers`` over ``days``.
+
+    Parameters
+    ----------
+    min_weight:
+        Minimum portfolio weight (in percent) required for a ticker to be
+        included.  Set to ``0`` to disable filtering.
+    weights:
+        Optional mapping of ``ticker -> weight_percent`` used for filtering.
+    """
+
     today = dt.date.today()
     yday = today - dt.timedelta(days=1)
     rows: List[Dict[str, Any]] = []
 
     for t in tickers:
+        if min_weight and weights and weights.get(t, 0.0) < min_weight:
+            continue
         change = price_change_pct(t, days)
         if change is None:
             continue
@@ -213,8 +233,15 @@ def top_movers(tickers: List[str], days: int, limit: int = 10) -> Dict[str, List
             }
         )
 
-    pos = sorted([r for r in rows if r["change_pct"] > 0], key=lambda r: r["change_pct"], reverse=True)
-    neg = sorted([r for r in rows if r["change_pct"] < 0], key=lambda r: r["change_pct"])
+    pos = sorted(
+        [r for r in rows if r["change_pct"] > 0],
+        key=lambda r: r["change_pct"],
+        reverse=True,
+    )
+    neg = sorted(
+        [r for r in rows if r["change_pct"] < 0],
+        key=lambda r: r["change_pct"],
+    )
     return {"gainers": pos[:limit], "losers": neg[:limit]}
 
 

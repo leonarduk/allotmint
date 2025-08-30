@@ -15,7 +15,9 @@ from backend.common import portfolio_utils
 from backend.config import config
 
 
-def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95) -> Dict:
+def compute_portfolio_var(
+    owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True
+) -> Dict:
     """Calculate 1-day and 10-day historical VaR for ``owner``.
 
     Parameters
@@ -31,6 +33,9 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
         fraction between 0 and 1 or a percentage in the range 0–100. For
         example, ``0.95`` and ``95`` are treated equivalently. Values close
         to 95 % and 99 % are commonly used.
+    include_cash:
+        Whether to include cash holdings when reconstructing the portfolio
+        history. Set to ``False`` to exclude cash from the return series.
 
     Returns
     -------
@@ -57,7 +62,9 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
     if not 0 < confidence < 1:
         raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
-    perf = portfolio_utils.compute_owner_performance(owner, days=days)
+    # exclude any instruments flagged in the price snapshot until refreshed
+    perf = portfolio_utils.compute_owner_performance(owner, days=days, include_flagged=False, include_cash=include_cash
+    )
     history = perf.get("history", []) if isinstance(perf, dict) else perf
     if not history:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
@@ -74,7 +81,11 @@ def compute_portfolio_var(owner: str, days: int = 365, confidence: float = 0.95)
 
     ten_day_returns = returns.add(1).rolling(10).apply(np.prod) - 1
     ten_day_returns = ten_day_returns.dropna()
-    var_10d_pct = -ten_day_returns.quantile(1 - confidence) if not ten_day_returns.empty else np.nan
+    var_10d_pct = (
+        -ten_day_returns.quantile(1 - confidence)
+        if not ten_day_returns.empty
+        else np.nan
+    )
     var_10d = float(var_10d_pct * current_value) if not pd.isna(var_10d_pct) else None
 
     return {

@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="deploy backend to AWS" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="cdk deploy BackendLambdaStack" />
+    <option name="SCRIPT_TEXT" value="cdk deploy BackendLambdaStack -c deploy_backend=true " />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />

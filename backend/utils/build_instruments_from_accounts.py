@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import json
 from pathlib import Path
 from typing import Dict, Tuple
@@ -12,12 +13,15 @@ INSTRUMENTS_DIR = DATA_DIR / "instruments"
 SCALING_FILE = DATA_DIR / "scaling_overrides.json"
 # ==============
 
+
 def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
 
 def write_json(path: Path, data: dict):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
 
 def split_ticker(ticker: str) -> Tuple[str, str | None]:
     if "." in ticker:
@@ -25,15 +29,20 @@ def split_ticker(ticker: str) -> Tuple[str, str | None]:
         return sym, exch.upper()
     return ticker, None
 
+
 def best_name(a: str | None, b: str | None) -> str | None:
-    if not a: return b
-    if not b: return a
+    if not a:
+        return b
+    if not b:
+        return a
     return a if len(a) >= len(b) else b
+
 
 def load_scaling() -> Dict[str, Dict[str, float]]:
     if SCALING_FILE.exists():
         return read_json(SCALING_FILE)
     return {}
+
 
 def infer_currency(sym: str, exch: str | None, scaling: Dict[str, Dict[str, float]]) -> str | None:
     if sym == "CASH" and exch == "GBP":
@@ -70,6 +79,7 @@ def load_existing_instruments() -> Dict[str, Dict[str, str]]:
             "region": data.get("region") or data.get("Region"),
         }
     return existing
+
 
 def build_instruments() -> Dict[str, dict]:
     scaling = load_scaling()
@@ -116,6 +126,7 @@ def build_instruments() -> Dict[str, dict]:
                 instruments[tkr] = entry
     return instruments
 
+
 def write_instrument_files(instruments: Dict[str, dict]):
     # Special cash file
     if "CASH.GBP" in instruments:
@@ -149,10 +160,12 @@ def write_instrument_files(instruments: Dict[str, dict]):
             },
         )
 
+
 def main():
     instruments = build_instruments()
     write_instrument_files(instruments)
     print(f"Created {len(instruments)} instrument files under {INSTRUMENTS_DIR}")
+
 
 if __name__ == "__main__":
     main()

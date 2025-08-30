@@ -4,6 +4,7 @@ Handler: backend.lambda_api.handler.lambda_handler
 """
 
 from mangum import Mangum
+
 from backend.app import create_app
 
 lambda_handler = Mangum(create_app())

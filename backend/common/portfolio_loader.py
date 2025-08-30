@@ -47,12 +47,12 @@ def _build_owner_portfolio(owner_summary: Dict) -> Dict:
                         'accounts': [ {...}, ... ]  # parsed account JSON
                       }
     """
-    owner   = owner_summary["owner"]
-    names   = owner_summary["accounts"]
+    owner = owner_summary["owner"]
+    names = owner_summary["accounts"]
 
     return {
-        "owner"   : owner,
-        "person"  : load_person_meta(owner),
+        "owner": owner,
+        "person": load_person_meta(owner),
         "accounts": _load_accounts_for_owner(owner, names),
     }
 

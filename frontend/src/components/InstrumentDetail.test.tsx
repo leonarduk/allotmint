@@ -22,6 +22,7 @@ const defaultConfig: AppConfig = {
     reports: true,
     support: true,
     scenario: true,
+    reports: true,
   },
 };
 

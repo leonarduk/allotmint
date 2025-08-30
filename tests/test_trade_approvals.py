@@ -1,8 +1,8 @@
 import json
 from datetime import date, timedelta
 
-from backend.common.holding_utils import enrich_holding
 from backend.common.compliance import check_owner
+from backend.common.holding_utils import enrich_holding
 from backend.config import config
 
 
@@ -15,9 +15,7 @@ def test_enrich_holding_requires_approval(monkeypatch):
         "units": 1,
         "cost_basis_gbp": 1.0,
     }
-    monkeypatch.setattr(
-        "backend.common.holding_utils._get_price_for_date_scaled", lambda *a, **k: 1.0
-    )
+    monkeypatch.setattr("backend.common.holding_utils._get_price_for_date_scaled", lambda *a, **k: 1.0)
     out = enrich_holding(holding, today, {}, {})
     assert out["sell_eligible"] is False
 

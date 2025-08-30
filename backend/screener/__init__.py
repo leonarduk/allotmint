@@ -25,6 +25,7 @@ _CACHE_TTL_SECONDS = max(
 )
 _CACHE: Dict[Tuple[str, str], Tuple[datetime, "Fundamentals"]] = {}
 
+
 class Fundamentals(BaseModel):
     ticker: str
     name: Optional[str] = None
@@ -81,7 +82,7 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
     api_key = settings.alpha_vantage_key
     if not api_key:
         raise RuntimeError(
-            "Alpha Vantage API key not configured; set alpha_vantage_key in config.yaml"
+            "Alpha Vantage API key not configured; set ALPHA_VANTAGE_KEY in your environment or .env file"
         )
 
     key = (ticker.upper(), date.today().isoformat())
@@ -112,9 +113,7 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         gross_margin=_parse_float(data.get("GrossProfitTTM")),
         operating_margin=_parse_float(data.get("OperatingMarginTTM")),
         net_margin=_parse_float(data.get("NetProfitMarginTTM")),
-        ebitda_margin=_parse_float(
-            data.get("EbitdaMarginTTM") or data.get("EBITDAMarginTTM")
-        ),
+        ebitda_margin=_parse_float(data.get("EbitdaMarginTTM") or data.get("EBITDAMarginTTM")),
         roa=_parse_float(data.get("ReturnOnAssetsTTM")),
         roe=_parse_float(data.get("ReturnOnEquityTTM")),
         roi=_parse_float(data.get("ReturnOnInvestmentTTM")),
@@ -179,41 +178,29 @@ def screen(
             continue
         if de_max is not None and (f.de_ratio is None or f.de_ratio > de_max):
             continue
-        if lt_de_max is not None and (
-            f.lt_de_ratio is None or f.lt_de_ratio > lt_de_max
-        ):
+        if lt_de_max is not None and (f.lt_de_ratio is None or f.lt_de_ratio > lt_de_max):
             continue
         if interest_coverage_min is not None and (
             f.interest_coverage is None or f.interest_coverage < interest_coverage_min
         ):
             continue
-        if current_ratio_min is not None and (
-            f.current_ratio is None or f.current_ratio < current_ratio_min
-        ):
+        if current_ratio_min is not None and (f.current_ratio is None or f.current_ratio < current_ratio_min):
             continue
-        if quick_ratio_min is not None and (
-            f.quick_ratio is None or f.quick_ratio < quick_ratio_min
-        ):
+        if quick_ratio_min is not None and (f.quick_ratio is None or f.quick_ratio < quick_ratio_min):
             continue
         if fcf_min is not None and (f.fcf is None or f.fcf < fcf_min):
             continue
         if eps_min is not None and (f.eps is None or f.eps < eps_min):
             continue
-        if gross_margin_min is not None and (
-            f.gross_margin is None or f.gross_margin < gross_margin_min
-        ):
+        if gross_margin_min is not None and (f.gross_margin is None or f.gross_margin < gross_margin_min):
             continue
         if operating_margin_min is not None and (
             f.operating_margin is None or f.operating_margin < operating_margin_min
         ):
             continue
-        if net_margin_min is not None and (
-            f.net_margin is None or f.net_margin < net_margin_min
-        ):
+        if net_margin_min is not None and (f.net_margin is None or f.net_margin < net_margin_min):
             continue
-        if ebitda_margin_min is not None and (
-            f.ebitda_margin is None or f.ebitda_margin < ebitda_margin_min
-        ):
+        if ebitda_margin_min is not None and (f.ebitda_margin is None or f.ebitda_margin < ebitda_margin_min):
             continue
         if roa_min is not None and (f.roa is None or f.roa < roa_min):
             continue
@@ -221,13 +208,10 @@ def screen(
             continue
         if roi_min is not None and (f.roi is None or f.roi < roi_min):
             continue
-        if dividend_yield_min is not None and (
-            f.dividend_yield is None or f.dividend_yield < dividend_yield_min
-        ):
+        if dividend_yield_min is not None and (f.dividend_yield is None or f.dividend_yield < dividend_yield_min):
             continue
         if dividend_payout_ratio_max is not None and (
-            f.dividend_payout_ratio is None
-            or f.dividend_payout_ratio > dividend_payout_ratio_max
+            f.dividend_payout_ratio is None or f.dividend_payout_ratio > dividend_payout_ratio_max
         ):
             continue
         if beta_max is not None and (f.beta is None or f.beta > beta_max):
@@ -236,21 +220,15 @@ def screen(
             f.shares_outstanding is None or f.shares_outstanding < shares_outstanding_min
         ):
             continue
-        if float_shares_min is not None and (
-            f.float_shares is None or f.float_shares < float_shares_min
-        ):
+        if float_shares_min is not None and (f.float_shares is None or f.float_shares < float_shares_min):
             continue
-        if market_cap_min is not None and (
-            f.market_cap is None or f.market_cap < market_cap_min
-        ):
+        if market_cap_min is not None and (f.market_cap is None or f.market_cap < market_cap_min):
             continue
         if high_52w_max is not None and (f.high_52w is None or f.high_52w > high_52w_max):
             continue
         if low_52w_min is not None and (f.low_52w is None or f.low_52w < low_52w_min):
             continue
-        if avg_volume_min is not None and (
-            f.avg_volume is None or f.avg_volume < avg_volume_min
-        ):
+        if avg_volume_min is not None and (f.avg_volume is None or f.avg_volume < avg_volume_min):
             continue
         results.append(f)
 

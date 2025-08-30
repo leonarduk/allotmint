@@ -12,7 +12,8 @@ def render_timeseries_html(df: DataFrame, title: str, subtitle: str = "") -> HTM
 
     html_table = df.to_html(index=False, classes="table table-striped text-center", border=0)
 
-    return HTMLResponse(content=f"""
+    return HTMLResponse(
+        content=f"""
     <html>
     <head>
         <title>{title}</title>
@@ -29,4 +30,5 @@ def render_timeseries_html(df: DataFrame, title: str, subtitle: str = "") -> HTM
         {html_table}
     </body>
     </html>
-    """)
+    """
+    )

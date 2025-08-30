@@ -1,5 +1,6 @@
-import pandas as pd
 from datetime import date
+
+import pandas as pd
 
 from backend.timeseries import fetch_meta_timeseries
 
@@ -29,9 +30,7 @@ def test_fetch_meta_timeseries_handles_python_dates(monkeypatch):
 
     monkeypatch.setattr(fetch_meta_timeseries, "fetch_ft_timeseries", fake_ft)
 
-    df = fetch_meta_timeseries.fetch_meta_timeseries(
-        "ABC", "L", start_date=date(2024, 1, 1), end_date=date(2024, 1, 2)
-    )
+    df = fetch_meta_timeseries.fetch_meta_timeseries("ABC", "L", start_date=date(2024, 1, 1), end_date=date(2024, 1, 2))
 
     assert not df.empty
     assert pd.to_datetime(df["Date"]).max() <= pd.Timestamp(date(2024, 1, 2))

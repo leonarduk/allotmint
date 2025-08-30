@@ -1,8 +1,6 @@
 # backend/routes/movers.py
 from __future__ import annotations
 
-from typing import List
-
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.common.instrument_api import top_movers

@@ -3,10 +3,10 @@ from datetime import date, timedelta
 
 import pandas as pd
 import requests
-from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
-from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 from backend.config import config
+from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 # Setup logger
 logger = logging.getLogger("alphavantage_timeseries")
@@ -16,11 +16,18 @@ BASE_URL = "https://www.alphavantage.co/query"
 
 def _build_symbol(ticker: str, exchange: str) -> str:
     exchange_map = {
-        "L": ".LON", "LSE": ".LON", "UK": ".LON",
-        "NASDAQ": "", "NYSE": "", "US": "", "N": "",
-        "XETRA": ".DE", "DE": ".DE",
-        "TSX": ".TOR", "ASX": ".AX",
-        "F": ".FRA"
+        "L": ".LON",
+        "LSE": ".LON",
+        "UK": ".LON",
+        "NASDAQ": "",
+        "NYSE": "",
+        "US": "",
+        "N": "",
+        "XETRA": ".DE",
+        "DE": ".DE",
+        "TSX": ".TOR",
+        "ASX": ".AX",
+        "F": ".FRA",
     }
     suffix = exchange_map.get(exchange.upper(), "")
     ticker = ticker.upper()
@@ -54,9 +61,7 @@ def fetch_alphavantage_timeseries_range(
         "apikey": key,
     }
 
-    logger.debug(
-        "Fetching Alpha Vantage data for %s from %s to %s", symbol, start_date, end_date
-    )
+    logger.debug("Fetching Alpha Vantage data for %s from %s to %s", symbol, start_date, end_date)
     try:
         response = requests.get(BASE_URL, params=params, timeout=30)
         response.raise_for_status()
@@ -85,7 +90,7 @@ def fetch_alphavantage_timeseries_range(
 
         df.index = pd.to_datetime(df.index)
         df.sort_index(inplace=True)
-        df = df.loc[str(start_date):str(end_date)]
+        df = df.loc[str(start_date) : str(end_date)]
         df.reset_index(inplace=True)
         df.rename(columns={"index": "Date"}, inplace=True)
         df["Date"] = pd.to_datetime(df["Date"]).dt.date

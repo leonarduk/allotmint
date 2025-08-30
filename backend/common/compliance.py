@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from datetime import datetime, date
+from datetime import date, datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from backend.config import config
-from backend.common.approvals import load_approvals, is_approval_valid
-from backend.common.instruments import get_instrument_meta
+from backend.common.approvals import is_approval_valid, load_approvals
 from backend.common.data_loader import resolve_paths
+from backend.common.instruments import get_instrument_meta
+from backend.config import config
 
 
 def _parse_date(val: str | None) -> date | None:
@@ -71,9 +71,7 @@ def check_owner(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, A
         counts[key] += 1
     for month, cnt in counts.items():
         if cnt > config.max_trades_per_month:
-            warnings.append(
-                f"{cnt} trades in {month} (max {config.max_trades_per_month})"
-            )
+            warnings.append(f"{cnt} trades in {month} (max {config.max_trades_per_month})")
 
     # holding period rule
     last_buy: Dict[str, date] = {}
@@ -89,16 +87,12 @@ def check_owner(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, A
             acq = last_buy.get(ticker)
             if acq and (d - acq).days < config.hold_days_min:
                 days = (d - acq).days
-                warnings.append(
-                    f"Sold {ticker} after {days} days (min {config.hold_days_min})"
-                )
+                warnings.append(f"Sold {ticker} after {days} days (min {config.hold_days_min})")
 
             meta = get_instrument_meta(ticker)
             instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
             needs_approval = not (
-                ticker in exempt_tickers
-                or ticker.split(".")[0] in exempt_tickers
-                or instr_type in exempt_types
+                ticker in exempt_tickers or ticker.split(".")[0] in exempt_tickers or instr_type in exempt_types
             )
             if needs_approval:
                 appr = approvals.get(ticker) or approvals.get(ticker.split(".")[0])

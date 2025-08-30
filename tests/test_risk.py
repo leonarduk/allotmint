@@ -1,6 +1,7 @@
-import numpy as np
-import pytest
 from unittest.mock import patch
+
+import numpy as np
+
 from backend.common import risk
 
 
@@ -16,13 +17,14 @@ def test_compute_sharpe_ratio(monkeypatch):
     trading_days = 252
     returns = np.array([0.01, 0.02, -0.01])
     excess = returns - rf / trading_days
-    expected = float(np.round((excess.mean()/excess.std(ddof=1))*np.sqrt(trading_days), 4))
+    expected = float(np.round((excess.mean() / excess.std(ddof=1)) * np.sqrt(trading_days), 4))
     assert risk.compute_sharpe_ratio("steve", days=3) == expected
 
 
 def test_compute_sharpe_ratio_insufficient(monkeypatch):
     monkeypatch.setattr(risk.portfolio_utils, "compute_owner_performance", lambda owner, days=3: [])
     assert risk.compute_sharpe_ratio("steve", days=3) is None
+
 
 @patch("backend.common.portfolio_utils.compute_owner_performance", return_value=[])
 def test_compute_portfolio_var_accepts_percentage(mock_perf):

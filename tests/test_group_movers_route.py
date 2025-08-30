@@ -1,7 +1,7 @@
-import backend.common.instrument_api as ia
-from backend.local_api.main import app
 from fastapi.testclient import TestClient
 
+import backend.common.instrument_api as ia
+from backend.local_api.main import app
 
 client = TestClient(app)
 token = client.post(
@@ -31,4 +31,4 @@ def test_group_movers_endpoint(monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert [g["ticker"] for g in data["gainers"]] == ["AAA"]
-    assert [l["ticker"] for l in data["losers"]] == ["BBB"]
+    assert [loser["ticker"] for loser in data["losers"]] == ["BBB"]

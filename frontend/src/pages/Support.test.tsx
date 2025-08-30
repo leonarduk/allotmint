@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 
 const mockGetConfig = vi.hoisted(() => vi.fn());
@@ -23,13 +24,13 @@ beforeEach(() => {
 
 describe("Support page", () => {
   it("renders environment heading", () => {
-    render(<Support />);
+    render(<Support />, { wrapper: MemoryRouter });
     expect(screen.getByText(/Environment/)).toBeInTheDocument();
   });
 
   it("shows swagger link for VITE_API_URL", () => {
     vi.stubEnv("VITE_API_URL", "http://localhost:8000");
-    render(<Support />);
+    render(<Support />, { wrapper: MemoryRouter });
     expect(
       screen.getByRole("link", { name: "http://localhost:8000" })
     ).toHaveAttribute("href", "http://localhost:8000");
@@ -54,7 +55,7 @@ describe("Support page", () => {
   });
     mockUpdateConfig.mockResolvedValue(undefined);
 
-    render(<Support />);
+    render(<Support />, { wrapper: MemoryRouter });
 
     const saveButton = await screen.findByRole("button", { name: "Save" });
     fireEvent.click(saveButton);
@@ -67,7 +68,7 @@ describe("Support page", () => {
   });
 
   it("renders tab toggles and allows toggling", async () => {
-    render(<Support />);
+    render(<Support />, { wrapper: MemoryRouter });
     await screen.findByText(/Tabs Enabled/i);
     const instrument = await screen.findByRole("checkbox", {
       name: /instrument/i,
@@ -82,7 +83,7 @@ describe("Support page", () => {
   });
 
   it("separates switches from other parameters", async () => {
-    render(<Support />);
+    render(<Support />, { wrapper: MemoryRouter });
     const switchesHeading = await screen.findByRole("heading", {
       name: /Other Switches/i,
     });
@@ -107,7 +108,7 @@ describe("Support page", () => {
   });
 
   it("allows selecting theme via radio buttons", async () => {
-    render(<Support />);
+    render(<Support />, { wrapper: MemoryRouter });
     const dark = await screen.findByRole("radio", { name: "dark" });
     const light = screen.getByRole("radio", { name: "light" });
     fireEvent.click(light);

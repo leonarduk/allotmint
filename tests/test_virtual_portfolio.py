@@ -1,9 +1,9 @@
 import datetime as dt
+
 import pandas as pd
 import pytest
 
-from backend.common import portfolio_utils
-from backend.common import holding_utils
+from backend.common import holding_utils, portfolio_utils
 
 
 def test_aggregate_with_mixed_holdings(monkeypatch):

@@ -1,4 +1,5 @@
 import datetime as dt
+
 import pandas as pd
 import pytest
 
@@ -9,20 +10,21 @@ def _sample_df(start: dt.date, end: dt.date):
     dates = pd.bdate_range(start, end)
     n = len(dates)
     base = list(range(1, n + 1))
-    return pd.DataFrame({
-        "Date": pd.to_datetime(dates),
-        "Open": base,
-        "High": base,
-        "Low": base,
-        "Close": base,
-        "Volume": [0] * n,
-        "Ticker": ["T"] * n,
-        "Source": ["test"] * n,
-    })
+    return pd.DataFrame(
+        {
+            "Date": pd.to_datetime(dates),
+            "Open": base,
+            "High": base,
+            "Low": base,
+            "Close": base,
+            "Volume": [0] * n,
+            "Ticker": ["T"] * n,
+            "Source": ["test"] * n,
+        }
+    )
 
 
 @pytest.mark.parametrize("exchange,rate", [("N", 0.8), ("DE", 0.9), ("CA", 0.6), ("TO", 0.6)])
-
 def test_prices_converted_to_gbp(monkeypatch, exchange, rate):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 2)

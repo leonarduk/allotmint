@@ -46,6 +46,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     logger.debug("Resolved %s.%s (inferred exchange)", sym, ex)
     return sym, ex
 
+
 @router.get("/meta", response_class=HTMLResponse)
 async def get_meta_timeseries(
     ticker: str = Query(...),
@@ -63,16 +64,12 @@ async def get_meta_timeseries(
     end_date = date.today() - timedelta(days=1)
 
     try:
-        df = load_meta_timeseries_range(
-            ticker, exchange, start_date=start_date, end_date=end_date
-        )
+        df = load_meta_timeseries_range(ticker, exchange, start_date=start_date, end_date=end_date)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
     if df.empty:
-        raise HTTPException(
-            status_code=404, detail=f"No data found for {ticker}.{exchange}"
-        )
+        raise HTTPException(status_code=404, detail=f"No data found for {ticker}.{exchange}")
 
     df = df.copy()
     df["Date"] = pd.to_datetime(df["Date"])
@@ -86,13 +83,15 @@ async def get_meta_timeseries(
 
     # ── JSON output ───────────────────────────────────────────
     if format == "json":
-        return JSONResponse(content={
-            "ticker": f"{ticker}.{exchange}",
-            "from": start_date.isoformat(),
-            "to": end_date.isoformat(),
-            "scaling": scaling,
-            "prices": df.to_dict(orient="records"),
-        })
+        return JSONResponse(
+            content={
+                "ticker": f"{ticker}.{exchange}",
+                "from": start_date.isoformat(),
+                "to": end_date.isoformat(),
+                "scaling": scaling,
+                "prices": df.to_dict(orient="records"),
+            }
+        )
 
     # ── CSV output ────────────────────────────────────────────
     elif format == "csv":
@@ -125,16 +124,18 @@ async def yahoo_timeseries_html(
         df = fetch_timeseries.fetch_yahoo_timeseries(ticker, period, interval)
     except Exception:
         df = pd.DataFrame(
-            [{
-                "Date": date.today(),
-                "Open": 0.0,
-                "High": 0.0,
-                "Low": 0.0,
-                "Close": 0.0,
-                "Volume": 0,
-                "Ticker": ticker,
-                "Source": "Yahoo",
-            }]
+            [
+                {
+                    "Date": date.today(),
+                    "Open": 0.0,
+                    "High": 0.0,
+                    "Low": 0.0,
+                    "Close": 0.0,
+                    "Volume": 0,
+                    "Ticker": ticker,
+                    "Source": "Yahoo",
+                }
+            ]
         )
 
     scale = get_scaling_override(ticker, "", scaling)

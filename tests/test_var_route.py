@@ -2,9 +2,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.local_api.main import app
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_utils
+from backend.local_api.main import app
 
 client = TestClient(app)
 token = client.post(
@@ -22,15 +22,11 @@ def deterministic_setup(monkeypatch):
         "accounts": [
             {
                 "name": "ISA",
-                "holdings": [
-                    {"ticker": "ABC", "exchange": "L", "units": 10, "currency": "GBP"}
-                ],
+                "holdings": [{"ticker": "ABC", "exchange": "L", "units": 10, "currency": "GBP"}],
             }
         ],
     }
-    monkeypatch.setattr(
-        portfolio_mod, "build_owner_portfolio", lambda owner: portfolio
-    )
+    monkeypatch.setattr(portfolio_mod, "build_owner_portfolio", lambda owner: portfolio)
 
     # Closing prices for five consecutive days
     prices = pd.DataFrame(
@@ -45,9 +41,7 @@ def deterministic_setup(monkeypatch):
             "Source": "test",
         }
     )
-    monkeypatch.setattr(
-        portfolio_utils, "load_meta_timeseries", lambda ticker, exchange, days: prices
-    )
+    monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", lambda ticker, exchange, days: prices)
 
     return portfolio, prices
 

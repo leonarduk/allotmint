@@ -1,7 +1,5 @@
 import asyncio
 
-import pytest
-
 from backend.utils import page_cache
 
 

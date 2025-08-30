@@ -20,12 +20,12 @@ from pydantic import BaseModel, Field
 from backend.common import (
     data_loader,
     group_portfolio,
-    portfolio as portfolio_mod,
+    instrument_api,
     portfolio_utils,
     prices,
-    instrument_api,
     risk,
 )
+from backend.common import portfolio as portfolio_mod
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -200,6 +200,7 @@ async def instrument_detail(slug: str, ticker: str):
     except Exception:
         raise HTTPException(status_code=404, detail="Instrument not found")
     return {"prices": prices_list, "positions": positions_list}
+
 
 @router.api_route("/prices/refresh", methods=["GET", "POST"])
 async def refresh_prices():

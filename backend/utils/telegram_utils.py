@@ -41,10 +41,7 @@ class RedactTokenFilter(logging.Filter):
             if isinstance(record.msg, str):
                 record.msg = record.msg.replace(token, "***")
             if record.args:
-                record.args = tuple(
-                    arg.replace(token, "***") if isinstance(arg, str) else arg
-                    for arg in record.args
-                )
+                record.args = tuple(arg.replace(token, "***") if isinstance(arg, str) else arg for arg in record.args)
         return True
 
 
@@ -100,9 +97,7 @@ def send_message(text: str) -> None:
 
         if resp.status_code == 429:
             if not warning_logged:
-                logger.warning(
-                    "Telegram rate limit hit; backing off", extra={"skip_telegram": True}
-                )
+                logger.warning("Telegram rate limit hit; backing off", extra={"skip_telegram": True})
                 warning_logged = True
             time.sleep(backoff)
             backoff = min(backoff * 2, 60)
@@ -117,7 +112,6 @@ def send_message(text: str) -> None:
         RECENT_MESSAGES[text] = time.time()
         _NEXT_ALLOWED_TIME = time.time() + RATE_LIMIT_SECONDS
         return
-
 
 
 class TelegramLogHandler(logging.Handler):

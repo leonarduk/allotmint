@@ -1,5 +1,5 @@
-from datetime import date, timedelta
 import logging
+from datetime import date, timedelta
 
 from backend.timeseries.fetch_meta_timeseries import fetch_meta_timeseries
 

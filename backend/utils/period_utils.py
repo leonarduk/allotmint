@@ -1,5 +1,6 @@
 import re
 
+
 def parse_period_to_days(period: str) -> int:
     """
     Convert a time period string like '1d', '2w', '3mo', '1y' to number of days.

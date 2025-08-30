@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 import json
 from pathlib import Path
 
@@ -11,12 +12,15 @@ OVERWRITE = True  # set False to write to a new folder
 
 KEEP_FIELDS = {"ticker", "units", "cost_basis_gbp", "acquired_date"}
 
+
 def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
 
 def write_json(path: Path, data: dict):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
 
 def simplify_account_file(path: Path, out_dir: Path | None = None):
     acct = read_json(path)
@@ -39,12 +43,14 @@ def simplify_account_file(path: Path, out_dir: Path | None = None):
     write_json(out_path, acct)
     print(f"Simplified: {out_path}")
 
+
 def main():
     out_dir = None
     if not OVERWRITE:
         out_dir = REPO_ROOT / "data" / "accounts_simplified"
     for file in ACCOUNTS_DIR.rglob("*.json"):
         simplify_account_file(file, out_dir)
+
 
 if __name__ == "__main__":
     main()

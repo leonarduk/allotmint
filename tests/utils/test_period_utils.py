@@ -1,4 +1,5 @@
 import pytest
+
 from backend.utils.period_utils import parse_period_to_days
 
 
@@ -12,10 +13,10 @@ from backend.utils.period_utils import parse_period_to_days
         ("1y", 365),
         ("2y", 730),
         ("10y", 3650),
-        ("12MO", 360),      # case-insensitive
+        ("12MO", 360),  # case-insensitive
         ("1Y", 365),
-        ("  3mo  ", 90),    # spaces allowed
-    ]
+        ("  3mo  ", 90),  # spaces allowed
+    ],
 )
 def test_valid_periods(period, expected_days):
     assert parse_period_to_days(period) == expected_days

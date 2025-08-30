@@ -7,8 +7,8 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional
 
-from backend.config import config
 from backend.common.data_loader import resolve_paths
+from backend.config import config
 
 
 def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, date]:

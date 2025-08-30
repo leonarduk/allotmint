@@ -8,14 +8,15 @@ import useFetch from "./useFetch";
 export function useFetchWithRetry<T>(fn: () => Promise<T>, delay = 2000) {
   const [attempt, setAttempt] = useState(0);
   const result = useFetch(fn, [attempt]);
+  const unauthorized = result.error?.message.includes("HTTP 401") ?? false;
 
   useEffect(() => {
-    if (!result.error) return;
+    if (!result.error || unauthorized) return;
     const timer = setTimeout(() => setAttempt((a) => a + 1), delay);
     return () => clearTimeout(timer);
-  }, [result.error, delay]);
+  }, [result.error, delay, unauthorized]);
 
-  return result;
+  return { ...result, unauthorized };
 }
 
 export default useFetchWithRetry;

@@ -138,4 +138,39 @@ describe("TopMoversPage", () => {
     await waitFor(() => expect(mockGetTradingSignals).toHaveBeenCalled());
     expect(await screen.findByText("go long")).toBeInTheDocument();
   });
+
+  it("shows HTTP status when fetch fails", async () => {
+    mockGetTopMovers.mockRejectedValueOnce(
+      new Error("HTTP 401 – Unauthorized"),
+    );
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/HTTP 401/)).toBeInTheDocument();
+  });
+
+  it("falls back to FTSE 100 and prompts login on 401", async () => {
+    mockGetGroupInstruments.mockRejectedValueOnce(
+      new Error("HTTP 401 – Unauthorized"),
+    );
+    render(
+      <MemoryRouter>
+        <TopMoversPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(mockGetTopMovers).toHaveBeenCalledWith(["AAA", "BBB"], 1),
+    );
+
+    const selects = await screen.findAllByRole("combobox");
+    const watchlistSelect = selects[0] as HTMLSelectElement;
+    await waitFor(() => expect(watchlistSelect.value).toBe("FTSE 100"));
+
+    expect(
+      await screen.findByText(/log in to view portfolio-based movers/i),
+    ).toBeInTheDocument();
+  });
 });

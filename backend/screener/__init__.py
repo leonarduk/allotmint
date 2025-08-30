@@ -190,7 +190,6 @@ def screen(
             continue
         if fcf_min is not None and (f.fcf is None or f.fcf < fcf_min):
             continue
-
         if eps_min is not None and (f.eps is None or f.eps < eps_min):
             continue
         if gross_margin_min is not None and (f.gross_margin is None or f.gross_margin < gross_margin_min):

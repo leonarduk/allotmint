@@ -20,13 +20,15 @@ fi
 # load shared config
 CONFIG_FILE="config.yaml"
 APP_ENV=$(awk -F': ' '/^app_env:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
+UVICORN_HOST=$(awk -F': ' '/^uvicorn_host:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
+UVICORN_HOST=${UVICORN_HOST:-0.0.0.0}
 UVICORN_PORT=$(awk -F': ' '/^uvicorn_port:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
 RELOAD=$(awk -F': ' '/^reload:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
 LOG_CONFIG=$(awk -F': ' '/^log_config:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
 
 export ALLOTMINT_ENV="$APP_ENV"
 
-CMD=(uvicorn backend.local_api.main:app --reload-dir backend --port "$UVICORN_PORT" --log-config "$LOG_CONFIG")
+CMD=(uvicorn backend.local_api.main:app --reload-dir backend --port "$UVICORN_PORT" --host "$UVICORN_HOST" --log-config "$LOG_CONFIG")
 if [[ "$RELOAD" == "true" ]]; then
   CMD+=(--reload)
 fi

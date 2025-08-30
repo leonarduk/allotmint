@@ -1,12 +1,21 @@
-from datetime import date
-from unittest.mock import patch
-
+import pandas as pd
 import pandas as pd
 import pytest
-from fastapi.testclient import TestClient
+from unittest.mock import patch
+from datetime import date
 
 from backend.app import create_app
 from backend.config import config
+from fastapi.testclient import TestClient
+
+
+def _auth_client(app):
+    client = TestClient(app)
+    token = client.post(
+        "/token", data={"username": "testuser", "password": "password"}
+    ).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
 def _make_df():
@@ -23,7 +32,7 @@ def _make_df():
 def test_invalid_ticker_rejected(monkeypatch, bad):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
-    client = TestClient(app)
+    client = _auth_client(app)
     resp = client.get(f"/instrument?ticker={bad}&days=1&format=json")
     assert resp.status_code == 400
 
@@ -32,25 +41,25 @@ def test_full_history_json(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     df = _make_df()
-    with (
-        patch("backend.routes.instrument.load_meta_timeseries_range", return_value=df) as mock_load,
-        patch(
-            "backend.routes.instrument.list_portfolios",
-            return_value=[
-                {
-                    "owner": "alex",
-                    "accounts": [
-                        {
-                            "account_type": "isa",
-                            "holdings": [{"ticker": "ABC.L", "units": 2}],
-                        }
-                    ],
-                }
-            ],
-        ),
-        patch("backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}),
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ) as mock_load, patch(
+        "backend.routes.instrument.list_portfolios",
+        return_value=[
+            {
+                "owner": "alex",
+                "accounts": [
+                    {
+                        "account_type": "isa",
+                        "holdings": [{"ticker": "ABC.L", "units": 2}],
+                    }
+                ],
+            }
+        ],
+    ), patch(
+        "backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}
     ):
-        client = TestClient(app)
+        client = _auth_client(app)
         resp = client.get("/instrument?ticker=ABC.L&days=0&format=json")
     assert resp.status_code == 200
     data = resp.json()
@@ -65,12 +74,12 @@ def test_html_response(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     df = _make_df()
-    with (
-        patch("backend.routes.instrument.load_meta_timeseries_range", return_value=df),
-        patch("backend.routes.instrument.list_portfolios", return_value=[]),
-        patch("backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}),
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch("backend.routes.instrument.list_portfolios", return_value=[]), patch(
+        "backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}
     ):
-        client = TestClient(app)
+        client = _auth_client(app)
         resp = client.get("/instrument?ticker=ABC.L&days=1&format=html")
     assert resp.status_code == 200
     text = resp.text
@@ -82,26 +91,27 @@ def test_positions_scaled(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     df = _make_df()
-    with (
-        patch("backend.routes.instrument.load_meta_timeseries_range", return_value=df),
-        patch(
-            "backend.routes.instrument.list_portfolios",
-            return_value=[
-                {
-                    "owner": "alex",
-                    "accounts": [
-                        {
-                            "account_type": "isa",
-                            "holdings": [{"ticker": "ABC.L", "units": 2, "gain_gbp": 4}],
-                        }
-                    ],
-                }
-            ],
-        ),
-        patch("backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}),
-        patch("backend.routes.instrument.get_scaling_override", return_value=0.5),
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch(
+        "backend.routes.instrument.list_portfolios",
+        return_value=[
+            {
+                "owner": "alex",
+                "accounts": [
+                    {
+                        "account_type": "isa",
+                        "holdings": [
+                            {"ticker": "ABC.L", "units": 2, "gain_gbp": 4}
+                        ],
+                    }
+                ],
+            }
+        ],
+    ), patch("backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}), patch(
+        "backend.routes.instrument.get_scaling_override", return_value=0.5
     ):
-        client = TestClient(app)
+        client = _auth_client(app)
         resp = client.get("/instrument?ticker=ABC.L&days=1&format=json")
     assert resp.status_code == 200
     data = resp.json()
@@ -116,31 +126,29 @@ def test_positions_gain_from_cost(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     df = _make_df()
-    with (
-        patch("backend.routes.instrument.load_meta_timeseries_range", return_value=df),
-        patch(
-            "backend.routes.instrument.list_portfolios",
-            return_value=[
-                {
-                    "owner": "alex",
-                    "accounts": [
-                        {
-                            "account_type": "isa",
-                            "holdings": [
-                                {
-                                    "ticker": "ABC.L",
-                                    "units": 2,
-                                    "cost_basis_gbp": 20.0,
-                                }
-                            ],
-                        }
-                    ],
-                }
-            ],
-        ),
-        patch("backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}),
-    ):
-        client = TestClient(app)
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch(
+        "backend.routes.instrument.list_portfolios",
+        return_value=[
+            {
+                "owner": "alex",
+                "accounts": [
+                    {
+                        "account_type": "isa",
+                        "holdings": [
+                            {
+                                "ticker": "ABC.L",
+                                "units": 2,
+                                "cost_basis_gbp": 20.0,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    ), patch("backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}):
+        client = _auth_client(app)
         resp = client.get("/instrument?ticker=ABC.L&days=1&format=json")
     assert resp.status_code == 200
     data = resp.json()
@@ -159,12 +167,14 @@ def test_non_gbp_instrument_has_distinct_close(monkeypatch):
             "Close_gbp": [8.0, 8.8],
         }
     )
-    with (
-        patch("backend.routes.instrument.load_meta_timeseries_range", return_value=df),
-        patch("backend.routes.instrument.list_portfolios", return_value=[]),
-        patch("backend.routes.instrument.get_security_meta", return_value={"currency": "USD"}),
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch(
+        "backend.routes.instrument.list_portfolios", return_value=[]
+    ), patch(
+        "backend.routes.instrument.get_security_meta", return_value={"currency": "USD"}
     ):
-        client = TestClient(app)
+        client = _auth_client(app)
         resp = client.get("/instrument?ticker=ABC.N&days=1&format=json")
     assert resp.status_code == 200
     prices = resp.json()["prices"]

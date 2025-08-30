@@ -233,3 +233,9 @@ export interface SavedQuery {
     params: CustomQuery;
 };
 
+export interface TradeSuggestion {
+    ticker: string;
+    action: string;
+    amount: number;
+}
+

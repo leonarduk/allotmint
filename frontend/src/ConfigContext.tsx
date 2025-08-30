@@ -23,8 +23,8 @@ export interface TabsConfig {
   dataadmin: boolean;
   virtual: boolean;
   support: boolean;
-  scenario: boolean;
   reports: boolean;
+  scenario: boolean;
 }
 
 export interface AppConfig {
@@ -47,20 +47,20 @@ export interface RawConfig {
 }
 
 const defaultTabs: TabsConfig = {
-  group: false,
-  owner: false,
-  instrument: false,
-  performance: false,
-  transactions: false,
-  screener: false,
-  timeseries: false,
-  watchlist: false,
-  movers: false,
-  dataadmin: false,
-  virtual: false,
-  support: false,
-  scenario: false,
-  reports: false,
+  group: true,
+  owner: true,
+  instrument: true,
+  performance: true,
+  transactions: true,
+  screener: true,
+  timeseries: true,
+  watchlist: true,
+  movers: true,
+  dataadmin: true,
+  virtual: true,
+  support: true,
+  reports: true,
+  scenario: true,
 };
 
 export interface ConfigContextValue extends AppConfig {
@@ -86,7 +86,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const refreshConfig = useCallback(async () => {
     try {
       const cfg = await getConfig<RawConfig>();
-      const tabs = { ...defaultTabs, ...(cfg.tabs ?? {}) } as TabsConfig;
+      const tabs: TabsConfig = { ...defaultTabs, ...(cfg.tabs ?? {}) };
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );

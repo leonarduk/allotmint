@@ -12,6 +12,7 @@ Owner-level portfolio builder for AllotMint
 import csv
 import datetime as dt
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -26,6 +27,9 @@ from backend.common.data_loader import (
 )
 from backend.common.holding_utils import enrich_holding
 from backend.config import config
+
+
+logger = logging.getLogger(__name__)
 
 
 # ───────────────────────── trades helpers ─────────────────────────
@@ -51,6 +55,7 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
     key = f"{PLOTS_PREFIX}{owner}/trades.csv"
     try:
         import boto3  # type: ignore
+        from botocore.exceptions import BotoCoreError, ClientError
 
         s3 = boto3.client("s3")
         obj = s3.get_object(Bucket=bucket, Key=key)
@@ -59,8 +64,11 @@ def _load_trades_aws(owner: str) -> List[Dict[str, Any]]:
             return []
         data = body.read().decode("utf-8").splitlines()
         return list(csv.DictReader(data))
-    except Exception:
-        return []
+    except (ClientError, BotoCoreError) as exc:
+        logger.warning("Failed to fetch trades %s from bucket %s: %s", key, bucket, exc)
+    except ImportError as exc:
+        logger.warning("boto3 not available for S3 trades fetch: %s", exc)
+    return []
 
 
 def load_trades(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
@@ -74,7 +82,7 @@ def _parse_date(s: str | None) -> Optional[dt.date]:
         return None
     try:
         return dt.datetime.fromisoformat(s).date()
-    except Exception:
+    except ValueError:
         return None
 
 
@@ -89,7 +97,8 @@ def list_owners(accounts_root: Optional[Path] = None) -> list[str]:
             slug = data.get("owner") or data.get("slug")
             if slug:
                 owners.append(slug)
-        except Exception:
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Skipping owner file %s: %s", pf, exc)
             continue
     return owners
 

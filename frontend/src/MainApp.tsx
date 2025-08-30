@@ -52,6 +52,7 @@ export default function MainApp() {
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
+  const unauthorized = ownersReq.unauthorized || groupsReq.unauthorized;
 
   useEffect(() => {
     if (ownersReq.data) setOwners(ownersReq.data);
@@ -115,6 +116,13 @@ export default function MainApp() {
     }
   }, [mode, selectedGroup]);
 
+  if (unauthorized) {
+    return (
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+        Unauthorized—check API token.
+      </div>
+    );
+  }
   if (backendUnavailable) {
     return (
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>

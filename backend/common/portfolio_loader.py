@@ -8,6 +8,7 @@ Build rich "portfolio" dictionaries that the rest of the backend expects.
 - load_portfolio(owner)       -> { ... }   (single owner helper, not used elsewhere)
 """
 
+import json
 import logging
 from typing import Dict, List
 
@@ -32,7 +33,7 @@ def _load_accounts_for_owner(owner: str, acct_names: List[str]) -> List[Dict]:
             accounts.append(acct)
         except FileNotFoundError:
             log.warning("Account file missing: %s/%s.json", owner, name)
-        except Exception as exc:
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
             log.warning("Failed to parse %s/%s.json -> %s", owner, name, exc)
     return accounts
 

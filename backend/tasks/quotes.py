@@ -19,6 +19,8 @@ TABLE_NAME = os.environ.get("QUOTES_TABLE", "Quotes")
 
 def fetch_quote(symbol: str, api_key: str | None = None) -> Dict[str, Any]:
     """Fetch a single quote from Alpha Vantage."""
+    if not config.alpha_vantage_enabled:
+        raise RuntimeError("Alpha Vantage fetching disabled via config")
     key = api_key or config.alpha_vantage_key or "demo"
     params = {"function": "GLOBAL_QUOTE", "symbol": symbol, "apikey": key}
     resp = requests.get(BASE_URL, params=params, timeout=10)

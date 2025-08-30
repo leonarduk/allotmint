@@ -18,6 +18,7 @@ const defaultConfig: AppConfig = {
         movers: true,
         dataadmin: true,
         virtual: true,
+        reports: true,
         support: true,
         scenario: true,
         reports: true,

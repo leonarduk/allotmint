@@ -10,7 +10,6 @@ from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 # Setup logger
 logger = logging.getLogger("alphavantage_timeseries")
-logging.basicConfig(level=logging.DEBUG)
 
 BASE_URL = "https://www.alphavantage.co/query"
 
@@ -45,6 +44,9 @@ def fetch_alphavantage_timeseries_range(
     api_key: str | None = None,
 ) -> pd.DataFrame:
     """Fetch historical Alpha Vantage data using a date range."""
+    if not config.alpha_vantage_enabled:
+        logger.info("Alpha Vantage fetching disabled via config")
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
     if not is_valid_ticker(ticker, exchange):
         logger.info("Skipping Alpha Vantage fetch for unrecognized ticker %s.%s", ticker, exchange)
         record_skipped_ticker(ticker, exchange, reason="unknown")

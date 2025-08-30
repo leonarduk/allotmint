@@ -4,6 +4,10 @@ import backend.common.instrument_api as ia
 from backend.local_api.main import app
 
 client = TestClient(app)
+token = client.post(
+    "/token", data={"username": "testuser", "password": "password"}
+).json()["access_token"]
+client.headers.update({"Authorization": f"Bearer {token}"})
 
 
 def test_group_movers_endpoint(monkeypatch):

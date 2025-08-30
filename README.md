@@ -25,9 +25,11 @@ For setup and usage instructions, see the [USER_README](USER_README.md).
 | Layer    | Choice                                       |
 |----------|----------------------------------------------|
 | Frontend | React + TypeScript → S3 + CloudFront         |
-| Backend  | AWS Lambda (Python 3.11, FastAPI via Mangum) behind API Gateway |
+| Backend  | AWS Lambda (Python 3.12) behind API Gateway  |
 | Storage  | S3 JSON / CSV (no RDBMS)                     |
 | IaC      | AWS CDK (Py)                                 |
+
+The backend, CI/CD workflows, and tests all target Python 3.12.
 
 ## Watchlist
 
@@ -35,7 +37,7 @@ The repo includes a lightweight Yahoo Finance watchlist. Run it locally with:
 
 ```
 # backend
-uvicorn app:app --reload --port 8000
+uvicorn app:app --reload --port 8000 --host 0.0.0.0
 
 # frontend
 npm i && npm run dev
@@ -45,8 +47,34 @@ npm i && npm run dev
 
 ## Backend dependencies
 
-All backend Python dependencies live in the top-level `requirements.txt` file.
-Workflows and helper scripts install from this list, so update it when new packages are needed.
+Runtime Python dependencies live in `requirements.txt`. Development tooling
+(CDK, Playwright, moviepy, etc.) is listed in `requirements-dev.txt`. Install
+both when working locally:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Workflows and helper scripts install from these files, so update them when new
+packages are needed.
+
+### Environment variables
+
+Sensitive settings are loaded from environment variables rather than
+`config.yaml`. Create a `.env` file (copy from `.env.example`) to keep them in
+one place:
+
+```
+cp .env.example .env
+# then edit .env with values such as
+ALPHA_VANTAGE_KEY=your-alpha-vantage-api-key
+SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:allotmint   # optional
+TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ      # optional
+TELEGRAM_CHAT_ID=123456789                                  # optional
+```
+
+Alternatively export variables in your shell. Unset variables simply disable
+their corresponding integrations.
 
 ## Page cache
 
@@ -103,23 +131,27 @@ The backend exposes Value at Risk (VaR) metrics for each portfolio.
 See [backend/common/portfolio_utils.py](backend/common/portfolio_utils.py) for the return series that feed the calculation
 and [backend/common/constants.py](backend/common/constants.py) for currency labels.
 
+## Portfolio reports
+
+`GET /reports/{owner}` compiles realized gains, income and performance metrics
+for a portfolio. Pass `format=csv` or `format=pdf` to download the report in
+your preferred format.
+
 ## Local Quick-start
 
 The project is split into a Python FastAPI backend and a React/TypeScript
 frontend. The two communicate over HTTP which makes it easy to work on either
-side in isolation. Copy `config.example.yaml` to `config.yaml` for local
-defaults and `.env.example` to `.env` for secrets. Backend runtime options are stored in `config.yaml`:
+side in isolation. Backend runtime options are stored in `config.yaml`:
 
 ```yaml
 app_env: local
+uvicorn_host: 0.0.0.0
 uvicorn_port: 8000
 reload: true
 log_config: backend/logging.ini
 ```
 
 Adjust these values to change the environment or server behaviour.
-Secrets such as `ALPHA_VANTAGE_KEY`, `TELEGRAM_BOT_TOKEN`, and
-`TELEGRAM_CHAT_ID` are read from environment variables or a `.env` file.
 
 Environment-specific CORS whitelists are defined in the same file:
 
@@ -145,6 +177,7 @@ tabs:
   timeseries: true
   watchlist: true
   virtual: true
+  reports: true
   support: true
 ```
 
@@ -157,10 +190,10 @@ cd allotmint
 
 # set up Python venv for CDK & backend (optional)
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 
 # configure API settings
-# (see config.yaml for app_env, uvicorn_port, reload and log_config)
+# (see config.yaml for app_env, uvicorn_host, uvicorn_port, reload and log_config)
 ./run-local-api.sh    # or use run-backend.ps1 on Windows
 
 # in another shell install React deps and start Vite on :5173
@@ -213,9 +246,21 @@ cd frontend && npm test
 
 ## Error summary helper
 
-Use the `run_with_error_summary.py` script to capture error lines when running
-commands. A log file `error_summary.log` will be created with a summary of
-errors which you can attach when reporting bugs.
+An optional `error_summary` section in `config.yaml` stores settings for the
+`run_with_error_summary.py` utility. When the field is missing the backend falls
+back to an empty mapping so the script can still be used with explicit
+arguments. You can capture error lines by running the helper which writes them
+to `error_summary.log`. Optionally set a default command in
+`config.yaml` under `error_summary.default_command` so the script can run
+without CLI arguments:
+
+```yaml
+error_summary:
+  default_command: ["pytest"]
+```
+
+Running `python run_with_error_summary.py` with no arguments will then use the
+configured default.
 
 ```bash
 # example
@@ -231,31 +276,34 @@ optional:
 python scripts/run_trading_agent.py --tickers AAPL MSFT --thresholds 0.1 0.2 --indicator RSI
 ```
 
-## Deploy to AWS
+## API endpoint tester
 
-Infrastructure is managed exclusively with AWS CDK. The FastAPI backend runs
-on AWS Lambda via the Mangum adapter, and the Lambda entry point lives in
-`backend/lambda_api/handler.py`. Serverless Framework configurations are no
-longer used:
+Execute a set of HTTP calls listed in `api_test_cases.yaml` and summarise the results with GPT:
 
-```python
-from mangum import Mangum
-from backend.app import create_app
-
-lambda_handler = Mangum(create_app())
+```bash
+python scripts/ai_api_tester.py
 ```
 
-Deploy the backend API and static site stacks:
+## Deploy to AWS
+
+The project includes an AWS CDK stack that provisions an S3 bucket and
+CloudFront distribution for the frontend. To deploy the site:
 
 ```bash
 # build the frontend assets first
 cd frontend
 npm install
 npm run build
-cd ../cdk
+cd ..
+
+# deploy the static site stack only
+cd cdk
 cdk bootstrap   # only required once per AWS account/region
-cdk deploy BackendLambdaStack
-cdk deploy StaticSiteStack
+DEPLOY_BACKEND=false cdk deploy StaticSiteStack
+
+# or include the backend Lambda stack
+DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack
+# equivalently: cdk deploy BackendLambdaStack StaticSiteStack -c deploy_backend=true
 ```
 
 The bucket remains private and CloudFront uses an origin access identity
@@ -318,11 +366,11 @@ secrets, as they are no longer required.
 
 ## 🎬 Generating the Overview Video
 
-Install the video dependencies first. The `requirements.txt` file includes
+Install the video dependencies first. The `requirements-dev.txt` file includes
 `moviepy` and `gTTS`:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 Save an image named `presenter.png` in the `scripts` directory, then run:
@@ -332,3 +380,7 @@ python scripts/make_allotmint_video.py
 ```
 
 The script will produce `allotmint_video.mp4` in the repository root.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

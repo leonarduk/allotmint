@@ -1,6 +1,6 @@
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { useRouteMode } from "./hooks/useRouteMode";
-import { Mode } from "./modes";
+import type { Mode } from "./modes";
 
 interface RouteContextValue {
   mode: Mode;

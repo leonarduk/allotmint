@@ -17,24 +17,24 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Optional, Iterable, Dict, List
 
 import pandas as pd
-
-from backend.common.holding_utils import load_latest_prices as _load_latest_prices
-from backend.common.portfolio_loader import list_portfolios
-from backend.common.portfolio_utils import (
-    check_price_alerts,
-    list_all_unique_tickers,
-    refresh_snapshot_in_memory,
-)
 
 # ──────────────────────────────────────────────────────────────
 # Local imports
 # ──────────────────────────────────────────────────────────────
 from backend.config import config
+from backend.common.portfolio_loader import list_portfolios
+from backend.common.portfolio_utils import (
+    list_all_unique_tickers,
+    refresh_snapshot_in_memory,
+    check_price_alerts,
+)
+from backend.common.holding_utils import load_latest_prices as _load_latest_prices
+from backend.common import instrument_api
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import _nearest_weekday
 
@@ -81,7 +81,15 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         }
 
         if last is not None:
-            sym, exch = (full.split(".", 1) + ["L"])[:2]
+            resolved = instrument_api._resolve_full_ticker(full, latest)
+            if resolved:
+                sym, exch = resolved
+            else:
+                sym = full.split(".", 1)[0]
+                exch = "L"
+                logger.debug(
+                    "Could not resolve exchange for %s; defaulting to L", full
+                )
 
             px_7 = _close_on(sym, exch, yday - timedelta(days=7))
             px_30 = _close_on(sym, exch, yday - timedelta(days=30))
@@ -94,7 +102,6 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         snapshot[full] = info
 
     return snapshot
-
 
 # ──────────────────────────────────────────────────────────────
 # Securities universe : derived from portfolios
@@ -115,7 +122,6 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                 }
     return securities
 
-
 def get_security_meta(ticker: str) -> Optional[Dict]:
     """Always fetch fresh metadata derived from latest portfolios."""
     return _build_securities_from_portfolios().get(ticker.upper())
@@ -126,11 +132,9 @@ def get_security_meta(ticker: str) -> Optional[Dict]:
 # ──────────────────────────────────────────────────────────────
 _price_cache: Dict[str, float] = {}
 
-
 def get_price_gbp(ticker: str) -> Optional[float]:
     """Return the cached last close in GBP, or None if unseen."""
     return _price_cache.get(ticker.upper())
-
 
 # ──────────────────────────────────────────────────────────────
 # Refresh logic
@@ -166,7 +170,6 @@ def refresh_prices() -> Dict:
         "timestamp": datetime.utcnow().isoformat(),
     }
 
-
 # ──────────────────────────────────────────────────────────────
 # Ad-hoc helpers
 # ──────────────────────────────────────────────────────────────
@@ -182,12 +185,21 @@ def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
 
     prices: Dict[str, float] = {}
     for full in tickers:
-        ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
-        df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
+        resolved = instrument_api._resolve_full_ticker(full, prices)
+        if resolved:
+            ticker_only, exchange = resolved
+        else:
+            ticker_only = full.split(".", 1)[0]
+            exchange = "L"
+            logger.debug(
+                "Could not resolve exchange for %s; defaulting to L", full
+            )
+        df = load_meta_timeseries_range(
+            ticker_only, exchange, start_date=start_date, end_date=end_date
+        )
         if df is not None and not df.empty:
             prices[full] = float(df.iloc[-1]["close"])
     return prices
-
 
 def load_prices_for_tickers(
     tickers: Iterable[str],
@@ -197,15 +209,25 @@ def load_prices_for_tickers(
     Fetch historical daily closes for a list of tickers and return a
     concatenated dataframe; keeps each original suffix (e.g. '.L').
     """
-    end_date = _nearest_weekday(datetime.today().date(), forward=True)
+    end_date   = _nearest_weekday(datetime.today().date(), forward=True)
     start_date = _nearest_weekday(end_date - timedelta(days=days), forward=False)
 
     frames: List[pd.DataFrame] = []
 
     for full in tickers:
         try:
-            ticker_only, exchange = (full.split(".", 1) + ["L"])[:2]
-            df = load_meta_timeseries_range(ticker_only, exchange, start_date=start_date, end_date=end_date)
+            resolved = instrument_api._resolve_full_ticker(full, {})
+            if resolved:
+                ticker_only, exchange = resolved
+            else:
+                ticker_only = full.split(".", 1)[0]
+                exchange = "L"
+                logger.debug(
+                    "Could not resolve exchange for %s; defaulting to L", full
+                )
+            df = load_meta_timeseries_range(
+                ticker_only, exchange, start_date=start_date, end_date=end_date
+            )
             if not df.empty:
                 df["Ticker"] = full  # restore suffix for display
                 frames.append(df)
@@ -213,7 +235,6 @@ def load_prices_for_tickers(
             logger.warning(f"Failed to fetch prices for {full}: {exc}")
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-
 
 # ──────────────────────────────────────────────────────────────
 # CLI test

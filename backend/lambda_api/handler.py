@@ -1,5 +1,5 @@
 """
-AWS Lambda entry-point (Python 3.11 runtime or container).
+AWS Lambda entry-point (Python 3.12 runtime or container).
 Handler: backend.lambda_api.handler.lambda_handler
 """
 

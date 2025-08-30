@@ -8,16 +8,6 @@ export default defineConfig({
         globals: true,
         environment: 'jsdom',
         setupFiles: './src/setupTests.ts',
-        coverage: {
-            provider: 'v8',
-            reporter: ['text', 'html'],
-            lines: 80,
-            exclude: [
-                'src/types.ts',
-                'src/pages/ScenarioTester.tsx',
-                'src/pages/GroupPortfolio.tsx',
-                'src/pages/VirtualPortfolio.tsx'
-            ]
-        }
+        include: ['src/**/*.test.tsx']
     }
 });

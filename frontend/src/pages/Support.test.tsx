@@ -18,7 +18,7 @@ beforeEach(() => {
   mockGetConfig.mockResolvedValue({
     flag: true,
     theme: "system",
-    tabs: { instrument: true, support: true },
+    tabs: { group: true, owner: true, instrument: true, support: true },
   });
 });
 
@@ -42,17 +42,17 @@ describe("Support page", () => {
   });
 
   it("stringifies fresh config after saving", async () => {
-    mockGetConfig.mockResolvedValueOnce({
-      flag: true,
-      theme: "system",
-      tabs: { instrument: true, support: true },
-    });
-    mockGetConfig.mockResolvedValueOnce({
-      flag: false,
-      count: 5,
-      theme: "dark",
-      tabs: { instrument: false, support: true },
-    });
+  mockGetConfig.mockResolvedValueOnce({
+    flag: true,
+    theme: "system",
+    tabs: { group: true, owner: true, instrument: true, support: true },
+  });
+  mockGetConfig.mockResolvedValueOnce({
+    flag: false,
+    count: 5,
+    theme: "dark",
+    tabs: { group: true, owner: true, instrument: false, support: true },
+  });
     mockUpdateConfig.mockResolvedValue(undefined);
 
     render(<Support />, { wrapper: MemoryRouter });

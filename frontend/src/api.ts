@@ -21,6 +21,7 @@ import type {
   MoverRow,
   TimeseriesSummary,
   ScenarioResult,
+  TradeSuggestion,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -31,21 +32,38 @@ export const API_BASE =
   import.meta.env.VITE_API_URL ??
   "http://localhost:8000";
 
+let authToken: string | null = null;
+export const setAuthToken = (token: string | null) => {
+  authToken = token;
+};
+
+export async function login(
+  username: string,
+  password: string,
+): Promise<string> {
+  const body = new URLSearchParams({ username, password });
+  const res = await fetch(`${API_BASE}/token`, {
+    method: "POST",
+    body,
+  });
+  if (!res.ok) {
+    throw new Error("Login failed");
+  }
+  const data = (await res.json()) as { access_token: string };
+  setAuthToken(data.access_token);
+  return data.access_token;
+}
+
 /* ------------------------------------------------------------------ */
 /* Generic fetch helper                                                */
 /* ------------------------------------------------------------------ */
-export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const headers = new Headers(init?.headers);
-  const token = import.meta.env.VITE_API_TOKEN;
-  if (token) {
-    headers.set("X-API-Token", token);
-  }
+export async function fetchJson<T>(
+  url: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
   const res = await fetch(url, { ...init, headers });
-  if (res.status === 401 && !token) {
-    console.warn(
-      "VITE_API_TOKEN is not set and request returned 401. See README.md#local-quick-start for configuration."
-    );
-  }
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
   }
@@ -157,6 +175,7 @@ export const getScreener = (
     float_shares_min?: number;
     market_cap_min?: number;
     high_52w_max?: number;
+    low_52w_max?: number;
     low_52w_min?: number;
     avg_volume_min?: number;
   } = {},
@@ -204,6 +223,8 @@ export const getScreener = (
     params.set("market_cap_min", String(criteria.market_cap_min));
   if (criteria.high_52w_max != null)
     params.set("high_52w_max", String(criteria.high_52w_max));
+  if (criteria.low_52w_max != null)
+    params.set("low_52w_max", String(criteria.low_52w_max));
   if (criteria.low_52w_min != null)
     params.set("low_52w_min", String(criteria.low_52w_min));
   if (criteria.avg_volume_min != null)
@@ -362,3 +383,14 @@ export const getValueAtRisk = (
     `${API_BASE}/var/${owner}${qs ? `?${qs}` : ""}`
   );
 };
+
+/** Request trade suggestions to rebalance a portfolio. */
+export const getRebalance = (
+  actual: Record<string, number>,
+  target: Record<string, number>,
+) =>
+  fetchJson<TradeSuggestion[]>(`${API_BASE}/rebalance`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actual, target }),
+  });

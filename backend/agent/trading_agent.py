@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import csv
 import logging
+import csv
 import os
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional
@@ -14,15 +14,15 @@ from backend.common import prices
 from backend.common.alerts import publish_alert
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
-    compute_owner_performance,
     list_all_unique_tickers,
+    compute_owner_performance,
 )
 from backend.common.trade_metrics import (
     TRADE_LOG_PATH,
     load_and_compute_metrics,
 )
 from backend.config import config
-from backend.utils.telegram_utils import redact_token, send_message
+from backend.utils.telegram_utils import send_message, redact_token
 
 logger = logging.getLogger(__name__)
 
@@ -50,15 +50,18 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
         except RuntimeError:
             logger.info("SNS topic ARN not configured; skipping publish")
 
-    if os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID") and config.app_env != "aws":
+    if (
+        os.getenv("TELEGRAM_BOT_TOKEN")
+        and os.getenv("TELEGRAM_CHAT_ID")
+        and config.app_env != "aws"
+    ):
         try:
             send_message(message)
         except Exception as exc:  # pragma: no cover - network errors are rare
             logger.warning("Telegram send failed: %s", redact_token(str(exc)))
 
-
 PRICE_DROP_THRESHOLD = -5.0  # percent
-PRICE_GAIN_THRESHOLD = 5.0  # percent
+PRICE_GAIN_THRESHOLD = 5.0   # percent
 DRAWDOWN_ALERT_THRESHOLD = 0.2  # 20% decline; set to 0 to disable
 
 
@@ -101,6 +104,7 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     return signals
 
 
+  
 def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = None) -> None:
     """Append a trade record to the trade log.
 
@@ -111,7 +115,9 @@ def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = 
     header = not TRADE_LOG_PATH.exists()
     TRADE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     with TRADE_LOG_PATH.open("a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["timestamp", "ticker", "action", "price"])
+        writer = csv.DictWriter(
+            f, fieldnames=["timestamp", "ticker", "action", "price"]
+        )
         if header:
             writer.writeheader()
         writer.writerow(
@@ -122,7 +128,6 @@ def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = 
                 "price": price,
             }
         )
-
 
 def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
     """Emit an alert if any portfolio drawdown exceeds ``threshold``."""
@@ -139,7 +144,9 @@ def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
         if max_dd is None:
             continue
         if abs(max_dd) >= threshold:
-            send_trade_alert(f"{owner} portfolio drawdown {max_dd*100:.2f}% exceeds {threshold*100:.2f}%")
+            send_trade_alert(
+                f"{owner} portfolio drawdown {max_dd*100:.2f}% exceeds {threshold*100:.2f}%"
+            )
 
 
 def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:

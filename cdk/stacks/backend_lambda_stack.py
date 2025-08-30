@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_lambda as _lambda,
     aws_events as events,
     aws_events_targets as targets,
+    BundlingOptions,
 )
 from constructs import Construct
 
@@ -24,7 +25,7 @@ class BackendLambdaStack(Stack):
             "BackendDependencies",
             code=_lambda.Code.from_asset(
                 str(backend_path),
-                bundling=_lambda.BundlingOptions(
+                bundling=BundlingOptions(
                     image=_lambda.Runtime.PYTHON_3_12.bundling_image,
                     command=[
                         "bash",

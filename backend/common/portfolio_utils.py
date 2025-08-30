@@ -336,13 +336,14 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
 # Performance helpers
 # ──────────────────────────────────────────────────────────────
 def compute_owner_performance(
-    owner: str, days: int = 365, include_cash: bool = True
+    owner: str, days: int = 365, include_flagged: bool = False, include_cash: bool = True
 ) -> Dict[str, Any]:
     """Return daily portfolio values and returns for an ``owner``.
 
     The calculation uses current holdings and fetches closing prices from the
-    meta timeseries cache for the requested rolling window. The result is
-    returned as ``{"history": [...], "max_drawdown": float}`` where
+    meta timeseries cache for the requested rolling window. Instruments flagged
+    in the price snapshot are skipped unless ``include_flagged`` is ``True``.
+    The result is returned as ``{"history": [...], "max_drawdown": float}`` where
     ``history`` is a list of records::
 
         {
@@ -376,6 +377,8 @@ def compute_owner_performance(
 
     from backend.common import instrument_api
 
+    flagged = {k.upper() for k, v in _PRICE_SNAPSHOT.items() if v.get("flagged")}
+
     holdings: List[tuple[str, str, float]] = []  # (ticker, exchange, units)
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
@@ -398,6 +401,10 @@ def compute_owner_performance(
                         "Could not resolve exchange for %s; defaulting to L", tkr
                     )
             exch = (h.get("exchange") or inferred or "L").upper()
+            full = f"{sym}.{exch}".upper()
+            if not include_flagged and full in flagged:
+                logger.debug("Skipping flagged instrument %s", full)
+                continue
             holdings.append((sym, exch, units))
 
     if not holdings:

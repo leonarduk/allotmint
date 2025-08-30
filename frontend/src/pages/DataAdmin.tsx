@@ -52,8 +52,17 @@ export default function DataAdmin() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={`${r.ticker}.${r.exchange}`}>
+          {rows.map((r) => {
+            const latestDate = new Date(r.latest);
+            const stale = Date.now() - latestDate.getTime() > 2 * 24 * 60 * 60 * 1000;
+            const bgColor = stale
+              ? "#ffcccc"
+              : r.completeness < 98
+                ? "#ffe8a1"
+                : undefined;
+
+            return (
+              <tr key={`${r.ticker}.${r.exchange}`} style={{ backgroundColor: bgColor }}>
               <td>
                 <a href={`/timeseries?ticker=${encodeURIComponent(r.ticker)}&exchange=${encodeURIComponent(r.exchange)}`}>
                   {r.ticker}

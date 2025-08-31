@@ -2,8 +2,7 @@ import backend.common.alerts as alerts
 
 
 def test_get_recent_alerts_skips_duplicates(monkeypatch):
-    alerts._RECENT_ALERTS.clear()
-    alerts._RECENT_ALERT_SIGNATURES.clear()
+    alerts.clear_state()
     monkeypatch.setattr(alerts.config, "sns_topic_arn", None, raising=False)
     alert = {"ticker": "ABC", "message": "hello"}
     alerts.publish_alert(alert.copy())

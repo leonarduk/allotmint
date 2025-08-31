@@ -2,15 +2,19 @@ import sys
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
+
 import backend.common.alerts as alerts
 
 
-def test_publish_alert_without_config(monkeypatch, caplog):
-    alerts._RECENT_ALERTS.clear()
-    alerts._RECENT_ALERT_SIGNATURES.clear()
-    alerts._LAST_ALERT_STATE.clear()
-    alerts._LAST_ALERT_TIME.clear()
+@pytest.fixture(autouse=True)
+def clear_alert_state():
+    alerts.clear_state()
+    yield
+    alerts.clear_state()
 
+
+def test_publish_alert_without_config(monkeypatch, caplog):
     monkeypatch.setattr(alerts.config, "sns_topic_arn", None, raising=False)
     with caplog.at_level("INFO"):
         alerts.publish_sns_alert({"message": "hi"})
@@ -21,10 +25,6 @@ def test_publish_alert_without_config(monkeypatch, caplog):
 
 
 def test_publish_alert_success(monkeypatch):
-    alerts._RECENT_ALERTS.clear()
-    alerts._RECENT_ALERT_SIGNATURES.clear()
-    alerts._LAST_ALERT_STATE.clear()
-    alerts._LAST_ALERT_TIME.clear()
     sent = {}
 
     def fake_client(name):
@@ -42,10 +42,6 @@ def test_publish_alert_success(monkeypatch):
 
 
 def test_per_instrument_throttling(monkeypatch):
-    alerts._RECENT_ALERTS.clear()
-    alerts._LAST_ALERT_STATE.clear()
-    alerts._LAST_ALERT_TIME.clear()
-
     def fake_client(name):
         assert name == "sns"
         return SimpleNamespace(publish=lambda **kwargs: None)
@@ -78,10 +74,6 @@ def test_per_instrument_throttling(monkeypatch):
 
 
 def test_publish_only_on_state_change(monkeypatch):
-    alerts._RECENT_ALERTS.clear()
-    alerts._LAST_ALERT_STATE.clear()
-    alerts._LAST_ALERT_TIME.clear()
-
     def fake_client(name):
         assert name == "sns"
         return SimpleNamespace(publish=lambda **kwargs: None)
@@ -110,10 +102,6 @@ def test_publish_only_on_state_change(monkeypatch):
 
 
 def test_publish_failure_does_not_throttle(monkeypatch):
-    alerts._RECENT_ALERTS.clear()
-    alerts._LAST_ALERT_STATE.clear()
-    alerts._LAST_ALERT_TIME.clear()
-
     monkeypatch.setattr(alerts.config, "sns_topic_arn", "arn:example")
 
     def failing_client(name):

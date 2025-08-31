@@ -31,4 +31,5 @@ def test_timeseries_uses_portfolio_exchange(monkeypatch):
     res = ia.timeseries_for_ticker("XYZ", days=1)
     assert captured["cache_ex"] == "N"
     assert captured["load_ex"] == "N"
-    assert res == [{"date": "2023-01-08", "close": 1.0, "close_gbp": 1.0}]
+    assert res["prices"] == [{"date": "2023-01-08", "close": 1.0, "close_gbp": 1.0}]
+    assert set(res["mini"].keys()) == {"7", "30", "180"}

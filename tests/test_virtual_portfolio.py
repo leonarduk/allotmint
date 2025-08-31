@@ -13,7 +13,7 @@ def test_aggregate_with_mixed_holdings(monkeypatch):
         prices = {"AAA": 12.0, "CCC": 8.0}
         if ticker not in prices:
             raise AssertionError("price lookup should not occur for zero-unit holdings")
-        return prices[ticker]
+        return prices[ticker], "Feed"
 
     def fake_derived_cost_basis_close_px(ticker, exchange, acq, cache):
         prices = {"AAA": 10.0, "CCC": 7.0}

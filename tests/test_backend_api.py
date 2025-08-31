@@ -78,11 +78,13 @@ def mock_timeseries_for_ticker(monkeypatch):
 
     def _fake_timeseries(ticker: str, days: int = 365):
         if ticker == "FAKETICK":
-            return []
-        return [
+            return {"prices": [], "mini": {"7": [], "30": [], "180": []}}
+        prices = [
             {"date": "2024-01-01", "close": 1.0},
             {"date": "2024-01-02", "close": 1.1},
         ]
+        mini = {"7": prices[-7:], "30": prices[-30:], "180": prices[-180:]}
+        return {"prices": prices, "mini": mini}
 
     monkeypatch.setattr(
         "backend.common.instrument_api.timeseries_for_ticker", _fake_timeseries
@@ -134,14 +136,12 @@ def test_groups(client):
     assert isinstance(resp.json(), list)
 
 
-def test_valid_group_portfolio():
-    groups = client.get("/groups").json()
-    assert groups, "No groups found"
-    group_slug = groups[0]["slug"]
+def test_valid_group_portfolio(client):
+    group_slug = "stub"
     resp = client.get(f"/portfolio-group/{group_slug}")
     assert resp.status_code == 200
     data = resp.json()
-    assert "slug" in data and data["slug"] == slug
+    assert "slug" in data and data["slug"] == group_slug
     assert "accounts" in data and isinstance(data["accounts"], list)
     assert data["accounts"], "Accounts list should not be empty"
     assert "total_value_estimate_gbp" in data
@@ -184,15 +184,14 @@ def test_invalid_account(client):
     assert resp.status_code == 404
 
 
-def test_prices_refresh():
+def test_prices_refresh(client):
     resp = client.post("/prices/refresh")
     assert resp.status_code == 200
     assert "status" in resp.json()
 
 
-def test_group_instruments():
-    groups = client.get("/groups").json()
-    slug = groups[0]["slug"]
+def test_group_instruments(client):
+    slug = "stub"
     resp = client.get(f"/portfolio-group/{slug}/instruments")
     assert resp.status_code == 200
     instruments = resp.json()
@@ -270,8 +269,9 @@ def test_yahoo_timeseries_html(client):
     assert ticker.lower() in html
 
 
-def test_alerts_endpoint(monkeypatch):
+def test_alerts_endpoint(client, monkeypatch):
     alerts._RECENT_ALERTS.clear()
+    alerts.clear_state()
     monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))
     client.post("/prices/refresh")
     resp = client.get("/alerts")

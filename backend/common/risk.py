@@ -62,8 +62,8 @@ def compute_portfolio_var(
     if not 0 < confidence < 1:
         raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
-    perf = portfolio_utils.compute_owner_performance(
-        owner, days=days, include_cash=include_cash
+    # exclude any instruments flagged in the price snapshot until refreshed
+    perf = portfolio_utils.compute_owner_performance(owner, days=days, include_flagged=False, include_cash=include_cash
     )
     history = perf.get("history", []) if isinstance(perf, dict) else perf
     if not history:

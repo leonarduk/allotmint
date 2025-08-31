@@ -54,7 +54,7 @@ def test_missing_fx_rates_are_filled(monkeypatch):
 
     def fake_fx(base, s, e):
         dates = pd.bdate_range(s, e).date
-        return pd.DataFrame({"Date": dates, "Rate": [0.8, None, 0.81]})
+        return pd.DataFrame({"Date": dates, "Rate": ["0.8", None, "0.81"]})
 
     monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
     monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
@@ -67,6 +67,26 @@ def test_missing_fx_rates_are_filled(monkeypatch):
         pytest.approx(3 * 0.81),
     ]
     assert list(df["Close"].astype(float)) == [1.0, 2.0, 3.0]
+
+
+def test_string_fx_rates_are_converted(monkeypatch):
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 2)
+
+    def fake_memoized_range(ticker, exch, s_iso, e_iso):
+        return _sample_df(start, end)
+
+    def fake_fx(base, s, e):
+        dates = pd.bdate_range(s, e).date
+        return pd.DataFrame({"Date": dates, "Rate": ["0.8", "0.81"]})
+
+    monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
+    monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
+
+    df = cache.load_meta_timeseries_range("T", "N", start, end)
+    closes = list(df["Close_gbp"].astype(float))
+    assert closes == [pytest.approx(1 * 0.8), pytest.approx(2 * 0.81)]
+    assert list(df["Close"].astype(float)) == [1.0, 2.0]
 
 
 def test_non_gbp_instrument_on_gbp_exchange(monkeypatch):

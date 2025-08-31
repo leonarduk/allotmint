@@ -1,12 +1,13 @@
 import { useEffect, useState, memo } from "react";
 import i18n from "i18next";
+import "./LanguageSwitcher.css";
 
 const LANGUAGES = [
-  { code: "en", flag: "🇬🇧" },
-  { code: "fr", flag: "🇫🇷" },
-  { code: "de", flag: "🇩🇪" },
-  { code: "es", flag: "🇪🇸" },
-  { code: "pt", flag: "🇵🇹" },
+  { code: "en", flag: "/flags/en.svg" },
+  { code: "fr", flag: "/flags/fr.svg" },
+  { code: "de", flag: "/flags/de.svg" },
+  { code: "es", flag: "/flags/es.svg" },
+  { code: "pt", flag: "/flags/pt.svg" },
 ];
 
 export const LanguageSwitcher = memo(function LanguageSwitcher() {
@@ -39,16 +40,11 @@ export const LanguageSwitcher = memo(function LanguageSwitcher() {
         <button
           key={l.code}
           onClick={() => handleChange(l.code)}
-          style={{
-            fontSize: "1.5rem",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            opacity: current === l.code ? 1 : 0.5,
-          }}
+          className="language-btn"
+          style={{ opacity: current === l.code ? 1 : 0.5 }}
           aria-label={l.code}
         >
-          {l.flag}
+          <img src={l.flag} alt={l.code} style={{ width: "100%", height: "100%" }} />
         </button>
       ))}
     </div>

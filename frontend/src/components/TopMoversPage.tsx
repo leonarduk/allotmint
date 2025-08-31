@@ -47,7 +47,18 @@ export function TopMoversPage() {
         );
         setPortfolioTotal(total);
         setNeedsLogin(false);
-        return getGroupMovers(
+      } catch (e) {
+        if (e instanceof Error && /^HTTP 401/.test(e.message)) {
+          setNeedsLogin(true);
+          setWatchlist("FTSE 100");
+          setPortfolioTotal(null);
+          return getTopMovers(WATCHLISTS["FTSE 100"], PERIODS[period]);
+        }
+        throw e;
+      }
+
+      try {
+        return await getGroupMovers(
           "all",
           PERIODS[period],
           10,
@@ -105,7 +116,8 @@ export function TopMoversPage() {
   }, []);
 
   if (loading) return <p>Loading…</p>;
-  if (error) {
+  /* render errors inline instead of early-returning */
+  if (false && error) {
     const match = error.message.match(/^HTTP (\d+)\s+[–-]\s+(.*)$/);
     const status = match?.[1];
     const msg = match?.[2] ?? error.message;
@@ -116,8 +128,22 @@ export function TopMoversPage() {
     );
   }
 
+  const errorBanner = error
+    ? (() => {
+        const match = error.message.match(/^HTTP (\\d+)\\s+[--]\\s+(.*)$/);
+        const status = match?.[1];
+        const msg = match?.[2] ?? error.message;
+        return (
+          <p style={{ color: "red" }}>
+            Failed to load movers{status ? ` (HTTP ${status})` : ""}: {msg}
+          </p>
+        );
+      })()
+    : null;
+
   return (
     <>
+      {errorBanner}
       <div style={{ marginBottom: "0.5rem" }}>
         <label style={{ marginRight: "0.5rem" }}>
           Watchlist:

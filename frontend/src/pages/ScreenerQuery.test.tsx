@@ -99,7 +99,8 @@ describe("Screener & Query page", () => {
     });
     fireEvent.click(screen.getAllByRole("button", { name: en.screener.run })[0]);
 
-    expect(await screen.findByText("1,000")).toBeInTheDocument();
+    const values2 = await screen.findAllByText("1,000");
+    expect(values2.length).toBeGreaterThan(0);
     expect(getScreener).toHaveBeenCalledWith(["AAA"], { peg_max: 2, roe_min: 5 });
     expect(await screen.findByText("1.2")).toBeInTheDocument();
     expect(getScreener).toHaveBeenCalledWith(

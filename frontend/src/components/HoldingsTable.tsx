@@ -251,7 +251,7 @@ export function HoldingsTable({
         <div className="table-responsive">
         <table className={`${tableStyles.table} mb-4`}>
         <thead ref={tableHeaderRef}>
->         <tr>
+          <tr>
             <th className={tableStyles.cell}>
               <input
                 placeholder={t("holdingsTable.filters.ticker")}

@@ -26,6 +26,7 @@ const defaultConfig: AppConfig = {
     dataadmin: true,
     virtual: true,
     support: true,
+    settings: true,
     reports: true,
     scenario: true,
   },

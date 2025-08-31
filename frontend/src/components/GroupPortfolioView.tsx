@@ -115,6 +115,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
       .catch(() => {});
   }, [slug]);
 
+  useEffect(() => {
     if (onTradeInfo) {
       onTradeInfo(
         portfolio

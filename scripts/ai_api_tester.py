@@ -2,12 +2,30 @@
 """Run HTTP endpoints from a YAML config and summarize results with GPT."""
 
 import argparse
+import os
 from pathlib import Path
 from typing import Any
 
 import requests
 import yaml
 from openai import OpenAI
+
+
+def load_env() -> None:
+    """Populate environment variables from a local .env file if present."""
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        if key and value and key not in os.environ:
+            os.environ[key.strip()] = value.strip()
+
+
+load_env()
 
 
 def load_cases(path: Path) -> list[dict[str, Any]]:

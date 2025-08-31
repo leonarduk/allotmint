@@ -300,13 +300,7 @@ def _memoized_range_cached(
         existing = _load_parquet(cache_path)
         if existing.empty:
             logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
-            superset = load_meta_timeseries(ticker, exchange, days_needed)
-            if superset.empty or "Date" not in superset.columns:
-                return _empty_ts()
-            mask = (superset["Date"].dt.date >= start_date) & (
-                superset["Date"].dt.date <= end_date
-            )
-            return _ensure_schema(superset.loc[mask].reset_index(drop=True)).copy()
+            return _empty_ts()
         ex = existing.copy()
         ex["Date"] = ex["Date"].dt.date
         mask = (ex["Date"] >= start_date) & (ex["Date"] <= end_date)

@@ -174,6 +174,52 @@ export const getPerformance = (
   ).then((res) => res.history);
 };
 
+export const getAlphaVsBenchmark = (
+  owner: string,
+  benchmark: string,
+  days = 365,
+) =>
+  fetchJson<AlphaResponse>(
+    `${API_BASE}/performance/${owner}/alpha?benchmark=${benchmark}&days=${days}`,
+  );
+
+export const getTrackingError = (
+  owner: string,
+  benchmark: string,
+  days = 365,
+) =>
+  fetchJson<TrackingErrorResponse>(
+    `${API_BASE}/performance/${owner}/tracking-error?benchmark=${benchmark}&days=${days}`,
+  );
+
+export const getMaxDrawdown = (owner: string, days = 365) =>
+  fetchJson<MaxDrawdownResponse>(
+    `${API_BASE}/performance/${owner}/max-drawdown?days=${days}`,
+  );
+
+export const getGroupAlphaVsBenchmark = (
+  slug: string,
+  benchmark: string,
+  days = 365,
+) =>
+  fetchJson<AlphaResponse>(
+    `${API_BASE}/performance-group/${slug}/alpha?benchmark=${benchmark}&days=${days}`,
+  );
+
+export const getGroupTrackingError = (
+  slug: string,
+  benchmark: string,
+  days = 365,
+) =>
+  fetchJson<TrackingErrorResponse>(
+    `${API_BASE}/performance-group/${slug}/tracking-error?benchmark=${benchmark}&days=${days}`,
+  );
+
+export const getGroupMaxDrawdown = (slug: string, days = 365) =>
+  fetchJson<MaxDrawdownResponse>(
+    `${API_BASE}/performance-group/${slug}/max-drawdown?days=${days}`,
+  );
+
 /** Run a simple fundamentals screen across a list of tickers. */
 export const getScreener = (
   tickers: string[],

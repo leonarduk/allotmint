@@ -273,6 +273,7 @@ def test_yahoo_timeseries_html(client):
 
 
 def test_alerts_endpoint(client, monkeypatch):
+    alerts._RECENT_ALERTS.clear()
     alerts.clear_state()
     monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))
     client.post("/prices/refresh")

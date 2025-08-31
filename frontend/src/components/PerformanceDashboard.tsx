@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { getPerformance, getValueAtRisk } from "../api";
+import {
+  getPerformance,
+  getValueAtRisk,
+  getAlphaVsBenchmark,
+  getTrackingError,
+  getMaxDrawdown,
+} from "../api";
 import type { PerformancePoint, ValueAtRiskPoint } from "../types";
 import { percent } from "../lib/money";
 import i18n from "../i18n";
@@ -14,6 +20,9 @@ export function PerformanceDashboard({ owner }: Props) {
   const [varData, setVarData] = useState<ValueAtRiskPoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
+  const [alpha, setAlpha] = useState<number | null>(null);
+  const [trackingError, setTrackingError] = useState<number | null>(null);
+  const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [excludeCash, setExcludeCash] = useState<boolean>(false);
 
   useEffect(() => {
@@ -23,6 +32,9 @@ export function PerformanceDashboard({ owner }: Props) {
     setVarData([]);
     const reqDays = days === 0 ? 36500 : days;
     Promise.all([
+      getAlphaVsBenchmark(owner, "VWRL.L", reqDays),
+      getTrackingError(owner, "VWRL.L", reqDays),
+      getMaxDrawdown(owner, reqDays),
       getPerformance(owner, reqDays, excludeCash),
       getValueAtRisk(owner, {
         days: reqDays,
@@ -30,9 +42,12 @@ export function PerformanceDashboard({ owner }: Props) {
         excludeCash,
       }),
     ])
-      .then(([perf, varSeries]) => {
+      .then(([alphaRes, teRes, mdRes, perf, varSeries]) => {
         setData(perf);
         setVarData(varSeries);
+        setAlpha(alphaRes.alpha_vs_benchmark);
+        setTrackingError(teRes.tracking_error);
+        setMaxDrawdown(mdRes.max_drawdown);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, [owner, days, excludeCash]);
@@ -67,6 +82,32 @@ export function PerformanceDashboard({ owner }: Props) {
             style={{ marginLeft: "0.25rem" }}
           />
         </label>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap: "1rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Alpha vs Benchmark</div>
+          <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+            {percent(alpha != null ? alpha * 100 : null)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Tracking Error</div>
+          <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+            {percent(trackingError != null ? trackingError * 100 : null)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
+          <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+            {percent(maxDrawdown != null ? maxDrawdown * 100 : null)}
+          </div>
+        </div>
       </div>
       <h2>Portfolio Value</h2>
       <ResponsiveContainer width="100%" height={240}>

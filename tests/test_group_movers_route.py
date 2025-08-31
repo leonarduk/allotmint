@@ -26,10 +26,9 @@ def test_group_movers_endpoint(monkeypatch):
         assert days == 7
         assert limit == 5
         assert min_weight == 0.5
-        expected = pytest.approx(100.0 / 3)
-        assert weights["AAA"] == expected
-        assert weights["BBB"] == expected
-        assert weights["CCC"] == expected
+        assert weights["AAA"] == pytest.approx(57.142857, rel=1e-6)
+        assert weights["BBB"] == pytest.approx(28.571429, rel=1e-6)
+        assert weights["CCC"] == pytest.approx(14.285714, rel=1e-6)
         return {
             "gainers": [{"ticker": "AAA", "name": "AAA", "change_pct": 5}],
             "losers": [{"ticker": "BBB", "name": "BBB", "change_pct": -3}],
@@ -45,3 +44,8 @@ def test_group_movers_endpoint(monkeypatch):
     assert [loser["ticker"] for loser in data["losers"]] == ["BBB"]
     assert data["gainers"][0]["market_value_gbp"] == 100.0
     assert data["losers"][0]["market_value_gbp"] == 50.0
+
+
+def test_group_movers_limit_too_high():
+    resp = client.get("/portfolio-group/demo/movers?limit=101")
+    assert resp.status_code == 400

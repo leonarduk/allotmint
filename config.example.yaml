@@ -23,6 +23,10 @@ portfolio_xml_path: data/portfolio/investments.xml
 transactions_output_root: data/accounts
 uvicorn_port: 8000
 reload: true
+google_auth_enabled: false
+google_client_id: ""
+allowed_emails:
+  - user@example.com
 relative_view_enabled: false
 theme: system
 log_config: backend/logging.ini

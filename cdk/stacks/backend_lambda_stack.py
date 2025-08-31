@@ -46,6 +46,11 @@ class BackendLambdaStack(Stack):
             handler="backend.lambda_api.handler.lambda_handler",
             code=backend_code,
             layers=[dependencies_layer],
+            environment={
+                "GOOGLE_AUTH_ENABLED": "true",
+                "GOOGLE_CLIENT_ID": "${GOOGLE_CLIENT_ID}",
+                "ALLOWED_EMAILS": "${ALLOWED_EMAILS}",
+            },
         )
 
         apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)

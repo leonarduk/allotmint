@@ -10,4 +10,6 @@ export type FxCurrency = typeof FX_CURRENCIES[number];
 export const isSupportedFx = (ccy?: string | null): ccy is FxCurrency =>
   ccy != null && FX_CURRENCIES.includes(ccy as FxCurrency);
 
-export const fxTicker = (ccy: FxCurrency): string => `${ccy}GBP=X`;
+// Use internal synthetic FX instrument suffix consistent with component expectations
+// e.g., USD -> USDGBP.FX, EUR -> EURGBP.FX
+export const fxTicker = (ccy: FxCurrency): string => `${ccy}GBP.FX`;

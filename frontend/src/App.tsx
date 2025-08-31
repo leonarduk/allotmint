@@ -276,7 +276,7 @@ export default function App() {
       <LanguageSwitcher />
       <AlertsPanel />
       <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
-        <nav style={{ flexGrow: 1 }}>
+        <nav role="navigation" style={{ flexGrow: 1 }}>
           {orderedTabPlugins
             .slice()
             .sort((a, b) => a.priority - b.priority)

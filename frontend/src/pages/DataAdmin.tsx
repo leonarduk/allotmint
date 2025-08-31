@@ -35,9 +35,9 @@ export default function DataAdmin() {
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <h2>{t("app.modes.dataadmin")}</h2>
-      <table>
+    <div className="container mx-auto p-4 max-w-5xl">
+      <h2 className="mb-4 text-xl md:text-2xl">{t("app.modes.dataadmin")}</h2>
+      <table className="w-full border-collapse">
         <thead>
           <tr>
             <th>Ticker</th>

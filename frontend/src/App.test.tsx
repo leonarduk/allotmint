@@ -265,6 +265,54 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
+  it("adjusts layout for different viewports", async () => {
+    window.history.pushState({}, "", "/support");
+
+    vi.doMock("./api", () => ({
+      getOwners: vi.fn().mockResolvedValue([]),
+      getGroups: vi.fn().mockResolvedValue([]),
+      getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getPortfolio: vi.fn(),
+      refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      listTimeseries: vi.fn().mockResolvedValue([]),
+      refetchTimeseries: vi.fn(),
+      rebuildTimeseriesCache: vi.fn(),
+      getConfig: vi.fn().mockResolvedValue({}),
+      updateConfig: vi.fn(),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getTradingSignals: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+    }));
+
+    const { default: App } = await import("./App");
+
+    window.innerWidth = 375;
+    window.dispatchEvent(new Event("resize"));
+    const { container, rerender } = render(
+      <MemoryRouter initialEntries={["/support"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(container.querySelector(".container")).toBeTruthy();
+
+    window.innerWidth = 1024;
+    window.dispatchEvent(new Event("resize"));
+    rerender(
+      <MemoryRouter initialEntries={["/support"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByRole("heading", { name: /Support/i })
+    ).toBeInTheDocument();
+  });
+
   it("defaults to Movers view and orders tabs correctly", async () => {
     window.history.pushState({}, "", "/");
     mockTradingSignals.mockResolvedValue([]);

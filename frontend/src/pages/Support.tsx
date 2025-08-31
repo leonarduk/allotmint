@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { API_BASE, getConfig, updateConfig } from "../api";
+import {
+  API_BASE,
+  getConfig,
+  updateConfig,
+  savePushSubscription,
+  deletePushSubscription,
+} from "../api";
 import { useConfig } from "../ConfigContext";
 import Menu from "../components/Menu";
 
@@ -32,6 +38,7 @@ export default function Support() {
   const [config, setConfig] = useState<ConfigState>({});
   const [tabs, setTabs] = useState<Record<string, boolean>>(EMPTY_TABS);
   const [configStatus, setConfigStatus] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
 
   const envEntries = Object.entries(import.meta.env).sort();
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
@@ -62,6 +69,17 @@ export default function Support() {
       .catch(() => {
         /* ignore */
       });
+  }, []);
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.pushManager.getSubscription())
+        .then((sub) => setPushEnabled(!!sub))
+        .catch(() => {
+          /* ignore */
+        });
+    }
   }, []);
 
   function handleConfigChange(key: string, value: string | boolean) {
@@ -120,6 +138,47 @@ export default function Support() {
     }
   }
 
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  async function enablePush() {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") return;
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
+          ? urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY as string)
+          : undefined,
+      });
+      await savePushSubscription("default", sub.toJSON());
+      setPushEnabled(true);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function disablePush() {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+      await deletePushSubscription("default");
+      setPushEnabled(false);
+    } catch {
+      /* ignore */
+    }
+  }
+
   async function send() {
     setStatus("sending");
     try {
@@ -169,6 +228,16 @@ export default function Support() {
           })}
         </tbody>
       </table>
+      <h2>Notifications</h2>
+      {typeof Notification === "undefined" ||
+      typeof navigator === "undefined" ||
+      !("serviceWorker" in navigator) ? (
+        <p>Push not supported</p>
+      ) : (
+        <button onClick={pushEnabled ? disablePush : enablePush} type="button">
+          {pushEnabled ? "Disable Push Alerts" : "Enable Push Alerts"}
+        </button>
+      )}
 
       <h2>Configuration</h2>
       {!Object.keys(config).length ? (

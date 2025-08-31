@@ -383,6 +383,31 @@ export const setAlertThreshold = (user: string, threshold: number) =>
     body: JSON.stringify({ threshold }),
   });
 
+export interface PushSubscriptionJSON {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
+/** Store a push subscription for a user. */
+export const savePushSubscription = (
+  user: string,
+  sub: PushSubscriptionJSON,
+) =>
+  fetchJson(`${API_BASE}/alerts/push-subscription/${user}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sub),
+  });
+
+/** Remove the push subscription for a user. */
+export const deletePushSubscription = (user: string) =>
+  fetchJson(`${API_BASE}/alerts/push-subscription/${user}`, {
+    method: "DELETE",
+  });
+
 // Backwards compatibility aliases
 export const getAlertSettings = getAlertThreshold;
 export const setAlertSettings = setAlertThreshold;

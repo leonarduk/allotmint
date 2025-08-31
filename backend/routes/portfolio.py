@@ -21,13 +21,11 @@ from backend.common import (
     data_loader,
     group_portfolio,
     instrument_api,
-)
-from backend.common import portfolio as portfolio_mod
-from backend.common import (
     portfolio_utils,
     prices,
     risk,
 )
+from backend.common import portfolio as portfolio_mod
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -223,8 +221,9 @@ async def group_movers(
     if not tickers:
         return {"gainers": [], "losers": []}
 
-    # Compute equal weights in percent for filtering
-    n = len(tickers)
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
+    # Compute weights in percent proportional to each instrument's market value.
+    # ``total_mv`` is the sum of all ``market_value_gbp`` values.
     weight_map = {
         s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0) if total_mv else 0.0
         for s in summaries

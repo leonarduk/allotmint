@@ -309,8 +309,16 @@ async def snapshot_pages(
                                     {
                                         "role": "user",
                                         "content": [
-                                            {"type": "input_text", "text": "Describe this page."},
-                                            {"type": "input_image", "image_base64": b64_img},
+                                            {
+                                                "type": "text",
+                                                "text": "Describe this page.",
+                                            },
+                                            {
+                                                "type": "image_url",
+                                                "image_url": {
+                                                    "url": f"data:image/png;base64,{b64_img}",
+                                                },
+                                            },
                                         ],
                                     }
                                 ],

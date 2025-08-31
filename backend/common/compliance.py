@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from backend.common.approvals import is_approval_valid, load_approvals
 from backend.common.data_loader import resolve_paths
 from backend.common.instruments import get_instrument_meta
+from backend.common.user_config import load_user_config
 from backend.config import config
 
 
@@ -53,15 +55,15 @@ def load_transactions(owner: str, accounts_root: Optional[Path] = None) -> List[
     return results
 
 
-def _check_transactions(
-    owner: str, txs: List[Dict[str, Any]], accounts_root: Optional[Path] = None
-) -> Dict[str, Any]:
+def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Optional[Path] = None) -> Dict[str, Any]:
     """Run compliance checks on a list of transactions."""
 
     warnings: List[str] = []
     approvals = load_approvals(owner, accounts_root)
-    exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
-    exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
+    ucfg = load_user_config(owner, accounts_root)
+    exempt_tickers = {t.upper() for t in (ucfg.approval_exempt_tickers or [])}
+    exempt_types = {t.upper() for t in (ucfg.approval_exempt_types or [])}
+    logger = logging.getLogger("compliance")
 
     # trade count rule
     counts: Dict[str, int] = defaultdict(int)
@@ -72,9 +74,13 @@ def _check_transactions(
         key = f"{d.year:04d}-{d.month:02d}"
         counts[key] += 1
     for month, cnt in counts.items():
-        if cnt > config.max_trades_per_month:
-            warnings.append(
-                f"{cnt} trades in {month} (max {config.max_trades_per_month})"
+        if cnt > (ucfg.max_trades_per_month or 0):
+            warnings.append(f"{cnt} trades in {month} (max {ucfg.max_trades_per_month})")
+            logger.info(
+                "%s MAX_TRADES_PER_MONTH %s %s",
+                datetime.utcnow().isoformat(),
+                owner,
+                month,
             )
 
     # holding period rule
@@ -89,25 +95,31 @@ def _check_transactions(
             last_buy[ticker] = d
         elif action == "sell":
             acq = last_buy.get(ticker)
-            if acq and (d - acq).days < config.hold_days_min:
+            if acq and (d - acq).days < (ucfg.hold_days_min or 0):
                 days = (d - acq).days
-                warnings.append(
-                    f"Sold {ticker} after {days} days (min {config.hold_days_min})"
+                warnings.append(f"Sold {ticker} after {days} days (min {ucfg.hold_days_min})")
+                logger.info(
+                    "%s HOLD_DAYS_MIN %s %s",
+                    datetime.utcnow().isoformat(),
+                    owner,
+                    ticker,
                 )
 
             meta = get_instrument_meta(ticker)
-            instr_type = (
-                meta.get("instrumentType") or meta.get("instrument_type") or ""
-            ).upper()
+            instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
             needs_approval = not (
-                ticker in exempt_tickers
-                or ticker.split(".")[0] in exempt_tickers
-                or instr_type in exempt_types
+                ticker in exempt_tickers or ticker.split(".")[0] in exempt_tickers or instr_type in exempt_types
             )
             if needs_approval:
                 appr = approvals.get(ticker) or approvals.get(ticker.split(".")[0])
                 if not (appr and is_approval_valid(appr, d)):
                     warnings.append(f"Sold {ticker} without approval")
+                    logger.info(
+                        "%s APPROVAL_REQUIRED %s %s",
+                        datetime.utcnow().isoformat(),
+                        owner,
+                        ticker,
+                    )
     return {"owner": owner, "warnings": warnings, "trade_counts": dict(counts)}
 
 

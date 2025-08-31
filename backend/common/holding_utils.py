@@ -17,6 +17,7 @@ from backend.common.constants import (
     UNITS,
 )
 from backend.common.instruments import get_instrument_meta
+from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
@@ -253,6 +254,7 @@ def enrich_holding(
     today: dt.date,
     price_cache: dict[str, float],
     approvals: dict[str, dt.date] | None = None,
+    user_config: UserConfig | None = None,
 ) -> Dict[str, Any]:
     """
     Canonical enrichment used by both owner and group builders.
@@ -261,6 +263,11 @@ def enrich_holding(
     out = dict(h)  # do not mutate caller
     full = (out.get(TICKER) or "").upper()
     meta = get_instrument_meta(full)
+    ucfg = user_config or UserConfig(
+        hold_days_min=config.hold_days_min,
+        approval_exempt_types=config.approval_exempt_types,
+        approval_exempt_tickers=config.approval_exempt_tickers,
+    )
 
     account_ccy = (h.get("currency") or "GBP").upper()
     from backend.common.portfolio_utils import get_security_meta  # local import to avoid circular
@@ -351,11 +358,12 @@ def enrich_holding(
     if acq:
         days = (today - acq).days
         out["days_held"] = days
-        eligible = days >= config.hold_days_min
-        next_date = acq + dt.timedelta(days=config.hold_days_min)
+        hold_days = ucfg.hold_days_min or 0
+        eligible = days >= hold_days
+        next_date = acq + dt.timedelta(days=hold_days)
         out["eligible_on"] = next_date.isoformat()
         out["next_eligible_sell_date"] = next_date.isoformat()
-        out["days_until_eligible"] = max(0, config.hold_days_min - days)
+        out["days_until_eligible"] = max(0, hold_days - days)
     else:
         out["days_held"] = None
         eligible = False
@@ -364,8 +372,8 @@ def enrich_holding(
         out["next_eligible_sell_date"] = None
 
     instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
-    exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
-    exempt_types = {t.upper() for t in (config.approval_exempt_types or [])}
+    exempt_tickers = {t.upper() for t in (ucfg.approval_exempt_tickers or [])}
+    exempt_types = {t.upper() for t in (ucfg.approval_exempt_types or [])}
     needs_approval = not (
         ticker.upper() in exempt_tickers or full.upper() in exempt_tickers or instr_type in exempt_types
     )

@@ -148,6 +148,7 @@ describe("App", () => {
       dataadmin: true,
       virtual: true,
       support: true,
+      settings: true,
       scenario: true,
     };
 
@@ -209,6 +210,7 @@ describe("App", () => {
       dataadmin: true,
       virtual: true,
       support: true,
+      settings: true,
       scenario: true,
     };
 

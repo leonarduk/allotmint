@@ -19,6 +19,7 @@ from backend.common.constants import (
     OWNER,
 )
 from backend.common.holding_utils import enrich_holding
+from backend.common.user_config import load_user_config
 
 logger = logging.getLogger("group_portfolio")
 
@@ -69,6 +70,7 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
     portfolios_to_merge = [pf for pf in list_portfolios() if (pf.get(OWNER, "") or "").lower() in wanted]
 
     approvals_map = {pf[OWNER]: load_approvals(pf[OWNER]) for pf in portfolios_to_merge}
+    user_cfg_map = {pf[OWNER]: load_user_config(pf[OWNER]) for pf in portfolios_to_merge}
 
     today = dt.date.today()
     price_cache: dict[str, float] = {}
@@ -82,7 +84,16 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
             acct_copy[OWNER] = owner
 
             holdings = acct_copy.get(HOLDINGS, [])
-            acct_copy[HOLDINGS] = [enrich_holding(h, today, price_cache, approvals_map.get(owner)) for h in holdings]
+            acct_copy[HOLDINGS] = [
+                enrich_holding(
+                    h,
+                    today,
+                    price_cache,
+                    approvals_map.get(owner),
+                    user_cfg_map.get(owner),
+                )
+                for h in holdings
+            ]
 
             # compute account value in GBP for summary totals
             val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in acct_copy[HOLDINGS])

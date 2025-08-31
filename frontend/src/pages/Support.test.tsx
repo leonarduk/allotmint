@@ -18,7 +18,7 @@ beforeEach(() => {
   mockGetConfig.mockResolvedValue({
     flag: true,
     theme: "system",
-    tabs: { group: true, owner: true, instrument: true, support: true },
+    tabs: { group: true, owner: true, instrument: true, support: true, settings: true },
   });
 });
 
@@ -45,13 +45,13 @@ describe("Support page", () => {
   mockGetConfig.mockResolvedValueOnce({
     flag: true,
     theme: "system",
-    tabs: { group: true, owner: true, instrument: true, support: true },
+    tabs: { group: true, owner: true, instrument: true, support: true, settings: true },
   });
   mockGetConfig.mockResolvedValueOnce({
     flag: false,
     count: 5,
     theme: "dark",
-    tabs: { group: true, owner: true, instrument: false, support: true },
+    tabs: { group: true, owner: true, instrument: false, support: true, settings: true },
   });
     mockUpdateConfig.mockResolvedValue(undefined);
 

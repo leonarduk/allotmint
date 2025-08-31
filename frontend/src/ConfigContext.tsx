@@ -24,6 +24,7 @@ export interface TabsConfig {
   dataadmin: boolean;
   virtual: boolean;
   support: boolean;
+   settings: boolean;
   reports: boolean;
   scenario: boolean;
 }
@@ -61,6 +62,7 @@ const defaultTabs: TabsConfig = {
   dataadmin: true,
   virtual: true,
   support: true,
+  settings: true,
   reports: true,
   scenario: true,
 };

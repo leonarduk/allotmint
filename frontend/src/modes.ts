@@ -9,6 +9,7 @@ export type Mode =
   | "watchlist"
   | "movers"
   | "dataadmin"
+  | "settings"
   | "support"
   | "scenario";
 
@@ -23,6 +24,7 @@ export const MODES: Mode[] = [
   "timeseries",
   "watchlist",
   "dataadmin",
+  "settings",
   "support",
   "scenario",
 ];

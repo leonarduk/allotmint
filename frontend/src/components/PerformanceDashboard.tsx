@@ -42,7 +42,7 @@ export function PerformanceDashboard({ owner }: Props) {
         excludeCash,
       }),
     ])
-      .then(([perf, varSeries, alphaRes, teRes, mdRes]) => {
+      .then(([alphaRes, teRes, mdRes, perf, varSeries]) => {
         setData(perf);
         setVarData(varSeries);
         setAlpha(alphaRes.alpha_vs_benchmark);

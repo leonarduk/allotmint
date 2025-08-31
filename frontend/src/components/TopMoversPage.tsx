@@ -34,6 +34,7 @@ export function TopMoversPage() {
   const [needsLogin, setNeedsLogin] = useState(false);
   const [portfolioTotal, setPortfolioTotal] = useState<number | null>(null);
   const [excludeSmall, setExcludeSmall] = useState(false);
+  const [fallbackError, setFallbackError] = useState<string | null>(null);
 
   const MIN_WEIGHT = 0.5;
 
@@ -58,6 +59,7 @@ export function TopMoversPage() {
       }
 
       try {
+        setFallbackError(null);
         return await getGroupMovers(
           "all",
           PERIODS[period],
@@ -69,6 +71,7 @@ export function TopMoversPage() {
           setNeedsLogin(true);
           setWatchlist("FTSE 100");
           setPortfolioTotal(null);
+          setFallbackError(e.message);
           return getTopMovers(WATCHLISTS["FTSE 100"], PERIODS[period]);
         }
         throw e;
@@ -128,11 +131,12 @@ export function TopMoversPage() {
     );
   }
 
-  const errorBanner = error
+  const errorBanner = (error?.message ?? fallbackError)
     ? (() => {
-        const match = error.message.match(/^HTTP (\\d+)\\s+[--]\\s+(.*)$/);
+        const raw = error?.message ?? fallbackError ?? "";
+        const match = raw.match(/^HTTP (\\d+)\\s+[--]\\s+(.*)$/);
         const status = match?.[1];
-        const msg = match?.[2] ?? error.message;
+        const msg = match?.[2] ?? raw;
         return (
           <p style={{ color: "red" }}>
             Failed to load movers{status ? ` (HTTP ${status})` : ""}: {msg}

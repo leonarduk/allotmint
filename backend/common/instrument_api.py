@@ -110,7 +110,8 @@ def update_latest_prices_from_snapshot(snapshot: Dict[str, Dict[str, Any]]) -> N
     _LATEST_PRICES = {
         t: float(info.get("last_price"))
         for t, info in snapshot.items()
-        if isinstance(info, dict) and "last_price" in info
+        if isinstance(info, dict)
+        and info.get("last_price") is not None
     }
 
 

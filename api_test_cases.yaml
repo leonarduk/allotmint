@@ -1,4 +1,21 @@
-- method: GET
-  url: https://httpbin.org/get
-- method: GET
-  url: https://httpbin.org/status/404
+- name: Get backend configuration
+  method: GET
+  url: http://localhost:8000/config
+
+- name: Retrieve metrics for user "alex"
+  method: GET
+  url: http://localhost:8000/metrics/alex
+
+- name: Fetch instrument data for AZN.L
+  method: GET
+  url: http://localhost:8000/instrument
+  params:
+    ticker: AZN.L
+    days: 30
+    format: json
+
+- name: Request quote for AAPL
+  method: GET
+  url: http://localhost:8000/api/quotes
+  params:
+    symbols: AAPL

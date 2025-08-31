@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -46,6 +46,20 @@ class GroupSummary(BaseModel):
     slug: str
     name: str
     members: List[str] = Field(default_factory=list)
+
+
+class Mover(BaseModel):
+    ticker: str
+    name: str
+    change_pct: float
+    last_price_gbp: Optional[float] = None
+    last_price_date: Optional[str] = None
+    market_value_gbp: Optional[float] = None
+
+
+class MoversResponse(BaseModel):
+    gainers: List[Mover] = Field(default_factory=list)
+    losers: List[Mover] = Field(default_factory=list)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -191,14 +205,25 @@ async def group_regions(slug: str):
     return portfolio_utils.aggregate_by_region(gp)
 
 
-@router.get("/portfolio-group/{slug}/movers")
+@router.get(
+    "/portfolio-group/{slug}/movers",
+    response_model=MoversResponse,
+    responses={
+        200: {
+            "description": 'Top gainers and losers for a group portfolio. Returns {"gainers": [], "losers": []} if the group holds no tickers.'
+        }
+    },
+)
 async def group_movers(
     slug: str,
     days: int = Query(1, description="Lookback window"),
     limit: int = Query(10, description="Max results per side"),
     min_weight: float = Query(0.0, description="Exclude positions below this percent"),
 ):
-    """Return top gainers and losers for a group portfolio."""
+    """Return top gainers and losers for a group portfolio.
+
+    If the group has no holdings, the endpoint returns ``{"gainers": [], "losers": []}``.
+    """
 
     if days not in _ALLOWED_DAYS:
         raise HTTPException(status_code=400, detail="Invalid days")
@@ -225,11 +250,7 @@ async def group_movers(
 
     # Compute equal weights in percent for filtering
     n = len(tickers)
-    weight_map = {
-        s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0) if total_mv else 0.0
-        for s in summaries
-        if s.get("ticker")
-    }
+    weight_map = {s["ticker"]: 100.0 / n for s in summaries if s.get("ticker")}
 
     movers = instrument_api.top_movers(
         tickers,

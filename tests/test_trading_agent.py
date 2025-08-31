@@ -1,7 +1,7 @@
 import pytest
 import shutil
 from backend.common import portfolio_utils
-from backend.agent.trading_agent import send_trade_alert, run
+from backend.agent.trading_agent import send_trade_alert, run, generate_signals as ta_generate_signals
 from backend.agent import trading_agent
 
 # Alias to match the terminology of "generate_signals"
@@ -54,6 +54,18 @@ def test_generate_signals_emits_alerts(monkeypatch):
     alerts = generate_signals(threshold_pct=0.05)
     assert alerts == published
     assert published and published[0]["ticker"] == "AAA.L"
+
+
+def test_agent_generate_signals_indicators():
+    snapshot = {
+        "AAA": {"rsi": 25},
+        "BBB": {"rsi": 75},
+        "CCC": {"sma_50": 120, "sma_200": 100},
+        "DDD": {"sma_50": 80, "sma_200": 100},
+    }
+    signals = ta_generate_signals(snapshot)
+    actions = {s["ticker"]: s["action"] for s in signals}
+    assert actions == {"AAA": "BUY", "BBB": "SELL", "CCC": "BUY", "DDD": "SELL"}
 
 
 def test_send_trade_alert_sns_only(monkeypatch):
@@ -143,6 +155,13 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.publish_alert", lambda alert: None
     )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.compliance.check_owner",
+        lambda owner: {"owner": owner, "warnings": []},
+    )
 
     run()
 
@@ -167,6 +186,13 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.publish_alert", lambda alert: None
     )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.compliance.check_owner",
+        lambda owner: {"owner": owner, "warnings": []},
+    )
 
     sent: list[str] = []
     monkeypatch.setattr(
@@ -181,6 +207,42 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
     run()
 
     assert sent and "AAA" in sent[0]
+
+
+def test_run_compliance_gates_actions(monkeypatch):
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"]
+    )
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
+    )
+
+    def fake_check(owner):
+        return {"owner": owner, "warnings": ["blocked"]}
+
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.compliance.check_owner", fake_check
+    )
+
+    published: list = []
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.publish_alert", lambda alert: published.append(alert)
+    )
+
+    signals = run()
+
+    assert signals == []
+    assert published == []
 
 
 def test_log_trade_recreates_directory(tmp_path, monkeypatch):

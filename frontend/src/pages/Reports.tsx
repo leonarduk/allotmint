@@ -22,15 +22,17 @@ export default function Reports() {
   const query = params.toString();
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <h1>{t("reports.title")}</h1>
+    <div className="container mx-auto p-4 max-w-3xl">
+      <h1 className="mb-4 text-2xl md:text-4xl">{t("reports.title")}</h1>
       <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
-      <div style={{ margin: "1rem 0" }}>
-        <label style={{ marginRight: "0.5rem" }}>
-          {t("query.start")}: <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+      <div className="my-4">
+        <label className="mr-2">
+          {t("query.start")}:{" "}
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
         </label>
         <label>
-          {t("query.end")}: <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+          {t("query.end")}:{" "}
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
         </label>
       </div>
       {baseUrl && (

@@ -286,6 +286,8 @@ async def group_movers(
 
     market_values = {}
     tickers = []
+    weight_values = {}
+    total_mv = 0.0
     for s in summaries:
         t = s.get(KEY_TICKER)
         if not t:
@@ -293,32 +295,28 @@ async def group_movers(
         tickers.append(t)
         mv = s.get(KEY_MARKET_VALUE_GBP)
         if mv is not None:
+            t_upper = t.upper()
+            market_values[t_upper] = mv
+            market_values[t_upper.split(".")[0]] = mv
+            weight_values[t] = mv
+            total_mv += mv
             base = t.upper().split(".")[0]
             market_values[base] = mv
 
     if not tickers:
         return {KEY_GAINERS: [], KEY_LOSERS: []}
 
-    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
-    # Compute weights in percent proportional to each instrument's market value.
-    # ``total_mv`` is the sum of all ``market_value_gbp`` values.
-
     # Compute weights in percent for filtering
     total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries if s.get("ticker"))
 
-    
-    # Compute equal weights in percent for filtering
-    n = len(tickers)
-    weight = 100.0 / n if n else 0.0
+    # Compute weights in percent proportional to each instrument's market value.
+    # ``total_mv`` is the sum of all ``market_value_gbp`` values.
 
-    # Compute weights in percent for filtering
-    weight_map = {
-        s[KEY_TICKER]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
-        if total_mv
-        else 0.0
-        for s in summaries
-        if s.get(KEY_TICKER)
-    }
+    if total_mv:
+        weight_map = {t: mv / total_mv * 100.0 for t, mv in weight_values.items()}
+    else:
+        n = len(tickers)
+        weight_map = {t: 100.0 / n for t in tickers}
 
     movers = instrument_api.top_movers(
         tickers,

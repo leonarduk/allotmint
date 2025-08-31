@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import type { Portfolio, Account } from "../types";
 import { AccountBlock } from "./AccountBlock";
 import { ValueAtRisk } from "./ValueAtRisk";
 import { money } from "../lib/money";
 import i18n from "../i18n";
+import { complianceForOwner } from "../api";
 
 // Props accepted by the view. `data` is null until a portfolio is loaded.
 type Props = {
@@ -21,6 +23,7 @@ type Props = {
  */
 export function PortfolioView({ data, loading, error }: Props) {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [hasWarnings, setHasWarnings] = useState(false);
 
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
 
@@ -28,8 +31,28 @@ export function PortfolioView({ data, loading, error }: Props) {
     setSelectedAccounts(data ? data.accounts.map(accountKey) : []);
   }, [data]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      if (!data?.owner) {
+        setHasWarnings(false);
+        return;
+      }
+      try {
+        const res = await complianceForOwner(data.owner);
+        if (!cancelled) setHasWarnings(res.warnings.length > 0);
+      } catch {
+        if (!cancelled) setHasWarnings(false);
+      }
+    }
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.owner]);
+
   if (loading) return <div>Loading portfolio…</div>; // show a quick spinner
-  if (error) return <div style={{ color: "red" }}>{error}</div>; // bubble errors
+  if (error) return <div className="text-error">{error}</div>; // bubble errors
   if (!data) return <div>Select an owner.</div>; // nothing chosen yet
 
   const allKeys = data.accounts.map(accountKey);
@@ -47,15 +70,20 @@ export function PortfolioView({ data, loading, error }: Props) {
 
   return (
     <div>
-      <h1 style={{ marginTop: 0 }}>
+      <h1 className="mt-0">
         Portfolio: <span data-testid="owner-name">{data.owner}</span>
       </h1>
-      <div style={{ marginBottom: "1rem" }}>
+      <div className="mb-4">
         As of {new Intl.DateTimeFormat(i18n.language).format(new Date(data.as_of))}
       </div>
-      <div style={{ marginBottom: "2rem" }}>
+      <div className="mb-8">
         Approx Total: {money(totalValue)}
       </div>
+      {hasWarnings && (
+        <div style={{ marginBottom: "1rem" }}>
+          <Link to={`/compliance/${data.owner}`}>View compliance warnings</Link>
+        </div>
+      )}
       <ValueAtRisk owner={data.owner} />
       {/* Each account is rendered using AccountBlock for clarity */}
       {data.accounts.map((acct, idx) => {

@@ -10,7 +10,7 @@ from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 
-from backend.common import prices
+from backend.common import prices, compliance
 from backend.common.alerts import publish_alert
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
@@ -75,6 +75,17 @@ def _rsi(series: pd.Series, window: int) -> pd.Series:
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
+def _compute_rsi(series: pd.Series, period: int = 14) -> Optional[float]:
+    """Return the RSI for ``series`` or ``None`` if insufficient data."""
+    if len(series) <= period:
+        return None
+    delta = series.diff()
+    up = delta.clip(lower=0).ewm(alpha=1 / period, min_periods=period).mean()
+    down = (-delta.clip(upper=0)).ewm(alpha=1 / period, min_periods=period).mean()
+    rs = up / down
+    rsi = 100 - (100 / (1 + rs))
+    return float(rsi.iloc[-1])
+
 
 def _price_column(df: pd.DataFrame) -> Optional[str]:
     """Return the first recognised price column name in ``df``."""
@@ -138,12 +149,34 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                         "ticker": ticker,
                         "action": "SELL",
                         "reason": f"RSI {rsi:.2f} >= {cfg.rsi_sell}",
+        if rsi is not None:
+            if rsi > 70:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"RSI {rsi:.2f} above 70",
+                    }
+                )
+                continue
+            if rsi < 30:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"RSI {rsi:.2f} below 30",
                     }
                 )
                 continue
 
         if ma_short is not None and ma_long is not None:
             if ma_short > ma_long:
+
+        short_ma = info.get("sma_50")
+        long_ma = info.get("sma_200")
+        if short_ma is not None and long_ma is not None:
+            if short_ma > long_ma:
+
                 signals.append(
                     {
                         "ticker": ticker,
@@ -219,6 +252,14 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
     """
     tickers = list(tickers) if tickers else list_all_unique_tickers()
 
+    # Compliance check before any trading activity
+    for pf in list_portfolios():
+        owner = pf.get("owner", "")
+        result = compliance.check_owner(owner)
+        if result.get("warnings"):
+            logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])
+            return []
+
     df = prices.load_prices_for_tickers(tickers, days=60)
     snapshot: Dict[str, Dict] = {}
     cfg = config.trading_agent
@@ -258,6 +299,8 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             "rsi": rsi,
             "ma_short": ma_short,
             "ma_long": ma_long,
+            "sma_50": float(sma_50) if sma_50 is not None and not pd.isna(sma_50) else None,
+            "sma_200": float(sma_200) if sma_200 is not None and not pd.isna(sma_200) else None,
         }
 
     signals = generate_signals(snapshot)

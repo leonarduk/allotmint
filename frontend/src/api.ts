@@ -3,6 +3,7 @@
 import type {
   GroupPortfolio,
   GroupSummary,
+  InstrumentDetailMini,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -22,6 +23,8 @@ import type {
   TimeseriesSummary,
   ScenarioResult,
   TradeSuggestion,
+  SectorContribution,
+  RegionContribution,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -144,6 +147,18 @@ export const runScenario = (ticker: string, pct: number) => {
 export const getGroupInstruments = (slug: string) =>
   fetchJson<InstrumentSummary[]>(
     `${API_BASE}/portfolio-group/${slug}/instruments`
+  );
+
+/** Retrieve return contribution aggregated by sector for a group portfolio. */
+export const getGroupSectorContributions = (slug: string) =>
+  fetchJson<SectorContribution[]>(
+    `${API_BASE}/portfolio-group/${slug}/sectors`
+  );
+
+/** Retrieve return contribution aggregated by region for a group portfolio. */
+export const getGroupRegionContributions = (slug: string) =>
+  fetchJson<RegionContribution[]>(
+    `${API_BASE}/portfolio-group/${slug}/regions`
   );
 
 /** Fetch performance metrics for an owner */
@@ -300,7 +315,12 @@ export const getScreener = (
  * @param days   rolling window (default 365)
  */
 export const getInstrumentDetail = (ticker: string, days = 365) =>
-  fetchJson<{ prices: unknown; positions: unknown; currency?: string | null }>(
+  fetchJson<{
+    prices: unknown;
+    positions: unknown;
+    mini?: InstrumentDetailMini;
+    currency?: string | null;
+  }>(
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(
       ticker
     )}&days=${days}&format=json`
@@ -349,7 +369,7 @@ export const getTransactions = (params: {
 };
 
 /** Retrieve recent alert messages from backend. */
-export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts`);
+export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts/`);
 
 /** Retrieve alert threshold for a user. */
 export const getAlertSettings = (user: string) =>

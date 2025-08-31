@@ -1,11 +1,18 @@
 // src/components/GroupPortfolioView.tsx
 import { useState, useEffect, useCallback } from "react";
-import type { GroupPortfolio, Account } from "../types";
+
+import type {
+  GroupPortfolio,
+  Account,
+  SectorContribution,
+  RegionContribution,
+} from "../types";
 import {
   getGroupPortfolio,
   getGroupAlphaVsBenchmark,
   getGroupTrackingError,
-  getGroupMaxDrawdown,
+  getGroupMaxDrawdown,getGroupSectorContributions,
+  getGroupRegionContributions,
 } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
@@ -22,6 +29,10 @@ import {
   ResponsiveContainer,
   Tooltip,
   Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
 } from "recharts";
 
 const PIE_COLORS = [
@@ -57,6 +68,18 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     [slug],
     !!slug
   );
+  const fetchSector = useCallback(() => getGroupSectorContributions(slug), [slug]);
+  const fetchRegion = useCallback(() => getGroupRegionContributions(slug), [slug]);
+  const { data: sectorContrib } = useFetch<SectorContribution[]>(
+    fetchSector,
+    [slug],
+    !!slug
+  );
+  const { data: regionContrib } = useFetch<RegionContribution[]>(
+    fetchRegion,
+    [slug],
+    !!slug
+  );
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
   const { t } = useTranslation();
   const { relativeViewEnabled } = useConfig();
@@ -64,6 +87,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
+  const [contribTab, setContribTab] = useState<"sector" | "region">("sector");
 
   // helper to derive a stable key for each account
   const accountKey = (acct: Account, idx: number) =>
@@ -231,6 +255,49 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
               <Tooltip formatter={(v: number, n: string) => [money(v), n]} />
               <Legend />
             </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {(sectorContrib?.length || regionContrib?.length) && (
+        <div style={{ width: "100%", height: 300, margin: "1rem 0" }}>
+          <div style={{ marginBottom: "0.5rem" }}>
+            <button
+              onClick={() => setContribTab("sector")}
+              disabled={contribTab === "sector"}
+              style={{ marginRight: "0.5rem" }}
+            >
+              Sector
+            </button>
+            <button
+              onClick={() => setContribTab("region")}
+              disabled={contribTab === "region"}
+            >
+              Region
+            </button>
+          </div>
+          <ResponsiveContainer>
+            <BarChart
+              data={
+                contribTab === "sector"
+                  ? sectorContrib || []
+                  : regionContrib || []
+              }
+            >
+              <XAxis dataKey={contribTab === "sector" ? "sector" : "region"} />
+              <YAxis />
+              <Tooltip formatter={(v: number) => money(v)} />
+              <Bar dataKey="gain_gbp">
+                {(contribTab === "sector" ? sectorContrib : regionContrib)?.map(
+                  (row, idx) => (
+                    <Cell
+                      key={`cell-bar-${idx}`}
+                      fill={row.gain_gbp >= 0 ? "lightgreen" : "red"}
+                    />
+                  )
+                )}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       )}

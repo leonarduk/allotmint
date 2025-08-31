@@ -179,6 +179,22 @@ async def group_instruments(slug: str):
     return portfolio_utils.aggregate_by_ticker(gp)
 
 
+@router.get("/portfolio-group/{slug}/sectors")
+async def group_sectors(slug: str):
+    """Return return contribution aggregated by sector."""
+
+    gp = group_portfolio.build_group_portfolio(slug)
+    return portfolio_utils.aggregate_by_sector(gp)
+
+
+@router.get("/portfolio-group/{slug}/regions")
+async def group_regions(slug: str):
+    """Return return contribution aggregated by region."""
+
+    gp = group_portfolio.build_group_portfolio(slug)
+    return portfolio_utils.aggregate_by_region(gp)
+
+
 @router.get("/portfolio-group/{slug}/movers")
 async def group_movers(
     slug: str,
@@ -245,13 +261,14 @@ async def get_account(owner: str, account: str):
 @router.get("/portfolio-group/{slug}/instrument/{ticker}")
 async def instrument_detail(slug: str, ticker: str):
     try:
-        prices_list = instrument_api.timeseries_for_ticker(ticker)
+        series = instrument_api.timeseries_for_ticker(ticker)
+        prices_list = series["prices"]
         if not prices_list:
             raise ValueError("no prices")
         positions_list = instrument_api.positions_for_ticker(slug, ticker)
     except Exception:
         raise HTTPException(status_code=404, detail="Instrument not found")
-    return {"prices": prices_list, "positions": positions_list}
+    return {"prices": prices_list, "mini": series.get("mini", {}), "positions": positions_list}
 
 
 @router.api_route("/prices/refresh", methods=["GET", "POST"])

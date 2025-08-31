@@ -1,5 +1,9 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import i18n from "../i18n";
+vi.mock("../api", () => ({
+    getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
+}));
 import { HoldingsTable } from "./HoldingsTable";
 import { configContext, type AppConfig } from "../ConfigContext";
 
@@ -41,7 +45,10 @@ describe("HoldingsTable", () => {
             cost_basis_gbp: 100,
             market_value_gbp: 150,
             gain_gbp: 50,
+            current_price_gbp: 30,
+            latest_source: "Feed",
             acquired_date: "2024-01-01",
+            last_price_date: "2024-01-01",
             days_held: 100,
             sell_eligible: true,
             days_until_eligible: 0,
@@ -168,6 +175,13 @@ describe("HoldingsTable", () => {
         expect(screen.queryByText("Test Holding")).toBeNull();
     });
 
+    it("shows last price date badge when available", () => {
+        render(<HoldingsTable holdings={holdings} />);
+        const row = screen.getByText("AAA").closest("tr");
+        const badge = within(row!).getByTitle("2024-01-01");
+        expect(badge).toBeInTheDocument();
+    });
+
     it("allows toggling columns", () => {
         render(<HoldingsTable holdings={holdings}/>);
         expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
@@ -176,7 +190,12 @@ describe("HoldingsTable", () => {
         expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
     });
 
-    it("applies sell-eligible quick filter", () => {
+      it("shows price source when available", () => {
+          render(<HoldingsTable holdings={holdings}/>);
+          expect(screen.getByText(/Source: Feed/)).toBeInTheDocument();
+      });
+
+      it("applies sell-eligible quick filter", () => {
         render(<HoldingsTable holdings={holdings} />);
         fireEvent.click(screen.getByRole('button', { name: 'Sell-eligible' }));
         expect(screen.getByLabelText('Sell eligible')).toHaveValue('true');
@@ -185,9 +204,9 @@ describe("HoldingsTable", () => {
     });
 
     it("applies gain percentage quick filter", () => {
-        vi.spyOn(window, 'prompt').mockReturnValue('10');
         render(<HoldingsTable holdings={holdings} />);
-        fireEvent.click(screen.getByRole('button', { name: /Gain%/ }));
+        const input = screen.getByPlaceholderText('Min Gain %');
+        fireEvent.change(input, { target: { value: '10' } });
         expect(screen.getByPlaceholderText('Gain %')).toHaveValue('10');
         expect(screen.getByText('AAA')).toBeInTheDocument();
         expect(screen.queryByText('XYZ')).toBeNull();
@@ -230,5 +249,13 @@ describe("HoldingsTable", () => {
           expect(screen.getByText('No holdings match the current filters.')).toBeInTheDocument();
           fireEvent.click(screen.getByRole('button', { name: 'All' }));
           expect(screen.getByText('AAA')).toBeInTheDocument();
+      });
+
+      it("renders translated text in Spanish", async () => {
+          await i18n.changeLanguage('es');
+          render(<HoldingsTable holdings={holdings} />);
+          expect(screen.getByText('Vista:')).toBeInTheDocument();
+          expect(screen.getByRole('button', { name: 'Todos' })).toBeInTheDocument();
+          await i18n.changeLanguage('en');
       });
   });

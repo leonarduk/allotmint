@@ -16,6 +16,9 @@ export interface Holding {
     gain_gbp?: number;
     gain_pct?: number;
     current_price_gbp?: number | null;
+    /** Date of the last known price for this holding */
+    last_price_date?: string | null;
+    latest_source?: string | null;
     day_change_gbp?: number;
     instrument_type?: string | null;
 
@@ -84,6 +87,24 @@ export type InstrumentSummary = {
     change_30d_pct?: number | null;
 };
 
+export type SectorContribution = {
+    sector: string;
+    market_value_gbp: number;
+    gain_gbp: number;
+    cost_gbp: number;
+    gain_pct?: number | null;
+    contribution_pct?: number | null;
+};
+
+export type RegionContribution = {
+    region: string;
+    market_value_gbp: number;
+    gain_gbp: number;
+    cost_gbp: number;
+    gain_pct?: number | null;
+    contribution_pct?: number | null;
+};
+
 export interface PerformancePoint {
     date: string;
     value: number;
@@ -109,6 +130,14 @@ export interface TrackingErrorResponse {
 
 export interface MaxDrawdownResponse {
     max_drawdown: number | null;
+
+  
+export interface InstrumentDetailMini {
+    [range: string]: {
+        date: string;
+        close: number;
+        close_gbp: number;
+    }[];
 }
 
 export interface Transaction {

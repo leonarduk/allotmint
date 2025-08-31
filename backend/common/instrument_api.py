@@ -83,17 +83,25 @@ _LATEST_PRICES: Dict[str, float] = load_latest_prices(_ALL_TICKERS)
 # ───────────────────────────────────────────────────────────────
 # Historical close series (GBP where native is GBP, e.g., LSE)
 # ───────────────────────────────────────────────────────────────
-def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
+def timeseries_for_ticker(ticker: str, days: int = 365) -> Dict[str, Any]:
+    """Return recent price history for ``ticker``.
+
+    The payload contains the full series under ``prices`` plus shorter windows
+    (7/30/180 days) under ``mini``.  This keeps the original behaviour
+    (callers previously only consumed the list) while exposing pre-sliced
+    subsets that are convenient for sparkline charts.
     """
-    Return last *days* rows of close prices for *ticker* - empty list if none.
-    Uses meta timeseries (Yahoo -> Stooq -> FT) and only up to yesterday.
-    """
+    empty_payload: Dict[str, Any] = {
+        "prices": [],
+        "mini": {"7": [], "30": [], "180": []},
+    }
+
     if not ticker:
-        return []
+        return empty_payload
 
     resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
     if not resolved:
-        return []
+        return empty_payload
     sym, ex = resolved
 
     # Only fetch if not cached
@@ -110,7 +118,7 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
 
     df = load_meta_timeseries_range(sym, ex, start_date=start_date, end_date=end_date)
     if df is None or df.empty:
-        return []
+        return empty_payload
 
     # Normalize column names
     if "Date" in df.columns and "date" not in df.columns:
@@ -123,7 +131,7 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
         df["close"] = df["close_gbp"]
 
     if {"date", "close"} - set(df.columns):
-        return []
+        return empty_payload
 
     # Keep rows within cutoff and make sure date is ISO string
     cutoff = end_date - dt.timedelta(days=days - 1)
@@ -136,7 +144,12 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
             close_val = float(r["close"])
             close_gbp_val = float(r.get("close_gbp", close_val))
             out.append({"date": rd, "close": close_val, "close_gbp": close_gbp_val})
-    return out
+    mini = {
+        "7": out[-7:],
+        "30": out[-30:],
+        "180": out[-180:],
+    }
+    return {"prices": out, "mini": mini}
 
 
 # ───────────────────────────────────────────────────────────────

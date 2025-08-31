@@ -55,6 +55,52 @@
       "delta30d": "30T %"
     }
   },
+  "holdingsTable": {
+    "range": "Zeitraum:",
+    "rangeOption": "{{count}}T",
+    "view": "Ansicht:",
+    "viewPresets": {
+      "all": "Alle"
+    },
+    "quickFilters": "Schnellfilter:",
+    "quickFiltersSellEligible": "Verkaufsberechtigt",
+    "quickFiltersGainPct": "Gewinn% > x",
+    "minimumGainPrompt": "Minimaler Gewinn %",
+    "columnsLabel": "Spalten:",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Name",
+      "trend": "Trend",
+      "ccy": "Währung",
+      "type": "Typ",
+      "units": "Einheiten",
+      "price": "Preis £",
+      "cost": "Kosten £",
+      "market": "Markt £",
+      "gain": "Gewinn £",
+      "gainPct": "Gewinn %",
+      "weightPct": "Gewicht %",
+      "acquired": "Erworben",
+      "daysHeld": "Tage gehalten",
+      "eligible": "Berechtigt?"
+    },
+    "filters": {
+      "ticker": "Ticker",
+      "name": "Name",
+      "type": "Typ",
+      "units": "Einheiten",
+      "gainPct": "Gewinn %",
+      "sellEligible": "Verkaufsberechtigt",
+      "all": "Alle",
+      "yes": "Ja",
+      "no": "Nein"
+    },
+    "noHoldings": "Keine Bestände entsprechen den aktuellen Filtern.",
+    "source": "Quelle:",
+    "actualPurchaseCost": "Tatsächliche Anschaffungskosten",
+    "inferredCost": "Abgeleitet vom Preis am Erwerbsdatum",
+    "eligible": "Berechtigt"
+  },
   "instrumentDetail": {
     "edit": "Bearbeiten",
     "change7d": "7T",

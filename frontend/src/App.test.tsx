@@ -57,13 +57,14 @@ describe("App", () => {
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-        getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        getTimeseries: vi.fn().mockResolvedValue([]),
-        saveTimeseries: vi.fn(),
-        refetchTimeseries: vi.fn(),
-        rebuildTimeseriesCache: vi.fn(),
-        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-      }));
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      refetchTimeseries: vi.fn(),
+      rebuildTimeseriesCache: vi.fn(),
+    }));
 
     const { default: App } = await import("./App");
 
@@ -87,13 +88,14 @@ describe("App", () => {
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-      getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       listTimeseries: vi.fn().mockResolvedValue([]),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
     }));
 
     const { default: App } = await import("./App");
@@ -120,12 +122,15 @@ describe("App", () => {
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
         getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-        getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [] }),
         getTimeseries: vi.fn().mockResolvedValue([]),
         saveTimeseries: vi.fn(),
         getTradingSignals: vi.fn().mockResolvedValue([]),
-        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getTopMovers: vi
+          .fn()
+          .mockResolvedValue({ gainers: [], losers: [] }),
         listTimeseries: vi.fn().mockResolvedValue([]),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
@@ -148,6 +153,7 @@ describe("App", () => {
       dataadmin: true,
       virtual: true,
       support: true,
+      reports: true,
       scenario: true,
     };
 
@@ -181,12 +187,15 @@ describe("App", () => {
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
         getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-        getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [] }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [] }),
         getTimeseries: vi.fn().mockResolvedValue([]),
         saveTimeseries: vi.fn(),
         getTradingSignals: mockTradingSignals,
-        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getTopMovers: vi
+          .fn()
+          .mockResolvedValue({ gainers: [], losers: [] }),
         listTimeseries: vi.fn().mockResolvedValue([]),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
@@ -209,6 +218,7 @@ describe("App", () => {
       dataadmin: true,
       virtual: true,
       support: true,
+      reports: true,
       scenario: true,
     };
 
@@ -330,15 +340,14 @@ describe("App", () => {
       getCompliance: vi
         .fn()
         .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-        getTimeseries: vi.fn().mockResolvedValue([]),
-        saveTimeseries: vi.fn(),
-        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
-        getTradingSignals: mockTradingSignals,
-        listTimeseries: vi.fn().mockResolvedValue([]),
-        refetchTimeseries: vi.fn(),
-        rebuildTimeseriesCache: vi.fn(),
-        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-      }));
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getTradingSignals: mockTradingSignals,
+      listTimeseries: vi.fn().mockResolvedValue([]),
+      refetchTimeseries: vi.fn(),
+      rebuildTimeseriesCache: vi.fn(),
+    }));
 
     const { default: App } = await import("./App");
 

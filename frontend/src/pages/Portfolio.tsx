@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { getPortfolio } from "../api";
 import { PortfolioView } from "../components/PortfolioView";
-import type { Portfolio } from "../types";
+import type { Portfolio as PortfolioData } from "../types";
 
 export function Portfolio() {
-  const [data, setData] = useState<Portfolio | null>(null);
+  const [data, setData] = useState<PortfolioData | null>(null);
   useEffect(() => {
     getPortfolio("alice").then(setData).catch(() => setData(null));
   }, []);

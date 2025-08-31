@@ -10,7 +10,7 @@ from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 
-from backend.common import prices
+from backend.common import prices, compliance
 from backend.common.alerts import publish_alert
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
@@ -65,6 +65,18 @@ PRICE_GAIN_THRESHOLD = 5.0   # percent
 DRAWDOWN_ALERT_THRESHOLD = 0.2  # 20% decline; set to 0 to disable
 
 
+def _compute_rsi(series: pd.Series, period: int = 14) -> Optional[float]:
+    """Return the RSI for ``series`` or ``None`` if insufficient data."""
+    if len(series) <= period:
+        return None
+    delta = series.diff()
+    up = delta.clip(lower=0).ewm(alpha=1 / period, min_periods=period).mean()
+    down = (-delta.clip(upper=0)).ewm(alpha=1 / period, min_periods=period).mean()
+    rs = up / down
+    rsi = 100 - (100 / (1 + rs))
+    return float(rsi.iloc[-1])
+
+
 def _price_column(df: pd.DataFrame) -> Optional[str]:
     """Return the first recognised price column name in ``df``."""
     for col in ("close", "Close", "close_gbp", "Close_gbp"):
@@ -76,31 +88,73 @@ def _price_column(df: pd.DataFrame) -> Optional[str]:
 def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     """Create trade signals from a price snapshot.
 
-    Currently emits a BUY signal if the price has risen more than
-    ``PRICE_GAIN_THRESHOLD`` over the last week and a SELL signal if the
-    price has fallen by more than ``PRICE_DROP_THRESHOLD``.
+    Signals are generated using a combination of price momentum over the last
+    week, relative strength index (RSI) and simple moving averages (SMA). The
+    first matching condition for a ticker is used to determine the action.
     """
     signals: List[Dict] = []
     for ticker, info in snapshot.items():
         change = info.get("change_7d_pct")
-        if change is None:
-            continue
-        if change <= PRICE_DROP_THRESHOLD:
-            signals.append(
-                {
-                    "ticker": ticker,
-                    "action": "SELL",
-                    "reason": f"Price dropped {change:.2f}% in last 7d",
-                }
-            )
-        elif change >= PRICE_GAIN_THRESHOLD:
-            signals.append(
-                {
-                    "ticker": ticker,
-                    "action": "BUY",
-                    "reason": f"Price gained {change:.2f}% in last 7d",
-                }
-            )
+        if change is not None:
+            if change <= PRICE_DROP_THRESHOLD:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"Price dropped {change:.2f}% in last 7d",
+                    }
+                )
+                continue
+            if change >= PRICE_GAIN_THRESHOLD:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"Price gained {change:.2f}% in last 7d",
+                    }
+                )
+                continue
+
+        rsi = info.get("rsi")
+        if rsi is not None:
+            if rsi > 70:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"RSI {rsi:.2f} above 70",
+                    }
+                )
+                continue
+            if rsi < 30:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"RSI {rsi:.2f} below 30",
+                    }
+                )
+                continue
+
+        short_ma = info.get("sma_50")
+        long_ma = info.get("sma_200")
+        if short_ma is not None and long_ma is not None:
+            if short_ma > long_ma:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"50d MA {short_ma:.2f} above 200d MA {long_ma:.2f}",
+                    }
+                )
+            elif short_ma < long_ma:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"50d MA {short_ma:.2f} below 200d MA {long_ma:.2f}",
+                    }
+                )
     return signals
 
 
@@ -161,6 +215,14 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
     """
     tickers = list(tickers) if tickers else list_all_unique_tickers()
 
+    # Compliance check before any trading activity
+    for pf in list_portfolios():
+        owner = pf.get("owner", "")
+        result = compliance.check_owner(owner)
+        if result.get("warnings"):
+            logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])
+            return []
+
     df = prices.load_prices_for_tickers(tickers, days=60)
     snapshot: Dict[str, Dict] = {}
     for tkr in tickers:
@@ -176,10 +238,16 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             prev = float(tdf[col].iloc[-6])
             if prev not in (0.0, None):
                 change_7d_pct = (last / prev - 1.0) * 100.0
+        rsi = _compute_rsi(tdf[col])
+        sma_50 = tdf[col].rolling(window=50).mean().iloc[-1] if len(tdf) >= 50 else None
+        sma_200 = tdf[col].rolling(window=200).mean().iloc[-1] if len(tdf) >= 200 else None
         snapshot[tkr] = {
             "last_price": last,
             "change_7d_pct": change_7d_pct,
             "change_30d_pct": None,
+            "rsi": rsi,
+            "sma_50": float(sma_50) if sma_50 is not None and not pd.isna(sma_50) else None,
+            "sma_200": float(sma_200) if sma_200 is not None and not pd.isna(sma_200) else None,
         }
 
     signals = generate_signals(snapshot)

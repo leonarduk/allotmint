@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import useFetch from "./useFetch";
 
+interface UseFetchResult<T> {
+  data: T | null;
+  loading: boolean;
+  error: Error | null;
+}
+
 /**
  * Wraps `useFetch` and automatically retries the request until it succeeds.
  * A failed request schedules another attempt after `delay` milliseconds.
@@ -11,7 +17,11 @@ export function useFetchWithRetry<T>(
   fn: () => Promise<T>,
   delay = 2000,
   maxAttempts = 5,
-) {
+): UseFetchResult<T> & {
+  attempt: number;
+  maxAttempts: number;
+  unauthorized: boolean;
+} {
   const [attempt, setAttempt] = useState(1);
   const result = useFetch(fn, [attempt]);
   const unauthorized = result.error?.message.includes("HTTP 401") ?? false;
@@ -23,7 +33,7 @@ export function useFetchWithRetry<T>(
     return () => clearTimeout(timer);
   }, [result.error, delay, attempt, maxAttempts]);
 
-  return { ...result, attempt, maxAttempts };
+  return { ...result, attempt, maxAttempts, unauthorized };
 }
 
 export default useFetchWithRetry;

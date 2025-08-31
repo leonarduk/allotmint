@@ -24,6 +24,7 @@ import asyncio
 import argparse
 import logging
 import re
+import base64
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -43,6 +44,7 @@ from bs4 import BeautifulSoup
 from fpdf import FPDF, XPos, YPos
 from markdownify import markdownify
 from playwright.async_api import async_playwright, TimeoutError as PWTimeout
+from openai import OpenAI
 
 # -------- Defaults --------
 OUTPUT_DIR = Path("site_manual")
@@ -72,6 +74,7 @@ class PageDoc:
     title: str
     screenshot: Path
     markdown: Path
+    analysis: str
 
 
 # -------- Helpers --------
@@ -254,6 +257,7 @@ async def snapshot_pages(
 
     sem = asyncio.Semaphore(concurrency)
     results: List[PageDoc] = []
+    client = OpenAI()
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -277,9 +281,41 @@ async def snapshot_pages(
                         logging.warning("Screenshot failed for %s: %s", url, e_img)
                     html = await page.content()
                     md = await _extract_markdown(html, content_selectors)
+                    analysis = ""
+                    if png_path.exists():
+                        try:
+                            b64_img = base64.b64encode(png_path.read_bytes()).decode("utf-8")
+                            resp = await asyncio.to_thread(
+                                client.chat.completions.create,
+                                model="gpt-4o-mini",
+                                messages=[
+                                    {
+                                        "role": "user",
+                                        "content": [
+                                            {"type": "input_text", "text": "Describe this page."},
+                                            {"type": "input_image", "image_base64": b64_img},
+                                        ],
+                                    }
+                                ],
+                            )
+                            analysis = resp.choices[0].message.content.strip()
+                        except Exception as e_ai:
+                            logging.warning("Analysis failed for %s: %s", url, e_ai)
                     md_path = MARKDOWN_DIR / f"{idx:03}_{_slug(title)}.md"
-                    md_path.write_text(f"# {title}\n\nURL: {url}\n\n{md}", encoding="utf-8")
-                    results.append(PageDoc(idx=idx, url=url, title=title, screenshot=png_path, markdown=md_path))
+                    md_text = f"# {title}\n\nURL: {url}\n\n{md}"
+                    if analysis:
+                        md_text += f"\n\n## Analysis\n\n{analysis}"
+                    md_path.write_text(md_text, encoding="utf-8")
+                    results.append(
+                        PageDoc(
+                            idx=idx,
+                            url=url,
+                            title=title,
+                            screenshot=png_path,
+                            markdown=md_path,
+                            analysis=analysis,
+                        )
+                    )
                 finally:
                     await page.close()
 
@@ -342,10 +378,17 @@ def build_pdf(pages: List[PageDoc], pdf_path: Path, font_path: Optional[Path] = 
                 pdf.ln(2)
             except Exception as e:
                 logging.warning("Could not embed image for %s: %s", d.url, e)
+        if d.analysis:
+            multicell(d.analysis, size=11)
+            pdf.ln(2)
 
         try:
             text = d.markdown.read_text(encoding="utf-8")
-            body = "\n".join(text.splitlines()[2:]).strip()
+            lines = text.splitlines()[2:]
+            if "## Analysis" in lines:
+                idx = lines.index("## Analysis")
+                lines = lines[:idx]
+            body = "\n".join(lines).strip()
             if body:
                 multicell(body, size=11)
         except Exception as e:

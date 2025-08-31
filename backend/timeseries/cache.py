@@ -354,7 +354,10 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
                 logger.warning("FX proxy fetch failed for %s: %s", currency, exc)
 
         if fx.empty:
-            raise ValueError(f"Offline mode: no FX rates for {currency}")
+            fx = fetch_fx_rate_range(currency, start, end).copy()
+            if fx.empty:
+                raise ValueError(f"Offline mode: no FX rates for {currency}")
+            fx["Date"] = pd.to_datetime(fx["Date"])
 
         mask = (fx["Date"].dt.date >= start) & (fx["Date"].dt.date <= end)
         fx = fx.loc[mask]

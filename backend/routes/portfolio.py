@@ -240,7 +240,7 @@ def _enrich_movers_with_market_values(
 async def group_movers(
     slug: str,
     days: int = Query(1, description="Lookback window"),
-    limit: int = Query(10, description="Max results per side"),
+    limit: int = Query(10, description="Max results per side", le=100),
     min_weight: float = Query(0.0, description="Exclude positions below this percent"),
 ):
     """Return top gainers and losers for a group portfolio."""

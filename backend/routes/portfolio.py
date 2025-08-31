@@ -21,6 +21,7 @@ from backend.common import (
     data_loader,
     group_portfolio,
     instrument_api,
+    constants,
 )
 from backend.common import portfolio as portfolio_mod
 from backend.common import (
@@ -32,6 +33,11 @@ from backend.common import (
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
 _ALLOWED_DAYS = {1, 7, 30, 90, 365}
+
+KEY_TICKER = constants.TICKER
+KEY_MARKET_VALUE_GBP = constants.MARKET_VALUE_GBP
+KEY_GAINERS = "gainers"
+KEY_LOSERS = "losers"
 
 
 # ──────────────────────────────────────────────────────────────
@@ -212,26 +218,30 @@ async def group_movers(
     market_values = {}
     tickers = []
     for s in summaries:
-        t = s.get("ticker")
+        t = s.get(KEY_TICKER)
         if not t:
             continue
         tickers.append(t)
-        mv = s.get("market_value_gbp")
+        mv = s.get(KEY_MARKET_VALUE_GBP)
         if mv is not None:
             t_upper = t.upper()
             market_values[t_upper] = mv
             market_values[t_upper.split(".")[0]] = mv
 
     if not tickers:
-        return {"gainers": [], "losers": []}
+        return {KEY_GAINERS: [], KEY_LOSERS: []}
+
+    # Compute equal weights in percent for filtering
+    n = len(tickers)
+    weight = 100.0 / n if n else 0.0
 
     # Compute weights in percent for filtering
     weight_map = {
-        s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
+        s[KEY_TICKER]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
         if total_mv
         else 0.0
         for s in summaries
-        if s.get("ticker")
+        if s.get(KEY_TICKER)
     }
 
     movers = instrument_api.top_movers(
@@ -241,12 +251,12 @@ async def group_movers(
         min_weight=min_weight,
         weights=weight_map,
     )
-    for side in ("gainers", "losers"):
+    for side in (KEY_GAINERS, KEY_LOSERS):
         for row in movers.get(side, []):
-            mv = market_values.get(row["ticker"].upper())
+            mv = market_values.get(row[KEY_TICKER].upper())
             if mv is None:
-                mv = market_values.get(row["ticker"].split(".")[0])
-            row["market_value_gbp"] = mv
+                mv = market_values.get(row[KEY_TICKER].split(".")[0])
+            row[KEY_MARKET_VALUE_GBP] = mv
     return movers
 
 

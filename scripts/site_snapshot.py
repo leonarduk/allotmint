@@ -5,9 +5,13 @@ How to use:
 1. Install dependencies:
    pip install beautifulsoup4 fpdf Pillow markdownify playwright
    playwright install  # downloads headless browsers
-2. Edit BASE_URL to point to your server.
-3. Run: python scripts/site_snapshot.py
-4. Output appears in the "site_manual" directory with screenshots,
+2. Download the DejaVuSans font for Unicode PDF support:
+   https://github.com/dejavu-fonts/dejavu-fonts/raw/version_2_37/ttf/DejaVuSans.ttf
+   (If using the ZIP release, extract `DejaVuSans.ttf` from the archive.)
+3. Set `FONT_PATH` below to the downloaded file's location.
+4. Edit BASE_URL to point to your server.
+5. Run: python scripts/site_snapshot.py
+6. Output appears in the "site_manual" directory with screenshots,
    per-page Markdown files, and a combined PDF manual.
 
 Pillow provides image support for FPDF; without it, PDFs are generated without screenshots.
@@ -30,6 +34,7 @@ from playwright.async_api import async_playwright
 OUTPUT_DIR = Path("site_manual")
 SCREENSHOT_DIR = OUTPUT_DIR / "screenshots"
 MARKDOWN_DIR = OUTPUT_DIR / "markdown"
+FONT_PATH = Path("DejaVuSans.ttf")  # Path to downloaded font
 
 
 def slugify(text: str) -> str:
@@ -98,6 +103,9 @@ def build_docs(entries):
     """Create PDF and Markdown files describing each page."""
     MARKDOWN_DIR.mkdir(parents=True, exist_ok=True)
     pdf = FPDF()
+    if not FONT_PATH.exists():
+        raise FileNotFoundError(f"Font file not found: {FONT_PATH}")
+    pdf.add_font("DejaVu", "", str(FONT_PATH), uni=True)
 
     for idx, url, soup, img_path in entries:
         title = soup.title.string.strip() if soup.title else url
@@ -110,7 +118,7 @@ def build_docs(entries):
 
         # PDF section
         pdf.add_page()
-        pdf.set_font("Helvetica", size=14)
+        pdf.set_font("DejaVu", size=14)
         pdf.multi_cell(0, 8, md_content)
         pdf.ln(5)
         try:

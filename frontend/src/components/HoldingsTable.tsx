@@ -462,6 +462,8 @@ export function HoldingsTable({
                       {new Intl.DateTimeFormat(i18n.language).format(
                         new Date(h.last_price_date),
                       )}
+                    </span>
+                  )}
                   {h.latest_source && (
                     <span style={{ marginLeft: "0.25rem", color: "gray" }}>
                       {t("holdingsTable.source")} {h.latest_source}

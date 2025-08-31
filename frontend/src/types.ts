@@ -130,8 +130,8 @@ export interface TrackingErrorResponse {
 
 export interface MaxDrawdownResponse {
     max_drawdown: number | null;
+};
 
-  
 export interface InstrumentDetailMini {
     [range: string]: {
         date: string;

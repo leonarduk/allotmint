@@ -149,6 +149,30 @@ def test_memoized_range_returns_copy(monkeypatch):
     assert list(second["Close"]) == [1, 2]
 
 
+def test_memoized_range_offline_calls_load_meta_timeseries_once(monkeypatch):
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 2)
+
+    sample = _sample_df(start, end)
+    calls = {"n": 0}
+
+    def fake_load_meta_timeseries(ticker, exchange, days_span):
+        calls["n"] += 1
+        return sample
+
+    monkeypatch.setattr(cache, "load_meta_timeseries", fake_load_meta_timeseries)
+    monkeypatch.setattr(cache, "_load_parquet", lambda path: cache._empty_ts())
+    monkeypatch.setattr(cache, "OFFLINE_MODE", True)
+    cache._memoized_range_cached.cache_clear()
+
+    cache._memoized_range("T", "L", start.isoformat(), end.isoformat())
+    cache._memoized_range("T", "L", start.isoformat(), end.isoformat())
+    assert calls["n"] == 1
+
+    cache._memoized_range_cached.cache_clear()
+    cache._memoized_range("T", "L", start.isoformat(), end.isoformat())
+    assert calls["n"] == 2
+
 def test_offline_mode_uses_fx_cache(tmp_path, monkeypatch):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 2)

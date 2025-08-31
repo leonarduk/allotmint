@@ -16,16 +16,16 @@ const defaultConfig: AppConfig = {
         instrument: true,
         performance: true,
         transactions: true,
+        trading: true,
         screener: true,
         timeseries: true,
         watchlist: true,
         movers: true,
         dataadmin: true,
         virtual: true,
-        reports: true,
         support: true,
-        scenario: true,
         reports: true,
+        scenario: true,
     },
 };
 import type { Holding } from "../types";

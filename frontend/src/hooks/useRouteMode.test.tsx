@@ -17,6 +17,7 @@ describe("useRouteMode", () => {
       instrument: false,
       performance: false,
       transactions: false,
+      trading: false,
       screener: false,
       timeseries: false,
       watchlist: false,

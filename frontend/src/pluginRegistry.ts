@@ -1,3 +1,4 @@
+import AlertSettings from "./pages/AlertSettings";
 import ComplianceWarnings from "./pages/ComplianceWarnings";
 
 export interface TabPlugin {
@@ -40,8 +41,16 @@ export function clearTabPlugins() {
   registry.length = 0;
 }
 
+
+// Register built-in pages
+registerTabPlugin({
+  id: "alert-settings",
+  Component: AlertSettings,
+  priority: 130,
+
 registerTabPlugin({
   id: "compliance",
   Component: ComplianceWarnings,
   priority: 150,
+
 });

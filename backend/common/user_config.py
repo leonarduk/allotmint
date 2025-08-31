@@ -57,13 +57,15 @@ def load_user_config(owner: str, accounts_root: Path | None = None) -> UserConfi
 
 def save_user_config(owner: str, cfg: UserConfig | dict[str, object], accounts_root: Path | None = None) -> None:
     path = _settings_path(owner, accounts_root)
+    existing: dict[str, object] = {}
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text()) or {}
+        except Exception:
+            existing = {}
     if isinstance(cfg, UserConfig):
-        data = cfg.to_dict()
+        new_data = {k: v for k, v in cfg.to_dict().items() if v is not None}
     else:
-        data = {
-            "hold_days_min": cfg.get("hold_days_min"),
-            "max_trades_per_month": cfg.get("max_trades_per_month"),
-            "approval_exempt_types": cfg.get("approval_exempt_types"),
-            "approval_exempt_tickers": cfg.get("approval_exempt_tickers"),
-        }
-    path.write_text(json.dumps(data, indent=2, sort_keys=True))
+        new_data = {k: v for k, v in cfg.items() if v is not None}
+    existing.update(new_data)
+    path.write_text(json.dumps(existing, indent=2, sort_keys=True))

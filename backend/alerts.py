@@ -11,9 +11,11 @@ as a lightweight database suitable for tests and development environments.
 from __future__ import annotations
 
 import json
+import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional
 
 from backend.common.alerts import publish_alert
 from backend.config import config
@@ -23,8 +25,18 @@ DEFAULT_THRESHOLD_PCT = 0.05  # default 5% threshold
 # Path used to store user specific thresholds
 _SETTINGS_PATH = (config.repo_root or Path(__file__).resolve().parents[1]) / "data" / "alert_thresholds.json"
 
+# Path used to store push subscription details
+_SUBSCRIPTIONS_PATH = (
+    (config.repo_root or Path(__file__).resolve().parents[1])
+    / "data"
+    / "push_subscriptions.json"
+)
+
 # In-memory cache of settings
 _USER_THRESHOLDS: Dict[str, float] = {}
+
+# In-memory cache of push subscriptions
+_PUSH_SUBSCRIPTIONS: Dict[str, Dict] = {}
 
 
 def _load_settings() -> None:
@@ -39,6 +51,18 @@ def _load_settings() -> None:
         _USER_THRESHOLDS = {}
 
 
+def _load_subscriptions() -> None:
+    """Load push subscription data into memory."""
+    global _PUSH_SUBSCRIPTIONS
+    if _PUSH_SUBSCRIPTIONS:
+        return
+    try:
+        if _SUBSCRIPTIONS_PATH.exists():
+            _PUSH_SUBSCRIPTIONS = json.loads(_SUBSCRIPTIONS_PATH.read_text())
+    except Exception:
+        _PUSH_SUBSCRIPTIONS = {}
+
+
 def _save_settings() -> None:
     """Persist in-memory settings to ``_SETTINGS_PATH``."""
     try:
@@ -49,7 +73,17 @@ def _save_settings() -> None:
         pass
 
 
+def _save_subscriptions() -> None:
+    """Persist push subscriptions to disk."""
+    try:
+        _SUBSCRIPTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _SUBSCRIPTIONS_PATH.write_text(json.dumps(_PUSH_SUBSCRIPTIONS))
+    except Exception:
+        pass
+
+
 _load_settings()
+_load_subscriptions()
 
 
 def get_user_threshold(user: str, default: float = DEFAULT_THRESHOLD_PCT) -> float:
@@ -61,6 +95,68 @@ def set_user_threshold(user: str, threshold: float) -> None:
     """Set the threshold percentage for ``user`` and persist it."""
     _USER_THRESHOLDS[user] = float(threshold)
     _save_settings()
+
+
+def set_user_push_subscription(user: str, subscription: Dict) -> None:
+    """Store ``subscription`` information for ``user``."""
+    _PUSH_SUBSCRIPTIONS[user] = subscription
+    _save_subscriptions()
+
+
+def remove_user_push_subscription(user: str) -> None:
+    """Remove push subscription for ``user`` if present."""
+    if user in _PUSH_SUBSCRIPTIONS:
+        del _PUSH_SUBSCRIPTIONS[user]
+        _save_subscriptions()
+
+
+def get_user_push_subscription(user: str) -> Optional[Dict]:
+    """Return push subscription for ``user`` if configured."""
+    return _PUSH_SUBSCRIPTIONS.get(user)
+
+
+def iter_push_subscriptions() -> Iterable[Dict]:
+    """Iterate over stored push subscription dicts."""
+    return list(_PUSH_SUBSCRIPTIONS.values())
+
+
+def send_push_notification(message: str) -> None:
+    """Send ``message`` to all registered push subscriptions.
+
+    Uses ``pywebpush`` when available.  If no subscriptions or the required
+    VAPID credentials are missing, the function exits silently.
+    """
+
+    subscriptions = list(iter_push_subscriptions())
+    if not subscriptions:
+        return
+
+    vapid_key = os.getenv("VAPID_PRIVATE_KEY")
+    vapid_email = os.getenv("VAPID_EMAIL")
+    if not (vapid_key and vapid_email):
+        logging.getLogger("alerts").info(
+            "VAPID credentials not configured; skipping push notification"
+        )
+        return
+
+    try:
+        from pywebpush import webpush  # type: ignore
+    except Exception:  # pragma: no cover - optional dependency
+        logging.getLogger("alerts").info(
+            "pywebpush not installed; skipping push notification"
+        )
+        return
+
+    for sub in subscriptions:
+        try:
+            webpush(
+                subscription_info=sub,
+                data=message,
+                vapid_private_key=vapid_key,
+                vapid_claims={"sub": f"mailto:{vapid_email}"},
+            )
+        except Exception as exc:  # pragma: no cover - network errors
+            logging.getLogger("alerts").warning("Web push failed: %s", exc)
 
 
 @dataclass

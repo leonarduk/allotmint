@@ -21,26 +21,26 @@ export default function ScenarioTester() {
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: "1rem" }}>
+    <div className="container mx-auto p-4">
+      <div className="mb-4 flex flex-col gap-2 md:flex-row">
         <input
           placeholder="Ticker"
           value={ticker}
           onChange={(e) => setTicker(e.target.value)}
-          style={{ marginRight: "0.5rem" }}
+          className="md:mr-2"
         />
         <input
           type="number"
           placeholder="% Change"
           value={pct}
           onChange={(e) => setPct(e.target.value)}
-          style={{ marginRight: "0.5rem" }}
+          className="md:mr-2"
         />
         <button onClick={handleRun}>Apply</button>
       </div>
-      {error && <div style={{ color: "red" }}>{error}</div>}
+      {error && <div className="text-red-500">{error}</div>}
       {results && (
-        <pre style={{ maxHeight: "400px", overflow: "auto" }}>
+        <pre className="max-h-96 overflow-auto">
           {JSON.stringify(results, null, 2)}
         </pre>
       )}

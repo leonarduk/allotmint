@@ -1,7 +1,7 @@
 import pytest
 import shutil
 from backend.common import portfolio_utils
-from backend.agent.trading_agent import send_trade_alert, run
+from backend.agent.trading_agent import send_trade_alert, run, generate_signals as ta_generate_signals
 from backend.agent import trading_agent
 
 # Alias to match the terminology of "generate_signals"
@@ -54,6 +54,18 @@ def test_generate_signals_emits_alerts(monkeypatch):
     alerts = generate_signals(threshold_pct=0.05)
     assert alerts == published
     assert published and published[0]["ticker"] == "AAA.L"
+
+
+def test_agent_generate_signals_indicators():
+    snapshot = {
+        "AAA": {"rsi": 25},
+        "BBB": {"rsi": 75},
+        "CCC": {"sma_50": 120, "sma_200": 100},
+        "DDD": {"sma_50": 80, "sma_200": 100},
+    }
+    signals = ta_generate_signals(snapshot)
+    actions = {s["ticker"]: s["action"] for s in signals}
+    assert actions == {"AAA": "BUY", "BBB": "SELL", "CCC": "BUY", "DDD": "SELL"}
 
 
 def test_send_trade_alert_sns_only(monkeypatch):
@@ -143,6 +155,13 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.publish_alert", lambda alert: None
     )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.compliance.check_owner",
+        lambda owner: {"owner": owner, "warnings": []},
+    )
 
     run()
 
@@ -167,6 +186,13 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.publish_alert", lambda alert: None
     )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.compliance.check_owner",
+        lambda owner: {"owner": owner, "warnings": []},
+    )
 
     sent: list[str] = []
     monkeypatch.setattr(
@@ -183,6 +209,42 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
     assert sent and "AAA" in sent[0]
 
 
+def test_run_compliance_gates_actions(monkeypatch):
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA"]
+    )
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [1, 1, 1, 1, 1, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
+    )
+
+    def fake_check(owner):
+        return {"owner": owner, "warnings": ["blocked"]}
+
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.compliance.check_owner", fake_check
+    )
+
+    published: list = []
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.publish_alert", lambda alert: published.append(alert)
+    )
+
+    signals = run()
+
+    assert signals == []
+    assert published == []
+
+
 def test_log_trade_recreates_directory(tmp_path, monkeypatch):
     trade_path = tmp_path / "trades" / "trade_log.csv"
     trade_path.parent.mkdir(parents=True)
@@ -194,5 +256,99 @@ def test_log_trade_recreates_directory(tmp_path, monkeypatch):
     trading_agent._log_trade("AAA", "BUY", 1.0)
 
     assert trade_path.exists()
+
+
+def test_run_uses_rsi_and_fundamentals(monkeypatch):
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA", "BBB"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {
+            "Ticker": ["AAA"] * 15 + ["BBB"] * 5,
+            "close": [15, 14, 13, 12, 11, 10, 9, 8, 5, 5, 5, 5, 5, 5, 5]
+            + [10, 11, 12, 13, 14],
+        }
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+
+    class F:
+        def __init__(self, ticker: str):
+            self.ticker = ticker
+
+    monkeypatch.setattr(trading_agent, "screen", lambda tickers, **kw: [F("AAA")])
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "rsi_buy", 50.0)
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+    monkeypatch.setattr(cfg, "ma_short_window", 3)
+    monkeypatch.setattr(cfg, "ma_long_window", 5)
+
+    signals = run()
+    assert len(signals) == 1
+    assert signals[0]["ticker"] == "AAA"
+    assert "RSI" in signals[0]["reason"]
+
+
+def test_run_does_not_filter_sell_signal(monkeypatch):
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [10, 10, 10, 10, 10, 10, 4]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+
+    def fake_screen(tickers, **kw):
+        raise AssertionError("screen should not be called for SELL signals")
+
+    monkeypatch.setattr(trading_agent, "screen", fake_screen)
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+
+    signals = run()
+    assert signals and signals[0]["action"] == "SELL"
+
+
+def test_run_generates_ma_signal(monkeypatch):
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["BBB"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["BBB"] * 5, "close": [10, 11, 12, 13, 14]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+
+    class F:
+        def __init__(self, ticker: str):
+            self.ticker = ticker
+
+    monkeypatch.setattr(trading_agent, "screen", lambda tickers, **kw: [F("BBB")])
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "rsi_buy", 0.0)
+    monkeypatch.setattr(cfg, "rsi_sell", 100.0)
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+    monkeypatch.setattr(cfg, "ma_short_window", 3)
+    monkeypatch.setattr(cfg, "ma_long_window", 5)
+
+    signals = run()
+    assert signals and signals[0]["ticker"] == "BBB"
+    assert "MA" in signals[0]["reason"]
 
 

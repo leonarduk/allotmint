@@ -6,12 +6,13 @@ import logging
 import csv
 import os
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Set
 
 import pandas as pd
 
-from backend.common import prices
+from backend.common import prices, compliance
 from backend.common.alerts import publish_alert
+from backend import alerts as alert_utils
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     list_all_unique_tickers,
@@ -22,6 +23,7 @@ from backend.common.trade_metrics import (
     load_and_compute_metrics,
 )
 from backend.config import config
+from backend.screener import screen
 from backend.utils.telegram_utils import send_message, redact_token
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,7 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
             publish_alert({"message": message})
         except RuntimeError:
             logger.info("SNS topic ARN not configured; skipping publish")
+        alert_utils.send_push_notification(message)
 
     if (
         os.getenv("TELEGRAM_BOT_TOKEN")
@@ -65,6 +68,27 @@ PRICE_GAIN_THRESHOLD = 5.0   # percent
 DRAWDOWN_ALERT_THRESHOLD = 0.2  # 20% decline; set to 0 to disable
 
 
+def _rsi(series: pd.Series, window: int) -> pd.Series:
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(window=window, min_periods=window).mean()
+    avg_loss = loss.rolling(window=window, min_periods=window).mean()
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+def _compute_rsi(series: pd.Series, period: int = 14) -> Optional[float]:
+    """Return the RSI for ``series`` or ``None`` if insufficient data."""
+    if len(series) <= period:
+        return None
+    delta = series.diff()
+    up = delta.clip(lower=0).ewm(alpha=1 / period, min_periods=period).mean()
+    down = (-delta.clip(upper=0)).ewm(alpha=1 / period, min_periods=period).mean()
+    rs = up / down
+    rsi = 100 - (100 / (1 + rs))
+    return float(rsi.iloc[-1])
+
+
 def _price_column(df: pd.DataFrame) -> Optional[str]:
     """Return the first recognised price column name in ``df``."""
     for col in ("close", "Close", "close_gbp", "Close_gbp"):
@@ -76,31 +100,116 @@ def _price_column(df: pd.DataFrame) -> Optional[str]:
 def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     """Create trade signals from a price snapshot.
 
-    Currently emits a BUY signal if the price has risen more than
-    ``PRICE_GAIN_THRESHOLD`` over the last week and a SELL signal if the
-    price has fallen by more than ``PRICE_DROP_THRESHOLD``.
+    Signals are generated using a mix of simple price momentum,
+    relative-strength index (RSI) and moving average crossovers.
+    The thresholds for RSI and moving averages are configurable via
+    :mod:`backend.config`.
     """
+
     signals: List[Dict] = []
+    cfg = config.trading_agent
     for ticker, info in snapshot.items():
+        # price momentum
         change = info.get("change_7d_pct")
-        if change is None:
-            continue
-        if change <= PRICE_DROP_THRESHOLD:
-            signals.append(
-                {
-                    "ticker": ticker,
-                    "action": "SELL",
-                    "reason": f"Price dropped {change:.2f}% in last 7d",
-                }
-            )
-        elif change >= PRICE_GAIN_THRESHOLD:
-            signals.append(
-                {
-                    "ticker": ticker,
-                    "action": "BUY",
-                    "reason": f"Price gained {change:.2f}% in last 7d",
-                }
-            )
+        if change is not None:
+            if change <= PRICE_DROP_THRESHOLD:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"Price dropped {change:.2f}% in last 7d",
+                    }
+                )
+                continue
+            if change >= PRICE_GAIN_THRESHOLD:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"Price gained {change:.2f}% in last 7d",
+                    }
+                )
+                continue
+
+        rsi = info.get("rsi")
+        ma_short = info.get("ma_short")
+        ma_long = info.get("ma_long")
+
+        if rsi is not None:
+            if cfg.rsi_buy is not None and rsi <= cfg.rsi_buy:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"RSI {rsi:.2f} <= {cfg.rsi_buy}",
+                    }
+                )
+                continue
+            if cfg.rsi_sell is not None and rsi >= cfg.rsi_sell:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"RSI {rsi:.2f} >= {cfg.rsi_sell}",
+                    }
+                )
+                continue
+        if rsi is not None:
+            if rsi > 70:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"RSI {rsi:.2f} above 70",
+                    }
+                )
+                continue
+            if rsi < 30:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"RSI {rsi:.2f} below 30",
+                    }
+                )
+                continue
+
+        if ma_short is not None and ma_long is not None:
+            if ma_short > ma_long:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"MA{cfg.ma_short_window}>{cfg.ma_long_window}",
+                    }
+                )
+            elif ma_short < ma_long:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"MA{cfg.ma_short_window}<{cfg.ma_long_window}",
+                    }
+                )
+        short_ma = info.get("sma_50")
+        long_ma = info.get("sma_200")
+        if short_ma is not None and long_ma is not None:
+            if short_ma > long_ma:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"50d MA {short_ma:.2f} above 200d MA {long_ma:.2f}",
+                    }
+                )
+            elif short_ma < long_ma:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"50d MA {short_ma:.2f} below 200d MA {long_ma:.2f}",
+                    }
+                )
     return signals
 
 
@@ -161,8 +270,17 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
     """
     tickers = list(tickers) if tickers else list_all_unique_tickers()
 
+    # Compliance check before any trading activity
+    for pf in list_portfolios():
+        owner = pf.get("owner", "")
+        result = compliance.check_owner(owner)
+        if result.get("warnings"):
+            logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])
+            return []
+
     df = prices.load_prices_for_tickers(tickers, days=60)
     snapshot: Dict[str, Dict] = {}
+    cfg = config.trading_agent
     for tkr in tickers:
         tdf = df[df["Ticker"] == tkr]
         if tdf.empty:
@@ -176,13 +294,59 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             prev = float(tdf[col].iloc[-6])
             if prev not in (0.0, None):
                 change_7d_pct = (last / prev - 1.0) * 100.0
+        rsi = None
+        if len(tdf) >= cfg.rsi_window:
+            rsi_series = _rsi(tdf[col], cfg.rsi_window)
+            rsi_val = rsi_series.iloc[-1]
+            if pd.notna(rsi_val):
+                rsi = float(rsi_val)
+        ma_short = None
+        if len(tdf) >= cfg.ma_short_window:
+            ma_short_val = tdf[col].rolling(cfg.ma_short_window).mean().iloc[-1]
+            if pd.notna(ma_short_val):
+                ma_short = float(ma_short_val)
+        ma_long = None
+        if len(tdf) >= cfg.ma_long_window:
+            ma_long_val = tdf[col].rolling(cfg.ma_long_window).mean().iloc[-1]
+            if pd.notna(ma_long_val):
+                ma_long = float(ma_long_val)
+        sma_50 = None
+        if len(tdf) >= 50:
+            sma_50_val = tdf[col].rolling(50).mean().iloc[-1]
+            if pd.notna(sma_50_val):
+                sma_50 = float(sma_50_val)
+        sma_200 = None
+        if len(tdf) >= 200:
+            sma_200_val = tdf[col].rolling(200).mean().iloc[-1]
+            if pd.notna(sma_200_val):
+                sma_200 = float(sma_200_val)
         snapshot[tkr] = {
             "last_price": last,
             "change_7d_pct": change_7d_pct,
             "change_30d_pct": None,
+            "rsi": rsi,
+            "ma_short": ma_short,
+            "ma_long": ma_long,
+            "sma_50": sma_50,
+            "sma_200": sma_200,
         }
 
     signals = generate_signals(snapshot)
+
+    fundamental_params: Dict[str, float] = {}
+    if cfg.pe_max is not None:
+        fundamental_params["pe_max"] = cfg.pe_max
+    if cfg.de_max is not None:
+        fundamental_params["de_max"] = cfg.de_max
+    if fundamental_params and signals:
+        buy_tickers = [s["ticker"] for s in signals if s["action"] == "BUY"]
+        allowed: Set[str] = set()
+        if buy_tickers:
+            fundamentals = screen(buy_tickers, **fundamental_params)
+            allowed = {f.ticker for f in fundamentals}
+        signals = [
+            s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed
+        ]
     for sig in signals:
         ticker = sig["ticker"]
         price = snapshot[ticker]["last_price"]

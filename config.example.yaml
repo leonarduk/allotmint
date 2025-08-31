@@ -35,6 +35,11 @@ selenium_headless: true
 approval_valid_days: 2
 approval_exempt_types: ETF
 approval_exempt_tickers: ''
+trading_agent:
+  rsi_buy: 30
+  rsi_sell: 70
+  ma_short_window: 20
+  ma_long_window: 50
 error_summary: '[object Object]'
 
 tabs:

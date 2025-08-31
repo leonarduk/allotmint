@@ -117,9 +117,12 @@ export function Screener() {
   }
 
   return (
-    <div>
-      <form onSubmit={handleSubmit} style={{ marginBottom: "1rem" }}>
-        <label style={{ marginRight: "0.5rem" }}>
+    <div className="container mx-auto p-4">
+      <form
+        onSubmit={handleSubmit}
+        className="mb-4 flex flex-wrap items-center gap-2"
+      >
+        <label className="mr-2">
           {t("screener.tickers")}
           <input
             aria-label={t("screener.tickers")}

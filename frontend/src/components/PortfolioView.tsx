@@ -79,11 +79,11 @@ export function PortfolioView({ data, loading, error }: Props) {
       <div className="mb-8">
         Approx Total: {money(totalValue)}
       </div>
-      {hasWarnings && (
-        <div style={{ marginBottom: "1rem" }}>
-          <Link to={`/compliance/${data.owner}`}>View compliance warnings</Link>
-        </div>
-      )}
+        {hasWarnings && (
+          <div className="mb-4">
+            <Link to={`/compliance/${data.owner}`}>View compliance warnings</Link>
+          </div>
+        )}
       <ValueAtRisk owner={data.owner} />
       {/* Each account is rendered using AccountBlock for clarity */}
       {data.accounts.map((acct, idx) => {

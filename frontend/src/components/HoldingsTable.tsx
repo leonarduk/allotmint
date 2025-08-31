@@ -248,8 +248,8 @@ export function HoldingsTable({
         ))}
       </div>
       {sortedRows.length ? (
-        <div className="table-responsive">
-        <table className={`${tableStyles.table} mb-4`}>
+        <div className="overflow-x-auto md:overflow-visible">
+          <table className={`${tableStyles.table} mb-4 w-full`}>
         <thead ref={tableHeaderRef}>
           <tr>
             <th className={tableStyles.cell}>
@@ -379,7 +379,7 @@ export function HoldingsTable({
         <tbody>
           {paddingTop > 0 && (
             <tr style={{ height: paddingTop }}>
-              <td colSpan={20} style={{ padding: 0, border: "none" }} />
+              <td colSpan={20} className="p-0 border-0" />
             </tr>
           )}
           {items.map((virtualRow) => {
@@ -507,7 +507,7 @@ export function HoldingsTable({
           })}
           {paddingBottom > 0 && (
             <tr style={{ height: paddingBottom }}>
-              <td colSpan={20} style={{ padding: 0, border: "none" }} />
+              <td colSpan={20} className="p-0 border-0" />
             </tr>
           )}
         </tbody>

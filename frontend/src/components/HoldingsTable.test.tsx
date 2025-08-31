@@ -182,12 +182,12 @@ describe("HoldingsTable", () => {
         expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
     });
 
-    it("shows price source when available", () => {
-        render(<HoldingsTable holdings={holdings}/>);
-        expect(screen.getByText(/Source: Feed/)).toBeInTheDocument();
-    });
+      it("shows price source when available", () => {
+          render(<HoldingsTable holdings={holdings}/>);
+          expect(screen.getByText(/Source: Feed/)).toBeInTheDocument();
+      });
 
-    it("applies sell-eligible quick filter", () => {
+      it("applies sell-eligible quick filter", () => {
         render(<HoldingsTable holdings={holdings} />);
         fireEvent.click(screen.getByRole('button', { name: 'Sell-eligible' }));
         expect(screen.getByLabelText('Sell eligible')).toHaveValue('true');

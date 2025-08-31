@@ -57,7 +57,6 @@ def load_user_config(owner: str, accounts_root: Path | None = None) -> UserConfi
 
 def save_user_config(owner: str, cfg: UserConfig | dict[str, object], accounts_root: Path | None = None) -> None:
     path = _settings_path(owner, accounts_root)
-
     existing: dict[str, object] = {}
     if path.exists():
         try:

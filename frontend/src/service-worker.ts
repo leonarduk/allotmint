@@ -41,12 +41,16 @@ registerRoute(
   ({ request, url }) =>
     request.method === 'GET' &&
     url.origin === self.location.origin &&
+    request.destination !== '' &&
     !url.pathname.startsWith('/api/'),
   new CacheFirst({ cacheName: CACHE_NAME })
 );
 
 registerRoute(
-  ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/api/'),
+  ({ request, url }) =>
+    request.method === 'GET' &&
+    url.origin === self.location.origin &&
+    url.pathname.startsWith('/api/'),
   new NetworkFirst({ cacheName: 'api-cache' })
 );
 

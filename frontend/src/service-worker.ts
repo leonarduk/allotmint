@@ -2,7 +2,7 @@
 
 import { precacheAndRoute } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
-import { CacheFirst } from 'workbox-strategies';
+import { CacheFirst, NetworkFirst } from 'workbox-strategies';
 
 declare const self: ServiceWorkerGlobalScope;
 declare const __WB_MANIFEST: Array<string | { url: string; revision?: string }>;
@@ -35,10 +35,19 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
   );
 });
 
-// Runtime caching for same-origin GET requests not precached.
+// Runtime caching for same-origin GET requests. Static assets use cache-first and
+// API calls bypass the cache so live data stays fresh.
 registerRoute(
-  ({ request, url }) => request.method === 'GET' && url.origin === self.location.origin,
+  ({ request, url }) =>
+    request.method === 'GET' &&
+    url.origin === self.location.origin &&
+    !url.pathname.startsWith('/api/'),
   new CacheFirst({ cacheName: CACHE_NAME })
+);
+
+registerRoute(
+  ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/api/'),
+  new NetworkFirst({ cacheName: 'api-cache' })
 );
 
 self.addEventListener('push', (event: PushEvent) => {

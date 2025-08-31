@@ -6,9 +6,7 @@ from fastapi.testclient import TestClient
 from backend.local_api.main import app
 
 client = TestClient(app)
-token = client.post(
-    "/token", data={"username": "testuser", "password": "password"}
-).json()["access_token"]
+token = client.post("/token", data={"username": "testuser", "password": "password"}).json()["access_token"]
 client.headers.update({"Authorization": f"Bearer {token}"})
 
 # Shared mock data
@@ -87,7 +85,17 @@ def test_portfolio_group(mock_group_portfolio):
 def test_get_account(mock_load_account):
     response = client.get("/account/steve/ISA")
     assert response.status_code == 200
-    assert response.json() == {"account": "ISA"}
+    assert response.json() == {"account": "ISA", "account_type": "ISA"}
+
+
+@patch(
+    "backend.common.data_loader.load_account",
+    return_value={"account": "ISA", "account_type": "test"},
+)
+def test_get_account_preserves_type(mock_load_account):
+    response = client.get("/account/steve/ISA")
+    assert response.status_code == 200
+    assert response.json() == {"account": "ISA", "account_type": "test"}
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})

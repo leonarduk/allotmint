@@ -21,11 +21,13 @@ from backend.common import (
     data_loader,
     group_portfolio,
     instrument_api,
+)
+from backend.common import portfolio as portfolio_mod
+from backend.common import (
     portfolio_utils,
     prices,
     risk,
 )
-from backend.common import portfolio as portfolio_mod
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -88,17 +90,13 @@ async def portfolio(owner: str, request: Request):
     """
 
     try:
-        return portfolio_mod.build_owner_portfolio(
-            owner, request.app.state.accounts_root
-        )
+        return portfolio_mod.build_owner_portfolio(owner, request.app.state.accounts_root)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
 
 
 @router.get("/var/{owner}")
-async def portfolio_var(
-    owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False
-):
+async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False):
     """Return historical-simulation VaR for ``owner``.
 
     Parameters
@@ -119,9 +117,7 @@ async def portfolio_var(
     """
 
     try:
-        var = risk.compute_portfolio_var(
-            owner, days=days, confidence=confidence, include_cash=not exclude_cash
-        )
+        var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
@@ -230,16 +226,18 @@ async def group_movers(
     # Compute equal weights in percent for filtering
     n = len(tickers)
     weight_map = {
-        s["ticker"]: (100.0 / n) if n else 0.0
+        s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0) if total_mv else 0.0
         for s in summaries
         if s.get("ticker")
     }
 
-
-    movers = instrument_api.top_movers(tickers, days, limit,        
-                                       min_weight=min_weight,
-                                       weights=weight_map,
-                                      )
+    movers = instrument_api.top_movers(
+        tickers,
+        days,
+        limit,
+        min_weight=min_weight,
+        weights=weight_map,
+    )
     for side in ("gainers", "losers"):
         for row in movers.get(side, []):
             mv = market_values.get(row["ticker"].upper())
@@ -248,12 +246,15 @@ async def group_movers(
             row["market_value_gbp"] = mv
     return movers
 
+
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str):
     try:
-        return data_loader.load_account(owner, account.lower())
+        data = data_loader.load_account(owner, account.lower())
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Account not found")
+    data.setdefault("account_type", account)
+    return data
 
 
 @router.get("/portfolio-group/{slug}/instrument/{ticker}")

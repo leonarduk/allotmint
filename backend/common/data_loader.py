@@ -196,14 +196,12 @@ def load_account(
         if not txt:
             raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
         data = json.loads(txt)
-        data.setdefault("account_type", account)
         return data
 
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = data_root or paths.accounts_root
     path = root / owner / f"{account}.json"
     data = _safe_json_load(path)
-    data.setdefault("account_type", account)
     return data
 
 

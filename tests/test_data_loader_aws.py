@@ -69,5 +69,5 @@ def test_load_person_meta_from_s3(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
-    assert dl.load_person_meta("Alice") == {"dob": "1980"}
+    assert dl.load_person_meta("Alice") == {"dob": "1980", "viewers": []}
     assert dl.load_person_meta("Bob") == {}

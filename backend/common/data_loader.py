@@ -53,7 +53,10 @@ PLOTS_PREFIX = "accounts/"
 _METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
 
 
-def _list_local_plots(data_root: Optional[Path] = None) -> List[Dict[str, Any]]:
+def _list_local_plots(
+    data_root: Optional[Path] = None,
+    current_user: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = data_root or paths.accounts_root
     results: List[Dict[str, Any]] = []
@@ -62,6 +65,12 @@ def _list_local_plots(data_root: Optional[Path] = None) -> List[Dict[str, Any]]:
 
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
+            continue
+
+        owner = owner_dir.name
+        meta = load_person_meta(owner, root)
+        viewers = meta.get("viewers", [])
+        if current_user and current_user != owner and current_user not in viewers:
             continue
 
         acct_names: List[str] = []
@@ -85,12 +94,7 @@ def _list_local_plots(data_root: Optional[Path] = None) -> List[Dict[str, Any]]:
             seen.add(al)
             dedup.append(a)
 
-        results.append(
-            {
-                "owner": owner_dir.name,
-                "accounts": dedup,
-            }
-        )
+        results.append({"owner": owner, "accounts": dedup})
 
     return results
 
@@ -153,10 +157,13 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
 # ------------------------------------------------------------------
 # Public discovery API
 # ------------------------------------------------------------------
-def list_plots(data_root: Optional[Path] = None) -> List[Dict[str, Any]]:
+def list_plots(
+    data_root: Optional[Path] = None,
+    current_user: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     if config.app_env == "aws":
         return _list_aws_plots()
-    return _list_local_plots(data_root)
+    return _list_local_plots(data_root, current_user)
 
 
 # ------------------------------------------------------------------
@@ -206,7 +213,7 @@ def load_account(
 
 
 def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:
-    """Load per-owner metadata (dob, etc.). Returns {} if not found."""
+    """Load per-owner metadata (dob, viewers, etc.). Returns {} if not found."""
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
@@ -220,7 +227,9 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             txt = body.read().decode("utf-8-sig").strip() if body else ""
             if not txt:
                 return {}
-            return json.loads(txt)
+            data = json.loads(txt)
+            data["viewers"] = list(data.get("viewers", []))
+            return data
         except Exception:
             return {}
     paths = resolve_paths(config.repo_root, config.accounts_root)
@@ -229,7 +238,9 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     if not path.exists():
         return {}
     try:
-        return _safe_json_load(path)
+        data = _safe_json_load(path)
+        data["viewers"] = list(data.get("viewers", []))
+        return data
     except Exception:
         return {}
 

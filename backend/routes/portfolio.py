@@ -14,7 +14,7 @@ import logging
 from datetime import date
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Depends
 from pydantic import BaseModel, Field
 
 from backend.common import (
@@ -27,6 +27,8 @@ from backend.common import (
     risk,
 )
 from backend.common import portfolio as portfolio_mod
+from backend.config import config
+from backend.auth import get_current_user
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -69,17 +71,37 @@ class MoversResponse(BaseModel):
 # ──────────────────────────────────────────────────────────────
 # Simple lists
 # ──────────────────────────────────────────────────────────────
-@router.get("/owners", response_model=List[OwnerSummary])
-async def owners(request: Request):
-    """
-    Returns
-        [
-          {"owner": "alex",  "accounts": ["isa", "sipp"]},
-          {"owner": "joe",   "accounts": ["isa", "sipp"]},
-          ...
-        ]
-    """
-    return data_loader.list_plots(request.app.state.accounts_root)
+if config.disable_auth:
+
+    @router.get("/owners", response_model=List[OwnerSummary])
+    async def owners(request: Request):
+        """
+        Returns
+            [
+              {"owner": "alex",  "accounts": ["isa", "sipp"]},
+              {"owner": "joe",   "accounts": ["isa", "sipp"]},
+              ...
+            ]
+        """
+        return data_loader.list_plots(request.app.state.accounts_root)
+
+else:
+
+    @router.get("/owners", response_model=List[OwnerSummary])
+    async def owners(
+        request: Request, current_user: str = Depends(get_current_user)
+    ):
+        """
+        Returns
+            [
+              {"owner": "alex",  "accounts": ["isa", "sipp"]},
+              {"owner": "joe",   "accounts": ["isa", "sipp"]},
+              ...
+            ]
+        """
+        return data_loader.list_plots(
+            request.app.state.accounts_root, current_user
+        )
 
 
 @router.get("/groups", response_model=List[GroupSummary])

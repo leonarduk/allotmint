@@ -87,7 +87,10 @@ def _parse_date(s: str | None) -> Optional[dt.date]:
 
 
 # ─────────────────────── owners utility ──────────────────────────
-def list_owners(accounts_root: Optional[Path] = None) -> list[str]:
+def list_owners(
+    accounts_root: Optional[Path] = None,
+    current_user: Optional[str] = None,
+) -> list[str]:
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owners: list[str] = []
@@ -95,7 +98,12 @@ def list_owners(accounts_root: Optional[Path] = None) -> list[str]:
         try:
             data = json.loads(pf.read_text())
             slug = data.get("owner") or data.get("slug")
-            if slug:
+            viewers = list(data.get("viewers", []))
+            if slug and (
+                not current_user
+                or current_user == slug
+                or current_user in viewers
+            ):
                 owners.append(slug)
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Skipping owner file %s: %s", pf, exc)

@@ -19,6 +19,7 @@ const TAB_KEYS = [
   "watchlist",
   "virtual",
   "support",
+  "settings",
   "reports",
 ] as const;
 const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record<

@@ -25,8 +25,8 @@ from backend.common.portfolio_utils import (
 )
 from backend.config import config
 from backend.routes.agent import router as agent_router
-from backend.routes.alerts import router as alerts_router
 from backend.routes.alert_settings import router as alert_settings_router
+from backend.routes.alerts import router as alerts_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
 from backend.routes.instrument import router as instrument_router
@@ -44,6 +44,7 @@ from backend.routes.timeseries_edit import router as timeseries_edit_router
 from backend.routes.timeseries_meta import router as timeseries_router
 from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.transactions import router as transactions_router
+from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 from backend.utils import page_cache
 
@@ -100,12 +101,12 @@ def create_app() -> FastAPI:
     app.include_router(query_router)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)
-    app.include_router(performance_router, dependencies=protected)
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(movers_router)
+    app.include_router(user_config_router, dependencies=protected)
     app.include_router(scenario_router)
 
     @app.exception_handler(RequestValidationError)
@@ -121,9 +122,7 @@ def create_app() -> FastAPI:
     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         user = authenticate_user(form_data.username, form_data.password)
         if not user:
-            raise HTTPException(
-                status_code=400, detail="Incorrect username or password"
-            )
+            raise HTTPException(status_code=400, detail="Incorrect username or password")
         token = create_access_token(user)
         return {"access_token": token, "token_type": "bearer"}
 
@@ -145,6 +144,16 @@ def create_app() -> FastAPI:
 
             snapshot, ts = _load_snapshot()
             refresh_snapshot_in_memory(snapshot, ts)
+            # Seed instrument API with the on-disk snapshot to avoid network calls
+            # before the background refresh completes.
+            from backend.common import instrument_api
+
+            instrument_api.update_latest_prices_from_snapshot(snapshot)
+            price_task = asyncio.create_task(
+                asyncio.to_thread(instrument_api.prime_latest_prices)
+            )
+            app.state.background_tasks.append(price_task)
+
             task = refresh_snapshot_async(days=config.snapshot_warm_days or 30)
             if isinstance(task, (asyncio.Task, asyncio.Future)):
                 app.state.background_tasks.append(task)

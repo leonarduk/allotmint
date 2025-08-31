@@ -31,3 +31,9 @@ createRoot(document.getElementById('root')!).render(
     </ConfigProvider>
   </StrictMode>,
 )
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js');
+  });
+}

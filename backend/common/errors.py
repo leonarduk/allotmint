@@ -32,7 +32,7 @@ def handle_owner_not_found(func: F) -> F:
                 return await func(*args, **kwargs)
             except OwnerNotFoundError as exc:  # pragma: no cover - thin wrapper
                 raise HTTPException(status_code=404, detail=OWNER_NOT_FOUND) from exc
-
+        async_wrapper.__signature__ = inspect.signature(func)
         return async_wrapper  # type: ignore[return-value]
 
     @wraps(func)
@@ -41,5 +41,5 @@ def handle_owner_not_found(func: F) -> F:
             return func(*args, **kwargs)
         except OwnerNotFoundError as exc:  # pragma: no cover - thin wrapper
             raise HTTPException(status_code=404, detail=OWNER_NOT_FOUND) from exc
-
+    sync_wrapper.__signature__ = inspect.signature(func)
     return sync_wrapper  # type: ignore[return-value]

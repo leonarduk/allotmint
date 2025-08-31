@@ -24,6 +24,7 @@ export interface TabsConfig {
   dataadmin: boolean;
   virtual: boolean;
   support: boolean;
+   settings: boolean;
   reports: boolean;
   scenario: boolean;
 }
@@ -61,6 +62,7 @@ const defaultTabs: TabsConfig = {
   dataadmin: true,
   virtual: true,
   support: true,
+  settings: true,
   reports: true,
   scenario: true,
 };
@@ -88,7 +90,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const refreshConfig = useCallback(async () => {
     try {
       const cfg = await getConfig<RawConfig>();
-      const tabs: TabsConfig = { ...defaultTabs, ...(cfg.tabs ?? {}) };
+      const tabs = { ...defaultTabs, ...(cfg.tabs ?? {}) } as TabsConfig;
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );

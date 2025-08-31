@@ -12,6 +12,7 @@ export const tabPluginMap = {
   dataadmin: {},
   virtual: {},
   support: {},
+  settings: {},
   reports: {},
   scenario: {},
 };
@@ -29,6 +30,7 @@ export const orderedTabPlugins = [
   { id: "watchlist", priority: 80 },
   { id: "dataadmin", priority: 90 },
   { id: "reports", priority: 100 },
+  { id: "settings", priority: 105 },
   { id: "support", priority: 110 },
   { id: "scenario", priority: 120 },
 ] as const;

@@ -9,6 +9,9 @@ import type {
   Portfolio,
   PerformancePoint,
   ValueAtRiskPoint,
+  AlphaResponse,
+  TrackingErrorResponse,
+  MaxDrawdownResponse,
   Transaction,
   Alert,
   PriceEntry,
@@ -25,6 +28,7 @@ import type {
   TradeSuggestion,
   SectorContribution,
   RegionContribution,
+  UserConfig,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -468,6 +472,16 @@ export const getConfig = <T = Record<string, unknown>>() =>
 export const updateConfig = (cfg: Record<string, unknown>) =>
   fetchJson<Record<string, unknown>>(`${API_BASE}/config`, {
     method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cfg),
+  });
+
+export const getUserConfig = (owner: string) =>
+  fetchJson<UserConfig>(`${API_BASE}/user-config/${owner}`);
+
+export const updateUserConfig = (owner: string, cfg: UserConfig) =>
+  fetchJson<UserConfig>(`${API_BASE}/user-config/${owner}`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cfg),
   });

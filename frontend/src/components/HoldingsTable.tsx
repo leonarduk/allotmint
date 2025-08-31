@@ -80,6 +80,7 @@ export function HoldingsTable({
         .catch(() => {});
     });
   }, [holdings, sparks]);
+  useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
     }
@@ -188,18 +189,16 @@ export function HoldingsTable({
         >
           Sell-eligible
         </button>
-        <button
-          type="button"
-          style={{ marginLeft: "0.5rem" }}
-          onClick={() => {
-            const val = prompt("Minimum Gain %", "10");
-            if (val !== null) {
-              handleFilterChange("gain_pct", val);
-            }
-          }}
-        >
-          Gain% &gt; x
-        </button>
+        <label style={{ marginLeft: "0.5rem" }}>
+          Gain% &gt;
+          <input
+            type="number"
+            placeholder="Min Gain %"
+            value={filters.gain_pct}
+            onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
+            style={{ marginLeft: "0.25rem", width: "4rem" }}
+          />
+        </label>
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
         Columns:

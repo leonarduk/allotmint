@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-const sw = self as ServiceWorkerGlobalScope;
+const sw = self as unknown as ServiceWorkerGlobalScope;
 
 // basic service worker for push notifications
 sw.addEventListener('push', (event: PushEvent) => {
@@ -9,7 +9,7 @@ sw.addEventListener('push', (event: PushEvent) => {
   if (payload) {
     try {
       data = JSON.parse(payload);
-    } catch (err) {
+    } catch {
       data = {body: payload};
     }
   }

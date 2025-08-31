@@ -267,15 +267,6 @@ configured default.
 python run_with_error_summary.py pytest
 ```
 
-## Trading Agent
-
-Use the helper script to run the trading agent locally. All arguments are
-optional:
-
-```bash
-python scripts/run_trading_agent.py --tickers AAPL MSFT --thresholds 0.1 0.2 --indicator RSI
-```
-
 ## API endpoint tester
 
 Execute a set of HTTP calls listed in `api_test_cases.yaml` and summarise the results with GPT:

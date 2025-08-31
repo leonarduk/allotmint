@@ -267,6 +267,17 @@ configured default.
 python run_with_error_summary.py pytest
 ```
 
+
+## Trading Agent
+Retrieve trade signals through the API:
+
+```bash
+curl http://localhost:8000/trading-agent/signals
+```
+
+In production, the `price_refresh` Lambda can invoke the agent after updating
+prices.
+
 ## API endpoint tester
 
 Execute a set of HTTP calls listed in `api_test_cases.yaml` and summarise the results with GPT:

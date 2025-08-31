@@ -202,18 +202,13 @@ export function HoldingsTable({
         >
           {t("holdingsTable.quickFiltersSellEligible")}
         </button>
-        <button
-          type="button"
+        <input
+          type="number"
+          placeholder={t("holdingsTable.minimumGainPrompt")}
+          value={filters.gain_pct}
+          onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
           style={{ marginLeft: "0.5rem" }}
-          onClick={() => {
-            const val = prompt(t("holdingsTable.minimumGainPrompt"), "10");
-            if (val !== null) {
-              handleFilterChange("gain_pct", val);
-            }
-          }}
-        >
-          {t("holdingsTable.quickFiltersGainPct")}
-        </button>
+        />
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
         {t("holdingsTable.columnsLabel")}

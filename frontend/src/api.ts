@@ -323,7 +323,7 @@ export const getTransactions = (params: {
 };
 
 /** Retrieve recent alert messages from backend. */
-export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts`);
+export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts/`);
 
 /** Retrieve alert threshold for a user. */
 export const getAlertSettings = (user: string) =>

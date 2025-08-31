@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+import pytest
+
 import backend.common.instrument_api as ia
 from backend.local_api.main import app
 
@@ -16,14 +18,18 @@ def test_group_movers_endpoint(monkeypatch):
         return [
             {"ticker": "AAA", "market_value_gbp": 100.0},
             {"ticker": "BBB", "market_value_gbp": 50.0},
+            {"ticker": "CCC", "market_value_gbp": 25.0},
         ]
 
     def fake_top_movers(tickers, days, limit, *, min_weight, weights):
-        assert tickers == ["AAA", "BBB"]
+        assert tickers == ["AAA", "BBB", "CCC"]
         assert days == 7
         assert limit == 5
         assert min_weight == 0.5
-        assert weights == {"AAA": 50.0, "BBB": 50.0}
+        expected = pytest.approx(100.0 / 3)
+        assert weights["AAA"] == expected
+        assert weights["BBB"] == expected
+        assert weights["CCC"] == expected
         return {
             "gainers": [{"ticker": "AAA", "name": "AAA", "change_pct": 5}],
             "losers": [{"ticker": "BBB", "name": "BBB", "change_pct": -3}],

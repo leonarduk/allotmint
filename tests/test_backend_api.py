@@ -33,29 +33,29 @@ def mock_group_portfolio(monkeypatch):
     """Provide a lightweight group portfolio for known slugs."""
 
     def _build(slug: str):
-        if slug == "stub":
-            return {
-                "slug": slug,
-                "accounts": [
-                    {
-                        "name": "stub",
-                        "value_estimate_gbp": 100.0,
-                        "holdings": [
-                            {
-                                "ticker": "STUB",
-                                "name": "Stub Corp",
-                                "units": 1.0,
-                                "market_value_gbp": 100.0,
-                                "gain_gbp": 10.0,
-                                "cost_basis_gbp": 90.0,
-                                "day_change_gbp": 1.0,
-                            }
-                        ],
-                    }
-                ],
-                "total_value_estimate_gbp": 100.0,
-            }
-        raise HTTPException(status_code=404, detail="Group not found")
+        if slug == "doesnotexist":
+            raise HTTPException(status_code=404, detail="Group not found")
+        return {
+            "slug": slug,
+            "accounts": [
+                {
+                    "name": "stub",
+                    "value_estimate_gbp": 100.0,
+                    "holdings": [
+                        {
+                            "ticker": "STUB",
+                            "name": "Stub Corp",
+                            "units": 1.0,
+                            "market_value_gbp": 100.0,
+                            "gain_gbp": 10.0,
+                            "cost_basis_gbp": 90.0,
+                            "day_change_gbp": 1.0,
+                        }
+                    ],
+                }
+            ],
+            "total_value_estimate_gbp": 100.0,
+        }
 
     monkeypatch.setattr(
         "backend.common.group_portfolio.build_group_portfolio", _build
@@ -137,7 +137,9 @@ def test_groups(client):
 
 
 def test_valid_group_portfolio(client):
-    group_slug = "stub"
+    groups = client.get("/groups").json()
+    assert groups, "No groups found"
+    group_slug = groups[0]["slug"]
     resp = client.get(f"/portfolio-group/{group_slug}")
     assert resp.status_code == 200
     data = resp.json()
@@ -191,7 +193,8 @@ def test_prices_refresh(client):
 
 
 def test_group_instruments(client):
-    slug = "stub"
+    groups = client.get("/groups").json()
+    slug = groups[0]["slug"]
     resp = client.get(f"/portfolio-group/{slug}/instruments")
     assert resp.status_code == 200
     instruments = resp.json()

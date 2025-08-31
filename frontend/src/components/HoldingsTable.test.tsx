@@ -196,9 +196,9 @@ describe("HoldingsTable", () => {
     });
 
     it("applies gain percentage quick filter", () => {
-        vi.spyOn(window, 'prompt').mockReturnValue('10');
         render(<HoldingsTable holdings={holdings} />);
-        fireEvent.click(screen.getByRole('button', { name: /Gain%/ }));
+        const input = screen.getByPlaceholderText('Min Gain %');
+        fireEvent.change(input, { target: { value: '10' } });
         expect(screen.getByPlaceholderText('Gain %')).toHaveValue('10');
         expect(screen.getByText('AAA')).toBeInTheDocument();
         expect(screen.queryByText('XYZ')).toBeNull();

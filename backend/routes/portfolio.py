@@ -204,7 +204,8 @@ async def group_movers(
         raise HTTPException(status_code=400, detail="Invalid days")
     try:
         summaries = instrument_api.instrument_summaries_for_group(slug)
-    except Exception:
+    except Exception as e:
+        log.warning(f"Failed to load instrument summaries for group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
 
     market_values = {}

@@ -301,25 +301,16 @@ def _memoized_range_cached(
         cache_path = str(meta_timeseries_cache_path(ticker, exchange))
         existing = _load_parquet(cache_path)
         # When running in offline mode we normally expect a cached copy to be
-        # present.  If it's missing, fall back to the live loader so tests can
-        # still exercise the conversion logic with monkeypatched fetchers.
+        # present. If it's missing we should not attempt any live fetches here
+        # and simply return an empty frame. Higher-level helpers may decide to
+        # temporarily disable offline mode and retry if they want a fallback.
         if not existing.empty:
             ex = existing.copy()
             ex["Date"] = ex["Date"].dt.date
             mask = (ex["Date"] >= start_date) & (ex["Date"] <= end_date)
             return _ensure_schema(ex.loc[mask].reset_index(drop=True))
         logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
-
-        # Temporarily disable offline mode so the live loader can fetch data.
-        prev_offline_mode = config.offline_mode
-        prev_global = OFFLINE_MODE
-        try:
-            config.offline_mode = False
-            OFFLINE_MODE = False
-            superset = load_meta_timeseries(ticker, exchange, days_needed)
-        finally:
-            config.offline_mode = prev_offline_mode
-            OFFLINE_MODE = prev_global
+        return _empty_ts()
     else:
         # Either not in offline mode or cache miss above – fetch from the standard
         # loader, which callers are free to monkeypatch in tests.
@@ -376,8 +367,8 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
             try:
                 fx = fetch_fx_rate_range(currency, start, end).copy()
                 fx["Date"] = pd.to_datetime(fx["Date"])
-              if fx.empty:
-                  raise ValueError(f"Offline mode: no FX rates for {currency}")            
+                if fx.empty:
+                    raise ValueError(f"Offline mode: no FX rates for {currency}")
             except Exception as exc:
                 raise ValueError(f"Offline mode: no FX rates for {currency}") from exc
 
@@ -409,7 +400,9 @@ def load_meta_timeseries_range(
     exchange: str,
     start_date: date,
     end_date: date,
+    _allow_fallback: bool = True,
 ) -> pd.DataFrame:
+    global OFFLINE_MODE
     for offset in range(0, 5):  # try same day, 1-day back, 2-day back...
         s = start_date - timedelta(days=offset)
         e = end_date - timedelta(days=offset)
@@ -421,6 +414,21 @@ def load_meta_timeseries_range(
                 logger.warning("Skipping FX conversion for %s.%s: %s", ticker, exchange, exc)
                 return _empty_ts()
             return df
+
+    if _allow_fallback and (OFFLINE_MODE or config.offline_mode):
+        prev_offline_mode = config.offline_mode
+        prev_global = OFFLINE_MODE
+        try:
+            config.offline_mode = False
+            OFFLINE_MODE = False
+            _memoized_range_cached.cache_clear()
+            return load_meta_timeseries_range(
+                ticker, exchange, start_date, end_date, _allow_fallback=False
+            )
+        finally:
+            config.offline_mode = prev_offline_mode
+            OFFLINE_MODE = prev_global
+
     return _empty_ts()
 
 

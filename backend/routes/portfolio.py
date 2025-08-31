@@ -17,16 +17,16 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from backend.common import portfolio as portfolio_mod
 from backend.common import (
+    constants,
     data_loader,
     group_portfolio,
     instrument_api,
-    constants,
     portfolio_utils,
     prices,
-    risk
+    risk,
 )
+from backend.common import portfolio as portfolio_mod
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -188,24 +188,30 @@ async def portfolio_group(slug: str):
 @router.get("/portfolio-group/{slug}/instruments")
 async def group_instruments(slug: str):
     """Return holdings for the group aggregated by ticker."""
-
-    gp = group_portfolio.build_group_portfolio(slug)
+    try:
+        gp = group_portfolio.build_group_portfolio(slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_ticker(gp)
 
 
 @router.get("/portfolio-group/{slug}/sectors")
 async def group_sectors(slug: str):
     """Return return contribution aggregated by sector."""
-
-    gp = group_portfolio.build_group_portfolio(slug)
+    try:
+        gp = group_portfolio.build_group_portfolio(slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_sector(gp)
 
 
 @router.get("/portfolio-group/{slug}/regions")
 async def group_regions(slug: str):
     """Return return contribution aggregated by region."""
-
-    gp = group_portfolio.build_group_portfolio(slug)
+    try:
+        gp = group_portfolio.build_group_portfolio(slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_region(gp)
 
 
@@ -255,7 +261,10 @@ def _enrich_movers_with_market_values(
     response_model=MoversResponse,
     responses={
         200: {
-            "description": 'Top gainers and losers for a group portfolio. Returns {"gainers": [], "losers": []} if the group holds no tickers.'
+            "description": (
+                "Top gainers and losers for a group portfolio. "
+                'Returns {"gainers": [], "losers": []} if the group holds no tickers.'
+            )
         }
     },
 )
@@ -324,6 +333,7 @@ async def group_movers(
     )
 
     return _enrich_movers_with_market_values(movers, market_values)
+
 
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str):

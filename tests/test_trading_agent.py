@@ -294,6 +294,32 @@ def test_run_uses_rsi_and_fundamentals(monkeypatch):
     assert "RSI" in signals[0]["reason"]
 
 
+def test_run_does_not_filter_sell_signal(monkeypatch):
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 7, "close": [10, 10, 10, 10, 10, 10, 4]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+
+    def fake_screen(tickers, **kw):
+        raise AssertionError("screen should not be called for SELL signals")
+
+    monkeypatch.setattr(trading_agent, "screen", fake_screen)
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+
+    signals = run()
+    assert signals and signals[0]["action"] == "SELL"
+
+
 def test_run_generates_ma_signal(monkeypatch):
     monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["BBB"])
 

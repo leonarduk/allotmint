@@ -137,14 +137,14 @@ export default function Support() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+    <div className="container mx-auto max-w-3xl space-y-4 p-4">
       <Menu />
-      <h1>{t("support.title")}</h1>
+      <h1 className="text-2xl md:text-4xl">{t("support.title")}</h1>
       <p>
         <strong>{t("support.online")}</strong> {online ? t("support.onlineYes") : t("support.onlineNo")}
       </p>
-      <h2>{t("support.environment")}</h2>
-      <table style={{ fontSize: "0.9rem" }}>
+      <h2 className="text-xl md:text-2xl">{t("support.environment")}</h2>
+      <table className="text-sm">
         <tbody>
           {envEntries.map(([k, v]) => {
             const value = String(v);
@@ -175,18 +175,11 @@ export default function Support() {
         <p>Loading…</p>
       ) : (
         <form onSubmit={saveConfig}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "1rem",
-              marginBottom: "1rem",
-            }}
-          >
+          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <h3>Tabs Enabled</h3>
+              <h3 className="font-semibold">Tabs Enabled</h3>
               {TAB_KEYS.map((tab) => (
-                <label key={tab} style={{ display: "block", fontWeight: 500 }}>
+                <label key={tab} className="block font-medium">
                   <input
                     type="checkbox"
                     checked={tabs[tab]}
@@ -197,11 +190,11 @@ export default function Support() {
               ))}
             </div>
             <div>
-              <h3>Other Switches</h3>
+              <h3 className="font-semibold">Other Switches</h3>
               {Object.entries(config)
                 .filter(([k, v]) => k !== "tabs" && typeof v === "boolean")
                 .map(([key, value]) => (
-                  <label key={key} style={{ display: "block", fontWeight: 500 }}>
+                  <label key={key} className="block font-medium">
                     <input
                       type="checkbox"
                       checked={value as boolean}
@@ -212,17 +205,17 @@ export default function Support() {
                 ))}
             </div>
           </div>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <h3>Other parameters</h3>
+          <div className="mb-2">
+            <h3 className="font-semibold">Other parameters</h3>
             {Object.entries(config)
               .filter(([k, v]) => k !== "tabs" && typeof v !== "boolean")
               .map(([key, value]) => (
-                <div key={key} style={{ marginBottom: "0.5rem" }}>
+                <div key={key} className="mb-2">
                   {key === "theme" && typeof value === "string" ? (
                     <div>
-                      <label style={{ display: "block", fontWeight: 500 }}>{key}</label>
+                      <label className="block font-medium">{key}</label>
                       {["dark", "light", "system"].map((opt) => (
-                        <label key={opt} style={{ marginRight: "0.5rem" }}>
+                        <label key={opt} className="mr-2">
                           <input
                             type="radio"
                             name="theme"
@@ -239,7 +232,7 @@ export default function Support() {
                       type="text"
                       value={String(value ?? "")}
                       onChange={(e) => handleConfigChange(key, e.target.value)}
-                      style={{ width: "100%" }}
+                      className="w-full"
                     />
                   )}
                 </div>
@@ -247,35 +240,35 @@ export default function Support() {
           </div>
           <button type="submit">Save</button>
           {configStatus === "saved" && (
-            <span style={{ marginLeft: "0.5rem", color: "green" }}>Saved</span>
+            <span className="ml-2 text-green-600">Saved</span>
           )}
           {configStatus === "error" && (
-            <span style={{ marginLeft: "0.5rem", color: "red" }}>Error</span>
+            <span className="ml-2 text-red-600">Error</span>
           )}
           {configStatus === "saving" && (
-            <span style={{ marginLeft: "0.5rem" }}>Saving…</span>
+            <span className="ml-2">Saving…</span>
           )}
         </form>
       )}
-      <h2>{t("support.telegramMessage")}</h2>
+      <h2 className="text-xl md:text-2xl">{t("support.telegramMessage")}</h2>
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         rows={4}
-        style={{ width: "100%" }}
+        className="w-full"
       />
-      <div style={{ marginTop: "0.5rem" }}>
+      <div className="mt-2">
         <button onClick={send} disabled={!message}>
           {t("support.send")}
         </button>
         {status === "sent" && (
-          <span style={{ marginLeft: "0.5rem", color: "green" }}>{t("support.status.sent")}</span>
+          <span className="ml-2 text-green-600">{t("support.status.sent")}</span>
         )}
         {status === "error" && (
-          <span style={{ marginLeft: "0.5rem", color: "red" }}>{t("support.status.error")}</span>
+          <span className="ml-2 text-red-600">{t("support.status.error")}</span>
         )}
         {status === "sending" && (
-          <span style={{ marginLeft: "0.5rem" }}>{t("support.status.sending")}</span>
+          <span className="ml-2">{t("support.status.sending")}</span>
         )}
       </div>
     </div>

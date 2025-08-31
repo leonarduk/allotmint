@@ -31,12 +31,12 @@ export default function Rebalance() {
   }
 
   return (
-    <div>
-      <h1>Rebalance Suggestions</h1>
-      {err && <p style={{ color: "red" }}>{err}</p>}
+    <div className="container mx-auto p-4">
+      <h1 className="mb-4 text-2xl md:text-4xl">Rebalance Suggestions</h1>
+      {err && <p className="text-red-500">{err}</p>}
       {!err && trades.length === 0 && <p>No suggestions.</p>}
       {trades.length > 0 && (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="w-full border-collapse">
           <thead>
             <tr>
               <th>Ticker</th>

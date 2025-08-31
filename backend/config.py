@@ -36,6 +36,8 @@ class TradingAgentConfig:
     ma_long_window: int = 50
     pe_max: Optional[float] = None
     de_max: Optional[float] = None
+    min_sharpe: Optional[float] = None
+    max_volatility: Optional[float] = None
 
 
 @dataclass

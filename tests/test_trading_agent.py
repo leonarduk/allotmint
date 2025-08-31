@@ -68,6 +68,15 @@ def test_agent_generate_signals_indicators():
     assert actions == {"AAA": "BUY", "BBB": "SELL", "CCC": "BUY", "DDD": "SELL"}
 
 
+def test_agent_generate_signals_risk_filters(monkeypatch):
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "min_sharpe", 1.0)
+    monkeypatch.setattr(cfg, "max_volatility", 0.1)
+    snapshot = {"AAA": {"rsi": 20, "sharpe": 0.5, "volatility": 0.2}}
+    signals = ta_generate_signals(snapshot)
+    assert signals == []
+
+
 def test_send_trade_alert_sns_only(monkeypatch):
     calls = {"publish": None, "telegram": False}
 
@@ -159,8 +168,8 @@ def test_run_defaults_to_all_known_tickers(monkeypatch):
         "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
     )
     monkeypatch.setattr(
-        "backend.agent.trading_agent.compliance.check_owner",
-        lambda owner: {"owner": owner, "warnings": []},
+        "backend.agent.trading_agent.compliance.check_trade",
+        lambda trade: {"owner": trade.get("owner"), "warnings": []},
     )
 
     run()
@@ -190,8 +199,8 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
         "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
     )
     monkeypatch.setattr(
-        "backend.agent.trading_agent.compliance.check_owner",
-        lambda owner: {"owner": owner, "warnings": []},
+        "backend.agent.trading_agent.compliance.check_trade",
+        lambda trade: {"owner": trade.get("owner"), "warnings": []},
     )
 
     sent: list[str] = []
@@ -227,11 +236,11 @@ def test_run_compliance_gates_actions(monkeypatch):
         "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
     )
 
-    def fake_check(owner):
-        return {"owner": owner, "warnings": ["blocked"]}
+    def fake_check(trade):
+        return {"owner": trade["owner"], "warnings": ["blocked"]}
 
     monkeypatch.setattr(
-        "backend.agent.trading_agent.compliance.check_owner", fake_check
+        "backend.agent.trading_agent.compliance.check_trade", fake_check
     )
 
     published: list = []
@@ -268,14 +277,15 @@ def test_run_skips_signal_when_compliance_blocks(monkeypatch):
 
     calls: list[str] = []
 
-    def fake_check(owner):
+    def fake_check(trade):
+        owner = trade["owner"]
         calls.append(owner)
         if len(calls) == 1:
             return {"owner": owner, "warnings": []}
         return {"owner": owner, "warnings": ["limit"]}
 
     monkeypatch.setattr(
-        "backend.agent.trading_agent.compliance.check_owner", fake_check
+        "backend.agent.trading_agent.compliance.check_trade", fake_check
     )
 
     published: list = []
@@ -329,6 +339,10 @@ def test_run_uses_rsi_and_fundamentals(monkeypatch):
     monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
     monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
     monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+    monkeypatch.setattr(trading_agent.compliance, "check_trade", lambda trade: {"warnings": []})
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+    monkeypatch.setattr(trading_agent.compliance, "check_trade", lambda trade: {"warnings": []})
 
     class F:
         def __init__(self, ticker: str):
@@ -361,6 +375,8 @@ def test_run_does_not_filter_sell_signal(monkeypatch):
     monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
     monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
     monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+    monkeypatch.setattr(trading_agent.compliance, "check_trade", lambda trade: {"warnings": []})
 
     def fake_screen(tickers, **kw):
         raise AssertionError("screen should not be called for SELL signals")
@@ -404,5 +420,28 @@ def test_run_generates_ma_signal(monkeypatch):
     signals = run()
     assert signals and signals[0]["ticker"] == "BBB"
     assert "MA" in signals[0]["reason"]
+
+
+def test_run_applies_risk_filters(monkeypatch):
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["AAA"] * 10, "close": [1, 2, 1, 2, 1, 2, 1, 2, 1, 2]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent.compliance, "check_trade", lambda trade: {"warnings": []})
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "min_sharpe", 1.0)
+    monkeypatch.setattr(cfg, "max_volatility", 0.1)
+
+    signals = trading_agent.run()
+    assert signals == []
 
 

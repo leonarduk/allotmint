@@ -16,6 +16,8 @@ trading_agent:
   rsi_sell: 70
   ma_short_window: 20
   ma_long_window: 50
+  min_sharpe: null
+  max_volatility: null
 cors:
   production:
     - https://app.allotmint.io

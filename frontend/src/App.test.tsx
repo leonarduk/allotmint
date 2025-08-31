@@ -153,6 +153,7 @@ describe("App", () => {
       dataadmin: true,
       virtual: true,
       support: true,
+      settings: true,
       reports: true,
       scenario: true,
     };
@@ -163,6 +164,7 @@ describe("App", () => {
           theme: "system",
           relativeViewEnabled: false,
           tabs: { ...allTabs, movers: false },
+          refreshConfig: vi.fn(),
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
@@ -196,6 +198,7 @@ describe("App", () => {
         getTopMovers: vi
           .fn()
           .mockResolvedValue({ gainers: [], losers: [] }),
+        getGroupMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
         listTimeseries: vi.fn().mockResolvedValue([]),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
@@ -218,13 +221,19 @@ describe("App", () => {
       dataadmin: true,
       virtual: true,
       support: true,
+      settings: true,
       reports: true,
       scenario: true,
     };
 
     render(
       <configContext.Provider
-        value={{ theme: "system", relativeViewEnabled: false, tabs: allTabs }}
+        value={{
+          theme: "system",
+          relativeViewEnabled: false,
+          tabs: allTabs,
+          refreshConfig: vi.fn(),
+        }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
           <App />
@@ -375,6 +384,7 @@ describe("App", () => {
       "Watchlist",
       "Data Admin",
       "Reports",
+      "User Settings",
       "Support",
       "Scenario Tester",
     ]);

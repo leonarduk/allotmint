@@ -300,14 +300,6 @@ curl http://localhost:8000/trading-agent/signals
 In production, the `price_refresh` Lambda can invoke the agent after updating
 prices.
 
-## API endpoint tester
-
-Execute a set of HTTP calls listed in `api_test_cases.yaml` and summarise the results with GPT:
-
-```bash
-python scripts/ai_api_tester.py
-```
-
 ## Deploy to AWS
 
 The project includes an AWS CDK stack that provisions an S3 bucket and

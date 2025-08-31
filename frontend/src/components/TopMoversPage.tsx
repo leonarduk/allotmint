@@ -130,10 +130,10 @@ export function TopMoversPage() {
     );
   }
 
-  const errorBanner = (error?.message ?? fallbackError)
+  const errorBanner = fallbackError
     ? (() => {
-        const raw = error?.message ?? fallbackError ?? "";
-        const match = raw.match(/^HTTP (\\d+)\\s+[--]\\s+(.*)$/);
+        const raw = fallbackError;
+        const match = raw.match(/^HTTP (\d+)\s+[–-]\s+(.*)$/);
         const status = match?.[1];
         const msg = match?.[2] ?? raw;
         return (

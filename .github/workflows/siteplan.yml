@@ -1,0 +1,43 @@
+name: Site Plan
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  siteplan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install bs4 fpdf markdownify playwright tldextract Pillow openai
+          playwright install
+
+      - name: Generate site plan
+        run: python scripts/site_snapshot.py --base-url https://app.allotmint.io --output-dir docs/siteplan
+
+      - name: Commit site snapshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/siteplan
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update site snapshots"
+            git push origin main
+          fi

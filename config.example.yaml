@@ -16,6 +16,8 @@ cors:
   production:
     - https://app.allotmint.io
 app_env: local
+google_auth_enabled: false
+disable_auth: true
 sns_topic_arn: ''
 telegram_bot_token: "" # set via TELEGRAM_BOT_TOKEN env var
 telegram_chat_id: "" # set via TELEGRAM_CHAT_ID env var

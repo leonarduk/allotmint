@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 from aws_cdk import (
     BundlingOptions,
@@ -30,7 +31,7 @@ class BackendLambdaStack(Stack):
                     command=[
                         "bash",
                         "-c",
-                        "pip install -r requirements.txt -t /asset-output/python",
+                        "pip install -r requirements-lambda.txt -t /asset-output/python",
                     ],
                 ),
             ),
@@ -47,6 +48,11 @@ class BackendLambdaStack(Stack):
             code=backend_code,
             layers=[dependencies_layer],
         )
+
+        env = self.node.try_get_context("app_env") or os.getenv("APP_ENV")
+        if env == "production":
+            backend_fn.add_environment("GOOGLE_AUTH_ENABLED", "true")
+            backend_fn.add_environment("DISABLE_AUTH", "false")
 
         apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)
 

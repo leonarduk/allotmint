@@ -22,6 +22,7 @@ cors:
   production:
     - https://app.allotmint.io
 app_env: local
+google_auth_enabled: false
 disable_auth: true
 portfolio_xml_path: data/portfolio/investments.xml
 transactions_output_root: data/accounts

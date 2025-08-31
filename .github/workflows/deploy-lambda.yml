@@ -53,6 +53,22 @@ jobs:
       - name: Run backend tests
         run: pytest
 
+      - name: Parse ref for deploy
+        id: parse
+        run: |
+          ref="${{ github.ref_name }}"
+          version="${ref#v}"
+          if [[ "$version" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            IFS='.' read -r major minor patch <<<"$version"
+            if [ -z "$patch" ] || [ "$patch" = "0" ]; then
+              echo "deploy=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "deploy=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -60,5 +76,6 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Deploy CDK stack
+        if: steps.parse.outputs.deploy == 'true'
         run: cdk deploy --require-approval never
         working-directory: cdk

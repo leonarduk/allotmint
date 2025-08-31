@@ -60,6 +60,8 @@ const { tabs, disabledTabs } = useConfig();
         return "/movers";
       case "scenario":
         return "/scenario";
+      case "settings":
+        return "/settings";
       default:
         return `/${m}`;
     }
@@ -99,6 +101,9 @@ const { tabs, disabledTabs } = useConfig();
         break;
       case "support":
         newMode = "support";
+        break;
+      case "settings":
+        newMode = "settings";
         break;
       case "scenario":
         newMode = "scenario";

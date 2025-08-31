@@ -164,6 +164,13 @@ export interface PriceEntry {
     Source?: string;
 }
 
+export interface UserConfig {
+    hold_days_min?: number;
+    max_trades_per_month?: number;
+    approval_exempt_types?: string[];
+    approval_exempt_tickers?: string[];
+}
+
 export interface TimeseriesSummary {
     ticker: string;
     exchange: string;

@@ -26,8 +26,8 @@ from backend.common.data_loader import (
     resolve_paths,
 )
 from backend.common.holding_utils import enrich_holding
+from backend.common.user_config import load_user_config
 from backend.config import config
-
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,8 @@ def build_owner_portfolio(owner: str, accounts_root: Optional[Path] = None) -> D
         d = _parse_date(t.get("date"))
         if d and d.year == today.year and d.month == today.month:
             trades_this += 1
-    trades_rem = max(0, config.max_trades_per_month - trades_this)
+    ucfg = load_user_config(owner, accounts_root)
+    trades_rem = max(0, (ucfg.max_trades_per_month or 0) - trades_this)
 
     price_cache: dict[str, float] = {}
     approvals = load_approvals(owner, accounts_root)
@@ -128,7 +129,7 @@ def build_owner_portfolio(owner: str, accounts_root: Optional[Path] = None) -> D
         raw = load_account(owner, meta, accounts_root)
         holdings_raw = raw.get("holdings", [])
 
-        enriched = [enrich_holding(h, today, price_cache, approvals) for h in holdings_raw]
+        enriched = [enrich_holding(h, today, price_cache, approvals, ucfg) for h in holdings_raw]
         val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in enriched)
 
         accounts.append(

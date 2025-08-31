@@ -40,6 +40,8 @@ export default function Menu({
       ? "dataadmin"
       : path[0] === "support"
       ? "support"
+      : path[0] === "settings"
+      ? "settings"
       : path[0] === "scenario"
       ? "scenario"
       : path.length === 0 && params.has("group")
@@ -62,6 +64,8 @@ export default function Menu({
         return "/movers";
       case "scenario":
         return "/scenario";
+      case "settings":
+        return "/settings";
       default:
         return `/${m}`;
     }

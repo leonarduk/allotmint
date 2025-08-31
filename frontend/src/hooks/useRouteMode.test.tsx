@@ -24,6 +24,7 @@ describe("useRouteMode", () => {
       dataadmin: false,
       virtual: false,
       support: false,
+      settings: false,
       scenario: false,
       reports: false,
     };

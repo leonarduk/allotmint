@@ -32,6 +32,7 @@ import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
+import Trading from "./pages/Trading";
 import { useConfig } from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
 import Support from "./pages/Support";
@@ -47,6 +48,7 @@ const initialMode: Mode =
   path[0] === "member" ? "owner" :
   path[0] === "instrument" ? "instrument" :
   path[0] === "transactions" ? "transactions" :
+  path[0] === "trading" ? "trading" :
   path[0] === "performance" ? "performance" :
   path[0] === "screener" ? "screener" :
   path[0] === "timeseries" ? "timeseries" :
@@ -102,6 +104,8 @@ export default function App() {
         return selectedOwner ? `/performance/${selectedOwner}` : "/performance";
       case "movers":
         return "/movers";
+      case "trading":
+        return "/trading";
       case "scenario":
         return "/scenario";
       case "reports":
@@ -124,6 +128,9 @@ export default function App() {
         break;
       case "transactions":
         newMode = "transactions";
+        break;
+      case "trading":
+        newMode = "trading";
         break;
       case "performance":
         newMode = "performance";
@@ -380,6 +387,8 @@ export default function App() {
       )}
 
       {mode === "transactions" && <TransactionsPage owners={owners} />}
+
+      {mode === "trading" && <Trading />}
 
       {mode === "screener" && <ScreenerQuery />}
       {mode === "timeseries" && <TimeseriesEdit />}

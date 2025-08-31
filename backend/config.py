@@ -28,6 +28,17 @@ class TabsConfig:
 
 
 @dataclass
+class TradingAgentConfig:
+    rsi_buy: float = 30.0
+    rsi_sell: float = 70.0
+    rsi_window: int = 14
+    ma_short_window: int = 20
+    ma_long_window: int = 50
+    pe_max: Optional[float] = None
+    de_max: Optional[float] = None
+
+
+@dataclass
 class Config:
     # basic app environment
     app_env: Optional[str] = None
@@ -77,6 +88,7 @@ class Config:
     approval_exempt_types: Optional[List[str]] = None
     approval_exempt_tickers: Optional[List[str]] = None
     tabs: TabsConfig = field(default_factory=TabsConfig)
+    trading_agent: TradingAgentConfig = field(default_factory=TradingAgentConfig)
     cors_origins: Optional[List[str]] = None
 
 
@@ -119,6 +131,12 @@ def load_config() -> Config:
     if isinstance(tabs_raw, dict):
         tabs_data.update(tabs_raw)
     tabs = TabsConfig(**tabs_data)
+
+    ta_raw = data.get("trading_agent")
+    ta_data = asdict(TradingAgentConfig())
+    if isinstance(ta_raw, dict):
+        ta_data.update(ta_raw)
+    trading_agent = TradingAgentConfig(**ta_data)
 
     cors_raw = data.get("cors")
     cors_origins = None
@@ -166,6 +184,7 @@ def load_config() -> Config:
         approval_exempt_types=data.get("approval_exempt_types"),
         approval_exempt_tickers=data.get("approval_exempt_tickers"),
         tabs=tabs,
+        trading_agent=trading_agent,
         cors_origins=cors_origins,
     )
 

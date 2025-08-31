@@ -196,3 +196,71 @@ def test_log_trade_recreates_directory(tmp_path, monkeypatch):
     assert trade_path.exists()
 
 
+def test_run_uses_rsi_and_fundamentals(monkeypatch):
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["AAA", "BBB"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {
+            "Ticker": ["AAA"] * 15 + ["BBB"] * 5,
+            "close": [15, 14, 13, 12, 11, 10, 9, 8, 5, 5, 5, 5, 5, 5, 5]
+            + [10, 11, 12, 13, 14],
+        }
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+
+    class F:
+        def __init__(self, ticker: str):
+            self.ticker = ticker
+
+    monkeypatch.setattr(trading_agent, "screen", lambda tickers, **kw: [F("AAA")])
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "rsi_buy", 50.0)
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+    monkeypatch.setattr(cfg, "ma_short_window", 3)
+    monkeypatch.setattr(cfg, "ma_long_window", 5)
+
+    signals = run()
+    assert len(signals) == 1
+    assert signals[0]["ticker"] == "AAA"
+    assert "RSI" in signals[0]["reason"]
+
+
+def test_run_generates_ma_signal(monkeypatch):
+    monkeypatch.setattr(trading_agent, "list_all_unique_tickers", lambda: ["BBB"])
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {"Ticker": ["BBB"] * 5, "close": [10, 11, 12, 13, 14]}
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(trading_agent.prices, "load_prices_for_tickers", fake_load_prices)
+    monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
+    monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
+    monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+
+    class F:
+        def __init__(self, ticker: str):
+            self.ticker = ticker
+
+    monkeypatch.setattr(trading_agent, "screen", lambda tickers, **kw: [F("BBB")])
+
+    cfg = trading_agent.config.trading_agent
+    monkeypatch.setattr(cfg, "rsi_buy", 0.0)
+    monkeypatch.setattr(cfg, "rsi_sell", 100.0)
+    monkeypatch.setattr(cfg, "pe_max", 20.0)
+    monkeypatch.setattr(cfg, "ma_short_window", 3)
+    monkeypatch.setattr(cfg, "ma_long_window", 5)
+
+    signals = run()
+    assert signals and signals[0]["ticker"] == "BBB"
+    assert "MA" in signals[0]["reason"]
+
+

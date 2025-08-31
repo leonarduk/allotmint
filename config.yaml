@@ -11,6 +11,11 @@ alpha_vantage_enabled: false
 fundamentals_cache_ttl_seconds: 86400
 stooq_timeout: 10
 stooq_requests_per_minute: 60
+trading_agent:
+  rsi_buy: 30
+  rsi_sell: 70
+  ma_short_window: 20
+  ma_long_window: 50
 cors:
   production:
     - https://app.allotmint.io

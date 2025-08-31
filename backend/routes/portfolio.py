@@ -195,7 +195,7 @@ async def group_regions(slug: str):
 async def group_movers(
     slug: str,
     days: int = Query(1, description="Lookback window"),
-    limit: int = Query(10, description="Max results per side"),
+    limit: int = Query(10, description="Max results per side", le=100),
     min_weight: float = Query(0.0, description="Exclude positions below this percent"),
 ):
     """Return top gainers and losers for a group portfolio."""
@@ -225,11 +225,7 @@ async def group_movers(
 
     # Compute equal weights in percent for filtering
     n = len(tickers)
-    weight_map = {
-        s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0) if total_mv else 0.0
-        for s in summaries
-        if s.get("ticker")
-    }
+    weight_map = {s["ticker"]: (100.0 / n) if n else 0.0 for s in summaries if s.get("ticker")}
 
     movers = instrument_api.top_movers(
         tickers,

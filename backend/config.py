@@ -27,6 +27,7 @@ class TabsConfig:
     settings: bool = True
     reports: bool = True
     scenario: bool = True
+    logs: bool = True
 
 
 @dataclass

@@ -36,6 +36,7 @@ const TopMovers = lazy(() => import("./pages/TopMovers"));
 const DataAdmin = lazy(() => import("./pages/DataAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
+const LogsPage = lazy(() => import("./pages/Logs"));
 
 export default function MainApp() {
   const navigate = useNavigate();
@@ -244,6 +245,7 @@ export default function MainApp() {
       {mode === "watchlist" && <Watchlist />}
       {mode === "support" && <SupportPage />}
       {mode === "movers" && <TopMovers />}
+      {mode === "logs" && <LogsPage />}
       {mode === "scenario" && <ScenarioTester />}
     </>
   );

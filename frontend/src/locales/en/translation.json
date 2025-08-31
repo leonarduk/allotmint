@@ -21,7 +21,8 @@
       "settings": "User Settings",
       "reports": "Reports",
       "support": "Support",
-      "scenario": "Scenario Tester"
+      "scenario": "Scenario Tester",
+      "logs": "Logs"
     }
   },
   "common": {

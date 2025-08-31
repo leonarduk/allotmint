@@ -227,12 +227,10 @@ async def group_movers(
     if not tickers:
         return {"gainers": [], "losers": []}
 
-    # Compute weights in percent for filtering
-    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
+    # Compute equal weights in percent for filtering
+    n = len(tickers)
     weight_map = {
-        s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
-        if total_mv
-        else 0.0
+        s["ticker"]: (100.0 / n) if n else 0.0
         for s in summaries
         if s.get("ticker")
     }

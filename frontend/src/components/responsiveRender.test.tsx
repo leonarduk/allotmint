@@ -67,6 +67,9 @@ const account: Account = {
 const portfolio: Portfolio = {
   owner: "Alice",
   as_of: "2024-01-02",
+  trades_this_month: 0,
+  trades_remaining: 0,
+  total_value_estimate_gbp: 150,
   accounts: [account],
 };
 

@@ -4,6 +4,9 @@ import { precacheAndRoute } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst } from 'workbox-strategies';
 
+declare const self: ServiceWorkerGlobalScope;
+declare const __WB_MANIFEST: Array<string | { url: string; revision?: string }>;
+
 const CACHE_NAME = 'allotmint-cache-v1';
 const CORE_ASSETS = ['/', '/index.html', '/manifest.webmanifest'];
 
@@ -19,9 +22,16 @@ self.addEventListener('install', (event: ExtendableEvent) => {
 
 self.addEventListener('activate', (event: ExtendableEvent) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME && !key.startsWith('workbox-'))
+            .map((key) => caches.delete(key))
+        )
+      )
+      .then(() => self.clients.claim())
   );
 });
 

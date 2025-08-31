@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
@@ -66,10 +66,18 @@ export function HoldingsTable({
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Track tickers we've already fetched to avoid re-fetching on re-renders
+  const fetchedTickersRef = useRef<Set<string>>(new Set());
+
+  // Fetch sparkline data for new tickers whenever holdings change
   useEffect(() => {
     const tickers = Array.from(new Set(holdings.map((h) => h.ticker)));
-    tickers.forEach((t) => {
-      if (sparks[t]) return;
+    const toFetch = tickers.filter(
+      (t) => !sparks[t] && !fetchedTickersRef.current.has(t),
+    );
+
+    toFetch.forEach((t) => {
+      fetchedTickersRef.current.add(t);
       getInstrumentDetail(t, 180)
         .then((d) => {
           const m = (d as any).mini;
@@ -79,7 +87,9 @@ export function HoldingsTable({
         })
         .catch(() => {});
     });
-  }, [holdings, sparks]);
+  }, [holdings]);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
     }

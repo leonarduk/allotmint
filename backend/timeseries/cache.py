@@ -310,7 +310,17 @@ def _memoized_range_cached(
             mask = (ex["Date"] >= start_date) & (ex["Date"] <= end_date)
             return _ensure_schema(ex.loc[mask].reset_index(drop=True))
         logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
-        return _empty_ts()
+
+        # Temporarily disable offline mode so the live loader can fetch data.
+        prev_offline_mode = config.offline_mode
+        prev_global = OFFLINE_MODE
+        try:
+            config.offline_mode = False
+            OFFLINE_MODE = False
+            superset = load_meta_timeseries(ticker, exchange, days_needed)
+        finally:
+            config.offline_mode = prev_offline_mode
+            OFFLINE_MODE = prev_global
     else:
         # Either not in offline mode or cache miss above – fetch from the standard
         # loader, which callers are free to monkeypatch in tests.
@@ -366,9 +376,11 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
         if fx.empty:
             try:
                 fx = fetch_fx_rate_range(currency, start, end).copy()
-                fx["Date"] = pd.to_datetime(fx["Date"])
+
                 if fx.empty:
-                    raise ValueError(f"Offline mode: no FX rates for {currency}")
+                  raise ValueError(f"Offline mode: no FX rates for {currency}")
+
+                fx["Date"] = pd.to_datetime(fx["Date"])
             except Exception as exc:
                 raise ValueError(f"Offline mode: no FX rates for {currency}") from exc
 

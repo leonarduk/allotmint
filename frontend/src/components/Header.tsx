@@ -1,5 +1,3 @@
-import React from "react";
-
 interface Props {
   tradesThisMonth?: number | null;
   tradesRemaining?: number | null;

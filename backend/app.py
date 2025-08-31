@@ -144,6 +144,16 @@ def create_app() -> FastAPI:
 
             snapshot, ts = _load_snapshot()
             refresh_snapshot_in_memory(snapshot, ts)
+            # Seed instrument API with the on-disk snapshot to avoid network calls
+            # before the background refresh completes.
+            from backend.common import instrument_api
+
+            instrument_api.update_latest_prices_from_snapshot(snapshot)
+            price_task = asyncio.create_task(
+                asyncio.to_thread(instrument_api.prime_latest_prices)
+            )
+            app.state.background_tasks.append(price_task)
+
             task = refresh_snapshot_async(days=config.snapshot_warm_days or 30)
             if isinstance(task, (asyncio.Task, asyncio.Future)):
                 app.state.background_tasks.append(task)

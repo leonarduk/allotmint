@@ -21,6 +21,7 @@ from backend.common.constants import ACCOUNTS, HOLDINGS, OWNER
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.holding_utils import load_latest_prices
 from backend.common.portfolio_utils import get_security_meta, list_all_unique_tickers
+from backend.config import config
 from backend.timeseries.cache import (
     has_cached_meta_timeseries,
     load_meta_timeseries_range,
@@ -77,7 +78,41 @@ def _resolve_full_ticker(ticker: str, latest: Dict[str, float]) -> Optional[tupl
 # Load once; callers can restart process to refresh or we can add a reload later.
 _ALL_TICKERS: List[str] = list_all_unique_tickers()
 _TICKER_EXCHANGE_MAP: Dict[str, str] = _build_exchange_map(_ALL_TICKERS)
-_LATEST_PRICES: Dict[str, float] = load_latest_prices(_ALL_TICKERS)
+
+# Global cache for the last known price of each instrument.  This is populated
+# on demand to avoid network access during module import.  ``create_app`` primes
+# this in a background task unless ``config.skip_snapshot_warm`` is set.
+_LATEST_PRICES: Dict[str, float] = {}
+
+
+def prime_latest_prices() -> None:
+    """Populate ``_LATEST_PRICES`` from timeseries data.
+
+    This may involve network requests.  Callers should ensure it runs in a
+    background task if they don't want to block startup.
+    """
+
+    global _LATEST_PRICES
+    if config.skip_snapshot_warm:
+        _LATEST_PRICES = {}
+        return
+    _LATEST_PRICES = load_latest_prices(_ALL_TICKERS)
+
+
+def update_latest_prices_from_snapshot(snapshot: Dict[str, Dict[str, Any]]) -> None:
+    """Seed ``_LATEST_PRICES`` using an existing price snapshot.
+
+    This avoids network access and provides reasonable defaults until
+    :func:`prime_latest_prices` runs.
+    """
+
+    global _LATEST_PRICES
+    _LATEST_PRICES = {
+        t: float(info.get("last_price"))
+        for t, info in snapshot.items()
+        if isinstance(info, dict)
+        and info.get("last_price") is not None
+    }
 
 
 # ───────────────────────────────────────────────────────────────

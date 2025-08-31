@@ -12,21 +12,21 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from backend.common import portfolio as portfolio_mod
 from backend.common import (
+    constants,
     data_loader,
     group_portfolio,
     instrument_api,
-    constants,
     portfolio_utils,
     prices,
-    risk
+    risk,
 )
+from backend.common import portfolio as portfolio_mod
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -50,6 +50,20 @@ class GroupSummary(BaseModel):
     slug: str
     name: str
     members: List[str] = Field(default_factory=list)
+
+
+class Mover(BaseModel):
+    ticker: str
+    name: str
+    change_pct: float
+    last_price_gbp: Optional[float] = None
+    last_price_date: Optional[str] = None
+    market_value_gbp: Optional[float] = None
+
+
+class MoversResponse(BaseModel):
+    gainers: List[Mover] = Field(default_factory=list)
+    losers: List[Mover] = Field(default_factory=list)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -174,24 +188,30 @@ async def portfolio_group(slug: str):
 @router.get("/portfolio-group/{slug}/instruments")
 async def group_instruments(slug: str):
     """Return holdings for the group aggregated by ticker."""
-
-    gp = group_portfolio.build_group_portfolio(slug)
+    try:
+        gp = group_portfolio.build_group_portfolio(slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_ticker(gp)
 
 
 @router.get("/portfolio-group/{slug}/sectors")
 async def group_sectors(slug: str):
     """Return return contribution aggregated by sector."""
-
-    gp = group_portfolio.build_group_portfolio(slug)
+    try:
+        gp = group_portfolio.build_group_portfolio(slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_sector(gp)
 
 
 @router.get("/portfolio-group/{slug}/regions")
 async def group_regions(slug: str):
     """Return return contribution aggregated by region."""
-
-    gp = group_portfolio.build_group_portfolio(slug)
+    try:
+        gp = group_portfolio.build_group_portfolio(slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_region(gp)
 
 
@@ -236,14 +256,28 @@ def _enrich_movers_with_market_values(
     return movers
 
 
-@router.get("/portfolio-group/{slug}/movers")
+@router.get(
+    "/portfolio-group/{slug}/movers",
+    response_model=MoversResponse,
+    responses={
+        200: {
+            "description": (
+                "Top gainers and losers for a group portfolio. "
+                'Returns {"gainers": [], "losers": []} if the group holds no tickers.'
+            )
+        }
+    },
+)
 async def group_movers(
     slug: str,
     days: int = Query(1, description="Lookback window"),
     limit: int = Query(10, description="Max results per side", le=100),
     min_weight: float = Query(0.0, description="Exclude positions below this percent"),
 ):
-    """Return top gainers and losers for a group portfolio."""
+    """Return top gainers and losers for a group portfolio.
+
+    If the group has no holdings, the endpoint returns ``{"gainers": [], "losers": []}``.
+    """
 
     if days not in _ALLOWED_DAYS:
         raise HTTPException(status_code=400, detail="Invalid days")
@@ -258,6 +292,8 @@ async def group_movers(
 
     market_values = {}
     tickers = []
+    weight_values = {}
+    total_mv = 0.0
     for s in summaries:
         t = s.get(KEY_TICKER)
         if not t:
@@ -265,32 +301,28 @@ async def group_movers(
         tickers.append(t)
         mv = s.get(KEY_MARKET_VALUE_GBP)
         if mv is not None:
+            t_upper = t.upper()
+            market_values[t_upper] = mv
+            market_values[t_upper.split(".")[0]] = mv
+            weight_values[t] = mv
+            total_mv += mv
             base = t.upper().split(".")[0]
             market_values[base] = mv
 
     if not tickers:
         return {KEY_GAINERS: [], KEY_LOSERS: []}
 
-    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
-    # Compute weights in percent proportional to each instrument's market value.
-    # ``total_mv`` is the sum of all ``market_value_gbp`` values.
-
     # Compute weights in percent for filtering
     total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries if s.get("ticker"))
 
-    
-    # Compute equal weights in percent for filtering
-    n = len(tickers)
-    weight = 100.0 / n if n else 0.0
+    # Compute weights in percent proportional to each instrument's market value.
+    # ``total_mv`` is the sum of all ``market_value_gbp`` values.
 
-    # Compute weights in percent for filtering
-    weight_map = {
-        s[KEY_TICKER]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
-        if total_mv
-        else 0.0
-        for s in summaries
-        if s.get(KEY_TICKER)
-    }
+    if total_mv:
+        weight_map = {t: mv / total_mv * 100.0 for t, mv in weight_values.items()}
+    else:
+        n = len(tickers)
+        weight_map = {t: 100.0 / n for t in tickers}
 
     movers = instrument_api.top_movers(
         tickers,
@@ -301,6 +333,7 @@ async def group_movers(
     )
 
     return _enrich_movers_with_market_values(movers, market_values)
+
 
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str):

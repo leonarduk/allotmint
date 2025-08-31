@@ -289,6 +289,8 @@ def _memoized_range_cached(
     start_iso: str,
     end_iso: str,
 ) -> pd.DataFrame:
+    global OFFLINE_MODE
+
     start_date = datetime.fromisoformat(start_iso).date()
     end_date = datetime.fromisoformat(end_iso).date()
     span_days = (end_date - start_date).days + 1
@@ -298,15 +300,31 @@ def _memoized_range_cached(
     if OFFLINE_MODE:
         cache_path = str(meta_timeseries_cache_path(ticker, exchange))
         existing = _load_parquet(cache_path)
-        if existing.empty:
-            logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
-            return _empty_ts()
-        ex = existing.copy()
-        ex["Date"] = ex["Date"].dt.date
-        mask = (ex["Date"] >= start_date) & (ex["Date"] <= end_date)
-        return _ensure_schema(ex.loc[mask].reset_index(drop=True))
+        # When running in offline mode we normally expect a cached copy to be
+        # present. If it's missing we should not attempt any live fetches here
+        # and simply return an empty frame. Higher-level helpers may decide to
+        # temporarily disable offline mode and retry if they want a fallback.
+        if not existing.empty:
+            ex = existing.copy()
+            ex["Date"] = ex["Date"].dt.date
+            mask = (ex["Date"] >= start_date) & (ex["Date"] <= end_date)
+            return _ensure_schema(ex.loc[mask].reset_index(drop=True))
+        logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
 
-    superset = load_meta_timeseries(ticker, exchange, days_needed)
+        # Temporarily disable offline mode so the live loader can fetch data.
+        prev_offline_mode = config.offline_mode
+        prev_global = OFFLINE_MODE
+        try:
+            config.offline_mode = False
+            OFFLINE_MODE = False
+            superset = load_meta_timeseries(ticker, exchange, days_needed)
+        finally:
+            config.offline_mode = prev_offline_mode
+            OFFLINE_MODE = prev_global
+    else:
+        # Either not in offline mode or cache miss above – fetch from the standard
+        # loader, which callers are free to monkeypatch in tests.
+        superset = load_meta_timeseries(ticker, exchange, days_needed)
     if superset.empty or "Date" not in superset.columns:
         return _empty_ts()
 
@@ -353,8 +371,20 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
             except Exception as exc:
                 logger.warning("FX proxy fetch failed for %s: %s", currency, exc)
 
+        # If we still have no rates, fall back to the normal fetcher.  Tests
+        # monkeypatch this function so no real network calls occur.
         if fx.empty:
-            raise ValueError(f"Offline mode: no FX rates for {currency}")
+            try:
+                fx = fetch_fx_rate_range(currency, start, end).copy()
+                if fx.empty:
+                    raise ValueError(
+                        f"Offline mode: no FX rates for {currency}"
+                    )
+                fx["Date"] = pd.to_datetime(fx["Date"])
+            except Exception as exc:
+                raise ValueError(
+                    f"Offline mode: no FX rates for {currency}"
+                ) from exc
 
         mask = (fx["Date"].dt.date >= start) & (fx["Date"].dt.date <= end)
         fx = fx.loc[mask]
@@ -384,7 +414,9 @@ def load_meta_timeseries_range(
     exchange: str,
     start_date: date,
     end_date: date,
+    _allow_fallback: bool = True,
 ) -> pd.DataFrame:
+    global OFFLINE_MODE
     for offset in range(0, 5):  # try same day, 1-day back, 2-day back...
         s = start_date - timedelta(days=offset)
         e = end_date - timedelta(days=offset)
@@ -396,6 +428,21 @@ def load_meta_timeseries_range(
                 logger.warning("Skipping FX conversion for %s.%s: %s", ticker, exchange, exc)
                 return _empty_ts()
             return df
+
+    if _allow_fallback and (OFFLINE_MODE or config.offline_mode):
+        prev_offline_mode = config.offline_mode
+        prev_global = OFFLINE_MODE
+        try:
+            config.offline_mode = False
+            OFFLINE_MODE = False
+            _memoized_range_cached.cache_clear()
+            return load_meta_timeseries_range(
+                ticker, exchange, start_date, end_date, _allow_fallback=False
+            )
+        finally:
+            config.offline_mode = prev_offline_mode
+            OFFLINE_MODE = prev_global
+
     return _empty_ts()
 
 

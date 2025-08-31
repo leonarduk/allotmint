@@ -190,10 +190,10 @@ export function HoldingsTable({
 
   return (
     <>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div className="mb-2">
         {t("holdingsTable.range")}
         {[7, 30, 180].map((d) => (
-          <label key={d} style={{ marginLeft: "0.5rem" }}>
+          <label key={d} className="ml-2">
             <input
               type="radio"
               name="sparkRange"
@@ -204,27 +204,24 @@ export function HoldingsTable({
           </label>
         ))}
       </div>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div className="mb-2">
         {t("holdingsTable.view")}
         {viewPresets.map((p) => (
           <button
             key={p.label}
             type="button"
             onClick={() => setViewPreset(p.value)}
-            style={{
-              marginLeft: "0.5rem",
-              fontWeight: viewPreset === p.value ? "bold" : "normal",
-            }}
+            className={`ml-2 ${viewPreset === p.value ? 'font-bold' : ''}`}
           >
             {p.label}
           </button>
         ))}
       </div>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div className="mb-2">
         {t("holdingsTable.quickFilters")}
         <button
           type="button"
-          style={{ marginLeft: "0.5rem" }}
+          className="ml-2"
           onClick={() => handleFilterChange("sell_eligible", "true")}
         >
           {t("holdingsTable.quickFiltersSellEligible")}
@@ -234,13 +231,13 @@ export function HoldingsTable({
           placeholder={t("holdingsTable.minimumGainPrompt")}
           value={filters.gain_pct}
           onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
-          style={{ marginLeft: "0.5rem" }}
+          className="ml-2"
         />
       </div>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div className="mb-2">
         {t("holdingsTable.columnsLabel")}
         {columnLabels.map(([key, label]) => (
-          <label key={key} style={{ marginLeft: "0.5rem" }}>
+          <label key={key} className="ml-2">
             <input
               type="checkbox"
               checked={visibleColumns[key]}
@@ -251,11 +248,8 @@ export function HoldingsTable({
         ))}
       </div>
       {sortedRows.length ? (
-        <div
-          ref={tableContainerRef}
-          style={{ maxHeight: "400px", overflowY: "auto", marginBottom: "1rem" }}
-        >
-        <table className={tableStyles.table}>
+        <div className="overflow-x-auto md:overflow-visible">
+          <table className={`${tableStyles.table} mb-4 w-full`}>
         <thead ref={tableHeaderRef}>
           <tr>
             <th className={tableStyles.cell}>
@@ -385,7 +379,7 @@ export function HoldingsTable({
         <tbody>
           {paddingTop > 0 && (
             <tr style={{ height: paddingTop }}>
-              <td colSpan={20} style={{ padding: 0, border: "none" }} />
+              <td colSpan={20} className="p-0 border-0" />
             </tr>
           )}
           {items.map((virtualRow) => {
@@ -398,21 +392,13 @@ export function HoldingsTable({
                   <button
                     type="button"
                     onClick={handleClick}
-                    style={{
-                      color: "dodgerblue",
-                      textDecoration: "underline",
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      font: "inherit",
-                      cursor: "pointer",
-                    }}
+                    className="link-button"
                   >
                     {h.ticker}
                   </button>
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
-                <td className={tableStyles.cell} style={{ width: "80px" }}>
+                <td className={`${tableStyles.cell} w-20`}>
                   {sparks[h.ticker]?.[String(sparkRange)]?.length ? (
                     <ResponsiveContainer width="100%" height={40}>
                       <LineChart data={sparks[h.ticker][String(sparkRange)]} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
@@ -428,15 +414,7 @@ export function HoldingsTable({
                       onClick={() =>
                         onSelectInstrument?.(`${h.currency!}GBP.FX`, h.currency!)
                       }
-                      style={{
-                        color: "dodgerblue",
-                        textDecoration: "underline",
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        font: "inherit",
-                        cursor: "pointer",
-                      }}
+                      className="link-button"
                     >
                       {h.currency}
                     </button>
@@ -465,7 +443,7 @@ export function HoldingsTable({
                     </span>
                   )}
                   {h.latest_source && (
-                    <span style={{ marginLeft: "0.25rem", color: "gray" }}>
+                    <span className="ml-1 text-gray">
                       {t("holdingsTable.source")} {h.latest_source}
                     </span>
                   )}
@@ -485,16 +463,14 @@ export function HoldingsTable({
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{ color: (h.gain ?? 0) >= 0 ? "lightgreen" : "red" }}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${(h.gain ?? 0) >= 0 ? 'text-positive' : 'text-negative'}`}
                   >
                     {money(h.gain)}
                   </td>
                 )}
                 {visibleColumns.gain_pct && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{ color: (h.gain_pct ?? 0) >= 0 ? "lightgreen" : "red" }}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${(h.gain_pct ?? 0) >= 0 ? 'text-positive' : 'text-negative'}`}
                   >
                     {percent(h.gain_pct ?? 0, 1)}
                   </td>
@@ -513,8 +489,7 @@ export function HoldingsTable({
                   {h.days_held ?? "—"}
                 </td>
                 <td
-                  className={`${tableStyles.cell} ${tableStyles.center}`}
-                  style={{ color: h.sell_eligible ? "lightgreen" : "gold" }}
+                  className={`${tableStyles.cell} ${tableStyles.center} ${h.sell_eligible ? 'text-positive' : 'text-warning'}`}
                   title={
                     h.next_eligible_sell_date
                       ? new Intl.DateTimeFormat(i18n.language).format(
@@ -532,7 +507,7 @@ export function HoldingsTable({
           })}
           {paddingBottom > 0 && (
             <tr style={{ height: paddingBottom }}>
-              <td colSpan={20} style={{ padding: 0, border: "none" }} />
+              <td colSpan={20} className="p-0 border-0" />
             </tr>
           )}
         </tbody>

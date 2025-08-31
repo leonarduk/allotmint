@@ -149,6 +149,7 @@ export interface Transaction {
     amount_minor?: number | null;
     currency?: string | null;
     security_ref?: string | null;
+    ticker?: string | null;
     shares?: number | null;
 }
 

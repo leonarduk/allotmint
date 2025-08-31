@@ -1,4 +1,5 @@
 """API endpoints exposing portfolio performance metrics."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
@@ -48,7 +49,7 @@ async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     try:
         val = portfolio_utils.compute_group_alpha_vs_benchmark(slug, benchmark, days)
         return {"group": slug, "benchmark": benchmark, "alpha_vs_benchmark": val}
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
 
@@ -58,7 +59,7 @@ async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int =
     try:
         val = portfolio_utils.compute_group_tracking_error(slug, benchmark, days)
         return {"group": slug, "benchmark": benchmark, "tracking_error": val}
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
 
@@ -68,10 +69,10 @@ async def group_max_drawdown(slug: str, days: int = 365):
     try:
         val = portfolio_utils.compute_group_max_drawdown(slug, days)
         return {"group": slug, "max_drawdown": val}
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
-        
+
 @router.get("/performance/{owner}")
 async def performance(owner: str, days: int = 365, exclude_cash: bool = False):
     """Return portfolio performance metrics for ``owner``.
@@ -80,9 +81,7 @@ async def performance(owner: str, days: int = 365, exclude_cash: bool = False):
     return series.
     """
     try:
-        result = portfolio_utils.compute_owner_performance(
-            owner, days=days, include_cash=not exclude_cash
-        )
+        result = portfolio_utils.compute_owner_performance(owner, days=days, include_cash=not exclude_cash)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
     return {"owner": owner, **result}

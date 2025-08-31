@@ -101,13 +101,13 @@ export function VirtualPortfolio() {
   }
 
   return (
-    <div>
-      <h1>Virtual Portfolios</h1>
+    <div className="container mx-auto p-4">
+      <h1 className="mb-4 text-2xl md:text-4xl">Virtual Portfolios</h1>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      {message && <p style={{ color: "green" }}>{message}</p>}
+      {error && <p className="text-red-500">{error}</p>}
+      {message && <p className="text-green-600">{message}</p>}
 
-      <div style={{ marginBottom: "1rem" }}>
+      <div className="mb-4">
         <label>
           Select
           <select
@@ -116,7 +116,7 @@ export function VirtualPortfolio() {
               const id = e.target.value ? Number(e.target.value) : null;
               if (id) load(id);
             }}
-            style={{ marginLeft: "0.5rem" }}
+            className="ml-2"
           >
             <option value="">New…</option>
             {portfolios.map((p) => (
@@ -128,7 +128,7 @@ export function VirtualPortfolio() {
         </label>
       </div>
 
-      <div style={{ marginBottom: "1rem" }}>
+      <div className="mb-4">
         <label>
           Name
           <input
@@ -140,7 +140,7 @@ export function VirtualPortfolio() {
         </label>
       </div>
 
-      <fieldset style={{ marginBottom: "1rem" }}>
+      <fieldset className="mb-4">
         <legend>Include Accounts</legend>
         {owners.map((o) => (
           <div key={o.owner} style={{ marginBottom: "0.25rem" }}>
@@ -162,7 +162,7 @@ export function VirtualPortfolio() {
         ))}
       </fieldset>
 
-      <div style={{ marginBottom: "1rem" }}>
+      <div className="mb-4">
         <h3>Synthetic Holdings</h3>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -222,12 +222,12 @@ export function VirtualPortfolio() {
         </button>
       </div>
 
-      <div style={{ marginTop: "1rem" }}>
-        <button onClick={handleSave} style={{ marginRight: "0.5rem" }}>
+      <div className="mt-4">
+        <button onClick={handleSave} className="mr-2">
           Save
         </button>
         {selected != null && (
-          <button onClick={handleDelete} style={{ marginRight: "0.5rem" }}>
+          <button onClick={handleDelete} className="mr-2">
             Delete
           </button>
         )}

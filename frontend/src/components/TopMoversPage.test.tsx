@@ -152,7 +152,10 @@ describe("TopMoversPage", () => {
       </MemoryRouter>,
     );
 
-    const gainerCell = await screen.findByText("5.00");
+    const gainerCandidates = await screen.findAllByText("5.00");
+    const gainerCell = gainerCandidates.find(
+      (el) => (el as HTMLElement).style.color === "green",
+    ) as HTMLElement;
     const loserCell = await screen.findByText("-2.00");
     expect(gainerCell).toHaveStyle({ color: "rgb(0, 128, 0)" });
     expect(loserCell).toHaveStyle({ color: "rgb(255, 0, 0)" });

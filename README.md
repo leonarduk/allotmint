@@ -76,6 +76,20 @@ TELEGRAM_CHAT_ID=123456789                                  # optional
 Alternatively export variables in your shell. Unset variables simply disable
 their corresponding integrations.
 
+### Push notification keys
+
+Web push uses VAPID credentials which can be generated and persisted to AWS
+Parameter Store via `scripts/setup_vapid_keys.py`. The script creates public and
+private key parameters (`/allotmint/vapid/public` and
+`/allotmint/vapid/private` by default) when they are missing.
+
+### Mobile wrappers
+
+For a more app-like experience on iOS and Android consider building thin
+wrappers with [Capacitor](https://capacitorjs.com/) or similar tooling. This
+simplifies installation and enables more reliable notifications on mobile
+devices.
+
 ## Page cache
 
 Expensive API routes cache their JSON responses under `data/cache/<page>.json`.

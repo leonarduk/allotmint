@@ -1,14 +1,11 @@
-from fastapi.testclient import TestClient
-
 import pytest
+from fastapi.testclient import TestClient
 
 import backend.common.instrument_api as ia
 from backend.local_api.main import app
 
 client = TestClient(app)
-token = client.post(
-    "/token", data={"username": "testuser", "password": "password"}
-).json()["access_token"]
+token = client.post("/token", data={"username": "testuser", "password": "password"}).json()["access_token"]
 client.headers.update({"Authorization": f"Bearer {token}"})
 
 
@@ -26,9 +23,10 @@ def test_group_movers_endpoint(monkeypatch):
         assert days == 7
         assert limit == 5
         assert min_weight == 0.5
-        assert weights["AAA"] == pytest.approx(57.142857, rel=1e-6)
-        assert weights["BBB"] == pytest.approx(28.571429, rel=1e-6)
-        assert weights["CCC"] == pytest.approx(14.285714, rel=1e-6)
+        total = 100.0 + 50.0 + 25.0
+        assert weights["AAA"] == pytest.approx(100.0 / total * 100)
+        assert weights["BBB"] == pytest.approx(50.0 / total * 100)
+        assert weights["CCC"] == pytest.approx(25.0 / total * 100)
         return {
             "gainers": [{"ticker": "AAA", "name": "AAA", "change_pct": 5}],
             "losers": [{"ticker": "BBB", "name": "BBB", "change_pct": -3}],
@@ -45,6 +43,17 @@ def test_group_movers_endpoint(monkeypatch):
     assert data["gainers"][0]["market_value_gbp"] == 100.0
     assert data["losers"][0]["market_value_gbp"] == 50.0
 
+
+def test_group_movers_endpoint_empty(monkeypatch):
+    def fake_summaries(slug: str):
+        assert slug == "demo"
+        return []
+
+    monkeypatch.setattr(ia, "instrument_summaries_for_group", fake_summaries)
+
+    resp = client.get("/portfolio-group/demo/movers")
+    assert resp.status_code == 200
+    assert resp.json() == {"gainers": [], "losers": []}
 
 def test_group_movers_limit_too_high():
     resp = client.get("/portfolio-group/demo/movers?limit=101")

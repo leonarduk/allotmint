@@ -98,32 +98,35 @@ function QuerySection() {
   }
 
   return (
-    <div>
-      <form onSubmit={handleSubmit} style={{ marginBottom: "1rem" }}>
-        <label style={{ marginRight: "0.5rem" }}>
+    <div className="container mx-auto p-4">
+      <form
+        onSubmit={handleSubmit}
+        className="mb-4 flex flex-wrap items-center gap-2"
+      >
+        <label className="mr-2">
           {t("query.start")}
           <input
             aria-label={t("query.start")}
             type="date"
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            style={{ marginLeft: "0.25rem" }}
+            className="ml-1"
           />
         </label>
-        <label style={{ marginRight: "0.5rem" }}>
+        <label className="mr-2">
           {t("query.end")}
           <input
             aria-label={t("query.end")}
             type="date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            style={{ marginLeft: "0.25rem" }}
+            className="ml-1"
           />
         </label>
-        <fieldset style={{ marginBottom: "1rem" }}>
+        <fieldset className="mb-4">
           <legend>{t("query.owners")}</legend>
           {owners?.map((o) => (
-            <label key={o.owner} style={{ marginRight: "0.5rem" }}>
+            <label key={o.owner} className="mr-2">
               <input
                 type="checkbox"
                 aria-label={o.owner}
@@ -134,10 +137,10 @@ function QuerySection() {
             </label>
           ))}
         </fieldset>
-        <fieldset style={{ marginBottom: "1rem" }}>
+        <fieldset className="mb-4">
           <legend>{t("query.tickers")}</legend>
           {TICKER_OPTIONS.map((tkr) => (
-            <label key={tkr} style={{ marginRight: "0.5rem" }}>
+            <label key={tkr} className="mr-2">
               <input
                 type="checkbox"
                 aria-label={tkr}
@@ -148,10 +151,10 @@ function QuerySection() {
             </label>
           ))}
         </fieldset>
-        <fieldset style={{ marginBottom: "1rem" }}>
+        <fieldset className="mb-4">
           <legend>{t("query.metrics")}</legend>
           {METRIC_OPTIONS.map((m) => (
-            <label key={m} style={{ marginRight: "0.5rem" }}>
+            <label key={m} className="mr-2">
               <input
                 type="checkbox"
                 aria-label={m}
@@ -162,10 +165,10 @@ function QuerySection() {
             </label>
           ))}
         </fieldset>
-        <button type="submit" disabled={loading} style={{ marginRight: "0.5rem" }}>
+        <button type="submit" disabled={loading} className="mr-2">
           {loading ? t("query.running") : t("query.run")}
         </button>
-        <button type="button" onClick={handleSave} style={{ marginRight: "0.5rem" }}>
+        <button type="button" onClick={handleSave} className="mr-2">
           {t("query.save")}
         </button>
         {rows.length > 0 && (
@@ -175,9 +178,9 @@ function QuerySection() {
           </span>
         )}
       </form>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p className="text-red-500">{error}</p>}
       {rows.length > 0 && (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table className="w-full border-collapse">
           <thead>
             <tr>
               {columns.map((c) => (
@@ -211,9 +214,9 @@ function QuerySection() {
 
 export function ScreenerQuery() {
   return (
-    <div>
+    <div className="space-y-8">
       <Screener />
-      <hr style={{ margin: "2rem 0" }} />
+      <hr className="my-8" />
       <QuerySection />
     </div>
   );

@@ -24,6 +24,7 @@ from backend.common.portfolio_utils import (
 from backend.config import config
 from backend.routes.agent import router as agent_router
 from backend.routes.alerts import router as alerts_router
+from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
 from backend.routes.instrument import router as instrument_router
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(timeseries_admin_router, dependencies=protected)
     app.include_router(transactions_router, dependencies=protected)
     app.include_router(alerts_router)
+    app.include_router(alert_settings_router)
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(support_router)

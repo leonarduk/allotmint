@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
@@ -18,6 +19,7 @@ from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
 
+from backend.common import group_portfolio
 from backend.common import portfolio as portfolio_mod
 from backend.common.instruments import get_instrument_meta
 from backend.common.portfolio_loader import list_portfolios  # existing helper
@@ -256,9 +258,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
             else:
                 sym, inferred = (tkr.split(".", 1) + [None])[:2]
                 if not h.get("exchange"):
-                    logger.debug(
-                        "Could not resolve exchange for %s; defaulting to L", tkr
-                    )
+                    logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
             exch = (h.get("exchange") or inferred or "L").upper()
             full_tkr = f"{sym}.{exch}"
 
@@ -447,9 +447,7 @@ def compute_owner_performance(
             else:
                 sym, inferred = (tkr.split(".", 1) + [None])[:2]
                 if not h.get("exchange"):
-                    logger.debug(
-                        "Could not resolve exchange for %s; defaulting to L", tkr
-                    )
+                    logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
             exch = (h.get("exchange") or inferred or "L").upper()
             full = f"{sym}.{exch}".upper()
             if not include_flagged and full in flagged:
@@ -506,6 +504,130 @@ def compute_owner_performance(
         )
 
     return {"history": out, "max_drawdown": max_drawdown}
+
+
+def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) -> pd.Series:
+    """Helper to compute daily portfolio values for an owner or group."""
+
+    if group:
+        pf = group_portfolio.build_group_portfolio(name)
+    else:
+        pf = portfolio_mod.build_owner_portfolio(name)
+
+    from backend.common import instrument_api
+
+    holdings: List[tuple[str, str, float]] = []
+    for acct in pf.get("accounts", []):
+        for h in acct.get("holdings", []):
+            tkr = (h.get("ticker") or "").upper()
+            if not tkr:
+                continue
+            units = _safe_num(h.get("units"))
+            if not units:
+                continue
+            resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
+            if resolved:
+                sym, inferred = resolved
+            else:
+                sym, inferred = (tkr.split(".", 1) + [None])[:2]
+                if not h.get("exchange"):
+                    logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
+            exch = (h.get("exchange") or inferred or "L").upper()
+            holdings.append((sym, exch, units))
+
+    total = pd.Series(dtype=float)
+    for ticker, exchange, units in holdings:
+        df = load_meta_timeseries(ticker, exchange, days)
+        if df.empty or "Date" not in df.columns or "Close" not in df.columns:
+            continue
+        df = df[["Date", "Close"]].copy()
+        df["Date"] = pd.to_datetime(df["Date"]).dt.date
+        values = df.set_index("Date")["Close"] * units
+        total = total.add(values, fill_value=0)
+
+    return total.sort_index()
+
+
+def _alpha_vs_benchmark(name: str, benchmark: str, days: int = 365, *, group: bool = False) -> float | None:
+    total = _portfolio_value_series(name, days, group=group)
+    if total.empty:
+        return None
+    port_ret = total.pct_change().dropna()
+
+    bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
+    df = load_meta_timeseries(bench_tkr, bench_exch, days)
+    if df.empty or "Close" not in df.columns or "Date" not in df.columns:
+        return None
+    df = df[["Date", "Close"]].copy()
+    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    bench_ret = df.set_index("Date")["Close"].pct_change().dropna()
+
+    port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
+    if port_ret.empty:
+        return None
+
+    port_cum = (1 + port_ret).prod() - 1
+    bench_cum = (1 + bench_ret).prod() - 1
+    return float(port_cum - bench_cum)
+
+
+def _tracking_error(name: str, benchmark: str, days: int = 365, *, group: bool = False) -> float | None:
+    total = _portfolio_value_series(name, days, group=group)
+    if total.empty:
+        return None
+    port_ret = total.pct_change().dropna()
+
+    bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
+    df = load_meta_timeseries(bench_tkr, bench_exch, days)
+    if df.empty or "Close" not in df.columns or "Date" not in df.columns:
+        return None
+    df = df[["Date", "Close"]].copy()
+    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    bench_ret = df.set_index("Date")["Close"].pct_change().dropna()
+
+    port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
+    if port_ret.empty:
+        return None
+    diff = port_ret - bench_ret
+    if diff.count() < 2:
+        return None
+    std = diff.std()
+    if not math.isfinite(std):
+        return None
+    return float(std)
+
+
+def _max_drawdown(name: str, days: int = 365, *, group: bool = False) -> float | None:
+    total = _portfolio_value_series(name, days, group=group)
+    if total.empty:
+        return None
+    running_max = total.cummax()
+    drawdown = total / running_max - 1
+    return float(drawdown.min())
+
+
+def compute_alpha_vs_benchmark(owner: str, benchmark: str, days: int = 365) -> float | None:
+    return _alpha_vs_benchmark(owner, benchmark, days)
+
+
+def compute_group_alpha_vs_benchmark(slug: str, benchmark: str, days: int = 365) -> float | None:
+    return _alpha_vs_benchmark(slug, benchmark, days, group=True)
+
+
+def compute_tracking_error(owner: str, benchmark: str, days: int = 365) -> float | None:
+    return _tracking_error(owner, benchmark, days)
+
+
+def compute_group_tracking_error(slug: str, benchmark: str, days: int = 365) -> float | None:
+    return _tracking_error(slug, benchmark, days, group=True)
+
+
+def compute_max_drawdown(owner: str, days: int = 365) -> float | None:
+    return _max_drawdown(owner, days)
+
+
+def compute_group_max_drawdown(slug: str, days: int = 365) -> float | None:
+    return _max_drawdown(slug, days, group=True)
 
 
 # ──────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 // src/components/GroupPortfolioView.tsx
 import { useState, useEffect, useCallback } from "react";
+
 import type {
   GroupPortfolio,
   Account,
@@ -8,7 +9,9 @@ import type {
 } from "../types";
 import {
   getGroupPortfolio,
-  getGroupSectorContributions,
+  getGroupAlphaVsBenchmark,
+  getGroupTrackingError,
+  getGroupMaxDrawdown,getGroupSectorContributions,
   getGroupRegionContributions,
 } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
@@ -81,6 +84,9 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   const { t } = useTranslation();
   const { relativeViewEnabled } = useConfig();
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [alpha, setAlpha] = useState<number | null>(null);
+  const [trackingError, setTrackingError] = useState<number | null>(null);
+  const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [contribTab, setContribTab] = useState<"sector" | "region">("sector");
 
   // helper to derive a stable key for each account
@@ -95,6 +101,20 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   }, [portfolio]);
 
   useEffect(() => {
+    if (!slug) return;
+    Promise.all([
+      getGroupAlphaVsBenchmark(slug, "VWRL.L"),
+      getGroupTrackingError(slug, "VWRL.L"),
+      getGroupMaxDrawdown(slug),
+    ])
+      .then(([a, te, md]) => {
+        setAlpha(a.alpha_vs_benchmark);
+        setTrackingError(te.tracking_error);
+        setMaxDrawdown(md.max_drawdown);
+      })
+      .catch(() => {});
+  }, [slug]);
+
     if (onTradeInfo) {
       onTradeInfo(
         portfolio
@@ -184,6 +204,37 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   return (
     <div style={{ marginTop: "1rem" }}>
       <h2>{portfolio.name}</h2>
+
+      <div
+        style={{
+          display: "flex",
+          gap: "2rem",
+          marginBottom: "1rem",
+          padding: "0.75rem 1rem",
+          backgroundColor: "#222",
+          border: "1px solid #444",
+          borderRadius: "6px",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Alpha vs Benchmark</div>
+          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+            {percent(alpha != null ? alpha * 100 : null)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Tracking Error</div>
+          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+            {percent(trackingError != null ? trackingError * 100 : null)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
+          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+            {percent(maxDrawdown != null ? maxDrawdown * 100 : null)}
+          </div>
+        </div>
+      </div>
 
       {typeRows.length > 0 && (
         <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>

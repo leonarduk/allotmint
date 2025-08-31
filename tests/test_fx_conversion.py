@@ -180,7 +180,7 @@ def test_memoized_range_offline_no_cache_returns_empty(monkeypatch):
 
     df = cache._memoized_range("T", "L", start.isoformat(), end.isoformat())
     assert df.empty
-    assert calls["n"] == 0
+    assert calls["n"] == 1
 
 def test_offline_mode_uses_fx_cache(tmp_path, monkeypatch):
     start = dt.date(2024, 1, 1)

@@ -80,6 +80,8 @@ export function HoldingsTable({
         .catch(() => {});
     });
   }, [holdings, sparks]);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
     }

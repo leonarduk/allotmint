@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { refreshPrices, getPortfolio, getGroupInstruments } from "../api";
 import type { Mode } from "../modes";
 import type { Portfolio, InstrumentSummary } from "../types";
+import { usePriceRefresh } from "../PriceRefreshContext";
 
 interface Props {
   mode: Mode;
@@ -21,7 +22,7 @@ export function PriceRefreshControls({
 }: Props) {
   const { t } = useTranslation();
   const [refreshing, setRefreshing] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState<string | null>(null);
+  const { lastRefresh, setLastRefresh } = usePriceRefresh();
   const [error, setError] = useState<string | null>(null);
 
   async function handleRefresh() {

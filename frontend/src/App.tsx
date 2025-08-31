@@ -37,6 +37,7 @@ import DataAdmin from "./pages/DataAdmin";
 import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
 import { orderedTabPlugins } from "./tabPlugins";
+import { usePriceRefresh } from "./PriceRefreshContext";
 type Mode = (typeof orderedTabPlugins)[number]["id"];
 
 // derive initial mode + id from path
@@ -81,9 +82,10 @@ export default function App() {
   const [err, setErr] = useState<string | null>(null);
 
   const [refreshingPrices, setRefreshingPrices] = useState(false);
-  const [lastPriceRefresh, setLastPriceRefresh] = useState<string | null>(null);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
   const [backendUnavailable, setBackendUnavailable] = useState(false);
+
+  const { lastRefresh, setLastRefresh } = usePriceRefresh();
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
@@ -240,7 +242,7 @@ export default function App() {
     setPriceRefreshError(null);
     try {
       const resp = await refreshPrices();
-      setLastPriceRefresh(resp.timestamp ?? new Date().toISOString());
+      setLastRefresh(resp.timestamp ?? new Date().toISOString());
 
       if (mode === "owner" && selectedOwner) {
         setPortfolio(await getPortfolio(selectedOwner));
@@ -266,35 +268,44 @@ export default function App() {
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <LanguageSwitcher />
       <AlertsPanel />
-      <nav style={{ margin: "1rem 0" }}>
-        {orderedTabPlugins
-          .slice()
-          .sort((a, b) => a.priority - b.priority)
-          .filter((p) => tabs[p.id] !== false)
-          .map((p) => (
-            <Link
-              key={p.id}
-              to={pathFor(p.id)}
-              style={{
-                marginRight: "1rem",
-                fontWeight: mode === p.id ? "bold" : undefined,
-              }}
-            >
-              {t(`app.modes.${p.id}`)}
-            </Link>
-          ))}
-      </nav>
+      <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
+        <nav style={{ flexGrow: 1 }}>
+          {orderedTabPlugins
+            .slice()
+            .sort((a, b) => a.priority - b.priority)
+            .filter((p) => tabs[p.id] !== false)
+            .map((p) => (
+              <Link
+                key={p.id}
+                to={pathFor(p.id)}
+                style={{
+                  marginRight: "1rem",
+                  fontWeight: mode === p.id ? "bold" : undefined,
+                }}
+              >
+                {t(`app.modes.${p.id}`)}
+              </Link>
+            ))}
+        </nav>
+        {lastRefresh && (
+          <span
+            style={{
+              background: "#eee",
+              borderRadius: "1rem",
+              padding: "0.25rem 0.5rem",
+              fontSize: "0.75rem",
+            }}
+            title={t("app.last") ?? undefined}
+          >
+            {new Date(lastRefresh).toLocaleString()}
+          </span>
+        )}
+      </div>
 
       <div style={{ marginBottom: "1rem" }}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
           {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
         </button>
-        {lastPriceRefresh && (
-          <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
-            {t("app.last")}{" "}
-            {new Date(lastPriceRefresh).toLocaleString()}
-          </span>
-        )}
         {priceRefreshError && (
           <span style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}>
             {priceRefreshError}

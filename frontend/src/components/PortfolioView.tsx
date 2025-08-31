@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import type { Portfolio, Account } from "../types";
 import { AccountBlock } from "./AccountBlock";
 import { ValueAtRisk } from "./ValueAtRisk";
 import { money } from "../lib/money";
 import i18n from "../i18n";
+import { complianceForOwner } from "../api";
 
 // Props accepted by the view. `data` is null until a portfolio is loaded.
 type Props = {
@@ -21,12 +23,33 @@ type Props = {
  */
 export function PortfolioView({ data, loading, error }: Props) {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [hasWarnings, setHasWarnings] = useState(false);
 
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
 
   useEffect(() => {
     setSelectedAccounts(data ? data.accounts.map(accountKey) : []);
   }, [data]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      if (!data?.owner) {
+        setHasWarnings(false);
+        return;
+      }
+      try {
+        const res = await complianceForOwner(data.owner);
+        if (!cancelled) setHasWarnings(res.warnings.length > 0);
+      } catch {
+        if (!cancelled) setHasWarnings(false);
+      }
+    }
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.owner]);
 
   if (loading) return <div>Loading portfolio…</div>; // show a quick spinner
   if (error) return <div className="text-error">{error}</div>; // bubble errors
@@ -56,6 +79,11 @@ export function PortfolioView({ data, loading, error }: Props) {
       <div className="mb-8">
         Approx Total: {money(totalValue)}
       </div>
+      {hasWarnings && (
+        <div style={{ marginBottom: "1rem" }}>
+          <Link to={`/compliance/${data.owner}`}>View compliance warnings</Link>
+        </div>
+      )}
       <ValueAtRisk owner={data.owner} />
       {/* Each account is rendered using AccountBlock for clarity */}
       {data.accounts.map((acct, idx) => {

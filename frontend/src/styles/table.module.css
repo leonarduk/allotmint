@@ -3,6 +3,13 @@
   border-collapse: collapse;
 }
 
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: inherit;
+}
+
 .cell {
   padding: 4px 6px;
 }
@@ -17,4 +24,13 @@
 
 .clickable {
   cursor: pointer;
+}
+
+.badge {
+  margin-left: 0.25rem;
+  background-color: #444;
+  color: white;
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 0.75rem;
 }

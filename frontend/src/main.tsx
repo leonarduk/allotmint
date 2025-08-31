@@ -10,18 +10,21 @@ import Reports from './pages/Reports'
 import Support from './pages/Support'
 import './i18n'
 import { ConfigProvider } from './ConfigContext'
+import { PriceRefreshProvider } from './PriceRefreshContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ConfigProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/support" element={<Support />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/virtual" element={<VirtualPortfolio />} />
-          <Route path="/*" element={<App />} />
-        </Routes>
-      </BrowserRouter>
+      <PriceRefreshProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/support" element={<Support />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/virtual" element={<VirtualPortfolio />} />
+            <Route path="/*" element={<App />} />
+          </Routes>
+        </BrowserRouter>
+      </PriceRefreshProvider>
     </ConfigProvider>
   </StrictMode>,
 )

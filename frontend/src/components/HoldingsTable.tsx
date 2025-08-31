@@ -8,6 +8,7 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { getInstrumentDetail } from "../api";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 
@@ -161,6 +162,32 @@ export function HoldingsTable({
     ["gain_pct", t("holdingsTable.columns.gainPct")],
   ];
 
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  useEffect(() => {
+    if (tableHeaderRef.current) {
+      setHeaderHeight(tableHeaderRef.current.getBoundingClientRect().height);
+    }
+  }, []);
+
+  const rowVirtualizer = useVirtualizer({
+    count: sortedRows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 40,
+    overscan: 5,
+    scrollMargin: headerHeight,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const paddingTop = virtualRows.length ? virtualRows[0].start : 0;
+  const paddingBottom = virtualRows.length
+    ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+    : 0;
+  const items = virtualRows.length
+    ? virtualRows
+    : sortedRows.map((_, index) => ({ index, start: index * 40, end: (index + 1) * 40 }));
+
   return (
     <>
       <div className="mb-2">
@@ -223,8 +250,8 @@ export function HoldingsTable({
       {sortedRows.length ? (
         <div className="table-responsive">
         <table className={`${tableStyles.table} mb-4`}>
-        <thead>
-          <tr>
+        <thead ref={tableHeaderRef}>
+>         <tr>
             <th className={tableStyles.cell}>
               <input
                 placeholder={t("holdingsTable.filters.ticker")}
@@ -350,8 +377,15 @@ export function HoldingsTable({
         </thead>
 
         <tbody>
-          {sortedRows.map((h) => {
-            const handleClick = () => onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+          {paddingTop > 0 && (
+            <tr style={{ height: paddingTop }}>
+              <td colSpan={20} style={{ padding: 0, border: "none" }} />
+            </tr>
+          )}
+          {items.map((virtualRow) => {
+            const h = sortedRows[virtualRow.index];
+            const handleClick = () =>
+              onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
             return (
               <tr key={h.ticker + h.acquired_date}>
                 <td className={tableStyles.cell}>
@@ -388,7 +422,9 @@ export function HoldingsTable({
                     h.currency ?? "—"
                   )}
                 </td>
-                <td className={tableStyles.cell}>{translateInstrumentType(t, h.instrument_type)}</td>
+                <td className={tableStyles.cell}>
+                  {translateInstrumentType(t, h.instrument_type)}
+                </td>
                 {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}
@@ -396,6 +432,16 @@ export function HoldingsTable({
                 )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {money(h.current_price_gbp)}
+                  {h.last_price_date && (
+                    <span
+                      className={tableStyles.badge}
+                      title={h.last_price_date}
+                    >
+                      {new Intl.DateTimeFormat(i18n.language).format(
+                        new Date(h.last_price_date),
+                      )}
+                    </span>
+                  )}
                   {h.latest_source && (
                     <span className="ml-1 text-gray">
                       {t("holdingsTable.source")} {h.latest_source}
@@ -411,7 +457,9 @@ export function HoldingsTable({
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.market && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.market)}</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {money(h.market)}
+                  </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td
@@ -427,13 +475,19 @@ export function HoldingsTable({
                     {percent(h.gain_pct ?? 0, 1)}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{percent(h.weight_pct ?? 0, 1)}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {percent(h.weight_pct ?? 0, 1)}
+                </td>
                 <td className={tableStyles.cell}>
                   {h.acquired_date && !isNaN(Date.parse(h.acquired_date))
-                    ? new Intl.DateTimeFormat(i18n.language).format(new Date(h.acquired_date))
+                    ? new Intl.DateTimeFormat(i18n.language).format(
+                        new Date(h.acquired_date),
+                      )
                     : "—"}
                 </td>
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{h.days_held ?? "—"}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {h.days_held ?? "—"}
+                </td>
                 <td
                   className={`${tableStyles.cell} ${tableStyles.center} ${h.sell_eligible ? 'text-positive' : 'text-warning'}`}
                   title={
@@ -451,6 +505,11 @@ export function HoldingsTable({
               </tr>
             );
           })}
+          {paddingBottom > 0 && (
+            <tr style={{ height: paddingBottom }}>
+              <td colSpan={20} style={{ padding: 0, border: "none" }} />
+            </tr>
+          )}
         </tbody>
         </table>
         </div>

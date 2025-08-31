@@ -1,5 +1,6 @@
 import hashlib
 import os
+from contextvars import ContextVar
 from typing import Optional
 
 import jwt
@@ -19,6 +20,12 @@ SECRET_KEY = os.getenv("JWT_SECRET", "change-me")
 ALGORITHM = "HS256"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# Context variable storing the username of the authenticated user.
+# This allows downstream helpers to detect whether a request is
+# authenticated without needing to thread the username through
+# every function call.
+current_user: ContextVar[str | None] = ContextVar("current_user", default=None)
 
 
 def authenticate_user(username: str, password: str) -> Optional[str]:
@@ -49,4 +56,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
         )
+    # Record the authenticated user for the duration of the request.
+    current_user.set(username)
     return username

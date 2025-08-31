@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
+from backend.auth import current_user
 
 
 # ------------------------------------------------------------------
@@ -60,8 +61,14 @@ def _list_local_plots(data_root: Optional[Path] = None) -> List[Dict[str, Any]]:
     if not root.exists():
         return results
 
+    user = current_user.get(None)
+
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
+            continue
+        # When authentication is enabled and no user is authenticated,
+        # expose only the "demo" account.
+        if not config.disable_auth and user is None and owner_dir.name != "demo":
             continue
 
         acct_names: List[str] = []

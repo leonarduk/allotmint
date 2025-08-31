@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.
     # Sensitive routes are guarded by a JWT-based dependency.
-    if config.disable_auth or not config.google_auth_enabled:
+    if config.disable_auth:
         protected = []
     else:
         protected = [Depends(get_current_user)]

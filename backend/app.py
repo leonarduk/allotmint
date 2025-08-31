@@ -10,8 +10,10 @@ by FastAPI.
 import asyncio
 import logging
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 from backend.auth import authenticate_user, create_access_token, get_current_user
@@ -103,6 +105,15 @@ def create_app() -> FastAPI:
     app.include_router(quotes_router)
     app.include_router(movers_router)
     app.include_router(scenario_router)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        """Return a 400 status for validation errors.
+
+        FastAPI's default is 422, but for query parameter issues a 400 response
+        is more appropriate for clients relying on standard HTTP semantics.
+        """
+        return JSONResponse(status_code=400, content={"detail": exc.errors()})
 
     @app.post("/token")
     async def login(form_data: OAuth2PasswordRequestForm = Depends()):

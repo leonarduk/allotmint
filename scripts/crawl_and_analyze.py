@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-"""Capture menu page screenshots and analyze them with a GPT model."""
+"""Crawl a site, capture page screenshots, and optionally analyze them.
+
+This script performs a breadth‑first crawl starting from one or more URLs and
+captures a screenshot of each page discovered within the same domain. The
+screenshots can then be sent to a GPT model for analysis.
+"""
 
 import argparse
 import asyncio
 import base64
+from collections import deque
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
+from bs4 import BeautifulSoup
 from playwright.async_api import Error, async_playwright
 from openai import OpenAI
 
@@ -29,6 +37,47 @@ async def take_screenshots(urls, out_dir: Path) -> list[Path]:
             saved_paths.append(file_path)
         await browser.close()
     return saved_paths
+
+
+async def crawl_urls(start_urls: list[str], max_pages: int) -> list[str]:
+    """Breadth-first crawl limited to pages within the starting domains."""
+    visited: set[str] = set()
+    queue = deque(start_urls)
+    found: list[str] = []
+    base_domains = {urlparse(u).netloc for u in start_urls}
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        while queue and len(found) < max_pages:
+            url = queue.popleft()
+            if url in visited:
+                continue
+            visited.add(url)
+
+            page = await browser.new_page()
+            try:
+                await page.goto(url, wait_until="networkidle")
+            except Error as exc:
+                print(f"Failed to navigate to {url}: {exc}")
+                await page.close()
+                continue
+
+            found.append(url)
+            html = await page.content()
+            soup = BeautifulSoup(html, "html.parser")
+
+            for link in soup.select("a[href]"):
+                full = urljoin(url, link["href"])
+                if (
+                    full.startswith("http")
+                    and urlparse(full).netloc in base_domains
+                    and full not in visited
+                ):
+                    queue.append(full)
+            await page.close()
+        await browser.close()
+
+    return found
 
 
 def analyze_images(image_paths: list[Path], model: str) -> None:
@@ -55,8 +104,9 @@ def analyze_images(image_paths: list[Path], model: str) -> None:
         print(f"Analysis for {img_path.name}:\n{response.choices[0].message.content}\n")
 
 
-async def main(urls: list[str], out_dir: Path, model: str) -> None:
-    _images = await take_screenshots(urls, out_dir)
+async def main(start_urls: list[str], out_dir: Path, model: str, max_pages: int) -> None:
+    to_visit = await crawl_urls(start_urls, max_pages)
+    _images = await take_screenshots(to_visit, out_dir)
     # analyze_images(_images, model)
 
 
@@ -92,6 +142,12 @@ if __name__ == "__main__":
         default="openai",
         help="Model to use for analysis",
     )
+    parser.add_argument(
+        "--max-pages",
+        type=int,
+        default=10,
+        help="Maximum number of pages to crawl",
+    )
     args = parser.parse_args()
     parsed_urls = _parse_urls(args.urls)
-    asyncio.run(main(parsed_urls, Path(args.out_dir), args.model))
+    asyncio.run(main(parsed_urls, Path(args.out_dir), args.model, args.max_pages))

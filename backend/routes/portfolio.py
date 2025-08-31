@@ -12,26 +12,30 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from backend.common import portfolio as portfolio_mod
 from backend.common import (
     data_loader,
     group_portfolio,
     instrument_api,
-)
-from backend.common import portfolio as portfolio_mod
-from backend.common import (
+    constants,
     portfolio_utils,
     prices,
-    risk,
+    risk
 )
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
 _ALLOWED_DAYS = {1, 7, 30, 90, 365}
+
+KEY_TICKER = constants.TICKER
+KEY_MARKET_VALUE_GBP = constants.MARKET_VALUE_GBP
+KEY_GAINERS = "gainers"
+KEY_LOSERS = "losers"
 
 
 # ──────────────────────────────────────────────────────────────
@@ -214,10 +218,54 @@ async def group_regions(slug: str):
         }
     },
 )
+
+def _calculate_weights_and_market_values(
+    summaries: Sequence[Dict[str, Any]],
+) -> Tuple[List[str], Dict[str, float], Dict[str, float]]:
+    """Return tickers, equal-weight mapping and market values for summaries."""
+
+    tickers: List[str] = []
+    market_values: Dict[str, float] = {}
+    for s in summaries:
+        t = s.get("ticker")
+        if not t:
+            continue
+        tickers.append(t)
+        mv = s.get("market_value_gbp")
+        if mv is not None:
+            t_upper = t.upper()
+            market_values[t_upper] = mv
+            market_values[t_upper.split(".", 1)[0]] = mv
+
+    n = len(tickers)
+    if n == 0:
+        return tickers, {}, market_values
+    equal_weight = 100.0 / n
+    weights = {t: equal_weight for t in tickers}
+    return tickers, weights, market_values
+
+
+def _enrich_movers_with_market_values(
+    movers: Dict[str, List[Dict[str, Any]]],
+    market_values: Dict[str, float],
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Attach market values to mover rows."""
+
+    for side in ("gainers", "losers"):
+        for row in movers.get(side, []):
+            mv = market_values.get(row["ticker"].upper())
+            if mv is None:
+                mv = market_values.get(row["ticker"].split(".")[0])
+            row["market_value_gbp"] = mv
+    return movers
+
+
+@router.get("/portfolio-group/{slug}/movers")
+
 async def group_movers(
     slug: str,
     days: int = Query(1, description="Lookback window"),
-    limit: int = Query(10, description="Max results per side"),
+    limit: int = Query(10, description="Max results per side", le=100),
     min_weight: float = Query(0.0, description="Exclude positions below this percent"),
 ):
     """Return top gainers and losers for a group portfolio.
@@ -229,28 +277,40 @@ async def group_movers(
         raise HTTPException(status_code=400, detail="Invalid days")
     try:
         summaries = instrument_api.instrument_summaries_for_group(slug)
-    except Exception:
+    except Exception as e:
+        log.warning(f"Failed to load instrument summaries for group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
+
+    tickers, weight_map, market_values = _calculate_weights_and_market_values(summaries)
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
 
     market_values = {}
     tickers = []
     weight_values = {}
     total_mv = 0.0
     for s in summaries:
-        t = s.get("ticker")
+        t = s.get(KEY_TICKER)
         if not t:
             continue
         tickers.append(t)
-        mv = s.get("market_value_gbp")
+        mv = s.get(KEY_MARKET_VALUE_GBP)
         if mv is not None:
             t_upper = t.upper()
             market_values[t_upper] = mv
             market_values[t_upper.split(".")[0]] = mv
             weight_values[t] = mv
             total_mv += mv
+            base = t.upper().split(".")[0]
+            market_values[base] = mv
 
     if not tickers:
-        return {"gainers": [], "losers": []}
+        return {KEY_GAINERS: [], KEY_LOSERS: []}
+
+    # Compute weights in percent for filtering
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries if s.get("ticker"))
+
+    # Compute weights in percent proportional to each instrument's market value.
+    # ``total_mv`` is the sum of all ``market_value_gbp`` values.
 
     if total_mv:
         weight_map = {t: mv / total_mv * 100.0 for t, mv in weight_values.items()}
@@ -265,14 +325,8 @@ async def group_movers(
         min_weight=min_weight,
         weights=weight_map,
     )
-    for side in ("gainers", "losers"):
-        for row in movers.get(side, []):
-            mv = market_values.get(row["ticker"].upper())
-            if mv is None:
-                mv = market_values.get(row["ticker"].split(".")[0])
-            row["market_value_gbp"] = mv
-    return movers
 
+    return _enrich_movers_with_market_values(movers, market_values)
 
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str):

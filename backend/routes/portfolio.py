@@ -216,15 +216,14 @@ async def group_movers(
         tickers.append(t)
         mv = s.get("market_value_gbp")
         if mv is not None:
-            t_upper = t.upper()
-            market_values[t_upper] = mv
-            market_values[t_upper.split(".")[0]] = mv
+            base = t.upper().split(".")[0]
+            market_values[base] = mv
 
     if not tickers:
         return {"gainers": [], "losers": []}
 
-    # Compute equal weights in percent for filtering
-    n = len(tickers)
+    # Compute weights in percent for filtering
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries if s.get("ticker"))
     weight_map = {
         s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0) if total_mv else 0.0
         for s in summaries
@@ -240,9 +239,7 @@ async def group_movers(
     )
     for side in ("gainers", "losers"):
         for row in movers.get(side, []):
-            mv = market_values.get(row["ticker"].upper())
-            if mv is None:
-                mv = market_values.get(row["ticker"].split(".")[0])
+            mv = market_values.get(row["ticker"].split(".")[0].upper())
             row["market_value_gbp"] = mv
     return movers
 

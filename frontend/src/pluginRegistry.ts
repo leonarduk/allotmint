@@ -1,3 +1,5 @@
+import ComplianceWarnings from "./pages/ComplianceWarnings";
+
 export interface TabPlugin {
   /** Unique identifier for the plugin */
   id: string;
@@ -37,3 +39,9 @@ export function getTabPlugins(): TabPlugin[] {
 export function clearTabPlugins() {
   registry.length = 0;
 }
+
+registerTabPlugin({
+  id: "compliance",
+  Component: ComplianceWarnings,
+  priority: 150,
+});

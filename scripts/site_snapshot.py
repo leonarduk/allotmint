@@ -30,10 +30,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional, Set, Tuple, List
 from urllib.parse import urljoin, urlparse, urlunparse, parse_qsl
+import shutil
 
 # Optional Pillow detection (PNG embedding)
 try:
     from PIL import Image  # noqa: F401
+
     PIL_AVAILABLE = True
 except Exception:
     PIL_AVAILABLE = False
@@ -49,6 +51,7 @@ OUTPUT_DIR = Path("site_manual")
 SCREENSHOT_DIR = OUTPUT_DIR / "screenshots"
 MARKDOWN_DIR = OUTPUT_DIR / "markdown"
 PDF_PATH = OUTPUT_DIR / "manual.pdf"
+SITEPLAN_DIR = Path("docs/siteplan")
 
 # Best-effort font discovery (Unicode if available)
 CANDIDATE_FONTS = [
@@ -80,7 +83,9 @@ def _same_reg_domain(a: str, b: str) -> bool:
     return (ea.domain, ea.suffix) == (eb.domain, eb.suffix)
 
 
-def _canonicalize(url: str, drop_query: bool, keep_params: Optional[Iterable[str]]) -> str:
+def _canonicalize(
+    url: str, drop_query: bool, keep_params: Optional[Iterable[str]]
+) -> str:
     u = urlparse(url)
     path = re.sub(r"/{2,}", "/", u.path or "/")
     if drop_query:
@@ -109,17 +114,25 @@ def _slug(text: str) -> str:
 def _safe_text(s: str, unicode_ok: bool) -> str:
     if unicode_ok:
         return s
-    s = (s.replace("—", "-").replace("–", "-").replace("•", "*")
-           .replace("’", "'").replace("“", '"').replace("”", '"'))
+    s = (
+        s.replace("—", "-")
+        .replace("–", "-")
+        .replace("•", "*")
+        .replace("’", "'")
+        .replace("“", '"')
+        .replace("”", '"')
+    )
     return s.encode("latin-1", "replace").decode("latin-1")
 
 
 def _wrap_url_for_pdf(url: str) -> str:
-    return (url.replace("/", "/\u200b")
-               .replace("-", "-\u200b")
-               .replace("?", "?\u200b")
-               .replace("&", "&\u200b")
-               .replace("=", "=\u200b"))
+    return (
+        url.replace("/", "/\u200b")
+        .replace("-", "-\u200b")
+        .replace("?", "?\u200b")
+        .replace("&", "&\u200b")
+        .replace("=", "=\u200b")
+    )
 
 
 async def _hide_selectors(page, selectors: Iterable[str]):
@@ -171,7 +184,7 @@ async def crawl(
         raise ValueError("--base-url must include scheme, e.g., http://localhost:5173/")
 
     queue: deque[Tuple[str, int]] = deque([(base_url, 0)])
-    seen: Set[str] = set()   # dedupe crawl frontier by canonical URL
+    seen: Set[str] = set()  # dedupe crawl frontier by canonical URL
     added: Set[str] = set()  # URLs included in output list
     out: List[str] = []
 
@@ -188,7 +201,9 @@ async def crawl(
             html = ""
             cur_url = raw_url
             try:
-                await page.goto(raw_url, wait_until="networkidle", timeout=network_idle_ms)
+                await page.goto(
+                    raw_url, wait_until="networkidle", timeout=network_idle_ms
+                )
                 html = await page.content()
                 cur_url = page.url or raw_url
             except PWTimeout:
@@ -266,7 +281,9 @@ async def snapshot_pages(
             async with sem:
                 page = await context.new_page()
                 try:
-                    await page.goto(url, wait_until="networkidle", timeout=page_timeout_ms)
+                    await page.goto(
+                        url, wait_until="networkidle", timeout=page_timeout_ms
+                    )
                     await _hide_selectors(page, hide_selectors)
                     await page.wait_for_timeout(300)
                     title = (await page.title()) or url
@@ -278,8 +295,18 @@ async def snapshot_pages(
                     html = await page.content()
                     md = await _extract_markdown(html, content_selectors)
                     md_path = MARKDOWN_DIR / f"{idx:03}_{_slug(title)}.md"
-                    md_path.write_text(f"# {title}\n\nURL: {url}\n\n{md}", encoding="utf-8")
-                    results.append(PageDoc(idx=idx, url=url, title=title, screenshot=png_path, markdown=md_path))
+                    md_path.write_text(
+                        f"# {title}\n\nURL: {url}\n\n{md}", encoding="utf-8"
+                    )
+                    results.append(
+                        PageDoc(
+                            idx=idx,
+                            url=url,
+                            title=title,
+                            screenshot=png_path,
+                            markdown=md_path,
+                        )
+                    )
                 finally:
                     await page.close()
 
@@ -356,22 +383,92 @@ def build_pdf(pages: List[PageDoc], pdf_path: Path, font_path: Optional[Path] = 
 
 # -------- CLI --------
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="Snapshot a site into screenshots, markdown, and a combined PDF.")
-    ap.add_argument("--base-url", required=True, help="Start URL (can be a deep route, e.g., http://localhost:5173/movers)")
-    ap.add_argument("--output-dir", default=str(OUTPUT_DIR), help="Output directory (default: site_manual)")
-    ap.add_argument("--depth", type=int, default=2, help="Max crawl depth from start URL (default: 2)")
-    ap.add_argument("--max-pages", type=int, default=200, help="Max number of pages to snapshot (default: 200)")
-    ap.add_argument("--concurrency", type=int, default=4, help="Parallel page snapshots (default: 4)")
-    ap.add_argument("--viewport", default=f"{DEFAULT_VIEWPORT[0]}x{DEFAULT_VIEWPORT[1]}", help="Viewport WxH, e.g., 1440x900")
-    ap.add_argument("--include", action="append", default=[], help="Regex for allowed paths (repeatable). If none, allow all.")
-    ap.add_argument("--exclude", action="append", default=[], help="Regex for excluded paths (repeatable).")
-    ap.add_argument("--drop-query", action="store_true", help="Drop query strings when canonicalizing URLs.")
-    ap.add_argument("--keep-param", action="append", default=[], help="If keeping query, whitelist these params (repeatable).")
-    ap.add_argument("--hide", action="append", default=[], help="CSS selectors to hide before screenshot (repeatable).")
-    ap.add_argument("--content-selector", action="append", default=[], help="Selectors to extract markdown from (repeatable).")
-    ap.add_argument("--network-idle-ms", type=int, default=15000, help="Timeout for page loads (ms).")
-    ap.add_argument("--page-timeout-ms", type=int, default=20000, help="Timeout per snapshot page (ms).")
-    ap.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    ap = argparse.ArgumentParser(
+        description="Snapshot a site into screenshots, markdown, and a combined PDF."
+    )
+    ap.add_argument(
+        "--base-url",
+        required=True,
+        help="Start URL (can be a deep route, e.g., http://localhost:5173/movers)",
+    )
+    ap.add_argument(
+        "--output-dir",
+        default=str(OUTPUT_DIR),
+        help="Output directory (default: site_manual)",
+    )
+    ap.add_argument(
+        "--depth",
+        type=int,
+        default=2,
+        help="Max crawl depth from start URL (default: 2)",
+    )
+    ap.add_argument(
+        "--max-pages",
+        type=int,
+        default=200,
+        help="Max number of pages to snapshot (default: 200)",
+    )
+    ap.add_argument(
+        "--concurrency",
+        type=int,
+        default=4,
+        help="Parallel page snapshots (default: 4)",
+    )
+    ap.add_argument(
+        "--viewport",
+        default=f"{DEFAULT_VIEWPORT[0]}x{DEFAULT_VIEWPORT[1]}",
+        help="Viewport WxH, e.g., 1440x900",
+    )
+    ap.add_argument(
+        "--include",
+        action="append",
+        default=[],
+        help="Regex for allowed paths (repeatable). If none, allow all.",
+    )
+    ap.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help="Regex for excluded paths (repeatable).",
+    )
+    ap.add_argument(
+        "--drop-query",
+        action="store_true",
+        help="Drop query strings when canonicalizing URLs.",
+    )
+    ap.add_argument(
+        "--keep-param",
+        action="append",
+        default=[],
+        help="If keeping query, whitelist these params (repeatable).",
+    )
+    ap.add_argument(
+        "--hide",
+        action="append",
+        default=[],
+        help="CSS selectors to hide before screenshot (repeatable).",
+    )
+    ap.add_argument(
+        "--content-selector",
+        action="append",
+        default=[],
+        help="Selectors to extract markdown from (repeatable).",
+    )
+    ap.add_argument(
+        "--network-idle-ms",
+        type=int,
+        default=15000,
+        help="Timeout for page loads (ms).",
+    )
+    ap.add_argument(
+        "--page-timeout-ms",
+        type=int,
+        default=20000,
+        help="Timeout per snapshot page (ms).",
+    )
+    ap.add_argument(
+        "--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"]
+    )
     return ap.parse_args()
 
 
@@ -408,7 +505,9 @@ async def main_async(ns: argparse.Namespace):
         network_idle_ms=ns.network_idle_ms,
     )
     if not urls:
-        logging.error("No pages discovered. Check --base-url and include/exclude patterns.")
+        logging.error(
+            "No pages discovered. Check --base-url and include/exclude patterns."
+        )
         return
 
     pages = await snapshot_pages(
@@ -426,6 +525,26 @@ async def main_async(ns: argparse.Namespace):
     print(f"- PDF: {PDF_PATH}")
     print(f"- Screenshots: {SCREENSHOT_DIR}")
     print(f"- Markdown: {MARKDOWN_DIR}")
+
+    # Copy markdown to docs/siteplan and build README index
+    SITEPLAN_DIR.mkdir(parents=True, exist_ok=True)
+    # Remove existing markdown files in siteplan (keep README)
+    for md_file in SITEPLAN_DIR.glob("*.md"):
+        if md_file.name.lower() != "readme.md":
+            md_file.unlink()
+    links = []
+    for d in pages:
+        dest = SITEPLAN_DIR / d.markdown.name
+        shutil.copy(d.markdown, dest)
+        links.append((d.title.strip().replace("\n", " "), dest.name))
+
+    index = ["# Site Plan", ""]
+    for title, name in links:
+        index.append(f"- [{title}](./{name})")
+    index.append("")
+    index.append("<!-- Generated by scripts/site_snapshot.py -->")
+    (SITEPLAN_DIR / "README.md").write_text("\n".join(index), encoding="utf-8")
+    print(f"- Site plan markdown copied to {SITEPLAN_DIR}")
 
 
 def main():

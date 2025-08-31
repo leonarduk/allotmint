@@ -454,6 +454,14 @@ export function HoldingsTable({
                 )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {money(h.current_price_gbp)}
+                  {h.last_price_date && (
+                    <span
+                      className={tableStyles.badge}
+                      title={h.last_price_date}
+                    >
+                      {new Intl.DateTimeFormat(i18n.language).format(
+                        new Date(h.last_price_date),
+                      )}
                   {h.latest_source && (
                     <span style={{ marginLeft: "0.25rem", color: "gray" }}>
                       {t("holdingsTable.source")} {h.latest_source}

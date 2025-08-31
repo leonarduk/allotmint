@@ -25,3 +25,12 @@
 .clickable {
   cursor: pointer;
 }
+
+.badge {
+  margin-left: 0.25rem;
+  background-color: #444;
+  color: white;
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 0.75rem;
+}

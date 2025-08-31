@@ -179,6 +179,22 @@ async def group_instruments(slug: str):
     return portfolio_utils.aggregate_by_ticker(gp)
 
 
+@router.get("/portfolio-group/{slug}/sectors")
+async def group_sectors(slug: str):
+    """Return return contribution aggregated by sector."""
+
+    gp = group_portfolio.build_group_portfolio(slug)
+    return portfolio_utils.aggregate_by_sector(gp)
+
+
+@router.get("/portfolio-group/{slug}/regions")
+async def group_regions(slug: str):
+    """Return return contribution aggregated by region."""
+
+    gp = group_portfolio.build_group_portfolio(slug)
+    return portfolio_utils.aggregate_by_region(gp)
+
+
 @router.get("/portfolio-group/{slug}/movers")
 async def group_movers(
     slug: str,
@@ -195,7 +211,19 @@ async def group_movers(
     except Exception:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    tickers = [s.get("ticker") for s in summaries if s.get("ticker")]
+    market_values = {}
+    tickers = []
+    for s in summaries:
+        t = s.get("ticker")
+        if not t:
+            continue
+        tickers.append(t)
+        mv = s.get("market_value_gbp")
+        if mv is not None:
+            t_upper = t.upper()
+            market_values[t_upper] = mv
+            market_values[t_upper.split(".")[0]] = mv
+
     if not tickers:
         return {"gainers": [], "losers": []}
 
@@ -209,14 +237,18 @@ async def group_movers(
         if s.get("ticker")
     }
 
-    return instrument_api.top_movers(
-        tickers,
-        days,
-        limit,
-        min_weight=min_weight,
-        weights=weight_map,
-    )
 
+    movers = instrument_api.top_movers(tickers, days, limit,        
+                                       min_weight=min_weight,
+                                       weights=weight_map,
+                                      )
+    for side in ("gainers", "losers"):
+        for row in movers.get(side, []):
+            mv = market_values.get(row["ticker"].upper())
+            if mv is None:
+                mv = market_values.get(row["ticker"].split(".")[0])
+            row["market_value_gbp"] = mv
+    return movers
 
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str):
@@ -229,13 +261,14 @@ async def get_account(owner: str, account: str):
 @router.get("/portfolio-group/{slug}/instrument/{ticker}")
 async def instrument_detail(slug: str, ticker: str):
     try:
-        prices_list = instrument_api.timeseries_for_ticker(ticker)
+        series = instrument_api.timeseries_for_ticker(ticker)
+        prices_list = series["prices"]
         if not prices_list:
             raise ValueError("no prices")
         positions_list = instrument_api.positions_for_ticker(slug, ticker)
     except Exception:
         raise HTTPException(status_code=404, detail="Instrument not found")
-    return {"prices": prices_list, "positions": positions_list}
+    return {"prices": prices_list, "mini": series.get("mini", {}), "positions": positions_list}
 
 
 @router.api_route("/prices/refresh", methods=["GET", "POST"])

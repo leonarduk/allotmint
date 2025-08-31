@@ -91,3 +91,24 @@ def publish_alert(alert: Dict) -> None:
 def get_recent_alerts(limit: int = 50) -> List[Dict]:
     """Return recent alerts, most recent last."""
     return _RECENT_ALERTS[-limit:]
+
+
+def clear_state() -> None:
+    """Clear all in-memory alert tracking state.
+
+    Resets recent alerts, their signatures and per-instrument throttling
+    metadata so tests or callers can start from a clean slate.
+    """
+
+    _RECENT_ALERTS.clear()
+    _RECENT_ALERT_SIGNATURES.clear()
+    _LAST_ALERT_STATE.clear()
+    _LAST_ALERT_TIME.clear()
+
+
+__all__ = [
+    "publish_sns_alert",
+    "publish_alert",
+    "get_recent_alerts",
+    "clear_state",
+]

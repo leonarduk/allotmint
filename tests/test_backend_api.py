@@ -78,11 +78,13 @@ def mock_timeseries_for_ticker(monkeypatch):
 
     def _fake_timeseries(ticker: str, days: int = 365):
         if ticker == "FAKETICK":
-            return []
-        return [
+            return {"prices": [], "mini": {"7": [], "30": [], "180": []}}
+        prices = [
             {"date": "2024-01-01", "close": 1.0},
             {"date": "2024-01-02", "close": 1.1},
         ]
+        mini = {"7": prices[-7:], "30": prices[-30:], "180": prices[-180:]}
+        return {"prices": prices, "mini": mini}
 
     monkeypatch.setattr(
         "backend.common.instrument_api.timeseries_for_ticker", _fake_timeseries
@@ -269,6 +271,7 @@ def test_yahoo_timeseries_html(client):
 
 def test_alerts_endpoint(client, monkeypatch):
     alerts._RECENT_ALERTS.clear()
+    alerts.clear_state()
     monkeypatch.setattr(alerts, "publish_alert", lambda alert: alerts._RECENT_ALERTS.append(alert))
     client.post("/prices/refresh")
     resp = client.get("/alerts")

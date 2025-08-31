@@ -16,12 +16,14 @@ export interface Holding {
     gain_gbp?: number;
     gain_pct?: number;
     current_price_gbp?: number | null;
+    latest_source?: string | null;
     day_change_gbp?: number;
     instrument_type?: string | null;
 
     days_held?: number;
     sell_eligible?: boolean;
     days_until_eligible?: number | null;
+    next_eligible_sell_date?: string | null;
 }
 
 export type Account = {
@@ -83,6 +85,24 @@ export type InstrumentSummary = {
     change_30d_pct?: number | null;
 };
 
+export type SectorContribution = {
+    sector: string;
+    market_value_gbp: number;
+    gain_gbp: number;
+    cost_gbp: number;
+    gain_pct?: number | null;
+    contribution_pct?: number | null;
+};
+
+export type RegionContribution = {
+    region: string;
+    market_value_gbp: number;
+    gain_gbp: number;
+    cost_gbp: number;
+    gain_pct?: number | null;
+    contribution_pct?: number | null;
+};
+
 export interface PerformancePoint {
     date: string;
     value: number;
@@ -94,6 +114,14 @@ export interface PerformancePoint {
 export interface ValueAtRiskPoint {
     date: string;
     var: number;
+}
+
+export interface InstrumentDetailMini {
+    [range: string]: {
+        date: string;
+        close: number;
+        close_gbp: number;
+    }[];
 }
 
 export interface Transaction {
@@ -149,6 +177,7 @@ export interface MoverRow {
     change_pct: number;
     last_price_gbp?: number | null;
     last_price_date?: string | null;
+    market_value_gbp?: number | null;
 }
 
 export type Alert = {

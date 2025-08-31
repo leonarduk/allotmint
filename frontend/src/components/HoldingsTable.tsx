@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef , useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import type { Holding } from "../types";
+import type { Holding, InstrumentDetailMini } from "../types";
 import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -8,14 +8,10 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
+import { getInstrumentDetail } from "../api";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
-const VIEW_PRESETS = [
-  { label: "All", value: "" },
-  { label: "ETF", value: "ETF" },
-  { label: "Equity", value: "Equity" },
-  { label: "Bond", value: "Bond" },
-];
 
 type Props = {
   holdings: Holding[];
@@ -29,6 +25,16 @@ export function HoldingsTable({
 }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled } = useConfig();
+
+  const viewPresets = useMemo(
+    () => [
+      { label: t("holdingsTable.viewPresets.all"), value: "" },
+      { label: t("instrumentType.etf"), value: "ETF" },
+      { label: t("instrumentType.equity"), value: "Equity" },
+      { label: t("instrumentType.bond"), value: "Bond" },
+    ],
+    [t],
+  );
 
   const [filters, setFilters] = useState({
     ticker: "",
@@ -53,6 +59,9 @@ export function HoldingsTable({
     gain_pct: true,
   });
 
+  const [sparkRange, setSparkRange] = useState<7 | 30 | 180>(30);
+  const [sparks, setSparks] = useState<Record<string, InstrumentDetailMini>>({});
+
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -60,6 +69,29 @@ export function HoldingsTable({
   const handleFilterChange = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
+
+  // Track tickers we've already fetched to avoid re-fetching on re-renders
+  const fetchedTickersRef = useRef<Set<string>>(new Set());
+
+  // Fetch sparkline data for new tickers whenever holdings change
+  useEffect(() => {
+    const tickers = Array.from(new Set(holdings.map((h) => h.ticker)));
+    const toFetch = tickers.filter(
+      (t) => !sparks[t] && !fetchedTickersRef.current.has(t),
+    );
+
+    toFetch.forEach((t) => {
+      fetchedTickersRef.current.add(t);
+      getInstrumentDetail(t, 180)
+        .then((d) => {
+          const m = d?.mini;
+          if (m) {
+            setSparks((prev) => ({ ...prev, [t]: m }));
+          }
+        })
+        .catch(() => {});
+    });
+  }, [holdings, sparks]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -122,18 +154,32 @@ export function HoldingsTable({
   const { sorted: sortedRows, sortKey, asc, handleSort } = useSortableTable(filtered, "ticker");
 
   const columnLabels: [keyof typeof visibleColumns, string][] = [
-    ["units", "Units"],
-    ["cost", "Cost"],
-    ["market", "Market"],
-    ["gain", "Gain"],
-    ["gain_pct", "Gain %"],
+    ["units", t("holdingsTable.columns.units")],
+    ["cost", t("holdingsTable.columns.cost")],
+    ["market", t("holdingsTable.columns.market")],
+    ["gain", t("holdingsTable.columns.gain")],
+    ["gain_pct", t("holdingsTable.columns.gainPct")],
   ];
 
   return (
     <>
       <div style={{ marginBottom: "0.5rem" }}>
-        View:
-        {VIEW_PRESETS.map((p) => (
+        {t("holdingsTable.range")}
+        {[7, 30, 180].map((d) => (
+          <label key={d} style={{ marginLeft: "0.5rem" }}>
+            <input
+              type="radio"
+              name="sparkRange"
+              checked={sparkRange === d}
+              onChange={() => setSparkRange(d as 7 | 30 | 180)}
+            />
+            {t("holdingsTable.rangeOption", { count: d })}
+          </label>
+        ))}
+      </div>
+      <div style={{ marginBottom: "0.5rem" }}>
+        {t("holdingsTable.view")}
+        {viewPresets.map((p) => (
           <button
             key={p.label}
             type="button"
@@ -148,29 +194,24 @@ export function HoldingsTable({
         ))}
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
-        Quick Filters:
+        {t("holdingsTable.quickFilters")}
         <button
           type="button"
           style={{ marginLeft: "0.5rem" }}
           onClick={() => handleFilterChange("sell_eligible", "true")}
         >
-          Sell-eligible
+          {t("holdingsTable.quickFiltersSellEligible")}
         </button>
-        <button
-          type="button"
+        <input
+          type="number"
+          placeholder={t("holdingsTable.minimumGainPrompt")}
+          value={filters.gain_pct}
+          onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
           style={{ marginLeft: "0.5rem" }}
-          onClick={() => {
-            const val = prompt("Minimum Gain %", "10");
-            if (val !== null) {
-              handleFilterChange("gain_pct", val);
-            }
-          }}
-        >
-          Gain% &gt; x
-        </button>
+        />
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
-        Columns:
+        {t("holdingsTable.columnsLabel")}
         {columnLabels.map(([key, label]) => (
           <label key={key} style={{ marginLeft: "0.5rem" }}>
             <input
@@ -188,22 +229,23 @@ export function HoldingsTable({
           <tr>
             <th className={tableStyles.cell}>
               <input
-                placeholder="Ticker"
+                placeholder={t("holdingsTable.filters.ticker")}
                 value={filters.ticker}
                 onChange={(e) => handleFilterChange("ticker", e.target.value)}
               />
             </th>
             <th className={tableStyles.cell}>
               <input
-                placeholder="Name"
+                placeholder={t("holdingsTable.filters.name")}
                 value={filters.name}
                 onChange={(e) => handleFilterChange("name", e.target.value)}
               />
             </th>
             <th className={tableStyles.cell}></th>
+            <th className={tableStyles.cell}></th>
             <th className={tableStyles.cell}>
               <input
-                placeholder="Type"
+                placeholder={t("holdingsTable.filters.type")}
                 value={filters.instrument_type}
                 onChange={(e) => handleFilterChange("instrument_type", e.target.value)}
               />
@@ -211,7 +253,7 @@ export function HoldingsTable({
             {!relativeViewEnabled && visibleColumns.units && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                 <input
-                  placeholder="Units"
+                  placeholder={t("holdingsTable.filters.units")}
                   value={filters.units}
                   onChange={(e) => handleFilterChange("units", e.target.value)}
                 />
@@ -230,7 +272,7 @@ export function HoldingsTable({
             {visibleColumns.gain_pct && (
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                 <input
-                  placeholder="Gain %"
+                  placeholder={t("holdingsTable.filters.gainPct")}
                   value={filters.gain_pct}
                   onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
                 />
@@ -241,46 +283,47 @@ export function HoldingsTable({
             <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             <th className={`${tableStyles.cell} ${tableStyles.center}`}>
               <select
-                aria-label="Sell eligible"
+                aria-label={t("holdingsTable.filters.sellEligible")}
                 value={filters.sell_eligible}
                 onChange={(e) => handleFilterChange("sell_eligible", e.target.value)}
               >
-                <option value="">All</option>
-                <option value="true">Yes</option>
-                <option value="false">No</option>
+                <option value="">{t("holdingsTable.filters.all")}</option>
+                <option value="true">{t("holdingsTable.filters.yes")}</option>
+                <option value="false">{t("holdingsTable.filters.no")}</option>
               </select>
             </th>
           </tr>
           <tr>
             <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("ticker")}>
-              Ticker{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
+              {t("holdingsTable.columns.ticker")}{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
             </th>
             <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("name")}>
-              Name{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
+              {t("holdingsTable.columns.name")}{sortKey === "name" ? (asc ? " ▲" : " ▼") : ""}
             </th>
-            <th className={tableStyles.cell}>CCY</th>
-            <th className={tableStyles.cell}>Type</th>
+            <th className={tableStyles.cell}>{t("holdingsTable.columns.trend")}</th>
+            <th className={tableStyles.cell}>{t("instrumentTable.columns.ccy")}</th>
+            <th className={tableStyles.cell}>{t("instrumentTable.columns.type")}</th>
             {!relativeViewEnabled && visibleColumns.units && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Units</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.units")}</th>
             )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Px £</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.price")}</th>
             {!relativeViewEnabled && visibleColumns.cost && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => handleSort("cost")}
               >
-                Cost £{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
+                {t("holdingsTable.columns.cost")}{sortKey === "cost" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
             {!relativeViewEnabled && visibleColumns.market && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Mkt £</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("holdingsTable.columns.market")}</th>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
               <th
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => handleSort("gain")}
               >
-                Gain £{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
+                {t("holdingsTable.columns.gain")}{sortKey === "gain" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
             {visibleColumns.gain_pct && (
@@ -288,23 +331,23 @@ export function HoldingsTable({
                 className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
                 onClick={() => handleSort("gain_pct")}
               >
-                Gain %{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
+                {t("holdingsTable.columns.gainPct")}{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
               onClick={() => handleSort("weight_pct")}
             >
-              Weight %{sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
+              {t("holdingsTable.columns.weightPct")}{sortKey === "weight_pct" ? (asc ? " ▲" : " ▼") : ""}
             </th>
-            <th className={tableStyles.cell}>Acquired</th>
+            <th className={tableStyles.cell}>{t("holdingsTable.columns.acquired")}</th>
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
               onClick={() => handleSort("days_held")}
             >
-              Days&nbsp;Held{sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
+              {t("holdingsTable.columns.daysHeld")}{sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
             </th>
-            <th className={`${tableStyles.cell} ${tableStyles.center}`}>Eligible?</th>
+            <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.eligible")}</th>
           </tr>
         </thead>
 
@@ -331,6 +374,15 @@ export function HoldingsTable({
                   </button>
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
+                <td className={tableStyles.cell} style={{ width: "80px" }}>
+                  {sparks[h.ticker]?.[String(sparkRange)]?.length ? (
+                    <ResponsiveContainer width="100%" height={40}>
+                      <LineChart data={sparks[h.ticker][String(sparkRange)]} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                        <Line type="monotone" dataKey="close_gbp" stroke="#8884d8" dot={false} strokeWidth={1} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : null}
+                </td>
                 <td className={tableStyles.cell}>
                   {isSupportedFx(h.currency) ? (
                     <button
@@ -360,11 +412,18 @@ export function HoldingsTable({
                     {new Intl.NumberFormat(i18n.language).format(h.units ?? 0)}
                   </td>
                 )}
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(h.current_price_gbp)}</td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {money(h.current_price_gbp)}
+                  {h.latest_source && (
+                    <span style={{ marginLeft: "0.25rem", color: "gray" }}>
+                      {t("holdingsTable.source")} {h.latest_source}
+                    </span>
+                  )}
+                </td>
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right}`}
-                    title={(h.cost_basis_gbp ?? 0) > 0 ? "Actual purchase cost" : "Inferred from price on acquisition date"}
+                    title={(h.cost_basis_gbp ?? 0) > 0 ? t("holdingsTable.actualPurchaseCost") : t("holdingsTable.inferredCost")}
                   >
                     {money(h.cost)}
                   </td>
@@ -398,8 +457,17 @@ export function HoldingsTable({
                 <td
                   className={`${tableStyles.cell} ${tableStyles.center}`}
                   style={{ color: h.sell_eligible ? "lightgreen" : "gold" }}
+                  title={
+                    h.next_eligible_sell_date
+                      ? new Intl.DateTimeFormat(i18n.language).format(
+                          new Date(h.next_eligible_sell_date)
+                        )
+                      : undefined
+                  }
                 >
-                  {h.sell_eligible ? "✓ Eligible" : `✗ ${h.days_until_eligible ?? ""}`}
+                  {h.sell_eligible
+                    ? `✓ ${t("holdingsTable.eligible")}`
+                    : `✗ ${h.days_until_eligible ?? ""}`}
                 </td>
               </tr>
             );
@@ -407,7 +475,7 @@ export function HoldingsTable({
         </tbody>
         </table>
       ) : (
-        <p>No holdings match the current filters.</p>
+        <p>{t("holdingsTable.noHoldings")}</p>
       )}
     </>
   );

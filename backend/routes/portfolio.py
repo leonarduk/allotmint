@@ -226,7 +226,7 @@ async def group_movers(
     # Compute equal weights in percent for filtering
     n = len(tickers)
     weight_map = {
-        s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0) if total_mv else 0.0
+        s["ticker"]: 100.0 / n
         for s in summaries
         if s.get("ticker")
     }

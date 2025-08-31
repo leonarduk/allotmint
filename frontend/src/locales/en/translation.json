@@ -65,7 +65,7 @@
     "quickFilters": "Quick Filters:",
     "quickFiltersSellEligible": "Sell-eligible",
     "quickFiltersGainPct": "Gain% > x",
-    "minimumGainPrompt": "Minimum Gain %",
+    "minimumGainPrompt": "Min Gain %",
     "columnsLabel": "Columns:",
     "columns": {
       "ticker": "Ticker",

@@ -176,3 +176,25 @@ def test_offline_mode_uses_fx_cache(tmp_path, monkeypatch):
         pytest.approx(1 * 0.8),
         pytest.approx(2 * 0.81),
     ]
+
+
+def test_offline_falls_back_to_live_loader(tmp_path, monkeypatch):
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 2)
+
+    sample = _sample_df(start, end)
+
+    def fake_fetch_meta_timeseries(ticker, exchange, start_date, end_date):
+        return sample
+
+    # Simulate offline mode with no cached data
+    monkeypatch.setattr(cache, "OFFLINE_MODE", True)
+    monkeypatch.setattr(cache.config, "offline_mode", True)
+    monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
+    monkeypatch.setattr(cache, "fetch_meta_timeseries", fake_fetch_meta_timeseries)
+    monkeypatch.setattr(cache, "get_instrument_meta", lambda t: {"currency": "GBP"})
+    cache._memoized_range_cached.cache_clear()
+    cache._load_meta_timeseries_cached.cache_clear()
+
+    df = cache.load_meta_timeseries_range("T", "L", start, end)
+    assert list(df["Close"].astype(float)) == [1.0, 2.0]

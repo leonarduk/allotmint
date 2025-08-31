@@ -289,6 +289,8 @@ def _memoized_range_cached(
     start_iso: str,
     end_iso: str,
 ) -> pd.DataFrame:
+    global OFFLINE_MODE
+
     start_date = datetime.fromisoformat(start_iso).date()
     end_date = datetime.fromisoformat(end_iso).date()
     span_days = (end_date - start_date).days + 1
@@ -308,9 +310,20 @@ def _memoized_range_cached(
             return _ensure_schema(ex.loc[mask].reset_index(drop=True))
         logger.warning("Offline mode: no cached data for %s.%s", ticker, exchange)
 
-    # Either not in offline mode or cache miss above – fetch from the standard
-    # loader, which callers are free to monkeypatch in tests.
-    superset = load_meta_timeseries(ticker, exchange, days_needed)
+        # Temporarily disable offline mode so the live loader can fetch data.
+        prev_offline_mode = config.offline_mode
+        prev_global = OFFLINE_MODE
+        try:
+            config.offline_mode = False
+            OFFLINE_MODE = False
+            superset = load_meta_timeseries(ticker, exchange, days_needed)
+        finally:
+            config.offline_mode = prev_offline_mode
+            OFFLINE_MODE = prev_global
+    else:
+        # Either not in offline mode or cache miss above – fetch from the standard
+        # loader, which callers are free to monkeypatch in tests.
+        superset = load_meta_timeseries(ticker, exchange, days_needed)
     if superset.empty or "Date" not in superset.columns:
         return _empty_ts()
 

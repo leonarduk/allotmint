@@ -53,9 +53,11 @@ def load_transactions(owner: str, accounts_root: Optional[Path] = None) -> List[
     return results
 
 
-def check_owner(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, Any]:
-    """Return compliance warnings for an owner."""
-    txs = load_transactions(owner, accounts_root)
+def _check_transactions(
+    owner: str, txs: List[Dict[str, Any]], accounts_root: Optional[Path] = None
+) -> Dict[str, Any]:
+    """Run compliance checks on a list of transactions."""
+
     warnings: List[str] = []
     approvals = load_approvals(owner, accounts_root)
     exempt_tickers = {t.upper() for t in (config.approval_exempt_tickers or [])}
@@ -71,7 +73,9 @@ def check_owner(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, A
         counts[key] += 1
     for month, cnt in counts.items():
         if cnt > config.max_trades_per_month:
-            warnings.append(f"{cnt} trades in {month} (max {config.max_trades_per_month})")
+            warnings.append(
+                f"{cnt} trades in {month} (max {config.max_trades_per_month})"
+            )
 
     # holding period rule
     last_buy: Dict[str, date] = {}
@@ -87,15 +91,41 @@ def check_owner(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, A
             acq = last_buy.get(ticker)
             if acq and (d - acq).days < config.hold_days_min:
                 days = (d - acq).days
-                warnings.append(f"Sold {ticker} after {days} days (min {config.hold_days_min})")
+                warnings.append(
+                    f"Sold {ticker} after {days} days (min {config.hold_days_min})"
+                )
 
             meta = get_instrument_meta(ticker)
-            instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
+            instr_type = (
+                meta.get("instrumentType") or meta.get("instrument_type") or ""
+            ).upper()
             needs_approval = not (
-                ticker in exempt_tickers or ticker.split(".")[0] in exempt_tickers or instr_type in exempt_types
+                ticker in exempt_tickers
+                or ticker.split(".")[0] in exempt_tickers
+                or instr_type in exempt_types
             )
             if needs_approval:
                 appr = approvals.get(ticker) or approvals.get(ticker.split(".")[0])
                 if not (appr and is_approval_valid(appr, d)):
                     warnings.append(f"Sold {ticker} without approval")
     return {"owner": owner, "warnings": warnings, "trade_counts": dict(counts)}
+
+
+def check_owner(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, Any]:
+    """Return compliance warnings for an owner."""
+    txs = load_transactions(owner, accounts_root)
+    return _check_transactions(owner, txs, accounts_root)
+
+
+def check_trade(trade: Dict[str, Any], accounts_root: Optional[Path] = None) -> Dict[str, Any]:
+    """Validate a proposed trade for compliance issues.
+
+    The trade is evaluated in the context of the owner's existing transactions.
+    """
+
+    owner = trade.get("owner")
+    if not owner:
+        raise ValueError("owner is required")
+    txs = load_transactions(owner, accounts_root)
+    txs.append(trade)
+    return _check_transactions(owner, txs, accounts_root)

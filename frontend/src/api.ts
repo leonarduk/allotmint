@@ -391,6 +391,14 @@ export const getTradingSignals = () =>
 export const getCompliance = (owner: string) =>
   fetchJson<ComplianceResult>(`${API_BASE}/compliance/${owner}`);
 
+/** Validate a proposed trade for an owner */
+export const validateTrade = (tx: Transaction) =>
+  fetchJson<ComplianceResult>(`${API_BASE}/compliance/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(tx),
+  });
+
 /** Virtual portfolio endpoints */
 export const getVirtualPortfolios = () =>
   fetchJson<VirtualPortfolio[]>(`${API_BASE}/virtual-portfolios`);

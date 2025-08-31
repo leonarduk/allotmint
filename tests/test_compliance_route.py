@@ -64,3 +64,10 @@ def test_validate_trade(tmp_path, monkeypatch):
         assert resp2.status_code == 200
         data2 = resp2.json()
         assert data2["warnings"] == []
+
+
+def test_validate_trade_missing_owner(tmp_path):
+    app = _setup_app(tmp_path)
+    with TestClient(app) as client:
+        resp = client.post("/compliance/validate", json={})
+        assert resp.status_code == 422

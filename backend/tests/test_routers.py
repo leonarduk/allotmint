@@ -35,9 +35,11 @@ def test_compliance_routes(monkeypatch):
         lambda trade, root: {"warnings": ["ok"]},
     )
     with TestClient(app) as client:
-        resp2 = client.post("/compliance/validate", json={})
+        resp2 = client.post("/compliance/validate", json={"owner": "alice"})
+        resp3 = client.post("/compliance/validate", json={})
     assert resp2.status_code == 200
     assert resp2.json()["warnings"] == ["ok"]
+    assert resp3.status_code == 422
 
 
 def test_trading_agent_route(monkeypatch):

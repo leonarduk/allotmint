@@ -4,32 +4,20 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['vite.svg'],
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.ts',
-      manifest: {
-        name: 'AllotMint',
-        short_name: 'AllotMint',
-        description: 'AllotMint PWA',
-        theme_color: '#ffffff',
-        icons: [
-          {
-            src: 'vite.svg',
-            sizes: 'any',
-            type: 'image/svg+xml'
-          }
-        ]
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}']
-      }
-    })
-  ],
+    plugins: [
+      react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['vite.svg'],
+        strategies: 'injectManifest',
+        srcDir: 'src',
+        filename: 'service-worker.ts',
+        manifest: false,
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}']
+        }
+      })
+    ],
   build: {
     cssCodeSplit: false,
     cssMinify: 'esbuild',

@@ -6,6 +6,9 @@ build/
 .env*
 !.env.example
 
+# PWA icons (downloaded separately)
+frontend/public/icons/*.png
+
 # Python
 __pycache__/
 *.py[cod]

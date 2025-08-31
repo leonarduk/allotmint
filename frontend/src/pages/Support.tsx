@@ -160,7 +160,10 @@ export default function Support() {
           ? urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY as string)
           : undefined,
       });
-      await savePushSubscription("default", sub.toJSON());
+      await savePushSubscription(
+        "default",
+        sub.toJSON() as import("../api").PushSubscriptionJSON,
+      );
       setPushEnabled(true);
     } catch {
       /* ignore */

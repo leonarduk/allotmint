@@ -388,7 +388,7 @@ export const setAlertThreshold = (user: string, threshold: number) =>
   });
 
 export interface PushSubscriptionJSON {
-  endpoint: string;
+  endpoint?: string;
   keys: {
     p256dh: string;
     auth: string;

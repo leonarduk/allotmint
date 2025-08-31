@@ -267,6 +267,7 @@ configured default.
 python run_with_error_summary.py pytest
 ```
 
+
 ## Trading Agent
 Retrieve trade signals through the API:
 

@@ -376,6 +376,8 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
             try:
                 fx = fetch_fx_rate_range(currency, start, end).copy()
                 fx["Date"] = pd.to_datetime(fx["Date"])
+              if fx.empty:
+                  raise ValueError(f"Offline mode: no FX rates for {currency}")            
             except Exception as exc:
                 raise ValueError(f"Offline mode: no FX rates for {currency}") from exc
 

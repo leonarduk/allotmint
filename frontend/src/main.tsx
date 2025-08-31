@@ -8,6 +8,7 @@ import App from './App.tsx'
 import VirtualPortfolio from './pages/VirtualPortfolio'
 import Reports from './pages/Reports'
 import Support from './pages/Support'
+import ComplianceWarnings from './pages/ComplianceWarnings'
 import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
@@ -21,6 +22,8 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/support" element={<Support />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/virtual" element={<VirtualPortfolio />} />
+            <Route path="/compliance" element={<ComplianceWarnings />} />
+            <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
             <Route path="/*" element={<App />} />
           </Routes>
         </BrowserRouter>

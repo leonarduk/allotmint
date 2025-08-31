@@ -245,6 +245,60 @@ def test_run_compliance_gates_actions(monkeypatch):
     assert published == []
 
 
+def test_run_skips_signal_when_compliance_blocks(monkeypatch):
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_all_unique_tickers", lambda: ["AAA", "BBB"]
+    )
+
+    def fake_load_prices(tickers, days=60):
+        import pandas as pd
+
+        data = {
+            "Ticker": ["AAA"] * 7 + ["BBB"] * 7,
+            "close": [1, 1, 1, 1, 1, 1, 2] + [1, 1, 1, 1, 1, 1, 2],
+        }
+        return pd.DataFrame(data)
+
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.prices.load_prices_for_tickers", fake_load_prices
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.list_portfolios", lambda: [{"owner": "alice"}]
+    )
+
+    calls: list[str] = []
+
+    def fake_check(owner):
+        calls.append(owner)
+        if len(calls) == 1:
+            return {"owner": owner, "warnings": []}
+        return {"owner": owner, "warnings": ["limit"]}
+
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.compliance.check_owner", fake_check
+    )
+
+    published: list = []
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.publish_alert", lambda alert: published.append(alert)
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent.send_message", lambda msg: None
+    )
+    monkeypatch.setattr(
+        "backend.agent.trading_agent._log_trade", lambda *a, **k: None
+    )
+
+    signals = run()
+
+    assert len(signals) == 1
+    assert signals[0]["ticker"] == "AAA"
+    # compliance checked for each signal
+    assert len(calls) == 2
+    # second signal blocked, so only one alert published
+    assert len(published) == 1
+
+
 def test_log_trade_recreates_directory(tmp_path, monkeypatch):
     trade_path = tmp_path / "trades" / "trade_log.csv"
     trade_path.parent.mkdir(parents=True)

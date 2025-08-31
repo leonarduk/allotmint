@@ -8,7 +8,6 @@ import {
   deletePushSubscription,
 } from "../api";
 import { useConfig } from "../ConfigContext";
-import Menu from "../components/Menu";
 
 const TAB_KEYS = [
   "instrument",
@@ -197,7 +196,6 @@ export default function Support() {
 
   return (
     <div className="container mx-auto max-w-3xl space-y-4 p-4">
-      <Menu />
       <h1 className="text-2xl md:text-4xl">{t("support.title")}</h1>
       <p>
         <strong>{t("support.online")}</strong> {online ? t("support.onlineYes") : t("support.onlineNo")}

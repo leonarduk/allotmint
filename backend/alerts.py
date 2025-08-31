@@ -123,30 +123,34 @@ def iter_push_subscriptions() -> Iterable[Dict]:
 def send_push_notification(message: str) -> None:
     """Send ``message`` to all registered push subscriptions.
 
-    Uses ``pywebpush`` when available.  If no subscriptions or the required
-    VAPID credentials are missing, the function exits silently.
+    Uses ``pywebpush`` when available.  When push is not available the message
+    is published via SNS/email using :func:`publish_alert`.
     """
 
     subscriptions = list(iter_push_subscriptions())
     if not subscriptions:
+        publish_alert({"message": message})
         return
 
     vapid_key = os.getenv("VAPID_PRIVATE_KEY")
     vapid_email = os.getenv("VAPID_EMAIL")
     if not (vapid_key and vapid_email):
         logging.getLogger("alerts").info(
-            "VAPID credentials not configured; skipping push notification"
+            "VAPID credentials not configured; falling back to SNS"
         )
+        publish_alert({"message": message})
         return
 
     try:
         from pywebpush import webpush  # type: ignore
     except Exception:  # pragma: no cover - optional dependency
         logging.getLogger("alerts").info(
-            "pywebpush not installed; skipping push notification"
+            "pywebpush not installed; falling back to SNS"
         )
+        publish_alert({"message": message})
         return
 
+    sent = False
     for sub in subscriptions:
         try:
             webpush(
@@ -155,8 +159,12 @@ def send_push_notification(message: str) -> None:
                 vapid_private_key=vapid_key,
                 vapid_claims={"sub": f"mailto:{vapid_email}"},
             )
+            sent = True
         except Exception as exc:  # pragma: no cover - network errors
             logging.getLogger("alerts").warning("Web push failed: %s", exc)
+
+    if not sent:
+        publish_alert({"message": message})
 
 
 @dataclass

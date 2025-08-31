@@ -10,7 +10,7 @@ from typing import Dict, Iterable, List, Optional, Set
 
 import pandas as pd
 
-from backend.common import prices, compliance
+from backend.common import prices, compliance, indicators
 from backend.common.alerts import publish_alert
 from backend import alerts as alert_utils
 from backend.common.portfolio_loader import list_portfolios
@@ -66,27 +66,6 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
 PRICE_DROP_THRESHOLD = -5.0  # percent
 PRICE_GAIN_THRESHOLD = 5.0   # percent
 DRAWDOWN_ALERT_THRESHOLD = 0.2  # 20% decline; set to 0 to disable
-
-
-def _rsi(series: pd.Series, window: int) -> pd.Series:
-    delta = series.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(window=window, min_periods=window).mean()
-    avg_loss = loss.rolling(window=window, min_periods=window).mean()
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
-
-def _compute_rsi(series: pd.Series, period: int = 14) -> Optional[float]:
-    """Return the RSI for ``series`` or ``None`` if insufficient data."""
-    if len(series) <= period:
-        return None
-    delta = series.diff()
-    up = delta.clip(lower=0).ewm(alpha=1 / period, min_periods=period).mean()
-    down = (-delta.clip(upper=0)).ewm(alpha=1 / period, min_periods=period).mean()
-    rs = up / down
-    rsi = 100 - (100 / (1 + rs))
-    return float(rsi.iloc[-1])
 
 
 def _price_column(df: pd.DataFrame) -> Optional[str]:
@@ -270,13 +249,7 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
     """
     tickers = list(tickers) if tickers else list_all_unique_tickers()
 
-    # Compliance check before any trading activity
-    for pf in list_portfolios():
-        owner = pf.get("owner", "")
-        result = compliance.check_owner(owner)
-        if result.get("warnings"):
-            logger.warning("Compliance warnings for %s: %s", owner, result["warnings"])
-            return []
+    owners = [pf.get("owner", "") for pf in list_portfolios()]
 
     df = prices.load_prices_for_tickers(tickers, days=60)
     snapshot: Dict[str, Dict] = {}
@@ -296,28 +269,28 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
                 change_7d_pct = (last / prev - 1.0) * 100.0
         rsi = None
         if len(tdf) >= cfg.rsi_window:
-            rsi_series = _rsi(tdf[col], cfg.rsi_window)
+            rsi_series = indicators.rsi(tdf[col], cfg.rsi_window)
             rsi_val = rsi_series.iloc[-1]
             if pd.notna(rsi_val):
                 rsi = float(rsi_val)
         ma_short = None
         if len(tdf) >= cfg.ma_short_window:
-            ma_short_val = tdf[col].rolling(cfg.ma_short_window).mean().iloc[-1]
+            ma_short_val = indicators.sma(tdf[col], cfg.ma_short_window).iloc[-1]
             if pd.notna(ma_short_val):
                 ma_short = float(ma_short_val)
         ma_long = None
         if len(tdf) >= cfg.ma_long_window:
-            ma_long_val = tdf[col].rolling(cfg.ma_long_window).mean().iloc[-1]
+            ma_long_val = indicators.sma(tdf[col], cfg.ma_long_window).iloc[-1]
             if pd.notna(ma_long_val):
                 ma_long = float(ma_long_val)
         sma_50 = None
         if len(tdf) >= 50:
-            sma_50_val = tdf[col].rolling(50).mean().iloc[-1]
+            sma_50_val = indicators.sma(tdf[col], 50).iloc[-1]
             if pd.notna(sma_50_val):
                 sma_50 = float(sma_50_val)
         sma_200 = None
         if len(tdf) >= 200:
-            sma_200_val = tdf[col].rolling(200).mean().iloc[-1]
+            sma_200_val = indicators.sma(tdf[col], 200).iloc[-1]
             if pd.notna(sma_200_val):
                 sma_200 = float(sma_200_val)
         snapshot[tkr] = {
@@ -347,7 +320,19 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
         signals = [
             s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed
         ]
+    allowed_signals: List[Dict] = []
     for sig in signals:
+        blocked = False
+        for owner in owners:
+            result = compliance.check_owner(owner)
+            if result.get("warnings"):
+                logger.warning(
+                    "Compliance warnings for %s: %s", owner, result["warnings"]
+                )
+                blocked = True
+                break
+        if blocked:
+            continue
         ticker = sig["ticker"]
         price = snapshot[ticker]["last_price"]
         alert = {
@@ -356,12 +341,12 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             "reason": sig["reason"],
             "message": f"{sig['action']} {ticker}: {sig['reason']}",
         }
-        # When running outside AWS publish a Telegram notification too.
         send_trade_alert(alert["message"])
         logger.info("Published alert: %s", alert)
         _log_trade(ticker, sig["action"], price)
+        allowed_signals.append(sig)
 
-    if signals:
+    if allowed_signals:
         metrics = load_and_compute_metrics()
         logger.info(
             "Trade metrics - win rate: %.2f%%, average P/L: %.2f",
@@ -369,7 +354,7 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             metrics["average_profit"],
         )
     _alert_on_drawdown()
-    return signals
+    return allowed_signals
 
 
 if __name__ == "__main__":  # pragma: no cover

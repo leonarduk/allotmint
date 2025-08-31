@@ -311,9 +311,17 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
     if cfg.de_max is not None:
         fundamental_params["de_max"] = cfg.de_max
     if fundamental_params and signals:
-        fundamentals = screen([s["ticker"] for s in signals], **fundamental_params)
-        allowed = {f.ticker for f in fundamentals}
-        signals = [s for s in signals if s["ticker"] in allowed]
+        buy_signals = [s for s in signals if s["action"] == "BUY"]
+        if buy_signals:
+            fundamentals = screen(
+                [s["ticker"] for s in buy_signals], **fundamental_params
+            )
+            allowed = {f.ticker for f in fundamentals}
+            signals = [
+                s
+                for s in signals
+                if s["action"] != "BUY" or s["ticker"] in allowed
+            ]
     for sig in signals:
         ticker = sig["ticker"]
         price = snapshot[ticker]["last_price"]

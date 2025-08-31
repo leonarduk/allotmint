@@ -176,3 +176,27 @@ def test_offline_mode_uses_fx_cache(tmp_path, monkeypatch):
         pytest.approx(1 * 0.8),
         pytest.approx(2 * 0.81),
     ]
+
+
+def test_offline_mode_fetch_fallback(monkeypatch, tmp_path):
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 2)
+
+    def fake_memoized_range(ticker, exch, s_iso, e_iso):
+        return _sample_df(start, end)
+
+    def fake_fx(base, s, e):
+        dates = pd.bdate_range(s, e).date
+        return pd.DataFrame({"Date": dates, "Rate": [0.8] * len(dates)})
+
+    monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
+    monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", True)
+    monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
+    monkeypatch.setattr(cache, "get_instrument_meta", lambda t: {"currency": "USD"})
+
+    df = cache.load_meta_timeseries_range("T", "N", start, end)
+    assert list(df["Close_gbp"].astype(float)) == [
+        pytest.approx(1 * 0.8),
+        pytest.approx(2 * 0.8),
+    ]

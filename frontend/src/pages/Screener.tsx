@@ -31,7 +31,6 @@ export function Screener() {
   const [floatSharesMin, setFloatSharesMin] = useState("");
   const [marketCapMin, setMarketCapMin] = useState("");
   const [high52wMax, setHigh52wMax] = useState("");
-  const [low52wMax, setLow52wMax] = useState("");
   const [low52wMin, setLow52wMin] = useState("");
   const [avgVolumeMin, setAvgVolumeMin] = useState("");
 
@@ -103,7 +102,6 @@ export function Screener() {
           ? parseFloat(marketCapMin)
           : undefined,
         high_52w_max: high52wMax ? parseFloat(high52wMax) : undefined,
-        low_52w_max: low52wMax ? parseFloat(low52wMax) : undefined,
         low_52w_min: low52wMin ? parseFloat(low52wMin) : undefined,
         avg_volume_min: avgVolumeMin ? parseFloat(avgVolumeMin) : undefined,
       });

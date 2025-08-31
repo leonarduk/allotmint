@@ -17,17 +17,15 @@ from typing import Any, Dict, List, Sequence, Tuple
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from backend.common import portfolio as portfolio_mod
 from backend.common import (
     data_loader,
     group_portfolio,
     instrument_api,
     constants,
-)
-from backend.common import portfolio as portfolio_mod
-from backend.common import (
     portfolio_utils,
     prices,
-    risk,
+    risk
 )
 
 log = logging.getLogger("routes.portfolio")
@@ -272,6 +270,10 @@ async def group_movers(
 
     if not tickers:
         return {KEY_GAINERS: [], KEY_LOSERS: []}
+
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
+    # Compute weights in percent proportional to each instrument's market value.
+    # ``total_mv`` is the sum of all ``market_value_gbp`` values.
 
     # Compute equal weights in percent for filtering
     n = len(tickers)

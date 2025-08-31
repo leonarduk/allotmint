@@ -6,7 +6,7 @@ import logging
 import csv
 import os
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Set
 
 import pandas as pd
 
@@ -149,6 +149,9 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                         "ticker": ticker,
                         "action": "SELL",
                         "reason": f"RSI {rsi:.2f} >= {cfg.rsi_sell}",
+                    }
+                )
+                continue
         if rsi is not None:
             if rsi > 70:
                 signals.append(
@@ -171,12 +174,6 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
 
         if ma_short is not None and ma_long is not None:
             if ma_short > ma_long:
-
-        short_ma = info.get("sma_50")
-        long_ma = info.get("sma_200")
-        if short_ma is not None and long_ma is not None:
-            if short_ma > long_ma:
-
                 signals.append(
                     {
                         "ticker": ticker,
@@ -190,6 +187,25 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                         "ticker": ticker,
                         "action": "SELL",
                         "reason": f"MA{cfg.ma_short_window}<{cfg.ma_long_window}",
+                    }
+                )
+        short_ma = info.get("sma_50")
+        long_ma = info.get("sma_200")
+        if short_ma is not None and long_ma is not None:
+            if short_ma > long_ma:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "BUY",
+                        "reason": f"50d MA {short_ma:.2f} above 200d MA {long_ma:.2f}",
+                    }
+                )
+            elif short_ma < long_ma:
+                signals.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "reason": f"50d MA {short_ma:.2f} below 200d MA {long_ma:.2f}",
                     }
                 )
     return signals
@@ -292,6 +308,16 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             ma_long_val = tdf[col].rolling(cfg.ma_long_window).mean().iloc[-1]
             if pd.notna(ma_long_val):
                 ma_long = float(ma_long_val)
+        sma_50 = None
+        if len(tdf) >= 50:
+            sma_50_val = tdf[col].rolling(50).mean().iloc[-1]
+            if pd.notna(sma_50_val):
+                sma_50 = float(sma_50_val)
+        sma_200 = None
+        if len(tdf) >= 200:
+            sma_200_val = tdf[col].rolling(200).mean().iloc[-1]
+            if pd.notna(sma_200_val):
+                sma_200 = float(sma_200_val)
         snapshot[tkr] = {
             "last_price": last,
             "change_7d_pct": change_7d_pct,
@@ -299,8 +325,8 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             "rsi": rsi,
             "ma_short": ma_short,
             "ma_long": ma_long,
-            "sma_50": float(sma_50) if sma_50 is not None and not pd.isna(sma_50) else None,
-            "sma_200": float(sma_200) if sma_200 is not None and not pd.isna(sma_200) else None,
+            "sma_50": sma_50,
+            "sma_200": sma_200,
         }
 
     signals = generate_signals(snapshot)
@@ -311,17 +337,14 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
     if cfg.de_max is not None:
         fundamental_params["de_max"] = cfg.de_max
     if fundamental_params and signals:
-        buy_signals = [s for s in signals if s["action"] == "BUY"]
-        if buy_signals:
-            fundamentals = screen(
-                [s["ticker"] for s in buy_signals], **fundamental_params
-            )
+        buy_tickers = [s["ticker"] for s in signals if s["action"] == "BUY"]
+        allowed: Set[str] = set()
+        if buy_tickers:
+            fundamentals = screen(buy_tickers, **fundamental_params)
             allowed = {f.ticker for f in fundamentals}
-            signals = [
-                s
-                for s in signals
-                if s["action"] != "BUY" or s["ticker"] in allowed
-            ]
+        signals = [
+            s for s in signals if s["action"] != "BUY" or s["ticker"] in allowed
+        ]
     for sig in signals:
         ticker = sig["ticker"]
         price = snapshot[ticker]["last_price"]

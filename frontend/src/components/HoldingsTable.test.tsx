@@ -1,5 +1,6 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import i18n from "../i18n";
 vi.mock("../api", () => ({
     getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
 }));
@@ -185,7 +186,6 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings}/>);
         expect(screen.getByText(/Source: Feed/)).toBeInTheDocument();
     });
-});
 
     it("applies sell-eligible quick filter", () => {
         render(<HoldingsTable holdings={holdings} />);
@@ -196,9 +196,9 @@ describe("HoldingsTable", () => {
     });
 
     it("applies gain percentage quick filter", () => {
-        vi.spyOn(window, 'prompt').mockReturnValue('10');
         render(<HoldingsTable holdings={holdings} />);
-        fireEvent.click(screen.getByRole('button', { name: /Gain%/ }));
+        const input = screen.getByPlaceholderText('Min Gain %');
+        fireEvent.change(input, { target: { value: '10' } });
         expect(screen.getByPlaceholderText('Gain %')).toHaveValue('10');
         expect(screen.getByText('AAA')).toBeInTheDocument();
         expect(screen.queryByText('XYZ')).toBeNull();
@@ -241,5 +241,13 @@ describe("HoldingsTable", () => {
           expect(screen.getByText('No holdings match the current filters.')).toBeInTheDocument();
           fireEvent.click(screen.getByRole('button', { name: 'All' }));
           expect(screen.getByText('AAA')).toBeInTheDocument();
+      });
+
+      it("renders translated text in Spanish", async () => {
+          await i18n.changeLanguage('es');
+          render(<HoldingsTable holdings={holdings} />);
+          expect(screen.getByText('Vista:')).toBeInTheDocument();
+          expect(screen.getByRole('button', { name: 'Todos' })).toBeInTheDocument();
+          await i18n.changeLanguage('en');
       });
   });

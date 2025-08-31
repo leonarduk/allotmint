@@ -55,6 +55,52 @@
       "delta30d": "30j %"
     }
   },
+  "holdingsTable": {
+    "range": "Plage :",
+    "rangeOption": "{{count}}j",
+    "view": "Vue :",
+    "viewPresets": {
+      "all": "Tous"
+    },
+    "quickFilters": "Filtres rapides :",
+    "quickFiltersSellEligible": "Éligible à la vente",
+    "quickFiltersGainPct": "Gain % > x",
+    "minimumGainPrompt": "Gain minimal %",
+    "columnsLabel": "Colonnes :",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nom",
+      "trend": "Tendance",
+      "ccy": "Devise",
+      "type": "Type",
+      "units": "Unités",
+      "price": "Prix £",
+      "cost": "Coût £",
+      "market": "Mkt £",
+      "gain": "Gain £",
+      "gainPct": "Gain %",
+      "weightPct": "Poids %",
+      "acquired": "Acquis",
+      "daysHeld": "Jours détenus",
+      "eligible": "Éligible ?"
+    },
+    "filters": {
+      "ticker": "Ticker",
+      "name": "Nom",
+      "type": "Type",
+      "units": "Unités",
+      "gainPct": "Gain %",
+      "sellEligible": "Éligible à la vente",
+      "all": "Tous",
+      "yes": "Oui",
+      "no": "Non"
+    },
+    "noHoldings": "Aucune position ne correspond aux filtres actuels.",
+    "source": "Source :",
+    "actualPurchaseCost": "Coût d'achat réel",
+    "inferredCost": "Déduit du prix à la date d'acquisition",
+    "eligible": "Éligible"
+  },
   "instrumentDetail": {
     "edit": "Modifier",
     "change7d": "7j",

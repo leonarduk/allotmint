@@ -29,7 +29,7 @@ export function AccountBlock({
   } | null>(null);
 
   return (
-    <div className="mb-8 p-4">
+    <div className="mb-4 p-2 md:mb-8 md:p-4">
       <h2 className="mt-0">
         {onToggle && (
           <input
@@ -76,7 +76,7 @@ export function AccountBlock({
       )}
     </div>
   );
-}
+  }
 
 /* Export default as convenience for `lazy()` / Storybook */
 export default AccountBlock;

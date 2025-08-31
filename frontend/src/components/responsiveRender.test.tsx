@@ -88,13 +88,15 @@ describe("mobile viewport rendering", () => {
     expect(container.querySelector("h1")).toHaveClass("mt-0");
   });
 
-  it("renders AccountBlock", () => {
-    const { container } = renderWithConfig(<AccountBlock account={account} />);
-    expect(container.firstChild).toHaveClass("mb-8", "p-4");
-  });
+    it("renders AccountBlock", () => {
+      const { container } = renderWithConfig(<AccountBlock account={account} />);
+      expect(container.firstChild).toHaveClass("mb-4", "p-2", "md:mb-8", "md:p-4");
+    });
 
-  it("renders HoldingsTable", () => {
-    const { container } = renderWithConfig(<HoldingsTable holdings={holdings} />);
-    expect(container.querySelector("table")).toHaveClass("mb-4");
+    it("renders HoldingsTable", () => {
+      const { container } = renderWithConfig(<HoldingsTable holdings={holdings} />);
+      const wrapper = container.querySelector("div.overflow-x-auto");
+      expect(wrapper).toHaveClass("overflow-x-auto");
+      expect(container.querySelector("table")).toHaveClass("mb-4");
+    });
   });
-});

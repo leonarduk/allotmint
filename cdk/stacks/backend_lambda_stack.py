@@ -30,7 +30,7 @@ class BackendLambdaStack(Stack):
                     command=[
                         "bash",
                         "-c",
-                        "pip install -r requirements.txt -t /asset-output/python",
+                        "pip install -r requirements-lambda.txt -t /asset-output/python",
                     ],
                 ),
             ),

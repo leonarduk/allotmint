@@ -1,5 +1,6 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import i18n from "../i18n";
 vi.mock("../api", () => ({
     getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
 }));
@@ -185,7 +186,6 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={holdings}/>);
         expect(screen.getByText(/Source: Feed/)).toBeInTheDocument();
     });
-});
 
     it("applies sell-eligible quick filter", () => {
         render(<HoldingsTable holdings={holdings} />);
@@ -241,5 +241,13 @@ describe("HoldingsTable", () => {
           expect(screen.getByText('No holdings match the current filters.')).toBeInTheDocument();
           fireEvent.click(screen.getByRole('button', { name: 'All' }));
           expect(screen.getByText('AAA')).toBeInTheDocument();
+      });
+
+      it("renders translated text in Spanish", async () => {
+          await i18n.changeLanguage('es');
+          render(<HoldingsTable holdings={holdings} />);
+          expect(screen.getByText('Vista:')).toBeInTheDocument();
+          expect(screen.getByRole('button', { name: 'Todos' })).toBeInTheDocument();
+          await i18n.changeLanguage('en');
       });
   });

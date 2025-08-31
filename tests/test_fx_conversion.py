@@ -38,11 +38,16 @@ def test_prices_converted_to_gbp(monkeypatch, exchange, rate):
 
     monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
     monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
 
     df = cache.load_meta_timeseries_range("T", exchange, start, end)
-    closes = list(df["Close_gbp"].astype(float))
-    assert closes == [pytest.approx(1 * rate), pytest.approx(2 * rate)]
-    assert list(df["Close"].astype(float)) == [1.0, 2.0]
+    expected = [1 * rate, 2 * rate]
+    for col in ["Open_gbp", "High_gbp", "Low_gbp", "Close_gbp"]:
+        assert col in df.columns
+        assert list(df[col].astype(float)) == pytest.approx(expected)
+    for col in ["Open", "High", "Low", "Close"]:
+        assert col in df.columns
+        assert list(df[col].astype(float)) == [1.0, 2.0]
 
 
 def test_missing_fx_rates_are_filled(monkeypatch):
@@ -58,15 +63,16 @@ def test_missing_fx_rates_are_filled(monkeypatch):
 
     monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
     monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
 
     df = cache.load_meta_timeseries_range("T", "N", start, end)
-    closes = list(df["Close_gbp"].astype(float))
-    assert closes == [
-        pytest.approx(1 * 0.8),
-        pytest.approx(2 * 0.8),
-        pytest.approx(3 * 0.81),
-    ]
-    assert list(df["Close"].astype(float)) == [1.0, 2.0, 3.0]
+    expected = [1 * 0.8, 2 * 0.8, 3 * 0.81]
+    for col in ["Open_gbp", "High_gbp", "Low_gbp", "Close_gbp"]:
+        assert col in df.columns
+        assert list(df[col].astype(float)) == pytest.approx(expected)
+    for col in ["Open", "High", "Low", "Close"]:
+        assert col in df.columns
+        assert list(df[col].astype(float)) == [1.0, 2.0, 3.0]
 
 
 def test_string_fx_rates_are_converted(monkeypatch):
@@ -82,11 +88,16 @@ def test_string_fx_rates_are_converted(monkeypatch):
 
     monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
     monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
 
     df = cache.load_meta_timeseries_range("T", "N", start, end)
-    closes = list(df["Close_gbp"].astype(float))
-    assert closes == [pytest.approx(1 * 0.8), pytest.approx(2 * 0.81)]
-    assert list(df["Close"].astype(float)) == [1.0, 2.0]
+    expected = [1 * 0.8, 2 * 0.81]
+    for col in ["Open_gbp", "High_gbp", "Low_gbp", "Close_gbp"]:
+        assert col in df.columns
+        assert list(df[col].astype(float)) == pytest.approx(expected)
+    for col in ["Open", "High", "Low", "Close"]:
+        assert col in df.columns
+        assert list(df[col].astype(float)) == [1.0, 2.0]
 
 
 def test_non_gbp_instrument_on_gbp_exchange(monkeypatch):
@@ -103,6 +114,7 @@ def test_non_gbp_instrument_on_gbp_exchange(monkeypatch):
     monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
     monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
     monkeypatch.setattr(cache, "get_instrument_meta", lambda t: {"currency": "USD"})
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
 
     df = cache.load_meta_timeseries_range("T", "L", start, end)
     assert list(df["Close"].astype(float)) == [1.0, 2.0]
@@ -122,6 +134,7 @@ def test_unsupported_currency_skips_conversion(monkeypatch):
     monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
     monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
     monkeypatch.setitem(cache.EXCHANGE_TO_CCY, "ZZ", "XYZ")
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
 
     df = cache.load_meta_timeseries_range("T", "ZZ", start, end)
     assert df.empty
@@ -139,6 +152,7 @@ def test_memoized_range_returns_copy(monkeypatch):
         return sample
 
     monkeypatch.setattr(cache, "load_meta_timeseries", fake_load_meta_timeseries)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
     cache._memoized_range_cached.cache_clear()
 
     first = cache._memoized_range("T", "L", start.isoformat(), end.isoformat())

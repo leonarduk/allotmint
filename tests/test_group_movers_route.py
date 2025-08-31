@@ -44,3 +44,8 @@ def test_group_movers_endpoint(monkeypatch):
     assert [loser["ticker"] for loser in data["losers"]] == ["BBB"]
     assert data["gainers"][0]["market_value_gbp"] == 100.0
     assert data["losers"][0]["market_value_gbp"] == 50.0
+
+
+def test_group_movers_limit_too_high():
+    resp = client.get("/portfolio-group/demo/movers?limit=101")
+    assert resp.status_code == 400

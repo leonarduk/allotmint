@@ -17,6 +17,7 @@ discovered correctly.
 
 import asyncio
 import logging
+import re
 from collections import deque
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -29,6 +30,15 @@ from playwright.async_api import async_playwright
 OUTPUT_DIR = Path("site_manual")
 SCREENSHOT_DIR = OUTPUT_DIR / "screenshots"
 MARKDOWN_DIR = OUTPUT_DIR / "markdown"
+
+
+def slugify(text: str) -> str:
+    """Sanitize text for cross-platform filenames.
+
+    Replaces sequences of non-alphanumeric characters with underscores so
+    generated paths work consistently on Windows and POSIX systems.
+    """
+    return re.sub(r"[^0-9A-Za-z]+", "_", text).strip("_")
 
 
 def is_same_domain(url: str, base_url: str) -> bool:
@@ -95,7 +105,7 @@ def build_docs(entries):
         md_content = f"# {title}\n\nURL: {url}\n\n{text}"
 
         # Markdown manual
-        md_file = MARKDOWN_DIR / f"{idx:03}_{title.replace(' ', '_')}.md"
+        md_file = MARKDOWN_DIR / f"{idx:03}_{slugify(title)}.md"
         md_file.write_text(md_content, encoding="utf-8")
 
         # PDF section
@@ -124,4 +134,4 @@ def main(url: str):
 if __name__ == "__main__":
     base_url = "http://localhost:5173/"  # Change to your server
 
-    main(url = base_url)
+    main(url=base_url)

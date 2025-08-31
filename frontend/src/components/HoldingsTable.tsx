@@ -130,12 +130,22 @@ export function HoldingsTable({
     ["gain_pct", "Gain %"],
   ];
 
-  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  useEffect(() => {
+    if (tableHeaderRef.current) {
+      setHeaderHeight(tableHeaderRef.current.getBoundingClientRect().height);
+    }
+  }, []);
+
   const rowVirtualizer = useVirtualizer({
     count: sortedRows.length,
-    getScrollElement: () => bodyRef.current,
+    getScrollElement: () => tableContainerRef.current,
     estimateSize: () => 40,
     overscan: 5,
+    scrollMargin: headerHeight,
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
   const paddingTop = virtualRows.length ? virtualRows[0].start : 0;
@@ -200,8 +210,12 @@ export function HoldingsTable({
         ))}
       </div>
       {sortedRows.length ? (
-        <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
-        <thead>
+        <div
+          ref={tableContainerRef}
+          style={{ maxHeight: "400px", overflowY: "auto", marginBottom: "1rem" }}
+        >
+        <table className={tableStyles.table}>
+        <thead ref={tableHeaderRef}>
           <tr>
             <th className={tableStyles.cell}>
               <input
@@ -325,10 +339,7 @@ export function HoldingsTable({
           </tr>
         </thead>
 
-        <tbody
-          ref={bodyRef}
-          style={{ display: "block", maxHeight: "400px", overflowY: "auto" }}
-        >
+        <tbody>
           {paddingTop > 0 && (
             <tr style={{ height: paddingTop }}>
               <td colSpan={20} style={{ padding: 0, border: "none" }} />
@@ -452,6 +463,7 @@ export function HoldingsTable({
           )}
         </tbody>
         </table>
+        </div>
       ) : (
         <p>No holdings match the current filters.</p>
       )}

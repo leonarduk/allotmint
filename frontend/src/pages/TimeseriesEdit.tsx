@@ -100,9 +100,9 @@ export function TimeseriesEdit() {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <h2>Timeseries Editor</h2>
-      <div style={{ marginBottom: "0.5rem" }}>
+    <div className="container mx-auto p-4 max-w-3xl">
+      <h2 className="mb-4 text-xl md:text-2xl">Timeseries Editor</h2>
+      <div className="mb-2">
         <label>
           Ticker {" "}
           <input value={ticker} onChange={(e) => setTicker(e.target.value)} />
@@ -119,8 +119,8 @@ export function TimeseriesEdit() {
           Load
         </button>
       </div>
-      <div style={{ marginBottom: "0.5rem", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div className="mb-2 overflow-x-auto">
+        <table className="w-full border-collapse">
           <thead>
             <tr>
               <th>Date</th>

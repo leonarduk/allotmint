@@ -104,23 +104,19 @@ export function Watchlist() {
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: "0.5rem" }}>
+    <div className="container mx-auto p-4">
+      <h1 className="mb-4 text-2xl md:text-4xl">
+        {t("watchlist.title", { defaultValue: "Watchlist" })}
+      </h1>
+      <div className="mb-2">
         <input
-          style={{ width: "100%" }}
+          className="w-full"
           value={symbols}
           onChange={(e) => setSymbols(e.target.value)}
         />
       </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          marginBottom: "0.5rem",
-        }}
-      >
-        <label style={{ display: "flex", alignItems: "center" }}>
+      <div className="mb-2 flex items-center gap-2">
+        <label className="flex items-center">
           <input
             type="checkbox"
             checked={auto}
@@ -130,10 +126,10 @@ export function Watchlist() {
         <button onClick={fetchData}>{t("watchlist.refresh")}</button>
       </div>
       {error && (
-        <div style={{ color: "red", marginBottom: "0.5rem" }}>{error}</div>
+        <div className="mb-2 text-red-500">{error}</div>
       )}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
           <thead>
             <tr>
               {[

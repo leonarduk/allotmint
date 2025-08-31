@@ -25,6 +25,7 @@ import Menu from "./components/Menu";
 import { useRoute } from "./RouteContext";
 import PriceRefreshControls from "./components/PriceRefreshControls";
 import { Header } from "./components/Header";
+import InstallPwaPrompt from "./components/InstallPwaPrompt";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
@@ -142,6 +143,7 @@ export default function MainApp() {
   return (
     <>
       <LanguageSwitcher />
+      <InstallPwaPrompt />
       <AlertsPanel />
       {mode !== "support" && (
         <Menu selectedOwner={selectedOwner} selectedGroup={selectedGroup} />

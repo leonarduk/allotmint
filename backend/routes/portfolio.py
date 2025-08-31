@@ -209,16 +209,6 @@ async def group_regions(slug: str):
     return portfolio_utils.aggregate_by_region(gp)
 
 
-@router.get(
-    "/portfolio-group/{slug}/movers",
-    response_model=MoversResponse,
-    responses={
-        200: {
-            "description": 'Top gainers and losers for a group portfolio. Returns {"gainers": [], "losers": []} if the group holds no tickers.'
-        }
-    },
-)
-
 def _calculate_weights_and_market_values(
     summaries: Sequence[Dict[str, Any]],
 ) -> Tuple[List[str], Dict[str, float], Dict[str, float]]:
@@ -260,8 +250,15 @@ def _enrich_movers_with_market_values(
     return movers
 
 
-@router.get("/portfolio-group/{slug}/movers")
-
+@router.get(
+    "/portfolio-group/{slug}/movers",
+    response_model=MoversResponse,
+    responses={
+        200: {
+            "description": 'Top gainers and losers for a group portfolio. Returns {"gainers": [], "losers": []} if the group holds no tickers.'
+        }
+    },
+)
 async def group_movers(
     slug: str,
     days: int = Query(1, description="Lookback window"),

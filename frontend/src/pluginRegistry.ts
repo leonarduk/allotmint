@@ -47,10 +47,10 @@ registerTabPlugin({
   id: "alert-settings",
   Component: AlertSettings,
   priority: 130,
+});
 
 registerTabPlugin({
   id: "compliance",
   Component: ComplianceWarnings,
   priority: 150,
-
 });

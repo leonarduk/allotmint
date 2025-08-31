@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+import pytest
+
 import backend.common.instrument_api as ia
 from backend.local_api.main import app
 
@@ -16,14 +18,17 @@ def test_group_movers_endpoint(monkeypatch):
         return [
             {"ticker": "AAA", "market_value_gbp": 100.0},
             {"ticker": "BBB", "market_value_gbp": 50.0},
+            {"ticker": "CCC", "market_value_gbp": 25.0},
         ]
 
     def fake_top_movers(tickers, days, limit, *, min_weight, weights):
-        assert tickers == ["AAA", "BBB"]
+        assert tickers == ["AAA", "BBB", "CCC"]
         assert days == 7
         assert limit == 5
         assert min_weight == 0.5
-        assert weights == {"AAA": 50.0, "BBB": 50.0}
+        assert weights["AAA"] == pytest.approx(57.142857, rel=1e-6)
+        assert weights["BBB"] == pytest.approx(28.571429, rel=1e-6)
+        assert weights["CCC"] == pytest.approx(14.285714, rel=1e-6)
         return {
             "gainers": [{"ticker": "AAA", "name": "AAA", "change_pct": 5}],
             "losers": [{"ticker": "BBB", "name": "BBB", "change_pct": -3}],
@@ -39,3 +44,8 @@ def test_group_movers_endpoint(monkeypatch):
     assert [loser["ticker"] for loser in data["losers"]] == ["BBB"]
     assert data["gainers"][0]["market_value_gbp"] == 100.0
     assert data["losers"][0]["market_value_gbp"] == 50.0
+
+
+def test_group_movers_limit_too_high():
+    resp = client.get("/portfolio-group/demo/movers?limit=101")
+    assert resp.status_code == 400

@@ -12,24 +12,30 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import List
+from typing import Any, Dict, List, Sequence, Tuple
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from backend.common import portfolio as portfolio_mod
 from backend.common import (
     data_loader,
     group_portfolio,
     instrument_api,
+    constants,
     portfolio_utils,
     prices,
-    risk,
+    risk
 )
-from backend.common import portfolio as portfolio_mod
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
 _ALLOWED_DAYS = {1, 7, 30, 90, 365}
+
+KEY_TICKER = constants.TICKER
+KEY_MARKET_VALUE_GBP = constants.MARKET_VALUE_GBP
+KEY_GAINERS = "gainers"
+KEY_LOSERS = "losers"
 
 
 # ──────────────────────────────────────────────────────────────
@@ -88,17 +94,13 @@ async def portfolio(owner: str, request: Request):
     """
 
     try:
-        return portfolio_mod.build_owner_portfolio(
-            owner, request.app.state.accounts_root
-        )
+        return portfolio_mod.build_owner_portfolio(owner, request.app.state.accounts_root)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
 
 
 @router.get("/var/{owner}")
-async def portfolio_var(
-    owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False
-):
+async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False):
     """Return historical-simulation VaR for ``owner``.
 
     Parameters
@@ -119,9 +121,7 @@ async def portfolio_var(
     """
 
     try:
-        var = risk.compute_portfolio_var(
-            owner, days=days, confidence=confidence, include_cash=not exclude_cash
-        )
+        var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
@@ -195,24 +195,13 @@ async def group_regions(slug: str):
     return portfolio_utils.aggregate_by_region(gp)
 
 
-@router.get("/portfolio-group/{slug}/movers")
-async def group_movers(
-    slug: str,
-    days: int = Query(1, description="Lookback window"),
-    limit: int = Query(10, description="Max results per side"),
-    min_weight: float = Query(0.0, description="Exclude positions below this percent"),
-):
-    """Return top gainers and losers for a group portfolio."""
+def _calculate_weights_and_market_values(
+    summaries: Sequence[Dict[str, Any]],
+) -> Tuple[List[str], Dict[str, float], Dict[str, float]]:
+    """Return tickers, equal-weight mapping and market values for summaries."""
 
-    if days not in _ALLOWED_DAYS:
-        raise HTTPException(status_code=400, detail="Invalid days")
-    try:
-        summaries = instrument_api.instrument_summaries_for_group(slug)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Group not found")
-
-    market_values = {}
-    tickers = []
+    tickers: List[str] = []
+    market_values: Dict[str, float] = {}
     for s in summaries:
         t = s.get("ticker")
         if not t:
@@ -222,26 +211,22 @@ async def group_movers(
         if mv is not None:
             t_upper = t.upper()
             market_values[t_upper] = mv
-            market_values[t_upper.split(".")[0]] = mv
+            market_values[t_upper.split(".", 1)[0]] = mv
 
-    if not tickers:
-        return {"gainers": [], "losers": []}
-
-    # Compute weights in percent for filtering
-    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
-    weight_map = {
-        s["ticker"]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
-        if total_mv
-        else 0.0
-        for s in summaries
-        if s.get("ticker")
-    }
+    n = len(tickers)
+    if n == 0:
+        return tickers, {}, market_values
+    equal_weight = 100.0 / n
+    weights = {t: equal_weight for t in tickers}
+    return tickers, weights, market_values
 
 
-    movers = instrument_api.top_movers(tickers, days, limit,        
-                                       min_weight=min_weight,
-                                       weights=weight_map,
-                                      )
+def _enrich_movers_with_market_values(
+    movers: Dict[str, List[Dict[str, Any]]],
+    market_values: Dict[str, float],
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Attach market values to mover rows."""
+
     for side in ("gainers", "losers"):
         for row in movers.get(side, []):
             mv = market_values.get(row["ticker"].upper())
@@ -250,12 +235,81 @@ async def group_movers(
             row["market_value_gbp"] = mv
     return movers
 
+
+@router.get("/portfolio-group/{slug}/movers")
+async def group_movers(
+    slug: str,
+    days: int = Query(1, description="Lookback window"),
+    limit: int = Query(10, description="Max results per side", le=100),
+    min_weight: float = Query(0.0, description="Exclude positions below this percent"),
+):
+    """Return top gainers and losers for a group portfolio."""
+
+    if days not in _ALLOWED_DAYS:
+        raise HTTPException(status_code=400, detail="Invalid days")
+    try:
+        summaries = instrument_api.instrument_summaries_for_group(slug)
+    except Exception as e:
+        log.warning(f"Failed to load instrument summaries for group {slug}: {e}")
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    tickers, weight_map, market_values = _calculate_weights_and_market_values(summaries)
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
+
+    market_values = {}
+    tickers = []
+    for s in summaries:
+        t = s.get(KEY_TICKER)
+        if not t:
+            continue
+        tickers.append(t)
+        mv = s.get(KEY_MARKET_VALUE_GBP)
+        if mv is not None:
+            base = t.upper().split(".")[0]
+            market_values[base] = mv
+
+    if not tickers:
+        return {KEY_GAINERS: [], KEY_LOSERS: []}
+
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
+    # Compute weights in percent proportional to each instrument's market value.
+    # ``total_mv`` is the sum of all ``market_value_gbp`` values.
+
+    # Compute weights in percent for filtering
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries if s.get("ticker"))
+
+    
+    # Compute equal weights in percent for filtering
+    n = len(tickers)
+    weight = 100.0 / n if n else 0.0
+
+    # Compute weights in percent for filtering
+    weight_map = {
+        s[KEY_TICKER]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
+        if total_mv
+        else 0.0
+        for s in summaries
+        if s.get(KEY_TICKER)
+    }
+
+    movers = instrument_api.top_movers(
+        tickers,
+        days,
+        limit,
+        min_weight=min_weight,
+        weights=weight_map,
+    )
+
+    return _enrich_movers_with_market_values(movers, market_values)
+
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str):
     try:
-        return data_loader.load_account(owner, account.lower())
+        data = data_loader.load_account(owner, account.lower())
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Account not found")
+    data.setdefault("account_type", account)
+    return data
 
 
 @router.get("/portfolio-group/{slug}/instrument/{ticker}")

@@ -16,6 +16,8 @@ export interface Holding {
     gain_gbp?: number;
     gain_pct?: number;
     current_price_gbp?: number | null;
+    /** Date of the last known price for this holding */
+    last_price_date?: string | null;
     latest_source?: string | null;
     day_change_gbp?: number;
     instrument_type?: string | null;
@@ -115,6 +117,20 @@ export interface ValueAtRiskPoint {
     date: string;
     var: number;
 }
+
+export interface AlphaResponse {
+    alpha_vs_benchmark: number | null;
+    benchmark: string;
+}
+
+export interface TrackingErrorResponse {
+    tracking_error: number | null;
+    benchmark: string;
+}
+
+export interface MaxDrawdownResponse {
+    max_drawdown: number | null;
+};
 
 export interface InstrumentDetailMini {
     [range: string]: {

@@ -23,10 +23,10 @@ def test_group_movers_endpoint(monkeypatch):
         assert days == 7
         assert limit == 5
         assert min_weight == 0.5
-        expected = pytest.approx(100.0 / 3)
-        assert weights["AAA"] == expected
-        assert weights["BBB"] == expected
-        assert weights["CCC"] == expected
+        total = 100.0 + 50.0 + 25.0
+        assert weights["AAA"] == pytest.approx(100.0 / total * 100)
+        assert weights["BBB"] == pytest.approx(50.0 / total * 100)
+        assert weights["CCC"] == pytest.approx(25.0 / total * 100)
         return {
             "gainers": [{"ticker": "AAA", "name": "AAA", "change_pct": 5}],
             "losers": [{"ticker": "BBB", "name": "BBB", "change_pct": -3}],

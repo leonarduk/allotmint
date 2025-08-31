@@ -234,6 +234,8 @@ async def group_movers(
 
     market_values = {}
     tickers = []
+    weight_values = {}
+    total_mv = 0.0
     for s in summaries:
         t = s.get("ticker")
         if not t:
@@ -244,13 +246,17 @@ async def group_movers(
             t_upper = t.upper()
             market_values[t_upper] = mv
             market_values[t_upper.split(".")[0]] = mv
+            weight_values[t] = mv
+            total_mv += mv
 
     if not tickers:
         return {"gainers": [], "losers": []}
 
-    # Compute equal weights in percent for filtering
-    n = len(tickers)
-    weight_map = {s["ticker"]: 100.0 / n for s in summaries if s.get("ticker")}
+    if total_mv:
+        weight_map = {t: mv / total_mv * 100.0 for t, mv in weight_values.items()}
+    else:
+        n = len(tickers)
+        weight_map = {t: 100.0 / n for t in tickers}
 
     movers = instrument_api.top_movers(
         tickers,

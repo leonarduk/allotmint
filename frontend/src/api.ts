@@ -391,6 +391,9 @@ export const getTradingSignals = () =>
 export const getCompliance = (owner: string) =>
   fetchJson<ComplianceResult>(`${API_BASE}/compliance/${owner}`);
 
+/** Alias for compatibility with newer API naming */
+export const complianceForOwner = getCompliance;
+
 /** Virtual portfolio endpoints */
 export const getVirtualPortfolios = () =>
   fetchJson<VirtualPortfolio[]>(`${API_BASE}/virtual-portfolios`);

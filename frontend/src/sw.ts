@@ -1,7 +1,9 @@
 /// <reference lib="webworker" />
 
+const sw = self as ServiceWorkerGlobalScope;
+
 // basic service worker for push notifications
-self.addEventListener('push', (event: PushEvent) => {
+sw.addEventListener('push', (event: PushEvent) => {
   const payload = event.data?.text();
   let data: Record<string, unknown> = {};
   if (payload) {
@@ -22,12 +24,12 @@ self.addEventListener('push', (event: PushEvent) => {
             : ''
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(sw.registration.showNotification(title, options));
 });
 
-self.addEventListener('notificationclick', (event: NotificationEvent) => {
+sw.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow('/'));
+  event.waitUntil(sw.clients.openWindow('/'));
 });
 
 export {};

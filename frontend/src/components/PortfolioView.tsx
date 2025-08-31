@@ -47,13 +47,13 @@ export function PortfolioView({ data, loading, error }: Props) {
 
   return (
     <div>
-      <h1 style={{ marginTop: 0 }}>
+      <h1 className="mt-0">
         Portfolio: <span data-testid="owner-name">{data.owner}</span>
       </h1>
-      <div style={{ marginBottom: "1rem" }}>
+      <div className="mb-1">
         As of {new Intl.DateTimeFormat(i18n.language).format(new Date(data.as_of))}
       </div>
-      <div style={{ marginBottom: "2rem" }}>
+      <div className="mb-2">
         Approx Total: {money(totalValue)}
       </div>
       <ValueAtRisk owner={data.owner} />

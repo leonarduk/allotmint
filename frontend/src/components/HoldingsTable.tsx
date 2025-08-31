@@ -163,10 +163,10 @@ export function HoldingsTable({
 
   return (
     <>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div className="mb-05">
         {t("holdingsTable.range")}
         {[7, 30, 180].map((d) => (
-          <label key={d} style={{ marginLeft: "0.5rem" }}>
+          <label key={d} className="ml-05">
             <input
               type="radio"
               name="sparkRange"
@@ -177,15 +177,15 @@ export function HoldingsTable({
           </label>
         ))}
       </div>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div className="mb-05">
         {t("holdingsTable.view")}
         {viewPresets.map((p) => (
           <button
             key={p.label}
             type="button"
             onClick={() => setViewPreset(p.value)}
+            className="ml-05"
             style={{
-              marginLeft: "0.5rem",
               fontWeight: viewPreset === p.value ? "bold" : "normal",
             }}
           >
@@ -193,11 +193,11 @@ export function HoldingsTable({
           </button>
         ))}
       </div>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div className="mb-05">
         {t("holdingsTable.quickFilters")}
         <button
           type="button"
-          style={{ marginLeft: "0.5rem" }}
+          className="ml-05"
           onClick={() => handleFilterChange("sell_eligible", "true")}
         >
           {t("holdingsTable.quickFiltersSellEligible")}
@@ -207,13 +207,13 @@ export function HoldingsTable({
           placeholder={t("holdingsTable.minimumGainPrompt")}
           value={filters.gain_pct}
           onChange={(e) => handleFilterChange("gain_pct", e.target.value)}
-          style={{ marginLeft: "0.5rem" }}
+          className="ml-05"
         />
       </div>
-      <div style={{ marginBottom: "0.5rem" }}>
+      <div className="mb-05">
         {t("holdingsTable.columnsLabel")}
         {columnLabels.map(([key, label]) => (
-          <label key={key} style={{ marginLeft: "0.5rem" }}>
+          <label key={key} className="ml-05">
             <input
               type="checkbox"
               checked={visibleColumns[key]}
@@ -224,7 +224,8 @@ export function HoldingsTable({
         ))}
       </div>
       {sortedRows.length ? (
-        <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
+        <div className="table-responsive mb-1">
+        <table className={tableStyles.table}>
         <thead>
           <tr>
             <th className={tableStyles.cell}>
@@ -415,7 +416,7 @@ export function HoldingsTable({
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {money(h.current_price_gbp)}
                   {h.latest_source && (
-                    <span style={{ marginLeft: "0.25rem", color: "gray" }}>
+                    <span className="ml-025" style={{ color: "gray" }}>
                       {t("holdingsTable.source")} {h.latest_source}
                     </span>
                   )}
@@ -474,6 +475,7 @@ export function HoldingsTable({
           })}
         </tbody>
         </table>
+        </div>
       ) : (
         <p>{t("holdingsTable.noHoldings")}</p>
       )}

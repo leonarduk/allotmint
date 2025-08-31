@@ -17,4 +17,8 @@ describe('responsive styles', () => {
   it('includes desktop breakpoint', () => {
     expect(css).toMatch(/@media\s*\(min-width:\s*1024px\)/)
   })
+
+  it('includes mobile max-width breakpoint', () => {
+    expect(css).toMatch(/@media\s*\(max-width:\s*768px\)/)
+  })
 })

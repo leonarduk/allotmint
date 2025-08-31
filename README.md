@@ -244,6 +244,14 @@ pytest
 cd frontend && npm test
 ```
 
+The `PY_COV_MIN` environment variable lets you enforce a minimum coverage
+percentage during `pytest` runs. Use it together with `PYTEST_ADDOPTS` to pass
+the desired threshold to `pytest`:
+
+```bash
+PY_COV_MIN=80 PYTEST_ADDOPTS="--cov-fail-under=$PY_COV_MIN" pytest
+```
+
 ## Error summary helper
 
 An optional `error_summary` section in `config.yaml` stores settings for the
@@ -267,14 +275,16 @@ configured default.
 python run_with_error_summary.py pytest
 ```
 
-## Trading Agent
 
-Use the helper script to run the trading agent locally. All arguments are
-optional:
+## Trading Agent
+Retrieve trade signals through the API:
 
 ```bash
-python scripts/run_trading_agent.py --tickers AAPL MSFT --thresholds 0.1 0.2 --indicator RSI
+curl http://localhost:8000/trading-agent/signals
 ```
+
+In production, the `price_refresh` Lambda can invoke the agent after updating
+prices.
 
 ## API endpoint tester
 

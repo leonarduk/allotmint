@@ -83,17 +83,25 @@ _LATEST_PRICES: Dict[str, float] = load_latest_prices(_ALL_TICKERS)
 # ───────────────────────────────────────────────────────────────
 # Historical close series (GBP where native is GBP, e.g., LSE)
 # ───────────────────────────────────────────────────────────────
-def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
+def timeseries_for_ticker(ticker: str, days: int = 365) -> Dict[str, Any]:
+    """Return recent price history for ``ticker``.
+
+    The payload contains the full series under ``prices`` plus shorter windows
+    (7/30/180 days) under ``mini``.  This keeps the original behaviour
+    (callers previously only consumed the list) while exposing pre-sliced
+    subsets that are convenient for sparkline charts.
     """
-    Return last *days* rows of close prices for *ticker* - empty list if none.
-    Uses meta timeseries (Yahoo -> Stooq -> FT) and only up to yesterday.
-    """
+    empty_payload: Dict[str, Any] = {
+        "prices": [],
+        "mini": {"7": [], "30": [], "180": []},
+    }
+
     if not ticker:
-        return []
+        return empty_payload
 
     resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
     if not resolved:
-        return []
+        return empty_payload
     sym, ex = resolved
 
     # Only fetch if not cached
@@ -110,7 +118,7 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
 
     df = load_meta_timeseries_range(sym, ex, start_date=start_date, end_date=end_date)
     if df is None or df.empty:
-        return []
+        return empty_payload
 
     # Normalize column names
     if "Date" in df.columns and "date" not in df.columns:
@@ -123,7 +131,7 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
         df["close"] = df["close_gbp"]
 
     if {"date", "close"} - set(df.columns):
-        return []
+        return empty_payload
 
     # Keep rows within cutoff and make sure date is ISO string
     cutoff = end_date - dt.timedelta(days=days - 1)
@@ -136,7 +144,12 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
             close_val = float(r["close"])
             close_gbp_val = float(r.get("close_gbp", close_val))
             out.append({"date": rd, "close": close_val, "close_gbp": close_gbp_val})
-    return out
+    mini = {
+        "7": out[-7:],
+        "30": out[-30:],
+        "180": out[-180:],
+    }
+    return {"prices": out, "mini": mini}
 
 
 # ───────────────────────────────────────────────────────────────
@@ -173,13 +186,33 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
     return (px_now / px_then - 1.0) * 100.0
 
 
-def top_movers(tickers: List[str], days: int, limit: int = 10) -> Dict[str, List[Dict[str, Any]]]:
-    """Return top gainers and losers for ``tickers`` over ``days``."""
+def top_movers(
+    tickers: List[str],
+    days: int,
+    limit: int = 10,
+    *,
+    min_weight: float = 0.0,
+    weights: Optional[Dict[str, float]] = None,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Return top gainers and losers for ``tickers`` over ``days``.
+
+    Parameters
+    ----------
+    min_weight:
+        Minimum portfolio weight (in percent) required for a ticker to be
+        included.  Set to ``0`` to disable filtering.
+    weights:
+        Optional mapping of ``ticker -> weight_percent`` used for filtering.
+    """
+
     today = dt.date.today()
     yday = today - dt.timedelta(days=1)
     rows: List[Dict[str, Any]] = []
 
     for t in tickers:
+        if min_weight and weights and weights.get(t, 0.0) < min_weight:
+            continue
         change = price_change_pct(t, days)
         if change is None:
             continue
@@ -200,8 +233,15 @@ def top_movers(tickers: List[str], days: int, limit: int = 10) -> Dict[str, List
             }
         )
 
-    pos = sorted([r for r in rows if r["change_pct"] > 0], key=lambda r: r["change_pct"], reverse=True)
-    neg = sorted([r for r in rows if r["change_pct"] < 0], key=lambda r: r["change_pct"])
+    pos = sorted(
+        [r for r in rows if r["change_pct"] > 0],
+        key=lambda r: r["change_pct"],
+        reverse=True,
+    )
+    neg = sorted(
+        [r for r in rows if r["change_pct"] < 0],
+        key=lambda r: r["change_pct"],
+    )
     return {"gainers": pos[:limit], "losers": neg[:limit]}
 
 
@@ -269,6 +309,7 @@ def positions_for_ticker(group_slug: str, ticker: str) -> List[Dict[str, Any]]:
                         "sell_eligible": h.get("sell_eligible"),
                         "days_until_eligible": h.get("days_until_eligible"),
                         "eligible_on": h.get("eligible_on"),
+                        "next_eligible_sell_date": h.get("next_eligible_sell_date"),
                     }
                 )
     return rows

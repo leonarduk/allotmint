@@ -55,6 +55,52 @@
       "delta30d": "30d %"
     }
   },
+  "holdingsTable": {
+    "range": "Range:",
+    "rangeOption": "{{count}}d",
+    "view": "View:",
+    "viewPresets": {
+      "all": "All"
+    },
+    "quickFilters": "Quick Filters:",
+    "quickFiltersSellEligible": "Sell-eligible",
+    "quickFiltersGainPct": "Gain% > x",
+    "minimumGainPrompt": "Min Gain %",
+    "columnsLabel": "Columns:",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Name",
+      "trend": "Trend",
+      "ccy": "CCY",
+      "type": "Type",
+      "units": "Units",
+      "price": "Px £",
+      "cost": "Cost £",
+      "market": "Mkt £",
+      "gain": "Gain £",
+      "gainPct": "Gain %",
+      "weightPct": "Weight %",
+      "acquired": "Acquired",
+      "daysHeld": "Days Held",
+      "eligible": "Eligible?"
+    },
+    "filters": {
+      "ticker": "Ticker",
+      "name": "Name",
+      "type": "Type",
+      "units": "Units",
+      "gainPct": "Gain %",
+      "sellEligible": "Sell eligible",
+      "all": "All",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "noHoldings": "No holdings match the current filters.",
+    "source": "Source:",
+    "actualPurchaseCost": "Actual purchase cost",
+    "inferredCost": "Inferred from price on acquisition date",
+    "eligible": "Eligible"
+  },
   "instrumentDetail": {
     "edit": "Edit",
     "change7d": "7d",

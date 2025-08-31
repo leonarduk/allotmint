@@ -224,6 +224,7 @@ async def instrument(
             currency = "GBP"
 
         prices = df[cols].rename(columns=rename).assign(**assigns).to_dict(orient="records")
+        mini = {"7": prices[-7:], "30": prices[-30:], "180": prices[-180:]}
         payload = {
             "ticker": ticker,
             "from": start.isoformat(),
@@ -231,6 +232,7 @@ async def instrument(
             "rows": len(prices),
             "positions": positions,
             "prices": prices,
+            "mini": mini,
             "currency": currency,
         }
         return JSONResponse(jsonable_encoder(payload))

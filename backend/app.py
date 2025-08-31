@@ -9,41 +9,40 @@ by FastAPI.
 
 import asyncio
 import logging
-import os
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 
-from backend.routes.instrument import router as instrument_router
-from backend.routes.portfolio import router as portfolio_router
-from backend.routes.timeseries_meta import router as timeseries_router
-from backend.routes.timeseries_edit import router as timeseries_edit_router
-from backend.routes.timeseries_admin import router as timeseries_admin_router
-
-from backend.routes.transactions import router as transactions_router
-from backend.routes.alerts import router as alerts_router
-from backend.routes.compliance import router as compliance_router
-from backend.routes.screener import router as screener_router
-from backend.routes.support import router as support_router
-from backend.routes.query import router as query_router
-from backend.routes.virtual_portfolio import router as virtual_portfolio_router
-from backend.routes.metrics import router as metrics_router
-from backend.routes.agent import router as agent_router
-from backend.routes.trading_agent import router as trading_agent_router
-from backend.routes.config import router as config_router
-from backend.routes.quotes import router as quotes_router
-from backend.routes.movers import router as movers_router
-from backend.routes.scenario import router as scenario_router
+from backend.auth import authenticate_user, create_access_token, get_current_user
+from backend.common.data_loader import resolve_paths
 from backend.common.portfolio_utils import (
     _load_snapshot,
     refresh_snapshot_async,
     refresh_snapshot_in_memory,
 )
 from backend.config import config
-from backend.common.data_loader import resolve_paths
+from backend.routes.agent import router as agent_router
+from backend.routes.alerts import router as alerts_router
+from backend.routes.compliance import router as compliance_router
+from backend.routes.config import router as config_router
+from backend.routes.instrument import router as instrument_router
+from backend.routes.metrics import router as metrics_router
+from backend.routes.movers import router as movers_router
+from backend.routes.performance import router as performance_router
+from backend.routes.portfolio import router as portfolio_router
+from backend.routes.query import router as query_router
+from backend.routes.quotes import router as quotes_router
+from backend.routes.scenario import router as scenario_router
+from backend.routes.screener import router as screener_router
+from backend.routes.support import router as support_router
+from backend.routes.timeseries_admin import router as timeseries_admin_router
+from backend.routes.timeseries_edit import router as timeseries_edit_router
+from backend.routes.timeseries_meta import router as timeseries_router
+from backend.routes.trading_agent import router as trading_agent_router
+from backend.routes.transactions import router as transactions_router
+from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 from backend.utils import page_cache
-from backend.auth import authenticate_user, create_access_token, get_current_user
 
 
 def create_app() -> FastAPI:
@@ -84,10 +83,11 @@ def create_app() -> FastAPI:
     else:
         protected = [Depends(get_current_user)]
     app.include_router(portfolio_router, dependencies=protected)
+    app.include_router(performance_router, dependencies=protected)
     app.include_router(instrument_router)
     app.include_router(timeseries_router)
     app.include_router(timeseries_edit_router)
-    app.include_router(timeseries_admin_router)
+    app.include_router(timeseries_admin_router, dependencies=protected)
     app.include_router(transactions_router, dependencies=protected)
     app.include_router(alerts_router)
     app.include_router(compliance_router)
@@ -107,7 +107,9 @@ def create_app() -> FastAPI:
     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         user = authenticate_user(form_data.username, form_data.password)
         if not user:
-            raise HTTPException(status_code=400, detail="Incorrect username or password")
+            raise HTTPException(
+                status_code=400, detail="Incorrect username or password"
+            )
         token = create_access_token(user)
         return {"access_token": token, "token_type": "bearer"}
 
@@ -122,6 +124,7 @@ def create_app() -> FastAPI:
     skip_warm = bool(config.skip_snapshot_warm)
 
     if not skip_warm:
+
         @app.on_event("startup")
         async def _warm_snapshot() -> None:
             """Pre-fetch recent price data so the first request is fast."""
@@ -155,6 +158,4 @@ def create_app() -> FastAPI:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        create_app(), host="0.0.0.0", port=config.uvicorn_port or 8000
-    )
+    uvicorn.run(create_app(), host="0.0.0.0", port=config.uvicorn_port or 8000)

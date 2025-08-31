@@ -3,6 +3,7 @@
 import type {
   GroupPortfolio,
   GroupSummary,
+  InstrumentDetailMini,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -22,6 +23,8 @@ import type {
   TimeseriesSummary,
   ScenarioResult,
   TradeSuggestion,
+  SectorContribution,
+  RegionContribution,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -124,9 +127,11 @@ export const getGroupMovers = (
   slug: string,
   days: number,
   limit = 10,
+  minWeight = 0,
 ) => {
   const params = new URLSearchParams({ days: String(days) });
   if (limit) params.set("limit", String(limit));
+  if (minWeight) params.set("min_weight", String(minWeight));
   return fetchJson<{ gainers: MoverRow[]; losers: MoverRow[] }>(
     `${API_BASE}/portfolio-group/${slug}/movers?${params.toString()}`,
   );
@@ -144,9 +149,30 @@ export const getGroupInstruments = (slug: string) =>
     `${API_BASE}/portfolio-group/${slug}/instruments`
   );
 
+/** Retrieve return contribution aggregated by sector for a group portfolio. */
+export const getGroupSectorContributions = (slug: string) =>
+  fetchJson<SectorContribution[]>(
+    `${API_BASE}/portfolio-group/${slug}/sectors`
+  );
+
+/** Retrieve return contribution aggregated by region for a group portfolio. */
+export const getGroupRegionContributions = (slug: string) =>
+  fetchJson<RegionContribution[]>(
+    `${API_BASE}/portfolio-group/${slug}/regions`
+  );
+
 /** Fetch performance metrics for an owner */
-export const getPerformance = (owner: string, days = 365) =>
-  fetchJson<PerformancePoint[]>(`${API_BASE}/performance/${owner}?days=${days}`);
+export const getPerformance = (
+  owner: string,
+  days = 365,
+  excludeCash = false,
+) => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (excludeCash) params.set("exclude_cash", "1");
+  return fetchJson<{ owner: string; history: PerformancePoint[] }>(
+    `${API_BASE}/performance/${owner}?${params.toString()}`,
+  ).then((res) => res.history);
+};
 
 /** Run a simple fundamentals screen across a list of tickers. */
 export const getScreener = (
@@ -243,7 +269,12 @@ export const getScreener = (
  * @param days   rolling window (default 365)
  */
 export const getInstrumentDetail = (ticker: string, days = 365) =>
-  fetchJson<{ prices: unknown; positions: unknown; currency?: string | null }>(
+  fetchJson<{
+    prices: unknown;
+    positions: unknown;
+    mini?: InstrumentDetailMini;
+    currency?: string | null;
+  }>(
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(
       ticker
     )}&days=${days}&format=json`
@@ -263,6 +294,18 @@ export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntr
 export const listTimeseries = () =>
   fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`);
 
+export const refetchTimeseries = (ticker: string, exchange: string) =>
+  fetchJson<{ status: string; rows: number }>(
+    `${API_BASE}/timeseries/admin/${encodeURIComponent(ticker)}/${encodeURIComponent(exchange)}/refetch`,
+    { method: "POST" },
+  );
+
+export const rebuildTimeseriesCache = (ticker: string, exchange: string) =>
+  fetchJson<{ status: string; rows: number }>(
+    `${API_BASE}/timeseries/admin/${encodeURIComponent(ticker)}/${encodeURIComponent(exchange)}/rebuild_cache`,
+    { method: "POST" },
+  );
+
 
 export const getTransactions = (params: {
   owner?: string;
@@ -280,7 +323,7 @@ export const getTransactions = (params: {
 };
 
 /** Retrieve recent alert messages from backend. */
-export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts`);
+export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts/`);
 
 /** Retrieve alert threshold for a user. */
 export const getAlertSettings = (user: string) =>
@@ -372,6 +415,22 @@ export const listSavedQueries = () =>
 /** Fetch rolling Value at Risk series for an owner. */
 export const getValueAtRisk = (
   owner: string,
+  opts: { days?: number; confidence?: number; excludeCash?: boolean } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.days != null) params.set("days", String(opts.days));
+  if (opts.confidence != null)
+    params.set("confidence", String(opts.confidence));
+  if (opts.excludeCash) params.set("exclude_cash", "1");
+  const qs = params.toString();
+  return fetchJson<ValueAtRiskPoint[]>(
+    `${API_BASE}/var/${owner}${qs ? `?${qs}` : ""}`
+  );
+};
+
+/** Trigger a backend recomputation of VaR for an owner. */
+export const recomputeValueAtRisk = (
+  owner: string,
   opts: { days?: number; confidence?: number } = {}
 ) => {
   const params = new URLSearchParams();
@@ -379,8 +438,9 @@ export const getValueAtRisk = (
   if (opts.confidence != null)
     params.set("confidence", String(opts.confidence));
   const qs = params.toString();
-  return fetchJson<ValueAtRiskPoint[]>(
-    `${API_BASE}/var/${owner}${qs ? `?${qs}` : ""}`
+  return fetchJson<{ owner: string; var: unknown }>(
+    `${API_BASE}/var/${owner}/recompute${qs ? `?${qs}` : ""}`,
+    { method: "POST" }
   );
 };
 

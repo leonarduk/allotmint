@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import PortfolioPage from "./Portfolio.tsx";
+import PortfolioPage from "./Portfolio";
 import type { Portfolio } from "../types";
 import * as api from "../api";
 

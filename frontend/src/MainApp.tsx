@@ -53,9 +53,11 @@ export default function MainApp() {
 
   const [backendUnavailable, setBackendUnavailable] = useState(false);
 
-  const ownersReq = useFetchWithRetry(getOwners);
-  const groupsReq = useFetchWithRetry(getGroups);
-  const unauthorized = ownersReq.unauthorized || groupsReq.unauthorized;
+  const { unauthorized: ownersUnauthorized, ...ownersReq } =
+    useFetchWithRetry(getOwners);
+  const { unauthorized: groupsUnauthorized, ...groupsReq } =
+    useFetchWithRetry(getGroups);
+  const unauthorized = ownersUnauthorized || groupsUnauthorized;
 
   useEffect(() => {
     if (ownersReq.data) setOwners(ownersReq.data);

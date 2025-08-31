@@ -1,3 +1,4 @@
+import json
 import pytest
 import shutil
 from backend.common import portfolio_utils
@@ -75,6 +76,16 @@ def test_agent_generate_signals_risk_filters(monkeypatch):
     snapshot = {"AAA": {"rsi": 20, "sharpe": 0.5, "volatility": 0.2}}
     signals = ta_generate_signals(snapshot)
     assert signals == []
+
+
+def test_load_strategy_config_ignores_unknown_keys(tmp_path, monkeypatch):
+    prefs = {"rsi_buy": 25, "unknown": 1}
+    prefs_path = tmp_path / "strategy_prefs.json"
+    prefs_path.write_text(json.dumps(prefs))
+    monkeypatch.setattr(trading_agent.config, "repo_root", tmp_path)
+    cfg = trading_agent.load_strategy_config()
+    assert cfg.rsi_buy == 25
+    assert cfg.rsi_sell == 70.0
 
 
 def test_send_trade_alert_sns_only(monkeypatch):

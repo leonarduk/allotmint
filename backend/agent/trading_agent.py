@@ -48,7 +48,12 @@ def load_strategy_config() -> TradingAgentConfig:
         try:
             data = json.loads(prefs_path.read_text())
             if isinstance(data, dict):
-                base.update({k: v for k, v in data.items() if v is not None})
+                allowed_keys = set(base)
+                filtered = {k: v for k, v in data.items() if v is not None and k in allowed_keys}
+                unknown = set(data) - allowed_keys
+                if unknown:
+                    logger.info("Ignoring unknown strategy preference keys: %s", ", ".join(sorted(unknown)))
+                base.update(filtered)
         except Exception as exc:  # pragma: no cover - file errors are rare
             logger.warning("Failed to load strategy preferences: %s", exc)
 

@@ -21,6 +21,8 @@ Resources:
       Environment:
         Variables:
           QUOTES_TABLE: !Ref QuotesTable
+          GOOGLE_AUTH_ENABLED: 'true'
+          DISABLE_AUTH: 'false'
       Code:
         S3Bucket: your-bucket
         S3Key: quotes.zip

@@ -29,3 +29,20 @@ def test_theme_loaded():
 def test_stooq_timeout_loaded():
     cfg = config_module.load_config()
     assert cfg.stooq_timeout == 10
+
+
+def test_auth_flags(monkeypatch):
+    cfg = config_module.load_config()
+    assert cfg.google_auth_enabled is False
+    assert cfg.disable_auth is True
+
+    monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
+    monkeypatch.setenv("DISABLE_AUTH", "false")
+    config_module.load_config.cache_clear()
+    cfg = config_module.load_config()
+    assert cfg.google_auth_enabled is True
+    assert cfg.disable_auth is False
+    monkeypatch.delenv("GOOGLE_AUTH_ENABLED")
+    monkeypatch.delenv("DISABLE_AUTH")
+    config_module.load_config.cache_clear()
+    config_module.config = config_module.load_config()

@@ -5,6 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, overload
 
+import os
 import yaml
 
 
@@ -69,6 +70,7 @@ class Config:
     # misc complex config
     error_summary: Optional[dict] = None
     offline_mode: Optional[bool] = None
+    google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
     relative_view_enabled: Optional[bool] = None
     theme: Optional[str] = None
@@ -100,9 +102,16 @@ def _project_config_path() -> Path:
     return Path(__file__).resolve().parents[1] / "config.yaml"
 
 
+def _env_flag(name: str) -> Optional[bool]:
+    val = os.getenv(name)
+    if val is None:
+        return None
+    return val.lower() in {"1", "true", "yes"}
+
+
 @lru_cache(maxsize=1)
 def load_config() -> Config:
-    """Load configuration from config.yaml only (no env overrides)."""
+    """Load configuration from config.yaml with optional env overrides."""
     path = _project_config_path()
     data: Dict[str, Any] = {}
 
@@ -116,6 +125,14 @@ def load_config() -> Config:
             pass
 
     base_dir = path.parent
+
+    disable_auth_env = _env_flag("DISABLE_AUTH")
+    if disable_auth_env is not None:
+        data["disable_auth"] = disable_auth_env
+
+    google_auth_env = _env_flag("GOOGLE_AUTH_ENABLED")
+    if google_auth_env is not None:
+        data["google_auth_enabled"] = google_auth_env
 
     repo_root_raw = data.get("repo_root")
     repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
@@ -164,6 +181,7 @@ def load_config() -> Config:
         selenium_headless=data.get("selenium_headless"),
         error_summary=data.get("error_summary"),
         offline_mode=data.get("offline_mode"),
+        google_auth_enabled=data.get("google_auth_enabled"),
         disable_auth=data.get("disable_auth"),
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),

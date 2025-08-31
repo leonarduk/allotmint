@@ -28,12 +28,12 @@ def resolve_paths(
 ) -> ResolvedPaths:
     """Return fully resolved repository and accounts paths."""
 
-    if repo_root and ":" not in str(repo_root) and Path(repo_root).exists():
+    if repo_root and Path(repo_root).exists():
         repo_path = Path(repo_root)
     else:
         repo_path = Path(__file__).resolve().parents[2]
 
-    if accounts_root and ":" not in str(accounts_root) and Path(accounts_root).exists():
+    if accounts_root and Path(accounts_root).exists():
         accounts_path = Path(accounts_root)
     else:
         accounts_path = repo_path / "data" / "accounts"

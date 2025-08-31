@@ -29,7 +29,7 @@ export function PortfolioView({ data, loading, error }: Props) {
   }, [data]);
 
   if (loading) return <div>Loading portfolio…</div>; // show a quick spinner
-  if (error) return <div style={{ color: "red" }}>{error}</div>; // bubble errors
+  if (error) return <div className="text-error">{error}</div>; // bubble errors
   if (!data) return <div>Select an owner.</div>; // nothing chosen yet
 
   const allKeys = data.accounts.map(accountKey);
@@ -47,13 +47,13 @@ export function PortfolioView({ data, loading, error }: Props) {
 
   return (
     <div>
-      <h1 style={{ marginTop: 0 }}>
+      <h1 className="mt-0">
         Portfolio: <span data-testid="owner-name">{data.owner}</span>
       </h1>
-      <div style={{ marginBottom: "1rem" }}>
+      <div className="mb-4">
         As of {new Intl.DateTimeFormat(i18n.language).format(new Date(data.as_of))}
       </div>
-      <div style={{ marginBottom: "2rem" }}>
+      <div className="mb-8">
         Approx Total: {money(totalValue)}
       </div>
       <ValueAtRisk owner={data.owner} />

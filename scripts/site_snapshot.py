@@ -5,9 +5,13 @@ How to use:
 1. Install dependencies:
    pip install beautifulsoup4 fpdf Pillow markdownify playwright
    playwright install  # downloads headless browsers
-2. Edit BASE_URL to point to your server.
-3. Run: python scripts/site_snapshot.py
-4. Output appears in the "site_manual" directory with screenshots,
+2. Download the DejaVuSans font for Unicode PDF support:
+   https://github.com/dejavu-fonts/dejavu-fonts/raw/version_2_37/ttf/DejaVuSans.ttf
+   (If using the ZIP release, extract `DejaVuSans.ttf` from the archive.)
+3. Set `FONT_PATH` below to the downloaded file's location.
+4. Edit BASE_URL to point to your server.
+5. Run: python scripts/site_snapshot.py
+6. Output appears in the "site_manual" directory with screenshots,
    per-page Markdown files, and a combined PDF manual.
 
 Pillow provides image support for FPDF; without it, PDFs are generated without screenshots.
@@ -17,6 +21,7 @@ discovered correctly.
 
 import asyncio
 import logging
+import re
 from collections import deque
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -29,6 +34,16 @@ from playwright.async_api import async_playwright
 OUTPUT_DIR = Path("site_manual")
 SCREENSHOT_DIR = OUTPUT_DIR / "screenshots"
 MARKDOWN_DIR = OUTPUT_DIR / "markdown"
+FONT_PATH = Path("DejaVuSans.ttf")  # Path to downloaded font
+
+
+def slugify(text: str) -> str:
+    """Sanitize text for cross-platform filenames.
+
+    Replaces sequences of non-alphanumeric characters with underscores so
+    generated paths work consistently on Windows and POSIX systems.
+    """
+    return re.sub(r"[^0-9A-Za-z]+", "_", text).strip("_")
 
 
 def is_same_domain(url: str, base_url: str) -> bool:
@@ -88,6 +103,9 @@ def build_docs(entries):
     """Create PDF and Markdown files describing each page."""
     MARKDOWN_DIR.mkdir(parents=True, exist_ok=True)
     pdf = FPDF()
+    if not FONT_PATH.exists():
+        raise FileNotFoundError(f"Font file not found: {FONT_PATH}")
+    pdf.add_font("DejaVu", "", str(FONT_PATH), uni=True)
 
     for idx, url, soup, img_path in entries:
         title = soup.title.string.strip() if soup.title else url
@@ -95,12 +113,12 @@ def build_docs(entries):
         md_content = f"# {title}\n\nURL: {url}\n\n{text}"
 
         # Markdown manual
-        md_file = MARKDOWN_DIR / f"{idx:03}_{title.replace(' ', '_')}.md"
+        md_file = MARKDOWN_DIR / f"{idx:03}_{slugify(title)}.md"
         md_file.write_text(md_content, encoding="utf-8")
 
         # PDF section
         pdf.add_page()
-        pdf.set_font("Helvetica", size=14)
+        pdf.set_font("DejaVu", size=14)
         pdf.multi_cell(0, 8, md_content)
         pdf.ln(5)
         try:
@@ -124,4 +142,4 @@ def main(url: str):
 if __name__ == "__main__":
     base_url = "http://localhost:5173/"  # Change to your server
 
-    main(url = base_url)
+    main(url=base_url)

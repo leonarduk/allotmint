@@ -73,7 +73,7 @@ def summarize_with_ai(log_text: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run API test cases from YAML")
-    default_config = Path(__file__).resolve().parent / "api_test_cases.yaml"
+    default_config = Path(__file__).resolve().parent.parent / "api_test_cases.yaml"
     parser.add_argument(
         "--config",
         type=Path,
@@ -97,7 +97,7 @@ def main() -> None:
     try:
         cases = load_cases(args.config)
     except FileNotFoundError:
-        print("Config file not found. Use --config to specify its location.")
+        print(f"Config file not found at {args.config}. Use --config to specify its location.")
         raise SystemExit(1)
     results = run_cases(cases)
     log_text = write_log(results, args.log)

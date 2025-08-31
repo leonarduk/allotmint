@@ -213,6 +213,8 @@ async def group_movers(
     except Exception:
         raise HTTPException(status_code=404, detail="Group not found")
 
+    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
+
     market_values = {}
     tickers = []
     for s in summaries:
@@ -232,7 +234,15 @@ async def group_movers(
     # Compute equal weights in percent for filtering
     n = len(tickers)
     weight = 100.0 / n if n else 0.0
-    weight_map = {s[KEY_TICKER]: weight for s in summaries if s.get(KEY_TICKER)}
+
+    # Compute weights in percent for filtering
+    weight_map = {
+        s[KEY_TICKER]: (float(s.get("market_value_gbp") or 0.0) / total_mv * 100.0)
+        if total_mv
+        else 0.0
+        for s in summaries
+        if s.get(KEY_TICKER)
+    }
 
     movers = instrument_api.top_movers(
         tickers,

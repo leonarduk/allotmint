@@ -268,8 +268,11 @@ export interface VirtualPortfolio {
 
 export interface TradingSignal {
     ticker: string;
+    name: string;
     action: string;
     reason: string;
+    currency?: string | null;
+    instrument_type?: string | null;
 }
 
 export interface CustomQuery {

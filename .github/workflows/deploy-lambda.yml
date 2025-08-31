@@ -2,10 +2,12 @@ name: Deploy Infrastructure
 
 on:
   push:
-    branches: [main]
+    branches:
+      - release/*
     tags:
       - '*.*'      # major.minor
       - '!*.*.*'   # exclude patch versions  workflow_dispatch:
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -107,7 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(movers_router)
-    app.include_router(user_config_router)
+    app.include_router(user_config_router, dependencies=protected)
     app.include_router(scenario_router)
 
     @app.exception_handler(RequestValidationError)

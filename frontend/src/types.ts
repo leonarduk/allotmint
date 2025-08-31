@@ -116,6 +116,14 @@ export interface ValueAtRiskPoint {
     var: number;
 }
 
+export interface InstrumentDetailMini {
+    [range: string]: {
+        date: string;
+        close: number;
+        close_gbp: number;
+    }[];
+}
+
 export interface Transaction {
     owner: string;
     account: string;

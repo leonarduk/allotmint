@@ -55,6 +55,52 @@
       "delta30d": "30d %"
     }
   },
+  "holdingsTable": {
+    "range": "Rango:",
+    "rangeOption": "{{count}}d",
+    "view": "Vista:",
+    "viewPresets": {
+      "all": "Todos"
+    },
+    "quickFilters": "Filtros rápidos:",
+    "quickFiltersSellEligible": "Elegible para venta",
+    "quickFiltersGainPct": "Ganancia% > x",
+    "minimumGainPrompt": "Ganancia mínima %",
+    "columnsLabel": "Columnas:",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nombre",
+      "trend": "Tendencia",
+      "ccy": "Moneda",
+      "type": "Tipo",
+      "units": "Unidades",
+      "price": "Precio £",
+      "cost": "Coste £",
+      "market": "Mkt £",
+      "gain": "Ganancia £",
+      "gainPct": "Ganancia %",
+      "weightPct": "Peso %",
+      "acquired": "Adquirido",
+      "daysHeld": "Días en posesión",
+      "eligible": "¿Elegible?"
+    },
+    "filters": {
+      "ticker": "Ticker",
+      "name": "Nombre",
+      "type": "Tipo",
+      "units": "Unidades",
+      "gainPct": "Ganancia %",
+      "sellEligible": "Elegible para venta",
+      "all": "Todos",
+      "yes": "Sí",
+      "no": "No"
+    },
+    "noHoldings": "No hay posiciones que coincidan con los filtros actuales.",
+    "source": "Fuente:",
+    "actualPurchaseCost": "Costo de compra real",
+    "inferredCost": "Inferido del precio en la fecha de adquisición",
+    "eligible": "Elegible"
+  },
   "instrumentDetail": {
     "edit": "Editar",
     "change7d": "7d",

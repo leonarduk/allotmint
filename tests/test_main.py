@@ -106,15 +106,20 @@ def test_group_by_instrument(mock_groups, mock_build, mock_aggregate):
     assert response.json() == [{"ticker": "ABC"}]
 
 
-@patch("backend.common.instrument_api.timeseries_for_ticker", return_value=[{"date": "2025-01-01"}])
+@patch(
+    "backend.common.instrument_api.timeseries_for_ticker",
+    return_value={"prices": [{"date": "2025-01-01"}], "mini": {"7": [], "30": [], "180": []}},
+)
 @patch("backend.common.instrument_api.positions_for_ticker", return_value=[{"ticker": "ABC"}])
 @patch("backend.common.group_portfolio.list_groups", return_value=mock_groups)
 @patch("backend.common.group_portfolio.build_group_portfolio", return_value={"group": "testslug"})
 def test_instrument_detail(mock_list, mock_build, mock_positions, mock_timeseries):
     response = client.get("/portfolio-group/testslug/instrument/ABC")
     assert response.status_code == 200
-    assert "prices" in response.json()
-    assert "positions" in response.json()
+    payload = response.json()
+    assert "prices" in payload
+    assert "mini" in payload
+    assert "positions" in payload
 
 
 @patch("backend.common.risk.compute_sharpe_ratio", return_value=1.23)

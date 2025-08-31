@@ -3,6 +3,7 @@
 import type {
   GroupPortfolio,
   GroupSummary,
+  InstrumentDetailMini,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -268,7 +269,12 @@ export const getScreener = (
  * @param days   rolling window (default 365)
  */
 export const getInstrumentDetail = (ticker: string, days = 365) =>
-  fetchJson<{ prices: unknown; positions: unknown; currency?: string | null }>(
+  fetchJson<{
+    prices: unknown;
+    positions: unknown;
+    mini?: InstrumentDetailMini;
+    currency?: string | null;
+  }>(
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(
       ticker
     )}&days=${days}&format=json`
@@ -317,7 +323,7 @@ export const getTransactions = (params: {
 };
 
 /** Retrieve recent alert messages from backend. */
-export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts`);
+export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts/`);
 
 /** Retrieve alert threshold for a user. */
 export const getAlertSettings = (user: string) =>

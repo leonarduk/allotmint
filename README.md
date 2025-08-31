@@ -268,13 +268,14 @@ python run_with_error_summary.py pytest
 ```
 
 ## Trading Agent
-
-Use the helper script to run the trading agent locally. All arguments are
-optional:
+Retrieve trade signals through the API:
 
 ```bash
-python scripts/run_trading_agent.py --tickers AAPL MSFT --thresholds 0.1 0.2 --indicator RSI
+curl http://localhost:8000/trading-agent/signals
 ```
+
+In production, the `price_refresh` Lambda can invoke the agent after updating
+prices.
 
 ## API endpoint tester
 

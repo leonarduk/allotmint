@@ -9,7 +9,7 @@ export default function Trading() {
   const { t } = useTranslation();
   const [signals, setSignals] = useState<TradingSignal[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<TradingSignal | null>(null);
 
   useEffect(() => {
     getTradingSignals()
@@ -42,7 +42,7 @@ export default function Trading() {
             <tr key={s.ticker}>
               <td
                 className={`${tableStyles.cell} ${tableStyles.clickable}`}
-                onClick={() => setSelected(s.ticker)}
+                onClick={() => setSelected(s)}
               >
                 {s.ticker}
               </td>
@@ -53,7 +53,13 @@ export default function Trading() {
         </tbody>
       </table>
       {selected && (
-        <InstrumentDetail ticker={selected} onClose={() => setSelected(null)} />
+        <InstrumentDetail
+          ticker={selected.ticker}
+          name={selected.name}
+          currency={selected.currency ?? undefined}
+          instrument_type={selected.instrument_type}
+          onClose={() => setSelected(null)}
+        />
       )}
     </>
   );

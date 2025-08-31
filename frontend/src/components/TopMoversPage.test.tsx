@@ -49,7 +49,7 @@ const mockGetGroupInstruments = vi.fn(() =>
 );
 const mockGetTradingSignals = vi.fn(() =>
   Promise.resolve([
-    { ticker: "AAA", action: "buy", reason: "go long" },
+    { ticker: "AAA", name: "AAA", action: "buy", reason: "go long" },
   ]),
 );
 

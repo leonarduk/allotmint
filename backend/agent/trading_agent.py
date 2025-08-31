@@ -5,10 +5,14 @@ from __future__ import annotations
 import logging
 import csv
 import os
-from datetime import datetime
+from datetime import date, datetime
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set
 
 import pandas as pd
+import json
+import math
+from dataclasses import asdict
 
 from backend.common import prices, compliance, indicators
 from backend.common.alerts import publish_alert
@@ -22,11 +26,38 @@ from backend.common.trade_metrics import (
     TRADE_LOG_PATH,
     load_and_compute_metrics,
 )
-from backend.config import config
+from backend.config import config, TradingAgentConfig
 from backend.screener import screen
 from backend.utils.telegram_utils import send_message, redact_token
 
 logger = logging.getLogger(__name__)
+
+
+def load_strategy_config() -> TradingAgentConfig:
+    """Return the active trading strategy configuration.
+
+    User preferences can be supplied via a ``strategy_prefs.json`` file in the
+    repository root. Values in this file override those from ``config.yaml``.
+    This lightweight mechanism allows storing strategy preferences in a
+    database and exporting them to JSON for the agent to consume.
+    """
+
+    base = asdict(config.trading_agent)
+    prefs_path = Path(config.repo_root or ".") / "strategy_prefs.json"
+    if prefs_path.exists():
+        try:
+            data = json.loads(prefs_path.read_text())
+            if isinstance(data, dict):
+                allowed_keys = set(base)
+                filtered = {k: v for k, v in data.items() if v is not None and k in allowed_keys}
+                unknown = set(data) - allowed_keys
+                if unknown:
+                    logger.info("Ignoring unknown strategy preference keys: %s", ", ".join(sorted(unknown)))
+                base.update(filtered)
+        except Exception as exc:  # pragma: no cover - file errors are rare
+            logger.warning("Failed to load strategy preferences: %s", exc)
+
+    return TradingAgentConfig(**base)
 
 
 def send_trade_alert(message: str, publish: bool = True) -> None:
@@ -86,8 +117,22 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     """
 
     signals: List[Dict] = []
-    cfg = config.trading_agent
+    cfg = load_strategy_config()
     for ticker, info in snapshot.items():
+        # risk filters
+        sharpe = info.get("sharpe")
+        volatility = info.get("volatility")
+        if (
+            cfg.min_sharpe is not None
+            and sharpe is not None
+            and sharpe < cfg.min_sharpe
+        ) or (
+            cfg.max_volatility is not None
+            and volatility is not None
+            and volatility > cfg.max_volatility
+        ):
+            continue
+
         # price momentum
         change = info.get("change_7d_pct")
         if change is not None:
@@ -253,7 +298,7 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
 
     df = prices.load_prices_for_tickers(tickers, days=60)
     snapshot: Dict[str, Dict] = {}
-    cfg = config.trading_agent
+    cfg = load_strategy_config()
     for tkr in tickers:
         tdf = df[df["Ticker"] == tkr]
         if tdf.empty:
@@ -293,6 +338,16 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             sma_200_val = indicators.sma(tdf[col], 200).iloc[-1]
             if pd.notna(sma_200_val):
                 sma_200 = float(sma_200_val)
+
+        returns = tdf[col].pct_change().dropna()
+        volatility = float(returns.std(ddof=1)) if len(returns) >= 2 else None
+        sharpe = None
+        if volatility and volatility > 0:
+            rf = config.risk_free_rate or 0.0
+            daily_rf = rf / 252
+            excess = returns - daily_rf
+            sharpe = float((excess.mean() / volatility) * math.sqrt(252))
+
         snapshot[tkr] = {
             "last_price": last,
             "change_7d_pct": change_7d_pct,
@@ -302,6 +357,8 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             "ma_long": ma_long,
             "sma_50": sma_50,
             "sma_200": sma_200,
+            "volatility": volatility,
+            "sharpe": sharpe,
         }
 
     signals = generate_signals(snapshot)
@@ -324,7 +381,13 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
     for sig in signals:
         blocked = False
         for owner in owners:
-            result = compliance.check_owner(owner)
+            trade = {
+                "owner": owner,
+                "ticker": sig["ticker"],
+                "type": sig["action"].lower(),
+                "date": date.today().isoformat(),
+            }
+            result = compliance.check_trade(trade)
             if result.get("warnings"):
                 logger.warning(
                     "Compliance warnings for %s: %s", owner, result["warnings"]

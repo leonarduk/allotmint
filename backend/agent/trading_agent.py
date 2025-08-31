@@ -12,6 +12,7 @@ import pandas as pd
 
 from backend.common import prices
 from backend.common.alerts import publish_alert
+from backend import alerts as alert_utils
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     list_all_unique_tickers,
@@ -49,6 +50,7 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
             publish_alert({"message": message})
         except RuntimeError:
             logger.info("SNS topic ARN not configured; skipping publish")
+        alert_utils.send_push_notification(message)
 
     if (
         os.getenv("TELEGRAM_BOT_TOKEN")

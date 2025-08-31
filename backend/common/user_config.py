@@ -63,9 +63,12 @@ def save_user_config(owner: str, cfg: UserConfig | dict[str, object], accounts_r
             existing = json.loads(path.read_text()) or {}
         except Exception:
             existing = {}
+
     if isinstance(cfg, UserConfig):
-        new_data = {k: v for k, v in cfg.to_dict().items() if v is not None}
+        updates = {k: v for k, v in cfg.to_dict().items() if v is not None}
     else:
-        new_data = {k: v for k, v in cfg.items() if v is not None}
-    existing.update(new_data)
-    path.write_text(json.dumps(existing, indent=2, sort_keys=True))
+        allowed = {"hold_days_min", "max_trades_per_month", "approval_exempt_types", "approval_exempt_tickers"}
+        updates = {k: v for k, v in cfg.items() if k in allowed and v is not None}
+
+    data = {**existing, **updates}
+    path.write_text(json.dumps(data, indent=2, sort_keys=True))

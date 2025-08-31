@@ -35,7 +35,8 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
   );
 });
 
-// Runtime caching for same-origin static assets and network-first for API requests.
+// Runtime caching for same-origin GET requests. Static assets use cache-first and
+// API calls bypass the cache so live data stays fresh.
 registerRoute(
   ({ request, url }) =>
     request.method === 'GET' &&

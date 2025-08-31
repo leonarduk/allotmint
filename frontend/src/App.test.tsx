@@ -164,6 +164,7 @@ describe("App", () => {
           theme: "system",
           relativeViewEnabled: false,
           tabs: { ...allTabs, movers: false },
+          refreshConfig: vi.fn(),
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
@@ -227,7 +228,12 @@ describe("App", () => {
 
     render(
       <configContext.Provider
-        value={{ theme: "system", relativeViewEnabled: false, tabs: allTabs }}
+        value={{
+          theme: "system",
+          relativeViewEnabled: false,
+          tabs: allTabs,
+          refreshConfig: vi.fn(),
+        }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
           <App />

@@ -11,9 +11,7 @@ from fastapi.testclient import TestClient
 
 def _auth_client(app):
     client = TestClient(app)
-    token = client.post(
-        "/token", data={"username": "testuser", "password": "password"}
-    ).json()["access_token"]
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
     return client
 

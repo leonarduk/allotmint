@@ -61,7 +61,7 @@ const initialMode: Mode =
   path[0] === "settings" ? "settings" :
   path[0] === "scenario" ? "scenario" :
   path[0] === "logs" ? "logs" :
-  path.length === 0 && params.has("group") ? "group" : "movers";
+  path.length === 0 ? "group" : "movers";
 const initialSlug = path[1] ?? "";
 
 export default function App() {
@@ -174,7 +174,7 @@ export default function App() {
         newMode = "scenario";
         break;
       default:
-        newMode = "group";
+        newMode = segs.length === 0 ? "group" : "movers";
     }
 
     if (tabs[newMode] === false) {

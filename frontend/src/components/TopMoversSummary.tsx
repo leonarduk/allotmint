@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { getGroupMovers } from "../api";
 import type { MoverRow } from "../types";
 import { useFetch } from "../hooks/useFetch";
 import { percent } from "../lib/money";
 import tableStyles from "../styles/table.module.css";
+import moversPlugin from "../plugins/movers";
 
 interface Props {
   slug: string;
@@ -13,10 +14,11 @@ interface Props {
 }
 
 export function TopMoversSummary({ slug, limit = 5 }: Props) {
+  const [retry, setRetry] = useState(0);
   const { data, loading, error } = useFetch<{
     gainers: MoverRow[];
     losers: MoverRow[];
-  }>(() => getGroupMovers(slug, 1, limit), [slug, limit], !!slug);
+  }>(() => getGroupMovers(slug, 1, limit), [slug, limit, retry], !!slug);
 
   const rows = useMemo(() => {
     if (!data || !Array.isArray(data.gainers) || !Array.isArray(data.losers))
@@ -27,8 +29,19 @@ export function TopMoversSummary({ slug, limit = 5 }: Props) {
   }, [data, limit]);
 
   if (!slug) return null;
-  if (loading) return <p>Loading…</p>;
-  if (error) return <p style={{ color: "red" }}>Failed to load movers</p>;
+  if (loading)
+    return (
+      <div role="status" aria-busy="true">
+        Loading movers…
+      </div>
+    );
+  if (error)
+    return (
+      <div style={{ color: "red" }}>
+        <p>Failed to load movers</p>
+        <button onClick={() => setRetry((r) => r + 1)}>Retry</button>
+      </div>
+    );
   if (!rows.length) return null;
 
   return (
@@ -56,7 +69,7 @@ export function TopMoversSummary({ slug, limit = 5 }: Props) {
         </tbody>
       </table>
       <div style={{ textAlign: "right", marginTop: "0.5rem" }}>
-        <Link to="/movers">View more</Link>
+        <Link to={moversPlugin.path({ group: slug })}>View more</Link>
       </div>
     </div>
   );

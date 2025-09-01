@@ -128,6 +128,9 @@ def load_config() -> Config:
 
     app_env_env = os.getenv("APP_ENV")
     if app_env_env:
+        allowed_envs = {"local", "production", "aws"}
+        if app_env_env not in allowed_envs:
+            raise ValueError(f"Unexpected APP_ENV '{app_env_env}'")
         data["app_env"] = app_env_env
 
     disable_auth_env = _env_flag("DISABLE_AUTH")

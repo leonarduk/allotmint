@@ -9,7 +9,12 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-from backend.common.data_loader import load_person_meta, resolve_paths
+from backend.common.data_loader import (
+    DATA_BUCKET_ENV,
+    PLOTS_PREFIX,
+    load_person_meta,
+    resolve_paths,
+)
 from backend.config import config
 
 SECRET_KEY = os.getenv("JWT_SECRET", "change-me")
@@ -40,9 +45,50 @@ def verify_google_token(token: str) -> Optional[str]:
 def _allowed_emails() -> Set[str]:
     """Return the set of configured account emails."""
 
+    emails: Set[str] = set()
+
+    if config.app_env == "aws":
+        owners: Set[str] = set()
+        bucket = os.getenv(DATA_BUCKET_ENV)
+        if bucket:
+            try:
+                import boto3  # type: ignore
+
+                s3 = boto3.client("s3")
+                token: str | None = None
+                while True:
+                    params = {"Bucket": bucket, "Prefix": PLOTS_PREFIX}
+                    if token:
+                        params["ContinuationToken"] = token
+                    resp = s3.list_objects_v2(**params)
+                    for item in resp.get("Contents", []):
+                        key = item.get("Key", "")
+                        if not key.lower().endswith(".json"):
+                            continue
+                        if not key.startswith(PLOTS_PREFIX):
+                            continue
+                        rel = key[len(PLOTS_PREFIX) :]
+                        owner = rel.split("/")[0]
+                        if owner:
+                            owners.add(owner)
+                    if resp.get("IsTruncated"):
+                        token = resp.get("NextContinuationToken")
+                    else:
+                        break
+            except Exception:
+                pass
+        for owner in owners:
+            try:
+                meta = load_person_meta(owner)
+            except Exception:
+                meta = {}
+            email = meta.get("email") if isinstance(meta, dict) else None
+            if email:
+                emails.add(email.lower())
+        return emails
+
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = paths.accounts_root
-    emails: Set[str] = set()
     if root.exists():
         for owner_dir in root.iterdir():
             if not owner_dir.is_dir():

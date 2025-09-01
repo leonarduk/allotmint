@@ -14,7 +14,8 @@ import logging
 from datetime import date
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from fastapi import APIRouter, HTTPException, Query, Request, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Depends
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from backend.common import (
@@ -28,10 +29,12 @@ from backend.common import (
 )
 from backend.common import portfolio as portfolio_mod
 from backend.config import config
-from backend.auth import get_current_user
+from backend.auth import get_current_user, decode_token, current_user
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
+public_router = APIRouter(tags=["portfolio"])
+oauth2_optional = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 _ALLOWED_DAYS = {1, 7, 30, 90, 365}
 
 KEY_TICKER = constants.TICKER
@@ -102,6 +105,19 @@ else:
         return data_loader.list_plots(
             request.app.state.accounts_root, current_user
         )
+# =======
+# @public_router.get("/owners", response_model=List[OwnerSummary])
+# async def owners(request: Request, token: str | None = Depends(oauth2_optional)):
+#     """List available owners and their accounts.
+
+#     When the request is unauthenticated only the ``demo`` account is
+#     exposed. If a valid JWT token is provided, the authenticated user's
+#     full account list is returned.
+#     """
+#     username = decode_token(token) if token else None
+#     if username:
+#         current_user.set(username)
+#     return data_loader.list_plots(request.app.state.accounts_root)
 
 
 @router.get("/groups", response_model=List[GroupSummary])

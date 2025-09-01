@@ -24,9 +24,10 @@ export interface TabsConfig {
   dataadmin: boolean;
   virtual: boolean;
   support: boolean;
-   settings: boolean;
+  settings: boolean;
   reports: boolean;
   scenario: boolean;
+  logs: boolean;
 }
 
 export interface AppConfig {
@@ -65,6 +66,7 @@ const defaultTabs: TabsConfig = {
   settings: true,
   reports: true,
   scenario: true,
+  logs: true,
 };
 
 export interface ConfigContextValue extends AppConfig {

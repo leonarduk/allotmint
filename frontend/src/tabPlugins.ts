@@ -15,6 +15,7 @@ export const tabPluginMap = {
   settings: {},
   reports: {},
   scenario: {},
+  logs: {},
 };
 export type TabPluginId = keyof typeof tabPluginMap;
 export const orderedTabPlugins = [
@@ -32,6 +33,7 @@ export const orderedTabPlugins = [
   { id: "reports", priority: 100 },
   { id: "settings", priority: 105 },
   { id: "support", priority: 110 },
+  { id: "logs", priority: 115 },
   { id: "scenario", priority: 120 },
 ] as const;
 export type TabPlugin = typeof orderedTabPlugins[number];

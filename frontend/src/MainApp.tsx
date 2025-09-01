@@ -36,6 +36,7 @@ const TopMovers = lazy(() => import("./pages/TopMovers"));
 const DataAdmin = lazy(() => import("./pages/DataAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
+const LogsPage = lazy(() => import("./pages/Logs"));
 
 export default function MainApp() {
   const navigate = useNavigate();
@@ -53,11 +54,13 @@ export default function MainApp() {
 
   const [backendUnavailable, setBackendUnavailable] = useState(false);
 
-  const { unauthorized: ownersUnauthorized, ...ownersReq } =
-    useFetchWithRetry(getOwners);
-  const { unauthorized: groupsUnauthorized, ...groupsReq } =
-    useFetchWithRetry(getGroups);
-  const unauthorized = ownersUnauthorized || groupsUnauthorized;
+  const ownersReq = useFetchWithRetry(getOwners);
+  const groupsReq = useFetchWithRetry(getGroups);
+  const demoOnly =
+    ownersReq.data?.length === 1 && ownersReq.data[0].owner === "demo";
+  const unauthorized = demoOnly
+    ? ownersReq.unauthorized
+    : ownersReq.unauthorized || groupsReq.unauthorized;
 
   useEffect(() => {
     if (ownersReq.data) {
@@ -76,16 +79,16 @@ export default function MainApp() {
   }, [groupsReq.data]);
 
   useEffect(() => {
-    if (ownersReq.error || groupsReq.error) {
+    if (ownersReq.error || (!demoOnly && groupsReq.error)) {
       setBackendUnavailable(true);
     }
-  }, [ownersReq.error, groupsReq.error]);
+  }, [ownersReq.error, groupsReq.error, demoOnly]);
 
   useEffect(() => {
-    if (ownersReq.data && groupsReq.data) {
+    if (ownersReq.data && (demoOnly || groupsReq.data)) {
       setBackendUnavailable(false);
     }
-  }, [ownersReq.data, groupsReq.data]);
+  }, [ownersReq.data, groupsReq.data, demoOnly]);
 
   // redirect to defaults if no selection provided
   useEffect(() => {
@@ -252,6 +255,7 @@ export default function MainApp() {
       {mode === "watchlist" && <Watchlist />}
       {mode === "support" && <SupportPage />}
       {mode === "movers" && <TopMovers />}
+      {mode === "logs" && <LogsPage />}
       {mode === "scenario" && <ScenarioTester />}
     </>
   );

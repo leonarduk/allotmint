@@ -27,7 +27,9 @@ cdk.out/
 
 # Data dumps (keep in S3 instead)
 data/**/*.csv
-/data/accounts/
+/data/accounts/*
+!/data/accounts/demo/
+!/data/accounts/demo/**
 
 # Logs
 backend.log

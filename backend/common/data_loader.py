@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
+from backend.auth import current_user
 
 
 # ------------------------------------------------------------------
@@ -63,8 +64,14 @@ def _list_local_plots(
     if not root.exists():
         return results
 
+    user = current_user.get(None)
+
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
+            continue
+        # When authentication is enabled and no user is authenticated,
+        # expose only the "demo" account.
+        if not config.disable_auth and user is None and owner_dir.name != "demo":
             continue
 
         owner = owner_dir.name
@@ -108,8 +115,9 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     The bucket name is read from the ``DATA_BUCKET`` environment variable and
     objects are expected under ``accounts/<owner>/<account>.json``. Metadata
     files like ``person.json`` are ignored and account names are de-duplicated
-    case-insensitively. If ``current_user`` is provided, owners are filtered
-    against their ``person.json`` viewers list to enforce access rules.
+    case-insensitively. When authentication is enabled and no user is
+    authenticated only the ``demo`` owner is returned, mirroring the behaviour
+    of the local loader.
     """
 
     bucket = os.getenv(DATA_BUCKET_ENV)
@@ -161,6 +169,16 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
                 continue
         results.append({"owner": owner, "accounts": accounts})
 
+# =======
+#     user = current_user.get(None)
+#     results: List[Dict[str, Any]] = []
+#     for owner, accounts in sorted(owners.items()):
+#         # When authentication is enabled and no user is authenticated,
+#         # expose only the "demo" account.
+#         if not config.disable_auth and user is None and owner != "demo":
+#             continue
+#         results.append({"owner": owner, "accounts": accounts})
+# >>>>>>> main
     return results
 
 

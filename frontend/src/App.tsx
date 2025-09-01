@@ -40,6 +40,7 @@ import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
 import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
+import Logs from "./pages/Logs";
 type Mode = (typeof orderedTabPlugins)[number]["id"];
 
 // derive initial mode + id from path
@@ -59,6 +60,7 @@ const initialMode: Mode =
   path[0] === "support" ? "support" :
   path[0] === "settings" ? "settings" :
   path[0] === "scenario" ? "scenario" :
+  path[0] === "logs" ? "logs" :
   path.length === 0 && params.has("group") ? "group" : "movers";
 const initialSlug = path[1] ?? "";
 
@@ -114,6 +116,8 @@ export default function App() {
         return "/reports";
       case "settings":
         return "/settings";
+      case "logs":
+        return "/logs";
       default:
         return `/${m}`;
     }
@@ -156,6 +160,9 @@ export default function App() {
         break;
       case "support":
         newMode = "support";
+        break;
+      case "logs":
+        newMode = "logs";
         break;
       case "settings":
         newMode = "settings";
@@ -412,6 +419,7 @@ export default function App() {
       {mode === "movers" && <TopMovers />}
       {mode === "support" && <Support />}
       {mode === "settings" && <UserConfigPage />}
+      {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}
     </div>
   );

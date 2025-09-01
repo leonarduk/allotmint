@@ -3,7 +3,7 @@
 import type {
   GroupPortfolio,
   GroupSummary,
-  InstrumentDetailMini,
+  InstrumentDetail,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -255,6 +255,7 @@ export const getScreener = (
     low_52w_min?: number;
     avg_volume_min?: number;
   } = {},
+  signal?: AbortSignal,
 ) => {
   const params = new URLSearchParams({ tickers: tickers.join(",") });
   if (criteria.peg_max != null) params.set("peg_max", String(criteria.peg_max));
@@ -305,7 +306,28 @@ export const getScreener = (
     params.set("low_52w_min", String(criteria.low_52w_min));
   if (criteria.avg_volume_min != null)
     params.set("avg_volume_min", String(criteria.avg_volume_min));
-  return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`);
+  return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`, { signal });
+};
+
+export const searchInstruments = (
+  query: string,
+  sector?: string,
+  region?: string,
+  signal?: AbortSignal,
+) => {
+  const trimmed = query.trim();
+  if (!/^[\w\s.-]{1,64}$/.test(trimmed)) {
+    return Promise.reject(new Error("Invalid query"));
+  }
+  const params = new URLSearchParams({ q: trimmed });
+  if (sector && /^[A-Za-z\s]{1,64}$/.test(sector)) params.set("sector", sector);
+  if (region && /^[A-Za-z\s]{1,64}$/.test(region)) params.set("region", region);
+  return fetchJson<{
+    ticker: string;
+    name: string;
+    sector?: string;
+    region?: string;
+  }[]>(`${API_BASE}/instrument/search?${params.toString()}`, { signal });
 };
 
 /**
@@ -318,16 +340,16 @@ export const getScreener = (
  * @param ticker e.g. "VWRL.L"
  * @param days   rolling window (default 365)
  */
-export const getInstrumentDetail = (ticker: string, days = 365) =>
-  fetchJson<{
-    prices: unknown;
-    positions: unknown;
-    mini?: InstrumentDetailMini;
-    currency?: string | null;
-  }>(
+export const getInstrumentDetail = (
+  ticker: string,
+  days = 365,
+  signal?: AbortSignal,
+) =>
+  fetchJson<InstrumentDetail>(
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(
       ticker
-    )}&days=${days}&format=json`
+    )}&days=${days}&format=json`,
+    { signal },
   );
 
 

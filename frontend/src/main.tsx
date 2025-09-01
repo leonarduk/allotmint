@@ -12,6 +12,7 @@ import ComplianceWarnings from './pages/ComplianceWarnings'
 import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
+import InstrumentResearch from './pages/InstrumentResearch'
 import { getConfig } from './api'
 import LoginPage from './LoginPage'
 
@@ -49,11 +50,24 @@ function Root() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root');
+if (!rootEl) throw new Error('Root element not found');
+createRoot(rootEl).render(
   <StrictMode>
     <ConfigProvider>
       <PriceRefreshProvider>
-        <Root />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/support" element={<Support />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/virtual" element={<VirtualPortfolio />} />
+            <Route path="/compliance" element={<ComplianceWarnings />} />
+            <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+            <Route path="/research/:ticker" element={<InstrumentResearch />} />
+            {/* Catch-all for app routes; keep last to avoid intercepting above paths */}
+            <Route path="/*" element={<App />} />
+          </Routes>
+        </BrowserRouter>
       </PriceRefreshProvider>
     </ConfigProvider>
   </StrictMode>,

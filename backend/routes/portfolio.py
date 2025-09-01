@@ -14,10 +14,11 @@ import logging
 from datetime import date
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Depends
+from fastapi import APIRouter, HTTPException, Query, Request, Depends
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
+from backend.auth import get_current_user
 from backend.common import (
     constants,
     data_loader,
@@ -29,7 +30,6 @@ from backend.common import (
 )
 from backend.common import portfolio as portfolio_mod
 from backend.config import config
-from backend.auth import get_current_user, decode_token, current_user
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])

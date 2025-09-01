@@ -1,10 +1,9 @@
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 import backend.common.instrument_api as ia
 import backend.routes.portfolio as portfolio
 from backend.local_api.main import app
-
 
 client = TestClient(app)
 token = client.post(

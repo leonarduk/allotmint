@@ -1,6 +1,6 @@
+import logging
 from datetime import date, timedelta
 
-import logging
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse

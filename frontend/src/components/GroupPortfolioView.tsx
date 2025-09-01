@@ -16,13 +16,14 @@ import {
 } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
+import { TopMoversSummary } from "./TopMoversSummary";
 import { money, percent } from "../lib/money";
+import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
-import { TopMoversSummary } from "./TopMoversSummary";
 import {
   PieChart,
   Pie,
@@ -134,26 +135,34 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   if (error) return <p style={{ color: "red" }}>{t("common.error")}: {error.message}</p>;
   if (loading || !portfolio) return <p>{t("common.loading")}</p>;
 
-  /* ── aggregate totals for summary box ──────────────────── */
-  let totalValue = 0;
-  let totalGain = 0;
-  let totalDayChange = 0;
-  let totalCost = 0;
-  const perOwner: Record<string, { value: number; dayChange: number; gain: number; cost: number }> = {};
+  const perOwner: Record<
+    string,
+    { value: number; dayChange: number; gain: number; cost: number }
+  > = {};
   const perType: Record<string, number> = {};
 
   const activeKeys = selectedAccounts.length
     ? new Set(selectedAccounts)
     : new Set(portfolio.accounts?.map(accountKey));
 
-  for (const [idx, acct] of (portfolio.accounts ?? []).entries()) {
-    const key = accountKey(acct, idx);
-    if (!activeKeys.has(key)) continue;
+  const activeAccounts = (portfolio.accounts ?? []).filter((acct, idx) =>
+    activeKeys.has(accountKey(acct, idx))
+  );
+
+  const totals = computePortfolioTotals(activeAccounts);
+  const {
+    totalValue,
+    totalDayChange,
+    totalGain,
+    totalGainPct,
+    totalDayChangePct,
+  } = totals;
+
+  for (const acct of activeAccounts) {
     const owner = acct.owner ?? "—";
     const entry =
       perOwner[owner] || (perOwner[owner] = { value: 0, dayChange: 0, gain: 0, cost: 0 });
 
-    totalValue += acct.value_estimate_gbp ?? 0;
     entry.value += acct.value_estimate_gbp ?? 0;
 
     for (const h of acct.holdings ?? []) {
@@ -171,21 +180,12 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
       const typeKey = (h.instrument_type ?? "other").toLowerCase();
       perType[typeKey] = (perType[typeKey] || 0) + market;
 
-      totalCost += cost;
-      totalGain += gain;
-      totalDayChange += dayChg;
-
       entry.cost += cost;
       entry.gain += gain;
       entry.dayChange += dayChg;
     }
   }
 
-  const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
-  const totalDayChangePct =
-    totalValue - totalDayChange !== 0
-      ? (totalDayChange / (totalValue - totalDayChange)) * 100
-      : 0;
   const ownerRows = Object.entries(perOwner).map(([owner, data]) => {
     const gainPct = data.cost > 0 ? (data.gain / data.cost) * 100 : 0;
     const dayChangePct =
@@ -206,6 +206,8 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   return (
     <div style={{ marginTop: "1rem" }}>
       <h2>{portfolio.name}</h2>
+
+      {!relativeViewEnabled && <PortfolioSummary totals={totals} />}
 
       <div
         style={{
@@ -301,50 +303,6 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Summary Box */}
-      {!relativeViewEnabled && (
-        <div
-          style={{
-            display: "flex",
-            gap: "2rem",
-            marginBottom: "1rem",
-            padding: "0.75rem 1rem",
-            backgroundColor: "#222",
-            border: "1px solid #444",
-            borderRadius: "6px",
-          }}
-        >
-          <div>
-            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Value</div>
-            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>{money(totalValue)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Day Change</div>
-            <div
-              style={{
-                fontSize: "1.2rem",
-                fontWeight: "bold",
-                color: totalDayChange >= 0 ? "lightgreen" : "red",
-              }}
-            >
-              {money(totalDayChange)} ({percent(totalDayChangePct)})
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Gain</div>
-            <div
-              style={{
-                fontSize: "1.2rem",
-                fontWeight: "bold",
-                color: totalGain >= 0 ? "lightgreen" : "red",
-              }}
-            >
-              {money(totalGain)} ({percent(totalGainPct)})
-            </div>
-          </div>
         </div>
       )}
 

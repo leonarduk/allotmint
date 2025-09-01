@@ -71,10 +71,17 @@ ALPHA_VANTAGE_KEY=your-alpha-vantage-api-key
 SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:allotmint   # optional
 TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ      # optional
 TELEGRAM_CHAT_ID=123456789                                  # optional
+GOOGLE_AUTH_ENABLED=true                                    # enable Google sign-in
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com   # Google OAuth client
+ALLOWED_EMAILS=user1@example.com,user2@example.com           # comma-separated
 ```
 
 Alternatively export variables in your shell. Unset variables simply disable
 their corresponding integrations.
+
+When `GOOGLE_AUTH_ENABLED` is true, the backend accepts Google ID tokens at
+`/token/google` and only issues API tokens for emails listed in
+`ALLOWED_EMAILS`.
 
 ### Push notification keys
 
@@ -83,12 +90,56 @@ Parameter Store via `scripts/setup_vapid_keys.py`. The script creates public and
 private key parameters (`/allotmint/vapid/public` and
 `/allotmint/vapid/private` by default) when they are missing.
 
+### Alert storage configuration
+
+User alert thresholds and web push subscriptions persist to a tiny JSON object
+whose location is configurable via environment variables. Each URI may target a
+local file, an S3 object or an AWS Systems Manager Parameter Store entry.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ALERT_THRESHOLDS_URI` | Location of threshold configuration. | `file://data/alert_thresholds.json` |
+| `PUSH_SUBSCRIPTIONS_URI` | Storage for web push subscriptions. | `file://data/push_subscriptions.json` |
+
+URIs may use the following schemes:
+
+* `file:///path/to/file.json` – read/write a local file (useful for tests).
+* `s3://bucket/key.json` – store JSON in an S3 object.
+* `ssm://parameter-name` – store JSON in AWS Parameter Store.
+
+#### Required IAM permissions
+
+When using AWS backends the executing role must allow:
+
+* **S3** – `s3:GetObject` and `s3:PutObject` on the referenced object.
+* **Parameter Store** – `ssm:GetParameter` and `ssm:PutParameter` on the
+  parameter name.
+
 ### Mobile wrappers
 
 For a more app-like experience on iOS and Android consider building thin
 wrappers with [Capacitor](https://capacitorjs.com/) or similar tooling. This
 simplifies installation and enables more reliable notifications on mobile
 devices.
+
+#### Setup
+
+```bash
+npm install
+npm run mobile:add          # generates android/ and ios/ projects under mobile/
+```
+
+The React frontend is bundled and copied into the native shells with:
+
+```bash
+npm run mobile:android      # or: npm run mobile:ios
+```
+
+The build reuses the `VITE_VAPID_PUBLIC_KEY` from your `.env` so web push
+notifications behave the same inside the Capacitor web view. Native wrappers
+use platform channels (Firebase Cloud Messaging on Android and Apple Push
+Notification service on iOS) which deliver more reliably than browser-based
+VAPID push.
 
 ## Page cache
 

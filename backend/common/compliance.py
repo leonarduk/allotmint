@@ -65,6 +65,8 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
     exempt_types = {t.upper() for t in (ucfg.approval_exempt_types or [])}
     logger = logging.getLogger("compliance")
 
+    today = date.today()
+
     # trade count rule
     counts: Dict[str, int] = defaultdict(int)
     for t in txs:
@@ -85,19 +87,30 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
 
     # holding period rule
     last_buy: Dict[str, date] = {}
+    positions: Dict[str, float] = defaultdict(float)
     for t in txs:
         d = _parse_date(t.get("date"))
         if not d:
             continue
         ticker = (t.get("ticker") or "").upper()
         action = (t.get("type") or t.get("kind") or "").lower()
+        raw_shares = t.get("shares")
+        try:
+            shares = float(raw_shares or 0.0)
+        except (TypeError, ValueError):
+            logger.warning("invalid share count %r in transaction %s", raw_shares, t)
+            shares = 0.0
         if action in {"buy", "purchase"}:
             last_buy[ticker] = d
+            positions[ticker] += shares
         elif action == "sell":
+            positions[ticker] -= shares
             acq = last_buy.get(ticker)
             if acq and (d - acq).days < (ucfg.hold_days_min or 0):
                 days = (d - acq).days
-                warnings.append(f"Sold {ticker} after {days} days (min {ucfg.hold_days_min})")
+                warnings.append(
+                    f"Sold {ticker} after {days} days (min {ucfg.hold_days_min})"
+                )
                 logger.info(
                     "%s HOLD_DAYS_MIN %s %s",
                     datetime.utcnow().isoformat(),
@@ -106,9 +119,13 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
                 )
 
             meta = get_instrument_meta(ticker)
-            instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
+            instr_type = (
+                meta.get("instrumentType") or meta.get("instrument_type") or ""
+            ).upper()
             needs_approval = not (
-                ticker in exempt_tickers or ticker.split(".")[0] in exempt_tickers or instr_type in exempt_types
+                ticker in exempt_tickers
+                or ticker.split(".")[0] in exempt_tickers
+                or instr_type in exempt_types
             )
             if needs_approval:
                 appr = approvals.get(ticker) or approvals.get(ticker.split(".")[0])
@@ -120,7 +137,31 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
                         owner,
                         ticker,
                     )
-    return {"owner": owner, "warnings": warnings, "trade_counts": dict(counts)}
+            if positions.get(ticker, 0) <= 0:
+                positions.pop(ticker, None)
+                last_buy.pop(ticker, None)
+
+    # compute hold countdowns for open positions
+    hold_countdowns: Dict[str, int] = {}
+    hold_min = ucfg.hold_days_min or 0
+    for ticker, acq in last_buy.items():
+        days_held = (today - acq).days
+        if days_held < hold_min and positions.get(ticker, 0) > 0:
+            hold_countdowns[ticker] = hold_min - days_held
+
+    # remaining trades this month
+    current_month = f"{today.year:04d}-{today.month:02d}"
+    trades_this_month = counts.get(current_month, 0)
+    trades_remaining = max(0, (ucfg.max_trades_per_month or 0) - trades_this_month)
+
+    return {
+        "owner": owner,
+        "warnings": warnings,
+        "trade_counts": dict(counts),
+        "hold_countdowns": hold_countdowns,
+        "trades_this_month": trades_this_month,
+        "trades_remaining": trades_remaining,
+    }
 
 
 def check_owner(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, Any]:

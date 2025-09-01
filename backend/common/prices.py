@@ -23,18 +23,18 @@ from typing import Optional, Iterable, Dict, List
 
 import pandas as pd
 
-# ──────────────────────────────────────────────────────────────
-# Local imports
-# ──────────────────────────────────────────────────────────────
-from backend.config import config
+from backend.common import instrument_api
+from backend.common.holding_utils import load_latest_prices as _load_latest_prices
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     list_all_unique_tickers,
     refresh_snapshot_in_memory,
     check_price_alerts,
 )
-from backend.common.holding_utils import load_latest_prices as _load_latest_prices
-from backend.common import instrument_api
+# ──────────────────────────────────────────────────────────────
+# Local imports
+# ──────────────────────────────────────────────────────────────
+from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import _nearest_weekday
 

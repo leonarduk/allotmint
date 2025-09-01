@@ -1,4 +1,5 @@
 import pandas as pd
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -6,11 +7,12 @@ from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_utils
 from backend.local_api.main import app
 
-client = TestClient(app)
-token = client.post(
-    "/token", data={"username": "testuser", "password": "password"}
-).json()["access_token"]
-client.headers.update({"Authorization": f"Bearer {token}"})
+
+def _auth_client():
+    client = TestClient(app)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
 @pytest.fixture
@@ -47,6 +49,7 @@ def deterministic_setup(monkeypatch):
 
 
 def test_var_known_case(deterministic_setup):
+    client = _auth_client()
     resp = client.get("/var/alice?days=4&confidence=0.95")
     assert resp.status_code == 200
     data = resp.json()

@@ -1,6 +1,8 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
+
 from backend.app import create_app
+
 
 @pytest.mark.asyncio
 async def test_auth_alerts_portfolio(monkeypatch):

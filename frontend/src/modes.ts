@@ -15,8 +15,8 @@ export type Mode =
   | "logs";
 
 export const MODES: Mode[] = [
-  "movers",
   "group",
+  "movers",
   "instrument",
   "owner",
   "performance",

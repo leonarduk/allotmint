@@ -6,9 +6,9 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 
-from backend.integrations.broker_api import AlpacaAPI
-from backend.common.portfolio import load_trades, _local_trades_path
 from backend.common.alerts import publish_alert
+from backend.common.portfolio import load_trades, _local_trades_path
+from backend.integrations.broker_api import AlpacaAPI
 
 log = logging.getLogger("tasks.trades")
 

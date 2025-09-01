@@ -334,7 +334,7 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
-  it("defaults to Movers view and orders tabs correctly", async () => {
+  it("defaults to Group view and orders tabs correctly", async () => {
     window.history.pushState({}, "", "/");
     mockTradingSignals.mockResolvedValue([]);
 
@@ -374,8 +374,8 @@ describe("App", () => {
     const nav = screen.getByRole("navigation");
     const links = within(nav).getAllByRole("link");
     expect(links.map((l) => l.textContent)).toEqual([
-      "Movers",
       "Group",
+      "Movers",
       "Instrument",
       "Member",
       "Performance",

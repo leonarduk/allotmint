@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional
 
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
-from backend.auth import current_user
 
 
 # ------------------------------------------------------------------
@@ -58,26 +57,42 @@ def _list_local_plots(
     data_root: Optional[Path] = None,
     current_user: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    """List available plots from the local filesystem.
+
+    Parameters
+    ----------
+    data_root:
+        Optional base directory containing account data. If ``None`` the
+        configured accounts root is used.
+    current_user:
+        Username of the authenticated user or ``None`` when unauthenticated.
+    """
+
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = data_root or paths.accounts_root
     results: List[Dict[str, Any]] = []
     if not root.exists():
         return results
 
-    user = current_user.get(None)
+    # ``current_user`` may be passed in as ``None`` or as a simple string
+    # identifier.  Previously this function assumed ``current_user`` was a
+    # ``ContextVar`` and attempted to call ``.get(None)``, which raises an
+    # ``AttributeError`` when a plain string is supplied.  Normalise the value
+    # explicitly to handle both cases safely.
+    user = current_user if current_user else None
 
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
             continue
         # When authentication is enabled and no user is authenticated,
         # expose only the "demo" account.
-        if not config.disable_auth and user is None and owner_dir.name != "demo":
+        if not config.disable_auth and current_user is None and owner_dir.name != "demo":
             continue
 
         owner = owner_dir.name
         meta = load_person_meta(owner, root)
         viewers = meta.get("viewers", [])
-        if current_user and current_user != owner and current_user not in viewers:
+        if user and user != owner and user not in viewers:
             continue
 
         acct_names: List[str] = []
@@ -111,6 +126,11 @@ def _list_local_plots(
 # ------------------------------------------------------------------
 def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     """List available plots from an S3 bucket.
+
+    Parameters
+    ----------
+    current_user:
+        Username of the authenticated user or ``None`` when unauthenticated.
 
     The bucket name is read from the ``DATA_BUCKET`` environment variable and
     objects are expected under ``accounts/<owner>/<account>.json``. Metadata
@@ -160,25 +180,19 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
         else:
             break
 
+    user = current_user.get(None) if hasattr(current_user, "get") else current_user
     results: List[Dict[str, Any]] = []
     for owner, accounts in sorted(owners.items()):
+        # When authentication is enabled and no user is authenticated,
+        # expose only the "demo" account.
+        if not config.disable_auth and current_user is None and owner != "demo":
+            continue
         if current_user and current_user != owner:
             meta = load_person_meta(owner)
             viewers = meta.get("viewers", [])
-            if current_user not in viewers:
+            if user not in viewers:
                 continue
         results.append({"owner": owner, "accounts": accounts})
-
-# =======
-#     user = current_user.get(None)
-#     results: List[Dict[str, Any]] = []
-#     for owner, accounts in sorted(owners.items()):
-#         # When authentication is enabled and no user is authenticated,
-#         # expose only the "demo" account.
-#         if not config.disable_auth and user is None and owner != "demo":
-#             continue
-#         results.append({"owner": owner, "accounts": accounts})
-# >>>>>>> main
     return results
 
 
@@ -189,6 +203,22 @@ def list_plots(
     data_root: Optional[Path] = None,
     current_user: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    """Public helper to list available account plots.
+
+    Parameters
+    ----------
+    data_root:
+        Optional base directory containing account data when running locally.
+    current_user:
+        Username of the authenticated user or ``None`` if unauthenticated.
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        A list of dictionaries each containing an ``owner`` and their
+        available ``accounts``.
+    """
+
     if config.app_env == "aws":
         return _list_aws_plots(current_user)
     return _list_local_plots(data_root, current_user)
@@ -241,8 +271,22 @@ def load_account(
 
 
 def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:
-    """Load per-owner metadata (dob, viewers, etc.). Returns {} if not found."""
-    if config.app_env == "aws":
+    """Load per-owner metadata including optional email.
+
+    Returns an empty dict if no metadata exists or parsing fails.
+    """
+
+    def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
+        meta: Dict[str, Any] = {}
+        for key in ("dob", "email", "holdings", "viewers"):
+            if key in data:
+                meta[key] = data[key]
+        if "viewers" not in meta:
+          # Preserve account access viewers if present
+          meta["viewers"] = data.get("viewers", [])
+        return meta
+
+    if config.app_env == "aws" or os.getenv(DATA_BUCKET_ENV):
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
             return {}
@@ -256,8 +300,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             if not txt:
                 return {}
             data = json.loads(txt)
-            data["viewers"] = list(data.get("viewers", []))
-            return data
+            return _extract(data)
         except Exception:
             return {}
     paths = resolve_paths(config.repo_root, config.accounts_root)
@@ -267,10 +310,9 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         return {}
     try:
         data = _safe_json_load(path)
-        data["viewers"] = list(data.get("viewers", []))
-        return data
     except Exception:
         return {}
+    return _extract(data)
 
 
 # ------------------------------------------------------------------

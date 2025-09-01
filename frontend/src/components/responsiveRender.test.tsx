@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import "../i18n";
 import { PortfolioView } from "./PortfolioView";
@@ -83,24 +83,43 @@ const renderWithConfig = (ui: React.ReactElement) =>
 
 describe("mobile viewport rendering", () => {
   beforeEach(() => {
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
     window.innerWidth = 375;
     window.dispatchEvent(new Event("resize"));
   });
 
-  it("renders PortfolioView", () => {
-    const { container } = renderWithConfig(<PortfolioView data={portfolio} />);
-    expect(container.querySelector("h1")).toHaveClass("mt-0");
+  it("renders PortfolioView", async () => {
+    let container: HTMLElement;
+    await act(async () => {
+      ({ container } = renderWithConfig(<PortfolioView data={portfolio} />));
+    });
+    await waitFor(() =>
+      expect(container.querySelector("h1")).toHaveClass("mt-0"),
+    );
   });
 
-    it("renders AccountBlock", () => {
-      const { container } = renderWithConfig(<AccountBlock account={account} />);
-      expect(container.firstChild).toHaveClass("mb-4", "p-2", "md:mb-8", "md:p-4");
+    it("renders AccountBlock", async () => {
+      let container: HTMLElement;
+      await act(async () => {
+        ({ container } = renderWithConfig(<AccountBlock account={account} />));
+      });
+      await waitFor(() =>
+        expect(container.firstChild).toHaveClass(
+          "mb-4",
+          "p-2",
+          "md:mb-8",
+          "md:p-4",
+        ),
+      );
     });
 
-    it("renders HoldingsTable", () => {
-      const { container } = renderWithConfig(<HoldingsTable holdings={holdings} />);
+    it("renders HoldingsTable", async () => {
+      let container: HTMLElement;
+      await act(async () => {
+        ({ container } = renderWithConfig(<HoldingsTable holdings={holdings} />));
+      });
       const wrapper = container.querySelector("div.overflow-x-auto");
-      expect(wrapper).toHaveClass("overflow-x-auto");
+      await waitFor(() => expect(wrapper).toHaveClass("overflow-x-auto"));
       expect(container.querySelector("table")).toHaveClass("mb-4");
     });
   });

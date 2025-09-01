@@ -1,5 +1,6 @@
-import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
 import i18n from "../i18n";
 import { configContext, type AppConfig } from "../ConfigContext";
@@ -7,9 +8,18 @@ vi.mock("./TopMoversSummary", () => ({
   TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
 
-afterEach(() => {
+beforeEach(() => {
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  i18n.changeLanguage("en");
+});
+
+afterEach(async () => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  await act(async () => {
+    await i18n.changeLanguage("en");
+  });
 });
 
 const defaultConfig: AppConfig = {
@@ -43,6 +53,62 @@ const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) 
       {ui}
     </configContext.Provider>,
   );
+
+const mockAllFetches = (portfolio: any) => {
+  const fetchMock = vi.fn((input: RequestInfo) => {
+    const url = typeof input === "string" ? input : input.url;
+    if (url.includes("/portfolio-group/") && url.includes("/movers")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ gainers: [], losers: [] }),
+      } as Response);
+    }
+    if (url.includes("/trading-agent/signals")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => [
+          { ticker: "AAA", name: "AAA", action: "buy", reason: "" },
+        ],
+      } as Response);
+    }
+    if (url.includes("alpha-vs-benchmark")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ alpha_vs_benchmark: 0 }),
+      } as Response);
+    }
+    if (url.includes("tracking-error")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ tracking_error: 0 }),
+      } as Response);
+    }
+    if (url.includes("max-drawdown")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ max_drawdown: 0 }),
+      } as Response);
+    }
+    if (url.includes("sector-contributions")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => [],
+      } as Response);
+    }
+    if (url.includes("region-contributions")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => [],
+      } as Response);
+    }
+    return Promise.resolve({
+      ok: true,
+      json: async () => portfolio,
+    } as Response);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+};
 
 function mockFetch(portfolio: unknown) {
   return vi
@@ -92,7 +158,8 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    mockFetch(mockPortfolio);
+    mockAllFetches(mockPortfolio);
+//     mockFetch(mockPortfolio);
 
     renderWithConfig(<GroupPortfolioView slug="all" />, {
       relativeViewEnabled: true,
@@ -144,7 +211,8 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    mockFetch(mockPortfolio);
+    mockAllFetches(mockPortfolio);
+//     mockFetch(mockPortfolio);
 
     render(<GroupPortfolioView slug="all" />);
 
@@ -167,14 +235,17 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    mockFetch(mockPortfolio);
+    mockAllFetches(mockPortfolio);
+//     mockFetch(mockPortfolio);
 
     const handler = vi.fn();
     render(<GroupPortfolioView slug="all" onSelectMember={handler} />);
 
     await screen.findAllByText("alice");
 
-    fireEvent.click(screen.getAllByText("alice")[0]);
+    await act(async () => {
+      await userEvent.click(screen.getAllByText("alice")[0]);
+    });
 
     expect(handler).toHaveBeenCalledWith("alice");
   });
@@ -183,13 +254,17 @@ describe("GroupPortfolioView", () => {
   const locales = ["en", "fr", "de", "es", "pt"] as const;
 
   it.each(locales)("renders select group message in %s", async (lng) => {
-    await i18n.changeLanguage(lng);
+    await act(async () => {
+      await i18n.changeLanguage(lng);
+    });
     render(<GroupPortfolioView slug="" />);
-    expect(screen.getByText(i18n.t("group.select"))).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t("group.select"))).toBeInTheDocument();
   });
 
   it.each(locales)("renders error message in %s", async (lng) => {
-    await i18n.changeLanguage(lng);
+    await act(async () => {
+      await i18n.changeLanguage(lng);
+    });
     vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("boom"));
     render(<GroupPortfolioView slug="all" />);
     await waitFor(() =>
@@ -198,7 +273,9 @@ describe("GroupPortfolioView", () => {
   });
 
   it.each(locales)("renders loading message in %s", async (lng) => {
-    await i18n.changeLanguage(lng);
+    await act(async () => {
+      await i18n.changeLanguage(lng);
+    });
     vi.spyOn(global, "fetch").mockImplementation(
       () => new Promise(() => {})
     );
@@ -207,7 +284,9 @@ describe("GroupPortfolioView", () => {
   });
 
   it("updates totals when accounts are toggled", async () => {
-    await i18n.changeLanguage("en");
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
     const mockPortfolio = {
       name: "All owners combined",
       accounts: [
@@ -226,7 +305,9 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    mockFetch(mockPortfolio);
+    mockAllFetches(mockPortfolio);
+//     mockFetch(mockPortfolio);
+
 
     render(<GroupPortfolioView slug="all" />);
 
@@ -240,7 +321,7 @@ describe("GroupPortfolioView", () => {
 
     const bobCheckbox = screen.getByLabelText(/bob isa/i);
     await act(async () => {
-      fireEvent.click(bobCheckbox);
+      await userEvent.click(bobCheckbox);
     });
     await waitFor(() =>
       expect(screen.getAllByText("Total Value")[0].nextElementSibling).toHaveTextContent(

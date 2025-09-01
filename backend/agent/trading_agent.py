@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-import logging
 import csv
+import json
+import logging
+import math
 import os
+from dataclasses import asdict
 from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set
 
 import pandas as pd
-import json
-import math
-from dataclasses import asdict
 
+from backend import alerts as alert_utils
 from backend.common import prices, compliance, indicators
 from backend.common.alerts import publish_alert
-from backend import alerts as alert_utils
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     list_all_unique_tickers,

@@ -19,8 +19,8 @@ export const tabPluginMap = {
 };
 export type TabPluginId = keyof typeof tabPluginMap;
 export const orderedTabPlugins = [
-  { id: "movers", priority: 0 },
-  { id: "group", priority: 10 },
+  { id: "group", priority: 0 },
+  { id: "movers", priority: 10 },
   { id: "instrument", priority: 20 },
   { id: "owner", priority: 30 },
   { id: "performance", priority: 40 },

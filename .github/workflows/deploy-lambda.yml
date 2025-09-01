@@ -79,7 +79,25 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Verify DATA_BUCKET secret
+        if: steps.parse.outputs.deploy == 'true'
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+        run: |
+          if [ -z "$DATA_BUCKET" ]; then
+            echo "DATA_BUCKET secret is not configured" >&2
+            exit 1
+          fi
+
       - name: Deploy CDK stack
         if: steps.parse.outputs.deploy == 'true'
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
         run: cdk deploy --require-approval never
         working-directory: cdk
+
+      - name: Sync data folder to S3
+        if: steps.parse.outputs.deploy == 'true'
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+        run: aws s3 sync data/ s3://$DATA_BUCKET/

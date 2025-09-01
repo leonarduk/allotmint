@@ -45,16 +45,47 @@ export default function ComplianceWarnings() {
       />
       {error && <p style={{ color: "red" }}>{error}</p>}
       {result && (
-        result.warnings.length ? (
-          <ul>
-            {result.warnings.map((w) => (
-              <li key={w}>{w}</li>
-            ))}
-          </ul>
-        ) : (
-          <p>No warnings.</p>
-        )
-      )}
-    </div>
+        <>
+          {result.warnings.length ? (
+            <ul>
+              {result.warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>No warnings.</p>
+          )}
+
+          {result.hold_countdowns &&
+            Object.keys(result.hold_countdowns).length > 0 && (
+              <div style={{ marginTop: "1rem" }}>
+                <h2>Holding periods</h2>
+                <ul>
+                  {Object.entries(result.hold_countdowns).map(([t, d]) => (
+                    <li key={t}>
+                      {t}: {d} day{d === 1 ? "" : "s"} remaining
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+          {typeof result.trades_remaining === "number" && (
+            <div style={{ marginTop: "1rem" }}>
+                {(() => {
+                  const key = new Date().toISOString().slice(0, 7);
+                  const used = result.trade_counts?.[key] ?? 0;
+                  const max = used + (result.trades_remaining ?? 0);
+                  return (
+                    <p>
+                      Trades this month: {used} / {max} ({result.trades_remaining} remaining)
+                    </p>
+                  );
+                })()}
+              </div>
+            )}
+          </>
+        )}
+      </div>
   );
 }

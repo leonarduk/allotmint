@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 import { TopMoversPage } from "./TopMoversPage";
@@ -161,13 +161,19 @@ describe("TopMoversPage", () => {
     expect(loserCell).toHaveStyle({ color: "rgb(255, 0, 0)" });
   });
 
-  it("renders trading signals table", async () => {
+  it("renders trading signals beside movers", async () => {
     render(
       <MemoryRouter>
         <TopMoversPage />
       </MemoryRouter>,
     );
     await waitFor(() => expect(mockGetTradingSignals).toHaveBeenCalled());
+    const tickerBtn = await screen.findByRole("button", { name: "AAA" });
+    const row = tickerBtn.closest("tr");
+    expect(row).not.toBeNull();
+    const badge = within(row as HTMLElement).getByText(/buy/i);
+    fireEvent.click(badge);
+    expect(await screen.findByTestId("detail")).toHaveTextContent("AAA");
     expect(await screen.findByText("go long")).toBeInTheDocument();
   });
 

@@ -6,14 +6,34 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter
+from pydantic import BaseModel, ConfigDict
 
 from backend.config import config
+
+
+class Transaction(BaseModel):
+    """Simple representation of a transaction record."""
+
+    owner: str
+    account: str
+    date: str | None = None
+    ticker: str | None = None
+    type: str | None = None
+    amount_minor: int | None = None
+    price: float | None = None
+    units: float | None = None
+    fees: float | None = None
+    comments: str | None = None
+    reason_to_buy: str | None = None
+
+    model_config = ConfigDict(extra="allow")
+
 
 router = APIRouter(tags=["transactions"])
 
 
-def _load_all_transactions() -> List[dict]:
-    results: List[dict] = []
+def _load_all_transactions() -> List[Transaction]:
+    results: List[Transaction] = []
     if not config.accounts_root:
         return results
 
@@ -28,9 +48,11 @@ def _load_all_transactions() -> List[dict]:
         except Exception:
             continue
         owner = data.get("owner", path.parent.name)
-        account = data.get("account_type", path.stem.replace("_transactions", ""))
+        account = data.get(
+            "account_type", path.stem.replace("_transactions", "")
+        )
         for t in data.get("transactions", []):
-            results.append({"owner": owner, "account": account, **t})
+            results.append(Transaction(owner=owner, account=account, **t))
     return results
 
 
@@ -43,7 +65,7 @@ def _parse_date(d: Optional[str]) -> Optional[datetime.date]:
         return None
 
 
-@router.get("/transactions")
+@router.get("/transactions", response_model=List[Transaction])
 async def list_transactions(
     owner: Optional[str] = None,
     account: Optional[str] = None,
@@ -55,14 +77,13 @@ async def list_transactions(
     start_d = _parse_date(start)
     end_d = _parse_date(end)
 
-    txs = []
+    txs: List[Transaction] = []
     for t in _load_all_transactions():
-        if owner and t.get("owner", "").lower() != owner.lower():
+        if owner and t.owner.lower() != owner.lower():
             continue
-        if account and t.get("account", "").lower() != account.lower():
+        if account and t.account.lower() != account.lower():
             continue
-        date_str = t.get("date")
-        tx_date = _parse_date(date_str)
+        tx_date = _parse_date(t.date)
         if start_d and (not tx_date or tx_date < start_d):
             continue
         if end_d and (not tx_date or tx_date > end_d):

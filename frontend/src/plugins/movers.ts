@@ -4,7 +4,7 @@ import type { TabPlugin } from "./TabPlugin";
 const plugin: TabPlugin = {
   id: "movers",
   component: TopMovers,
-  priority: 0,
+  priority: 10,
   path: () => "/movers",
 };
 

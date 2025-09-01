@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchJson, setAuthToken, login } from "./api";
+import { API_BASE, fetchJson, setAuthToken, login } from "./api";
 
 describe("auth token handling", () => {
   beforeEach(() => {

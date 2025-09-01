@@ -8,6 +8,10 @@ from typing import Optional, Set
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from google.oauth2 import id_token
+from google.auth.transport import requests
+
+from backend.config import config
 
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,
@@ -134,3 +138,18 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
         )
     return email
 
+
+def verify_google_token(token: str) -> str:
+    try:
+        info = id_token.verify_oauth2_token(token, requests.Request(), config.google_client_id)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token") from exc
+
+    if not info.get("email_verified"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not verified")
+
+    email = info.get("email")
+    allowed = set(config.allowed_emails or [])
+    if email not in allowed:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
+    return email

@@ -140,6 +140,19 @@ export interface InstrumentDetailMini {
     }[];
 }
 
+export interface InstrumentPosition {
+    owner: string;
+    account: string;
+    units: number;
+}
+
+export interface InstrumentDetail {
+    prices: unknown;
+    positions: InstrumentPosition[];
+    mini?: InstrumentDetailMini;
+    currency?: string | null;
+}
+
 export interface Transaction {
     owner: string;
     account: string;
@@ -220,6 +233,9 @@ export type ComplianceResult = {
     owner: string;
     warnings: string[];
     trade_counts: Record<string, number>;
+    hold_countdowns?: Record<string, number>;
+    trades_this_month?: number;
+    trades_remaining?: number;
 };
 
 export interface ScreenerResult {

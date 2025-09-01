@@ -185,9 +185,9 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     for owner, accounts in sorted(owners.items()):
         # When authentication is enabled and no user is authenticated,
         # expose only the "demo" account.
-        if not config.disable_auth and user is None and owner != "demo":
+        if not config.disable_auth and current_user is None and owner != "demo":
             continue
-        if user and user != owner:
+        if current_user and current_user != owner:
             meta = load_person_meta(owner)
             viewers = meta.get("viewers", [])
             if user not in viewers:
@@ -282,7 +282,8 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             if key in data:
                 meta[key] = data[key]
         if "viewers" not in meta:
-            meta["viewers"] = []
+          # Preserve account access viewers if present
+          meta["viewers"] = data.get("viewers", [])
         return meta
 
     if config.app_env == "aws" or os.getenv(DATA_BUCKET_ENV):

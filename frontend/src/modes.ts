@@ -14,8 +14,8 @@ export type Mode =
   | "scenario";
 
 export const MODES: Mode[] = [
-  "movers",
   "group",
+  "movers",
   "instrument",
   "owner",
   "performance",

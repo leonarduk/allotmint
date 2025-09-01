@@ -8,6 +8,37 @@ import { useRouteMode } from "./useRouteMode";
 import { type ReactNode } from "react";
 
 describe("useRouteMode", () => {
+  it("defaults to group mode on root path", async () => {
+    window.history.pushState({}, "", "/");
+
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={["/"]}>{children}</MemoryRouter>
+    );
+
+    const { result } = renderHook(
+      () => ({ route: useRouteMode(), location: useLocation() }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.route.mode).toBe("group"));
+    expect(result.current.location.pathname).toBe("/");
+  });
+
+  it("uses group slug from query string", async () => {
+    window.history.pushState({}, "", "/?group=kids");
+
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={["/?group=kids"]}>{children}</MemoryRouter>
+    );
+
+    const { result } = renderHook(
+      () => ({ route: useRouteMode(), location: useLocation() }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.route.mode).toBe("group"));
+    expect(result.current.route.selectedGroup).toBe("kids");
+  });
   it("navigates to first enabled tab when movers is disabled", async () => {
     window.history.pushState({}, "", "/movers");
 

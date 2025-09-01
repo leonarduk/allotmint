@@ -14,6 +14,7 @@ export function ValueAtRisk({ owner }: Props) {
 
   useEffect(() => {
     if (!owner) return;
+    let isMounted = true;
     setLoading(true);
     setErr(null);
     Promise.all([
@@ -21,6 +22,7 @@ export function ValueAtRisk({ owner }: Props) {
       getValueAtRisk(owner, { days, confidence: 99 }),
     ])
       .then(([d95, d99]) => {
+        if (!isMounted) return;
         const v95 = d95.length ? d95[d95.length - 1].var : null;
         const v99 = d99.length ? d99[d99.length - 1].var : null;
         setVar95(v95);
@@ -31,8 +33,16 @@ export function ValueAtRisk({ owner }: Props) {
           recomputeValueAtRisk(owner, { days, confidence: 99 }).catch(() => {});
         }
       })
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (isMounted)
+          setErr(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [owner, days]);
 
   const format = (v: number | null) =>

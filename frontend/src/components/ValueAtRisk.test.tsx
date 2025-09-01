@@ -8,7 +8,7 @@ afterEach(() => {
 
 describe("ValueAtRisk component", () => {
   it("renders VaR values and selectors", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue({
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => [{ date: "2024-01-01", var: 123.45 }],
     } as unknown as Response);
@@ -23,12 +23,12 @@ describe("ValueAtRisk component", () => {
     const periodSel = screen.getByLabelText(/Period/i);
     fireEvent.change(periodSel, { target: { value: "90" } });
 
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(4));
   });
 
   it("renders placeholder when data missing and triggers recomputation", async () => {
     const fetchMock = vi
-      .spyOn(global, "fetch")
+      .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce({
         ok: true,
         json: async () => [],
@@ -49,5 +49,25 @@ describe("ValueAtRisk component", () => {
     );
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+  });
+
+  it("skips state updates when unmounted", async () => {
+    let resolveFetch: (value: Response) => void;
+    const fetchPromise = new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(() => fetchPromise as unknown as Promise<Response>);
+
+    const { unmount } = render(<ValueAtRisk owner="alice" />);
+    unmount();
+    resolveFetch({
+      ok: true,
+      json: async () => [{ date: "2024-01-01", var: 1 }],
+    } as unknown as Response);
+
+    await fetchPromise;
+    expect(fetchMock).toHaveBeenCalled();
   });
 });

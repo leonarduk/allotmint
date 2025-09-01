@@ -19,6 +19,7 @@ const TAB_KEYS = [
   "watchlist",
   "virtual",
   "support",
+  "logs",
   "settings",
   "reports",
 ] as const;

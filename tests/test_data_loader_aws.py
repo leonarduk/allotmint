@@ -43,19 +43,49 @@ def test_list_aws_plots_filters_without_auth(monkeypatch):
         assert name == "s3"
 
         def list_objects_v2(**kwargs):
+            assert kwargs["Bucket"] == "bucket"
+            assert kwargs["Prefix"] == dl.PLOTS_PREFIX
             return {
                 "Contents": [
-                    {"Key": "accounts/demo/ISA.json"},
-                    {"Key": "accounts/Real/GIA.json"},
+                    {"Key": "accounts/Alice/ISA.json"},
+                    {"Key": "accounts/Alice/person.json"},
+                    {"Key": "accounts/Bob/GIA.json"},
+                    {"Key": "accounts/Eve/JISA.json"},
+                    {"Key": "accounts/Eve/person.json"},
                 ]
             }
 
-        return SimpleNamespace(list_objects_v2=list_objects_v2)
+        def get_object(Bucket, Key):
+            assert Bucket == "bucket"
+            if Key == "accounts/Alice/person.json":
+                return {"Body": io.BytesIO(b'{"viewers": ["Bob"]}')}
+            if Key == "accounts/Eve/person.json":
+                return {"Body": io.BytesIO(b'{"viewers": []}')}
+            raise ClientError({"Error": {"Code": "NoSuchKey"}}, "get_object")
+
+        return SimpleNamespace(list_objects_v2=list_objects_v2, get_object=get_object)
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
-    expected = [{"owner": "demo", "accounts": ["ISA"]}]
-    assert dl._list_aws_plots() == expected
+    expected = [
+        {"owner": "Alice", "accounts": ["ISA"]},
+        {"owner": "Bob", "accounts": ["GIA"]},
+    ]
+    assert dl._list_aws_plots(current_user="Bob") == expected
+# =======
+#             return {
+#                 "Contents": [
+#                     {"Key": "accounts/demo/ISA.json"},
+#                     {"Key": "accounts/Real/GIA.json"},
+#                 ]
+#             }
+
+#         return SimpleNamespace(list_objects_v2=list_objects_v2)
+
+#     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+#     expected = [{"owner": "demo", "accounts": ["ISA"]}]
+#     assert dl._list_aws_plots() == expected
 
 
 def test_load_account_from_s3(monkeypatch):
@@ -93,5 +123,5 @@ def test_load_person_meta_from_s3(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
-    assert dl.load_person_meta("Alice") == {"dob": "1980"}
+    assert dl.load_person_meta("Alice") == {"dob": "1980", "viewers": []}
     assert dl.load_person_meta("Bob") == {}

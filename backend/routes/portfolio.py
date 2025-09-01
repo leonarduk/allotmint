@@ -14,7 +14,7 @@ import logging
 from datetime import date
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Depends
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
@@ -28,7 +28,8 @@ from backend.common import (
     risk,
 )
 from backend.common import portfolio as portfolio_mod
-from backend.auth import decode_token, current_user
+from backend.config import config
+from backend.auth import get_current_user, decode_token, current_user
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -73,18 +74,50 @@ class MoversResponse(BaseModel):
 # ──────────────────────────────────────────────────────────────
 # Simple lists
 # ──────────────────────────────────────────────────────────────
-@public_router.get("/owners", response_model=List[OwnerSummary])
-async def owners(request: Request, token: str | None = Depends(oauth2_optional)):
-    """List available owners and their accounts.
+if config.disable_auth:
 
-    When the request is unauthenticated only the ``demo`` account is
-    exposed. If a valid JWT token is provided, the authenticated user's
-    full account list is returned.
-    """
-    username = decode_token(token) if token else None
-    if username:
-        current_user.set(username)
-    return data_loader.list_plots(request.app.state.accounts_root)
+    @router.get("/owners", response_model=List[OwnerSummary])
+    async def owners(request: Request):
+        """
+        Returns
+            [
+              {"owner": "alex",  "accounts": ["isa", "sipp"]},
+              {"owner": "joe",   "accounts": ["isa", "sipp"]},
+              ...
+            ]
+        """
+        return data_loader.list_plots(request.app.state.accounts_root)
+
+else:
+
+    @router.get("/owners", response_model=List[OwnerSummary])
+    async def owners(
+        request: Request, current_user: str = Depends(get_current_user)
+    ):
+        """
+        Returns
+            [
+              {"owner": "alex",  "accounts": ["isa", "sipp"]},
+              {"owner": "joe",   "accounts": ["isa", "sipp"]},
+              ...
+            ]
+        """
+        return data_loader.list_plots(
+            request.app.state.accounts_root, current_user
+        )
+# =======
+# @public_router.get("/owners", response_model=List[OwnerSummary])
+# async def owners(request: Request, token: str | None = Depends(oauth2_optional)):
+#     """List available owners and their accounts.
+
+#     When the request is unauthenticated only the ``demo`` account is
+#     exposed. If a valid JWT token is provided, the authenticated user's
+#     full account list is returned.
+#     """
+#     username = decode_token(token) if token else None
+#     if username:
+#         current_user.set(username)
+#     return data_loader.list_plots(request.app.state.accounts_root)
 
 
 @router.get("/groups", response_model=List[GroupSummary])

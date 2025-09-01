@@ -1,5 +1,6 @@
 {
   "owner": "joe",
   "dob": "2015-09-06",
+  "viewers": ["steve"],
   "holdings": []
 }

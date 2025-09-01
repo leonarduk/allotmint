@@ -63,8 +63,16 @@ export default function MainApp() {
     : ownersReq.unauthorized || groupsReq.unauthorized;
 
   useEffect(() => {
-    if (ownersReq.data) setOwners(ownersReq.data);
-  }, [ownersReq.data]);
+    if (ownersReq.data) {
+      setOwners(ownersReq.data);
+      if (
+        selectedOwner &&
+        !ownersReq.data.some((o) => o.owner === selectedOwner)
+      ) {
+        setSelectedOwner("");
+      }
+    }
+  }, [ownersReq.data, selectedOwner, setSelectedOwner]);
 
   useEffect(() => {
     if (groupsReq.data) setGroups(groupsReq.data);

@@ -1,5 +1,13 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
+// warn if push notification key is missing to avoid runtime failures
+const vapidPublicKey = process.env.VITE_VAPID_PUBLIC_KEY ?? '';
+if (!vapidPublicKey) {
+  console.warn(
+    'VITE_VAPID_PUBLIC_KEY is not set; push notifications may not work.'
+  );
+}
+
 const config: CapacitorConfig = {
   appId: 'com.allotmint.app',
   appName: 'AllotMint',
@@ -14,7 +22,7 @@ const config: CapacitorConfig = {
     }
   },
   extra: {
-    vapidPublicKey: process.env.VITE_VAPID_PUBLIC_KEY
+    vapidPublicKey
   }
 };
 

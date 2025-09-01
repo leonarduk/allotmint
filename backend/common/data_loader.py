@@ -173,15 +173,19 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
         else:
             break
 
+    user = current_user.get(None) if hasattr(current_user, "get") else current_user
     results: List[Dict[str, Any]] = []
     for owner, accounts in sorted(owners.items()):
-        if current_user and current_user != owner:
+        # When authentication is enabled and no user is authenticated,
+        # expose only the "demo" account.
+        if not config.disable_auth and user is None and owner != "demo":
+            continue
+        if user and user != owner:
             meta = load_person_meta(owner)
             viewers = meta.get("viewers", [])
-            if current_user not in viewers:
+            if user not in viewers:
                 continue
         results.append({"owner": owner, "accounts": accounts})
-
     return results
 
 

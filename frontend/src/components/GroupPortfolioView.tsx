@@ -149,20 +149,8 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     activeKeys.has(accountKey(acct, idx))
   );
 
-  const {
-    totalValue,
-    totalDayChange,
-    totalDayChangePct,
-    totalGain,
-    totalGainPct,
-  } = computePortfolioTotals(activeAccounts);
-  const totals = {
-    totalValue,
-    totalDayChange,
-    totalDayChangePct,
-    totalGain,
-    totalGainPct,
-  };
+  const totals = computePortfolioTotals(activeAccounts);
+  const { totalValue } = totals;
 
   for (const acct of activeAccounts) {
     const owner = acct.owner ?? "—";

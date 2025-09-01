@@ -140,10 +140,6 @@ def load_config() -> Config:
     if disable_auth_env is not None:
         data["disable_auth"] = disable_auth_env
 
-    google_auth_env = _env_flag("GOOGLE_AUTH_ENABLED")
-    if google_auth_env is not None:
-        data["google_auth_enabled"] = google_auth_env
-
     repo_root_raw = data.get("repo_root")
     repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
 

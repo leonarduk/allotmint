@@ -80,6 +80,28 @@ def _data_bucket() -> Optional[str]:
     return os.getenv("DATA_BUCKET")
 
 
+def _parse_thresholds(data: Dict) -> Dict[str, float]:
+    """Return ``data`` with only valid float threshold values."""
+    valid: Dict[str, float] = {}
+    for key, value in data.items():
+        try:
+            valid[key] = float(value)
+        except (TypeError, ValueError):
+            logger.warning("Invalid threshold value %r for %s", value, key)
+    return valid
+
+
+def _parse_subscriptions(data: Dict) -> Dict[str, Dict]:
+    """Return ``data`` containing only valid subscription entries."""
+    valid: Dict[str, Dict] = {}
+    for user, sub in data.items():
+        if isinstance(sub, dict):
+            valid[user] = sub
+        else:
+            logger.warning("Push subscription for %s invalid: %r", user, sub)
+    return valid
+
+
 def _load_settings() -> None:
     """Load threshold settings into memory from configured storage."""
     global _USER_THRESHOLDS
@@ -91,7 +113,9 @@ def _load_settings() -> None:
         if s3:
             try:
                 obj = s3.get_object(Bucket=bucket, Key=_THRESHOLDS_KEY)
-                _USER_THRESHOLDS = {k: float(v) for k, v in json.loads(obj["Body"].read().decode()).items()}
+                data = json.loads(obj["Body"].read().decode())
+                if isinstance(data, dict):
+                    _USER_THRESHOLDS = _parse_thresholds(data)
                 return
             except Exception:
                 logging.getLogger("alerts").exception("Failed to load alert thresholds from S3")
@@ -105,11 +129,7 @@ def _load_settings() -> None:
         logger.warning('User thresholds data malformed: %r', data)
         _USER_THRESHOLDS = {}
         return
-    try:
-        _USER_THRESHOLDS = {k: float(v) for k, v in data.items()}
-    except Exception as exc:  # pragma: no cover - data conversion failures
-        logger.warning('User thresholds data invalid: %s', exc)
-        _USER_THRESHOLDS = {}
+    _USER_THRESHOLDS = _parse_thresholds(data)
 
 
 def _load_subscriptions() -> None:
@@ -123,7 +143,9 @@ def _load_subscriptions() -> None:
         if s3:
             try:
                 obj = s3.get_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY)
-                _PUSH_SUBSCRIPTIONS = json.loads(obj["Body"].read().decode())
+                data = json.loads(obj["Body"].read().decode())
+                if isinstance(data, dict):
+                    _PUSH_SUBSCRIPTIONS = _parse_subscriptions(data)
                 return
             except Exception:
                 logging.getLogger("alerts").exception("Failed to load push subscriptions from S3")
@@ -137,7 +159,7 @@ def _load_subscriptions() -> None:
         logger.warning('Push subscriptions data malformed: %r', data)
         _PUSH_SUBSCRIPTIONS = {}
         return
-    _PUSH_SUBSCRIPTIONS = data
+    _PUSH_SUBSCRIPTIONS = _parse_subscriptions(data)
 
 def _save_settings() -> None:
     """Persist in-memory settings to configured storage."""
@@ -157,7 +179,7 @@ def _save_settings() -> None:
                     Key=_THRESHOLDS_KEY,
                     Body=json.dumps(current),
                 )
-                _USER_THRESHOLDS.update({k: float(v) for k, v in current.items()})
+                _USER_THRESHOLDS.update(_parse_thresholds(current))
                 return
             except Exception:
                 logging.getLogger("alerts").exception("Failed to persist alert thresholds to S3")

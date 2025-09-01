@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TopMoversSummary } from "./TopMoversSummary";
 import type { MoverRow } from "../types";
 import moversPlugin from "../plugins/movers";
@@ -31,6 +31,11 @@ vi.mock("../api", () => ({
 }));
 
 describe("TopMoversSummary", () => {
+  beforeEach(() => {
+    mockGetGroupMovers.mockClear();
+    mockGetTradingSignals.mockClear();
+  });
+
   it("renders movers and view more link", async () => {
     render(
       <MemoryRouter>
@@ -39,12 +44,23 @@ describe("TopMoversSummary", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 5, 0),
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 5),
     );
-    expect(await screen.findByText("AAA")).toBeInTheDocument();
-    expect(await screen.findByText("DDD")).toBeInTheDocument();
-    expect(screen.queryByText("FFF")).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "AAA" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "DDD" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "FFF" })).not.toBeInTheDocument();
     const link = screen.getByRole("link", { name: /view more/i });
     expect(link).toHaveAttribute("href", moversPlugin.path({ group: "all" }));
+  });
+
+  it("handles missing slug", async () => {
+    render(
+      <MemoryRouter>
+        <TopMoversSummary />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(mockGetGroupMovers).not.toHaveBeenCalled());
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 });

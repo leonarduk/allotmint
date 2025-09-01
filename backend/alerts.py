@@ -37,11 +37,24 @@ def _s3_client():
     try:  # pragma: no cover - optional dependency
         import boto3  # type: ignore
     except Exception:
+        logging.getLogger("alerts").error("boto3 not installed; S3 unavailable")
         return None
     try:
         return boto3.client("s3")
     except Exception:  # pragma: no cover - client creation failure
+        logging.getLogger("alerts").exception("Failed to create S3 client")
         return None
+
+
+def _data_bucket() -> Optional[str]:
+    """Return the configured data bucket or ``None`` if unset."""
+    bucket = os.getenv("DATA_BUCKET")
+    if not bucket:
+        logging.getLogger("alerts").error(
+            "DATA_BUCKET environment variable not set; alert settings unavailable"
+        )
+        return None
+    return bucket
 
 
 def _load_settings() -> None:
@@ -49,11 +62,14 @@ def _load_settings() -> None:
     global _USER_THRESHOLDS
     if _USER_THRESHOLDS:
         return
-    bucket = os.getenv("DATA_BUCKET")
+    bucket = _data_bucket()
     if not bucket:
         return
     s3 = _s3_client()
     if not s3:
+        logging.getLogger("alerts").error(
+            "S3 client unavailable; cannot load alert thresholds"
+        )
         return
     try:
         obj = s3.get_object(Bucket=bucket, Key=_THRESHOLDS_KEY)
@@ -62,6 +78,9 @@ def _load_settings() -> None:
             for k, v in json.loads(obj["Body"].read().decode()).items()
         }
     except Exception:
+        logging.getLogger("alerts").exception(
+            "Failed to load alert thresholds from S3"
+        )
         _USER_THRESHOLDS = {}
 
 
@@ -70,46 +89,75 @@ def _load_subscriptions() -> None:
     global _PUSH_SUBSCRIPTIONS
     if _PUSH_SUBSCRIPTIONS:
         return
-    bucket = os.getenv("DATA_BUCKET")
+    bucket = _data_bucket()
     if not bucket:
         return
     s3 = _s3_client()
     if not s3:
+        logging.getLogger("alerts").error(
+            "S3 client unavailable; cannot load push subscriptions"
+        )
         return
     try:
         obj = s3.get_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY)
         _PUSH_SUBSCRIPTIONS = json.loads(obj["Body"].read().decode())
     except Exception:
+        logging.getLogger("alerts").exception(
+            "Failed to load push subscriptions from S3"
+        )
         _PUSH_SUBSCRIPTIONS = {}
 
 
 def _save_settings() -> None:
     """Persist in-memory settings to S3."""
-    bucket = os.getenv("DATA_BUCKET")
+    bucket = _data_bucket()
     if not bucket:
         return
     s3 = _s3_client()
     if not s3:
+        logging.getLogger("alerts").error(
+            "S3 client unavailable; cannot save alert thresholds"
+        )
         return
     try:
-        s3.put_object(Bucket=bucket, Key=_THRESHOLDS_KEY, Body=json.dumps(_USER_THRESHOLDS))
+        try:
+            obj = s3.get_object(Bucket=bucket, Key=_THRESHOLDS_KEY)
+            current = json.loads(obj["Body"].read().decode())
+        except Exception:
+            current = {}
+        current.update(_USER_THRESHOLDS)
+        s3.put_object(Bucket=bucket, Key=_THRESHOLDS_KEY, Body=json.dumps(current))
+        _USER_THRESHOLDS.update({k: float(v) for k, v in current.items()})
     except Exception:
-        # Persistence failure should not block alerting
-        pass
+        logging.getLogger("alerts").exception(
+            "Failed to persist alert thresholds to S3"
+        )
 
 
 def _save_subscriptions() -> None:
     """Persist push subscriptions to S3."""
-    bucket = os.getenv("DATA_BUCKET")
+    bucket = _data_bucket()
     if not bucket:
         return
     s3 = _s3_client()
     if not s3:
+        logging.getLogger("alerts").error(
+            "S3 client unavailable; cannot save push subscriptions"
+        )
         return
     try:
-        s3.put_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY, Body=json.dumps(_PUSH_SUBSCRIPTIONS))
+        try:
+            obj = s3.get_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY)
+            current = json.loads(obj["Body"].read().decode())
+        except Exception:
+            current = {}
+        current.update(_PUSH_SUBSCRIPTIONS)
+        s3.put_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY, Body=json.dumps(current))
+        _PUSH_SUBSCRIPTIONS.update(current)
     except Exception:
-        pass
+        logging.getLogger("alerts").exception(
+            "Failed to persist push subscriptions to S3"
+        )
 
 
 _load_settings()

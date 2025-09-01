@@ -17,7 +17,7 @@ interface Props {
 export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
   const fetchMovers = useCallback(() => {
     if (!slug) return Promise.resolve({ gainers: [], losers: [] });
-    return getGroupMovers(slug, days, limit, 0);
+    return getGroupMovers(slug, days, limit);
   }, [slug, days, limit]);
   const { data, loading, error } = useFetch(fetchMovers, [slug, days, limit], !!slug);
 
@@ -28,7 +28,10 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
     if (!slug) return;
     getTradingSignals()
       .then(setSignals)
-      .catch((e) => console.error(e));
+      .catch((e) => {
+        console.error(e);
+        setSignals([]);
+      });
   }, [slug]);
 
   const signalMap = useMemo(() => {
@@ -37,15 +40,15 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
     return map;
   }, [signals]);
 
-  if (!slug || loading || error || !data) return null;
-
   const rows = useMemo(() => {
+    if (!data || !Array.isArray(data.gainers) || !Array.isArray(data.losers))
+      return [];
     return [...data.gainers, ...data.losers]
       .sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct))
       .slice(0, limit);
   }, [data, limit]);
 
-  if (rows.length === 0) return null;
+  if (!slug || loading || error || rows.length === 0) return null;
 
   return (
     <>

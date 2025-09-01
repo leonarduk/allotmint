@@ -10,13 +10,18 @@ Build rich "portfolio" dictionaries that the rest of the backend expects.
 
 import json
 import logging
-from typing import Dict, List
+from collections import defaultdict
+from datetime import date
+from pathlib import Path
+from typing import Dict, List, Optional
 
 from backend.common.data_loader import (
     list_plots,  # owner -> ["isa", "sipp", ...]
     load_account,  # (owner, account) -> parsed JSON
     load_person_meta,  # (owner) -> {dob, ...}
+    resolve_paths,
 )
+from backend.config import config
 
 log = logging.getLogger("portfolio_loader")
 
@@ -75,3 +80,117 @@ def load_portfolio(owner: str) -> Dict | None:
         if pf["owner"].lower() == owner.lower():
             return pf
     return None
+
+
+# ---------------------------------------------------------------------------
+# Holdings rebuild helpers
+# ---------------------------------------------------------------------------
+def rebuild_account_holdings(
+    owner: str,
+    account: str,
+    accounts_root: Optional[Path] = None,
+) -> Dict[str, any]:
+    """Recreate ``<account>.json`` from its ``*_transactions.json`` file.
+
+    The implementation mirrors the logic from
+    :func:`backend.utils.positions.extract_holdings_from_transactions` but
+    operates on the normalised JSON transaction files used by the API.  Each
+    transaction is applied to a simple security ledger to arrive at the latest
+    position sizes.  A cash balance is derived from deposit/withdrawal style
+    records.
+
+    Parameters
+    ----------
+    owner:
+        Portfolio owner slug.
+    account:
+        Account name, e.g. ``"isa"`` or ``"sipp"`` (case-insensitive).
+    accounts_root:
+        Optional override for the accounts directory; defaults to the
+        configured ``config.accounts_root``.
+
+    Returns
+    -------
+    dict
+        The holdings structure that was written to disk.
+    """
+
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
+    owner_dir = root / owner
+    tx_path = owner_dir / f"{account.lower()}_transactions.json"
+    if not tx_path.exists():
+        raise FileNotFoundError(tx_path)
+
+    try:
+        tx_data = json.loads(tx_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Failed to parse {tx_path}: {exc}") from exc
+
+    TYPE_SIGN = {
+        "BUY": 1,
+        "PURCHASE": 1,
+        "SELL": -1,
+        "TRANSFER_IN": 1,
+        "TRANSFER_OUT": -1,
+        "REMOVAL": -1,
+    }
+    CASH_SIGNS = {
+        "DEPOSIT": 1,
+        "WITHDRAWAL": -1,
+        "DIVIDENDS": 1,
+        "INTEREST": 1,
+    }
+    SHARE_SCALE = 10**8
+
+    ledger: defaultdict[str, float] = defaultdict(float)
+    acquisition: dict[str, str] = {}
+
+    for t in tx_data.get("transactions", []):
+        ttype = (t.get("type") or "").upper()
+        ticker = (t.get("ticker") or "").upper()
+
+        if ttype in TYPE_SIGN and ticker:
+            raw = t.get("shares") or t.get("quantity")
+            try:
+                qty = float(raw or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if abs(qty) > 1_000_000:  # detect PP's 1e8 scaling
+                qty /= SHARE_SCALE
+            qty *= TYPE_SIGN[ttype]
+            ledger[ticker] += qty
+
+            if ttype in {"BUY", "PURCHASE", "TRANSFER_IN"}:
+                d = (t.get("date") or "")[:10]
+                if d and (not acquisition.get(ticker) or d > acquisition[ticker]):
+                    acquisition[ticker] = d
+
+        elif ttype in CASH_SIGNS:
+            try:
+                amt = float(t.get("amount_minor") or 0.0) / 100.0
+            except (TypeError, ValueError):
+                continue
+            ledger["CASH.GBP"] += amt * CASH_SIGNS[ttype]
+
+    holdings = []
+    for tick, qty in ledger.items():
+        if abs(qty) < 1e-9:
+            continue
+        h: Dict[str, any] = {"ticker": tick, "units": qty, "cost_basis_gbp": 0.0}
+        acq_date = acquisition.get(tick)
+        if acq_date:
+            h["acquired_date"] = acq_date
+        holdings.append(h)
+
+    out = {
+        "owner": owner,
+        "account_type": account.upper(),
+        "currency": tx_data.get("currency", "GBP"),
+        "last_updated": date.today().isoformat(),
+        "holdings": holdings,
+    }
+
+    acct_path = owner_dir / f"{account.lower()}.json"
+    acct_path.write_text(json.dumps(out, indent=2))
+    return out

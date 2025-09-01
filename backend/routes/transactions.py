@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 
+from backend.common import portfolio_loader
+from backend.common import portfolio as portfolio_mod
 from backend.config import config
 
 router = APIRouter(tags=["transactions"])
@@ -70,3 +72,49 @@ async def list_transactions(
         txs.append(t)
 
     return txs
+
+
+@router.post("/transactions")
+async def add_transaction(payload: Dict[str, Any], request: Request):
+    """Append a transaction and rebuild holdings for the affected account."""
+
+    owner = (payload.get("owner") or "").strip()
+    account = (payload.get("account") or "").strip()
+    if not owner or not account:
+        raise HTTPException(status_code=400, detail="owner and account are required")
+
+    root = request.app.state.accounts_root or config.accounts_root
+    owner_dir = Path(root) / owner
+    owner_dir.mkdir(parents=True, exist_ok=True)
+
+    tx_file = owner_dir / f"{account.lower()}_transactions.json"
+    try:
+        data = json.loads(tx_file.read_text()) if tx_file.exists() else {
+            "owner": owner,
+            "account_type": account.upper(),
+            "currency": payload.get("currency", "GBP"),
+            "last_updated": date.today().isoformat(),
+            "transactions": [],
+        }
+    except Exception:
+        data = {
+            "owner": owner,
+            "account_type": account.upper(),
+            "currency": payload.get("currency", "GBP"),
+            "last_updated": date.today().isoformat(),
+            "transactions": [],
+        }
+
+    tx_record = {k: v for k, v in payload.items() if k not in {"owner", "account"}}
+    data.setdefault("transactions", []).append(tx_record)
+    data["last_updated"] = date.today().isoformat()
+    tx_file.write_text(json.dumps(data, indent=2))
+
+    # Rebuild holdings and refresh portfolio snapshot
+    portfolio_loader.rebuild_account_holdings(owner, account, Path(root))
+    try:
+        portfolio_mod.build_owner_portfolio(owner, Path(root))
+    except FileNotFoundError:
+        pass
+
+    return {"status": "ok"}

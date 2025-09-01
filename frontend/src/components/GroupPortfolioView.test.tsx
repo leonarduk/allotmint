@@ -110,20 +110,6 @@ const mockAllFetches = (portfolio: any) => {
   return fetchMock;
 };
 
-function mockFetch(portfolio: unknown) {
-  return vi
-    .spyOn(global, "fetch")
-    .mockImplementation((url) =>
-      Promise.resolve({
-        ok: true,
-        json: async () =>
-          typeof url === "string" && url.includes("/movers")
-            ? { gainers: [], losers: [] }
-            : portfolio,
-      } as unknown as Response),
-    );
-}
-
 describe("GroupPortfolioView", () => {
   it("shows per-owner totals with percentages in relative view", async () => {
     const mockPortfolio = {
@@ -159,7 +145,6 @@ describe("GroupPortfolioView", () => {
     };
 
     mockAllFetches(mockPortfolio);
-//     mockFetch(mockPortfolio);
 
     renderWithConfig(<GroupPortfolioView slug="all" />, {
       relativeViewEnabled: true,
@@ -212,7 +197,6 @@ describe("GroupPortfolioView", () => {
     };
 
     mockAllFetches(mockPortfolio);
-//     mockFetch(mockPortfolio);
 
     render(<GroupPortfolioView slug="all" />);
 
@@ -236,7 +220,6 @@ describe("GroupPortfolioView", () => {
     };
 
     mockAllFetches(mockPortfolio);
-//     mockFetch(mockPortfolio);
 
     const handler = vi.fn();
     render(<GroupPortfolioView slug="all" onSelectMember={handler} />);
@@ -306,7 +289,6 @@ describe("GroupPortfolioView", () => {
     };
 
     mockAllFetches(mockPortfolio);
-//     mockFetch(mockPortfolio);
 
 
     render(<GroupPortfolioView slug="all" />);

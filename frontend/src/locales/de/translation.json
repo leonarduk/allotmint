@@ -20,7 +20,8 @@
       "settings": "User Settings",
       "reports": "Berichte",
       "support": "Support",
-      "scenario": "Szenario-Tester"
+      "scenario": "Szenario-Tester",
+      "logs": "Protokolle"
     }
   },
   "common": {

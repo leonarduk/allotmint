@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+import json
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -18,6 +20,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
 
 from backend.common import portfolio_utils
 from backend.config import config
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -74,18 +78,20 @@ def _load_transactions(owner: str) -> List[dict]:
     if config.app_env == "aws":
         bucket = os.getenv("DATA_BUCKET")
         if not bucket:
-            return records
+            raise RuntimeError("DATA_BUCKET environment variable is required in AWS")
         try:
             import boto3
-        except Exception:
-            return records
+            from botocore.exceptions import BotoCoreError, ClientError
+        except ModuleNotFoundError as exc:  # pragma: no cover - depends on runtime
+            raise RuntimeError("boto3 is required for loading transactions from S3") from exc
         s3 = boto3.client("s3")
         for root in _transaction_roots():
             prefix = f"{root.rstrip('/')}/{owner}/"
             paginator = s3.get_paginator("list_objects_v2")
             try:
                 pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
-            except Exception:
+            except (BotoCoreError, ClientError) as exc:
+                logger.warning("failed to paginate S3 objects for prefix %s: %s", prefix, exc)
                 continue
             for page in pages:
                 for obj in page.get("Contents", []):
@@ -94,8 +100,9 @@ def _load_transactions(owner: str) -> List[dict]:
                         continue
                     try:
                         body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
-                        data = pd.read_json(io.BytesIO(body))
-                    except Exception:
+                        data = json.loads(body)
+                    except (BotoCoreError, ClientError, json.JSONDecodeError) as exc:
+                        logger.warning("failed to load %s from bucket %s: %s", key, bucket, exc)
                         continue
                     txs = data.get("transactions") if isinstance(data, dict) else None
                     if isinstance(txs, list):
@@ -107,8 +114,10 @@ def _load_transactions(owner: str) -> List[dict]:
             continue
         for path in owner_dir.glob("*_transactions.json"):
             try:
-                data = pd.read_json(path)
-            except Exception:
+                with open(path, "r", encoding="utf-8") as fp:
+                    data = json.load(fp)
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.warning("failed to read %s: %s", path, exc)
                 continue
             txs = data.get("transactions") if isinstance(data, dict) else None
             if isinstance(txs, list):

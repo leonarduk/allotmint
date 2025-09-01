@@ -2,10 +2,20 @@
   "name": "allotmint",
   "version": "0.0.2",
   "devDependencies": {
-    "concurrently": "^9.2.0"
+    "concurrently": "^9.2.0",
+    "@capacitor/cli": "^5.7.0"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@capacitor/core": "^5.7.0",
+    "@capacitor/android": "^5.7.0",
+    "@capacitor/ios": "^5.7.0"
+  },
   "scripts": {
-    "test": "cd frontend && npm test --"
+    "test": "cd frontend && npm test --",
+    "build:web": "cd frontend && npm run build",
+    "mobile:add": "npx cap add android --config mobile/capacitor.config.ts && npx cap add ios --config mobile/capacitor.config.ts",
+    "mobile:sync": "npm run build:web && npx cap sync --config mobile/capacitor.config.ts",
+    "mobile:android": "npm run mobile:sync && npx cap open android --config mobile/capacitor.config.ts",
+    "mobile:ios": "npm run mobile:sync && npx cap open ios --config mobile/capacitor.config.ts"
   }
 }

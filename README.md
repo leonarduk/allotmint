@@ -90,6 +90,25 @@ wrappers with [Capacitor](https://capacitorjs.com/) or similar tooling. This
 simplifies installation and enables more reliable notifications on mobile
 devices.
 
+#### Setup
+
+```bash
+npm install
+npm run mobile:add          # generates android/ and ios/ projects under mobile/
+```
+
+The React frontend is bundled and copied into the native shells with:
+
+```bash
+npm run mobile:android      # or: npm run mobile:ios
+```
+
+The build reuses the `VITE_VAPID_PUBLIC_KEY` from your `.env` so web push
+notifications behave the same inside the Capacitor web view. Native wrappers
+use platform channels (Firebase Cloud Messaging on Android and Apple Push
+Notification service on iOS) which deliver more reliably than browser-based
+VAPID push.
+
 ## Page cache
 
 Expensive API routes cache their JSON responses under `data/cache/<page>.json`.

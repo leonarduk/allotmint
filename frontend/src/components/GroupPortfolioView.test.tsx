@@ -1,4 +1,5 @@
-import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
 import i18n from "../i18n";
@@ -8,14 +9,17 @@ vi.mock("./TopMoversSummary", () => ({
 }));
 
 beforeEach(() => {
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  i18n.changeLanguage("en");
+  await act(async () => {
+    await i18n.changeLanguage("en");
+  });
 });
 
 const defaultConfig: AppConfig = {
@@ -239,7 +243,9 @@ describe("GroupPortfolioView", () => {
 
     await screen.findAllByText("alice");
 
-    fireEvent.click(screen.getAllByText("alice")[0]);
+    await act(async () => {
+      await userEvent.click(screen.getAllByText("alice")[0]);
+    });
 
     expect(handler).toHaveBeenCalledWith("alice");
   });
@@ -248,13 +254,17 @@ describe("GroupPortfolioView", () => {
   const locales = ["en", "fr", "de", "es", "pt"] as const;
 
   it.each(locales)("renders select group message in %s", async (lng) => {
-    await i18n.changeLanguage(lng);
+    await act(async () => {
+      await i18n.changeLanguage(lng);
+    });
     render(<GroupPortfolioView slug="" />);
-    expect(screen.getByText(i18n.t("group.select"))).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t("group.select"))).toBeInTheDocument();
   });
 
   it.each(locales)("renders error message in %s", async (lng) => {
-    await i18n.changeLanguage(lng);
+    await act(async () => {
+      await i18n.changeLanguage(lng);
+    });
     vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("boom"));
     render(<GroupPortfolioView slug="all" />);
     await waitFor(() =>
@@ -263,7 +273,9 @@ describe("GroupPortfolioView", () => {
   });
 
   it.each(locales)("renders loading message in %s", async (lng) => {
-    await i18n.changeLanguage(lng);
+    await act(async () => {
+      await i18n.changeLanguage(lng);
+    });
     vi.spyOn(global, "fetch").mockImplementation(
       () => new Promise(() => {})
     );
@@ -272,7 +284,9 @@ describe("GroupPortfolioView", () => {
   });
 
   it("updates totals when accounts are toggled", async () => {
-    await i18n.changeLanguage("en");
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
     const mockPortfolio = {
       name: "All owners combined",
       accounts: [
@@ -307,7 +321,7 @@ describe("GroupPortfolioView", () => {
 
     const bobCheckbox = screen.getByLabelText(/bob isa/i);
     await act(async () => {
-      fireEvent.click(bobCheckbox);
+      await userEvent.click(bobCheckbox);
     });
     await waitFor(() =>
       expect(screen.getAllByText("Total Value")[0].nextElementSibling).toHaveTextContent(

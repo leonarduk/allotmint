@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 
@@ -20,6 +21,7 @@ vi.mock("../api", () => ({
 import Support from "./Support";
 
 beforeEach(() => {
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
   mockGetConfig.mockResolvedValue({
     flag: true,
@@ -37,9 +39,9 @@ beforeEach(() => {
 });
 
 describe("Support page", () => {
-  it("renders environment heading", () => {
+  it("renders environment heading", async () => {
     render(<Support />, { wrapper: MemoryRouter });
-    expect(screen.getByText(/Environment/)).toBeInTheDocument();
+    expect(await screen.findByText(/Environment/)).toBeInTheDocument();
   });
 
   it("shows owner selector", async () => {
@@ -54,11 +56,11 @@ describe("Support page", () => {
     expect((select as HTMLSelectElement).options.length).toBe(0);
   });
 
-  it("shows swagger link for VITE_API_URL", () => {
+  it("shows swagger link for VITE_API_URL", async () => {
     vi.stubEnv("VITE_API_URL", "http://localhost:8000");
     render(<Support />, { wrapper: MemoryRouter });
     expect(
-      screen.getByRole("link", { name: "http://localhost:8000" })
+      await screen.findByRole("link", { name: "http://localhost:8000" })
     ).toHaveAttribute("href", "http://localhost:8000");
     expect(screen.getByRole("link", { name: "swagger" })).toHaveAttribute(
       "href",
@@ -98,7 +100,9 @@ describe("Support page", () => {
     render(<Support />, { wrapper: MemoryRouter });
 
     const saveButton = await screen.findByRole("button", { name: "Save" });
-    fireEvent.click(saveButton);
+    await act(async () => {
+      await userEvent.click(saveButton);
+    });
 
     await screen.findByDisplayValue("5");
 
@@ -116,8 +120,12 @@ describe("Support page", () => {
     const support = screen.getByRole("checkbox", { name: /support/i });
     expect(instrument).toBeChecked();
     expect(support).toBeChecked();
-    fireEvent.click(instrument);
-    fireEvent.click(support);
+    await act(async () => {
+      await userEvent.click(instrument);
+    });
+    await act(async () => {
+      await userEvent.click(support);
+    });
     expect(instrument).not.toBeChecked();
     expect(support).not.toBeChecked();
   });
@@ -151,9 +159,13 @@ describe("Support page", () => {
     render(<Support />, { wrapper: MemoryRouter });
     const dark = await screen.findByRole("radio", { name: "dark" });
     const light = screen.getByRole("radio", { name: "light" });
-    fireEvent.click(light);
+    await act(async () => {
+      await userEvent.click(light);
+    });
     expect(light).toBeChecked();
-    fireEvent.click(dark);
+    await act(async () => {
+      await userEvent.click(dark);
+    });
     expect(dark).toBeChecked();
   });
 });

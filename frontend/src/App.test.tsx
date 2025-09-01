@@ -366,8 +366,8 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    const moversLink = await screen.findByRole("link", { name: /movers/i });
-    expect(moversLink).toHaveStyle("font-weight: bold");
+    const groupLink = await screen.findByRole("link", { name: /group/i });
+    expect(groupLink).toHaveStyle("font-weight: bold");
 
     const nav = screen.getByRole("navigation");
     const links = within(nav).getAllByRole("link");

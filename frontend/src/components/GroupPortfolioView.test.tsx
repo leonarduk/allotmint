@@ -3,6 +3,9 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
 import i18n from "../i18n";
 import { configContext, type AppConfig } from "../ConfigContext";
+vi.mock("./TopMoversSummary", () => ({
+  TopMoversSummary: () => <div data-testid="top-movers-summary" />,
+}));
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -75,10 +78,15 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockPortfolio,
-    } as unknown as Response);
+    vi.spyOn(global, "fetch").mockImplementation((url) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          typeof url === "string" && url.includes("/movers")
+            ? { gainers: [], losers: [] }
+            : mockPortfolio,
+      } as unknown as Response),
+    );
 
     renderWithConfig(<GroupPortfolioView slug="all" />, {
       relativeViewEnabled: true,
@@ -130,10 +138,15 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockPortfolio,
-    } as unknown as Response);
+    vi.spyOn(global, "fetch").mockImplementation((url) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          typeof url === "string" && url.includes("/movers")
+            ? { gainers: [], losers: [] }
+            : mockPortfolio,
+      } as unknown as Response),
+    );
 
     render(<GroupPortfolioView slug="all" />);
 
@@ -156,10 +169,15 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockPortfolio,
-    } as unknown as Response);
+    vi.spyOn(global, "fetch").mockImplementation((url) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          typeof url === "string" && url.includes("/movers")
+            ? { gainers: [], losers: [] }
+            : mockPortfolio,
+      } as unknown as Response),
+    );
 
     const handler = vi.fn();
     render(<GroupPortfolioView slug="all" onSelectMember={handler} />);
@@ -218,10 +236,15 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockPortfolio,
-    } as unknown as Response);
+    vi.spyOn(global, "fetch").mockImplementation((url) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          typeof url === "string" && url.includes("/movers")
+            ? { gainers: [], losers: [] }
+            : mockPortfolio,
+      } as unknown as Response),
+    );
 
     render(<GroupPortfolioView slug="all" />);
 

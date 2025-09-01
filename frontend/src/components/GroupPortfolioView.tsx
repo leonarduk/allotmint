@@ -22,6 +22,7 @@ import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
+import { TopMoversSummary } from "./TopMoversSummary";
 import {
   PieChart,
   Pie,
@@ -346,6 +347,8 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
           </div>
         </div>
       )}
+
+      <TopMoversSummary slug={slug} />
 
       {/* Per-owner summary */}
       <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>

@@ -59,7 +59,7 @@ const initialMode: Mode =
   path[0] === "support" ? "support" :
   path[0] === "settings" ? "settings" :
   path[0] === "scenario" ? "scenario" :
-  path.length === 0 && params.has("group") ? "group" : "movers";
+  "group";
 const initialSlug = path[1] ?? "";
 
 export default function App() {
@@ -97,7 +97,7 @@ export default function App() {
   function pathFor(m: Mode) {
     switch (m) {
       case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/movers";
+        return selectedGroup ? `/?group=${selectedGroup}` : "/";
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":
@@ -167,12 +167,12 @@ export default function App() {
         newMode = "scenario";
         break;
       default:
-        newMode = segs.length === 0 && params.has("group") ? "group" : "movers";
+        newMode = "group";
     }
 
     if (tabs[newMode] === false) {
-      setMode("movers");
-      navigate("/movers", { replace: true });
+      setMode("group");
+      navigate("/", { replace: true });
       return;
     }
     if (newMode === "movers" && location.pathname !== "/movers") {

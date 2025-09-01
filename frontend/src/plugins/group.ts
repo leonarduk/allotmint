@@ -8,7 +8,7 @@ const plugin: TabPlugin<Props> = {
   id: "group",
   component: GroupPortfolioView,
   priority: 10,
-  path: ({ group }) => (group ? `/?group=${group}` : "/movers"),
+  path: ({ group }) => (group ? `/?group=${group}` : "/"),
 };
 
 export default plugin;

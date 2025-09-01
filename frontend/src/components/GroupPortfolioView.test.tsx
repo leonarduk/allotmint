@@ -41,6 +41,57 @@ const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) 
     </configContext.Provider>,
   );
 
+const mockAllFetches = (portfolio: any) =>
+  vi.spyOn(global, "fetch").mockImplementation((input: RequestInfo) => {
+    const url = typeof input === "string" ? input : input.url;
+    if (url.includes("/portfolio-group/") && url.includes("/movers")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ gainers: [], losers: [] }),
+      } as Response);
+    }
+    if (url.includes("/trading-agent/signals")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => [],
+      } as Response);
+    }
+    if (url.includes("alpha-vs-benchmark")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ alpha_vs_benchmark: 0 }),
+      } as Response);
+    }
+    if (url.includes("tracking-error")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ tracking_error: 0 }),
+      } as Response);
+    }
+    if (url.includes("max-drawdown")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ max_drawdown: 0 }),
+      } as Response);
+    }
+    if (url.includes("sector-contributions")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => [],
+      } as Response);
+    }
+    if (url.includes("region-contributions")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => [],
+      } as Response);
+    }
+    return Promise.resolve({
+      ok: true,
+      json: async () => portfolio,
+    } as Response);
+  });
+
 describe("GroupPortfolioView", () => {
   it("shows per-owner totals with percentages in relative view", async () => {
     const mockPortfolio = {
@@ -75,10 +126,7 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockPortfolio,
-    } as unknown as Response);
+    mockAllFetches(mockPortfolio);
 
     renderWithConfig(<GroupPortfolioView slug="all" />, {
       relativeViewEnabled: true,
@@ -130,10 +178,7 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockPortfolio,
-    } as unknown as Response);
+    mockAllFetches(mockPortfolio);
 
     render(<GroupPortfolioView slug="all" />);
 
@@ -156,10 +201,7 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockPortfolio,
-    } as unknown as Response);
+    mockAllFetches(mockPortfolio);
 
     const handler = vi.fn();
     render(<GroupPortfolioView slug="all" onSelectMember={handler} />);
@@ -218,10 +260,7 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockPortfolio,
-    } as unknown as Response);
+    mockAllFetches(mockPortfolio);
 
     render(<GroupPortfolioView slug="all" />);
 

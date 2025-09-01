@@ -16,6 +16,7 @@ import {
 } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
+import { TopMoversSummary } from "./TopMoversSummary";
 import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
@@ -346,6 +347,8 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
           </div>
         </div>
       )}
+
+      <TopMoversSummary slug={slug} />
 
       {/* Per-owner summary */}
       <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>

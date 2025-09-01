@@ -10,6 +10,7 @@ import {
 import type { MoverRow, TradingSignal } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
+import { SignalBadge } from "./SignalBadge";
 
 import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -118,6 +119,12 @@ export function TopMoversPage() {
       .finally(() => setSignalsLoading(false));
   }, []);
 
+  const signalMap = useMemo(() => {
+    const map = new Map<string, TradingSignal>();
+    for (const s of signals) map.set(s.ticker, s);
+    return map;
+  }, [signals]);
+
   if (loading) return <p>Loading…</p>;
   if (error != null) {
     const match = error?.message.match(/^HTTP (\d+)\s+[–-]\s+(.*)$/);
@@ -210,6 +217,7 @@ export function TopMoversPage() {
             >
               Name
             </th>
+            <th className={tableStyles.cell}>Signal</th>
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
               onClick={() => handleSort("change_pct")}
@@ -245,6 +253,14 @@ export function TopMoversPage() {
                 </button>
               </td>
               <td className={tableStyles.cell}>{r.name}</td>
+              <td className={tableStyles.cell}>
+                {signalMap.get(r.ticker) && (
+                  <SignalBadge
+                    action={signalMap.get(r.ticker)!.action}
+                    onClick={() => setSelected(r)}
+                  />
+                )}
+              </td>
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{ color: r.change_pct >= 0 ? "green" : "red" }}

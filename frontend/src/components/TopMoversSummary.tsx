@@ -1,0 +1,104 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MoverRow, TradingSignal } from "../types";
+import { getGroupMovers, getTradingSignals } from "../api";
+import { useFetch } from "../hooks/useFetch";
+import tableStyles from "../styles/table.module.css";
+import { SignalBadge } from "./SignalBadge";
+import { InstrumentDetail } from "./InstrumentDetail";
+
+interface Props {
+  slug: string;
+  days?: number;
+  limit?: number;
+}
+
+export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
+  const fetchMovers = useCallback(() => getGroupMovers(slug, days, limit, 0), [
+    slug,
+    days,
+    limit,
+  ]);
+  const { data, loading, error } = useFetch(fetchMovers, [slug, days, limit], !!slug);
+
+  const [signals, setSignals] = useState<TradingSignal[]>([]);
+  const [selected, setSelected] = useState<{ ticker: string; name: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    getTradingSignals()
+      .then(setSignals)
+      .catch(() => {});
+  }, []);
+
+  const signalMap = useMemo(() => {
+    const map = new Map<string, TradingSignal>();
+    for (const s of signals) map.set(s.ticker, s);
+    return map;
+  }, [signals]);
+
+  if (loading || error || !data) return null;
+
+  const rows = [...data.gainers, ...data.losers];
+  if (rows.length === 0) return null;
+
+  return (
+    <>
+      <table className={tableStyles.table} style={{ marginTop: "1rem" }}>
+        <thead>
+          <tr>
+            <th className={tableStyles.cell}>Ticker</th>
+            <th className={tableStyles.cell}>Name</th>
+            <th className={tableStyles.cell}>Signal</th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r: MoverRow) => (
+            <tr key={r.ticker}>
+              <td className={tableStyles.cell}>
+                <button
+                  type="button"
+                  onClick={() => setSelected({ ticker: r.ticker, name: r.name })}
+                  style={{
+                    color: "dodgerblue",
+                    textDecoration: "underline",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    font: "inherit",
+                    cursor: "pointer",
+                  }}
+                >
+                  {r.ticker}
+                </button>
+              </td>
+              <td className={tableStyles.cell}>{r.name}</td>
+              <td className={tableStyles.cell}>
+                {signalMap.get(r.ticker) && (
+                  <SignalBadge
+                    action={signalMap.get(r.ticker)!.action}
+                    onClick={() => setSelected({ ticker: r.ticker, name: r.name })}
+                  />
+                )}
+              </td>
+              <td
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{ color: r.change_pct >= 0 ? "green" : "red" }}
+              >
+                {r.change_pct.toFixed(2)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {selected && (
+        <InstrumentDetail
+          ticker={selected.ticker}
+          name={selected.name}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </>
+  );
+}

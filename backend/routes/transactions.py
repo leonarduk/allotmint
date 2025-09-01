@@ -1,15 +1,28 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from backend.config import config
 
 router = APIRouter(tags=["transactions"])
+
+
+class TransactionCreate(BaseModel):
+    owner: str
+    account: str
+    ticker: str
+    date: date
+    price: float
+    units: float
+    fees: Optional[float] = None
+    comments: Optional[str] = None
+    reason_to_buy: Optional[str] = None
 
 
 def _load_all_transactions() -> List[dict]:
@@ -41,6 +54,39 @@ def _parse_date(d: Optional[str]) -> Optional[datetime.date]:
         return datetime.fromisoformat(d).date()
     except ValueError:
         return None
+
+
+@router.post("/transactions")
+async def create_transaction(tx: TransactionCreate) -> dict:
+    """Store a new transaction and return it."""
+
+    if not config.accounts_root:
+        raise HTTPException(status_code=500, detail="Accounts root not configured")
+
+    tx_data = tx.model_dump(mode="json")
+    owner = tx_data.pop("owner")
+    account = tx_data.pop("account")
+
+    owner_dir = Path(config.accounts_root) / owner
+    owner_dir.mkdir(parents=True, exist_ok=True)
+    file_path = owner_dir / f"{account}_transactions.json"
+
+    if file_path.exists():
+        try:
+            data = json.loads(file_path.read_text())
+        except Exception:
+            data = {"owner": owner, "account_type": account, "transactions": []}
+    else:
+        data = {"owner": owner, "account_type": account, "transactions": []}
+
+    transactions = data.setdefault("transactions", [])
+    transactions.append(tx_data)
+    data["owner"] = owner
+    data["account_type"] = account
+
+    file_path.write_text(json.dumps(data, indent=2))
+
+    return {"owner": owner, "account": account, **tx_data}
 
 
 @router.get("/transactions")

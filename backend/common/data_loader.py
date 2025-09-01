@@ -111,7 +111,9 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
     The bucket name is read from the ``DATA_BUCKET`` environment variable and
     objects are expected under ``accounts/<owner>/<account>.json``. Metadata
     files like ``person.json`` are ignored and account names are de-duplicated
-    case-insensitively.
+    case-insensitively. When authentication is enabled and no user is
+    authenticated only the ``demo`` owner is returned, mirroring the behaviour
+    of the local loader.
     """
 
     bucket = os.getenv(DATA_BUCKET_ENV)
@@ -153,8 +155,15 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
             token = resp.get("NextContinuationToken")
         else:
             break
-
-    return [{"owner": owner, "accounts": accounts} for owner, accounts in sorted(owners.items())]
+    user = current_user.get(None)
+    results: List[Dict[str, Any]] = []
+    for owner, accounts in sorted(owners.items()):
+        # When authentication is enabled and no user is authenticated,
+        # expose only the "demo" account.
+        if not config.disable_auth and user is None and owner != "demo":
+            continue
+        results.append({"owner": owner, "accounts": accounts})
+    return results
 
 
 # ------------------------------------------------------------------

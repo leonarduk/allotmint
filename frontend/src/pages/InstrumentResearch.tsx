@@ -1,23 +1,35 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getInstrumentDetail, getScreener } from "../api";
-import type { ScreenerResult } from "../types";
+import type { ScreenerResult, InstrumentDetail } from "../types";
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
-  const [detail, setDetail] = useState<any | null>(null);
+  const [detail, setDetail] = useState<InstrumentDetail | null>(null);
   const [metrics, setMetrics] = useState<ScreenerResult | null>(null);
-  const tkr = ticker ?? "";
+  const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
 
   useEffect(() => {
     if (!tkr) return;
-    getInstrumentDetail(tkr).then(setDetail).catch(() => undefined);
-    getScreener([tkr])
+    const detailCtrl = new AbortController();
+    const screenerCtrl = new AbortController();
+    getInstrumentDetail(tkr, 365, detailCtrl.signal)
+      .then(setDetail)
+      .catch((err) => {
+        if (err.name !== "AbortError") console.error(err);
+      });
+    getScreener([tkr], {}, screenerCtrl.signal)
       .then((rows) => setMetrics(rows[0] || null))
-      .catch(() => undefined);
+      .catch((err) => {
+        if (err.name !== "AbortError") console.error(err);
+      });
+    return () => {
+      detailCtrl.abort();
+      screenerCtrl.abort();
+    };
   }, [tkr]);
 
-  if (!tkr) return null;
+  if (!tkr) return <div>Invalid ticker</div>;
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
@@ -50,7 +62,7 @@ export default function InstrumentResearch() {
         <div>
           <h2>Positions</h2>
           <ul>
-            {detail.positions.map((p: any, i: number) => (
+            {detail.positions.map((p, i) => (
               <li key={i}>{p.owner} – {p.account} : {p.units}</li>
             ))}
           </ul>

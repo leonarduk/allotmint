@@ -6,6 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+import os
 import pandas as pd
 
 try:
@@ -50,24 +51,58 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
         return None
 
 
-def _transaction_roots() -> Iterable[Path]:
-    roots: List[Path] = []
+def _transaction_roots() -> Iterable[str]:
+    if config.app_env == "aws":
+        yield "transactions"
+        return
+    roots: List[str] = []
     if config.transactions_output_root:
-        roots.append(Path(config.transactions_output_root))
+        roots.append(str(config.transactions_output_root))
     if config.accounts_root:
-        roots.append(Path(config.accounts_root))
-    roots.append(Path("data/transactions"))
+        roots.append(str(config.accounts_root))
+    roots.append("data/transactions")
     seen = set()
     for r in roots:
-        if r not in seen and r.exists():
+        path = Path(r)
+        if r not in seen and path.exists():
             seen.add(r)
             yield r
 
 
 def _load_transactions(owner: str) -> List[dict]:
     records: List[dict] = []
+    if config.app_env == "aws":
+        bucket = os.getenv("DATA_BUCKET")
+        if not bucket:
+            return records
+        try:
+            import boto3
+        except Exception:
+            return records
+        s3 = boto3.client("s3")
+        for root in _transaction_roots():
+            prefix = f"{root.rstrip('/')}/{owner}/"
+            paginator = s3.get_paginator("list_objects_v2")
+            try:
+                pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
+            except Exception:
+                continue
+            for page in pages:
+                for obj in page.get("Contents", []):
+                    key = obj.get("Key", "")
+                    if not key.endswith("_transactions.json"):
+                        continue
+                    try:
+                        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+                        data = pd.read_json(io.BytesIO(body))
+                    except Exception:
+                        continue
+                    txs = data.get("transactions") if isinstance(data, dict) else None
+                    if isinstance(txs, list):
+                        records.extend(txs)
+        return records
     for root in _transaction_roots():
-        owner_dir = root / owner
+        owner_dir = Path(root) / owner
         if not owner_dir.exists():
             continue
         for path in owner_dir.glob("*_transactions.json"):

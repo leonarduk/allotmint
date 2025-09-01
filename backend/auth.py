@@ -9,7 +9,7 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-from backend.common.data_loader import load_person_meta, resolve_paths
+from backend.common.data_loader import load_person_meta, resolve_paths, list_plots
 from backend.config import config
 
 SECRET_KEY = os.getenv("JWT_SECRET", "change-me")
@@ -40,9 +40,19 @@ def verify_google_token(token: str) -> Optional[str]:
 def _allowed_emails() -> Set[str]:
     """Return the set of configured account emails."""
 
+    emails: Set[str] = set()
+
+    if config.app_env == "aws":
+        owners = {p["owner"] for p in list_plots()}
+        for owner in owners:
+            meta = load_person_meta(owner)
+            email = meta.get("email")
+            if email:
+                emails.add(email.lower())
+        return emails
+
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = paths.accounts_root
-    emails: Set[str] = set()
     if root.exists():
         for owner_dir in root.iterdir():
             if not owner_dir.is_dir():

@@ -88,9 +88,7 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
                   return s ? (
                     <SignalBadge
                       action={s.action}
-                      onClick={() =>
-                        setSelected({ ticker: r.ticker, name: r.name })
-                      }
+                      onClick={() => setSelected({ ticker: r.ticker, name: r.name })}
                     />
                   ) : null;
                 })()}
@@ -119,5 +117,5 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
   );
 }
 
-export default TopMoversSummary;
 
+export default TopMoversSummary;

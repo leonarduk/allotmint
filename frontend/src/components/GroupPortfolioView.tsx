@@ -24,7 +24,6 @@ import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
-import { TopMoversSummary } from "./TopMoversSummary";
 import {
   PieChart,
   Pie,
@@ -298,50 +297,6 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* Summary Box */}
-      {!relativeViewEnabled && (
-        <div
-          style={{
-            display: "flex",
-            gap: "2rem",
-            marginBottom: "1rem",
-            padding: "0.75rem 1rem",
-            backgroundColor: "#222",
-            border: "1px solid #444",
-            borderRadius: "6px",
-          }}
-        >
-          <div>
-            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Value</div>
-            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>{money(totalValue)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Day Change</div>
-            <div
-              style={{
-                fontSize: "1.2rem",
-                fontWeight: "bold",
-                color: totalDayChange >= 0 ? "lightgreen" : "red",
-              }}
-            >
-              {money(totalDayChange)} ({percent(totalDayChangePct)})
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Total Gain</div>
-            <div
-              style={{
-                fontSize: "1.2rem",
-                fontWeight: "bold",
-                color: totalGain >= 0 ? "lightgreen" : "red",
-              }}
-            >
-              {money(totalGain)} ({percent(totalGainPct)})
-            </div>
-          </div>
         </div>
       )}
 

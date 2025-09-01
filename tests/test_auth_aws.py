@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import backend.auth as auth
 import backend.common.data_loader as dl
-from botocore.exceptions import ClientError
 
 
 def test_allowed_emails_from_s3(monkeypatch):
@@ -23,6 +22,7 @@ def test_allowed_emails_from_s3(monkeypatch):
                     {"Key": "accounts/Alice/person.json"},
                     {"Key": "accounts/Bob/GIA.json"},
                     {"Key": "accounts/Bob/person.json"},
+                    {"Key": "accounts/Carol/person.json"},
                 ]
             }
 
@@ -32,11 +32,17 @@ def test_allowed_emails_from_s3(monkeypatch):
                 return {"Body": io.BytesIO(b"{\"email\": \"alice@example.com\"}")}
             if Key == "accounts/Bob/person.json":
                 return {"Body": io.BytesIO(b"{\"email\": \"bob@example.com\"}")}
-            raise ClientError({"Error": {"Code": "NoSuchKey"}}, "get_object")
+            if Key == "accounts/Carol/person.json":
+                return {"Body": io.BytesIO(b"{\"email\": \"carol@example.com\"}")}
+            return {"Body": io.BytesIO(b"")}
 
         return SimpleNamespace(list_objects_v2=list_objects_v2, get_object=get_object)
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
-    assert auth._allowed_emails() == {"alice@example.com", "bob@example.com"}
+    assert auth._allowed_emails() == {
+        "alice@example.com",
+        "bob@example.com",
+        "carol@example.com",
+    }
 

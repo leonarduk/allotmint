@@ -85,31 +85,39 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
-            logger.warning("Missing %s env var for AWS price snapshot", DATA_BUCKET_ENV)
-            return {}, None
-        try:
-            import boto3  # type: ignore
-            from botocore.exceptions import BotoCoreError, ClientError
-
-            s3 = boto3.client("s3")
-            obj = s3.get_object(Bucket=bucket, Key=_PRICES_S3_KEY)
-            body = obj.get("Body")
-            if not body:
-                return {}, None
-            data = json.loads(body.read().decode("utf-8"))
-            ts = obj.get("LastModified")
-            return data, ts if isinstance(ts, datetime) else None
-        except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
-            logger.warning(
-                "Failed to fetch price snapshot %s from bucket %s: %s",
-                _PRICES_S3_KEY,
-                bucket,
-                exc,
+            logger.error(
+                "Missing %s env var for AWS price snapshot; falling back to local file",
+                DATA_BUCKET_ENV,
             )
-            return {}, None
-        except ImportError as exc:
-            logger.warning("boto3 not available for S3 price snapshot: %s", exc)
-            return {}, None
+        else:
+            try:
+                import boto3  # type: ignore
+                from botocore.exceptions import BotoCoreError, ClientError
+
+                s3 = boto3.client("s3")
+                obj = s3.get_object(Bucket=bucket, Key=_PRICES_S3_KEY)
+                body = obj.get("Body")
+                if body:
+                    data = json.loads(body.read().decode("utf-8"))
+                    ts = obj.get("LastModified")
+                    return data, ts if isinstance(ts, datetime) else None
+                logger.error(
+                    "Empty S3 object body for price snapshot %s from bucket %s; falling back to local file",
+                    _PRICES_S3_KEY,
+                    bucket,
+                )
+            except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
+                logger.error(
+                    "Failed to fetch price snapshot %s from bucket %s: %s; falling back to local file",
+                    _PRICES_S3_KEY,
+                    bucket,
+                    exc,
+                )
+            except ImportError as exc:
+                logger.warning(
+                    "boto3 not available for S3 price snapshot: %s; falling back to local file",
+                    exc,
+                )
 
     if not _PRICES_PATH.exists():
         logger.warning("Price snapshot not found: %s", _PRICES_PATH)
@@ -153,32 +161,49 @@ INSTRUMENTS_S3_PREFIX = "instruments"
 def _meta_from_file(ticker: str) -> Dict[str, str] | None:
     """Best-effort lookup of instrument metadata from data files or S3."""
     sym, exch = (ticker.split(".", 1) + ["Unknown"])[:2]
+    data: Dict[str, Any] | None = None
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
-            return None
-        key = f"{INSTRUMENTS_S3_PREFIX}/{exch or 'Unknown'}/{sym}.json"
-        try:
-            import boto3  # type: ignore
-            from botocore.exceptions import BotoCoreError, ClientError
+            logger.error(
+                "Missing %s env var for instrument metadata; falling back to local files",
+                DATA_BUCKET_ENV,
+            )
+        else:
+            key = f"{INSTRUMENTS_S3_PREFIX}/{exch or 'Unknown'}/{sym}.json"
+            try:
+                import boto3  # type: ignore
+                from botocore.exceptions import BotoCoreError, ClientError
 
-            s3 = boto3.client("s3")
-            obj = s3.get_object(Bucket=bucket, Key=key)
-            body = obj.get("Body")
-            if not body:
-                return None
-            data = json.loads(body.read().decode("utf-8"))
-        except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
-            logger.warning("Failed to fetch instrument %s from bucket %s: %s", key, bucket, exc)
-            return None
-        except ImportError as exc:
-            logger.warning("boto3 not available for S3 instrument fetch: %s", exc)
-            return None
-    else:
+                s3 = boto3.client("s3")
+                obj = s3.get_object(Bucket=bucket, Key=key)
+                body = obj.get("Body")
+                if body:
+                    data = json.loads(body.read().decode("utf-8"))
+                else:
+                    logger.error(
+                        "Empty S3 object body for instrument %s from bucket %s; falling back to local files",
+                        key,
+                        bucket,
+                    )
+            except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
+                logger.error(
+                    "Failed to fetch instrument %s from bucket %s: %s; falling back to local files",
+                    key,
+                    bucket,
+                    exc,
+                )
+            except ImportError as exc:
+                logger.warning(
+                    "boto3 not available for S3 instrument fetch: %s; falling back to local files",
+                    exc,
+                )
+    if data is None:
         path = INSTRUMENTS_DIR / (exch or "Unknown") / f"{sym}.json"
         try:
             data = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Instrument metadata %s not found or invalid: %s", path, exc)
             return None
     return {
         "name": data.get("name", ticker.upper()),

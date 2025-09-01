@@ -100,7 +100,7 @@ export default function App() {
   function pathFor(m: Mode) {
     switch (m) {
       case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/movers";
+        return selectedGroup ? `/?group=${selectedGroup}` : "/";
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":
@@ -175,7 +175,7 @@ export default function App() {
         newMode = "scenario";
         break;
       default:
-        newMode = segs.length === 0 && params.has("group") ? "group" : "movers";
+        newMode = segs.length === 0 ? "group" : "movers";
     }
 
     if (tabs[newMode] === false) {

@@ -35,3 +35,4 @@ requests~=2.32.3
 peewee~=3.18.2
 PyJWT~=2.9.0
 python-multipart~=0.0.20
+google-auth~=2.36.0

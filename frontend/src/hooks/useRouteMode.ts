@@ -48,7 +48,7 @@ const { tabs, disabledTabs } = useConfig();
   function pathFor(m: Mode) {
     switch (m) {
       case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/movers";
+        return selectedGroup ? `/?group=${selectedGroup}` : "/";
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":
@@ -115,7 +115,7 @@ const { tabs, disabledTabs } = useConfig();
         newMode = "scenario";
         break;
       default:
-        newMode = segs.length === 0 && params.has("group") ? "group" : "movers";
+        newMode = segs.length === 0 ? "group" : "movers";
     }
 
     if (tabs[newMode] !== true || disabledTabs?.includes(newMode)) {

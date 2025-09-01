@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional
 
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
-from backend.auth import current_user
 
 
 # ------------------------------------------------------------------

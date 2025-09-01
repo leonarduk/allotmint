@@ -206,7 +206,6 @@ def load_config() -> Config:
         offline_mode=data.get("offline_mode"),
         google_auth_enabled=data.get("google_auth_enabled"),
         disable_auth=data.get("disable_auth"),
-        google_auth_enabled=google_auth_enabled,
         google_client_id=google_client_id,
         allowed_emails=allowed_emails,
         relative_view_enabled=data.get("relative_view_enabled"),

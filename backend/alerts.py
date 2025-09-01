@@ -97,9 +97,18 @@ def _load_settings() -> None:
                 logging.getLogger("alerts").exception("Failed to load alert thresholds from S3")
     try:
         data = _SETTINGS_STORAGE.load()
-        _USER_THRESHOLDS = {k: float(v) for k, v in data.items()}
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to load user thresholds: %s", exc)
+        logger.warning('Failed to load user thresholds: %s', exc)
+        _USER_THRESHOLDS = {}
+        return
+    if not isinstance(data, dict):
+        logger.warning('User thresholds data malformed: %r', data)
+        _USER_THRESHOLDS = {}
+        return
+    try:
+        _USER_THRESHOLDS = {k: float(v) for k, v in data.items()}
+    except Exception as exc:  # pragma: no cover - data conversion failures
+        logger.warning('User thresholds data invalid: %s', exc)
         _USER_THRESHOLDS = {}
 
 
@@ -119,11 +128,16 @@ def _load_subscriptions() -> None:
             except Exception:
                 logging.getLogger("alerts").exception("Failed to load push subscriptions from S3")
     try:
-        _PUSH_SUBSCRIPTIONS = _SUBSCRIPTIONS_STORAGE.load()
+        data = _SUBSCRIPTIONS_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to load push subscriptions: %s", exc)
+        logger.warning('Failed to load push subscriptions: %s', exc)
         _PUSH_SUBSCRIPTIONS = {}
-
+        return
+    if not isinstance(data, dict):
+        logger.warning('Push subscriptions data malformed: %r', data)
+        _PUSH_SUBSCRIPTIONS = {}
+        return
+    _PUSH_SUBSCRIPTIONS = data
 
 def _save_settings() -> None:
     """Persist in-memory settings to configured storage."""
@@ -151,7 +165,7 @@ def _save_settings() -> None:
         _SETTINGS_STORAGE.save(_USER_THRESHOLDS)
     except Exception as exc:  # pragma: no cover - storage backend failures
         # Persistence failure should not block alerting
-        logger.warning("Failed to save user thresholds: %s", exc)
+        logger.error('Failed to save user thresholds to persistent storage: %s', exc)
 
 
 def _save_subscriptions() -> None:
@@ -179,7 +193,7 @@ def _save_subscriptions() -> None:
     try:
         _SUBSCRIPTIONS_STORAGE.save(_PUSH_SUBSCRIPTIONS)
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to save push subscriptions: %s", exc)
+        logger.error('Failed to save push subscriptions to persistent storage: %s', exc)
 
 
 _load_settings()

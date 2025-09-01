@@ -73,7 +73,6 @@ class Config:
     offline_mode: Optional[bool] = None
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
-    google_auth_enabled: Optional[bool] = None
     google_client_id: Optional[str] = None
     allowed_emails: Optional[List[str]] = None
     relative_view_enabled: Optional[bool] = None
@@ -204,7 +203,6 @@ def load_config() -> Config:
         selenium_headless=data.get("selenium_headless"),
         error_summary=data.get("error_summary"),
         offline_mode=data.get("offline_mode"),
-        google_auth_enabled=data.get("google_auth_enabled"),
         disable_auth=data.get("disable_auth"),
         google_auth_enabled=google_auth_enabled,
         google_client_id=google_client_id,

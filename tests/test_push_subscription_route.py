@@ -3,11 +3,16 @@ from fastapi.testclient import TestClient
 
 from backend.local_api.main import app
 from backend import alerts as alert_utils
+from backend.common.storage import get_storage
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(alert_utils, "_SUBSCRIPTIONS_PATH", tmp_path / "push.json")
+    monkeypatch.setattr(
+        alert_utils,
+        "_SUBSCRIPTIONS_STORAGE",
+        get_storage(f"file://{tmp_path / 'push.json'}"),
+    )
     alert_utils._PUSH_SUBSCRIPTIONS.clear()
     original_arn = alert_utils.config.sns_topic_arn
     alert_utils.config.sns_topic_arn = None

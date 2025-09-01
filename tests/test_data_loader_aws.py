@@ -37,7 +37,6 @@ def test_list_aws_plots(monkeypatch):
 def test_list_aws_plots_filters_without_auth(monkeypatch):
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
     monkeypatch.setattr(dl.config, "disable_auth", False, raising=False)
-    dl.current_user.set(None)
 
     def fake_client(name):
         assert name == "s3"

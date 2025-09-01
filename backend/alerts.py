@@ -80,6 +80,28 @@ def _data_bucket() -> Optional[str]:
     return os.getenv("DATA_BUCKET")
 
 
+def _parse_thresholds(data: Dict) -> Dict[str, float]:
+    """Return ``data`` with only valid float threshold values."""
+    valid: Dict[str, float] = {}
+    for key, value in data.items():
+        try:
+            valid[key] = float(value)
+        except (TypeError, ValueError):
+            logger.warning("Invalid threshold value %r for %s", value, key)
+    return valid
+
+
+def _parse_subscriptions(data: Dict) -> Dict[str, Dict]:
+    """Return ``data`` containing only valid subscription entries."""
+    valid: Dict[str, Dict] = {}
+    for user, sub in data.items():
+        if isinstance(sub, dict):
+            valid[user] = sub
+        else:
+            logger.warning("Push subscription for %s invalid: %r", user, sub)
+    return valid
+
+
 def _load_settings() -> None:
     """Load threshold settings into memory from configured storage."""
     global _USER_THRESHOLDS
@@ -91,16 +113,23 @@ def _load_settings() -> None:
         if s3:
             try:
                 obj = s3.get_object(Bucket=bucket, Key=_THRESHOLDS_KEY)
-                _USER_THRESHOLDS = {k: float(v) for k, v in json.loads(obj["Body"].read().decode()).items()}
+                data = json.loads(obj["Body"].read().decode())
+                if isinstance(data, dict):
+                    _USER_THRESHOLDS = _parse_thresholds(data)
                 return
             except Exception:
                 logging.getLogger("alerts").exception("Failed to load alert thresholds from S3")
     try:
         data = _SETTINGS_STORAGE.load()
-        _USER_THRESHOLDS = {k: float(v) for k, v in data.items()}
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to load user thresholds: %s", exc)
+        logger.warning('Failed to load user thresholds: %s', exc)
         _USER_THRESHOLDS = {}
+        return
+    if not isinstance(data, dict):
+        logger.warning('User thresholds data malformed: %r', data)
+        _USER_THRESHOLDS = {}
+        return
+    _USER_THRESHOLDS = _parse_thresholds(data)
 
 
 def _load_subscriptions() -> None:
@@ -114,16 +143,23 @@ def _load_subscriptions() -> None:
         if s3:
             try:
                 obj = s3.get_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY)
-                _PUSH_SUBSCRIPTIONS = json.loads(obj["Body"].read().decode())
+                data = json.loads(obj["Body"].read().decode())
+                if isinstance(data, dict):
+                    _PUSH_SUBSCRIPTIONS = _parse_subscriptions(data)
                 return
             except Exception:
                 logging.getLogger("alerts").exception("Failed to load push subscriptions from S3")
     try:
-        _PUSH_SUBSCRIPTIONS = _SUBSCRIPTIONS_STORAGE.load()
+        data = _SUBSCRIPTIONS_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to load push subscriptions: %s", exc)
+        logger.warning('Failed to load push subscriptions: %s', exc)
         _PUSH_SUBSCRIPTIONS = {}
-
+        return
+    if not isinstance(data, dict):
+        logger.warning('Push subscriptions data malformed: %r', data)
+        _PUSH_SUBSCRIPTIONS = {}
+        return
+    _PUSH_SUBSCRIPTIONS = _parse_subscriptions(data)
 
 def _save_settings() -> None:
     """Persist in-memory settings to configured storage."""
@@ -143,7 +179,7 @@ def _save_settings() -> None:
                     Key=_THRESHOLDS_KEY,
                     Body=json.dumps(current),
                 )
-                _USER_THRESHOLDS.update({k: float(v) for k, v in current.items()})
+                _USER_THRESHOLDS.update(_parse_thresholds(current))
                 return
             except Exception:
                 logging.getLogger("alerts").exception("Failed to persist alert thresholds to S3")
@@ -151,7 +187,7 @@ def _save_settings() -> None:
         _SETTINGS_STORAGE.save(_USER_THRESHOLDS)
     except Exception as exc:  # pragma: no cover - storage backend failures
         # Persistence failure should not block alerting
-        logger.warning("Failed to save user thresholds: %s", exc)
+        logger.error('Failed to save user thresholds to persistent storage: %s', exc)
 
 
 def _save_subscriptions() -> None:
@@ -179,7 +215,7 @@ def _save_subscriptions() -> None:
     try:
         _SUBSCRIPTIONS_STORAGE.save(_PUSH_SUBSCRIPTIONS)
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to save push subscriptions: %s", exc)
+        logger.error('Failed to save push subscriptions to persistent storage: %s', exc)
 
 
 _load_settings()

@@ -73,7 +73,6 @@ class Config:
     offline_mode: Optional[bool] = None
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
-    google_auth_enabled: Optional[bool] = None
     google_client_id: Optional[str] = None
     allowed_emails: Optional[List[str]] = None
     relative_view_enabled: Optional[bool] = None
@@ -141,10 +140,6 @@ def load_config() -> Config:
     if disable_auth_env is not None:
         data["disable_auth"] = disable_auth_env
 
-    google_auth_env = _env_flag("GOOGLE_AUTH_ENABLED")
-    if google_auth_env is not None:
-        data["google_auth_enabled"] = google_auth_env
-
     repo_root_raw = data.get("repo_root")
     repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
 
@@ -204,7 +199,6 @@ def load_config() -> Config:
         selenium_headless=data.get("selenium_headless"),
         error_summary=data.get("error_summary"),
         offline_mode=data.get("offline_mode"),
-        google_auth_enabled=data.get("google_auth_enabled"),
         disable_auth=data.get("disable_auth"),
         google_auth_enabled=google_auth_enabled,
         google_client_id=google_client_id,

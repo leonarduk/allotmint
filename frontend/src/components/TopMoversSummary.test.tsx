@@ -19,11 +19,15 @@ const mockGetGroupMovers = vi.fn(() =>
     ],
   }),
 );
+const mockGetTradingSignals = vi.fn(() => Promise.resolve([]));
 
 vi.mock("../api", () => ({
   getGroupMovers: (
     ...args: Parameters<typeof mockGetGroupMovers>
   ) => mockGetGroupMovers(...args),
+  getTradingSignals: (
+    ...args: Parameters<typeof mockGetTradingSignals>
+  ) => mockGetTradingSignals(...args),
 }));
 
 describe("TopMoversSummary", () => {
@@ -35,7 +39,7 @@ describe("TopMoversSummary", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 5),
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 5, 0),
     );
     expect(await screen.findByText("AAA")).toBeInTheDocument();
     expect(await screen.findByText("DDD")).toBeInTheDocument();

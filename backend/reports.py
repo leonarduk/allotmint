@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import io
+import json
+import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+import os
 import pandas as pd
 
 try:
@@ -17,6 +20,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in tests when missin
 
 from backend.common import portfolio_utils
 from backend.config import config
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -50,30 +55,69 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
         return None
 
 
-def _transaction_roots() -> Iterable[Path]:
-    roots: List[Path] = []
+def _transaction_roots() -> Iterable[str]:
+    if config.app_env == "aws":
+        yield "transactions"
+        return
+    roots: List[str] = []
     if config.transactions_output_root:
-        roots.append(Path(config.transactions_output_root))
+        roots.append(str(config.transactions_output_root))
     if config.accounts_root:
-        roots.append(Path(config.accounts_root))
-    roots.append(Path("data/transactions"))
+        roots.append(str(config.accounts_root))
+    roots.append("data/transactions")
     seen = set()
     for r in roots:
-        if r not in seen and r.exists():
+        path = Path(r)
+        if r not in seen and path.exists():
             seen.add(r)
             yield r
 
 
 def _load_transactions(owner: str) -> List[dict]:
     records: List[dict] = []
+    if config.app_env == "aws":
+        bucket = os.getenv("DATA_BUCKET")
+        if not bucket:
+            raise RuntimeError("DATA_BUCKET environment variable is required in AWS")
+        try:
+            import boto3
+            from botocore.exceptions import BotoCoreError, ClientError
+        except ModuleNotFoundError as exc:  # pragma: no cover - depends on runtime
+            raise RuntimeError("boto3 is required for loading transactions from S3") from exc
+        s3 = boto3.client("s3")
+        for root in _transaction_roots():
+            prefix = f"{root.rstrip('/')}/{owner}/"
+            paginator = s3.get_paginator("list_objects_v2")
+            try:
+                pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
+            except (BotoCoreError, ClientError) as exc:
+                logger.warning("failed to paginate S3 objects for prefix %s: %s", prefix, exc)
+                continue
+            for page in pages:
+                for obj in page.get("Contents", []):
+                    key = obj.get("Key", "")
+                    if not key.endswith("_transactions.json"):
+                        continue
+                    try:
+                        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+                        data = json.loads(body)
+                    except (BotoCoreError, ClientError, json.JSONDecodeError) as exc:
+                        logger.warning("failed to load %s from bucket %s: %s", key, bucket, exc)
+                        continue
+                    txs = data.get("transactions") if isinstance(data, dict) else None
+                    if isinstance(txs, list):
+                        records.extend(txs)
+        return records
     for root in _transaction_roots():
-        owner_dir = root / owner
+        owner_dir = Path(root) / owner
         if not owner_dir.exists():
             continue
         for path in owner_dir.glob("*_transactions.json"):
             try:
-                data = pd.read_json(path)
-            except Exception:
+                with open(path, "r", encoding="utf-8") as fp:
+                    data = json.load(fp)
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.warning("failed to read %s: %s", path, exc)
                 continue
             txs = data.get("transactions") if isinstance(data, dict) else None
             if isinstance(txs, list):

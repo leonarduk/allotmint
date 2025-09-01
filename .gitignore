@@ -8,6 +8,8 @@ build/
 
 # PWA icons (downloaded separately)
 frontend/public/icons/*.png
+mobile/android/
+mobile/ios/
 
 # Python
 __pycache__/

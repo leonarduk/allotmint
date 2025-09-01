@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
@@ -11,23 +12,37 @@ def _setup_app(tmp_path):
     data = {
         "account_type": "brokerage",
         "transactions": [
-            {"date": "2024-01-01", "ticker": "AAA", "type": "buy", "shares": 10}
+            {"date": "2024-01-10", "ticker": "AAA", "type": "buy", "shares": 10},
+            {"date": "2024-01-05", "ticker": "BBB", "type": "buy", "shares": 5},
         ],
     }
     (accounts / "alice_transactions.json").write_text(json.dumps(data))
+    settings = {"hold_days_min": 10, "max_trades_per_month": 5}
+    (accounts / "settings.json").write_text(json.dumps(settings))
     app = create_app()
     app.state.accounts_root = accounts.parent
     return app
 
 
-def test_compliance_owner_route(tmp_path):
+def test_compliance_owner_route(tmp_path, monkeypatch):
     app = _setup_app(tmp_path)
+
+    class FakeDate(date):
+        @classmethod
+        def today(cls) -> date:  # type: ignore[override]
+            return date(2024, 1, 15)
+
+    monkeypatch.setattr(compliance, "date", FakeDate)
+
     with TestClient(app) as client:
         resp = client.get("/compliance/alice")
         assert resp.status_code == 200
         data = resp.json()
         assert data["owner"] == "alice"
         assert data["warnings"] == []
+        assert data["hold_countdowns"] == {"AAA": 5}
+        assert data["trades_remaining"] == 3
+        assert data["trades_this_month"] == 2
 
 
 def test_validate_trade(tmp_path, monkeypatch):

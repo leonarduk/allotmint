@@ -3,7 +3,7 @@
 import type {
   GroupPortfolio,
   GroupSummary,
-  InstrumentDetailMini,
+  InstrumentDetail,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -44,14 +44,11 @@ export const setAuthToken = (token: string | null) => {
   authToken = token;
 };
 
-export async function login(
-  username: string,
-  password: string,
-): Promise<string> {
-  const body = new URLSearchParams({ username, password });
+export async function login(idToken: string): Promise<string> {
   const res = await fetch(`${API_BASE}/token`, {
     method: "POST",
-    body,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id_token: idToken }),
   });
   if (!res.ok) {
     throw new Error("Login failed");
@@ -255,6 +252,7 @@ export const getScreener = (
     low_52w_min?: number;
     avg_volume_min?: number;
   } = {},
+  signal?: AbortSignal,
 ) => {
   const params = new URLSearchParams({ tickers: tickers.join(",") });
   if (criteria.peg_max != null) params.set("peg_max", String(criteria.peg_max));
@@ -305,7 +303,28 @@ export const getScreener = (
     params.set("low_52w_min", String(criteria.low_52w_min));
   if (criteria.avg_volume_min != null)
     params.set("avg_volume_min", String(criteria.avg_volume_min));
-  return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`);
+  return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`, { signal });
+};
+
+export const searchInstruments = (
+  query: string,
+  sector?: string,
+  region?: string,
+  signal?: AbortSignal,
+) => {
+  const trimmed = query.trim();
+  if (!/^[\w\s.-]{1,64}$/.test(trimmed)) {
+    return Promise.reject(new Error("Invalid query"));
+  }
+  const params = new URLSearchParams({ q: trimmed });
+  if (sector && /^[A-Za-z\s]{1,64}$/.test(sector)) params.set("sector", sector);
+  if (region && /^[A-Za-z\s]{1,64}$/.test(region)) params.set("region", region);
+  return fetchJson<{
+    ticker: string;
+    name: string;
+    sector?: string;
+    region?: string;
+  }[]>(`${API_BASE}/instrument/search?${params.toString()}`, { signal });
 };
 
 /**
@@ -318,16 +337,16 @@ export const getScreener = (
  * @param ticker e.g. "VWRL.L"
  * @param days   rolling window (default 365)
  */
-export const getInstrumentDetail = (ticker: string, days = 365) =>
-  fetchJson<{
-    prices: unknown;
-    positions: unknown;
-    mini?: InstrumentDetailMini;
-    currency?: string | null;
-  }>(
+export const getInstrumentDetail = (
+  ticker: string,
+  days = 365,
+  signal?: AbortSignal,
+) =>
+  fetchJson<InstrumentDetail>(
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(
       ticker
-    )}&days=${days}&format=json`
+    )}&days=${days}&format=json`,
+    { signal },
   );
 
 
@@ -375,13 +394,13 @@ export const getTransactions = (params: {
 /** Retrieve recent alert messages from backend. */
 export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts/`);
 
-/** Retrieve alert threshold for a user. */
-export const getAlertThreshold = (user: string) =>
-  fetchJson<{ threshold: number }>(`${API_BASE}/alert-thresholds/${user}`);
+/** Retrieve alert threshold for an owner. */
+export const getAlertThreshold = (owner: string) =>
+  fetchJson<{ threshold: number }>(`${API_BASE}/alert-thresholds/${owner}`);
 
-/** Update alert threshold for a user. */
-export const setAlertThreshold = (user: string, threshold: number) =>
-  fetchJson<{ threshold: number }>(`${API_BASE}/alert-thresholds/${user}`, {
+/** Update alert threshold for an owner. */
+export const setAlertThreshold = (owner: string, threshold: number) =>
+  fetchJson<{ threshold: number }>(`${API_BASE}/alert-thresholds/${owner}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ threshold }),
@@ -395,20 +414,20 @@ export interface PushSubscriptionJSON {
   };
 }
 
-/** Store a push subscription for a user. */
+/** Store a push subscription for an owner. */
 export const savePushSubscription = (
-  user: string,
+  owner: string,
   sub: PushSubscriptionJSON,
 ) =>
-  fetchJson(`${API_BASE}/alerts/push-subscription/${user}`, {
+  fetchJson(`${API_BASE}/alerts/push-subscription/${owner}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(sub),
   });
 
-/** Remove the push subscription for a user. */
-export const deletePushSubscription = (user: string) =>
-  fetchJson(`${API_BASE}/alerts/push-subscription/${user}`, {
+/** Remove the push subscription for an owner. */
+export const deletePushSubscription = (owner: string) =>
+  fetchJson(`${API_BASE}/alerts/push-subscription/${owner}`, {
     method: "DELETE",
   });
 

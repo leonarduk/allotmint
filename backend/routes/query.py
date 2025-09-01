@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import re
 from datetime import date
 from pathlib import Path
@@ -16,11 +17,14 @@ from pydantic import BaseModel, Field, model_validator
 
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import compute_var, get_security_meta
+from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries_range
 
 router = APIRouter(prefix="/custom-query", tags=["query"])
 
 QUERIES_DIR = Path("data/queries")
+DATA_BUCKET_ENV = "DATA_BUCKET"
+QUERIES_PREFIX = "queries/"
 
 
 class CustomQuery(BaseModel):
@@ -60,6 +64,77 @@ def _resolve_tickers(q: CustomQuery) -> List[str]:
     return sorted(tickers)
 
 
+def _save_query_local(slug: str, q: CustomQuery) -> None:
+    """Persist a query to the local filesystem."""
+    QUERIES_DIR.mkdir(parents=True, exist_ok=True)
+    (QUERIES_DIR / f"{slug}.json").write_text(json.dumps(q.model_dump(), default=str))
+
+
+def _save_query_s3(slug: str, q: CustomQuery) -> None:
+    """Persist a query to S3 under ``queries/<slug>.json``."""
+    bucket = os.getenv(DATA_BUCKET_ENV)
+    if not bucket:
+        raise HTTPException(500, "Missing DATA_BUCKET env var for AWS query saving")
+    try:
+        import boto3  # type: ignore
+
+        boto3.client("s3").put_object(
+            Bucket=bucket,
+            Key=f"{QUERIES_PREFIX}{slug}.json",
+            Body=json.dumps(q.model_dump(), default=str).encode("utf-8"),
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        raise HTTPException(500, f"Failed to write query to S3: {exc}")
+
+
+def _list_queries_s3() -> List[str]:
+    bucket = os.getenv(DATA_BUCKET_ENV)
+    if not bucket:
+        return []
+    try:
+        import boto3  # type: ignore
+
+        s3 = boto3.client("s3")
+    except Exception:  # pragma: no cover - defensive
+        return []
+
+    slugs: set[str] = set()
+    token: str | None = None
+    while True:
+        params = {"Bucket": bucket, "Prefix": QUERIES_PREFIX}
+        if token:
+            params["ContinuationToken"] = token
+        resp = s3.list_objects_v2(**params)
+        for item in resp.get("Contents", []):
+            key = item.get("Key", "")
+            if key.endswith(".json") and key.startswith(QUERIES_PREFIX):
+                slugs.add(Path(key).stem)
+        if resp.get("IsTruncated"):
+            token = resp.get("NextContinuationToken")
+        else:
+            break
+    return sorted(slugs)
+
+
+def _load_query_s3(slug: str) -> dict:
+    bucket = os.getenv(DATA_BUCKET_ENV)
+    if not bucket:
+        raise HTTPException(404, "Query not found")
+    try:
+        import boto3  # type: ignore
+
+        obj = boto3.client("s3").get_object(
+            Bucket=bucket, Key=f"{QUERIES_PREFIX}{slug}.json"
+        )
+        body = obj.get("Body")
+        txt = body.read().decode("utf-8") if body else ""
+    except Exception as exc:  # pragma: no cover - defensive
+        raise HTTPException(404, "Query not found") from exc
+    if not txt:
+        raise HTTPException(404, "Query not found")
+    return json.loads(txt)
+
+
 @router.post("/run")
 async def run_query(q: CustomQuery):
     tickers = _resolve_tickers(q)
@@ -80,8 +155,10 @@ async def run_query(q: CustomQuery):
 
     if q.name:
         slug = _slugify(q.name)
-        QUERIES_DIR.mkdir(parents=True, exist_ok=True)
-        (QUERIES_DIR / f"{slug}.json").write_text(json.dumps(q.model_dump(), default=str))
+        if config.app_env == "aws":
+            _save_query_s3(slug, q)
+        else:
+            _save_query_local(slug, q)
 
     if q.format == "csv":
         df = pd.DataFrame(rows)
@@ -100,6 +177,8 @@ async def run_query(q: CustomQuery):
 
 @router.get("/saved")
 async def list_saved_queries():
+    if config.app_env == "aws":
+        return _list_queries_s3()
     if not QUERIES_DIR.exists():
         return []
     return sorted(p.stem for p in QUERIES_DIR.glob("*.json"))
@@ -107,6 +186,8 @@ async def list_saved_queries():
 
 @router.get("/{slug}")
 async def load_query(slug: str):
+    if config.app_env == "aws":
+        return _load_query_s3(slug)
     path = QUERIES_DIR / f"{slug}.json"
     if not path.exists():
         raise HTTPException(404, "Query not found")
@@ -115,6 +196,9 @@ async def load_query(slug: str):
 
 @router.post("/{slug}")
 async def save_query(slug: str, q: CustomQuery):
+    if config.app_env == "aws":
+        _save_query_s3(slug, q)
+        return {"saved": slug}
     QUERIES_DIR.mkdir(parents=True, exist_ok=True)
     path = QUERIES_DIR / f"{slug}.json"
     path.write_text(json.dumps(q.model_dump(), default=str))

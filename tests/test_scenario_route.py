@@ -2,14 +2,16 @@ from fastapi.testclient import TestClient
 
 from backend.local_api.main import app
 
-client = TestClient(app)
-token = client.post(
-    "/token", data={"username": "testuser", "password": "password"}
-).json()["access_token"]
-client.headers.update({"Authorization": f"Bearer {token}"})
+
+def _auth_client():
+    client = TestClient(app)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
 def test_scenario_route():
+    client = _auth_client()
     resp = client.get("/scenario?ticker=VWRL.L&pct=5")
     assert resp.status_code == 200
     data = resp.json()

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import os
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, overload
 
-import os
 import yaml
 
 
@@ -28,6 +28,7 @@ class TabsConfig:
     settings: bool = True
     reports: bool = True
     scenario: bool = True
+    logs: bool = True
 
 
 @dataclass
@@ -72,6 +73,9 @@ class Config:
     offline_mode: Optional[bool] = None
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
+    google_auth_enabled: Optional[bool] = None
+    google_client_id: Optional[str] = None
+    allowed_emails: Optional[List[str]] = None
     relative_view_enabled: Optional[bool] = None
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
@@ -126,6 +130,13 @@ def load_config() -> Config:
 
     base_dir = path.parent
 
+    app_env_env = os.getenv("APP_ENV")
+    if app_env_env:
+        allowed_envs = {"local", "production", "aws"}
+        if app_env_env not in allowed_envs:
+            raise ValueError(f"Unexpected APP_ENV '{app_env_env}'")
+        data["app_env"] = app_env_env
+
     disable_auth_env = _env_flag("DISABLE_AUTH")
     if disable_auth_env is not None:
         data["disable_auth"] = disable_auth_env
@@ -164,6 +175,18 @@ def load_config() -> Config:
         else:
             cors_origins = cors_raw.get("default")
 
+    google_auth_enabled = data.get("google_auth_enabled")
+    env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
+    if env_google_auth is not None:
+        google_auth_enabled = env_google_auth.lower() in {"1", "true", "yes"}
+
+    google_client_id = data.get("google_client_id") or os.getenv("GOOGLE_CLIENT_ID")
+
+    allowed_emails = data.get("allowed_emails")
+    env_allowed = os.getenv("ALLOWED_EMAILS")
+    if env_allowed:
+        allowed_emails = [e.strip() for e in env_allowed.split(",") if e.strip()]
+
     return Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
@@ -183,6 +206,9 @@ def load_config() -> Config:
         offline_mode=data.get("offline_mode"),
         google_auth_enabled=data.get("google_auth_enabled"),
         disable_auth=data.get("disable_auth"),
+        google_auth_enabled=google_auth_enabled,
+        google_client_id=google_client_id,
+        allowed_emails=allowed_emails,
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),
         timeseries_cache_base=data.get("timeseries_cache_base"),

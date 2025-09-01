@@ -206,7 +206,18 @@ def load_account(
 
 
 def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:
-    """Load per-owner metadata (dob, etc.). Returns {} if not found."""
+    """Load per-owner metadata including optional email.
+
+    Returns an empty dict if no metadata exists or parsing fails.
+    """
+
+    def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
+        meta: Dict[str, Any] = {}
+        for key in ("dob", "email", "holdings"):
+            if key in data:
+                meta[key] = data[key]
+        return meta
+
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
@@ -220,7 +231,8 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             txt = body.read().decode("utf-8-sig").strip() if body else ""
             if not txt:
                 return {}
-            return json.loads(txt)
+            data = json.loads(txt)
+            return _extract(data)
         except Exception:
             return {}
     paths = resolve_paths(config.repo_root, config.accounts_root)
@@ -229,9 +241,10 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     if not path.exists():
         return {}
     try:
-        return _safe_json_load(path)
+        data = _safe_json_load(path)
     except Exception:
         return {}
+    return _extract(data)
 
 
 # ------------------------------------------------------------------

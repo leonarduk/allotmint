@@ -15,6 +15,22 @@ def enable_offline_mode():
         config.offline_mode = previous
 
 
+@pytest.fixture(autouse=True)
+def mock_google_verify(monkeypatch):
+    """Stub Google ID token verification for tests."""
+
+    from backend import auth
+
+    def fake_verify(token: str):
+        if token == "good":
+            return "lucy@example.com"
+        if token == "other":
+            return "other@example.com"
+        return None
+
+    monkeypatch.setattr(auth, "verify_google_token", fake_verify)
+
+
 @pytest.fixture
 def quotes_table(monkeypatch):
     """In-memory DynamoDB table for quote tests."""

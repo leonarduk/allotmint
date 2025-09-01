@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 
 from backend.auth import (
     authenticate_user,
@@ -125,14 +125,23 @@ def create_app() -> FastAPI:
         """
         return JSONResponse(status_code=400, content={"detail": exc.errors()})
 
+    class TokenIn(BaseModel):
+        id_token: str
+
     @app.post("/token")
-    async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-        if config.google_auth_enabled:
-            raise HTTPException(status_code=400, detail="Password login disabled")
-        user = authenticate_user(form_data.username, form_data.password)
-        if not user:
-            raise HTTPException(status_code=400, detail="Incorrect username or password")
-        token = create_access_token(user)
+    async def login(body: TokenIn):
+        email = authenticate_user(body.id_token)
+        if not email:
+            raise HTTPException(status_code=400, detail="Invalid credentials")
+        token = create_access_token(email)
+# =======
+#     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+#         if config.google_auth_enabled:
+#             raise HTTPException(status_code=400, detail="Password login disabled")
+#         user = authenticate_user(form_data.username, form_data.password)
+#         if not user:
+#             raise HTTPException(status_code=400, detail="Incorrect username or password")
+#         token = create_access_token(user)
         return {"access_token": token, "token_type": "bearer"}
 
     @app.post("/token/google")

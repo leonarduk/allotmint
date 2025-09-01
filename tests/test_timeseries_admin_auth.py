@@ -23,9 +23,7 @@ def test_timeseries_admin_requires_auth(tmp_path, monkeypatch):
     )
 
     # Acquire auth token and retry
-    token = client.post(
-        "/token", data={"username": "testuser", "password": "password"}
-    ).json()["access_token"]
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
     resp = client.post("/timeseries/admin/ABC/L/refetch")
     assert resp.status_code == 200

@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from fastapi.testclient import TestClient
+
 from backend.app import create_app
 from backend.config import config
 
@@ -9,9 +11,7 @@ def test_timeseries_edit_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     app = create_app()
     client = TestClient(app)
-    token = client.post(
-        "/token", data={"username": "testuser", "password": "password"}
-    ).json()["access_token"]
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
 
     data = [

@@ -1,12 +1,18 @@
 import pytest
 from fastapi.testclient import TestClient
 
+import pytest
+from fastapi.testclient import TestClient
+
 import backend.common.instrument_api as ia
 from backend.local_api.main import app
 
-client = TestClient(app)
-token = client.post("/token", data={"username": "testuser", "password": "password"}).json()["access_token"]
-client.headers.update({"Authorization": f"Bearer {token}"})
+
+def _auth_client():
+    client = TestClient(app)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
 def test_group_movers_endpoint(monkeypatch):
@@ -35,6 +41,7 @@ def test_group_movers_endpoint(monkeypatch):
     monkeypatch.setattr(ia, "instrument_summaries_for_group", fake_summaries)
     monkeypatch.setattr(ia, "top_movers", fake_top_movers)
 
+    client = _auth_client()
     resp = client.get("/portfolio-group/demo/movers?days=7&limit=5&min_weight=0.5")
     assert resp.status_code == 200
     data = resp.json()
@@ -51,10 +58,12 @@ def test_group_movers_endpoint_empty(monkeypatch):
 
     monkeypatch.setattr(ia, "instrument_summaries_for_group", fake_summaries)
 
+    client = _auth_client()
     resp = client.get("/portfolio-group/demo/movers")
     assert resp.status_code == 200
     assert resp.json() == {"gainers": [], "losers": []}
 
 def test_group_movers_limit_too_high():
+    client = _auth_client()
     resp = client.get("/portfolio-group/demo/movers?limit=101")
     assert resp.status_code == 400

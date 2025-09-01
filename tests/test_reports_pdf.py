@@ -1,12 +1,14 @@
 import pytest
 from fastapi.testclient import TestClient
 
+import pytest
+
 import backend.common.alerts as alerts
 from backend import config as backend_config
 import backend.reports as reports
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def client():
     """Return an authenticated TestClient with offline mode enabled."""
 
@@ -15,9 +17,7 @@ def client():
     from backend.local_api.main import app
 
     client = TestClient(app)
-    token = client.post(
-        "/token", data={"username": "testuser", "password": "password"}
-    ).json()["access_token"]
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
     alerts.config.sns_topic_arn = None
     try:

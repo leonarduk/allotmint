@@ -44,14 +44,11 @@ export const setAuthToken = (token: string | null) => {
   authToken = token;
 };
 
-export async function login(
-  username: string,
-  password: string,
-): Promise<string> {
-  const body = new URLSearchParams({ username, password });
+export async function login(idToken: string): Promise<string> {
   const res = await fetch(`${API_BASE}/token`, {
     method: "POST",
-    body,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id_token: idToken }),
   });
   if (!res.ok) {
     throw new Error("Login failed");

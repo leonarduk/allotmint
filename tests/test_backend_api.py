@@ -7,17 +7,15 @@ import backend.common.alerts as alerts
 from backend import config as backend_config
 
 
-@pytest.fixture(scope="module")
-def client():
+@pytest.fixture
+def client(mock_google_verify):
     """Return a TestClient with offline mode enabled."""
     previous = backend_config.config.offline_mode
     backend_config.config.offline_mode = True
     from backend.local_api.main import app
 
     client = TestClient(app)
-    token = client.post(
-        "/token", data={"username": "testuser", "password": "password"}
-    ).json()["access_token"]
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
 
     # allow alerts to operate without SNS configuration

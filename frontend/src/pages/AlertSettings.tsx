@@ -3,23 +3,23 @@ import Menu from "../components/Menu";
 import { getAlertThreshold, setAlertThreshold } from "../api";
 
 export default function AlertSettings() {
-  const [user, setUser] = useState("default");
+  const [owner, setOwner] = useState("default");
   const [threshold, setThreshold] = useState<number | "">("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
 
   useEffect(() => {
-    getAlertThreshold(user)
+    getAlertThreshold(owner)
       .then((r) => setThreshold(r.threshold))
       .catch(() => setThreshold(""));
-  }, [user]);
+  }, [owner]);
 
   async function save() {
     if (threshold === "") return;
     setStatus("saving");
     try {
-      await setAlertThreshold(user, Number(threshold));
+      await setAlertThreshold(owner, Number(threshold));
       setStatus("saved");
     } catch {
       setStatus("error");
@@ -32,8 +32,8 @@ export default function AlertSettings() {
       <h1>Alert Settings</h1>
       <div style={{ marginBottom: "1rem" }}>
         <label>
-          User: {" "}
-          <input value={user} onChange={(e) => setUser(e.target.value)} />
+          Owner: {" "}
+          <input value={owner} onChange={(e) => setOwner(e.target.value)} />
         </label>
       </div>
       <div>

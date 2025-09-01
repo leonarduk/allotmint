@@ -44,6 +44,8 @@ export default function Menu({
       ? "settings"
       : path[0] === "scenario"
       ? "scenario"
+      : path[0] === "logs"
+      ? "logs"
       : path.length === 0 && params.has("group")
       ? "group"
       : "movers";
@@ -51,7 +53,7 @@ export default function Menu({
   function pathFor(m: Mode) {
     switch (m) {
       case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/movers";
+        return selectedGroup ? `/?group=${selectedGroup}` : "/";
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":
@@ -66,6 +68,8 @@ export default function Menu({
         return "/scenario";
       case "settings":
         return "/settings";
+      case "logs":
+        return "/logs";
       default:
         return `/${m}`;
     }

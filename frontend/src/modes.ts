@@ -11,11 +11,12 @@ export type Mode =
   | "dataadmin"
   | "settings"
   | "support"
-  | "scenario";
+  | "scenario"
+  | "logs";
 
 export const MODES: Mode[] = [
-  "movers",
   "group",
+  "movers",
   "instrument",
   "owner",
   "performance",
@@ -27,4 +28,5 @@ export const MODES: Mode[] = [
   "settings",
   "support",
   "scenario",
+  "logs",
 ];

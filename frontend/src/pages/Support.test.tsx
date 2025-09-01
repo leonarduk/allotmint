@@ -4,11 +4,17 @@ import { vi } from "vitest";
 
 const mockGetConfig = vi.hoisted(() => vi.fn());
 const mockUpdateConfig = vi.hoisted(() => vi.fn());
+const mockGetOwners = vi.hoisted(() => vi.fn());
+const mockSavePushSubscription = vi.hoisted(() => vi.fn());
+const mockDeletePushSubscription = vi.hoisted(() => vi.fn());
 
 vi.mock("../api", () => ({
   API_BASE: "",
   getConfig: mockGetConfig,
   updateConfig: mockUpdateConfig,
+  getOwners: mockGetOwners,
+  savePushSubscription: mockSavePushSubscription,
+  deletePushSubscription: mockDeletePushSubscription,
 }));
 
 import Support from "./Support";
@@ -27,12 +33,25 @@ beforeEach(() => {
       reports: true,
     },
   });
+  mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
 });
 
 describe("Support page", () => {
   it("renders environment heading", () => {
     render(<Support />, { wrapper: MemoryRouter });
     expect(screen.getByText(/Environment/)).toBeInTheDocument();
+  });
+
+  it("shows owner selector", async () => {
+    render(<Support />, { wrapper: MemoryRouter });
+    expect(await screen.findByLabelText(/Owner/i)).toBeInTheDocument();
+  });
+
+  it("handles owner fetch failure gracefully", async () => {
+    mockGetOwners.mockRejectedValueOnce(new Error("fail"));
+    render(<Support />, { wrapper: MemoryRouter });
+    const select = await screen.findByLabelText(/Owner/i);
+    expect((select as HTMLSelectElement).options.length).toBe(0);
   });
 
   it("shows swagger link for VITE_API_URL", () => {

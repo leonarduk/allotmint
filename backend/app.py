@@ -16,7 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
-from backend.auth import authenticate_user, create_access_token, get_current_user
+from backend.auth import (
+    authenticate_user,
+    create_access_token,
+    get_current_user,
+    verify_google_token,
+)
 from backend.common.data_loader import resolve_paths
 from backend.common.portfolio_utils import (
     _load_snapshot,
@@ -46,6 +51,7 @@ from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.transactions import router as transactions_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
+from backend.routes.logs import router as logs_router
 from backend.utils import page_cache
 
 
@@ -108,6 +114,7 @@ def create_app() -> FastAPI:
     app.include_router(movers_router)
     app.include_router(user_config_router, dependencies=protected)
     app.include_router(scenario_router)
+    app.include_router(logs_router)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -120,11 +127,22 @@ def create_app() -> FastAPI:
 
     @app.post("/token")
     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+        if config.google_auth_enabled:
+            raise HTTPException(status_code=400, detail="Password login disabled")
         user = authenticate_user(form_data.username, form_data.password)
         if not user:
             raise HTTPException(status_code=400, detail="Incorrect username or password")
         token = create_access_token(user)
         return {"access_token": token, "token_type": "bearer"}
+
+    @app.post("/token/google")
+    async def google_token(payload: dict):
+        token = payload.get("token")
+        if not token:
+            raise HTTPException(status_code=400, detail="Missing token")
+        email = verify_google_token(token)
+        jwt_token = create_access_token(email)
+        return {"access_token": jwt_token, "token_type": "bearer"}
 
     # ────────────────────── Health-check endpoint ─────────────────────
     @app.get("/health")

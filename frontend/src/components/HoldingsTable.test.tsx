@@ -1,4 +1,5 @@
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { render, screen, within, act, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import i18n from "../i18n";
 vi.mock("../api", () => ({
@@ -30,6 +31,11 @@ const defaultConfig: AppConfig = {
     },
 };
 import type { Holding } from "../types";
+
+beforeEach(() => {
+    // Ensure React act environment is enabled for explicit act() calls
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+});
 
 describe("HoldingsTable", () => {
     beforeEach(() => {
@@ -111,9 +117,9 @@ describe("HoldingsTable", () => {
             </configContext.Provider>,
         );
 
-    it("displays relative metrics when relative view is enabled", () => {
+    it("displays relative metrics when relative view is enabled", async () => {
         renderWithConfig(<HoldingsTable holdings={holdings} />, { relativeViewEnabled: true });
-        expect(screen.getByText("AAA")).toBeInTheDocument();
+        await screen.findByText("AAA");
         expect(screen.getByText("XYZ")).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Weight %/})).toBeInTheDocument();
@@ -123,97 +129,118 @@ describe("HoldingsTable", () => {
         expect(screen.queryByRole('columnheader', {name: /Mkt £/})).toBeNull();
     });
 
-    it("shows absolute columns when relative view is disabled", () => {
+    it("shows absolute columns when relative view is disabled", async () => {
         renderWithConfig(<HoldingsTable holdings={holdings} />, { relativeViewEnabled: false });
+        await screen.findByText("AAA");
         expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Cost £/})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Gain £/})).toBeInTheDocument();
         expect(screen.getByRole('columnheader', {name: /Mkt £/})).toBeInTheDocument();
     });
 
-    it("shows days to go if not eligible", () => {
+    it("shows days to go if not eligible", async () => {
         render(<HoldingsTable holdings={holdings}/>);
-        const row = screen.getByText("Test Holding").closest("tr");
+        const row = (await screen.findByText("Test Holding")).closest("tr");
         const cell = within(row!).getByText("✗ 10");
         expect(cell).toBeInTheDocument();
         const expected = new Intl.DateTimeFormat('en').format(new Date('2024-07-20'));
         expect(cell).toHaveAttribute('title', expected);
     });
 
-    it("creates FX pair buttons for currency and skips GBX", () => {
+    it("creates FX pair buttons for currency and skips GBX", async () => {
         const onSelect = vi.fn();
         render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);
-        fireEvent.click(screen.getByRole('button', { name: 'USD' }));
+        await screen.findByRole('button', { name: 'USD' });
+        await act(async () => {
+            await userEvent.click(screen.getByRole('button', { name: 'USD' }));
+        });
         expect(onSelect).toHaveBeenCalledWith('USDGBP.FX', 'USD');
         expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
         expect(screen.getByRole('button', { name: 'CAD' })).toBeInTheDocument();
     });
 
-    it("sorts by ticker when header clicked", () => {
+    it("sorts by ticker when header clicked", async () => {
         render(<HoldingsTable holdings={holdings}/>);
+        await screen.findByText("AAA");
         // initially sorted ascending by ticker => AAA first
         let rows = screen.getAllByRole("row");
         expect(within(rows[2]).getByText("AAA")).toBeInTheDocument();
 
-        fireEvent.click(screen.getByText(/^Ticker/));
+        await act(async () => {
+            await userEvent.click(screen.getByText(/^Ticker/));
+        });
         rows = screen.getAllByRole("row");
         expect(within(rows[2]).getByText("XYZ")).toBeInTheDocument();
     });
 
-    it("filters by ticker", () => {
+    it("filters by ticker", async () => {
         render(<HoldingsTable holdings={holdings}/>);
-        const input = screen.getByPlaceholderText("Ticker");
-        fireEvent.change(input, { target: { value: "AA" } });
+        const input = await screen.findByPlaceholderText("Ticker");
+        await act(async () => {
+            await userEvent.type(input, "AA");
+        });
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("XYZ")).toBeNull();
     });
 
-    it("filters by eligibility", () => {
+    it("filters by eligibility", async () => {
         render(<HoldingsTable holdings={holdings}/>);
-        const select = screen.getByLabelText("Sell eligible");
-        fireEvent.change(select, { target: { value: "true" } });
+        const select = await screen.findByLabelText("Sell eligible");
+        await act(async () => {
+            await userEvent.selectOptions(select, "true");
+        });
         expect(screen.getByText("AAA")).toBeInTheDocument();
         expect(screen.queryByText("Test Holding")).toBeNull();
     });
 
-    it("shows last price date badge when available", () => {
+    it("shows last price date badge when available", async () => {
         render(<HoldingsTable holdings={holdings} />);
-        const row = screen.getByText("AAA").closest("tr");
+        const row = (await screen.findByText("AAA")).closest("tr");
         const badge = within(row!).getByTitle("2024-01-01");
         expect(badge).toBeInTheDocument();
     });
 
-    it("allows toggling columns", () => {
+    it("allows toggling columns", async () => {
         render(<HoldingsTable holdings={holdings}/>);
+        await screen.findByText("AAA");
         expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
         const checkbox = screen.getByLabelText("Units");
-        fireEvent.click(checkbox);
-        expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
+        await act(async () => {
+            await userEvent.click(checkbox);
+        });
+        await waitFor(() =>
+            expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull(),
+        );
     });
 
-      it("shows price source when available", () => {
+      it("shows price source when available", async () => {
           render(<HoldingsTable holdings={holdings}/>);
-          expect(screen.getByText(/Source: Feed/)).toBeInTheDocument();
+          expect(await screen.findByText(/Source: Feed/)).toBeInTheDocument();
       });
 
-      it("applies sell-eligible quick filter", () => {
+      it("applies sell-eligible quick filter", async () => {
         render(<HoldingsTable holdings={holdings} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Sell-eligible' }));
+        await screen.findByText('AAA');
+        await act(async () => {
+            await userEvent.click(screen.getByRole('button', { name: 'Sell-eligible' }));
+        });
         expect(screen.getByLabelText('Sell eligible')).toHaveValue('true');
         expect(screen.getByText('AAA')).toBeInTheDocument();
         expect(screen.queryByText('Test Holding')).toBeNull();
     });
 
-    it("applies gain percentage quick filter", () => {
+    it("applies gain percentage quick filter", async () => {
         render(<HoldingsTable holdings={holdings} />);
-        const input = screen.getByPlaceholderText('Min Gain %');
-        fireEvent.change(input, { target: { value: '10' } });
+        const input = await screen.findByPlaceholderText('Min Gain %');
+        await act(async () => {
+            await userEvent.type(input, '10');
+        });
         expect(screen.getByPlaceholderText('Gain %')).toHaveValue('10');
         expect(screen.getByText('AAA')).toBeInTheDocument();
         expect(screen.queryByText('XYZ')).toBeNull();
     });
 
-      it("persists view preset selection", () => {
+      it("persists view preset selection", async () => {
           const mixedHoldings: Holding[] = [
               ...holdings,
             {
@@ -233,30 +260,40 @@ describe("HoldingsTable", () => {
             },
         ];
         const { unmount } = render(<HoldingsTable holdings={mixedHoldings} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Bond' }));
+        await screen.findByText('AAA');
+        await act(async () => {
+            await userEvent.click(screen.getByRole('button', { name: 'Bond' }));
+        });
         expect(screen.getByText('BND1')).toBeInTheDocument();
         expect(screen.queryByText('AAA')).toBeNull();
         unmount();
         render(<HoldingsTable holdings={mixedHoldings} />);
+        await screen.findByText('BND1');
         expect(screen.getByPlaceholderText('Type')).toHaveValue('Bond');
         expect(screen.getByText('BND1')).toBeInTheDocument();
           expect(screen.queryByText('AAA')).toBeNull();
       });
 
-      it("shows controls and fallback when no rows match", () => {
+      it("shows controls and fallback when no rows match", async () => {
           localStorage.setItem("holdingsTableViewPreset", "Bond");
           render(<HoldingsTable holdings={holdings} />);
-          expect(screen.getByText('View:')).toBeInTheDocument();
+          expect(await screen.findByText('View:')).toBeInTheDocument();
           expect(screen.getByText('No holdings match the current filters.')).toBeInTheDocument();
-          fireEvent.click(screen.getByRole('button', { name: 'All' }));
+          await act(async () => {
+              await userEvent.click(screen.getByRole('button', { name: 'All' }));
+          });
           expect(screen.getByText('AAA')).toBeInTheDocument();
       });
 
       it("renders translated text in Spanish", async () => {
-          await i18n.changeLanguage('es');
+          await act(async () => {
+              await i18n.changeLanguage('es');
+          });
           render(<HoldingsTable holdings={holdings} />);
-          expect(screen.getByText('Vista:')).toBeInTheDocument();
+          expect(await screen.findByText('Vista:')).toBeInTheDocument();
           expect(screen.getByRole('button', { name: 'Todos' })).toBeInTheDocument();
-          await i18n.changeLanguage('en');
+          await act(async () => {
+              await i18n.changeLanguage('en');
+          });
       });
   });

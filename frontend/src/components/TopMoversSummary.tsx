@@ -117,5 +117,4 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
   );
 }
 
-
 export default TopMoversSummary;

@@ -1,11 +1,12 @@
 """Alert evaluation and user threshold management.
 
-This module evaluates metric drift against user configurable thresholds.  If
+This module evaluates metric drift against user configurable thresholds. If
 an observed value deviates from a baseline by more than the configured
 percentage an alert is published through :mod:`backend.common.alerts`.
 
-User thresholds are persisted in a tiny JSON file under ``data`` which acts
-as a lightweight database suitable for tests and development environments.
+User thresholds and push subscription data are persisted as JSON objects in
+an S3 bucket pointed to by the ``DATA_BUCKET`` environment variable. These
+are loaded into in-memory caches on startup for fast access.
 """
 
 from __future__ import annotations
@@ -14,23 +15,15 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict, Iterable, Optional
 
 from backend.common.alerts import publish_alert
-from backend.config import config
 
 DEFAULT_THRESHOLD_PCT = 0.05  # default 5% threshold
 
-# Path used to store user specific thresholds
-_SETTINGS_PATH = (config.repo_root or Path(__file__).resolve().parents[1]) / "data" / "alert_thresholds.json"
-
-# Path used to store push subscription details
-_SUBSCRIPTIONS_PATH = (
-    (config.repo_root or Path(__file__).resolve().parents[1])
-    / "data"
-    / "push_subscriptions.json"
-)
+# S3 object keys used to store alert data
+_THRESHOLDS_KEY = "alerts/alert_thresholds.json"
+_SUBSCRIPTIONS_KEY = "alerts/push_subscriptions.json"
 
 # In-memory cache of settings
 _USER_THRESHOLDS: Dict[str, float] = {}
@@ -39,45 +32,82 @@ _USER_THRESHOLDS: Dict[str, float] = {}
 _PUSH_SUBSCRIPTIONS: Dict[str, Dict] = {}
 
 
+def _s3_client():
+    """Return an S3 client or ``None`` when unavailable."""
+    try:  # pragma: no cover - optional dependency
+        import boto3  # type: ignore
+    except Exception:
+        return None
+    try:
+        return boto3.client("s3")
+    except Exception:  # pragma: no cover - client creation failure
+        return None
+
+
 def _load_settings() -> None:
-    """Load threshold settings from ``_SETTINGS_PATH`` into memory."""
+    """Load threshold settings from S3 into memory."""
     global _USER_THRESHOLDS
     if _USER_THRESHOLDS:
         return
+    bucket = os.getenv("DATA_BUCKET")
+    if not bucket:
+        return
+    s3 = _s3_client()
+    if not s3:
+        return
     try:
-        if _SETTINGS_PATH.exists():
-            _USER_THRESHOLDS = {k: float(v) for k, v in json.loads(_SETTINGS_PATH.read_text()).items()}
+        obj = s3.get_object(Bucket=bucket, Key=_THRESHOLDS_KEY)
+        _USER_THRESHOLDS = {
+            k: float(v)
+            for k, v in json.loads(obj["Body"].read().decode()).items()
+        }
     except Exception:
         _USER_THRESHOLDS = {}
 
 
 def _load_subscriptions() -> None:
-    """Load push subscription data into memory."""
+    """Load push subscription data into memory from S3."""
     global _PUSH_SUBSCRIPTIONS
     if _PUSH_SUBSCRIPTIONS:
         return
+    bucket = os.getenv("DATA_BUCKET")
+    if not bucket:
+        return
+    s3 = _s3_client()
+    if not s3:
+        return
     try:
-        if _SUBSCRIPTIONS_PATH.exists():
-            _PUSH_SUBSCRIPTIONS = json.loads(_SUBSCRIPTIONS_PATH.read_text())
+        obj = s3.get_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY)
+        _PUSH_SUBSCRIPTIONS = json.loads(obj["Body"].read().decode())
     except Exception:
         _PUSH_SUBSCRIPTIONS = {}
 
 
 def _save_settings() -> None:
-    """Persist in-memory settings to ``_SETTINGS_PATH``."""
+    """Persist in-memory settings to S3."""
+    bucket = os.getenv("DATA_BUCKET")
+    if not bucket:
+        return
+    s3 = _s3_client()
+    if not s3:
+        return
     try:
-        _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _SETTINGS_PATH.write_text(json.dumps(_USER_THRESHOLDS))
+        s3.put_object(Bucket=bucket, Key=_THRESHOLDS_KEY, Body=json.dumps(_USER_THRESHOLDS))
     except Exception:
         # Persistence failure should not block alerting
         pass
 
 
 def _save_subscriptions() -> None:
-    """Persist push subscriptions to disk."""
+    """Persist push subscriptions to S3."""
+    bucket = os.getenv("DATA_BUCKET")
+    if not bucket:
+        return
+    s3 = _s3_client()
+    if not s3:
+        return
     try:
-        _SUBSCRIPTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _SUBSCRIPTIONS_PATH.write_text(json.dumps(_PUSH_SUBSCRIPTIONS))
+        s3.put_object(Bucket=bucket, Key=_SUBSCRIPTIONS_KEY, Body=json.dumps(_PUSH_SUBSCRIPTIONS))
     except Exception:
         pass
 

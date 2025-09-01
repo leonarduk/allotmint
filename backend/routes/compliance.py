@@ -1,9 +1,11 @@
+import logging
 from fastapi import APIRouter, Request, HTTPException
 
 from backend.common import compliance
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 
 router = APIRouter(tags=["compliance"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/compliance/{owner}")
@@ -15,7 +17,8 @@ async def compliance_for_owner(owner: str, request: Request):
         # ``hold_countdowns`` and ``trades_remaining`` which are
         # forwarded directly to the client.
         return compliance.check_owner(owner, request.app.state.accounts_root)
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
+        logger.warning("accounts for %s not found: %s", owner, exc)
         raise_owner_not_found()
 
 

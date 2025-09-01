@@ -32,17 +32,17 @@ def test_compliance_owner_route(tmp_path, monkeypatch):
         def today(cls) -> date:  # type: ignore[override]
             return date(2024, 1, 15)
 
-    monkeypatch.setattr(compliance, "date", FakeDate)
-
-    with TestClient(app) as client:
-        resp = client.get("/compliance/alice")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["owner"] == "alice"
-        assert data["warnings"] == []
-        assert data["hold_countdowns"] == {"AAA": 5}
-        assert data["trades_remaining"] == 3
-        assert data["trades_this_month"] == 2
+    with monkeypatch.context() as m:
+        m.setattr(compliance, "date", FakeDate)
+        with TestClient(app) as client:
+            resp = client.get("/compliance/alice")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["owner"] == "alice"
+            assert data["warnings"] == []
+            assert data["hold_countdowns"] == {"AAA": 5}
+            assert data["trades_remaining"] == 3
+            assert data["trades_this_month"] == 2
 
 
 def test_validate_trade(tmp_path, monkeypatch):

@@ -94,7 +94,12 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
             continue
         ticker = (t.get("ticker") or "").upper()
         action = (t.get("type") or t.get("kind") or "").lower()
-        shares = float(t.get("shares") or 0.0)
+        raw_shares = t.get("shares")
+        try:
+            shares = float(raw_shares or 0.0)
+        except (TypeError, ValueError):
+            logger.warning("invalid share count %r in transaction %s", raw_shares, t)
+            shares = 0.0
         if action in {"buy", "purchase"}:
             last_buy[ticker] = d
             positions[ticker] += shares

@@ -15,9 +15,14 @@ interface Props {
 }
 
 export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
-  const fetchMovers = useCallback(() => {
-    if (!slug) return Promise.resolve({ gainers: [], losers: [] });
-    return getGroupMovers(slug, days, limit);
+  const fetchMovers = useCallback(async () => {
+    if (!slug) return { gainers: [], losers: [] };
+    try {
+      return await getGroupMovers(slug, days, limit, 0);
+    } catch (e) {
+      console.error(e);
+      return { gainers: [], losers: [] };
+    }
   }, [slug, days, limit]);
   const { data, loading, error } = useFetch(fetchMovers, [slug, days, limit], !!slug);
 
@@ -48,7 +53,10 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
       .slice(0, limit);
   }, [data, limit]);
 
-  if (!slug || loading || error || rows.length === 0) return null;
+  if (!slug) return <div>No group selected.</div>;
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Failed to load movers.</div>;
+  if (rows.length === 0) return null;
 
   return (
     <>

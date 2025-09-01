@@ -12,6 +12,7 @@ import ComplianceWarnings from './pages/ComplianceWarnings'
 import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
+import InstrumentResearch from './pages/InstrumentResearch'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -24,6 +25,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/virtual" element={<VirtualPortfolio />} />
             <Route path="/compliance" element={<ComplianceWarnings />} />
             <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+            <Route path="/research/:ticker" element={<InstrumentResearch />} />
             <Route path="/*" element={<App />} />
           </Routes>
         </BrowserRouter>

@@ -40,6 +40,7 @@ import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
 import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
+import { InstrumentSearchBar } from "./components/InstrumentSearchBar";
 type Mode = (typeof orderedTabPlugins)[number]["id"];
 
 // derive initial mode + id from path
@@ -301,6 +302,7 @@ export default function App() {
               </Link>
             ))}
         </nav>
+        <InstrumentSearchBar />
         {lastRefresh && (
           <span
             style={{

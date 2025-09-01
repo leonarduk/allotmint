@@ -308,6 +308,22 @@ export const getScreener = (
   return fetchJson<ScreenerResult[]>(`${API_BASE}/screener?${params.toString()}`);
 };
 
+export const searchInstruments = (
+  query: string,
+  sector?: string,
+  region?: string,
+) => {
+  const params = new URLSearchParams({ q: query });
+  if (sector) params.set("sector", sector);
+  if (region) params.set("region", region);
+  return fetchJson<{
+    ticker: string;
+    name: string;
+    sector?: string;
+    region?: string;
+  }[]>(`${API_BASE}/instrument/search?${params.toString()}`);
+};
+
 /**
  * Fetch price/position detail for a single instrument.
  *

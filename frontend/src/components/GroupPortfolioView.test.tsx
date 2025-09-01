@@ -1,10 +1,16 @@
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
 import i18n from "../i18n";
 import { configContext, type AppConfig } from "../ConfigContext";
 
+beforeEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   i18n.changeLanguage("en");
 });
@@ -41,8 +47,8 @@ const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) 
     </configContext.Provider>,
   );
 
-const mockAllFetches = (portfolio: any) =>
-  vi.spyOn(global, "fetch").mockImplementation((input: RequestInfo) => {
+const mockAllFetches = (portfolio: any) => {
+  const fetchMock = vi.fn((input: RequestInfo) => {
     const url = typeof input === "string" ? input : input.url;
     if (url.includes("/portfolio-group/") && url.includes("/movers")) {
       return Promise.resolve({
@@ -53,7 +59,9 @@ const mockAllFetches = (portfolio: any) =>
     if (url.includes("/trading-agent/signals")) {
       return Promise.resolve({
         ok: true,
-        json: async () => [],
+        json: async () => [
+          { ticker: "AAA", name: "AAA", action: "buy", reason: "" },
+        ],
       } as Response);
     }
     if (url.includes("alpha-vs-benchmark")) {
@@ -91,6 +99,9 @@ const mockAllFetches = (portfolio: any) =>
       json: async () => portfolio,
     } as Response);
   });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+};
 
 describe("GroupPortfolioView", () => {
   it("shows per-owner totals with percentages in relative view", async () => {

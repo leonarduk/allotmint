@@ -7,17 +7,16 @@ import { SignalBadge } from "./SignalBadge";
 import { InstrumentDetail } from "./InstrumentDetail";
 
 interface Props {
-  slug: string;
+  slug?: string;
   days?: number;
   limit?: number;
 }
 
 export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
-  const fetchMovers = useCallback(() => getGroupMovers(slug, days, limit, 0), [
-    slug,
-    days,
-    limit,
-  ]);
+  const fetchMovers = useCallback(() => {
+    if (!slug) return Promise.resolve({ gainers: [], losers: [] });
+    return getGroupMovers(slug, days, limit, 0);
+  }, [slug, days, limit]);
   const { data, loading, error } = useFetch(fetchMovers, [slug, days, limit], !!slug);
 
   const [signals, setSignals] = useState<TradingSignal[]>([]);
@@ -26,18 +25,19 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
   );
 
   useEffect(() => {
+    if (!slug) return;
     getTradingSignals()
       .then(setSignals)
-      .catch(() => {});
-  }, []);
+      .catch((e) => console.error(e));
+  }, [slug]);
 
   const signalMap = useMemo(() => {
     const map = new Map<string, TradingSignal>();
-    for (const s of signals) map.set(s.ticker, s);
+    for (const s of signals ?? []) map.set(s.ticker, s);
     return map;
   }, [signals]);
 
-  if (loading || error || !data) return null;
+  if (!slug || loading || error || !data) return null;
 
   const rows = [...data.gainers, ...data.losers];
   if (rows.length === 0) return null;
@@ -75,12 +75,17 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
               </td>
               <td className={tableStyles.cell}>{r.name}</td>
               <td className={tableStyles.cell}>
-                {signalMap.get(r.ticker) && (
-                  <SignalBadge
-                    action={signalMap.get(r.ticker)!.action}
-                    onClick={() => setSelected({ ticker: r.ticker, name: r.name })}
-                  />
-                )}
+                {(() => {
+                  const s = signalMap.get(r.ticker);
+                  return s ? (
+                    <SignalBadge
+                      action={s.action}
+                      onClick={() =>
+                        setSelected({ ticker: r.ticker, name: r.name })
+                      }
+                    />
+                  ) : null;
+                })()}
               </td>
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}

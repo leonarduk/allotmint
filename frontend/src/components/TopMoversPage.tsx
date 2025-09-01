@@ -121,7 +121,7 @@ export function TopMoversPage() {
 
   const signalMap = useMemo(() => {
     const map = new Map<string, TradingSignal>();
-    for (const s of signals) map.set(s.ticker, s);
+    for (const s of signals ?? []) map.set(s.ticker, s);
     return map;
   }, [signals]);
 
@@ -254,12 +254,12 @@ export function TopMoversPage() {
               </td>
               <td className={tableStyles.cell}>{r.name}</td>
               <td className={tableStyles.cell}>
-                {signalMap.get(r.ticker) && (
-                  <SignalBadge
-                    action={signalMap.get(r.ticker)!.action}
-                    onClick={() => setSelected(r)}
-                  />
-                )}
+                {(() => {
+                  const s = signalMap.get(r.ticker);
+                  return s ? (
+                    <SignalBadge action={s.action} onClick={() => setSelected(r)} />
+                  ) : null;
+                })()}
               </td>
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}

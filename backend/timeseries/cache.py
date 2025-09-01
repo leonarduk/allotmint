@@ -21,7 +21,6 @@ import requests
 
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
-
 # ──────────────────────────────────────────────────────────────
 # Remote fetchers
 # ──────────────────────────────────────────────────────────────

@@ -1,14 +1,13 @@
+import io
+import logging
+import os
 from pathlib import Path
 from typing import Any
-import io
-import os
-import logging
 
 import pandas as pd
 from fastapi import APIRouter, Depends
 
 from backend.auth import get_current_user
-
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
 from backend.timeseries.cache import (

@@ -35,6 +35,7 @@ from backend.routes.alerts import router as alerts_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
 from backend.routes.instrument import router as instrument_router
+from backend.routes.logs import router as logs_router
 from backend.routes.metrics import router as metrics_router
 from backend.routes.movers import router as movers_router
 from backend.routes.performance import router as performance_router
@@ -54,7 +55,6 @@ from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.transactions import router as transactions_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
-from backend.routes.logs import router as logs_router
 from backend.utils import page_cache
 
 

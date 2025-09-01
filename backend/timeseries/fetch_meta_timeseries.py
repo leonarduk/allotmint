@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Tuple
 
 import pandas as pd
+
 from backend.config import config as app_config
 
 config = app_config

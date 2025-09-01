@@ -4,9 +4,10 @@ from io import StringIO
 
 import pandas as pd
 import requests
+
+from backend.config import config
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
-from backend.config import config
 
 logger = logging.getLogger("stooq_timeseries")
 

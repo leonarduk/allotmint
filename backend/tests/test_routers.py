@@ -1,7 +1,9 @@
 import importlib
 import pkgutil
+
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
+
 import backend.routes as routes_pkg
 from backend.routes import compliance, trading_agent
 

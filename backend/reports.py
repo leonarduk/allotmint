@@ -3,12 +3,12 @@ from __future__ import annotations
 import io
 import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
-import os
 import pandas as pd
 
 try:

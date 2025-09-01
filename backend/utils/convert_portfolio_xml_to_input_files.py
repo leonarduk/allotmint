@@ -3,11 +3,10 @@ import os
 from datetime import date, datetime
 from pathlib import Path
 
-from positions import extract_holdings_from_transactions
-
 from backend.common.approvals import is_approval_valid, load_approvals
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
+from positions import extract_holdings_from_transactions
 
 
 def normalize_account(account: str) -> tuple[str, str]:

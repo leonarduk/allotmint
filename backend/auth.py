@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import os
-from typing import Optional, Set
 from contextvars import ContextVar
+from typing import Optional, Set
 
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from google.oauth2 import id_token
 from google.auth.transport import requests
-
-from backend.config import config
+from google.oauth2 import id_token
 
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,

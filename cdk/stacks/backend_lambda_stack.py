@@ -1,14 +1,14 @@
-from pathlib import Path
 import os
+from pathlib import Path
 
 from aws_cdk import (
     BundlingOptions,
     Stack,
-    aws_apigateway as apigw,
-    aws_events as events,
-    aws_events_targets as targets,
-    aws_lambda as _lambda,
 )
+from aws_cdk import aws_apigateway as apigw
+from aws_cdk import aws_events as events
+from aws_cdk import aws_events_targets as targets
+from aws_cdk import aws_lambda as _lambda
 from constructs import Construct
 
 
@@ -40,6 +40,8 @@ class BackendLambdaStack(Stack):
 
         backend_code = _lambda.Code.from_asset(str(backend_path))
 
+        bucket_name = self.node.try_get_context("data_bucket") or os.getenv("DATA_BUCKET", "")
+
         backend_fn = _lambda.Function(
             self,
             "BackendLambda",
@@ -48,6 +50,8 @@ class BackendLambdaStack(Stack):
             code=backend_code,
             layers=[dependencies_layer],
         )
+        backend_fn.add_environment("APP_ENV", "aws")
+        backend_fn.add_environment("DATA_BUCKET", bucket_name)
 
         env = self.node.try_get_context("app_env") or os.getenv("APP_ENV")
         if env == "production":
@@ -65,6 +69,8 @@ class BackendLambdaStack(Stack):
             code=backend_code,
             layers=[dependencies_layer],
         )
+        refresh_fn.add_environment("APP_ENV", "aws")
+        refresh_fn.add_environment("DATA_BUCKET", bucket_name)
 
         events.Rule(
             self,

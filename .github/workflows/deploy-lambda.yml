@@ -81,5 +81,11 @@ jobs:
 
       - name: Deploy CDK stack
         if: steps.parse.outputs.deploy == 'true'
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
         run: cdk deploy --require-approval never
         working-directory: cdk
+
+      - name: Sync data folder to S3
+        if: steps.parse.outputs.deploy == 'true'
+        run: aws s3 sync data/ s3://${{ secrets.DATA_BUCKET }}/

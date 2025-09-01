@@ -25,6 +25,8 @@ from backend.config import config
 
 DEFAULT_THRESHOLD_PCT = 0.05  # default 5% threshold
 
+logger = logging.getLogger("alerts")
+
 # Storage locations for thresholds and push subscriptions.  URIs may point to
 # ``file://`` paths, ``s3://`` objects or ``ssm://`` parameters.
 _DEFAULT_SETTINGS_URI = (
@@ -34,8 +36,19 @@ _DEFAULT_SUBSCRIPTIONS_URI = (
     f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'push_subscriptions.json'}"
 )
 
-_SETTINGS_STORAGE = get_storage(os.getenv("ALERT_THRESHOLDS_URI", _DEFAULT_SETTINGS_URI))
-_SUBSCRIPTIONS_STORAGE = get_storage(os.getenv("PUSH_SUBSCRIPTIONS_URI", _DEFAULT_SUBSCRIPTIONS_URI))
+try:
+    _SETTINGS_STORAGE = get_storage(os.getenv("ALERT_THRESHOLDS_URI", _DEFAULT_SETTINGS_URI))
+except Exception as exc:  # pragma: no cover - configuration errors
+    logger.error("Failed to initialize settings storage: %s", exc)
+    _SETTINGS_STORAGE = get_storage(_DEFAULT_SETTINGS_URI)
+
+try:
+    _SUBSCRIPTIONS_STORAGE = get_storage(
+        os.getenv("PUSH_SUBSCRIPTIONS_URI", _DEFAULT_SUBSCRIPTIONS_URI)
+    )
+except Exception as exc:  # pragma: no cover - configuration errors
+    logger.error("Failed to initialize subscriptions storage: %s", exc)
+    _SUBSCRIPTIONS_STORAGE = get_storage(_DEFAULT_SUBSCRIPTIONS_URI)
 
 # In-memory cache of settings
 _USER_THRESHOLDS: Dict[str, float] = {}
@@ -52,7 +65,8 @@ def _load_settings() -> None:
     try:
         data = _SETTINGS_STORAGE.load()
         _USER_THRESHOLDS = {k: float(v) for k, v in data.items()}
-    except Exception:
+    except Exception as exc:  # pragma: no cover - storage backend failures
+        logger.warning("Failed to load user thresholds: %s", exc)
         _USER_THRESHOLDS = {}
 
 
@@ -63,7 +77,8 @@ def _load_subscriptions() -> None:
         return
     try:
         _PUSH_SUBSCRIPTIONS = _SUBSCRIPTIONS_STORAGE.load()
-    except Exception:
+    except Exception as exc:  # pragma: no cover - storage backend failures
+        logger.warning("Failed to load push subscriptions: %s", exc)
         _PUSH_SUBSCRIPTIONS = {}
 
 
@@ -71,17 +86,17 @@ def _save_settings() -> None:
     """Persist in-memory settings to configured storage."""
     try:
         _SETTINGS_STORAGE.save(_USER_THRESHOLDS)
-    except Exception:
+    except Exception as exc:  # pragma: no cover - storage backend failures
         # Persistence failure should not block alerting
-        pass
+        logger.warning("Failed to save user thresholds: %s", exc)
 
 
 def _save_subscriptions() -> None:
     """Persist push subscriptions to configured storage."""
     try:
         _SUBSCRIPTIONS_STORAGE.save(_PUSH_SUBSCRIPTIONS)
-    except Exception:
-        pass
+    except Exception as exc:  # pragma: no cover - storage backend failures
+        logger.warning("Failed to save push subscriptions: %s", exc)
 
 
 _load_settings()
@@ -143,14 +158,14 @@ def send_push_notification(message: str) -> None:
     vapid_key = os.getenv("VAPID_PRIVATE_KEY")
     vapid_email = os.getenv("VAPID_EMAIL")
     if not (vapid_key and vapid_email):
-        logging.getLogger("alerts").info("VAPID credentials not configured; falling back to SNS")
+        logger.info("VAPID credentials not configured; falling back to SNS")
         publish_alert({"message": message})
         return
 
     try:
         from pywebpush import webpush  # type: ignore
     except Exception:  # pragma: no cover - optional dependency
-        logging.getLogger("alerts").info("pywebpush not installed; falling back to SNS")
+        logger.info("pywebpush not installed; falling back to SNS")
         publish_alert({"message": message})
         return
 
@@ -165,7 +180,7 @@ def send_push_notification(message: str) -> None:
             )
             sent = True
         except Exception as exc:  # pragma: no cover - network errors
-            logging.getLogger("alerts").warning("Web push failed: %s", exc)
+            logger.warning("Web push failed: %s", exc)
 
     if not sent:
         publish_alert({"message": message})

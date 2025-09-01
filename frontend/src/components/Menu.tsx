@@ -46,14 +46,14 @@ export default function Menu({
       ? "scenario"
       : path[0] === "logs"
       ? "logs"
-      : path.length === 0 && params.has("group")
+      : path.length === 0
       ? "group"
       : "movers";
 
   function pathFor(m: Mode) {
     switch (m) {
       case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/movers";
+        return selectedGroup ? `/?group=${selectedGroup}` : "/";
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":

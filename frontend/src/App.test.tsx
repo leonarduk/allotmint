@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -352,6 +352,7 @@ describe("App", () => {
       getTimeseries: vi.fn().mockResolvedValue([]),
       saveTimeseries: vi.fn(),
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getGroupMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       getTradingSignals: mockTradingSignals,
       listTimeseries: vi.fn().mockResolvedValue([]),
       refetchTimeseries: vi.fn(),
@@ -366,8 +367,9 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    const moversLink = await screen.findByRole("link", { name: /movers/i });
-    expect(moversLink).toHaveStyle("font-weight: bold");
+    const groupLink = await screen.findByRole("link", { name: /group/i });
+    expect(groupLink).toHaveAttribute("href", "/");
+    expect(groupLink).toHaveStyle("font-weight: bold");
 
     const nav = screen.getByRole("navigation");
     const links = within(nav).getAllByRole("link");
@@ -386,6 +388,7 @@ describe("App", () => {
       "Reports",
       "User Settings",
       "Support",
+      "Logs",
       "Scenario Tester",
     ]);
   });

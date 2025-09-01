@@ -5,7 +5,7 @@ const plugin: TabPlugin = {
   id: "movers",
   component: TopMovers,
   priority: 0,
-  path: () => "/movers",
+  path: ({ group }) => (group ? `/movers?group=${group}` : "/movers"),
 };
 
 export default plugin;

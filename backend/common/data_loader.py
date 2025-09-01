@@ -161,23 +161,16 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
 
     results: List[Dict[str, Any]] = []
     for owner, accounts in sorted(owners.items()):
+        # When authentication is enabled and no user is authenticated,
+        # expose only the "demo" account.
+        if not config.disable_auth and current_user is None and owner != "demo":
+            continue
         if current_user and current_user != owner:
             meta = load_person_meta(owner)
             viewers = meta.get("viewers", [])
             if current_user not in viewers:
                 continue
         results.append({"owner": owner, "accounts": accounts})
-
-# =======
-#     user = current_user.get(None)
-#     results: List[Dict[str, Any]] = []
-#     for owner, accounts in sorted(owners.items()):
-#         # When authentication is enabled and no user is authenticated,
-#         # expose only the "demo" account.
-#         if not config.disable_auth and user is None and owner != "demo":
-#             continue
-#         results.append({"owner": owner, "accounts": accounts})
-# >>>>>>> main
     return results
 
 
@@ -250,6 +243,8 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         for key in ("dob", "email", "holdings"):
             if key in data:
                 meta[key] = data[key]
+        # Preserve account access viewers if present
+        meta["viewers"] = data.get("viewers", [])
         return meta
 
     if config.app_env == "aws":

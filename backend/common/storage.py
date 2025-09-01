@@ -17,11 +17,16 @@ provisioned yet.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Protocol
 from urllib.parse import urlparse
+
+from botocore.exceptions import BotoCoreError, ClientError
+
+logger = logging.getLogger(__name__)
 
 
 class JSONStorage(Protocol):
@@ -43,7 +48,8 @@ class FileJSONStorage:
             return {}
         try:
             return json.loads(self.path.read_text())
-        except Exception:
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to read %s: %s", self.path, exc)
             return {}
 
     def save(self, data: Dict[str, Any]) -> None:
@@ -68,7 +74,8 @@ class S3JSONStorage:
         try:
             obj = self._client().get_object(Bucket=self.bucket, Key=self.key)
             return json.loads(obj["Body"].read())
-        except Exception:
+        except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
+            logger.warning("S3 load failed for %s/%s: %s", self.bucket, self.key, exc)
             return {}
 
     def save(self, data: Dict[str, Any]) -> None:
@@ -92,7 +99,8 @@ class ParameterStoreJSONStorage:
         try:
             resp = self._client().get_parameter(Name=self.name, WithDecryption=True)
             return json.loads(resp["Parameter"]["Value"])
-        except Exception:
+        except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
+            logger.warning("Parameter Store load failed for %s: %s", self.name, exc)
             return {}
 
     def save(self, data: Dict[str, Any]) -> None:
@@ -127,6 +135,8 @@ def get_storage(uri: str) -> JSONStorage:
     # default to file-based storage
     if scheme in {"file", ""}:
         path = parsed.path
+        if parsed.netloc:
+            path = os.path.join(parsed.netloc, path.lstrip("/"))
         if not os.path.isabs(path):
             path = os.path.join(os.getcwd(), path)
         return FileJSONStorage(path=Path(path))

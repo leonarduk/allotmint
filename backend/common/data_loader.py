@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
+from backend.auth import current_user
 
 
 # ------------------------------------------------------------------
@@ -60,8 +61,14 @@ def _list_local_plots(data_root: Optional[Path] = None) -> List[Dict[str, Any]]:
     if not root.exists():
         return results
 
+    user = current_user.get(None)
+
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
+            continue
+        # When authentication is enabled and no user is authenticated,
+        # expose only the "demo" account.
+        if not config.disable_auth and user is None and owner_dir.name != "demo":
             continue
 
         acct_names: List[str] = []
@@ -104,7 +111,9 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
     The bucket name is read from the ``DATA_BUCKET`` environment variable and
     objects are expected under ``accounts/<owner>/<account>.json``. Metadata
     files like ``person.json`` are ignored and account names are de-duplicated
-    case-insensitively.
+    case-insensitively. When authentication is enabled and no user is
+    authenticated only the ``demo`` owner is returned, mirroring the behaviour
+    of the local loader.
     """
 
     bucket = os.getenv(DATA_BUCKET_ENV)
@@ -146,8 +155,15 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
             token = resp.get("NextContinuationToken")
         else:
             break
-
-    return [{"owner": owner, "accounts": accounts} for owner, accounts in sorted(owners.items())]
+    user = current_user.get(None)
+    results: List[Dict[str, Any]] = []
+    for owner, accounts in sorted(owners.items()):
+        # When authentication is enabled and no user is authenticated,
+        # expose only the "demo" account.
+        if not config.disable_auth and user is None and owner != "demo":
+            continue
+        results.append({"owner": owner, "accounts": accounts})
+    return results
 
 
 # ------------------------------------------------------------------

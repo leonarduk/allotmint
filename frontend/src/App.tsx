@@ -46,7 +46,6 @@ type Mode = (typeof orderedTabPlugins)[number]["id"];
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
-const params = new URLSearchParams(window.location.search);
 const initialMode: Mode =
   path[0] === "member" ? "owner" :
   path[0] === "instrument" ? "instrument" :

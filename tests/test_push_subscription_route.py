@@ -9,8 +9,12 @@ from backend import alerts as alert_utils
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(alert_utils, "_SUBSCRIPTIONS_PATH", tmp_path / "push.json")
     alert_utils._PUSH_SUBSCRIPTIONS.clear()
+    original_arn = alert_utils.config.sns_topic_arn
     alert_utils.config.sns_topic_arn = None
-    return TestClient(app)
+    try:
+        yield TestClient(app)
+    finally:
+        alert_utils.config.sns_topic_arn = original_arn
 
 
 def test_push_subscription_owner_validation(client):

@@ -47,6 +47,13 @@ describe("Support page", () => {
     expect(await screen.findByLabelText(/Owner/i)).toBeInTheDocument();
   });
 
+  it("handles owner fetch failure gracefully", async () => {
+    mockGetOwners.mockRejectedValueOnce(new Error("fail"));
+    render(<Support />, { wrapper: MemoryRouter });
+    const select = await screen.findByLabelText(/Owner/i);
+    expect((select as HTMLSelectElement).options.length).toBe(0);
+  });
+
   it("shows swagger link for VITE_API_URL", () => {
     vi.stubEnv("VITE_API_URL", "http://localhost:8000");
     render(<Support />, { wrapper: MemoryRouter });

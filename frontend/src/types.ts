@@ -285,7 +285,7 @@ export interface VirtualPortfolio {
 export interface TradingSignal {
     ticker: string;
     name: string;
-    action: string;
+    action: "buy" | "sell";
     reason: string;
     currency?: string | null;
     instrument_type?: string | null;

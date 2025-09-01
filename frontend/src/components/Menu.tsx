@@ -46,7 +46,7 @@ export default function Menu({
       ? "scenario"
       : path[0] === "logs"
       ? "logs"
-      : path.length === 0 && params.has("group")
+      : path.length === 0
       ? "group"
       : "movers";
 

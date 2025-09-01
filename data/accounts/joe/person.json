@@ -2,5 +2,6 @@
   "owner": "joe",
   "dob": "2015-09-06",
   "email": "joe@example.com",
+  "viewers": ["steve"],
   "holdings": []
 }

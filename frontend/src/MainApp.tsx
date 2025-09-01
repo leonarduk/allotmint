@@ -54,31 +54,41 @@ export default function MainApp() {
 
   const [backendUnavailable, setBackendUnavailable] = useState(false);
 
-  const { unauthorized: ownersUnauthorized, ...ownersReq } =
-    useFetchWithRetry(getOwners);
-  const { unauthorized: groupsUnauthorized, ...groupsReq } =
-    useFetchWithRetry(getGroups);
-  const unauthorized = ownersUnauthorized || groupsUnauthorized;
+  const ownersReq = useFetchWithRetry(getOwners);
+  const groupsReq = useFetchWithRetry(getGroups);
+  const demoOnly =
+    ownersReq.data?.length === 1 && ownersReq.data[0].owner === "demo";
+  const unauthorized = demoOnly
+    ? ownersReq.unauthorized
+    : ownersReq.unauthorized || groupsReq.unauthorized;
 
   useEffect(() => {
-    if (ownersReq.data) setOwners(ownersReq.data);
-  }, [ownersReq.data]);
+    if (ownersReq.data) {
+      setOwners(ownersReq.data);
+      if (
+        selectedOwner &&
+        !ownersReq.data.some((o) => o.owner === selectedOwner)
+      ) {
+        setSelectedOwner("");
+      }
+    }
+  }, [ownersReq.data, selectedOwner, setSelectedOwner]);
 
   useEffect(() => {
     if (groupsReq.data) setGroups(groupsReq.data);
   }, [groupsReq.data]);
 
   useEffect(() => {
-    if (ownersReq.error || groupsReq.error) {
+    if (ownersReq.error || (!demoOnly && groupsReq.error)) {
       setBackendUnavailable(true);
     }
-  }, [ownersReq.error, groupsReq.error]);
+  }, [ownersReq.error, groupsReq.error, demoOnly]);
 
   useEffect(() => {
-    if (ownersReq.data && groupsReq.data) {
+    if (ownersReq.data && (demoOnly || groupsReq.data)) {
       setBackendUnavailable(false);
     }
-  }, [ownersReq.data, groupsReq.data]);
+  }, [ownersReq.data, groupsReq.data, demoOnly]);
 
   // redirect to defaults if no selection provided
   useEffect(() => {

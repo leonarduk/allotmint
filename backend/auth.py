@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from typing import Optional, Set
+from contextvars import ContextVar
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -25,6 +26,12 @@ SECRET_KEY = os.getenv("JWT_SECRET", "change-me")
 ALGORITHM = "HS256"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# Context variable storing the username of the authenticated user.
+# This allows downstream helpers to detect whether a request is
+# authenticated without needing to thread the username through
+# every function call.
+current_user: ContextVar[str | None] = ContextVar("current_user", default=None)
 
 
 def verify_google_token(token: str) -> Optional[str]:

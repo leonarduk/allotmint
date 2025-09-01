@@ -24,6 +24,7 @@ import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
+import { TopMoversSummary } from "./TopMoversSummary";
 import {
   PieChart,
   Pie,

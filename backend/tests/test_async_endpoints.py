@@ -10,7 +10,7 @@ async def test_auth_alerts_portfolio(monkeypatch):
     )
     monkeypatch.setattr(
         "backend.common.data_loader.list_plots",
-        lambda root: [{"owner": "alice", "accounts": ["brokerage"]}],
+        lambda root, current_user=None: [{"owner": "alice", "accounts": ["brokerage"]}],
     )
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

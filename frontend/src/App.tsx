@@ -62,7 +62,7 @@ const initialMode: Mode =
   path[0] === "settings" ? "settings" :
   path[0] === "scenario" ? "scenario" :
   path[0] === "logs" ? "logs" :
-  path.length === 0 && params.has("group") ? "group" : "movers";
+  path.length === 0 ? "group" : "movers";
 const initialSlug = path[1] ?? "";
 
 export default function App() {
@@ -179,8 +179,8 @@ export default function App() {
     }
 
     if (tabs[newMode] === false) {
-      setMode("movers");
-      navigate("/movers", { replace: true });
+      setMode("group");
+      navigate("/", { replace: true });
       return;
     }
     if (newMode === "movers" && location.pathname !== "/movers") {
@@ -199,8 +199,16 @@ export default function App() {
   }, [location.pathname, location.search, tabs, navigate]);
 
   useEffect(() => {
-    if (ownersReq.data) setOwners(ownersReq.data);
-  }, [ownersReq.data]);
+    if (ownersReq.data) {
+      setOwners(ownersReq.data);
+      if (
+        selectedOwner &&
+        !ownersReq.data.some((o) => o.owner === selectedOwner)
+      ) {
+        setSelectedOwner("");
+      }
+    }
+  }, [ownersReq.data, selectedOwner, setSelectedOwner]);
 
   useEffect(() => {
     if (groupsReq.data) setGroups(groupsReq.data);

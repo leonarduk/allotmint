@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 import io
 import os
+import logging
 
 import pandas as pd
 from fastapi import APIRouter, Depends
@@ -19,6 +20,7 @@ from backend.timeseries.cache import (
 router = APIRouter(
     prefix="/timeseries", tags=["timeseries"], dependencies=[Depends(get_current_user)]
 )
+logger = logging.getLogger("routes.timeseries")
 
 
 def _summarize(df: pd.DataFrame, ticker: str, exchange: str) -> dict[str, Any]:
@@ -53,10 +55,13 @@ async def timeseries_admin() -> list[dict[str, Any]]:
     if config.app_env == "aws":
         bucket = os.getenv("DATA_BUCKET")
         if not bucket:
+            logger.warning("DATA_BUCKET environment variable is required for AWS timeseries admin")
             return summaries
         try:
             import boto3  # type: ignore
+            from botocore.exceptions import ClientError  # type: ignore
         except Exception:  # pragma: no cover - missing dependency
+            logger.warning("boto3 is not installed; cannot fetch timeseries metadata from S3")
             return summaries
         s3 = boto3.client("s3")
         prefix = "timeseries/meta/"
@@ -80,7 +85,8 @@ async def timeseries_admin() -> list[dict[str, Any]]:
                     if not body:
                         continue
                     df = _ensure_schema(pd.read_parquet(io.BytesIO(body.read())))
-                except Exception:  # pragma: no cover - defensive
+                except (ClientError, ValueError) as exc:  # pragma: no cover - defensive
+                    logger.warning("Failed to load %s from S3: %s", key, exc)
                     continue
                 if df.empty:
                     continue
@@ -101,7 +107,8 @@ async def timeseries_admin() -> list[dict[str, Any]]:
         ticker, exchange = stem.rsplit("_", 1)
         try:
             df = _ensure_schema(pd.read_parquet(path))
-        except Exception:  # pragma: no cover - defensive
+        except (OSError, ValueError) as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to load %s: %s", path, exc)
             continue
         if df.empty:
             continue

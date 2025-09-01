@@ -3,11 +3,14 @@ import { useTranslation } from "react-i18next";
 import {
   API_BASE,
   getConfig,
+  getOwners,
   updateConfig,
   savePushSubscription,
   deletePushSubscription,
 } from "../api";
 import { useConfig } from "../ConfigContext";
+import { OwnerSelector } from "../components/OwnerSelector";
+import type { OwnerSummary } from "../types";
 
 const TAB_KEYS = [
   "instrument",
@@ -39,9 +42,20 @@ export default function Support() {
   const [tabs, setTabs] = useState<Record<string, boolean>>(EMPTY_TABS);
   const [configStatus, setConfigStatus] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const [owner, setOwner] = useState("");
 
   const envEntries = Object.entries(import.meta.env).sort();
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
+
+  useEffect(() => {
+    getOwners()
+      .then((list) => {
+        setOwners(list);
+        setOwner(list[0]?.owner ?? "");
+      })
+      .catch(() => setOwners([]));
+  }, []);
 
   useEffect(() => {
     getConfig()
@@ -150,6 +164,7 @@ export default function Support() {
   }
 
   async function enablePush() {
+    if (!owner) return;
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") return;
@@ -161,7 +176,7 @@ export default function Support() {
           : undefined,
       });
       await savePushSubscription(
-        "default",
+        owner,
         sub.toJSON() as import("../api").PushSubscriptionJSON,
       );
       setPushEnabled(true);
@@ -171,11 +186,12 @@ export default function Support() {
   }
 
   async function disablePush() {
+    if (!owner) return;
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) await sub.unsubscribe();
-      await deletePushSubscription("default");
+      await deletePushSubscription(owner);
       setPushEnabled(false);
     } catch {
       /* ignore */
@@ -231,12 +247,17 @@ export default function Support() {
         </tbody>
       </table>
       <h2>Notifications</h2>
+      <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
       {typeof Notification === "undefined" ||
       typeof navigator === "undefined" ||
       !("serviceWorker" in navigator) ? (
         <p>Push not supported</p>
       ) : (
-        <button onClick={pushEnabled ? disablePush : enablePush} type="button">
+        <button
+          onClick={pushEnabled ? disablePush : enablePush}
+          type="button"
+          disabled={!owner}
+        >
           {pushEnabled ? "Disable Push Alerts" : "Enable Push Alerts"}
         </button>
       )}

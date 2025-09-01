@@ -375,13 +375,13 @@ export const getTransactions = (params: {
 /** Retrieve recent alert messages from backend. */
 export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts/`);
 
-/** Retrieve alert threshold for a user. */
-export const getAlertThreshold = (user: string) =>
-  fetchJson<{ threshold: number }>(`${API_BASE}/alert-thresholds/${user}`);
+/** Retrieve alert threshold for an owner. */
+export const getAlertThreshold = (owner: string) =>
+  fetchJson<{ threshold: number }>(`${API_BASE}/alert-thresholds/${owner}`);
 
-/** Update alert threshold for a user. */
-export const setAlertThreshold = (user: string, threshold: number) =>
-  fetchJson<{ threshold: number }>(`${API_BASE}/alert-thresholds/${user}`, {
+/** Update alert threshold for an owner. */
+export const setAlertThreshold = (owner: string, threshold: number) =>
+  fetchJson<{ threshold: number }>(`${API_BASE}/alert-thresholds/${owner}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ threshold }),
@@ -395,20 +395,20 @@ export interface PushSubscriptionJSON {
   };
 }
 
-/** Store a push subscription for a user. */
+/** Store a push subscription for an owner. */
 export const savePushSubscription = (
-  user: string,
+  owner: string,
   sub: PushSubscriptionJSON,
 ) =>
-  fetchJson(`${API_BASE}/alerts/push-subscription/${user}`, {
+  fetchJson(`${API_BASE}/alerts/push-subscription/${owner}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(sub),
   });
 
-/** Remove the push subscription for a user. */
-export const deletePushSubscription = (user: string) =>
-  fetchJson(`${API_BASE}/alerts/push-subscription/${user}`, {
+/** Remove the push subscription for an owner. */
+export const deletePushSubscription = (owner: string) =>
+  fetchJson(`${API_BASE}/alerts/push-subscription/${owner}`, {
     method: "DELETE",
   });
 

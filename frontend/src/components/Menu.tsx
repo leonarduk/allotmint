@@ -44,7 +44,9 @@ export default function Menu({
       ? "settings"
       : path[0] === "scenario"
       ? "scenario"
-      : path.length === 0
+      : path[0] === "logs"
+      ? "logs"
+      : path.length === 0 && params.has("group")
       ? "group"
       : "movers";
 
@@ -66,6 +68,8 @@ export default function Menu({
         return "/scenario";
       case "settings":
         return "/settings";
+      case "logs":
+        return "/logs";
       default:
         return `/${m}`;
     }

@@ -27,7 +27,8 @@ function deriveInitial() {
     path[0] === "dataadmin" ? "dataadmin" :
     path[0] === "support" ? "support" :
     path[0] === "scenario" ? "scenario" :
-    path.length === 0 ? "group" : "movers";
+    path[0] === "logs" ? "logs" :
+    path.length === 0 && params.has("group") ? "group" : "movers";
   const slug = path[1] ?? "";
   const owner = mode === "owner" ? slug : "";
   const group = mode === "instrument" ? slug : params.get("group") ?? "";
@@ -62,6 +63,8 @@ const { tabs, disabledTabs } = useConfig();
         return "/scenario";
       case "settings":
         return "/settings";
+      case "logs":
+        return "/logs";
       default:
         return `/${m}`;
     }
@@ -101,6 +104,9 @@ const { tabs, disabledTabs } = useConfig();
         break;
       case "support":
         newMode = "support";
+        break;
+      case "logs":
+        newMode = "logs";
         break;
       case "settings":
         newMode = "settings";

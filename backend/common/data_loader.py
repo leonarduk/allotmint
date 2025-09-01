@@ -74,6 +74,13 @@ def _list_local_plots(
     if not root.exists():
         return results
 
+    # ``current_user`` may be passed in as ``None`` or as a simple string
+    # identifier.  Previously this function assumed ``current_user`` was a
+    # ``ContextVar`` and attempted to call ``.get(None)``, which raises an
+    # ``AttributeError`` when a plain string is supplied.  Normalise the value
+    # explicitly to handle both cases safely.
+    user = current_user if current_user else None
+
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
             continue
@@ -85,7 +92,7 @@ def _list_local_plots(
         owner = owner_dir.name
         meta = load_person_meta(owner, root)
         viewers = meta.get("viewers", [])
-        if current_user and current_user != owner and current_user not in viewers:
+        if user and user != owner and user not in viewers:
             continue
 
         acct_names: List[str] = []
@@ -173,6 +180,7 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
         else:
             break
 
+    user = current_user.get(None) if hasattr(current_user, "get") else current_user
     results: List[Dict[str, Any]] = []
     for owner, accounts in sorted(owners.items()):
         # When authentication is enabled and no user is authenticated,
@@ -182,7 +190,7 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
         if current_user and current_user != owner:
             meta = load_person_meta(owner)
             viewers = meta.get("viewers", [])
-            if current_user not in viewers:
+            if user not in viewers:
                 continue
         results.append({"owner": owner, "accounts": accounts})
     return results

@@ -1,13 +1,13 @@
 import React from "react";
 
+type Action = "buy" | "sell";
 type Props = {
-  action: string;
+  action: Action;
   onClick?: () => void;
 };
 
 export function SignalBadge({ action, onClick }: Props) {
-  const lower = action.toLowerCase();
-  const isBuy = lower === "buy";
+  const isBuy = action === "buy";
   const color = isBuy ? "#bbf7d0" : "#fecaca"; // tailwind: green-200 / red-200
   return (
     <span

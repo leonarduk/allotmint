@@ -169,8 +169,9 @@ describe("TopMoversPage", () => {
     );
     await waitFor(() => expect(mockGetTradingSignals).toHaveBeenCalled());
     const tickerBtn = await screen.findByRole("button", { name: "AAA" });
-    const row = tickerBtn.closest("tr")!;
-    const badge = within(row).getByText(/buy/i);
+    const row = tickerBtn.closest("tr");
+    expect(row).not.toBeNull();
+    const badge = within(row as HTMLElement).getByText(/buy/i);
     fireEvent.click(badge);
     expect(await screen.findByTestId("detail")).toHaveTextContent("AAA");
     expect(await screen.findByText("go long")).toBeInTheDocument();

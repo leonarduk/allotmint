@@ -44,7 +44,7 @@ describe("TopMoversSummary", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 5),
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 5, 0),
     );
     expect(await screen.findByRole("button", { name: "AAA" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "DDD" })).toBeInTheDocument();
@@ -61,6 +61,6 @@ describe("TopMoversSummary", () => {
     );
 
     await waitFor(() => expect(mockGetGroupMovers).not.toHaveBeenCalled());
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText(/no group selected/i)).toBeInTheDocument();
   });
 });

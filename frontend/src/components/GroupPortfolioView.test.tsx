@@ -44,6 +44,20 @@ const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) 
     </configContext.Provider>,
   );
 
+function mockFetch(portfolio: unknown) {
+  return vi
+    .spyOn(global, "fetch")
+    .mockImplementation((url) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          typeof url === "string" && url.includes("/movers")
+            ? { gainers: [], losers: [] }
+            : portfolio,
+      } as unknown as Response),
+    );
+}
+
 describe("GroupPortfolioView", () => {
   it("shows per-owner totals with percentages in relative view", async () => {
     const mockPortfolio = {
@@ -78,15 +92,7 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockImplementation((url) =>
-      Promise.resolve({
-        ok: true,
-        json: async () =>
-          typeof url === "string" && url.includes("/movers")
-            ? { gainers: [], losers: [] }
-            : mockPortfolio,
-      } as unknown as Response),
-    );
+    mockFetch(mockPortfolio);
 
     renderWithConfig(<GroupPortfolioView slug="all" />, {
       relativeViewEnabled: true,
@@ -138,15 +144,7 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockImplementation((url) =>
-      Promise.resolve({
-        ok: true,
-        json: async () =>
-          typeof url === "string" && url.includes("/movers")
-            ? { gainers: [], losers: [] }
-            : mockPortfolio,
-      } as unknown as Response),
-    );
+    mockFetch(mockPortfolio);
 
     render(<GroupPortfolioView slug="all" />);
 
@@ -169,15 +167,7 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockImplementation((url) =>
-      Promise.resolve({
-        ok: true,
-        json: async () =>
-          typeof url === "string" && url.includes("/movers")
-            ? { gainers: [], losers: [] }
-            : mockPortfolio,
-      } as unknown as Response),
-    );
+    mockFetch(mockPortfolio);
 
     const handler = vi.fn();
     render(<GroupPortfolioView slug="all" onSelectMember={handler} />);
@@ -236,30 +226,26 @@ describe("GroupPortfolioView", () => {
       ],
     };
 
-    vi.spyOn(global, "fetch").mockImplementation((url) =>
-      Promise.resolve({
-        ok: true,
-        json: async () =>
-          typeof url === "string" && url.includes("/movers")
-            ? { gainers: [], losers: [] }
-            : mockPortfolio,
-      } as unknown as Response),
-    );
+    mockFetch(mockPortfolio);
 
     render(<GroupPortfolioView slug="all" />);
 
     await waitFor(() => screen.getByLabelText(/alice isa/i));
 
-    const totalLabel = screen.getAllByText("Total Value")[0];
-    const valueEl = totalLabel.nextElementSibling as HTMLElement;
-    expect(valueEl).toHaveTextContent("£300.00");
+    await waitFor(() =>
+      expect(screen.getAllByText("Total Value")[0].nextElementSibling).toHaveTextContent(
+        "£300.00",
+      ),
+    );
 
     const bobCheckbox = screen.getByLabelText(/bob isa/i);
     await act(async () => {
       fireEvent.click(bobCheckbox);
     });
-    await waitFor(() => {
-      expect(valueEl).toHaveTextContent("£100.00");
-    });
+    await waitFor(() =>
+      expect(screen.getAllByText("Total Value")[0].nextElementSibling).toHaveTextContent(
+        "£100.00",
+      ),
+    );
   });
 });

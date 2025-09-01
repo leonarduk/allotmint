@@ -90,6 +90,31 @@ Parameter Store via `scripts/setup_vapid_keys.py`. The script creates public and
 private key parameters (`/allotmint/vapid/public` and
 `/allotmint/vapid/private` by default) when they are missing.
 
+### Alert storage configuration
+
+User alert thresholds and web push subscriptions persist to a tiny JSON object
+whose location is configurable via environment variables. Each URI may target a
+local file, an S3 object or an AWS Systems Manager Parameter Store entry.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ALERT_THRESHOLDS_URI` | Location of threshold configuration. | `file://data/alert_thresholds.json` |
+| `PUSH_SUBSCRIPTIONS_URI` | Storage for web push subscriptions. | `file://data/push_subscriptions.json` |
+
+URIs may use the following schemes:
+
+* `file:///path/to/file.json` – read/write a local file (useful for tests).
+* `s3://bucket/key.json` – store JSON in an S3 object.
+* `ssm://parameter-name` – store JSON in AWS Parameter Store.
+
+#### Required IAM permissions
+
+When using AWS backends the executing role must allow:
+
+* **S3** – `s3:GetObject` and `s3:PutObject` on the referenced object.
+* **Parameter Store** – `ssm:GetParameter` and `ssm:PutParameter` on the
+  parameter name.
+
 ### Mobile wrappers
 
 For a more app-like experience on iOS and Android consider building thin

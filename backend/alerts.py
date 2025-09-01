@@ -4,13 +4,15 @@ This module evaluates metric drift against user configurable thresholds.  If
 an observed value deviates from a baseline by more than the configured
 percentage an alert is published through :mod:`backend.common.alerts`.
 
-User thresholds are persisted in a tiny JSON file under ``data`` which acts
-as a lightweight database suitable for tests and development environments.
+User thresholds and web push subscriptions are persisted via a tiny JSON
+object stored in a configurable backend (local file, S3 object or AWS
+Parameter Store).  Local file storage keeps tests and development
+environments lightweight while production deployments can point to managed
+AWS services.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from dataclasses import dataclass
@@ -18,19 +20,35 @@ from pathlib import Path
 from typing import Dict, Iterable, Optional
 
 from backend.common.alerts import publish_alert
+from backend.common.storage import get_storage
 from backend.config import config
 
 DEFAULT_THRESHOLD_PCT = 0.05  # default 5% threshold
 
-# Path used to store user specific thresholds
-_SETTINGS_PATH = (config.repo_root or Path(__file__).resolve().parents[1]) / "data" / "alert_thresholds.json"
+logger = logging.getLogger("alerts")
 
-# Path used to store push subscription details
-_SUBSCRIPTIONS_PATH = (
-    (config.repo_root or Path(__file__).resolve().parents[1])
-    / "data"
-    / "push_subscriptions.json"
+# Storage locations for thresholds and push subscriptions.  URIs may point to
+# ``file://`` paths, ``s3://`` objects or ``ssm://`` parameters.
+_DEFAULT_SETTINGS_URI = (
+    f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'alert_thresholds.json'}"
 )
+_DEFAULT_SUBSCRIPTIONS_URI = (
+    f"file://{(config.repo_root or Path(__file__).resolve().parents[1]) / 'data' / 'push_subscriptions.json'}"
+)
+
+try:
+    _SETTINGS_STORAGE = get_storage(os.getenv("ALERT_THRESHOLDS_URI", _DEFAULT_SETTINGS_URI))
+except Exception as exc:  # pragma: no cover - configuration errors
+    logger.error("Failed to initialize settings storage: %s", exc)
+    _SETTINGS_STORAGE = get_storage(_DEFAULT_SETTINGS_URI)
+
+try:
+    _SUBSCRIPTIONS_STORAGE = get_storage(
+        os.getenv("PUSH_SUBSCRIPTIONS_URI", _DEFAULT_SUBSCRIPTIONS_URI)
+    )
+except Exception as exc:  # pragma: no cover - configuration errors
+    logger.error("Failed to initialize subscriptions storage: %s", exc)
+    _SUBSCRIPTIONS_STORAGE = get_storage(_DEFAULT_SUBSCRIPTIONS_URI)
 
 # In-memory cache of settings
 _USER_THRESHOLDS: Dict[str, float] = {}
@@ -40,46 +58,45 @@ _PUSH_SUBSCRIPTIONS: Dict[str, Dict] = {}
 
 
 def _load_settings() -> None:
-    """Load threshold settings from ``_SETTINGS_PATH`` into memory."""
+    """Load threshold settings into memory from configured storage."""
     global _USER_THRESHOLDS
     if _USER_THRESHOLDS:
         return
     try:
-        if _SETTINGS_PATH.exists():
-            _USER_THRESHOLDS = {k: float(v) for k, v in json.loads(_SETTINGS_PATH.read_text()).items()}
-    except Exception:
+        data = _SETTINGS_STORAGE.load()
+        _USER_THRESHOLDS = {k: float(v) for k, v in data.items()}
+    except Exception as exc:  # pragma: no cover - storage backend failures
+        logger.warning("Failed to load user thresholds: %s", exc)
         _USER_THRESHOLDS = {}
 
 
 def _load_subscriptions() -> None:
-    """Load push subscription data into memory."""
+    """Load push subscription data into memory from configured storage."""
     global _PUSH_SUBSCRIPTIONS
     if _PUSH_SUBSCRIPTIONS:
         return
     try:
-        if _SUBSCRIPTIONS_PATH.exists():
-            _PUSH_SUBSCRIPTIONS = json.loads(_SUBSCRIPTIONS_PATH.read_text())
-    except Exception:
+        _PUSH_SUBSCRIPTIONS = _SUBSCRIPTIONS_STORAGE.load()
+    except Exception as exc:  # pragma: no cover - storage backend failures
+        logger.warning("Failed to load push subscriptions: %s", exc)
         _PUSH_SUBSCRIPTIONS = {}
 
 
 def _save_settings() -> None:
-    """Persist in-memory settings to ``_SETTINGS_PATH``."""
+    """Persist in-memory settings to configured storage."""
     try:
-        _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _SETTINGS_PATH.write_text(json.dumps(_USER_THRESHOLDS))
-    except Exception:
+        _SETTINGS_STORAGE.save(_USER_THRESHOLDS)
+    except Exception as exc:  # pragma: no cover - storage backend failures
         # Persistence failure should not block alerting
-        pass
+        logger.warning("Failed to save user thresholds: %s", exc)
 
 
 def _save_subscriptions() -> None:
-    """Persist push subscriptions to disk."""
+    """Persist push subscriptions to configured storage."""
     try:
-        _SUBSCRIPTIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _SUBSCRIPTIONS_PATH.write_text(json.dumps(_PUSH_SUBSCRIPTIONS))
-    except Exception:
-        pass
+        _SUBSCRIPTIONS_STORAGE.save(_PUSH_SUBSCRIPTIONS)
+    except Exception as exc:  # pragma: no cover - storage backend failures
+        logger.warning("Failed to save push subscriptions: %s", exc)
 
 
 _load_settings()
@@ -88,23 +105,27 @@ _load_subscriptions()
 
 def get_user_threshold(user: str, default: float = DEFAULT_THRESHOLD_PCT) -> float:
     """Return threshold percentage for ``user`` or ``default`` if unset."""
+    _load_settings()
     return _USER_THRESHOLDS.get(user, default)
 
 
 def set_user_threshold(user: str, threshold: float) -> None:
     """Set the threshold percentage for ``user`` and persist it."""
+    _load_settings()
     _USER_THRESHOLDS[user] = float(threshold)
     _save_settings()
 
 
 def set_user_push_subscription(user: str, subscription: Dict) -> None:
     """Store ``subscription`` information for ``user``."""
+    _load_subscriptions()
     _PUSH_SUBSCRIPTIONS[user] = subscription
     _save_subscriptions()
 
 
 def remove_user_push_subscription(user: str) -> None:
     """Remove push subscription for ``user`` if present."""
+    _load_subscriptions()
     if user in _PUSH_SUBSCRIPTIONS:
         del _PUSH_SUBSCRIPTIONS[user]
         _save_subscriptions()
@@ -112,11 +133,13 @@ def remove_user_push_subscription(user: str) -> None:
 
 def get_user_push_subscription(user: str) -> Optional[Dict]:
     """Return push subscription for ``user`` if configured."""
+    _load_subscriptions()
     return _PUSH_SUBSCRIPTIONS.get(user)
 
 
 def iter_push_subscriptions() -> Iterable[Dict]:
     """Iterate over stored push subscription dicts."""
+    _load_subscriptions()
     return list(_PUSH_SUBSCRIPTIONS.values())
 
 
@@ -135,18 +158,14 @@ def send_push_notification(message: str) -> None:
     vapid_key = os.getenv("VAPID_PRIVATE_KEY")
     vapid_email = os.getenv("VAPID_EMAIL")
     if not (vapid_key and vapid_email):
-        logging.getLogger("alerts").info(
-            "VAPID credentials not configured; falling back to SNS"
-        )
+        logger.info("VAPID credentials not configured; falling back to SNS")
         publish_alert({"message": message})
         return
 
     try:
         from pywebpush import webpush  # type: ignore
     except Exception:  # pragma: no cover - optional dependency
-        logging.getLogger("alerts").info(
-            "pywebpush not installed; falling back to SNS"
-        )
+        logger.info("pywebpush not installed; falling back to SNS")
         publish_alert({"message": message})
         return
 
@@ -161,7 +180,7 @@ def send_push_notification(message: str) -> None:
             )
             sent = True
         except Exception as exc:  # pragma: no cover - network errors
-            logging.getLogger("alerts").warning("Web push failed: %s", exc)
+            logger.warning("Web push failed: %s", exc)
 
     if not sent:
         publish_alert({"message": message})

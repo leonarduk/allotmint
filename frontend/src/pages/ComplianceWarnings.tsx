@@ -72,20 +72,20 @@ export default function ComplianceWarnings() {
 
           {typeof result.trades_remaining === "number" && (
             <div style={{ marginTop: "1rem" }}>
-              {(() => {
-                const key = new Date().toISOString().slice(0, 7);
-                const used = result.trade_counts[key] || 0;
-                const max = used + (result.trades_remaining ?? 0);
-                return (
-                  <p>
-                    Trades this month: {used} / {max} ({result.trades_remaining} remaining)
-                  </p>
-                );
-              })()}
-            </div>
-          )}
-        </>
-      )}
-    </div>
+                {(() => {
+                  const key = new Date().toISOString().slice(0, 7);
+                  const used = result.trade_counts?.[key] ?? 0;
+                  const max = used + (result.trades_remaining ?? 0);
+                  return (
+                    <p>
+                      Trades this month: {used} / {max} ({result.trades_remaining} remaining)
+                    </p>
+                  );
+                })()}
+              </div>
+            )}
+          </>
+        )}
+      </div>
   );
 }

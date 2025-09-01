@@ -34,7 +34,9 @@ describe("ComplianceWarnings page", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText(/AAA: 5 days?/i)).toBeInTheDocument();
+      expect(
+        await screen.findByText("AAA: 5 days remaining")
+      ).toBeInTheDocument();
   });
 });
 

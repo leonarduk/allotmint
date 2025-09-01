@@ -44,6 +44,7 @@ export default function Support() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [owner, setOwner] = useState("");
+  const [pushStatus, setPushStatus] = useState<string | null>(null);
 
   const envEntries = Object.entries(import.meta.env).sort();
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
@@ -86,7 +87,11 @@ export default function Support() {
   }, []);
 
   useEffect(() => {
-    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.serviceWorker &&
+      "ready" in navigator.serviceWorker
+    ) {
       navigator.serviceWorker.ready
         .then((reg) => reg.pushManager.getSubscription())
         .then((sub) => setPushEnabled(!!sub))
@@ -167,7 +172,10 @@ export default function Support() {
     if (!owner) return;
     try {
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") return;
+      if (permission !== "granted") {
+        setPushStatus("denied");
+        return;
+      }
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -180,8 +188,9 @@ export default function Support() {
         sub.toJSON() as import("../api").PushSubscriptionJSON,
       );
       setPushEnabled(true);
+      setPushStatus("enabled");
     } catch {
-      /* ignore */
+      setPushStatus("error");
     }
   }
 
@@ -193,8 +202,9 @@ export default function Support() {
       if (sub) await sub.unsubscribe();
       await deletePushSubscription(owner);
       setPushEnabled(false);
+      setPushStatus("disabled");
     } catch {
-      /* ignore */
+      setPushStatus("error");
     }
   }
 
@@ -253,13 +263,17 @@ export default function Support() {
       !("serviceWorker" in navigator) ? (
         <p>Push not supported</p>
       ) : (
-        <button
-          onClick={pushEnabled ? disablePush : enablePush}
-          type="button"
-          disabled={!owner}
-        >
-          {pushEnabled ? "Disable Push Alerts" : "Enable Push Alerts"}
-        </button>
+        <>
+          <button
+            onClick={pushEnabled ? disablePush : enablePush}
+            type="button"
+            disabled={!owner}
+          >
+            {pushEnabled ? "Disable Push Alerts" : "Enable Push Alerts"}
+          </button>
+          {pushStatus === "denied" && <p>Push permission denied.</p>}
+          {pushStatus === "error" && <p>Error handling push subscription.</p>}
+        </>
       )}
 
       <h2>Configuration</h2>

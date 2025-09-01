@@ -1,8 +1,10 @@
+import { Link } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MoverRow, TradingSignal } from "../types";
 import { getGroupMovers, getTradingSignals } from "../api";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
+import moversPlugin from "../plugins/movers";
 import { SignalBadge } from "./SignalBadge";
 import { InstrumentDetail } from "./InstrumentDetail";
 
@@ -15,7 +17,7 @@ interface Props {
 export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
   const fetchMovers = useCallback(() => {
     if (!slug) return Promise.resolve({ gainers: [], losers: [] });
-    return getGroupMovers(slug, days, limit, 0);
+    return getGroupMovers(slug, days, limit);
   }, [slug, days, limit]);
   const { data, loading, error } = useFetch(fetchMovers, [slug, days, limit], !!slug);
 
@@ -26,7 +28,10 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
     if (!slug) return;
     getTradingSignals()
       .then(setSignals)
-      .catch((e) => console.error(e));
+      .catch((e) => {
+        console.error(e);
+        setSignals([]);
+      });
   }, [slug]);
 
   const signalMap = useMemo(() => {
@@ -35,10 +40,15 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
     return map;
   }, [signals]);
 
-  if (!slug || loading || error || !data) return null;
+  const rows = useMemo(() => {
+    if (!data || !Array.isArray(data.gainers) || !Array.isArray(data.losers))
+      return [];
+    return [...data.gainers, ...data.losers]
+      .sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct))
+      .slice(0, limit);
+  }, [data, limit]);
 
-  const rows = [...data.gainers, ...data.losers];
-  if (rows.length === 0) return null;
+  if (!slug || loading || error || rows.length === 0) return null;
 
   return (
     <>
@@ -93,6 +103,9 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
           ))}
         </tbody>
       </table>
+      <div style={{ textAlign: "right", marginTop: "0.5rem" }}>
+        <Link to={moversPlugin.path({ group: slug })}>View more</Link>
+      </div>
       {selected && (
         <InstrumentDetail
           ticker={selected.ticker}
@@ -103,5 +116,6 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
     </>
   );
 }
+
 
 export default TopMoversSummary;

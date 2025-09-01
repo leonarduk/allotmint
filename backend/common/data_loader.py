@@ -57,20 +57,29 @@ def _list_local_plots(
     data_root: Optional[Path] = None,
     current_user: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    """List available plots from the local filesystem.
+
+    Parameters
+    ----------
+    data_root:
+        Optional base directory containing account data. If ``None`` the
+        configured accounts root is used.
+    current_user:
+        Username of the authenticated user or ``None`` when unauthenticated.
+    """
+
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = data_root or paths.accounts_root
     results: List[Dict[str, Any]] = []
     if not root.exists():
         return results
 
-    user = current_user.get(None)
-
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
             continue
         # When authentication is enabled and no user is authenticated,
         # expose only the "demo" account.
-        if not config.disable_auth and user is None and owner_dir.name != "demo":
+        if not config.disable_auth and current_user is None and owner_dir.name != "demo":
             continue
 
         owner = owner_dir.name
@@ -110,6 +119,11 @@ def _list_local_plots(
 # ------------------------------------------------------------------
 def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     """List available plots from an S3 bucket.
+
+    Parameters
+    ----------
+    current_user:
+        Username of the authenticated user or ``None`` when unauthenticated.
 
     The bucket name is read from the ``DATA_BUCKET`` environment variable and
     objects are expected under ``accounts/<owner>/<account>.json``. Metadata
@@ -181,6 +195,22 @@ def list_plots(
     data_root: Optional[Path] = None,
     current_user: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    """Public helper to list available account plots.
+
+    Parameters
+    ----------
+    data_root:
+        Optional base directory containing account data when running locally.
+    current_user:
+        Username of the authenticated user or ``None`` if unauthenticated.
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        A list of dictionaries each containing an ``owner`` and their
+        available ``accounts``.
+    """
+
     if config.app_env == "aws":
         return _list_aws_plots(current_user)
     return _list_local_plots(data_root, current_user)
@@ -240,14 +270,15 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
 
     def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
         meta: Dict[str, Any] = {}
-        for key in ("dob", "email", "holdings"):
+        for key in ("dob", "email", "holdings", "viewers"):
             if key in data:
                 meta[key] = data[key]
-        # Preserve account access viewers if present
-        meta["viewers"] = data.get("viewers", [])
+        if "viewers" not in meta:
+          # Preserve account access viewers if present
+          meta["viewers"] = data.get("viewers", [])
         return meta
 
-    if config.app_env == "aws":
+    if config.app_env == "aws" or os.getenv(DATA_BUCKET_ENV):
         bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
             return {}

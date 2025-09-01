@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { searchInstruments } from "../api";
 
@@ -25,7 +25,7 @@ const SECTORS = [
 
 const REGIONS = ["Africa", "Asia", "Europe", "North America", "South America", "Oceania", "UK", "US"];
 
-export function InstrumentSearchBar() {
+export default memo(function InstrumentSearchBar() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState("");
@@ -35,20 +35,30 @@ export function InstrumentSearchBar() {
   const listRef = useRef<HTMLUListElement | null>(null);
 
   useEffect(() => {
-    let ignore = false;
-    if (query.length < 2) {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
       setResults([]);
       return;
     }
-    searchInstruments(query, sector || undefined, region || undefined)
-      .then((r) => {
-        if (!ignore) setResults(r);
-      })
-      .catch(() => {
-        if (!ignore) setResults([]);
-      });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      searchInstruments(
+        trimmed,
+        sector || undefined,
+        region || undefined,
+        controller.signal,
+      )
+        .then(setResults)
+        .catch((err) => {
+          if (err.name !== "AbortError") {
+            console.error(err);
+            setResults([]);
+          }
+        });
+    }, 300);
     return () => {
-      ignore = true;
+      controller.abort();
+      clearTimeout(timeout);
     };
   }, [query, sector, region]);
 
@@ -145,4 +155,4 @@ export function InstrumentSearchBar() {
       )}
     </div>
   );
-}
+});

@@ -140,6 +140,19 @@ export interface InstrumentDetailMini {
     }[];
 }
 
+export interface InstrumentPosition {
+    owner: string;
+    account: string;
+    units: number;
+}
+
+export interface InstrumentDetail {
+    prices: unknown;
+    positions: InstrumentPosition[];
+    mini?: InstrumentDetailMini;
+    currency?: string | null;
+}
+
 export interface Transaction {
     owner: string;
     account: string;

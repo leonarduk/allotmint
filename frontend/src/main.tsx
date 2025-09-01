@@ -14,7 +14,9 @@ import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import InstrumentResearch from './pages/InstrumentResearch'
 
-createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root');
+if (!rootEl) throw new Error('Root element not found');
+createRoot(rootEl).render(
   <StrictMode>
     <ConfigProvider>
       <PriceRefreshProvider>
@@ -26,6 +28,7 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/compliance" element={<ComplianceWarnings />} />
             <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
             <Route path="/research/:ticker" element={<InstrumentResearch />} />
+            {/* Catch-all for app routes; keep last to avoid intercepting above paths */}
             <Route path="/*" element={<App />} />
           </Routes>
         </BrowserRouter>

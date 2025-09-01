@@ -102,13 +102,14 @@ def _list_local_plots(
 # ------------------------------------------------------------------
 # AWS discovery
 # ------------------------------------------------------------------
-def _list_aws_plots() -> List[Dict[str, Any]]:
+def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     """List available plots from an S3 bucket.
 
     The bucket name is read from the ``DATA_BUCKET`` environment variable and
     objects are expected under ``accounts/<owner>/<account>.json``. Metadata
     files like ``person.json`` are ignored and account names are de-duplicated
-    case-insensitively.
+    case-insensitively. If ``current_user`` is provided, owners are filtered
+    against their ``person.json`` viewers list to enforce access rules.
     """
 
     bucket = os.getenv(DATA_BUCKET_ENV)
@@ -151,7 +152,16 @@ def _list_aws_plots() -> List[Dict[str, Any]]:
         else:
             break
 
-    return [{"owner": owner, "accounts": accounts} for owner, accounts in sorted(owners.items())]
+    results: List[Dict[str, Any]] = []
+    for owner, accounts in sorted(owners.items()):
+        if current_user and current_user != owner:
+            meta = load_person_meta(owner)
+            viewers = meta.get("viewers", [])
+            if current_user not in viewers:
+                continue
+        results.append({"owner": owner, "accounts": accounts})
+
+    return results
 
 
 # ------------------------------------------------------------------
@@ -162,7 +172,7 @@ def list_plots(
     current_user: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     if config.app_env == "aws":
-        return _list_aws_plots()
+        return _list_aws_plots(current_user)
     return _list_local_plots(data_root, current_user)
 
 

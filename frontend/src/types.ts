@@ -220,6 +220,9 @@ export type ComplianceResult = {
     owner: string;
     warnings: string[];
     trade_counts: Record<string, number>;
+    hold_countdowns?: Record<string, number>;
+    trades_this_month?: number;
+    trades_remaining?: number;
 };
 
 export interface ScreenerResult {

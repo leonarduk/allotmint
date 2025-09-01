@@ -34,6 +34,30 @@ def test_list_aws_plots(monkeypatch):
     assert dl._list_aws_plots() == expected
 
 
+def test_list_aws_plots_filters_without_auth(monkeypatch):
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+    monkeypatch.setattr(dl.config, "disable_auth", False, raising=False)
+    dl.current_user.set(None)
+
+    def fake_client(name):
+        assert name == "s3"
+
+        def list_objects_v2(**kwargs):
+            return {
+                "Contents": [
+                    {"Key": "accounts/demo/ISA.json"},
+                    {"Key": "accounts/Real/GIA.json"},
+                ]
+            }
+
+        return SimpleNamespace(list_objects_v2=list_objects_v2)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    expected = [{"owner": "demo", "accounts": ["ISA"]}]
+    assert dl._list_aws_plots() == expected
+
+
 def test_load_account_from_s3(monkeypatch):
     monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
     monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import os
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, overload
 
-import os
 import yaml
 
 
@@ -129,6 +129,13 @@ def load_config() -> Config:
             pass
 
     base_dir = path.parent
+
+    app_env_env = os.getenv("APP_ENV")
+    if app_env_env:
+        allowed_envs = {"local", "production", "aws"}
+        if app_env_env not in allowed_envs:
+            raise ValueError(f"Unexpected APP_ENV '{app_env_env}'")
+        data["app_env"] = app_env_env
 
     disable_auth_env = _env_flag("DISABLE_AUTH")
     if disable_auth_env is not None:

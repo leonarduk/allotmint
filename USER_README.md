@@ -29,6 +29,7 @@ Additional runtime settings are supplied via environment variables. Copy
 - `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: forward alerts to Telegram
   (e.g. `123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ` and `123456789`).
 - `DATA_BUCKET`: S3 bucket containing account data when running in AWS.
+- `METADATA_BUCKET` and `METADATA_PREFIX`: S3 bucket and key prefix for instrument metadata.
 
 
 ## Authentication

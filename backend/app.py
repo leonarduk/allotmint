@@ -102,7 +102,9 @@ def create_app() -> FastAPI:
     app.include_router(portfolio_router, dependencies=protected)
     app.include_router(performance_router, dependencies=protected)
     app.include_router(instrument_router)
-    # Administrative endpoints for editing instrument definitions
+    # Administrative endpoints for editing instrument definitions. Authentication
+    # is applied at include-time so `config.disable_auth` can skip it during
+    # tests.
     app.include_router(instrument_admin_router, dependencies=protected)
     app.include_router(timeseries_router)
     app.include_router(timeseries_edit_router)

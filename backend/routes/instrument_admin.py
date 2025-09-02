@@ -5,9 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-
-from backend.auth import get_current_user
+from fastapi import APIRouter, HTTPException
 from backend.common.instruments import (
     delete_instrument_meta,
     get_instrument_meta,
@@ -18,7 +16,6 @@ from backend.common.instruments import (
 router = APIRouter(
     prefix="/instrument",
     tags=["instrument"],
-    dependencies=[Depends(get_current_user)],
 )
 
 
@@ -26,6 +23,10 @@ router = APIRouter(
 async def get_instrument(exchange: str, ticker: str) -> dict[str, Any]:
     """Return metadata for a ticker/exchange pair."""
 
+    try:
+        instrument_meta_path(ticker, exchange)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     meta = get_instrument_meta(f"{ticker}.{exchange}")
     if not meta:
         raise HTTPException(status_code=404, detail="Instrument not found")
@@ -36,9 +37,18 @@ async def get_instrument(exchange: str, ticker: str) -> dict[str, Any]:
 async def create_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, str]:
     """Create metadata for a new instrument."""
 
-    path = instrument_meta_path(ticker, exchange)
-    if path.exists():
+    try:
+        path = instrument_meta_path(ticker, exchange)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        exists = path.exists()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Filesystem error") from exc
+    if exists:
         raise HTTPException(status_code=409, detail="Instrument already exists")
+    if body.get("ticker") and body["ticker"] != f"{ticker}.{exchange}":
+        raise HTTPException(status_code=400, detail="Ticker mismatch")
     save_instrument_meta(ticker, exchange, body)
     return {"status": "created"}
 
@@ -47,9 +57,18 @@ async def create_instrument(exchange: str, ticker: str, body: dict[str, Any]) ->
 async def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) -> dict[str, str]:
     """Update metadata for an existing instrument."""
 
-    path = instrument_meta_path(ticker, exchange)
-    if not path.exists():
+    try:
+        path = instrument_meta_path(ticker, exchange)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        exists = path.exists()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Filesystem error") from exc
+    if not exists:
         raise HTTPException(status_code=404, detail="Instrument not found")
+    if body.get("ticker") and body["ticker"] != f"{ticker}.{exchange}":
+        raise HTTPException(status_code=400, detail="Ticker mismatch")
     save_instrument_meta(ticker, exchange, body)
     return {"status": "updated"}
 
@@ -58,8 +77,15 @@ async def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) ->
 async def delete_instrument(exchange: str, ticker: str) -> dict[str, str]:
     """Remove instrument metadata from disk."""
 
-    path = instrument_meta_path(ticker, exchange)
-    if not path.exists():
+    try:
+        path = instrument_meta_path(ticker, exchange)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        exists = path.exists()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Filesystem error") from exc
+    if not exists:
         raise HTTPException(status_code=404, detail="Instrument not found")
     delete_instrument_meta(ticker, exchange)
     return {"status": "deleted"}

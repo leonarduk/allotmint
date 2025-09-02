@@ -70,6 +70,6 @@ def test_missing_client_id_fails_startup(monkeypatch):
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
     from backend import config as cfg
     cfg.load_config.cache_clear()
-    with pytest.raises(ValueError):
+    with pytest.raises(ConfigValidationError):
         cfg.load_config()
     cfg.load_config.cache_clear()

@@ -177,6 +177,9 @@ def load_config() -> Config:
 
     google_client_id = data.get("google_client_id") or os.getenv("GOOGLE_CLIENT_ID")
 
+    if google_auth_enabled and not google_client_id:
+        raise ValueError("google_auth_enabled is true but google_client_id is missing")
+
     allowed_emails = data.get("allowed_emails")
     env_allowed = os.getenv("ALLOWED_EMAILS")
     if env_allowed:

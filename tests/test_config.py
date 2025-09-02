@@ -37,12 +37,14 @@ def test_auth_flags(monkeypatch):
     assert cfg.disable_auth is True
 
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client")
     monkeypatch.setenv("DISABLE_AUTH", "false")
     config_module.load_config.cache_clear()
     cfg = config_module.load_config()
     assert cfg.google_auth_enabled is True
     assert cfg.disable_auth is False
     monkeypatch.delenv("GOOGLE_AUTH_ENABLED")
+    monkeypatch.delenv("GOOGLE_CLIENT_ID")
     monkeypatch.delenv("DISABLE_AUTH")
     config_module.load_config.cache_clear()
     config_module.config = config_module.load_config()

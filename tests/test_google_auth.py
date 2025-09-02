@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 import pandas as pd
+import pytest
 
 from backend.app import create_app
 from backend.config import config
@@ -52,3 +53,13 @@ def test_google_token_rejects_unallowed_email(monkeypatch, tmp_path):
 
     resp = client.post("/token/google", json={"token": "abc"})
     assert resp.status_code == 403
+
+
+def test_startup_requires_google_client_id(monkeypatch):
+    monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    from backend.config import load_config
+
+    load_config.cache_clear()
+    with pytest.raises(ValueError):
+        load_config()

@@ -48,4 +48,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(500, f"Failed to write config: {exc}")
 
     load_config.cache_clear()
-    return get_config_dict()
+    try:
+        return get_config_dict()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

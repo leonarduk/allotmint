@@ -11,6 +11,17 @@ from backend.common.data_loader import resolve_paths
 from backend.config import config
 
 
+def _approvals_path(owner: str, accounts_root: Path | None = None) -> Path:
+    """Return the path to ``owner``'s approvals file."""
+
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
+    owner_dir = root / owner
+    if not owner_dir.exists():
+        raise FileNotFoundError(owner)
+    return owner_dir / "approvals.json"
+
+
 def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, date]:
     """Return mapping of ticker -> approval date for ``owner``.
 
@@ -19,9 +30,10 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
     ``"approvals"`` containing that list.  Ticker symbols are normalised to
     uppercase.
     """
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    root = Path(accounts_root) if accounts_root else paths.accounts_root
-    path = root / owner / "approvals.json"
+    try:
+        path = _approvals_path(owner, accounts_root)
+    except FileNotFoundError:
+        return {}
     if not path.exists():
         return {}
     try:
@@ -59,3 +71,40 @@ def is_approval_valid(approved_on: date | None, as_of: date, days: int | None = 
     valid = days or config.approval_valid_days or 0
     expiry = add_trading_days(approved_on, max(0, valid - 1))
     return as_of <= expiry
+
+
+def save_approvals(
+    owner: str, approvals: Dict[str, date], accounts_root: Path | None = None
+) -> None:
+    """Persist ``approvals`` for ``owner`` to ``approvals.json``."""
+
+    path = _approvals_path(owner, accounts_root)
+    entries = [
+        {"ticker": t.upper(), "approved_on": d.isoformat()} for t, d in approvals.items()
+    ]
+    path.write_text(json.dumps({"approvals": entries}, indent=2, sort_keys=True))
+
+
+def upsert_approval(
+    owner: str,
+    ticker: str,
+    approved_on: date,
+    accounts_root: Path | None = None,
+) -> Dict[str, date]:
+    """Add or update a single ticker approval and return the updated mapping."""
+
+    approvals = load_approvals(owner, accounts_root)
+    approvals[ticker.upper()] = approved_on
+    save_approvals(owner, approvals, accounts_root)
+    return approvals
+
+
+def delete_approval(
+    owner: str, ticker: str, accounts_root: Path | None = None
+) -> Dict[str, date]:
+    """Remove ``ticker`` from approvals and return the updated mapping."""
+
+    approvals = load_approvals(owner, accounts_root)
+    approvals.pop(ticker.upper(), None)
+    save_approvals(owner, approvals, accounts_root)
+    return approvals

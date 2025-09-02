@@ -29,6 +29,7 @@ import type {
   SectorContribution,
   RegionContribution,
   UserConfig,
+  ApprovalsResponse,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -503,6 +504,27 @@ export const updateUserConfig = (owner: string, cfg: UserConfig) =>
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cfg),
+  });
+
+export const getApprovals = (owner: string) =>
+  fetchJson<ApprovalsResponse>(`${API_BASE}/accounts/${owner}/approvals`);
+
+export const addApproval = (
+  owner: string,
+  ticker: string,
+  approved_on?: string,
+) =>
+  fetchJson<ApprovalsResponse>(`${API_BASE}/accounts/${owner}/approvals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker, approved_on }),
+  });
+
+export const removeApproval = (owner: string, ticker: string) =>
+  fetchJson<ApprovalsResponse>(`${API_BASE}/accounts/${owner}/approvals`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
   });
 
 

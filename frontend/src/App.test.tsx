@@ -1,4 +1,4 @@
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -156,6 +156,7 @@ describe("App", () => {
       settings: true,
       reports: true,
       scenario: true,
+      logs: true,
     };
 
     render(
@@ -224,6 +225,7 @@ describe("App", () => {
       settings: true,
       reports: true,
       scenario: true,
+      logs: true,
     };
 
     render(

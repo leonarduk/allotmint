@@ -23,6 +23,7 @@ const defaultConfig: AppConfig = {
         settings: true,
         reports: true,
         scenario: true,
+        logs: true,
     },
 };
 

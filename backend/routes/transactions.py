@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional
 
@@ -101,8 +102,8 @@ async def list_transactions(
     start_d = _parse_date(start)
     end_d = _parse_date(end)
 
-    txs = []
-    for t in _load_all_transactions():
+    txs: List[dict] = []
+    for t in _load_all_transactions() + _POSTED_TRANSACTIONS:
         if owner and t.get("owner", "").lower() != owner.lower():
             continue
         if account and t.get("account", "").lower() != account.lower():
@@ -116,3 +117,26 @@ async def list_transactions(
         txs.append(t)
 
     return txs
+
+
+@router.post("/transactions", status_code=201)
+async def post_transaction(tx: Transaction):
+    """Record a new transaction.
+
+    Validation is handled by :class:`Transaction`. Posted transactions are
+    stored in memory so tests can verify persistence via the GET endpoint and
+    portfolio updates without touching the fixture data on disk.
+    """
+
+    # Basic validation of fields that require custom checks
+    if not _parse_date(tx.date):
+        raise HTTPException(status_code=422, detail="Invalid date")
+    if tx.units <= 0:
+        raise HTTPException(status_code=422, detail="Units must be positive")
+    if not tx.reason:
+        raise HTTPException(status_code=422, detail="Reason required")
+
+    data = tx.dict()
+    _POSTED_TRANSACTIONS.append(data)
+    _PORTFOLIO_IMPACT[tx.owner] += tx.units * tx.price_gbp
+    return {"status": "ok", "transaction": data}

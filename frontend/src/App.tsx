@@ -38,6 +38,7 @@ import DataAdmin from "./pages/DataAdmin";
 import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
+import ProfilePage from "./pages/Profile";
 import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
 import InstrumentSearchBar from "./components/InstrumentSearchBar";
@@ -46,7 +47,7 @@ import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
 import Menu from "./components/Menu";
-type Mode = (typeof orderedTabPlugins)[number]["id"];
+type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -65,6 +66,7 @@ const initialMode: Mode =
   path[0] === "dataadmin" ? "dataadmin" :
   path[0] === "support" ? "support" :
   path[0] === "settings" ? "settings" :
+  path[0] === "profile" ? "profile" :
   path[0] === "scenario" ? "scenario" :
   path[0] === "logs" ? "logs" :
   path.length === 0 ? "group" : "movers";
@@ -109,6 +111,9 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
     switch (segs[0]) {
       case "member":
         newMode = "owner";
+        break;
+      case "profile":
+        newMode = "profile";
         break;
       case "instrument":
         newMode = "instrument";
@@ -395,6 +400,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
       {mode === "allocation" && <AllocationCharts />}
       {mode === "movers" && <TopMovers />}
       {mode === "support" && <Support />}
+      {mode === "profile" && <ProfilePage />}
       {mode === "settings" && <UserConfigPage />}
       {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}

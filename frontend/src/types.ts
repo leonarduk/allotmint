@@ -118,6 +118,15 @@ export interface ValueAtRiskPoint {
     var: number;
 }
 
+export interface ValueAtRiskResponse {
+    owner: string;
+    as_of: string;
+    var: {
+        [horizon: string]: number | null;
+    };
+    sharpe_ratio?: number | null;
+}
+
 export interface AlphaResponse {
     alpha_vs_benchmark: number | null;
     benchmark: string;

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from contextvars import ContextVar
 from typing import Optional, Set
@@ -19,6 +20,8 @@ from backend.common.data_loader import (
     resolve_paths,
 )
 from backend.config import config
+
+logger = logging.getLogger(__name__)
 
 SECRET_KEY = os.getenv("JWT_SECRET", "change-me")
 ALGORITHM = "HS256"
@@ -136,6 +139,7 @@ def verify_google_token(token: str) -> str:
     allowed = _allowed_emails()
     # Reject tokens when no account metadata is discovered or the email is not
     # explicitly allowed.
-    if not email or email.lower() not in allowed:
+    if not email or (allowed and email.lower() not in allowed):
+        logger.warning("Unauthorized login attempt from %s", email)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
     return email

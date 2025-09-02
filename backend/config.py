@@ -124,6 +124,15 @@ def _env_flag(name: str) -> Optional[bool]:
     return val.lower() in {"1", "true", "yes"}
 
 
+def _flatten_dict(src: Dict[str, Any], dst: Dict[str, Any]) -> None:
+    """Recursively flatten ``src`` into ``dst``."""
+    for key, value in src.items():
+        if isinstance(value, dict):
+            _flatten_dict(value, dst)
+        else:
+            dst[key] = value
+
+
 @lru_cache(maxsize=1)
 def load_config() -> Config:
     """Load configuration from config.yaml with optional env overrides."""
@@ -135,11 +144,7 @@ def load_config() -> Config:
             with path.open("r", encoding="utf-8") as f:
                 file_data = yaml.safe_load(f) or {}
                 if isinstance(file_data, dict):
-                    for key, value in file_data.items():
-                        if isinstance(value, dict):
-                            data.update(value)
-                        else:
-                            data[key] = value
+                    _flatten_dict(file_data, data)
         except Exception:
             pass
 
@@ -191,7 +196,10 @@ def load_config() -> Config:
     if env_google_auth is not None:
         google_auth_enabled = env_google_auth.lower() in {"1", "true", "yes"}
 
-    google_client_id = data.get("google_client_id") or os.getenv("GOOGLE_CLIENT_ID")
+    google_client_id = data.get("google_client_id")
+    env_google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if env_google_client_id:
+        google_client_id = env_google_client_id
 
     validate_google_auth(google_auth_enabled, google_client_id)
 

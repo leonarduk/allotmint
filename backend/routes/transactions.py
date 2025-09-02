@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import fcntl
 import json
-from datetime import datetime, date
-from collections import defaultdict
-
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+import logging
+import os
+import re
+from datetime import date, datetime
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+import fcntl
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, ConfigDict
 
 from backend.common import portfolio_loader
 from backend.common import portfolio as portfolio_mod
@@ -19,29 +24,47 @@ from backend.config import config
 router = APIRouter(tags=["transactions"])
 log = logging.getLogger("transactions")
 
-
-# In-memory store for posted transactions used by tests. In a production
-# setting transactions would be persisted to a database or object store but
-# keeping them locally keeps the API side-effect free for the existing data
-# fixtures while still allowing integration tests to exercise the route.
-_POSTED_TRANSACTIONS: List[dict] = []
-_PORTFOLIO_IMPACT = defaultdict(float)
-
-
 class Transaction(BaseModel):
-    """Simple model describing a portfolio transaction."""
+    """Simple representation of a transaction record."""
 
     owner: str
     account: str
+    date: str | None = None
+    ticker: str | None = None
+    type: str | None = None
+    amount_minor: float | None = None
+    price: float | None = None
+    units: float | None = None
+    fees: float | None = None
+    comments: str | None = None
+    reason_to_buy: str | None = None
+
+    model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["transactions"])
+
+_POSTED_TRANSACTIONS: List[dict] = []
+_PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
+
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+class TransactionCreate(BaseModel):
+    owner: str
+    account: str
     ticker: str
+    date: date
+    price: float
     units: float
-    price_gbp: float
-    date: str
-    reason: str
+    fees: Optional[float] = None
+    comments: Optional[str] = None
+    reason_to_buy: Optional[str] = None
 
 
-def _load_all_transactions() -> List[dict]:
-    results: List[dict] = []
+def _load_all_transactions() -> List[Transaction]:
+    results: List[Transaction] = []
     if not config.accounts_root:
         return results
 
@@ -56,9 +79,13 @@ def _load_all_transactions() -> List[dict]:
         except (OSError, json.JSONDecodeError):
             continue
         owner = data.get("owner", path.parent.name)
-        account = data.get("account_type", path.stem.replace("_transactions", ""))
+        account = data.get(
+            "account_type", path.stem.replace("_transactions", "")
+        )
         for t in data.get("transactions", []):
-            results.append({"owner": owner, "account": account, **t})
+            t = dict(t)
+            t.pop("account", None)
+            results.append(Transaction(owner=owner, account=account, **t))
     return results
 
 
@@ -71,7 +98,89 @@ def _parse_date(d: Optional[str]) -> Optional[datetime.date]:
         return None
 
 
-@router.get("/transactions")
+_SAFE_COMPONENT_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _validate_component(value: str, field: str) -> str:
+    if not _SAFE_COMPONENT_RE.fullmatch(value):
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+    return value
+
+
+@router.post("/transactions", status_code=201)
+async def create_transaction(tx: TransactionCreate) -> dict:
+    """Store a new transaction and return it."""
+
+    if not config.accounts_root:
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
+
+    tx_data = tx.model_dump(mode="json")
+    owner = _validate_component(tx_data.pop("owner"), "owner")
+    account = _validate_component(tx_data.pop("account"), "account")
+
+    owner_dir = Path(config.accounts_root) / owner
+    owner_dir.mkdir(parents=True, exist_ok=True)
+    file_path = owner_dir / f"{account}_transactions.json"
+
+    with file_path.open("a+", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        f.seek(0)
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError as exc:
+            logging.warning("Failed to parse existing transactions file %s: %s", file_path, exc)
+            data = {"owner": owner, "account_type": account, "transactions": []}
+        except OSError as exc:
+            logging.warning("Failed to read transactions file %s: %s", file_path, exc)
+            data = {"owner": owner, "account_type": account, "transactions": []}
+
+        transactions = data.setdefault("transactions", [])
+        transactions.append(tx_data)
+        data["owner"] = owner
+        data["account_type"] = account
+
+        f.seek(0)
+        f.truncate()
+        json.dump(data, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+        fcntl.flock(f, fcntl.LOCK_UN)
+# =======
+#     owner = _validate_name(tx_data.pop("owner"), "owner")
+#     account = _validate_name(tx_data.pop("account"), "account")
+
+#     file_path = Path(config.accounts_root) / owner / f"{account}_transactions.json"
+#     file_path.parent.mkdir(parents=True, exist_ok=True)
+
+#     try:
+#         with open(file_path, "a+") as f:
+#             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+#             try:
+#                 f.seek(0)
+#                 try:
+#                     data = json.load(f)
+#                 except json.JSONDecodeError as exc:
+#                     logger.warning("Failed to parse %s: %s", file_path, exc)
+#                     data = {"owner": owner, "account_type": account, "transactions": []}
+#                 transactions = data.setdefault("transactions", [])
+#                 transactions.append(tx_data)
+#                 data["owner"] = owner
+#                 data["account_type"] = account
+#                 f.seek(0)
+#                 json.dump(data, f, indent=2)
+#                 f.truncate()
+#                 f.flush()
+#                 os.fsync(f.fileno())
+#             finally:
+#                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+#     except OSError as exc:
+#         logger.error("Failed to write transaction file %s: %s", file_path, exc)
+#         raise HTTPException(status_code=500, detail="Failed to save transaction") from exc
+
+    return {"owner": owner, "account": account, **tx_data}
+
+
+@router.get("/transactions", response_model=List[Transaction])
 async def list_transactions(
     owner: Optional[str] = None,
     account: Optional[str] = None,
@@ -83,14 +192,13 @@ async def list_transactions(
     start_d = _parse_date(start)
     end_d = _parse_date(end)
 
-    txs: List[dict] = []
-    for t in _load_all_transactions() + _POSTED_TRANSACTIONS:
-        if owner and t.get("owner", "").lower() != owner.lower():
+    txs: List[Transaction] = []
+    for t in _load_all_transactions():
+        if owner and t.owner.lower() != owner.lower():
             continue
-        if account and t.get("account", "").lower() != account.lower():
+        if account and t.account.lower() != account.lower():
             continue
-        date_str = t.get("date")
-        tx_date = _parse_date(date_str)
+        tx_date = _parse_date(t.date)
         if start_d and (not tx_date or tx_date < start_d):
             continue
         if end_d and (not tx_date or tx_date > end_d):

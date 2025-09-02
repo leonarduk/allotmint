@@ -16,7 +16,7 @@ describe('Google login guard', () => {
     const { Root } = await import('./main')
     render(<Root />)
     expect(
-      await screen.findByText(/Google client ID missing. Login is unavailable./i),
+      await screen.findByText(/Google login is not configured./i),
     ).toBeInTheDocument()
   })
 })

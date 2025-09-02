@@ -33,6 +33,7 @@ beforeEach(() => {
       trading: true,
       support: true,
       reports: true,
+      logs: true,
     },
   });
   mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
@@ -80,6 +81,7 @@ describe("Support page", () => {
       trading: true,
       support: true,
       reports: true,
+      logs: true,
     },
   });
   mockGetConfig.mockResolvedValueOnce({
@@ -93,6 +95,7 @@ describe("Support page", () => {
       trading: true,
       support: true,
       reports: true,
+      logs: true,
     },
   });
     mockUpdateConfig.mockResolvedValue(undefined);

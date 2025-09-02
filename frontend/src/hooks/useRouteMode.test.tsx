@@ -59,6 +59,7 @@ describe("useRouteMode", () => {
       settings: false,
       scenario: false,
       reports: false,
+      logs: false,
     };
 
     const config: ConfigContextValue = {

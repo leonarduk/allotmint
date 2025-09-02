@@ -34,6 +34,7 @@ const TimeseriesEdit = lazy(() =>
 const Watchlist = lazy(() => import("./pages/Watchlist"));
 const TopMovers = lazy(() => import("./pages/TopMovers"));
 const DataAdmin = lazy(() => import("./pages/DataAdmin"));
+const InstrumentAdmin = lazy(() => import("./pages/InstrumentAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
 const LogsPage = lazy(() => import("./pages/Logs"));
@@ -251,6 +252,7 @@ export default function MainApp() {
 
       {mode === "screener" && <ScreenerQuery />}
       {mode === "timeseries" && <TimeseriesEdit />}
+      {mode === "instrumentadmin" && <InstrumentAdmin />}
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "support" && <SupportPage />}

@@ -16,6 +16,7 @@
       "timeseries": "Série temporal",
       "watchlist": "Watchlist",
       "movers": "Movers",
+      "instrumentadmin": "Instrument Admin",
       "dataadmin": "Data Admin",
       "settings": "User Settings",
       "reports": "Relatórios",
@@ -219,5 +220,20 @@
     "minAvgVolume": "Min Avg Volume",
     "run": "Executar",
     "loading": "Carregando…"
+  },
+  "instrumentadmin": {
+    "ticker": "Ticker",
+    "name": "Name",
+    "region": "Region",
+    "sector": "Sector",
+    "actions": "Actions",
+    "add": "Add Instrument",
+    "save": "Save",
+    "saveSuccess": "Saved",
+    "saveError": "Error saving",
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required"
+    }
   }
 }

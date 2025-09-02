@@ -204,6 +204,13 @@ export interface TimeseriesSummary {
     main_source?: string | null;
 }
 
+export interface InstrumentMetadata {
+    ticker: string;
+    name: string;
+    region?: string | null;
+    sector?: string | null;
+}
+
 export interface QuoteRow {
     name: string | null;
     symbol: string;

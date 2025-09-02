@@ -29,6 +29,7 @@ import type {
   SectorContribution,
   RegionContribution,
   UserConfig,
+  InstrumentMetadata,
   ApprovalsResponse,
 } from "./types";
 
@@ -374,6 +375,30 @@ export const rebuildTimeseriesCache = (ticker: string, exchange: string) =>
   fetchJson<{ status: string; rows: number }>(
     `${API_BASE}/timeseries/admin/${encodeURIComponent(ticker)}/${encodeURIComponent(exchange)}/rebuild_cache`,
     { method: "POST" },
+  );
+
+// Instrument metadata admin
+export const listInstrumentMetadata = () =>
+  fetchJson<InstrumentMetadata[]>(`${API_BASE}/instrument-metadata`);
+
+export const createInstrumentMetadata = (payload: InstrumentMetadata) =>
+  fetchJson<InstrumentMetadata>(`${API_BASE}/instrument-metadata`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+export const updateInstrumentMetadata = (
+  ticker: string,
+  payload: InstrumentMetadata,
+) =>
+  fetchJson<InstrumentMetadata>(
+    `${API_BASE}/instrument-metadata/${encodeURIComponent(ticker)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
   );
 
 

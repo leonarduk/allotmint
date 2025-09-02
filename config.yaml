@@ -53,6 +53,7 @@ tabs:
   trading: false
   timeseries: true
   watchlist: false
+  instrumentadmin: true
   dataadmin: true
   virtual: false
   support: true

@@ -11,6 +11,7 @@ import Support from './pages/Support'
 import ComplianceWarnings from './pages/ComplianceWarnings'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
+import { AuthProvider } from './AuthContext'
 import InstrumentResearch from './pages/InstrumentResearch'
 import { getConfig } from './api'
 import LoginPage from './LoginPage'
@@ -58,11 +59,13 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 createRoot(rootEl).render(
   <StrictMode>
-    <ConfigProvider>
-      <PriceRefreshProvider>
-        <Root />
-      </PriceRefreshProvider>
-    </ConfigProvider>
+    <AuthProvider>
+      <ConfigProvider>
+        <PriceRefreshProvider>
+          <Root />
+        </PriceRefreshProvider>
+      </ConfigProvider>
+    </AuthProvider>
   </StrictMode>,
 )
 

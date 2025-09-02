@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { API_BASE, setAuthToken } from "./api";
+import { useAuth } from "./AuthContext";
 
 interface Props {
   clientId: string;
@@ -13,6 +14,7 @@ declare global {
 }
 
 export default function LoginPage({ clientId, onSuccess }: Props) {
+  const { setUser } = useAuth();
   useEffect(() => {
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
@@ -31,6 +33,18 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
           if (res.ok) {
             const data = await res.json();
             setAuthToken(data.access_token);
+            try {
+              const payload = JSON.parse(
+                atob(resp.credential.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
+              );
+              setUser({
+                email: payload.email,
+                name: payload.name,
+                picture: payload.picture,
+              });
+            } catch (e) {
+              console.error("Failed to decode Google credential", e);
+            }
             onSuccess();
           }
         },

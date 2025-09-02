@@ -88,7 +88,6 @@ class Config:
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
     google_client_id: Optional[str] = None
-    allowed_emails: Optional[List[str]] = None
     relative_view_enabled: Optional[bool] = None
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
@@ -208,10 +207,14 @@ def load_config() -> Config:
             )
 
     google_client_id = data.get("google_client_id")
+    env_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if env_client_id is not None:
+        google_client_id = env_client_id
+
     if isinstance(google_client_id, str):
         google_client_id = google_client_id.strip() or None
-    env_google_client_id = os.getenv("GOOGLE_CLIENT_ID")
-    if env_google_client_id is not None:
+
+      if env_google_client_id is not None:
         env_val = env_google_client_id.strip()
         if env_val:
             google_client_id = env_val
@@ -221,11 +224,6 @@ def load_config() -> Config:
             google_client_id = None
 
     validate_google_auth(google_auth_enabled, google_client_id)
-
-    allowed_emails = data.get("allowed_emails")
-    env_allowed = os.getenv("ALLOWED_EMAILS")
-    if env_allowed:
-        allowed_emails = [e.strip() for e in env_allowed.split(",") if e.strip()]
 
     return Config(
         app_env=data.get("app_env"),
@@ -247,7 +245,6 @@ def load_config() -> Config:
         disable_auth=data.get("disable_auth"),
         google_auth_enabled=google_auth_enabled,
         google_client_id=google_client_id,
-        allowed_emails=allowed_emails,
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),
         timeseries_cache_base=data.get("timeseries_cache_base"),

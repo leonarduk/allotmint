@@ -13,7 +13,15 @@ def _setup_app(monkeypatch, tmp_path, allowed_email="user@example.com"):
     monkeypatch.setattr(config, "disable_auth", False)
     monkeypatch.setattr(config, "google_auth_enabled", True)
     monkeypatch.setattr(config, "google_client_id", "client")
-    monkeypatch.setattr(config, "allowed_emails", [allowed_email])
+
+    accounts_root = tmp_path / "accounts"
+    owner_dir = accounts_root / "owner"
+    owner_dir.mkdir(parents=True)
+    (owner_dir / "person.json").write_text(
+        f'{{"email": "{allowed_email}"}}', encoding="utf-8"
+    )
+    monkeypatch.setattr(config, "accounts_root", accounts_root)
+
     app = create_app()
     return TestClient(app)
 

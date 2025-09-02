@@ -37,7 +37,7 @@ describe("MainApp demo view", () => {
     const { default: MainApp } = await import("./MainApp");
 
     render(
-      <MemoryRouter initialEntries={["/"]}>
+      <MemoryRouter initialEntries={["/member"]}>
         <ConfigProvider>
           <RouteProvider>
             <PriceRefreshProvider>
@@ -49,6 +49,7 @@ describe("MainApp demo view", () => {
     );
 
     const select = await screen.findByLabelText(/owner/i);
+    await screen.findByDisplayValue("demo");
     expect(select).toHaveValue("demo");
     expect(screen.queryByText(/Unauthorized/i)).toBeNull();
   });

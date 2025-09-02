@@ -5,7 +5,9 @@
   "currency": "GBP",
   "instrumentType": "Cash",
   "isin": "",
-  "region": null,
+  "asset_class": "Cash",
+  "industry": null,
+  "region": "United Kingdom",
   "sector": "",
   "morningStarRating": ""
 }

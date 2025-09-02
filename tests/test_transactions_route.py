@@ -27,7 +27,7 @@ def test_create_transaction_success(tmp_path, monkeypatch):
         "reason_to_buy": "diversify",
     }
     resp = client.post("/transactions", json=payload)
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     data = resp.json()
     for key, value in payload.items():
         assert data[key] == value

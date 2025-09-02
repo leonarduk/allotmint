@@ -9,7 +9,6 @@ import VirtualPortfolio from './pages/VirtualPortfolio'
 import Reports from './pages/Reports'
 import Support from './pages/Support'
 import ComplianceWarnings from './pages/ComplianceWarnings'
-import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import InstrumentResearch from './pages/InstrumentResearch'
@@ -44,6 +43,7 @@ function Root() {
         <Route path="/virtual" element={<VirtualPortfolio />} />
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+        <Route path="/research/:ticker" element={<InstrumentResearch />} />
         <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>
@@ -56,24 +56,13 @@ createRoot(rootEl).render(
   <StrictMode>
     <ConfigProvider>
       <PriceRefreshProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/support" element={<Support />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/virtual" element={<VirtualPortfolio />} />
-            <Route path="/compliance" element={<ComplianceWarnings />} />
-            <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
-            <Route path="/research/:ticker" element={<InstrumentResearch />} />
-            {/* Catch-all for app routes; keep last to avoid intercepting above paths */}
-            <Route path="/*" element={<App />} />
-          </Routes>
-        </BrowserRouter>
+        <Root />
       </PriceRefreshProvider>
     </ConfigProvider>
   </StrictMode>,
 )
 
-if ('serviceWorker' in navigator) {
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js');
   });

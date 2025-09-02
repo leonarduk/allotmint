@@ -214,15 +214,6 @@ def load_config() -> Config:
     if isinstance(google_client_id, str):
         google_client_id = google_client_id.strip() or None
 
-      if env_google_client_id is not None:
-        env_val = env_google_client_id.strip()
-        if env_val:
-            google_client_id = env_val
-        elif google_auth_enabled:
-            raise ConfigValidationError("GOOGLE_CLIENT_ID is empty")
-        else:
-            google_client_id = None
-
     validate_google_auth(google_auth_enabled, google_client_id)
 
     return Config(

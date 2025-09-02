@@ -76,6 +76,8 @@ GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com   # Google OAuth clie
 ALLOWED_EMAILS=user1@example.com,user2@example.com           # comma-separated
 ```
 
+If `GOOGLE_AUTH_ENABLED` is `true`, you must create an OAuth 2.0 Client ID in the [Google Cloud Console](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid) and supply it via the `GOOGLE_CLIENT_ID` environment variable or the `google_client_id` entry in `config.yaml`.
+
 Alternatively export variables in your shell. Unset variables simply disable
 their corresponding integrations.
 

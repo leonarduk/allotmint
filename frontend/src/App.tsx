@@ -22,7 +22,7 @@ import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
-import { PerformanceDashboard } from "./components/PerformanceDashboard";
+import PortfolioDashboard from "./pages/PortfolioDashboard";
 
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
@@ -405,7 +405,7 @@ export default function App() {
             selected={selectedOwner}
             onSelect={setSelectedOwner}
           />
-          <PerformanceDashboard owner={selectedOwner} />
+          <PortfolioDashboard owner={selectedOwner} />
         </>
       )}
 

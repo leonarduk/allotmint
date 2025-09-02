@@ -9,13 +9,30 @@ from datetime import date, datetime
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional
-
 import fcntl
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from backend.config import config
+
+
+class Transaction(BaseModel):
+    """Simple representation of a transaction record."""
+
+    owner: str
+    account: str
+    date: str | None = None
+    ticker: str | None = None
+    type: str | None = None
+    amount_minor: float | None = None
+    price: float | None = None
+    units: float | None = None
+    fees: float | None = None
+    comments: str | None = None
+    reason_to_buy: str | None = None
+
+    model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +56,8 @@ class TransactionCreate(BaseModel):
     reason_to_buy: Optional[str] = None
 
 
-def _load_all_transactions() -> List[dict]:
-    results: List[dict] = []
+def _load_all_transactions() -> List[Transaction]:
+    results: List[Transaction] = []
     if not config.accounts_root:
         return results
 
@@ -55,9 +72,13 @@ def _load_all_transactions() -> List[dict]:
         except Exception:
             continue
         owner = data.get("owner", path.parent.name)
-        account = data.get("account_type", path.stem.replace("_transactions", ""))
+        account = data.get(
+            "account_type", path.stem.replace("_transactions", "")
+        )
         for t in data.get("transactions", []):
-            results.append({"owner": owner, "account": account, **t})
+            t = dict(t)
+            t.pop("account", None)
+            results.append(Transaction(owner=owner, account=account, **t))
     return results
 
 
@@ -152,7 +173,7 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     return {"owner": owner, "account": account, **tx_data}
 
 
-@router.get("/transactions")
+@router.get("/transactions", response_model=List[Transaction])
 async def list_transactions(
     owner: Optional[str] = None,
     account: Optional[str] = None,
@@ -164,14 +185,13 @@ async def list_transactions(
     start_d = _parse_date(start)
     end_d = _parse_date(end)
 
-    txs: List[dict] = []
-    for t in _load_all_transactions() + _POSTED_TRANSACTIONS:
-        if owner and t.get("owner", "").lower() != owner.lower():
+    txs: List[Transaction] = []
+    for t in _load_all_transactions():
+        if owner and t.owner.lower() != owner.lower():
             continue
-        if account and t.get("account", "").lower() != account.lower():
+        if account and t.account.lower() != account.lower():
             continue
-        date_str = t.get("date")
-        tx_date = _parse_date(date_str)
+        tx_date = _parse_date(t.date)
         if start_d and (not tx_date or tx_date < start_d):
             continue
         if end_d and (not tx_date or tx_date > end_d):

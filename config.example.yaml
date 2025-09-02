@@ -29,8 +29,6 @@ reload: true
 # https://console.cloud.google.com/apis/credentials and set via this file
 # or the GOOGLE_CLIENT_ID environment variable.
 google_client_id: ""
-allowed_emails:
-  - user@example.com
 relative_view_enabled: false
 theme: system
 log_config: backend/logging.ini

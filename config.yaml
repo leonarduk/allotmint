@@ -23,10 +23,10 @@ cors:
     - https://app.allotmint.io
 app_env: local
 
-google_auth_enabled: true
-google_client_id: "281640956843-ppuaennh8relsv8cdimn4tcd35qau1t0.apps.googleusercontent.com"
+google_auth_enabled: false
+google_client_id: ""
 
-disable_auth: false
+disable_auth: true
 portfolio_xml_path: data/portfolio/investments.xml
 transactions_output_root: data/accounts
 uvicorn_host: 0.0.0.0

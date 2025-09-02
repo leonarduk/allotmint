@@ -57,7 +57,6 @@ class BackendLambdaStack(Stack):
             environment={
                 "GOOGLE_AUTH_ENABLED": "true",
                 "GOOGLE_CLIENT_ID": "${GOOGLE_CLIENT_ID}",
-                "ALLOWED_EMAILS": "${ALLOWED_EMAILS}",
             },
         )
         backend_fn.add_environment("APP_ENV", env)

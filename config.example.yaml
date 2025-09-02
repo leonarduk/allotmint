@@ -25,10 +25,10 @@ portfolio_xml_path: data/portfolio/investments.xml
 transactions_output_root: data/accounts
 uvicorn_port: 8000
 reload: true
-  # Required when google_auth_enabled is true. Obtain one from
-  # https://console.cloud.google.com/apis/credentials and set via this file
-  # or the GOOGLE_CLIENT_ID environment variable.
-  google_client_id: ""
+# Required when google_auth_enabled is true. Obtain one from
+# https://console.cloud.google.com/apis/credentials and set via this file
+# or the GOOGLE_CLIENT_ID environment variable.
+google_client_id: ""
 allowed_emails:
   - user@example.com
 relative_view_enabled: false

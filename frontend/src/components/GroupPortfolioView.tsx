@@ -150,13 +150,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   );
 
   const totals = computePortfolioTotals(activeAccounts);
-  const {
-    totalValue,
-    totalDayChange,
-    totalGain,
-    totalGainPct,
-    totalDayChangePct,
-  } = totals;
+  const { totalValue } = totals;
 
   for (const acct of activeAccounts) {
     const owner = acct.owner ?? "—";

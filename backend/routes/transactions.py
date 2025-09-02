@@ -2,16 +2,39 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, date
+from collections import defaultdict
+
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 from backend.common import portfolio_loader
 from backend.common import portfolio as portfolio_mod
 from backend.config import config
 
 router = APIRouter(tags=["transactions"])
+
+
+# In-memory store for posted transactions used by tests. In a production
+# setting transactions would be persisted to a database or object store but
+# keeping them locally keeps the API side-effect free for the existing data
+# fixtures while still allowing integration tests to exercise the route.
+_POSTED_TRANSACTIONS: List[dict] = []
+_PORTFOLIO_IMPACT = defaultdict(float)
+
+
+class Transaction(BaseModel):
+    """Simple model describing a portfolio transaction."""
+
+    owner: str
+    account: str
+    ticker: str
+    units: float
+    price_gbp: float
+    date: str
+    reason: str
 
 
 def _load_all_transactions() -> List[dict]:
@@ -57,8 +80,8 @@ async def list_transactions(
     start_d = _parse_date(start)
     end_d = _parse_date(end)
 
-    txs = []
-    for t in _load_all_transactions():
+    txs: List[dict] = []
+    for t in _load_all_transactions() + _POSTED_TRANSACTIONS:
         if owner and t.get("owner", "").lower() != owner.lower():
             continue
         if account and t.get("account", "").lower() != account.lower():

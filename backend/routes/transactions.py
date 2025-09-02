@@ -5,6 +5,8 @@ from datetime import datetime, date
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Request
 
 from backend.common import portfolio_loader
@@ -12,6 +14,7 @@ from backend.common import portfolio as portfolio_mod
 from backend.config import config
 
 router = APIRouter(tags=["transactions"])
+log = logging.getLogger("transactions")
 
 
 def _load_all_transactions() -> List[dict]:
@@ -27,7 +30,7 @@ def _load_all_transactions() -> List[dict]:
     for path in data_root.glob("*/*_transactions.json"):
         try:
             data = json.loads(path.read_text())
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             continue
         owner = data.get("owner", path.parent.name)
         account = data.get("account_type", path.stem.replace("_transactions", ""))
@@ -88,15 +91,20 @@ async def add_transaction(payload: Dict[str, Any], request: Request):
     owner_dir.mkdir(parents=True, exist_ok=True)
 
     tx_file = owner_dir / f"{account.lower()}_transactions.json"
-    try:
-        data = json.loads(tx_file.read_text()) if tx_file.exists() else {
-            "owner": owner,
-            "account_type": account.upper(),
-            "currency": payload.get("currency", "GBP"),
-            "last_updated": date.today().isoformat(),
-            "transactions": [],
-        }
-    except Exception:
+    existed = tx_file.exists()
+    if existed:
+        try:
+            data = json.loads(tx_file.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            log.error("Failed to read %s: %s", tx_file, exc)
+            data = {
+                "owner": owner,
+                "account_type": account.upper(),
+                "currency": payload.get("currency", "GBP"),
+                "last_updated": date.today().isoformat(),
+                "transactions": [],
+            }
+    else:
         data = {
             "owner": owner,
             "account_type": account.upper(),
@@ -104,17 +112,40 @@ async def add_transaction(payload: Dict[str, Any], request: Request):
             "last_updated": date.today().isoformat(),
             "transactions": [],
         }
+        acct_path = owner_dir / f"{account.lower()}.json"
+        if acct_path.exists():
+            try:
+                acct_data = json.loads(acct_path.read_text())
+                seed_date = acct_data.get("last_updated", date.today().isoformat())
+                for h in acct_data.get("holdings", []):
+                    ticker = h.get("ticker")
+                    units = h.get("units")
+                    if ticker and units:
+                        data["transactions"].append(
+                            {
+                                "date": seed_date,
+                                "type": "BUY",
+                                "ticker": ticker,
+                                "shares": units,
+                            }
+                        )
+            except (OSError, json.JSONDecodeError) as exc:
+                log.warning("Failed to seed transactions from %s: %s", acct_path, exc)
 
     tx_record = {k: v for k, v in payload.items() if k not in {"owner", "account"}}
     data.setdefault("transactions", []).append(tx_record)
     data["last_updated"] = date.today().isoformat()
-    tx_file.write_text(json.dumps(data, indent=2))
+    try:
+        tx_file.write_text(json.dumps(data, indent=2))
+    except OSError as exc:
+        log.error("Failed to write transactions to %s: %s", tx_file, exc)
+        raise HTTPException(status_code=500, detail="failed to write transaction")
 
     # Rebuild holdings and refresh portfolio snapshot
     portfolio_loader.rebuild_account_holdings(owner, account, Path(root))
     try:
         portfolio_mod.build_owner_portfolio(owner, Path(root))
-    except FileNotFoundError:
-        pass
+    except FileNotFoundError as exc:
+        log.warning("Portfolio rebuild failed: %s", exc)
 
     return {"status": "ok"}

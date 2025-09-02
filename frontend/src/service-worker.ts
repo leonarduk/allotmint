@@ -36,15 +36,18 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
 });
 
 // Runtime caching for same-origin GET requests. Static assets use cache-first and
-// API calls bypass the cache so live data stays fresh.
-registerRoute(
-  ({ request, url }) =>
-    request.method === 'GET' &&
-    url.origin === self.location.origin &&
-    request.destination !== '' &&
-    !url.pathname.startsWith('/api/'),
-  new CacheFirst({ cacheName: CACHE_NAME })
-);
+// API calls bypass the cache so live data stays fresh. Skip the cache in dev to
+// avoid serving stale modules.
+if (!import.meta.env.DEV) {
+  registerRoute(
+    ({ request, url }) =>
+      request.method === 'GET' &&
+      url.origin === self.location.origin &&
+      request.destination !== '' &&
+      !url.pathname.startsWith('/api/'),
+    new CacheFirst({ cacheName: CACHE_NAME })
+  );
+}
 
 registerRoute(
   ({ request, url }) =>

@@ -19,3 +19,7 @@
   url: http://localhost:8000/api/quotes
   params:
     symbols: AAPL
+
+- name: Retrieve instrument metadata (admin)
+  method: GET
+  url: http://localhost:8000/instrument/admin/L/GAW

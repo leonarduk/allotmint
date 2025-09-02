@@ -15,7 +15,7 @@ import InstrumentResearch from './pages/InstrumentResearch'
 import { getConfig } from './api'
 import LoginPage from './LoginPage'
 
-function Root() {
+export function Root() {
   const [ready, setReady] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
@@ -32,6 +32,10 @@ function Root() {
 
   if (!ready) return null
   if (needsAuth && !authed) {
+    if (!clientId) {
+      console.error('Google client ID is missing; login disabled')
+      return <div>Google client ID missing. Login is unavailable.</div>
+    }
     return <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
   }
 

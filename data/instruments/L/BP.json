@@ -5,6 +5,8 @@
   "currency": "GBX",
   "instrumentType": "Equity",
   "isin": "GB0007980591",
+  "asset_class": "Equity",
+  "industry": "Oil & Gas",
   "region": "Europe",
   "sector": "Energy",
   "morningStarRating": ""

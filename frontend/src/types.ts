@@ -184,6 +184,15 @@ export interface UserConfig {
     approval_exempt_tickers?: string[];
 }
 
+export interface Approval {
+    ticker: string;
+    approved_on: string;
+}
+
+export interface ApprovalsResponse {
+    approvals: Approval[];
+}
+
 export interface TimeseriesSummary {
     ticker: string;
     exchange: string;

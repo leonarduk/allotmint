@@ -20,8 +20,6 @@ export default function Menu({
   const location = useLocation();
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
-
-  const params = new URLSearchParams(location.search);
   const path = location.pathname.split("/").filter(Boolean);
 
   const mode: TabPluginId =

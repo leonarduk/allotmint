@@ -156,6 +156,7 @@ describe("App", () => {
       settings: true,
       reports: true,
       scenario: true,
+      logs: true,
     };
 
     render(
@@ -224,6 +225,7 @@ describe("App", () => {
       settings: true,
       reports: true,
       scenario: true,
+      logs: true,
     };
 
     render(

@@ -16,7 +16,7 @@ cors:
   production:
     - https://app.allotmint.io
 app_env: local
-google_auth_enabled: false
+google_auth_enabled: false # enable Google sign-in; requires google_client_id
 disable_auth: true
 sns_topic_arn: ''
 telegram_bot_token: "" # set via TELEGRAM_BOT_TOKEN env var
@@ -25,7 +25,7 @@ portfolio_xml_path: data/portfolio/investments.xml
 transactions_output_root: data/accounts
 uvicorn_port: 8000
 reload: true
-google_client_id: ""
+google_client_id: "" # Google OAuth client ID required when google_auth_enabled is true; set via GOOGLE_CLIENT_ID env var or here
 allowed_emails:
   - user@example.com
 relative_view_enabled: false

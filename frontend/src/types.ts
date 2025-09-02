@@ -184,6 +184,15 @@ export interface UserConfig {
     approval_exempt_tickers?: string[];
 }
 
+export interface Approval {
+    ticker: string;
+    approved_on: string;
+}
+
+export interface ApprovalsResponse {
+    approvals: Approval[];
+}
+
 export interface TimeseriesSummary {
     ticker: string;
     exchange: string;
@@ -193,6 +202,13 @@ export interface TimeseriesSummary {
     completeness: number;
     latest_source?: string | null;
     main_source?: string | null;
+}
+
+export interface InstrumentMetadata {
+    ticker: string;
+    name: string;
+    region?: string | null;
+    sector?: string | null;
 }
 
 export interface QuoteRow {

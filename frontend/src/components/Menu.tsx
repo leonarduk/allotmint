@@ -36,6 +36,8 @@ export default function Menu({
       ? "watchlist"
       : path[0] === "movers"
       ? "movers"
+      : path[0] === "instrumentadmin"
+      ? "instrumentadmin"
       : path[0] === "dataadmin"
       ? "dataadmin"
       : path[0] === "support"
@@ -70,6 +72,8 @@ export default function Menu({
         return "/settings";
       case "logs":
         return "/logs";
+      case "instrumentadmin":
+        return "/instrumentadmin";
       default:
         return `/${m}`;
     }

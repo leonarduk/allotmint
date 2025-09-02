@@ -386,6 +386,11 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
     for tkr, entry in by_ticker.items():
         if not tkr:
             continue
+        meta = get_security_meta(tkr) or {}
+        entry.setdefault("asset_class", meta.get("asset_class"))
+        entry.setdefault("industry", meta.get("industry") or meta.get("sector"))
+        entry.setdefault("region", meta.get("region"))
+        entry.setdefault("sector", meta.get("sector"))
         entry.update(_price_and_changes(tkr))
         cost = entry["market_value_gbp"] - entry["gain_gbp"]
         entry["gain_pct"] = (entry["gain_gbp"] / cost * 100.0) if cost else None

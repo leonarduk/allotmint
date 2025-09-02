@@ -53,6 +53,7 @@ describe("useRouteMode", () => {
       timeseries: false,
       watchlist: false,
       movers: false,
+      instrumentadmin: false,
       dataadmin: false,
       virtual: false,
       support: false,

@@ -8,6 +8,7 @@ export type Mode =
   | "timeseries"
   | "watchlist"
   | "movers"
+  | "instrumentadmin"
   | "dataadmin"
   | "settings"
   | "support"
@@ -24,6 +25,7 @@ export const MODES: Mode[] = [
   "screener",
   "timeseries",
   "watchlist",
+  "instrumentadmin",
   "dataadmin",
   "settings",
   "support",

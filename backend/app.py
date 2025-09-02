@@ -54,6 +54,7 @@ from backend.routes.timeseries_edit import router as timeseries_edit_router
 from backend.routes.timeseries_meta import router as timeseries_router
 from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.transactions import router as transactions_router
+from backend.routes.approvals import router as approvals_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 from backend.utils import page_cache
@@ -123,6 +124,7 @@ def create_app() -> FastAPI:
     app.include_router(quotes_router)
     app.include_router(movers_router)
     app.include_router(user_config_router, dependencies=protected)
+    app.include_router(approvals_router, dependencies=protected)
     app.include_router(scenario_router)
     app.include_router(logs_router)
 

@@ -41,6 +41,8 @@ def test_create_transaction_success(tmp_path, monkeypatch):
     expected_tx.pop("owner")
     expected_tx.pop("account")
     assert expected_tx in stored["transactions"]
+    for tx in stored["transactions"]:
+        assert "owner" not in tx
 
 
 def test_create_transaction_validation_error(tmp_path, monkeypatch):

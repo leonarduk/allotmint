@@ -13,7 +13,7 @@ import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider } from './AuthContext'
 import InstrumentResearch from './pages/InstrumentResearch'
-import { getConfig } from './api'
+import { getConfig, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 
 export function Root() {
@@ -21,6 +21,11 @@ export function Root() {
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
   const [authed, setAuthed] = useState(false)
+
+  const logout = () => {
+    setAuthToken(null)
+    setAuthed(false)
+  }
 
   useEffect(() => {
     getConfig<Record<string, unknown>>()
@@ -35,7 +40,7 @@ export function Root() {
   if (needsAuth && !authed) {
     if (!clientId) {
       console.error('Google client ID is missing; login disabled')
-      return <div>Google client ID missing. Login is unavailable.</div>
+      return <div>Google login is not configured.</div>
     }
     return <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
   }
@@ -49,7 +54,7 @@ export function Root() {
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
-        <Route path="/*" element={<App />} />
+        <Route path="/*" element={<App onLogout={logout} />} />
       </Routes>
     </BrowserRouter>
   )

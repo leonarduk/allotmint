@@ -18,6 +18,14 @@ from backend.config import (
 router = APIRouter(prefix="/config", tags=["config"])
 
 
+def deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
+    for key, value in src.items():
+        if isinstance(value, dict) and isinstance(dst.get(key), dict):
+            deep_merge(dst[key], value)
+        else:
+            dst[key] = value
+
+
 @router.get("")
 async def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
@@ -38,22 +46,48 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as exc:  # pragma: no cover - defensive
             raise HTTPException(500, f"Failed to read config: {exc}")
 
-    tabs_payload = payload.get("tabs")
-    if isinstance(tabs_payload, dict):
-        existing_tabs = data.get("tabs")
-        if not isinstance(existing_tabs, dict):
-            existing_tabs = {}
-        existing_tabs.update(tabs_payload)
-        data["tabs"] = existing_tabs
+    deep_merge(data, payload)
 
-    other_updates = {k: v for k, v in payload.items() if k != "tabs"}
-    data.update(other_updates)
+    auth_section = data.get("auth", {}) if isinstance(data, dict) else {}
 
-    google_auth_enabled = data.get("google_auth_enabled")
+    for key in [
+        "google_auth_enabled",
+        "google_client_id",
+        "disable_auth",
+        "allowed_emails",
+    ]:
+        if key in data:
+            auth_section[key] = data.pop(key)
+
+    data["auth"] = auth_section
+
+    google_auth_enabled = auth_section.get("google_auth_enabled")
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
     if env_google_auth is not None:
-        google_auth_enabled = env_google_auth.lower() in {"1", "true", "yes"}
-    google_client_id = data.get("google_client_id") or os.getenv("GOOGLE_CLIENT_ID")
+        env_val = env_google_auth.strip().lower()
+        if env_val in {"1", "true", "yes"}:
+            google_auth_enabled = True
+        elif env_val in {"0", "false", "no"}:
+            google_auth_enabled = False
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="GOOGLE_AUTH_ENABLED must be one of '1', 'true', 'yes', '0', 'false', 'no'",
+            )
+
+    google_client_id = auth_section.get("google_client_id")
+    if isinstance(google_client_id, str):
+        google_client_id = google_client_id.strip() or None
+    env_google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if env_google_client_id is not None:
+        env_val = env_google_client_id.strip()
+        if env_val:
+            google_client_id = env_val
+        elif google_auth_enabled:
+            raise HTTPException(status_code=400, detail="GOOGLE_CLIENT_ID is empty")
+        else:
+            google_client_id = None
+
     try:
         validate_google_auth(google_auth_enabled, google_client_id)
     except ConfigValidationError as exc:

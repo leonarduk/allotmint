@@ -135,7 +135,11 @@ def load_config() -> Config:
             with path.open("r", encoding="utf-8") as f:
                 file_data = yaml.safe_load(f) or {}
                 if isinstance(file_data, dict):
-                    data.update(file_data)
+                    for key, value in file_data.items():
+                        if isinstance(value, dict):
+                            data.update(value)
+                        else:
+                            data[key] = value
         except Exception:
             pass
 

@@ -72,7 +72,7 @@ def test_google_auth_requires_client_id(monkeypatch):
 
 def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
-    config_path.write_text("google_auth_enabled: false\n")
+    config_path.write_text("auth:\n  google_auth_enabled: false\n")
 
     monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
@@ -82,7 +82,7 @@ def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
 
     client = TestClient(create_app())
 
-    resp = client.put("/config", json={"google_auth_enabled": True})
+    resp = client.put("/config", json={"auth": {"google_auth_enabled": True}})
     assert resp.status_code == 400
 
     config_module.load_config.cache_clear()

@@ -1,13 +1,14 @@
 from fastapi.testclient import TestClient
 import pandas as pd
 import pytest
+from typing import Optional
 
 from backend.app import create_app
 from backend.config import ConfigValidationError, config
 from backend.routes import timeseries_admin
 
 
-def _setup_app(monkeypatch, tmp_path, allowed_email="user@example.com"):
+def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@example.com"):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     monkeypatch.setattr(config, "disable_auth", False)
@@ -15,11 +16,13 @@ def _setup_app(monkeypatch, tmp_path, allowed_email="user@example.com"):
     monkeypatch.setattr(config, "google_client_id", "client")
 
     accounts_root = tmp_path / "accounts"
-    owner_dir = accounts_root / "owner"
-    owner_dir.mkdir(parents=True)
-    (owner_dir / "person.json").write_text(
-        f'{{"email": "{allowed_email}"}}', encoding="utf-8"
-    )
+    accounts_root.mkdir(parents=True)
+    if allowed_email:
+        owner_dir = accounts_root / "owner"
+        owner_dir.mkdir(parents=True)
+        (owner_dir / "person.json").write_text(
+            f'{{"email": "{allowed_email}"}}', encoding="utf-8"
+        )
     monkeypatch.setattr(config, "accounts_root", accounts_root)
 
     app = create_app()
@@ -56,6 +59,19 @@ def test_google_token_rejects_unallowed_email(monkeypatch, tmp_path):
 
     def mock_verify(token, request, audience):
         return {"email": "other@example.com", "email_verified": True}
+
+    monkeypatch.setattr("backend.auth.id_token.verify_oauth2_token", mock_verify)
+
+    resp = client.post("/token/google", json={"token": "abc"})
+    assert resp.status_code == 403
+
+
+def test_google_token_rejects_when_no_accounts(monkeypatch, tmp_path):
+    """Ensure tokens are rejected when no allowed emails are discovered."""
+    client = _setup_app(monkeypatch, tmp_path, allowed_email=None)
+
+    def mock_verify(token, request, audience):
+        return {"email": "user@example.com", "email_verified": True}
 
     monkeypatch.setattr("backend.auth.id_token.verify_oauth2_token", mock_verify)
 

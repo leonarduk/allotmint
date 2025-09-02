@@ -24,9 +24,8 @@ cors:
 app_env: local
 
 google_auth_enabled: false
-google_client_id: ""
 
-disable_auth: true
+disable_auth: false
 portfolio_xml_path: data/portfolio/investments.xml
 transactions_output_root: data/accounts
 uvicorn_host: 0.0.0.0

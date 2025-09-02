@@ -2,6 +2,8 @@ offline_mode: false
 max_trades_per_month: 20
 hold_days_min: 30
 repo_root: .
+# Allowed sign-in emails are discovered from person.json files within this
+# directory.
 accounts_root: data/accounts
 prices_json: data/prices/latest_prices.json
 risk_free_rate: 0.01
@@ -16,8 +18,8 @@ cors:
   production:
     - https://app.allotmint.io
 app_env: local
-google_auth_enabled: false # enable Google sign-in; requires google_client_id
-disable_auth: true
+google_auth_enabled: true # enable Google sign-in; requires google_client_id
+disable_auth: false
 sns_topic_arn: ''
 telegram_bot_token: "" # set via TELEGRAM_BOT_TOKEN env var
 telegram_chat_id: "" # set via TELEGRAM_CHAT_ID env var
@@ -28,7 +30,7 @@ reload: true
 # Required when google_auth_enabled is true. Obtain one from
 # https://console.cloud.google.com/apis/credentials and set via this file
 # or the GOOGLE_CLIENT_ID environment variable.
-google_client_id: ""
+google_client_id: "YOUR_GOOGLE_CLIENT_ID"
 relative_view_enabled: false
 theme: system
 log_config: backend/logging.ini

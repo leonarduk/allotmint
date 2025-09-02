@@ -134,6 +134,8 @@ def verify_google_token(token: str) -> str:
 
     email = info.get("email")
     allowed = _allowed_emails()
-    if not email or (allowed and email.lower() not in allowed):
+    # Reject tokens when no account metadata is discovered or the email is not
+    # explicitly allowed.
+    if not email or email.lower() not in allowed:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
     return email

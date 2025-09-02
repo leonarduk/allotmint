@@ -42,6 +42,7 @@ import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
 import InstrumentSearchBar from "./components/InstrumentSearchBar";
 import Logs from "./pages/Logs";
+import InstrumentAdmin from "./pages/InstrumentAdmin";
 type Mode = (typeof orderedTabPlugins)[number]["id"];
 
 // derive initial mode + id from path
@@ -56,6 +57,7 @@ const initialMode: Mode =
   path[0] === "timeseries" ? "timeseries" :
   path[0] === "watchlist" ? "watchlist" :
   path[0] === "movers" ? "movers" :
+  path[0] === "instrumentadmin" ? "instrumentadmin" :
   path[0] === "dataadmin" ? "dataadmin" :
   path[0] === "support" ? "support" :
   path[0] === "settings" ? "settings" :
@@ -118,6 +120,8 @@ export default function App() {
         return "/settings";
       case "logs":
         return "/logs";
+      case "instrumentadmin":
+        return "/instrumentadmin";
       default:
         return `/${m}`;
     }
@@ -154,6 +158,9 @@ export default function App() {
         break;
       case "movers":
         newMode = "movers";
+        break;
+      case "instrumentadmin":
+        newMode = "instrumentadmin";
         break;
       case "dataadmin":
         newMode = "dataadmin";
@@ -415,6 +422,7 @@ export default function App() {
 
       {mode === "screener" && <ScreenerQuery />}
       {mode === "timeseries" && <TimeseriesEdit />}
+      {mode === "instrumentadmin" && <InstrumentAdmin />}
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "movers" && <TopMovers />}

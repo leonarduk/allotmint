@@ -25,9 +25,10 @@ describe('LoginPage error handling', () => {
   it('shows error message when login fails', async () => {
     const initialize = vi.fn()
     ;(window as any).google = { accounts: { id: { initialize, renderButton: vi.fn() } } }
-    let callback: (resp: { credential: string }) => Promise<void> | void
+    let callback!: (resp: { credential: string }) => Promise<void> | void
     initialize.mockImplementation((opts: { callback: typeof callback }) => {
       callback = opts.callback
+      return Promise.resolve()
     })
 
     const fetchMock = vi
@@ -41,6 +42,7 @@ describe('LoginPage error handling', () => {
 
     const script = document.head.querySelector('script[src="https://accounts.google.com/gsi/client"]') as HTMLScriptElement
     script.onload?.(new Event('load'))
+    await initialize.mock.results[0].value
     await callback({ credential: 'token' })
 
     expect(await screen.findByText('bad')).toBeInTheDocument()

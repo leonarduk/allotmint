@@ -29,6 +29,7 @@ import type {
   SectorContribution,
   RegionContribution,
   UserConfig,
+  ApprovalsResponse,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -504,6 +505,55 @@ export const updateUserConfig = (owner: string, cfg: UserConfig) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cfg),
   });
+
+export const getApprovals = async (owner: string) => {
+  try {
+    return await fetchJson<ApprovalsResponse>(
+      `${API_BASE}/accounts/${owner}/approvals`,
+    );
+  } catch (err) {
+    console.error("failed to fetch approvals for", owner, err);
+    throw err;
+  }
+};
+
+export const addApproval = async (
+  owner: string,
+  ticker: string,
+  approved_on: string,
+) => {
+  if (!ticker) throw new Error("ticker is required");
+  if (!approved_on) throw new Error("approved_on is required");
+  try {
+    return await fetchJson<ApprovalsResponse>(
+      `${API_BASE}/accounts/${owner}/approvals`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker, approved_on }),
+      },
+    );
+  } catch (err) {
+    console.error("failed to add approval for", owner, ticker, err);
+    throw err;
+  }
+};
+
+export const removeApproval = async (owner: string, ticker: string) => {
+  try {
+    return await fetchJson<ApprovalsResponse>(
+      `${API_BASE}/accounts/${owner}/approvals`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker }),
+      },
+    );
+  } catch (err) {
+    console.error("failed to remove approval for", owner, ticker, err);
+    throw err;
+  }
+};
 
 
 /** Execute a custom query against the backend. */

@@ -13,6 +13,8 @@ export default defineConfig({
         srcDir: 'src',
         filename: 'service-worker.ts',
         manifest: false,
+        // enable service worker in dev but avoid caching dev assets
+        devOptions: { enabled: true, disableRuntimeConfig: true },
         workbox: {
           globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}']
         }

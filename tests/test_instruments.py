@@ -1,6 +1,8 @@
+from backend.common import instruments
 import pytest
 
 from backend.common import instruments
+import pytest
 
 
 def test_missing_file_returns_empty(monkeypatch, tmp_path):
@@ -32,3 +34,14 @@ def test_unexpected_error_propagates(monkeypatch, tmp_path, caplog):
         with pytest.raises(RuntimeError):
             instruments.get_instrument_meta("ERR.TKR")
     assert "Unexpected error loading" in caplog.text
+
+
+def test_save_and_delete_instrument_meta(monkeypatch, tmp_path):
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    instruments.save_instrument_meta("ABC", "L", {"ticker": "ABC.L"})
+    path = tmp_path / "L" / "ABC.json"
+    assert path.exists()
+    assert instruments.get_instrument_meta("ABC.L") == {"ticker": "ABC.L"}
+    instruments.delete_instrument_meta("ABC", "L")
+    assert not path.exists()
+    assert instruments.get_instrument_meta("ABC.L") == {}

@@ -41,6 +41,7 @@ import UserConfigPage from "./pages/UserConfig";
 import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
 import InstrumentSearchBar from "./components/InstrumentSearchBar";
+import UserAvatar from "./components/UserAvatar";
 import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
@@ -302,6 +303,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
             {new Date(lastRefresh).toLocaleString()}
           </span>
         )}
+        <UserAvatar />
       </div>
 
       <div style={{ marginBottom: "1rem" }}>

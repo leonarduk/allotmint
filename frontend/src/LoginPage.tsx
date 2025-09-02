@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { API_BASE, setAuthToken } from "./api";
+import { useAuth } from "./AuthContext";
 
 interface Props {
   clientId: string;
@@ -18,6 +19,7 @@ function sanitize(input: string): string {
 }
 
 export default function LoginPage({ clientId, onSuccess }: Props) {
+  const { setUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     const script = document.createElement("script");
@@ -37,6 +39,19 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
           if (res.ok) {
             const data = await res.json();
             setAuthToken(data.access_token);
+            try {
+              const base64Url = resp.credential.split(".")[1];
+              const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+              const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+              const payload = JSON.parse(atob(base64 + padding));
+              setUser({
+                email: payload.email,
+                name: payload.name,
+                picture: payload.picture,
+              });
+            } catch (e) {
+              console.error("Failed to decode Google credential", e);
+            }
             onSuccess();
           } else {
             let msg = "Login failed";

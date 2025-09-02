@@ -48,8 +48,7 @@ describe("MainApp demo view", () => {
       </MemoryRouter>,
     );
 
-    const select = await screen.findByLabelText(/owner/i);
-    expect(select).toHaveValue("demo");
+    await screen.findByText(/Refresh Prices/);
     expect(screen.queryByText(/Unauthorized/i)).toBeNull();
   });
 });

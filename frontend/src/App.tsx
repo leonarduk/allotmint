@@ -22,7 +22,7 @@ import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
-import { PerformanceDashboard } from "./components/PerformanceDashboard";
+import PortfolioDashboard from "./pages/PortfolioDashboard";
 
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
@@ -42,11 +42,12 @@ import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
 import InstrumentSearchBar from "./components/InstrumentSearchBar";
 import Logs from "./pages/Logs";
+import AllocationCharts from "./pages/AllocationCharts";
+import InstrumentAdmin from "./pages/InstrumentAdmin";
 type Mode = (typeof orderedTabPlugins)[number]["id"];
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
-const params = new URLSearchParams(window.location.search);
 const initialMode: Mode =
   path[0] === "member" ? "owner" :
   path[0] === "instrument" ? "instrument" :
@@ -56,7 +57,9 @@ const initialMode: Mode =
   path[0] === "screener" ? "screener" :
   path[0] === "timeseries" ? "timeseries" :
   path[0] === "watchlist" ? "watchlist" :
+  path[0] === "allocation" ? "allocation" :
   path[0] === "movers" ? "movers" :
+  path[0] === "instrumentadmin" ? "instrumentadmin" :
   path[0] === "dataadmin" ? "dataadmin" :
   path[0] === "support" ? "support" :
   path[0] === "settings" ? "settings" :
@@ -119,6 +122,10 @@ export default function App() {
         return "/settings";
       case "logs":
         return "/logs";
+      case "allocation":
+        return "/allocation";
+      case "instrumentadmin":
+        return "/instrumentadmin";
       default:
         return `/${m}`;
     }
@@ -153,8 +160,14 @@ export default function App() {
       case "watchlist":
         newMode = "watchlist";
         break;
+      case "allocation":
+        newMode = "allocation";
+        break;
       case "movers":
         newMode = "movers";
+        break;
+      case "instrumentadmin":
+        newMode = "instrumentadmin";
         break;
       case "dataadmin":
         newMode = "dataadmin";
@@ -406,7 +419,7 @@ export default function App() {
             selected={selectedOwner}
             onSelect={setSelectedOwner}
           />
-          <PerformanceDashboard owner={selectedOwner} />
+          <PortfolioDashboard owner={selectedOwner} />
         </>
       )}
 
@@ -416,8 +429,10 @@ export default function App() {
 
       {mode === "screener" && <ScreenerQuery />}
       {mode === "timeseries" && <TimeseriesEdit />}
+      {mode === "instrumentadmin" && <InstrumentAdmin />}
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
+      {mode === "allocation" && <AllocationCharts />}
       {mode === "movers" && <TopMovers />}
       {mode === "support" && <Support />}
       {mode === "settings" && <UserConfigPage />}

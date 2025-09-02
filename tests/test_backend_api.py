@@ -217,6 +217,72 @@ def test_transactions_endpoint(client):
     assert isinstance(resp.json(), list)
 
 
+def _post_sample_tx(client, owner: str, account: str, **overrides):
+    payload = {
+        "owner": owner,
+        "account": account,
+        "ticker": "ZZZZ.L",
+        "units": 1.0,
+        "price_gbp": 10.0,
+        "date": "2024-01-01",
+        "reason": "test transaction",
+    }
+    payload.update(overrides)
+    return client.post("/transactions", json=payload)
+
+
+def test_post_transaction_persists_and_updates_portfolio(client):
+    owners = client.get("/owners").json()
+    assert owners, "No owners returned"
+    owner = owners[0]["owner"]
+
+    portfolio = client.get(f"/portfolio/{owner}").json()
+    account = portfolio["accounts"][0]["account_type"]
+    before = portfolio["total_value_estimate_gbp"]
+
+    resp = _post_sample_tx(client, owner, account)
+    assert resp.status_code == 201
+
+    txs = client.get(f"/transactions?owner={owner}").json()
+    assert any(t.get("ticker") == "ZZZZ.L" for t in txs)
+
+    after = client.get(f"/portfolio/{owner}").json()["total_value_estimate_gbp"]
+    assert after == pytest.approx(before + 10.0)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("date", "not-a-date"),
+        ("units", -5),
+    ],
+)
+def test_post_transaction_invalid_fields(client, field, value):
+    owners = client.get("/owners").json()
+    owner = owners[0]["owner"]
+    account = client.get(f"/portfolio/{owner}").json()["accounts"][0]["account_type"]
+    resp = _post_sample_tx(client, owner, account, **{field: value})
+    assert resp.status_code == 422
+
+
+def test_post_transaction_missing_reason(client):
+    owners = client.get("/owners").json()
+    owner = owners[0]["owner"]
+    account = client.get(f"/portfolio/{owner}").json()["accounts"][0]["account_type"]
+    payload = {
+        "owner": owner,
+        "account": account,
+        "ticker": "ZZZZ.L",
+        "units": 1.0,
+        "price_gbp": 10.0,
+        "date": "2024-01-01",
+    }
+    resp = client.post("/transactions", json=payload)
+    # missing required field triggers FastAPI validation before our handler
+    # and returns a 400 from the global validation_exception_handler
+    assert resp.status_code == 400
+
+
 def test_compliance_endpoint(client):
     owners = client.get("/owners").json()
     assert owners, "No owners returned"

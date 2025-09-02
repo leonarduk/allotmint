@@ -24,6 +24,7 @@ def test_tabs_defaults_true():
     assert cfg.tabs.group is True
     assert cfg.tabs.owner is True
     assert cfg.tabs.dataadmin is True
+    assert cfg.tabs.instrumentadmin is True
     assert cfg.tabs.scenario is True
 
 

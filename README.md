@@ -306,6 +306,8 @@ role requires the following minimal IAM permissions on that bucket:
   accounts.
 * ``s3:GetObject`` on ``accounts/*`` – read account and ``person.json`` files.
 
+Instrument metadata can reside in a separate bucket. Set ``METADATA_BUCKET`` to the bucket storing instrument JSON files and ``METADATA_PREFIX`` to the key prefix (default ``instruments/``). Updates made locally will be uploaded to this S3 path when configured.
+
 ## Tests
 
 Run Python and frontend test suites with:
@@ -391,6 +393,7 @@ prefix:
 - `accounts/<owner>/trades.csv`
 - `accounts/<owner>/<account>.json`
 - `accounts/<owner>/person.json`
+- Instrument metadata files under `METADATA_PREFIX` (default `instruments/`) in the bucket specified by `METADATA_BUCKET`.
 
 Lambdas that read portfolio information require `s3:GetObject` permission for
 these paths. A minimal IAM policy statement is:

@@ -54,4 +54,5 @@ tabs:
   instrument: true
   support: true
   timeseries: true
+  instrumentadmin: true
   reports: true

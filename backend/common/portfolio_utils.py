@@ -210,6 +210,8 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
         "sector": data.get("sector"),
         "region": data.get("region"),
         "currency": data.get("currency"),
+        "asset_class": data.get("asset_class"),
+        "industry": data.get("industry"),
     }
 
 
@@ -238,6 +240,8 @@ def _build_securities_from_portfolios() -> Dict[str, Dict]:
                     "sector": h.get("sector") or file_meta.get("sector"),
                     "region": h.get("region") or file_meta.get("region"),
                     "currency": h.get("currency") or file_meta.get("currency"),
+                    "asset_class": h.get("asset_class") or file_meta.get("asset_class"),
+                    "industry": h.get("industry") or file_meta.get("industry"),
                 }
     return securities
 
@@ -413,7 +417,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                 )
 
             # pass-through misc attributes (first non-null wins)
-            for k in ("asset_class", "region", "owner", "sector"):
+            for k in ("asset_class", "industry", "region", "owner", "sector"):
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
 

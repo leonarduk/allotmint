@@ -96,7 +96,8 @@ def authenticate_user(id_token_str: str) -> Optional[str]:
     email = verify_google_token(id_token_str)
     if not email:
         return None
-    if email.lower() not in _allowed_emails():
+    allowed = _allowed_emails()
+    if allowed and email.lower() not in allowed:
         return None
     return email
 

@@ -31,6 +31,7 @@ class TabsConfig:
     timeseries: bool = True
     watchlist: bool = True
     movers: bool = True
+    instrumentadmin: bool = True
     group: bool = True
     owner: bool = True
     dataadmin: bool = True

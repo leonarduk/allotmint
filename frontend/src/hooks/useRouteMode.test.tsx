@@ -53,12 +53,14 @@ describe("useRouteMode", () => {
       timeseries: false,
       watchlist: false,
       movers: false,
+      instrumentadmin: false,
       dataadmin: false,
       virtual: false,
       support: false,
       settings: false,
       scenario: false,
       reports: false,
+      logs: false,
     };
 
     const config: ConfigContextValue = {

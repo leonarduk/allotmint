@@ -1,4 +1,4 @@
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -148,14 +148,16 @@ describe("App", () => {
       trading: true,
       screener: true,
       timeseries: true,
-      watchlist: true,
-      movers: true,
-      dataadmin: true,
-      virtual: true,
+    watchlist: true,
+    movers: true,
+    instrumentadmin: true,
+    dataadmin: true,
+    virtual: true,
       support: true,
       settings: true,
       reports: true,
       scenario: true,
+      logs: true,
     };
 
     render(
@@ -216,14 +218,16 @@ describe("App", () => {
       trading: true,
       screener: true,
       timeseries: true,
-      watchlist: true,
-      movers: true,
-      dataadmin: true,
-      virtual: true,
+    watchlist: true,
+    movers: true,
+    instrumentadmin: true,
+    dataadmin: true,
+    virtual: true,
       support: true,
       settings: true,
       reports: true,
       scenario: true,
+      logs: true,
     };
 
     render(
@@ -384,6 +388,8 @@ describe("App", () => {
       "Screener & Query",
       "Timeseries",
       "Watchlist",
+      "Allocation",
+      "Instrument Admin",
       "Data Admin",
       "Reports",
       "User Settings",

@@ -24,6 +24,7 @@ function deriveInitial() {
     path[0] === "timeseries" ? "timeseries" :
     path[0] === "watchlist" ? "watchlist" :
     path[0] === "movers" ? "movers" :
+    path[0] === "instrumentadmin" ? "instrumentadmin" :
     path[0] === "dataadmin" ? "dataadmin" :
     path[0] === "support" ? "support" :
     path[0] === "scenario" ? "scenario" :
@@ -65,6 +66,8 @@ const { tabs, disabledTabs } = useConfig();
         return "/settings";
       case "logs":
         return "/logs";
+      case "instrumentadmin":
+        return "/instrumentadmin";
       default:
         return `/${m}`;
     }
@@ -98,6 +101,9 @@ const { tabs, disabledTabs } = useConfig();
         break;
       case "movers":
         newMode = "movers";
+        break;
+      case "instrumentadmin":
+        newMode = "instrumentadmin";
         break;
       case "dataadmin":
         newMode = "dataadmin";

@@ -22,8 +22,8 @@ cors:
   production:
     - https://app.allotmint.io
 app_env: local
-google_auth_enabled: false
-disable_auth: true
+google_auth_enabled: true
+disable_auth: false
 portfolio_xml_path: data/portfolio/investments.xml
 transactions_output_root: data/accounts
 uvicorn_host: 0.0.0.0
@@ -53,6 +53,7 @@ tabs:
   trading: false
   timeseries: true
   watchlist: false
+  instrumentadmin: true
   dataadmin: true
   virtual: false
   support: true

@@ -1,0 +1,71 @@
+from datetime import date
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Request
+
+from backend.common.approvals import delete_approval, load_approvals, upsert_approval
+from backend.common.errors import handle_owner_not_found, raise_owner_not_found
+
+router = APIRouter(prefix="/accounts", tags=["approvals"])
+
+
+@router.get("/{owner}/approvals")
+@handle_owner_not_found
+async def get_approvals(owner: str, request: Request):
+    root = Path(request.app.state.accounts_root).resolve()
+    try:
+        owner_dir = (root / owner).resolve()
+        owner_dir.relative_to(root)
+    except Exception:
+        raise_owner_not_found()
+    try:
+        approvals = load_approvals(owner, root)
+    except FileNotFoundError:
+        approvals = {}
+    entries = [
+        {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
+    ]
+    return {"approvals": entries}
+
+
+@router.post("/{owner}/approvals")
+@handle_owner_not_found
+async def post_approval(owner: str, request: Request):
+    data = await request.json()
+    ticker = (data.get("ticker") or "").upper()
+    when = data.get("approved_on")
+    if not when:
+        raise HTTPException(status_code=400, detail="approved_on is required")
+    try:
+        approved_on = date.fromisoformat(when)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="invalid approved_on") from exc
+    root = Path(request.app.state.accounts_root).resolve()
+    try:
+        owner_dir = (root / owner).resolve()
+        owner_dir.relative_to(root)
+    except Exception:
+        raise_owner_not_found()
+    approvals = upsert_approval(owner, ticker, approved_on, root)
+    entries = [
+        {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
+    ]
+    return {"approvals": entries}
+
+
+@router.delete("/{owner}/approvals")
+@handle_owner_not_found
+async def delete_approval_route(owner: str, request: Request):
+    data = await request.json()
+    ticker = (data.get("ticker") or "").upper()
+    root = Path(request.app.state.accounts_root).resolve()
+    try:
+        owner_dir = (root / owner).resolve()
+        owner_dir.relative_to(root)
+    except Exception:
+        raise_owner_not_found()
+    approvals = delete_approval(owner, ticker, root)
+    entries = [
+        {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
+    ]
+    return {"approvals": entries}

@@ -17,12 +17,14 @@ const defaultConfig: AppConfig = {
         timeseries: true,
         watchlist: true,
         movers: true,
+        instrumentadmin: true,
         dataadmin: true,
         virtual: true,
         support: true,
         settings: true,
         reports: true,
         scenario: true,
+        logs: true,
     },
 };
 

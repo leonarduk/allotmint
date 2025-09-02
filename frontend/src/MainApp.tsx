@@ -15,7 +15,7 @@ import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
-import { PerformanceDashboard } from "./components/PerformanceDashboard";
+import PortfolioDashboard from "./pages/PortfolioDashboard";
 
 import { AlertsPanel } from "./components/AlertsPanel";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
@@ -34,6 +34,7 @@ const TimeseriesEdit = lazy(() =>
 const Watchlist = lazy(() => import("./pages/Watchlist"));
 const TopMovers = lazy(() => import("./pages/TopMovers"));
 const DataAdmin = lazy(() => import("./pages/DataAdmin"));
+const InstrumentAdmin = lazy(() => import("./pages/InstrumentAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
 const LogsPage = lazy(() => import("./pages/Logs"));
@@ -89,6 +90,13 @@ export default function MainApp() {
       setBackendUnavailable(false);
     }
   }, [ownersReq.data, groupsReq.data, demoOnly]);
+
+  // when only the demo owner is available, ensure we show the owner view
+  useEffect(() => {
+    if (demoOnly) {
+      setMode("owner");
+    }
+  }, [demoOnly, setMode]);
 
   // redirect to defaults if no selection provided
   useEffect(() => {
@@ -243,7 +251,7 @@ export default function MainApp() {
             selected={selectedOwner}
             onSelect={setSelectedOwner}
           />
-          <PerformanceDashboard owner={selectedOwner} />
+          <PortfolioDashboard owner={selectedOwner} />
         </>
       )}
 
@@ -251,6 +259,7 @@ export default function MainApp() {
 
       {mode === "screener" && <ScreenerQuery />}
       {mode === "timeseries" && <TimeseriesEdit />}
+      {mode === "instrumentadmin" && <InstrumentAdmin />}
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "support" && <SupportPage />}

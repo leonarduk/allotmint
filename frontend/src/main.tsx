@@ -9,7 +9,6 @@ import VirtualPortfolio from './pages/VirtualPortfolio'
 import Reports from './pages/Reports'
 import Support from './pages/Support'
 import ComplianceWarnings from './pages/ComplianceWarnings'
-import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import InstrumentResearch from './pages/InstrumentResearch'
@@ -34,8 +33,8 @@ export function Root() {
   if (!ready) return null
   if (needsAuth && !authed) {
     if (!clientId) {
-      console.error('Missing Google client ID')
-      return <div>Google login is not configured</div>
+      console.error('Google client ID is missing; login disabled')
+      return <div>Google client ID missing. Login is unavailable.</div>
     }
     return <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
   }
@@ -67,7 +66,7 @@ createRoot(rootEl).render(
   </StrictMode>,
 )
 
-if ('serviceWorker' in navigator) {
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/service-worker.js');
   });

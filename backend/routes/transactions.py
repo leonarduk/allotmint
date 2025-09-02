@@ -19,14 +19,14 @@ class Transaction(BaseModel):
     date: str | None = None
     ticker: str | None = None
     type: str | None = None
-    amount_minor: int | None = None
+    amount_minor: float | None = None
     price: float | None = None
     units: float | None = None
     fees: float | None = None
     comments: str | None = None
     reason_to_buy: str | None = None
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
 
 router = APIRouter(tags=["transactions"])
@@ -52,6 +52,8 @@ def _load_all_transactions() -> List[Transaction]:
             "account_type", path.stem.replace("_transactions", "")
         )
         for t in data.get("transactions", []):
+            t = dict(t)
+            t.pop("account", None)
             results.append(Transaction(owner=owner, account=account, **t))
     return results
 

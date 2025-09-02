@@ -27,7 +27,7 @@ def test_create_transaction_success(tmp_path, monkeypatch):
         "reason_to_buy": "diversify",
     }
     resp = client.post("/transactions", json=payload)
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     data = resp.json()
     for key, value in payload.items():
         assert data[key] == value
@@ -37,8 +37,10 @@ def test_create_transaction_success(tmp_path, monkeypatch):
     stored = json.loads(file_path.read_text())
     assert stored["owner"] == "alice"
     assert stored["account_type"] == "ISA"
-    assert stored["transactions"][0]["ticker"] == "AAPL"
-    assert "owner" not in stored["transactions"][0]
+    expected_tx = payload.copy()
+    expected_tx.pop("owner")
+    expected_tx.pop("account")
+    assert expected_tx in stored["transactions"]
 
 
 def test_create_transaction_validation_error(tmp_path, monkeypatch):

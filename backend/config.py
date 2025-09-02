@@ -14,10 +14,12 @@ class ConfigValidationError(ValueError):
 
 
 def validate_google_auth(enabled: Optional[bool], client_id: Optional[str]) -> None:
-    if enabled and not client_id:
-        raise ConfigValidationError(
-            "google_auth_enabled is true but google_client_id is missing"
-        )
+    """Ensure Google auth is configured correctly."""
+    if enabled:
+        if not client_id or not client_id.strip():
+            raise ConfigValidationError(
+                "google_auth_enabled is true but google_client_id is missing"
+            )
 
 
 @dataclass
@@ -125,10 +127,11 @@ def _env_flag(name: str) -> Optional[bool]:
 
 
 def _flatten_dict(src: Dict[str, Any], dst: Dict[str, Any]) -> None:
-    """Recursively flatten ``src`` into ``dst``."""
+    """Flatten one level of ``src`` into ``dst`` while preserving nested maps."""
     for key, value in src.items():
         if isinstance(value, dict):
-            _flatten_dict(value, dst)
+            for sub_key, sub_val in value.items():
+                dst[sub_key] = sub_val
         else:
             dst[key] = value
 
@@ -194,12 +197,28 @@ def load_config() -> Config:
     google_auth_enabled = data.get("google_auth_enabled")
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
     if env_google_auth is not None:
-        google_auth_enabled = env_google_auth.lower() in {"1", "true", "yes"}
+        env_val = env_google_auth.strip().lower()
+        if env_val in {"1", "true", "yes"}:
+            google_auth_enabled = True
+        elif env_val in {"0", "false", "no"}:
+            google_auth_enabled = False
+        else:
+            raise ConfigValidationError(
+                "GOOGLE_AUTH_ENABLED must be one of '1', 'true', 'yes', '0', 'false', 'no'",
+            )
 
     google_client_id = data.get("google_client_id")
+    if isinstance(google_client_id, str):
+        google_client_id = google_client_id.strip() or None
     env_google_client_id = os.getenv("GOOGLE_CLIENT_ID")
-    if env_google_client_id:
-        google_client_id = env_google_client_id
+    if env_google_client_id is not None:
+        env_val = env_google_client_id.strip()
+        if env_val:
+            google_client_id = env_val
+        elif google_auth_enabled:
+            raise ConfigValidationError("GOOGLE_CLIENT_ID is empty")
+        else:
+            google_client_id = None
 
     validate_google_auth(google_auth_enabled, google_client_id)
 

@@ -122,7 +122,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
               outerRadius="80%"
               label
             >
-              {chartData.map((entry, index) => (
+              {chartData.map((_, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={COLORS[index % COLORS.length]}

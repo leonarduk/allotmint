@@ -82,6 +82,34 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         raise
 
 
+def instrument_meta_path(ticker: str, exchange: str) -> Path:
+    """Return the filesystem path for a ticker/exchange pair."""
+
+    return _instrument_path(f"{ticker}.{exchange}")
+
+
+def save_instrument_meta(ticker: str, exchange: str, data: Dict[str, Any]) -> Path:
+    """Persist ``data`` for ``ticker`` on ``exchange`` and return the path."""
+
+    path = instrument_meta_path(ticker, exchange)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2, sort_keys=True)
+        fh.write("\n")
+    get_instrument_meta.cache_clear()
+    return path
+
+
+def delete_instrument_meta(ticker: str, exchange: str) -> None:
+    """Delete the metadata file for ``ticker`` on ``exchange`` if present."""
+
+    path = instrument_meta_path(ticker, exchange)
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return
+    get_instrument_meta.cache_clear()
+
 # def save_instrument_meta(ticker: str, meta: Dict[str, Any]) -> None:
 #     """Write ``meta`` for ``ticker`` back to disk.
 

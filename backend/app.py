@@ -35,6 +35,7 @@ from backend.routes.alerts import router as alerts_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
 from backend.routes.instrument import router as instrument_router
+from backend.routes.instrument_admin import router as instrument_admin_router
 from backend.routes.logs import router as logs_router
 from backend.routes.metrics import router as metrics_router
 from backend.routes.movers import router as movers_router
@@ -101,6 +102,8 @@ def create_app() -> FastAPI:
     app.include_router(portfolio_router, dependencies=protected)
     app.include_router(performance_router, dependencies=protected)
     app.include_router(instrument_router)
+    # Administrative endpoints for editing instrument definitions
+    app.include_router(instrument_admin_router, dependencies=protected)
     app.include_router(timeseries_router)
     app.include_router(timeseries_edit_router)
     app.include_router(timeseries_admin_router, dependencies=protected)

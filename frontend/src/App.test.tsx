@@ -432,8 +432,7 @@ describe("App", () => {
       </AuthContext.Provider>,
     );
 
-    expect(
-      await screen.findByRole("img", { name: /user avatar/i }),
-    ).toBeInTheDocument();
+    const avatar = await screen.findByRole("img", { name: /user avatar/i });
+    expect(avatar).toHaveAttribute("src", "http://example.com/pic.jpg");
   });
 });

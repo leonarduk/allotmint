@@ -16,7 +16,7 @@ import InstrumentResearch from './pages/InstrumentResearch'
 import { getConfig } from './api'
 import LoginPage from './LoginPage'
 
-function Root() {
+export function Root() {
   const [ready, setReady] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
@@ -33,6 +33,10 @@ function Root() {
 
   if (!ready) return null
   if (needsAuth && !authed) {
+    if (!clientId) {
+      console.error('Missing Google client ID')
+      return <div>Google login is not configured</div>
+    }
     return <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
   }
 
@@ -44,6 +48,7 @@ function Root() {
         <Route path="/virtual" element={<VirtualPortfolio />} />
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+        <Route path="/research/:ticker" element={<InstrumentResearch />} />
         <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>
@@ -56,18 +61,7 @@ createRoot(rootEl).render(
   <StrictMode>
     <ConfigProvider>
       <PriceRefreshProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/support" element={<Support />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/virtual" element={<VirtualPortfolio />} />
-            <Route path="/compliance" element={<ComplianceWarnings />} />
-            <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
-            <Route path="/research/:ticker" element={<InstrumentResearch />} />
-            {/* Catch-all for app routes; keep last to avoid intercepting above paths */}
-            <Route path="/*" element={<App />} />
-          </Routes>
-        </BrowserRouter>
+        <Root />
       </PriceRefreshProvider>
     </ConfigProvider>
   </StrictMode>,

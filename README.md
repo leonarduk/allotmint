@@ -72,14 +72,18 @@ SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:allotmint   # optional
 TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ      # optional
 TELEGRAM_CHAT_ID=123456789                                  # optional
 GOOGLE_AUTH_ENABLED=true                                    # enable Google sign-in
-GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com   # Google OAuth client
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com   # Google OAuth client (required when enabling)
 ALLOWED_EMAILS=user1@example.com,user2@example.com           # comma-separated
 ```
 
 Alternatively export variables in your shell. Unset variables simply disable
 their corresponding integrations.
 
-When `GOOGLE_AUTH_ENABLED` is true, the backend accepts Google ID tokens at
+When `GOOGLE_AUTH_ENABLED` is true, the backend requires a valid
+`GOOGLE_CLIENT_ID`. Create an OAuth client in the
+[Google Cloud Console](https://console.cloud.google.com/apis/credentials), then
+set the client ID via the `GOOGLE_CLIENT_ID` environment variable or
+`config.yaml`. With both enabled, the backend accepts Google ID tokens at
 `/token/google` and only issues API tokens for emails listed in
 `ALLOWED_EMAILS`.
 

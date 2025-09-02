@@ -41,7 +41,7 @@ def test_stooq_timeout_loaded():
 def test_auth_flags(monkeypatch):
     cfg = config_module.load_config()
     assert cfg.google_auth_enabled is False
-    assert cfg.disable_auth is False
+    assert cfg.disable_auth is True
 
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "client")

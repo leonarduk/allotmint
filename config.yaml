@@ -21,7 +21,7 @@ auth:
   # Enable Google sign-in (GOOGLE_AUTH_ENABLED)
   google_auth_enabled: false
   # Disable all authentication checks (DISABLE_AUTH) - use only for development
-  disable_auth: false
+  disable_auth: true
   # OAuth client id for Google auth (GOOGLE_CLIENT_ID)
   google_client_id: ""
 

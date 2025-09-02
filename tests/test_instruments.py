@@ -1,9 +1,6 @@
 from backend.common import instruments
 import pytest
 
-from backend.common import instruments
-import pytest
-
 
 def test_missing_file_returns_empty(monkeypatch, tmp_path):
     missing = tmp_path / "missing.json"

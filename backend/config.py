@@ -9,6 +9,17 @@ from typing import Any, Dict, List, Optional, overload
 import yaml
 
 
+class ConfigValidationError(ValueError):
+    """Raised when configuration values are invalid."""
+
+
+def validate_google_auth(enabled: Optional[bool], client_id: Optional[str]) -> None:
+    if enabled and not client_id:
+        raise ConfigValidationError(
+            "google_auth_enabled is true but google_client_id is missing"
+        )
+
+
 @dataclass
 class TabsConfig:
     instrument: bool = True
@@ -177,8 +188,7 @@ def load_config() -> Config:
 
     google_client_id = data.get("google_client_id") or os.getenv("GOOGLE_CLIENT_ID")
 
-    if google_auth_enabled and not google_client_id:
-        raise ValueError("google_auth_enabled is true but google_client_id is missing")
+    validate_google_auth(google_auth_enabled, google_client_id)
 
     allowed_emails = data.get("allowed_emails")
     env_allowed = os.getenv("ALLOWED_EMAILS")

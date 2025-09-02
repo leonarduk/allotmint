@@ -12,6 +12,11 @@ declare global {
   }
 }
 
+function sanitize(input: string): string {
+  return new DOMParser().parseFromString(input, 'text/html').body
+    .textContent || ''
+}
+
 export default function LoginPage({ clientId, onSuccess }: Props) {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -41,7 +46,7 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
             } catch {
               // ignore JSON parse errors
             }
-            setError(msg);
+            setError(sanitize(msg));
           }
         },
       });

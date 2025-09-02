@@ -4,14 +4,21 @@ import LoginPage from './LoginPage'
 
 describe('Google login guard', () => {
   it('shows error when client ID missing', async () => {
-    vi.mock('./api', () => ({
-      getConfig: () => Promise.resolve({ google_auth_enabled: true, google_client_id: '' })
-    }))
+    vi.mock('./api', async () => {
+      const actual = await vi.importActual<typeof import('./api')>('./api')
+      return {
+        ...actual,
+        getConfig: () =>
+          Promise.resolve({ google_auth_enabled: true, google_client_id: '' })
+      }
+    })
     document.body.innerHTML = '<div id="root"></div>'
     const { Root } = await import('./main')
     render(<Root />)
-    expect(await screen.findByText(/Google login is not configured/i)).toBeInTheDocument()
-})
+    expect(
+      await screen.findByText(/google client id missing\. login is unavailable\./i)
+    ).toBeInTheDocument()
+  })
 })
 
 describe('LoginPage error handling', () => {
@@ -23,10 +30,12 @@ describe('LoginPage error handling', () => {
       callback = opts.callback
     })
 
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => ({ detail: 'bad' })
-    }) as any
+    const fetchMock = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({
+        ok: false,
+        json: async () => ({ detail: 'bad' })
+      } as any)
 
     render(<LoginPage clientId="cid" onSuccess={() => {}} />)
 
@@ -35,5 +44,7 @@ describe('LoginPage error handling', () => {
     await callback({ credential: 'token' })
 
     expect(await screen.findByText('bad')).toBeInTheDocument()
+
+    fetchMock.mockRestore()
   })
 })

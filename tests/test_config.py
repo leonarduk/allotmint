@@ -85,6 +85,9 @@ def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
     resp = client.put("/config", json={"auth": {"google_auth_enabled": True}})
     assert resp.status_code == 400
 
+    resp = client.put("/config", json={"google_auth_enabled": True})
+    assert resp.status_code == 400
+
     config_module.load_config.cache_clear()
     cfg = config_module.load_config()
     assert cfg.google_auth_enabled is False

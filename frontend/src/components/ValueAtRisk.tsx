@@ -17,20 +17,16 @@ export function ValueAtRisk({ owner }: Props) {
     let isMounted = true;
     setLoading(true);
     setErr(null);
-    Promise.all([
-      getValueAtRisk(owner, { days, confidence: 95 }),
-      getValueAtRisk(owner, { days, confidence: 99 }),
-    ])
-      .then(([d95, d99]) => {
+    Promise.resolve(getValueAtRisk?.(owner, { days }))
+      .then((data) => {
         if (!isMounted) return;
-        const v95 = d95.length ? d95[d95.length - 1].var : null;
-        const v99 = d99.length ? d99[d99.length - 1].var : null;
+        const v95 = data?.var?.["1d"] ?? null;
+        const v99 = data?.var?.["10d"] ?? null;
         setVar95(v95);
         setVar99(v99);
-        if (v95 == null && v99 == null) {
+        if (v95 == null && v99 == null && typeof recomputeValueAtRisk === "function") {
           // attempt to refresh data on the backend
-          recomputeValueAtRisk(owner, { days, confidence: 95 }).catch(() => {});
-          recomputeValueAtRisk(owner, { days, confidence: 99 }).catch(() => {});
+          Promise.resolve(recomputeValueAtRisk(owner, { days })).catch(() => {});
         }
       })
       .catch((e) => {

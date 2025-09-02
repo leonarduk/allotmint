@@ -3,10 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict
 
+import os
 import yaml
 from fastapi import APIRouter, HTTPException
 
-from backend.config import _project_config_path, get_config_dict, load_config
+from backend.config import (
+    ConfigValidationError,
+    _project_config_path,
+    get_config_dict,
+    load_config,
+    validate_google_auth,
+)
 
 router = APIRouter(prefix="/config", tags=["config"])
 
@@ -41,6 +48,17 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     other_updates = {k: v for k, v in payload.items() if k != "tabs"}
     data.update(other_updates)
+
+    google_auth_enabled = data.get("google_auth_enabled")
+    env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
+    if env_google_auth is not None:
+        google_auth_enabled = env_google_auth.lower() in {"1", "true", "yes"}
+    google_client_id = data.get("google_client_id") or os.getenv("GOOGLE_CLIENT_ID")
+    try:
+        validate_google_auth(google_auth_enabled, google_client_id)
+    except ConfigValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
     try:
         with path.open("w", encoding="utf-8") as fh:
             yaml.safe_dump(data, fh, sort_keys=False)
@@ -48,4 +66,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(500, f"Failed to write config: {exc}")
 
     load_config.cache_clear()
-    return get_config_dict()
+    try:
+        return get_config_dict()
+    except ConfigValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from backend.app import create_app
-from backend.config import config
+from backend.config import ConfigValidationError, config
 from backend.routes import timeseries_admin
 
 
@@ -55,6 +55,16 @@ def test_google_token_rejects_unallowed_email(monkeypatch, tmp_path):
     assert resp.status_code == 403
 
 
+def test_startup_requires_google_client_id(monkeypatch):
+    monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "")
+    from backend.config import load_config
+
+    load_config.cache_clear()
+    with pytest.raises(ConfigValidationError):
+        load_config()
+
+       
 def test_missing_client_id_fails_startup(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)

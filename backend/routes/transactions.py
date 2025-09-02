@@ -38,10 +38,6 @@ class Transaction(BaseModel):
 
     model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(tags=["transactions"])
-
 _POSTED_TRANSACTIONS: List[dict] = []
 _PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
 
@@ -125,10 +121,10 @@ async def create_transaction(tx: TransactionCreate) -> dict:
         try:
             data = json.load(f)
         except json.JSONDecodeError as exc:
-            logging.warning("Failed to parse existing transactions file %s: %s", file_path, exc)
+            log.warning("Failed to parse existing transactions file %s: %s", file_path, exc)
             data = {"owner": owner, "account_type": account, "transactions": []}
         except OSError as exc:
-            logging.warning("Failed to read transactions file %s: %s", file_path, exc)
+            log.warning("Failed to read transactions file %s: %s", file_path, exc)
             data = {"owner": owner, "account_type": account, "transactions": []}
 
         transactions = data.setdefault("transactions", [])
@@ -157,7 +153,7 @@ async def create_transaction(tx: TransactionCreate) -> dict:
 #                 try:
 #                     data = json.load(f)
 #                 except json.JSONDecodeError as exc:
-#                     logger.warning("Failed to parse %s: %s", file_path, exc)
+#                     log.warning("Failed to parse %s: %s", file_path, exc)
 #                     data = {"owner": owner, "account_type": account, "transactions": []}
 #                 transactions = data.setdefault("transactions", [])
 #                 transactions.append(tx_data)
@@ -171,7 +167,7 @@ async def create_transaction(tx: TransactionCreate) -> dict:
 #             finally:
 #                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 #     except OSError as exc:
-#         logger.error("Failed to write transaction file %s: %s", file_path, exc)
+#         log.error("Failed to write transaction file %s: %s", file_path, exc)
 #         raise HTTPException(status_code=500, detail="Failed to save transaction") from exc
 
     return {"owner": owner, "account": account, **tx_data}

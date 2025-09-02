@@ -58,7 +58,8 @@ def test_compliance_checks_approval(monkeypatch, tmp_path):
 def test_save_approvals_persists(tmp_path):
     owner_dir = tmp_path / "alice"
     owner_dir.mkdir()
-    approvals = {"ABC": date(2024, 6, 1)}
+    approvals_list = [{"ticker": "ABC", "approved_on": date(2024, 6, 1)}]
+    approvals = {a["ticker"]: a["approved_on"] for a in approvals_list}
     save_approvals("alice", approvals, accounts_root=tmp_path)
     data = json.loads((owner_dir / "approvals.json").read_text())
     assert data["approvals"][0]["ticker"] == "ABC"

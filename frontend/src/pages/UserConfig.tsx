@@ -19,6 +19,7 @@ export default function UserConfigPage() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [newTicker, setNewTicker] = useState("");
   const [newDate, setNewDate] = useState("");
+  const [approvalsError, setApprovalsError] = useState<string | null>(null);
 
   useEffect(() => {
     getOwners().then(setOwners).catch(() => {
@@ -32,8 +33,14 @@ export default function UserConfigPage() {
         setCfg({});
       });
       getApprovals(owner)
-        .then((res) => setApprovals(res.approvals))
-        .catch(() => setApprovals([]));
+        .then((res) => {
+          setApprovals(res.approvals);
+          setApprovalsError(null);
+        })
+        .catch(() => {
+          setApprovals([]);
+          setApprovalsError("Failed to load approvals");
+        });
     }
   }, [owner]);
 
@@ -51,17 +58,27 @@ export default function UserConfigPage() {
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    if (!owner || !newTicker) return;
-    const res = await addApproval(owner, newTicker, newDate || undefined);
-    setApprovals(res.approvals);
-    setNewTicker("");
-    setNewDate("");
+    if (!owner || !newTicker || !newDate) return;
+    try {
+      const res = await addApproval(owner, newTicker, newDate);
+      setApprovals(res.approvals);
+      setNewTicker("");
+      setNewDate("");
+      setApprovalsError(null);
+    } catch {
+      setApprovalsError("Failed to add approval");
+    }
   }
 
   async function remove(ticker: string) {
     if (!owner) return;
-    const res = await removeApproval(owner, ticker);
-    setApprovals(res.approvals);
+    try {
+      const res = await removeApproval(owner, ticker);
+      setApprovals(res.approvals);
+      setApprovalsError(null);
+    } catch {
+      setApprovalsError("Failed to remove approval");
+    }
   }
 
   return (
@@ -196,6 +213,9 @@ export default function UserConfigPage() {
                 ))}
               </tbody>
             </table>
+            {approvalsError && (
+              <div className="text-red-500">{approvalsError}</div>
+            )}
             <form onSubmit={add} className="flex space-x-2">
               <input
                 type="text"

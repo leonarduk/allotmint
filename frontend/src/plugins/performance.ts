@@ -1,12 +1,12 @@
-import { PerformanceDashboard } from "../components/PerformanceDashboard";
+import PortfolioDashboard from "../pages/PortfolioDashboard";
 import type { ComponentProps } from "react";
 import type { TabPlugin } from "./TabPlugin";
 
-type Props = ComponentProps<typeof PerformanceDashboard>;
+type Props = ComponentProps<typeof PortfolioDashboard>;
 
 const plugin: TabPlugin<Props> = {
   id: "performance",
-  component: PerformanceDashboard,
+  component: PortfolioDashboard,
   priority: 40,
   path: ({ owner }) => (owner ? `/performance/${owner}` : "/performance"),
 };

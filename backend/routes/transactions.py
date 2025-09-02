@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import fcntl
 import json
+import logging
+import os
+import re
 from datetime import date, datetime
 from collections import defaultdict
 from pathlib import Path
@@ -11,7 +15,14 @@ from pydantic import BaseModel
 
 from backend.config import config
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["transactions"])
+
+_POSTED_TRANSACTIONS: List[dict] = []
+_PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
+
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class TransactionCreate(BaseModel):
@@ -57,35 +68,51 @@ def _parse_date(d: Optional[str]) -> Optional[datetime.date]:
         return None
 
 
-@router.post("/transactions")
+def _validate_name(value: str, field: str) -> str:
+    """Ensure a value is a safe single path component."""
+    if not _SAFE_NAME_RE.fullmatch(value):
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+    return value
+
+
+@router.post("/transactions", status_code=201)
 async def create_transaction(tx: TransactionCreate) -> dict:
     """Store a new transaction and return it."""
 
     if not config.accounts_root:
-        raise HTTPException(status_code=500, detail="Accounts root not configured")
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
 
     tx_data = tx.model_dump(mode="json")
-    owner = tx_data.pop("owner")
-    account = tx_data.pop("account")
+    owner = _validate_name(tx_data.pop("owner"), "owner")
+    account = _validate_name(tx_data.pop("account"), "account")
 
-    owner_dir = Path(config.accounts_root) / owner
-    owner_dir.mkdir(parents=True, exist_ok=True)
-    file_path = owner_dir / f"{account}_transactions.json"
+    file_path = Path(config.accounts_root) / owner / f"{account}_transactions.json"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if file_path.exists():
-        try:
-            data = json.loads(file_path.read_text())
-        except Exception:
-            data = {"owner": owner, "account_type": account, "transactions": []}
-    else:
-        data = {"owner": owner, "account_type": account, "transactions": []}
-
-    transactions = data.setdefault("transactions", [])
-    transactions.append(tx_data)
-    data["owner"] = owner
-    data["account_type"] = account
-
-    file_path.write_text(json.dumps(data, indent=2))
+    try:
+        with open(file_path, "a+") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.seek(0)
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError as exc:
+                    logger.warning("Failed to parse %s: %s", file_path, exc)
+                    data = {"owner": owner, "account_type": account, "transactions": []}
+                transactions = data.setdefault("transactions", [])
+                transactions.append(tx_data)
+                data["owner"] = owner
+                data["account_type"] = account
+                f.seek(0)
+                json.dump(data, f, indent=2)
+                f.truncate()
+                f.flush()
+                os.fsync(f.fileno())
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError as exc:
+        logger.error("Failed to write transaction file %s: %s", file_path, exc)
+        raise HTTPException(status_code=500, detail="Failed to save transaction") from exc
 
     return {"owner": owner, "account": account, **tx_data}
 

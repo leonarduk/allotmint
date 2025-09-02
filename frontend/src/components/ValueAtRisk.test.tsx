@@ -52,7 +52,7 @@ describe("ValueAtRisk component", () => {
   });
 
   it("skips state updates when unmounted", async () => {
-    let resolveFetch: (value: Response) => void;
+    let resolveFetch!: (value: Response) => void;
     const fetchPromise = new Promise<Response>((resolve) => {
       resolveFetch = resolve;
     });

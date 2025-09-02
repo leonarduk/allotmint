@@ -2,20 +2,27 @@ from __future__ import annotations
 
 import fcntl
 import json
+
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 import logging
 import os
 import re
 from datetime import date, datetime
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import fcntl
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
+from backend.common import portfolio_loader
+from backend.common import portfolio as portfolio_mod
 from backend.config import config
 
+router = APIRouter(tags=["transactions"])
+log = logging.getLogger("transactions")
 
 class Transaction(BaseModel):
     """Simple representation of a transaction record."""
@@ -69,7 +76,7 @@ def _load_all_transactions() -> List[Transaction]:
     for path in data_root.glob("*/*_transactions.json"):
         try:
             data = json.loads(path.read_text())
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             continue
         owner = data.get("owner", path.parent.name)
         account = data.get(
@@ -201,24 +208,75 @@ async def list_transactions(
     return txs
 
 
-@router.post("/transactions", status_code=201)
-async def post_transaction(tx: Transaction):
-    """Record a new transaction.
+@router.post("/transactions")
+async def add_transaction(payload: Dict[str, Any], request: Request):
+    """Append a transaction and rebuild holdings for the affected account."""
 
-    Validation is handled by :class:`Transaction`. Posted transactions are
-    stored in memory so tests can verify persistence via the GET endpoint and
-    portfolio updates without touching the fixture data on disk.
-    """
+    owner = (payload.get("owner") or "").strip()
+    account = (payload.get("account") or "").strip()
+    if not owner or not account:
+        raise HTTPException(status_code=400, detail="owner and account are required")
 
-    # Basic validation of fields that require custom checks
-    if not _parse_date(tx.date):
-        raise HTTPException(status_code=422, detail="Invalid date")
-    if tx.units <= 0:
-        raise HTTPException(status_code=422, detail="Units must be positive")
-    if not tx.reason:
-        raise HTTPException(status_code=422, detail="Reason required")
+    root = request.app.state.accounts_root or config.accounts_root
+    owner_dir = Path(root) / owner
+    owner_dir.mkdir(parents=True, exist_ok=True)
 
-    data = tx.dict()
-    _POSTED_TRANSACTIONS.append(data)
-    _PORTFOLIO_IMPACT[tx.owner] += tx.units * tx.price_gbp
-    return {"status": "ok", "transaction": data}
+    tx_file = owner_dir / f"{account.lower()}_transactions.json"
+    existed = tx_file.exists()
+    if existed:
+        try:
+            data = json.loads(tx_file.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            log.error("Failed to read %s: %s", tx_file, exc)
+            data = {
+                "owner": owner,
+                "account_type": account.upper(),
+                "currency": payload.get("currency", "GBP"),
+                "last_updated": date.today().isoformat(),
+                "transactions": [],
+            }
+    else:
+        data = {
+            "owner": owner,
+            "account_type": account.upper(),
+            "currency": payload.get("currency", "GBP"),
+            "last_updated": date.today().isoformat(),
+            "transactions": [],
+        }
+        acct_path = owner_dir / f"{account.lower()}.json"
+        if acct_path.exists():
+            try:
+                acct_data = json.loads(acct_path.read_text())
+                seed_date = acct_data.get("last_updated", date.today().isoformat())
+                for h in acct_data.get("holdings", []):
+                    ticker = h.get("ticker")
+                    units = h.get("units")
+                    if ticker and units:
+                        data["transactions"].append(
+                            {
+                                "date": seed_date,
+                                "type": "BUY",
+                                "ticker": ticker,
+                                "shares": units,
+                            }
+                        )
+            except (OSError, json.JSONDecodeError) as exc:
+                log.warning("Failed to seed transactions from %s: %s", acct_path, exc)
+
+    tx_record = {k: v for k, v in payload.items() if k not in {"owner", "account"}}
+    data.setdefault("transactions", []).append(tx_record)
+    data["last_updated"] = date.today().isoformat()
+    try:
+        tx_file.write_text(json.dumps(data, indent=2))
+    except OSError as exc:
+        log.error("Failed to write transactions to %s: %s", tx_file, exc)
+        raise HTTPException(status_code=500, detail="failed to write transaction")
+
+    # Rebuild holdings and refresh portfolio snapshot
+    portfolio_loader.rebuild_account_holdings(owner, account, Path(root))
+    try:
+        portfolio_mod.build_owner_portfolio(owner, Path(root))
+    except FileNotFoundError as exc:
+        log.warning("Portfolio rebuild failed: %s", exc)
+
+    return {"status": "ok"}

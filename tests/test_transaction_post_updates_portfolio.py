@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
@@ -38,20 +39,30 @@ def _setup_app(tmp_path, monkeypatch):
 
     monkeypatch.setattr(config, "accounts_root", tmp_path)
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
-    monkeypatch.setattr(config, "offline_mode", True)
 
     # stub out network-heavy enrichment
-    monkeypatch.setattr(
+    for target in [
         "backend.common.holding_utils.enrich_holding",
-        lambda h, *a, **k: {**h, "market_value_gbp": 0.0, "gain_gbp": 0.0},
-    )
+        "backend.common.portfolio.enrich_holding",
+    ]:
+        monkeypatch.setattr(
+            target,
+            lambda h, *a, **k: {**h, "market_value_gbp": 0.0, "gain_gbp": 0.0},
+        )
 
     app = create_app()
     app.state.accounts_root = tmp_path
     return app, owner, account
 
 
-def test_post_transaction_updates_portfolio(tmp_path, monkeypatch):
+@pytest.fixture()
+def offline_mode(monkeypatch):
+    monkeypatch.setattr(config, "offline_mode", True)
+    yield
+    monkeypatch.setattr(config, "offline_mode", False)
+
+
+def test_post_transaction_updates_portfolio(tmp_path, monkeypatch, offline_mode):
     app, owner, account = _setup_app(tmp_path, monkeypatch)
 
     with TestClient(app) as client:

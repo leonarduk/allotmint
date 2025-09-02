@@ -120,12 +120,14 @@ def rebuild_account_holdings(
     owner_dir = root / owner
     tx_path = owner_dir / f"{account.lower()}_transactions.json"
     if not tx_path.exists():
-        raise FileNotFoundError(tx_path)
+        log.error("Transaction file missing: %s", tx_path)
+        return {}
 
     try:
         tx_data = json.loads(tx_path.read_text())
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Failed to parse {tx_path}: {exc}") from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        log.error("Failed to read %s: %s", tx_path, exc)
+        return {}
 
     TYPE_SIGN = {
         "BUY": 1,
@@ -192,5 +194,8 @@ def rebuild_account_holdings(
     }
 
     acct_path = owner_dir / f"{account.lower()}.json"
-    acct_path.write_text(json.dumps(out, indent=2))
+    try:
+        acct_path.write_text(json.dumps(out, indent=2))
+    except OSError as exc:
+        log.error("Failed to write holdings to %s: %s", acct_path, exc)
     return out

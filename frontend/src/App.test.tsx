@@ -386,6 +386,7 @@ describe("App", () => {
       "Screener & Query",
       "Timeseries",
       "Watchlist",
+      "Allocation",
       "Data Admin",
       "Reports",
       "User Settings",

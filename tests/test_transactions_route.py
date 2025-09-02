@@ -37,8 +37,12 @@ def test_create_transaction_success(tmp_path, monkeypatch):
     stored = json.loads(file_path.read_text())
     assert stored["owner"] == "alice"
     assert stored["account_type"] == "ISA"
-    assert stored["transactions"][0]["ticker"] == "AAPL"
-    assert "owner" not in stored["transactions"][0]
+    expected_tx = payload.copy()
+    expected_tx.pop("owner")
+    expected_tx.pop("account")
+    assert expected_tx in stored["transactions"]
+    for tx in stored["transactions"]:
+        assert "owner" not in tx
 
 
 def test_create_transaction_validation_error(tmp_path, monkeypatch):

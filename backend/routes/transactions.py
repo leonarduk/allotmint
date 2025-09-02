@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import List, Optional
+
+import fcntl
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -56,35 +61,53 @@ def _parse_date(d: Optional[str]) -> Optional[datetime.date]:
         return None
 
 
+_SAFE_COMPONENT_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _validate_component(value: str, field: str) -> str:
+    if not _SAFE_COMPONENT_RE.fullmatch(value):
+        raise HTTPException(status_code=400, detail=f"Invalid {field}")
+    return value
+
+
 @router.post("/transactions")
 async def create_transaction(tx: TransactionCreate) -> dict:
     """Store a new transaction and return it."""
 
     if not config.accounts_root:
-        raise HTTPException(status_code=500, detail="Accounts root not configured")
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
 
     tx_data = tx.model_dump(mode="json")
-    owner = tx_data.pop("owner")
-    account = tx_data.pop("account")
+    owner = _validate_component(tx_data.pop("owner"), "owner")
+    account = _validate_component(tx_data.pop("account"), "account")
 
     owner_dir = Path(config.accounts_root) / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
     file_path = owner_dir / f"{account}_transactions.json"
 
-    if file_path.exists():
+    with file_path.open("a+", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        f.seek(0)
         try:
-            data = json.loads(file_path.read_text())
-        except Exception:
+            data = json.load(f)
+        except json.JSONDecodeError as exc:
+            logging.warning("Failed to parse existing transactions file %s: %s", file_path, exc)
             data = {"owner": owner, "account_type": account, "transactions": []}
-    else:
-        data = {"owner": owner, "account_type": account, "transactions": []}
+        except OSError as exc:
+            logging.warning("Failed to read transactions file %s: %s", file_path, exc)
+            data = {"owner": owner, "account_type": account, "transactions": []}
 
-    transactions = data.setdefault("transactions", [])
-    transactions.append(tx_data)
-    data["owner"] = owner
-    data["account_type"] = account
+        transactions = data.setdefault("transactions", [])
+        transactions.append(tx_data)
+        data["owner"] = owner
+        data["account_type"] = account
 
-    file_path.write_text(json.dumps(data, indent=2))
+        f.seek(0)
+        f.truncate()
+        json.dump(data, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+        fcntl.flock(f, fcntl.LOCK_UN)
 
     return {"owner": owner, "account": account, **tx_data}
 

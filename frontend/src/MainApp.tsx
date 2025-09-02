@@ -91,6 +91,13 @@ export default function MainApp() {
     }
   }, [ownersReq.data, groupsReq.data, demoOnly]);
 
+  // when only the demo owner is available, ensure we show the owner view
+  useEffect(() => {
+    if (demoOnly) {
+      setMode("owner");
+    }
+  }, [demoOnly, setMode]);
+
   // redirect to defaults if no selection provided
   useEffect(() => {
     if (mode === "owner" && !selectedOwner && owners.length) {

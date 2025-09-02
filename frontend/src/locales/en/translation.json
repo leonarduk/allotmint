@@ -16,6 +16,7 @@
       "screener": "Screener & Query",
       "timeseries": "Timeseries",
       "watchlist": "Watchlist",
+      "allocation": "Allocation",
       "movers": "Movers",
       "instrumentadmin": "Instrument Admin",
       "dataadmin": "Data Admin",

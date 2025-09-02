@@ -42,6 +42,7 @@ import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
 import InstrumentSearchBar from "./components/InstrumentSearchBar";
 import Logs from "./pages/Logs";
+import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
 type Mode = (typeof orderedTabPlugins)[number]["id"];
 
@@ -56,6 +57,7 @@ const initialMode: Mode =
   path[0] === "screener" ? "screener" :
   path[0] === "timeseries" ? "timeseries" :
   path[0] === "watchlist" ? "watchlist" :
+  path[0] === "allocation" ? "allocation" :
   path[0] === "movers" ? "movers" :
   path[0] === "instrumentadmin" ? "instrumentadmin" :
   path[0] === "dataadmin" ? "dataadmin" :
@@ -120,6 +122,8 @@ export default function App() {
         return "/settings";
       case "logs":
         return "/logs";
+      case "allocation":
+        return "/allocation";
       case "instrumentadmin":
         return "/instrumentadmin";
       default:
@@ -155,6 +159,9 @@ export default function App() {
         break;
       case "watchlist":
         newMode = "watchlist";
+        break;
+      case "allocation":
+        newMode = "allocation";
         break;
       case "movers":
         newMode = "movers";
@@ -425,6 +432,7 @@ export default function App() {
       {mode === "instrumentadmin" && <InstrumentAdmin />}
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
+      {mode === "allocation" && <AllocationCharts />}
       {mode === "movers" && <TopMovers />}
       {mode === "support" && <Support />}
       {mode === "settings" && <UserConfigPage />}

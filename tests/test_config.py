@@ -1,4 +1,10 @@
+import pytest
+from fastapi.testclient import TestClient
+
 from backend import config as config_module
+from backend.app import create_app
+from backend.config import ConfigValidationError
+from backend.routes import config as routes_config
 
 
 def test_config_alias_settings():
@@ -43,8 +49,37 @@ def test_auth_flags(monkeypatch):
     cfg = config_module.load_config()
     assert cfg.google_auth_enabled is True
     assert cfg.disable_auth is False
-    monkeypatch.delenv("GOOGLE_AUTH_ENABLED")
-    monkeypatch.delenv("GOOGLE_CLIENT_ID")
-    monkeypatch.delenv("DISABLE_AUTH")
     config_module.load_config.cache_clear()
     config_module.config = config_module.load_config()
+
+
+def test_google_auth_requires_client_id(monkeypatch):
+    monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "")
+    config_module.load_config.cache_clear()
+    with pytest.raises(ConfigValidationError):
+        config_module.load_config()
+    monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "false")
+    config_module.load_config.cache_clear()
+    config_module.config = config_module.load_config()
+
+
+def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("google_auth_enabled: false\n")
+
+    monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    config_module.load_config.cache_clear()
+    config_module.config = config_module.load_config()
+
+    client = TestClient(create_app())
+
+    resp = client.put("/config", json={"google_auth_enabled": True})
+    assert resp.status_code == 400
+
+    config_module.load_config.cache_clear()
+    cfg = config_module.load_config()
+    assert cfg.google_auth_enabled is False
+    config_module.config = cfg

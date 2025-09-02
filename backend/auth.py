@@ -32,25 +32,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 current_user: ContextVar[str | None] = ContextVar("current_user", default=None)
 
 
-def verify_google_token(token: str) -> Optional[str]:
-    """Verify a Google ID token and return the associated email.
-
-    Returns ``None`` if verification fails for any reason. The implementation
-    attempts to use :mod:`google-auth` if available but deliberately swallows
-    all errors so tests can patch this function without requiring the
-    dependency or network access.
-    """
-
-    try:  # pragma: no cover - exercised via tests with monkeypatching
-        from google.oauth2 import id_token
-        from google.auth.transport import requests
-
-        info = id_token.verify_oauth2_token(token, requests.Request())
-        return info.get("email")
-    except Exception:
-        return None
-
-
 def _allowed_emails() -> Set[str]:
     """Return the set of configured account emails."""
 

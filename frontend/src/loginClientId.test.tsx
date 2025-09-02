@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import { BrowserRouter } from 'react-router-dom'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 
 afterEach(() => {
@@ -24,7 +25,11 @@ describe('Root login behaviour', () => {
 
     document.body.innerHTML = '<div id="root"></div>'
     const { Root } = await import('./main')
-    render(<Root />)
+    render(
+      <BrowserRouter>
+        <Root />
+      </BrowserRouter>,
+    )
     expect(await screen.findByText(/google login is not configured/i)).toBeInTheDocument()
     expect(screen.queryByTestId('login-page')).toBeNull()
   })

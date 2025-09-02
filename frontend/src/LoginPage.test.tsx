@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import { BrowserRouter } from 'react-router-dom'
 import { describe, it, expect, vi } from 'vitest'
 import LoginPage from './LoginPage'
 
@@ -14,9 +15,13 @@ describe('Google login guard', () => {
     })
     document.body.innerHTML = '<div id="root"></div>'
     const { Root } = await import('./main')
-    render(<Root />)
+    render(
+      <BrowserRouter>
+        <Root />
+      </BrowserRouter>,
+    )
     expect(
-      await screen.findByText(/Google client ID missing. Login is unavailable./i),
+      await screen.findByText(/Google login is not configured/i),
     ).toBeInTheDocument()
   })
 })

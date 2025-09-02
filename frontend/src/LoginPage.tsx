@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { API_BASE, setAuthToken } from "./api";
 
 interface Props {
@@ -12,7 +12,13 @@ declare global {
   }
 }
 
+function sanitize(input: string): string {
+  return new DOMParser().parseFromString(input, 'text/html').body
+    .textContent || ''
+}
+
 export default function LoginPage({ clientId, onSuccess }: Props) {
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
@@ -32,6 +38,15 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
             const data = await res.json();
             setAuthToken(data.access_token);
             onSuccess();
+          } else {
+            let msg = "Login failed";
+            try {
+              const err = await res.json();
+              msg = err.detail || msg;
+            } catch {
+              // ignore JSON parse errors
+            }
+            setError(sanitize(msg));
           }
         },
       });
@@ -46,7 +61,17 @@ export default function LoginPage({ clientId, onSuccess }: Props) {
   }, [clientId, onSuccess]);
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", marginTop: "2rem" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        marginTop: "2rem",
+      }}
+    >
+      {error && (
+        <div style={{ color: "red", marginBottom: "1rem" }}>{error}</div>
+      )}
       <div id="google-signin"></div>
     </div>
   );

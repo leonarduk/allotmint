@@ -25,7 +25,7 @@ describe('Root login behaviour', () => {
     document.body.innerHTML = '<div id="root"></div>'
     const { Root } = await import('./main')
     render(<Root />)
-    expect(await screen.findByText(/google client id missing/i)).toBeInTheDocument()
+    expect(await screen.findByText(/google login is not configured/i)).toBeInTheDocument()
     expect(screen.queryByTestId('login-page')).toBeNull()
   })
 })

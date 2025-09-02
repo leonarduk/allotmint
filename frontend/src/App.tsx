@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   getGroupInstruments,
@@ -44,6 +44,7 @@ import InstrumentSearchBar from "./components/InstrumentSearchBar";
 import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
+import Menu from "./components/Menu";
 type Mode = (typeof orderedTabPlugins)[number]["id"];
 
 // derive initial mode + id from path
@@ -68,7 +69,7 @@ const initialMode: Mode =
   path.length === 0 ? "group" : "movers";
 const initialSlug = path[1] ?? "";
 
-export default function App() {
+export default function App({ onLogout }: { onLogout?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
@@ -99,37 +100,6 @@ export default function App() {
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
-
-  function pathFor(m: Mode) {
-    switch (m) {
-      case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/";
-      case "instrument":
-        return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
-      case "owner":
-        return selectedOwner ? `/member/${selectedOwner}` : "/member";
-      case "performance":
-        return selectedOwner ? `/performance/${selectedOwner}` : "/performance";
-      case "movers":
-        return "/movers";
-      case "trading":
-        return "/trading";
-      case "scenario":
-        return "/scenario";
-      case "reports":
-        return "/reports";
-      case "settings":
-        return "/settings";
-      case "logs":
-        return "/logs";
-      case "allocation":
-        return "/allocation";
-      case "instrumentadmin":
-        return "/instrumentadmin";
-      default:
-        return `/${m}`;
-    }
-  }
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
@@ -312,24 +282,12 @@ export default function App() {
       <LanguageSwitcher />
       <AlertsPanel />
       <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
-        <nav role="navigation" style={{ flexGrow: 1 }}>
-          {orderedTabPlugins
-            .slice()
-            .sort((a, b) => a.priority - b.priority)
-            .filter((p) => tabs[p.id] !== false)
-            .map((p) => (
-              <Link
-                key={p.id}
-                to={pathFor(p.id)}
-                style={{
-                  marginRight: "1rem",
-                  fontWeight: mode === p.id ? "bold" : undefined,
-                }}
-              >
-                {t(`app.modes.${p.id}`)}
-              </Link>
-            ))}
-        </nav>
+        <Menu
+          selectedOwner={selectedOwner}
+          selectedGroup={selectedGroup}
+          onLogout={onLogout}
+          style={{ flexGrow: 1, margin: 0 }}
+        />
         <InstrumentSearchBar />
         {lastRefresh && (
           <span

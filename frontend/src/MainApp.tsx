@@ -17,7 +17,7 @@ import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
 
-import { AlertsPanel } from "./components/AlertsPanel";
+import { NotificationsDrawer } from "./components/NotificationsDrawer";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
@@ -62,6 +62,8 @@ export default function MainApp() {
   const unauthorized = demoOnly
     ? ownersReq.unauthorized
     : ownersReq.unauthorized || groupsReq.unauthorized;
+
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   useEffect(() => {
     if (ownersReq.data) {
@@ -163,9 +165,32 @@ export default function MainApp() {
 
   return (
     <>
-      <LanguageSwitcher />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <LanguageSwitcher />
+        <button
+          aria-label="notifications"
+          onClick={() => setNotificationsOpen(true)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "1.5rem",
+          }}
+        >
+          🔔
+        </button>
+      </div>
       <InstallPwaPrompt />
-      <AlertsPanel />
+      <NotificationsDrawer
+        open={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+      />
       {mode !== "support" && (
         <Menu selectedOwner={selectedOwner} selectedGroup={selectedGroup} />
       )}

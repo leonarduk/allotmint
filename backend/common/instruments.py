@@ -81,10 +81,7 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
     try:
         path = _instrument_path(ticker)
         with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        for field in ("asset_class", "industry", "region"):
-            data.setdefault(field, None)
-        return data
+            return json.load(f)
     except FileNotFoundError:
         return {}
     except json.JSONDecodeError as exc:
@@ -106,12 +103,30 @@ def instrument_meta_path(ticker: str, exchange: str) -> Path:
     return _instrument_path(f"{sym}.{exch}")
 
 
-def save_instrument_meta(ticker: str, exchange: str, data: Dict[str, Any]) -> Path:
-    """Persist ``data`` for ``ticker`` on ``exchange`` and return the path."""
+def save_instrument_meta(
+    ticker: str,
+    exchange: str | Dict[str, Any],
+    data: Optional[Dict[str, Any]] = None,
+) -> Path:
+    """Persist metadata for an instrument and optionally upload to S3.
 
-    if not isinstance(data, dict):
-        raise TypeError("data must be a dict")
-    path = instrument_meta_path(ticker, exchange)
+    Supports calling as ``save_instrument_meta("ABC", "L", {...})`` or
+    ``save_instrument_meta("ABC.L", {...})``.
+    """
+
+    if data is None:
+        # called with composite ticker and data
+        data = exchange  # type: ignore[assignment]
+        if not isinstance(data, dict):
+            raise TypeError("data must be a dict")
+        if "." not in ticker:
+            raise ValueError("ticker must include exchange when data is second arg")
+        ticker, exchange = ticker.split(".", 1)
+    else:
+        if not isinstance(data, dict):
+            raise TypeError("data must be a dict")
+
+    path = instrument_meta_path(ticker, exchange)  # type: ignore[arg-type]
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as fh:
@@ -120,6 +135,26 @@ def save_instrument_meta(ticker: str, exchange: str, data: Dict[str, Any]) -> Pa
     except OSError as exc:  # pragma: no cover - filesystem errors are rare
         logger.exception("Failed to write instrument metadata %s", path)
         raise
+
+    s3_loc = _s3_location()
+    if s3_loc:
+        bucket, prefix = s3_loc
+        key = _instrument_key(f"{ticker}.{exchange}", prefix)
+        try:
+            import boto3  # type: ignore
+
+            body = json.dumps(data).encode("utf-8")
+            boto3.client("s3").put_object(Bucket=bucket, Key=key, Body=body)
+        except Exception as exc:  # pragma: no cover - best effort
+            logger.warning(
+                "Failed to upload instrument metadata for %s.%s to s3://%s/%s: %s",
+                ticker,
+                exchange,
+                bucket,
+                key,
+                exc,
+            )
+
     get_instrument_meta.cache_clear()
     return path
 
@@ -164,28 +199,4 @@ def list_instruments() -> List[Dict[str, Any]]:
         except Exception:
             logger.warning("Failed to load instrument metadata for %s", p)
     return instruments
-
-def save_instrument_meta(ticker: str, data: Dict[str, Any]) -> None:
-    """Persist metadata locally and upload to S3 when configured."""
-    path = _instrument_path(ticker)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2))
-    s3_loc = _s3_location()
-    if s3_loc:
-        bucket, prefix = s3_loc
-        key = _instrument_key(ticker, prefix)
-        try:
-            import boto3  # type: ignore
-
-            body = json.dumps(data).encode("utf-8")
-            boto3.client("s3").put_object(Bucket=bucket, Key=key, Body=body)
-        except Exception as exc:
-            logger.warning(
-                "Failed to upload instrument metadata for %s to s3://%s/%s: %s",
-                ticker,
-                bucket,
-                key,
-                exc,
-            )
-    get_instrument_meta.cache_clear()
 

@@ -9,6 +9,7 @@ describe('Google login guard', () => {
     document.body.innerHTML = '<div id="root"></div>'
     const { Root } = await import('./main')
     render(<Root />)
+    expect(await screen.findByText(/Google client ID missing/i)).toBeInTheDocument()
     expect(
       await screen.findByText(
         /Google client ID missing\. Login is unavailable\./i,

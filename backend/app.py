@@ -130,12 +130,9 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        """Return a 400 status for validation errors.
-
-        FastAPI's default is 422, but for query parameter issues a 400 response
-        is more appropriate for clients relying on standard HTTP semantics.
-        """
-        return JSONResponse(status_code=400, content={"detail": exc.errors()})
+        """Return 422 for body errors and 400 for query errors."""
+        status = 422 if exc.body is not None else 400
+        return JSONResponse(status_code=status, content={"detail": exc.errors()})
 
     class TokenIn(BaseModel):
         id_token: str

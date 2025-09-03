@@ -2,6 +2,7 @@ import * as api from "../api";
 import type { Alert } from "../types";
 import { useFetch } from "../hooks/useFetch";
 import { useEffect, useState } from "react";
+import { AlertsTicker } from "./AlertsTicker";
 export function AlertsPanel({ user = "default" }: { user?: string }) {
   const { data: alerts, loading, error } = useFetch<Alert[]>(api.getAlerts, []);
   const [threshold, setThreshold] = useState<number>();
@@ -35,6 +36,15 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
   const importAlert = alerts?.find((a) => a.ticker === "IMPORT");
   const otherAlerts = alerts?.filter((a) => a.ticker !== "IMPORT") ?? [];
 
+  const lowPriorityAlerts =
+    threshold !== undefined
+      ? otherAlerts.filter((a) => a.change_pct < threshold)
+      : [];
+  const highPriorityAlerts =
+    threshold !== undefined
+      ? otherAlerts.filter((a) => a.change_pct >= threshold)
+      : otherAlerts;
+
   if (!importAlert && otherAlerts.length === 0) return null;
 
   return (
@@ -61,13 +71,18 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
               Save
             </button>
           </div>
-          <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
-            {otherAlerts.map((a, i) => (
-              <li key={i}>
-                <strong>{a.ticker}</strong>: {a.message}
-              </li>
-            ))}
-          </ul>
+          {highPriorityAlerts.length > 0 && (
+            <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+              {highPriorityAlerts.map((a, i) => (
+                <li key={i}>
+                  <strong>{a.ticker}</strong>: {a.message}
+                </li>
+              ))}
+            </ul>
+          )}
+          {lowPriorityAlerts.length > 0 && (
+            <AlertsTicker alerts={lowPriorityAlerts} speed={30} pauseOnHover />
+          )}
         </>
       )}
     </div>

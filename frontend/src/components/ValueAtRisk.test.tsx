@@ -30,6 +30,37 @@ describe("ValueAtRisk component", () => {
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
   });
 
+  it("opens breakdown modal when VaR value clicked", async () => {
+    vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ date: "2024-01-01", var: 100 }],
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ date: "2024-01-01", var: 100 }],
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { ticker: "AAA", contribution: 60 },
+          { ticker: "BBB", contribution: 40 },
+        ],
+      } as unknown as Response);
+
+    render(<ValueAtRisk owner="alice" />);
+
+    await waitFor(() => screen.getByText(/95%:/));
+
+    const btn = screen.getAllByRole("button")[0];
+    fireEvent.click(btn);
+
+    await waitFor(() => screen.getByRole("dialog"));
+    expect(screen.getByRole("dialog")).toHaveTextContent("AAA");
+    expect(screen.getByRole("dialog")).toHaveTextContent("BBB");
+  });
+
   it("renders placeholder when data missing and triggers recomputation", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { getValueAtRisk, recomputeValueAtRisk } from "../api";
+import {
+  getValueAtRisk,
+  recomputeValueAtRisk,
+  getVarBreakdown,
+} from "../api";
+import VarBreakdownModal from "./VarBreakdownModal";
+import type { VarBreakdown } from "../types";
 
 interface Props {
   owner: string;
@@ -11,6 +17,7 @@ export function ValueAtRisk({ owner }: Props) {
   const [var99, setVar99] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [breakdown, setBreakdown] = useState<VarBreakdown[] | null>(null);
 
   useEffect(() => {
     if (!owner) return;
@@ -77,10 +84,42 @@ export function ValueAtRisk({ owner }: Props) {
         </div>
       )}
       {!loading && !err && !(var95 == null && var99 == null) && (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <li>95%: {format(var95)}</li>
-          <li>99%: {format(var99)}</li>
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          <li>
+            95%:{' '}
+            <button
+              onClick={() =>
+                var95 != null &&
+                getVarBreakdown(owner, { days, confidence: 95 })
+                  .then((d) => setBreakdown(d))
+                  .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+              }
+              disabled={var95 == null}
+            >
+              {format(var95)}
+            </button>
+          </li>
+          <li>
+            99%:{' '}
+            <button
+              onClick={() =>
+                var99 != null &&
+                getVarBreakdown(owner, { days, confidence: 99 })
+                  .then((d) => setBreakdown(d))
+                  .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+              }
+              disabled={var99 == null}
+            >
+              {format(var99)}
+            </button>
+          </li>
         </ul>
+      )}
+      {breakdown && (
+        <VarBreakdownModal
+          contributions={breakdown}
+          onClose={() => setBreakdown(null)}
+        />
       )}
     </div>
   );

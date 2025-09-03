@@ -1,74 +1,70 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, ANY
 
 from backend.app import create_app
-import backend.routes.user_config as routes
 from backend.common.user_config import UserConfig
+from backend.config import config
 
 
-def test_get_user_config_success(monkeypatch):
-    cfg = UserConfig(hold_days_min=5, max_trades_per_month=10,
-                     approval_exempt_types=["foo"],
-                     approval_exempt_tickers=["ABC"])
-    load_mock = Mock(return_value=cfg)
-    save_mock = Mock()
-    monkeypatch.setattr(routes, "load_user_config", load_mock)
-    monkeypatch.setattr(routes, "save_user_config", save_mock)
-
+def _auth_client():
     app = create_app()
-    with TestClient(app) as client:
-        resp = client.get("/user-config/alice")
+    client = TestClient(app)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
+
+
+@pytest.fixture
+def client(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    return _auth_client()
+
+
+@pytest.fixture
+def mock_user_config(monkeypatch):
+    store = {"alice": {"hold_days_min": 5}}
+
+    def fake_load(owner: str, accounts_root=None):
+        if owner not in store:
+            raise FileNotFoundError(owner)
+        return UserConfig.from_dict(store[owner])
+
+    def fake_save(owner: str, cfg, accounts_root=None):
+        if owner not in store:
+            raise FileNotFoundError(owner)
+        data = cfg if isinstance(cfg, dict) else cfg.to_dict()
+        store[owner].update(data)
+
+    monkeypatch.setattr("backend.common.user_config.load_user_config", fake_load)
+    monkeypatch.setattr("backend.common.user_config.save_user_config", fake_save)
+    monkeypatch.setattr("backend.routes.user_config.load_user_config", fake_load)
+    monkeypatch.setattr("backend.routes.user_config.save_user_config", fake_save)
+    return store
+
+
+def test_fetch_and_update_user_config(client, mock_user_config):
+    resp = client.get("/user-config/alice")
     assert resp.status_code == 200
-    assert resp.json() == cfg.to_dict()
-    load_mock.assert_called_once_with("alice", ANY)
-    save_mock.assert_not_called()
+    assert resp.json() == {
+        "hold_days_min": 5,
+        "max_trades_per_month": None,
+        "approval_exempt_types": None,
+        "approval_exempt_tickers": None,
+    }
+
+    resp = client.post("/user-config/alice", json={"max_trades_per_month": 7})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["hold_days_min"] == 5
+    assert data["max_trades_per_month"] == 7
+    assert mock_user_config["alice"]["max_trades_per_month"] == 7
 
 
-def test_get_user_config_not_found(monkeypatch):
-    load_mock = Mock(side_effect=FileNotFoundError)
-    save_mock = Mock()
-    monkeypatch.setattr(routes, "load_user_config", load_mock)
-    monkeypatch.setattr(routes, "save_user_config", save_mock)
-
-    app = create_app()
-    with TestClient(app) as client:
-        resp = client.get("/user-config/missing")
+def test_missing_owner_returns_error(client, mock_user_config):
+    resp = client.get("/user-config/bob")
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Owner not found"
-    load_mock.assert_called_once_with("missing", ANY)
-    save_mock.assert_not_called()
 
-
-def test_update_user_config_success(monkeypatch):
-    data = {"hold_days_min": 7}
-    cfg = UserConfig(hold_days_min=7)
-
-    load_mock = Mock(return_value=cfg)
-    save_mock = Mock()
-    monkeypatch.setattr(routes, "load_user_config", load_mock)
-    monkeypatch.setattr(routes, "save_user_config", save_mock)
-
-    app = create_app()
-    with TestClient(app) as client:
-        resp = client.post("/user-config/alice", json=data)
-    assert resp.status_code == 200
-    assert resp.json() == cfg.to_dict()
-    save_mock.assert_called_once_with("alice", data, ANY)
-    load_mock.assert_called_once_with("alice", ANY)
-
-
-def test_update_user_config_not_found(monkeypatch):
-    data = {"hold_days_min": 7}
-    save_mock = Mock(side_effect=FileNotFoundError)
-    load_mock = Mock()
-    monkeypatch.setattr(routes, "load_user_config", load_mock)
-    monkeypatch.setattr(routes, "save_user_config", save_mock)
-
-    app = create_app()
-    with TestClient(app) as client:
-        resp = client.post("/user-config/missing", json=data)
+    resp = client.post("/user-config/bob", json={"hold_days_min": 1})
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Owner not found"
-    save_mock.assert_called_once_with("missing", data, ANY)
-    load_mock.assert_not_called()

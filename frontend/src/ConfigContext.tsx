@@ -67,7 +67,7 @@ const defaultTabs: TabsConfig = {
   virtual: true,
   support: true,
   settings: true,
-  profile: true,
+  profile: false,
   reports: true,
   scenario: true,
   logs: true,

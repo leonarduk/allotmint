@@ -147,19 +147,19 @@ describe("App", () => {
       transactions: true,
       trading: true,
       screener: true,
-    timeseries: true,
-    watchlist: true,
-    movers: true,
-    instrumentadmin: true,
-    dataadmin: true,
-    virtual: true,
-    support: true,
-    settings: true,
-    profile: true,
-    reports: true,
-    scenario: true,
-    logs: true,
-  };
+      timeseries: true,
+      watchlist: true,
+      movers: true,
+      instrumentadmin: true,
+      dataadmin: true,
+      virtual: true,
+      support: true,
+      settings: true,
+      profile: true,
+      reports: true,
+      scenario: true,
+      logs: true,
+    };
 
     render(
       <configContext.Provider
@@ -218,19 +218,19 @@ describe("App", () => {
       transactions: true,
       trading: true,
       screener: true,
-    timeseries: true,
-    watchlist: true,
-    movers: true,
-    instrumentadmin: true,
-    dataadmin: true,
-    virtual: true,
-    support: true,
-    settings: true,
-    profile: true,
-    reports: true,
-    scenario: true,
-    logs: true,
-  };
+      timeseries: true,
+      watchlist: true,
+      movers: true,
+      instrumentadmin: true,
+      dataadmin: true,
+      virtual: true,
+      support: true,
+      settings: true,
+      profile: true,
+      reports: true,
+      scenario: true,
+      logs: true,
+    };
 
     render(
       <configContext.Provider
@@ -394,11 +394,10 @@ describe("App", () => {
       "Instrument Admin",
       "Data Admin",
       "Reports",
-      "User Settings",
-      "Profile",
-      "Support",
-      "Logs",
-      "Scenario Tester",
-    ]);
-  });
+        "User Settings",
+        "Support",
+        "Logs",
+        "Scenario Tester",
+      ]);
+    });
 });

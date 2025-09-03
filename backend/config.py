@@ -20,6 +20,19 @@ def validate_google_auth(enabled: Optional[bool], client_id: Optional[str]) -> N
         )
 
 
+def validate_tabs(tabs_raw: Any) -> TabsConfig:
+    """Validate tab configuration ensuring all keys are known booleans."""
+    tabs_data = asdict(TabsConfig())
+    if isinstance(tabs_raw, dict):
+        for key, val in tabs_raw.items():
+            if key not in tabs_data:
+                raise ConfigValidationError(f"Unknown tab '{key}'")
+            if not isinstance(val, bool):
+                raise ConfigValidationError(f"Tab '{key}' must be a boolean")
+            tabs_data[key] = val
+    return TabsConfig(**tabs_data)
+
+
 @dataclass
 class TabsConfig:
     instrument: bool = True
@@ -38,7 +51,7 @@ class TabsConfig:
     virtual: bool = True
     support: bool = True
     settings: bool = True
-    profile: bool = True
+    profile: bool = False
     reports: bool = True
     scenario: bool = True
     logs: bool = True
@@ -163,10 +176,7 @@ def load_config() -> Config:
     prices_json = (repo_root / prices_json_raw).resolve() if prices_json_raw else None
 
     tabs_raw = data.get("tabs")
-    tabs_data = asdict(TabsConfig())
-    if isinstance(tabs_raw, dict):
-        tabs_data.update(tabs_raw)
-    tabs = TabsConfig(**tabs_data)
+    tabs = validate_tabs(tabs_raw)
 
     ta_raw = data.get("trading_agent")
     ta_data = asdict(TradingAgentConfig())

@@ -1,24 +1,32 @@
 from __future__ import annotations
 
-import fcntl
 import json
-
-from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
 import logging
 import os
+import platform
 import re
-from datetime import date, datetime
 from collections import defaultdict
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import fcntl
+
+try:  # Unix-like systems
+    import fcntl  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
+    if platform.system() == "Windows":
+        import msvcrt  # type: ignore
+    else:  # pragma: no cover - unsupported platform
+        raise
+else:  # pragma: no cover - Unix
+    msvcrt = None  # type: ignore[assignment]
 
 from fastapi import APIRouter, HTTPException
+from fastapi import Request
 from pydantic import BaseModel, ConfigDict
 
-from backend.common import portfolio_loader
 from backend.common import portfolio as portfolio_mod
+from backend.common import portfolio_loader
 from backend.config import config
 
 router = APIRouter(tags=["transactions"])
@@ -41,14 +49,28 @@ class Transaction(BaseModel):
 
     model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(tags=["transactions"])
-
 _POSTED_TRANSACTIONS: List[dict] = []
 _PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
 
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _lock_file(f) -> None:
+    """Lock ``f`` for exclusive access."""
+    if fcntl:
+        fcntl.flock(f, fcntl.LOCK_EX)
+    else:  # pragma: no cover - Windows
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 0x7FFFFFFF)
+
+
+def _unlock_file(f) -> None:
+    """Unlock ``f``."""
+    if fcntl:
+        fcntl.flock(f, fcntl.LOCK_UN)
+    else:  # pragma: no cover - Windows
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 0x7FFFFFFF)
 
 
 class TransactionCreate(BaseModel):
@@ -123,15 +145,15 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     file_path = owner_dir / f"{account}_transactions.json"
 
     with file_path.open("a+", encoding="utf-8") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        _lock_file(f)
         f.seek(0)
         try:
             data = json.load(f)
         except json.JSONDecodeError as exc:
-            logging.warning("Failed to parse existing transactions file %s: %s", file_path, exc)
+            log.warning("Failed to parse existing transactions file %s: %s", file_path, exc)
             data = {"owner": owner, "account_type": account, "transactions": []}
         except OSError as exc:
-            logging.warning("Failed to read transactions file %s: %s", file_path, exc)
+            log.warning("Failed to read transactions file %s: %s", file_path, exc)
             data = {"owner": owner, "account_type": account, "transactions": []}
 
         transactions = data.setdefault("transactions", [])
@@ -144,7 +166,7 @@ async def create_transaction(tx: TransactionCreate) -> dict:
         json.dump(data, f, indent=2)
         f.flush()
         os.fsync(f.fileno())
-        fcntl.flock(f, fcntl.LOCK_UN)
+        _unlock_file(f)
 # =======
 #     owner = _validate_name(tx_data.pop("owner"), "owner")
 #     account = _validate_name(tx_data.pop("account"), "account")
@@ -160,7 +182,7 @@ async def create_transaction(tx: TransactionCreate) -> dict:
 #                 try:
 #                     data = json.load(f)
 #                 except json.JSONDecodeError as exc:
-#                     logger.warning("Failed to parse %s: %s", file_path, exc)
+#                     log.warning("Failed to parse %s: %s", file_path, exc)
 #                     data = {"owner": owner, "account_type": account, "transactions": []}
 #                 transactions = data.setdefault("transactions", [])
 #                 transactions.append(tx_data)
@@ -174,7 +196,7 @@ async def create_transaction(tx: TransactionCreate) -> dict:
 #             finally:
 #                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 #     except OSError as exc:
-#         logger.error("Failed to write transaction file %s: %s", file_path, exc)
+#         log.error("Failed to write transaction file %s: %s", file_path, exc)
 #         raise HTTPException(status_code=500, detail="Failed to save transaction") from exc
 
     return {"owner": owner, "account": account, **tx_data}

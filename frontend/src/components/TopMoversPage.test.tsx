@@ -71,13 +71,20 @@ vi.mock("../api", () => ({
 vi.mock("./InstrumentDetail", () => ({
   InstrumentDetail: ({
     ticker,
+    signal,
     onClose,
   }: {
     ticker: string;
+    signal?: { action: string; reason: string };
     onClose: () => void;
   }) => (
     <div data-testid="detail">
       Detail for {ticker}
+      {signal && (
+        <div>
+          {signal.action} - {signal.reason}
+        </div>
+      )}
       <button onClick={onClose}>x</button>
     </div>
   ),
@@ -133,16 +140,21 @@ describe("TopMoversPage", () => {
     );
   });
 
-  it("mounts InstrumentDetail when ticker clicked", async () => {
+  it("mounts InstrumentDetail with signal when ticker clicked", async () => {
     render(
       <MemoryRouter>
         <TopMoversPage />
       </MemoryRouter>,
     );
 
+    await screen.findByText("go long");
+
     const button = await screen.findByRole("button", { name: "AAA" });
     fireEvent.click(button);
-    expect(await screen.findByTestId("detail")).toHaveTextContent("AAA");
+    const detail = await screen.findByTestId("detail");
+    expect(detail).toHaveTextContent("AAA");
+    expect(detail).toHaveTextContent(/buy/i);
+    expect(detail).toHaveTextContent("go long");
   });
 
   it("colors gainers green and losers red", async () => {
@@ -161,7 +173,7 @@ describe("TopMoversPage", () => {
     expect(loserCell).toHaveStyle({ color: "rgb(255, 0, 0)" });
   });
 
-  it("renders trading signals beside movers", async () => {
+  it("renders trading signals beside movers and passes them to detail", async () => {
     render(
       <MemoryRouter>
         <TopMoversPage />
@@ -173,8 +185,10 @@ describe("TopMoversPage", () => {
     expect(row).not.toBeNull();
     const badge = within(row as HTMLElement).getByText(/buy/i);
     fireEvent.click(badge);
-    expect(await screen.findByTestId("detail")).toHaveTextContent("AAA");
-    expect(await screen.findByText("go long")).toBeInTheDocument();
+    const detail = await screen.findByTestId("detail");
+    expect(detail).toHaveTextContent("AAA");
+    expect(detail).toHaveTextContent(/buy/i);
+    expect(detail).toHaveTextContent("go long");
   });
 
   it("shows HTTP status when fetch fails", async () => {

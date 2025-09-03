@@ -57,15 +57,11 @@ class BackendLambdaStack(Stack):
             environment={
                 "GOOGLE_AUTH_ENABLED": "true",
                 "GOOGLE_CLIENT_ID": "${GOOGLE_CLIENT_ID}",
-                "ALLOWED_EMAILS": "${ALLOWED_EMAILS}",
+                "DISABLE_AUTH": "false",
             },
         )
         backend_fn.add_environment("APP_ENV", env)
         backend_fn.add_environment("DATA_BUCKET", bucket_name)
-
-        if env == "production":
-            backend_fn.add_environment("GOOGLE_AUTH_ENABLED", "true")
-            backend_fn.add_environment("DISABLE_AUTH", "false")
 
         apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)
 

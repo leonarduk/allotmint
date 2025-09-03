@@ -8,7 +8,7 @@ import type {
   OwnerSummary,
   Portfolio,
   PerformancePoint,
-  ValueAtRiskPoint,
+  ValueAtRiskResponse,
   AlphaResponse,
   TrackingErrorResponse,
   MaxDrawdownResponse,
@@ -58,6 +58,11 @@ export async function login(idToken: string): Promise<string> {
   const data = (await res.json()) as { access_token: string };
   setAuthToken(data.access_token);
   return data.access_token;
+}
+
+export function logout() {
+  setAuthToken(null);
+  (window as any).google?.accounts.id.disableAutoSelect();
 }
 
 /* ------------------------------------------------------------------ */
@@ -606,7 +611,7 @@ export const saveCustomQuery = (name: string, params: CustomQuery) =>
 /** List saved queries available on the backend. */
 export const listSavedQueries = () =>
   fetchJson<SavedQuery[]>(`${API_BASE}/custom-query/saved`);
-/** Fetch rolling Value at Risk series for an owner. */
+/** Fetch Value at Risk metrics for an owner. */
 export const getValueAtRisk = (
   owner: string,
   opts: { days?: number; confidence?: number; excludeCash?: boolean } = {},
@@ -617,7 +622,7 @@ export const getValueAtRisk = (
     params.set("confidence", String(opts.confidence));
   if (opts.excludeCash) params.set("exclude_cash", "1");
   const qs = params.toString();
-  return fetchJson<ValueAtRiskPoint[]>(
+  return fetchJson<ValueAtRiskResponse>(
     `${API_BASE}/var/${owner}${qs ? `?${qs}` : ""}`
   );
 };
@@ -632,7 +637,7 @@ export const recomputeValueAtRisk = (
   if (opts.confidence != null)
     params.set("confidence", String(opts.confidence));
   const qs = params.toString();
-  return fetchJson<{ owner: string; var: unknown }>(
+  return fetchJson<{ owner: string; var: Record<string, number | null> }>(
     `${API_BASE}/var/${owner}/recompute${qs ? `?${qs}` : ""}`,
     { method: "POST" }
   );

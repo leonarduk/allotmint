@@ -121,6 +121,19 @@ export interface ValueAtRiskPoint {
 export interface VarBreakdown {
     ticker: string;
     contribution: number;
+    var: {
+        [horizon: string]: number | null;
+    };
+    sharpe_ratio?: number | null;
+}
+  
+export interface ValueAtRiskResponse {
+    owner: string;
+    as_of: string;
+    var: {
+        [horizon: string]: number | null;
+    };
+    sharpe_ratio?: number | null;
 }
 
 export interface AlphaResponse {

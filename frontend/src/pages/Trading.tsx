@@ -58,6 +58,7 @@ export default function Trading() {
           name={selected.name}
           currency={selected.currency ?? undefined}
           instrument_type={selected.instrument_type}
+          signal={selected}
           onClose={() => setSelected(null)}
         />
       )}

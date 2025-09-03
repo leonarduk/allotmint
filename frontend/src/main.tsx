@@ -14,6 +14,9 @@ import { PriceRefreshProvider } from './PriceRefreshContext'
 import InstrumentResearch from './pages/InstrumentResearch'
 import { getConfig } from './api'
 import LoginPage from './LoginPage'
+import Alerts from './pages/Alerts'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -48,6 +51,7 @@ export function Root() {
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
+        <Route path="/alerts" element={<Alerts />} />
         <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>
@@ -61,6 +65,7 @@ createRoot(rootEl).render(
     <ConfigProvider>
       <PriceRefreshProvider>
         <Root />
+        <ToastContainer autoClose={5000} />
       </PriceRefreshProvider>
     </ConfigProvider>
   </StrictMode>,

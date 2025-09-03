@@ -46,6 +46,7 @@ import UserAvatar from "./components/UserAvatar";
 import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
+import ProfilePage from "./pages/Profile";
 import Menu from "./components/Menu";
 type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile";
 
@@ -64,6 +65,7 @@ const initialMode: Mode =
   path[0] === "movers" ? "movers" :
   path[0] === "instrumentadmin" ? "instrumentadmin" :
   path[0] === "dataadmin" ? "dataadmin" :
+  path[0] === "profile" ? "profile" :
   path[0] === "support" ? "support" :
   path[0] === "settings" ? "settings" :
   path[0] === "profile" ? "profile" :
@@ -109,6 +111,39 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
 
+  function pathFor(m: Mode) {
+    switch (m) {
+      case "group":
+        return selectedGroup ? `/?group=${selectedGroup}` : "/";
+      case "instrument":
+        return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
+      case "owner":
+        return selectedOwner ? `/member/${selectedOwner}` : "/member";
+      case "performance":
+        return selectedOwner ? `/performance/${selectedOwner}` : "/performance";
+      case "movers":
+        return "/movers";
+      case "trading":
+        return "/trading";
+      case "scenario":
+        return "/scenario";
+      case "reports":
+        return "/reports";
+      case "settings":
+        return "/settings";
+      case "logs":
+        return "/logs";
+      case "allocation":
+        return "/allocation";
+      case "instrumentadmin":
+        return "/instrumentadmin";
+      case "profile":
+        return "/profile";
+      default:
+        return `/${m}`;
+    }
+  }
+
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
     const params = new URLSearchParams(location.search);
@@ -152,6 +187,9 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
         break;
       case "dataadmin":
         newMode = "dataadmin";
+        break;
+      case "profile":
+        newMode = "profile";
         break;
       case "support":
         newMode = "support";
@@ -455,6 +493,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
       {mode === "settings" && <UserConfigPage />}
       {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}
+      {mode === "profile" && <ProfilePage />}
     </div>
   );
 }

@@ -1,8 +1,8 @@
-import { useUser } from "../UserContext";
 import { useConfig } from "../ConfigContext";
+import { useUser } from "../UserContext";
 import { useAuth } from "../AuthContext";
 
-export default function Profile() {
+export default function ProfilePage() {
   const { profile } = useUser();
   const { theme } = useConfig();
 
@@ -43,3 +43,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

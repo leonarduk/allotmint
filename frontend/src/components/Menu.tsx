@@ -47,6 +47,8 @@ export default function Menu({
       ? "instrumentadmin"
       : path[0] === "dataadmin"
       ? "dataadmin"
+      : path[0] === "profile"
+      ? "profile"
       : path[0] === "virtual"
       ? "virtual"
       : path[0] === "reports"
@@ -93,6 +95,8 @@ export default function Menu({
         return "/allocation";
       case "instrumentadmin":
         return "/instrumentadmin";
+      case "profile":
+        return "/profile";
       default:
         return `/${m}`;
     }

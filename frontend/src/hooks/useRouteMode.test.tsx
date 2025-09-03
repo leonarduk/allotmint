@@ -56,12 +56,13 @@ describe("useRouteMode", () => {
       instrumentadmin: false,
       dataadmin: false,
       virtual: false,
-      support: false,
-      settings: false,
-      scenario: false,
-      reports: false,
-      logs: false,
-    };
+        support: false,
+        settings: false,
+        profile: true,
+        scenario: false,
+        reports: false,
+        logs: false,
+      };
 
     const config: ConfigContextValue = {
       relativeViewEnabled: false,

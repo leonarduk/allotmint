@@ -1,5 +1,24 @@
 # Application configuration
 
+tabs:
+  movers: true
+  group: true
+  instrument: true
+  owner: true
+  performance: false
+  transactions: false
+  screener: false
+  trading: false
+  timeseries: true
+  watchlist: false
+  instrumentadmin: true
+  dataadmin: true
+  virtual: false
+  support: true
+  reports: true
+  scenario: true
+  profile: true
+
 # File and directory paths
 paths:
   # Base path for the repository. Default '.'

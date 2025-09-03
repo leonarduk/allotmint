@@ -27,7 +27,9 @@ const WATCHLIST_OPTIONS: WatchlistOption[] = [
 export function TopMoversPage() {
   const [watchlist, setWatchlist] = useState<WatchlistOption>("Portfolio");
   const [period, setPeriod] = useState<PeriodKey>("1d");
-  const [selected, setSelected] = useState<MoverRow | null>(null);
+  const [selected, setSelected] = useState<
+    { row: MoverRow; signal?: TradingSignal } | null
+  >(null);
   const navigate = useNavigate();
   const [signals, setSignals] = useState<TradingSignal[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
@@ -238,7 +240,9 @@ export function TopMoversPage() {
               <td className={tableStyles.cell}>
                 <button
                   type="button"
-                  onClick={() => setSelected(r)}
+                  onClick={() =>
+                    setSelected({ row: r, signal: signalMap.get(r.ticker) })
+                  }
                   style={{
                     color: "dodgerblue",
                     textDecoration: "underline",
@@ -257,7 +261,10 @@ export function TopMoversPage() {
                 {(() => {
                   const s = signalMap.get(r.ticker);
                   return s ? (
-                    <SignalBadge action={s.action} onClick={() => setSelected(r)} />
+                    <SignalBadge
+                      action={s.action}
+                      onClick={() => setSelected({ row: r, signal: s })}
+                    />
                   ) : null;
                 })()}
               </td>
@@ -322,8 +329,9 @@ export function TopMoversPage() {
 
       {selected && (
         <InstrumentDetail
-          ticker={selected.ticker}
-          name={selected.name}
+          ticker={selected.row.ticker}
+          name={selected.row.name}
+          signal={selected.signal}
           onClose={() => setSelected(null)}
         />
       )}

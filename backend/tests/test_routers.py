@@ -56,3 +56,31 @@ def test_trading_agent_route(monkeypatch):
         resp = client.get("/trading-agent/signals")
     assert resp.status_code == 200
     assert resp.json() == [{"ticker": "AAA", "action": "BUY"}]
+
+
+def test_agent_stats_route(monkeypatch):
+    fake_metrics = {"win_rate": 0.5, "average_profit": 1.23}
+    monkeypatch.setattr("backend.common.trade_metrics.load_and_compute_metrics", lambda: fake_metrics)
+    agent = importlib.import_module("backend.routes.agent")
+    importlib.reload(agent)
+    app = FastAPI()
+    app.include_router(agent.router)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.get("/agent/stats")
+    assert resp.status_code == 200
+    assert resp.json() == fake_metrics
+
+
+def test_agent_stats_route_error(monkeypatch):
+    def boom():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("backend.common.trade_metrics.load_and_compute_metrics", boom)
+    agent = importlib.import_module("backend.routes.agent")
+    importlib.reload(agent)
+    app = FastAPI()
+    app.include_router(agent.router)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.get("/agent/stats")
+    assert resp.status_code == 500
+    assert resp.text == "Internal Server Error"

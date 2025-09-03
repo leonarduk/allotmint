@@ -83,7 +83,7 @@ class TransactionCreate(BaseModel):
     account: str
     ticker: str
     date: date
-    price_gbp: float
+    price_gbp: float = Field(gt=0)
     units: float = Field(gt=0)
     fees: Optional[float] = None
     comments: Optional[str] = None
@@ -146,6 +146,14 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     account = _validate_component(tx_data.pop("account"), "account")
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
+
+    price = tx_data.get("price_gbp")
+    units_val = tx_data.get("units")
+    if price is None or units_val is None:
+        raise HTTPException(status_code=400, detail="price_gbp and units are required")
+    impact = float(price) * float(units_val)
+    _PORTFOLIO_IMPACT[owner] += impact
+    _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
 
     owner_dir = Path(config.accounts_root) / owner
     owner_dir.mkdir(parents=True, exist_ok=True)

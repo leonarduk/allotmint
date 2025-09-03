@@ -33,6 +33,7 @@ const defaultConfig: AppConfig = {
     virtual: true,
     support: true,
     settings: true,
+    profile: true,
     reports: true,
     scenario: true,
     logs: true,
@@ -91,7 +92,7 @@ describe("mobile viewport rendering", () => {
   });
 
   it("renders PortfolioView", async () => {
-    let container: HTMLElement;
+    let container!: HTMLElement;
     await act(async () => {
       ({ container } = renderWithConfig(<PortfolioView data={portfolio} />));
     });
@@ -101,7 +102,7 @@ describe("mobile viewport rendering", () => {
   });
 
     it("renders AccountBlock", async () => {
-      let container: HTMLElement;
+      let container!: HTMLElement;
       await act(async () => {
         ({ container } = renderWithConfig(<AccountBlock account={account} />));
       });
@@ -116,7 +117,7 @@ describe("mobile viewport rendering", () => {
     });
 
     it("renders HoldingsTable", async () => {
-      let container: HTMLElement;
+      let container!: HTMLElement;
       await act(async () => {
         ({ container } = renderWithConfig(<HoldingsTable holdings={holdings} />));
       });

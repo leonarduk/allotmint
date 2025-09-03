@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import secrets
 from contextvars import ContextVar
 from typing import Optional, Set
 
@@ -20,7 +22,12 @@ from backend.common.data_loader import (
 )
 from backend.config import config
 
-SECRET_KEY = os.getenv("JWT_SECRET", "change-me")
+logger = logging.getLogger(__name__)
+
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    logger.warning("JWT_SECRET not set; generating ephemeral secret")
+    SECRET_KEY = secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -93,13 +100,10 @@ def _allowed_emails() -> Set[str]:
 def authenticate_user(id_token_str: str) -> Optional[str]:
     """Return the email for a valid ID token or ``None`` if rejected."""
 
-    email = verify_google_token(id_token_str)
-    if not email:
-        return None
-    allowed = _allowed_emails()
-    if allowed and email.lower() not in allowed:
-        return None
-    return email
+    # ``verify_google_token`` performs all validation, including ensuring the
+    # email is present in the accounts directory.  It raises an ``HTTPException``
+    # when the token is invalid or the email is not authorised.
+    return verify_google_token(id_token_str)
 
 
 def create_access_token(email: str) -> str:
@@ -136,7 +140,19 @@ def verify_google_token(token: str) -> str:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not verified")
 
     email = info.get("email")
-    allowed = set(config.allowed_emails or [])
-    if email not in allowed:
+    allowed = _allowed_emails()
+    if not allowed:
+        logger.error("No allowed emails configured; rejecting login attempt")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
+    # Reject tokens whenever the email is missing or not explicitly allowed.
+    if not email or email.lower() not in allowed:
+        logger.warning(
+            "Unauthorized login attempt for %s (token %.8s)",
+            email or "unknown",
+            token[:8],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized email",
+        )
     return email

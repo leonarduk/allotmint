@@ -4,7 +4,7 @@ import inspect
 from functools import wraps
 from typing import Any, Callable, TypeVar
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 OWNER_NOT_FOUND = "Owner not found"
 

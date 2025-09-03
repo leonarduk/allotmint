@@ -23,6 +23,7 @@ const defaultConfig: AppConfig = {
     virtual: true,
     support: true,
     settings: true,
+    profile: true,
     reports: true,
     scenario: true,
     logs: true,
@@ -63,6 +64,33 @@ describe("InstrumentDetail", () => {
 
   beforeEach(() => {
     mockGetInstrumentDetail.mockReset();
+  });
+
+  it("shows signal action and reason when provided", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: [],
+      positions: [],
+      currency: null,
+    });
+
+    render(
+      <MemoryRouter>
+        <InstrumentDetail
+          ticker="ABC.L"
+          name="ABC"
+          signal={{
+            ticker: "ABC.L",
+            name: "ABC",
+            action: "buy",
+            reason: "test reason",
+          }}
+          onClose={() => {}}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("BUY")).toBeInTheDocument();
+    expect(screen.getByText(/test reason/)).toBeInTheDocument();
   });
 
   it.each(["en", "fr", "de", "es", "pt"]) (

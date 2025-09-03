@@ -3,17 +3,30 @@ from __future__ import annotations
 import json
 import logging
 import os
+import platform
 import re
+from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import fcntl
+try:  # Unix-like systems
+    import fcntl  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
+    if platform.system() == "Windows":
+        import msvcrt  # type: ignore
+    else:  # pragma: no cover - unsupported platform
+        raise
+else:  # pragma: no cover - Unix
+    msvcrt = None  # type: ignore[assignment]
+
 from fastapi import APIRouter, HTTPException
+from fastapi import Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.common import portfolio_loader
 from backend.common import portfolio as portfolio_mod
+from backend.common import portfolio_loader
 from backend.config import config
 
 router = APIRouter(tags=["transactions"])
@@ -37,8 +50,32 @@ class Transaction(BaseModel):
 
     model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["transactions"])
+
+_POSTED_TRANSACTIONS: List[dict] = []
+_PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
 
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _lock_file(f) -> None:
+    """Lock ``f`` for exclusive access."""
+    if fcntl:
+        fcntl.flock(f, fcntl.LOCK_EX)
+    else:  # pragma: no cover - Windows
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 0x7FFFFFFF)
+
+
+def _unlock_file(f) -> None:
+    """Unlock ``f``."""
+    if fcntl:
+        fcntl.flock(f, fcntl.LOCK_UN)
+    else:  # pragma: no cover - Windows
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 0x7FFFFFFF)
 
 
 class TransactionCreate(BaseModel):
@@ -46,7 +83,7 @@ class TransactionCreate(BaseModel):
     account: str
     ticker: str
     date: date
-    price_gbp: float
+    price_gbp: float = Field(gt=0)
     units: float = Field(gt=0)
     fees: Optional[float] = None
     comments: Optional[str] = None
@@ -110,20 +147,28 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
 
+    price = tx_data.get("price_gbp")
+    units_val = tx_data.get("units")
+    if price is None or units_val is None:
+        raise HTTPException(status_code=400, detail="price_gbp and units are required")
+    impact = float(price) * float(units_val)
+    _PORTFOLIO_IMPACT[owner] += impact
+    _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
+
     owner_dir = Path(config.accounts_root) / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
     file_path = owner_dir / f"{account}_transactions.json"
 
     with file_path.open("a+", encoding="utf-8") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        _lock_file(f)
         f.seek(0)
         try:
             data = json.load(f)
         except json.JSONDecodeError as exc:
-            logging.warning("Failed to parse existing transactions file %s: %s", file_path, exc)
+            log.warning("Failed to parse existing transactions file %s: %s", file_path, exc)
             data = {"owner": owner, "account_type": account, "transactions": []}
         except OSError as exc:
-            logging.warning("Failed to read transactions file %s: %s", file_path, exc)
+            log.warning("Failed to read transactions file %s: %s", file_path, exc)
             data = {"owner": owner, "account_type": account, "transactions": []}
 
         transactions = data.setdefault("transactions", [])

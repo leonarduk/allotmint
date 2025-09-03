@@ -70,17 +70,24 @@ def test_post_transaction_updates_portfolio(tmp_path, monkeypatch, offline_mode)
         resp1 = client.get(f"/portfolio/{owner}")
         assert resp1.status_code == 200
         data1 = resp1.json()
-        units_before = next(h["units"] for h in data1["accounts"][0]["holdings"] if h["ticker"] == "AAA")
-        assert units_before == 10
+        value_before = data1["total_value_estimate_gbp"]
 
-        # add a sell transaction
-        tx = {"owner": owner, "account": account, "date": "2024-02-01", "type": "SELL", "ticker": "AAA", "shares": 5}
+        # post a transaction adding £10 of value
+        tx = {
+            "owner": owner,
+            "account": account,
+            "ticker": "AAA",
+            "date": "2024-02-01",
+            "price_gbp": 10.0,  # validated to be positive
+            "units": 1,
+            "reason": "test",
+        }
         resp2 = client.post("/transactions", json=tx)
-        assert resp2.status_code == 200
+        assert resp2.status_code == 201
 
-        # portfolio should now reflect 5 units
+        # portfolio total value should reflect the added transaction
         resp3 = client.get(f"/portfolio/{owner}")
         assert resp3.status_code == 200
         data3 = resp3.json()
-        units_after = next(h["units"] for h in data3["accounts"][0]["holdings"] if h["ticker"] == "AAA")
-        assert units_after == 5
+        value_after = data3["total_value_estimate_gbp"]
+        assert value_after == pytest.approx(value_before + 10.0)

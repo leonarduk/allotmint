@@ -1,8 +1,8 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import './index.css'
 import './styles/responsive.css'
 import './i18n'
@@ -13,8 +13,9 @@ import Support from './pages/Support'
 import ComplianceWarnings from './pages/ComplianceWarnings'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
+import { AuthProvider, useAuth } from './AuthContext'
 import InstrumentResearch from './pages/InstrumentResearch'
-import { getConfig, logout } from './api'
+import { getConfig, logout, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import Profile from './pages/Profile'
 import Alerts from './pages/Alerts'
@@ -25,6 +26,15 @@ export function Root() {
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
   const [authed, setAuthed] = useState(false)
+  const { setUser } = useAuth()
+  const navigate = useNavigate()
+
+  const logout = () => {
+    setUser(null)
+    setAuthToken(null)
+    setAuthed(false)
+    navigate('/')
+  }
 
   const handleLogout = () => {
     logout()
@@ -44,7 +54,7 @@ export function Root() {
   if (needsAuth && !authed) {
     if (!clientId) {
       console.error('Google client ID is missing; login disabled')
-      return <div>Google client ID missing. Login is unavailable.</div>
+      return <div>Google login is not configured.</div>
     }
     return <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
   }

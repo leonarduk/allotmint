@@ -63,12 +63,12 @@ def test_rebalance_route(monkeypatch):
     app.include_router(rebalance.router)
 
     suggestions = [
-        {"ticker": "AAA", "action": "buy", "amount": "10.5"},
-        {"ticker": "BBB", "action": "sell", "amount": "1"},
+        {"ticker": "AAA", "action": "buy", "amount": 10.5},
+        {"ticker": "BBB", "action": "sell", "amount": 1.0},
     ]
 
     monkeypatch.setattr(
-        "backend.common.rebalance.suggest_trades",
+        "backend.routes.rebalance.suggest_trades",
         lambda actual, target: suggestions,
     )
 

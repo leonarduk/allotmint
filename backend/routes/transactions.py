@@ -181,7 +181,7 @@ async def create_transaction(tx: TransactionCreate) -> dict:
         json.dump(data, f, indent=2)
         f.flush()
         os.fsync(f.fileno())
-        fcntl.flock(f, fcntl.LOCK_UN)
+        _unlock_file(f)
 
     try:
         portfolio_loader.rebuild_account_holdings(owner, account, Path(config.accounts_root))

@@ -12,14 +12,21 @@ import ComplianceWarnings from './pages/ComplianceWarnings'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import InstrumentResearch from './pages/InstrumentResearch'
-import { getConfig } from './api'
+import { getConfig, logout } from './api'
 import LoginPage from './LoginPage'
+import Profile from './pages/Profile'
+import { UserProvider } from './UserContext'
 
 export function Root() {
   const [ready, setReady] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
   const [authed, setAuthed] = useState(false)
+
+  const handleLogout = () => {
+    logout()
+    setAuthed(false)
+  }
 
   useEffect(() => {
     getConfig<Record<string, unknown>>()
@@ -48,7 +55,8 @@ export function Root() {
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
-        <Route path="/*" element={<App />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/*" element={<App onLogout={handleLogout} />} />
       </Routes>
     </BrowserRouter>
   )
@@ -60,7 +68,9 @@ createRoot(rootEl).render(
   <StrictMode>
     <ConfigProvider>
       <PriceRefreshProvider>
-        <Root />
+        <UserProvider>
+          <Root />
+        </UserProvider>
       </PriceRefreshProvider>
     </ConfigProvider>
   </StrictMode>,

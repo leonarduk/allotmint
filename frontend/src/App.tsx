@@ -68,7 +68,11 @@ const initialMode: Mode =
   path.length === 0 ? "group" : "movers";
 const initialSlug = path[1] ?? "";
 
-export default function App() {
+interface AppProps {
+  onLogout?: () => void;
+}
+
+export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
@@ -329,6 +333,11 @@ export default function App() {
                 {t(`app.modes.${p.id}`)}
               </Link>
             ))}
+          {onLogout && (
+            <button onClick={onLogout} style={{ marginLeft: "1rem" }}>
+              Logout
+            </button>
+          )}
         </nav>
         <InstrumentSearchBar />
         {lastRefresh && (

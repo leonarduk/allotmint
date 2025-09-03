@@ -21,6 +21,11 @@ describe('Google login guard', () => {
       </BrowserRouter>,
     )
     expect(
+      await screen.findByText(
+        /Google client ID missing\. Login is unavailable\./i,
+      ),
+    ).toBeInTheDocument()
+    expect(
       await screen.findByText(/Google login is not configured/i),
     ).toBeInTheDocument()
   })

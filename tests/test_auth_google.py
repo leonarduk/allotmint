@@ -14,4 +14,5 @@ def test_token_requires_configured_email():
 
     # Token mapped to other@example.com should be rejected
     bad = client.post("/token", json={"id_token": "other"})
+    # Unauthorized email returns 403 Forbidden: request understood but not allowed
     assert bad.status_code == 403

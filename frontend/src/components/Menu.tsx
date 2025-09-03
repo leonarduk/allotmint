@@ -6,11 +6,13 @@ import { type Mode, MODES } from "../modes";
 interface MenuProps {
   selectedOwner?: string;
   selectedGroup?: string;
+  onLogout?: () => void;
 }
 
 export default function Menu({
   selectedOwner = "",
   selectedGroup = "",
+  onLogout,
 }: MenuProps) {
   const location = useLocation();
   const { t } = useTranslation();
@@ -94,6 +96,11 @@ export default function Menu({
             {t(`app.modes.${m}`)}
           </Link>
         ),
+      )}
+      {onLogout && (
+        <button onClick={onLogout} style={{ marginLeft: "1rem" }}>
+          Logout
+        </button>
       )}
     </nav>
   );

@@ -5,7 +5,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 import backend.routes as routes_pkg
-from backend.routes import compliance, trading_agent
+from backend.routes import compliance, trading_agent, rebalance
 
 
 def test_all_routes_registered():
@@ -56,3 +56,32 @@ def test_trading_agent_route(monkeypatch):
         resp = client.get("/trading-agent/signals")
     assert resp.status_code == 200
     assert resp.json() == [{"ticker": "AAA", "action": "BUY"}]
+
+
+def test_rebalance_route(monkeypatch):
+    app = FastAPI()
+    app.include_router(rebalance.router)
+
+    suggestions = [
+        {"ticker": "AAA", "action": "buy", "amount": "10.5"},
+        {"ticker": "BBB", "action": "sell", "amount": "1"},
+    ]
+
+    monkeypatch.setattr(
+        "backend.common.rebalance.suggest_trades",
+        lambda actual, target: suggestions,
+    )
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/rebalance",
+            json={"actual": {"AAA": 1}, "target": {"AAA": 1}},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data == [
+        {"ticker": "AAA", "action": "buy", "amount": 10.5},
+        {"ticker": "BBB", "action": "sell", "amount": 1.0},
+    ]
+    assert all(isinstance(item["amount"], float) for item in data)

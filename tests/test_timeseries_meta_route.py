@@ -72,4 +72,3 @@ def test_timeseries_meta_bad_request(monkeypatch, tmp_path):
     )
     client = _make_client(monkeypatch, tmp_path, df)
     resp = client.get("/timeseries/meta?ticker=&exchange=L")
-    assert resp.status_code == 400

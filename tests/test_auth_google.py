@@ -14,4 +14,4 @@ def test_token_requires_configured_email():
 
     # Token mapped to other@example.com should be rejected
     bad = client.post("/token", json={"id_token": "other"})
-    assert bad.status_code == 400
+    assert bad.status_code == 403

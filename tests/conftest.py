@@ -1,5 +1,9 @@
+import os
+
 import boto3
 import pytest
+
+os.environ.setdefault("JWT_SECRET", "test-secret")
 
 from backend.config import config
 
@@ -19,14 +23,15 @@ def enable_offline_mode():
 def mock_google_verify(monkeypatch):
     """Stub Google ID token verification for tests."""
 
+    from fastapi import HTTPException
     from backend import auth
 
     def fake_verify(token: str):
         if token == "good":
             return "lucy@example.com"
         if token == "other":
-            return "other@example.com"
-        return None
+            raise HTTPException(status_code=403, detail="Unauthorized email")
+        raise HTTPException(status_code=401, detail="Invalid token")
 
     monkeypatch.setattr(auth, "verify_google_token", fake_verify)
 

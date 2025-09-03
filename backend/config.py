@@ -214,7 +214,7 @@ def load_config() -> Config:
             google_auth_enabled = False
         else:
             raise ConfigValidationError(
-                "GOOGLE_AUTH_ENABLED must be one of '1', 'true', 'yes', '0', 'false', 'no'",
+                "GOOGLE_AUTH_ENABLED must be one of: '1', 'true', 'yes', '0', 'false', 'no' (case-insensitive)",
             )
 
     google_client_id = data.get("google_client_id")

@@ -147,6 +147,10 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
 
+    impact = float(tx_data.get("price_gbp", 0.0)) * float(tx_data.get("units", 0.0))
+    _PORTFOLIO_IMPACT[owner] += impact
+    _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
+
     owner_dir = Path(config.accounts_root) / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
     file_path = owner_dir / f"{account}_transactions.json"

@@ -72,6 +72,10 @@ const initialMode: Mode =
   path.length === 0 ? "group" : "movers";
 const initialSlug = path[1] ?? "";
 
+interface AppProps {
+  onLogout?: () => void;
+}
+
 export default function App({ onLogout }: { onLogout?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -312,6 +316,29 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
         onClose={() => setNotificationsOpen(false)}
       />
       <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
+        <nav role="navigation" style={{ flexGrow: 1 }}>
+          {orderedTabPlugins
+            .slice()
+            .sort((a, b) => a.priority - b.priority)
+            .filter((p) => tabs[p.id] !== false)
+            .map((p) => (
+              <Link
+                key={p.id}
+                to={pathFor(p.id)}
+                style={{
+                  marginRight: "1rem",
+                  fontWeight: mode === p.id ? "bold" : undefined,
+                }}
+              >
+                {t(`app.modes.${p.id}`)}
+              </Link>
+            ))}
+          {onLogout && (
+            <button onClick={onLogout} style={{ marginLeft: "1rem" }}>
+              Logout
+            </button>
+          )}
+        </nav>
         <Menu
           selectedOwner={selectedOwner}
           selectedGroup={selectedGroup}

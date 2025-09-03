@@ -132,6 +132,11 @@ export default function Menu({
           {t("app.logout", "Logout")}
         </button>
       )}
+      {onLogout && (
+        <button onClick={onLogout} style={{ marginLeft: "1rem" }}>
+          Logout
+        </button>
+      )}
     </nav>
   );
 }

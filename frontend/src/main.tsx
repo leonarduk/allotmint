@@ -13,8 +13,10 @@ import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
 import InstrumentResearch from './pages/InstrumentResearch'
-import { getConfig, setAuthToken } from './api'
+import { getConfig, logout, setAuthToken } from './api'
 import LoginPage from './LoginPage'
+import Profile from './pages/Profile'
+import { UserProvider } from './UserContext'
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -29,6 +31,11 @@ export function Root() {
     setAuthToken(null)
     setAuthed(false)
     navigate('/')
+  }
+
+  const handleLogout = () => {
+    logout()
+    setAuthed(false)
   }
 
   useEffect(() => {
@@ -50,15 +57,18 @@ export function Root() {
   }
 
   return (
-    <Routes>
-      <Route path="/support" element={<Support />} />
-      <Route path="/reports" element={<Reports />} />
-      <Route path="/virtual" element={<VirtualPortfolio />} />
-      <Route path="/compliance" element={<ComplianceWarnings />} />
-      <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
-      <Route path="/research/:ticker" element={<InstrumentResearch />} />
-      <Route path="/*" element={<App onLogout={logout} />} />
-    </Routes>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/support" element={<Support />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/virtual" element={<VirtualPortfolio />} />
+        <Route path="/compliance" element={<ComplianceWarnings />} />
+        <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+        <Route path="/research/:ticker" element={<InstrumentResearch />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/*" element={<App onLogout={handleLogout} />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

@@ -1,5 +1,4 @@
 import pandas as pd
-import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -24,11 +23,12 @@ def deterministic_setup(monkeypatch):
         "accounts": [
             {
                 "name": "ISA",
-                "holdings": [{"ticker": "ABC", "exchange": "L", "units": 10, "currency": "GBP"}],
+                "holdings": [{"ticker": "ABC.L", "units": 10, "currency": "GBP"}],
             }
         ],
     }
     monkeypatch.setattr(portfolio_mod, "build_owner_portfolio", lambda owner: portfolio)
+    monkeypatch.setattr(portfolio_mod, "list_owners", lambda: ["alice"])
 
     # Closing prices for five consecutive days
     prices = pd.DataFrame(
@@ -57,3 +57,29 @@ def test_var_known_case(deterministic_setup):
     var = data["var"]
     # Historical 95% one-day VaR computed from sample prices
     assert var["1d"] == pytest.approx(41.35, rel=1e-2)
+
+
+def test_var_breakdown(deterministic_setup):
+    client = _auth_client()
+    resp = client.get("/var/alice/breakdown?days=4&confidence=0.95")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "breakdown" in data
+    breakdown = data["breakdown"]
+    assert len(breakdown) == 1
+    item = breakdown[0]
+    assert item["ticker"] == "ABC.L"
+    assert item["contribution"] == pytest.approx(41.35, rel=1e-2)
+
+
+def test_var_breakdown_bad_params(deterministic_setup):
+    client = _auth_client()
+    resp = client.get("/var/alice/breakdown?days=0")
+    assert resp.status_code == 400
+
+
+def test_var_breakdown_unknown_owner(monkeypatch):
+    client = _auth_client()
+    monkeypatch.setattr(portfolio_mod, "list_owners", lambda: ["alice"])
+    resp = client.get("/var/unknown/breakdown")
+    assert resp.status_code == 404

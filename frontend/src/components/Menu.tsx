@@ -1,31 +1,36 @@
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
-import { type Mode, MODES } from "../modes";
+import type { TabPluginId } from "../tabPlugins";
+import { orderedTabPlugins } from "../tabPlugins";
 
 interface MenuProps {
   selectedOwner?: string;
   selectedGroup?: string;
+  onLogout?: () => void;
+  style?: React.CSSProperties;
 }
 
 export default function Menu({
   selectedOwner = "",
   selectedGroup = "",
+  onLogout,
+  style,
 }: MenuProps) {
   const location = useLocation();
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
-
-  const params = new URLSearchParams(location.search);
   const path = location.pathname.split("/").filter(Boolean);
 
-  const mode: Mode =
+  const mode: TabPluginId =
     path[0] === "member"
       ? "owner"
       : path[0] === "instrument"
       ? "instrument"
       : path[0] === "transactions"
       ? "transactions"
+      : path[0] === "trading"
+      ? "trading"
       : path[0] === "performance"
       ? "performance"
       : path[0] === "screener"
@@ -34,6 +39,8 @@ export default function Menu({
       ? "timeseries"
       : path[0] === "watchlist"
       ? "watchlist"
+      : path[0] === "allocation"
+      ? "allocation"
       : path[0] === "movers"
       ? "movers"
       : path[0] === "instrumentadmin"
@@ -42,9 +49,15 @@ export default function Menu({
       ? "dataadmin"
       : path[0] === "profile"
       ? "profile"
+      : path[0] === "virtual"
+      ? "virtual"
+      : path[0] === "reports"
+      ? "reports"
       : path[0] === "support"
       ? "support"
       : path[0] === "settings"
+      ? "settings"
+      : path[0] === "profile"
       ? "settings"
       : path[0] === "scenario"
       ? "scenario"
@@ -54,7 +67,7 @@ export default function Menu({
       ? "group"
       : "movers";
 
-  function pathFor(m: Mode) {
+  function pathFor(m: TabPluginId) {
     switch (m) {
       case "group":
         return selectedGroup ? `/?group=${selectedGroup}` : "/";
@@ -68,12 +81,18 @@ export default function Menu({
           : "/performance";
       case "movers":
         return "/movers";
+      case "trading":
+        return "/trading";
       case "scenario":
         return "/scenario";
+      case "reports":
+        return "/reports";
       case "settings":
         return "/settings";
       case "logs":
         return "/logs";
+      case "allocation":
+        return "/allocation";
       case "instrumentadmin":
         return "/instrumentadmin";
       case "profile":
@@ -84,20 +103,43 @@ export default function Menu({
   }
 
   return (
-    <nav style={{ margin: "1rem 0" }}>
-      {MODES.filter((m) => tabs[m] === true && !disabledTabs?.includes(m)).map(
-        (m) => (
+    <nav style={{ margin: "1rem 0", ...(style ?? {}) }}>
+      {orderedTabPlugins
+        .slice()
+        .sort((a, b) => a.priority - b.priority)
+        .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
+        .map((p) => (
           <Link
-            key={m}
-            to={pathFor(m)}
+            key={p.id}
+            to={pathFor(p.id)}
             style={{
               marginRight: "1rem",
-              fontWeight: mode === m ? "bold" : undefined,
+              fontWeight: mode === p.id ? "bold" : undefined,
             }}
           >
-            {t(`app.modes.${m}`)}
+            {t(`app.modes.${p.id}`)}
           </Link>
-        ),
+        ))}
+      {onLogout && (
+        <button
+          type="button"
+          onClick={onLogout}
+          style={{
+            marginRight: "1rem",
+            background: "none",
+            border: "none",
+            padding: 0,
+            font: "inherit",
+            cursor: "pointer",
+          }}
+        >
+          {t("app.logout", "Logout")}
+        </button>
+      )}
+      {onLogout && (
+        <button onClick={onLogout} style={{ marginLeft: "1rem" }}>
+          Logout
+        </button>
       )}
     </nav>
   );

@@ -1,46 +1,4 @@
-offline_mode: false
-max_trades_per_month: 20
-hold_days_min: 30
-repo_root: .
-accounts_root: data/accounts
-prices_json: data/prices/latest_prices.json
-risk_free_rate: 0.01
-timeseries_cache_base: data/timeseries
-fx_proxy_url: ''
-alpha_vantage_enabled: false
-fundamentals_cache_ttl_seconds: 86400
-stooq_timeout: 10
-stooq_requests_per_minute: 60
-trading_agent:
-  rsi_buy: 30
-  rsi_sell: 70
-  ma_short_window: 20
-  ma_long_window: 50
-  min_sharpe: null
-  max_volatility: null
-cors:
-  production:
-    - https://app.allotmint.io
-app_env: local
-google_auth_enabled: true
-disable_auth: false
-portfolio_xml_path: data/portfolio/investments.xml
-transactions_output_root: data/accounts
-uvicorn_host: 0.0.0.0
-uvicorn_port: 8000
-reload: true
-relative_view_enabled: false
-theme: system
-log_config: backend/logging.ini
-skip_snapshot_warm: false
-snapshot_warm_days: 30
-ft_url_template: https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}
-selenium_user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
-  (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36
-selenium_headless: true
-approval_valid_days: 2
-approval_exempt_types: ETF
-approval_exempt_tickers: ''
+# Application configuration
 
 tabs:
   movers: true
@@ -60,3 +18,112 @@ tabs:
   reports: true
   scenario: true
   profile: true
+
+# File and directory paths
+paths:
+  # Base path for the repository. Default '.'
+  repo_root: .
+  # Directory containing account files (relative to repo_root)
+  accounts_root: data/accounts
+  # Location for cached price data
+  prices_json: data/prices/latest_prices.json
+  # Cache directory for time series data
+  timeseries_cache_base: data/timeseries
+  # Portfolio XML input file
+  portfolio_xml_path: data/portfolio/investments.xml
+  # Where generated transactions are written
+  transactions_output_root: data/accounts
+  # Logging configuration file
+  log_config: backend/logging.ini
+
+auth:
+  # Enable Google sign-in (GOOGLE_AUTH_ENABLED)
+  google_auth_enabled: false
+  # Disable all authentication checks (DISABLE_AUTH) - use only for development
+  disable_auth: true
+  # OAuth client id for Google auth (GOOGLE_CLIENT_ID)
+  google_client_id: ""
+
+server:
+  # Runtime environment (APP_ENV)
+  app_env: local
+  # Host interface for the FastAPI server
+  uvicorn_host: 0.0.0.0
+  # Port for the FastAPI server
+  uvicorn_port: 8000
+  # Auto-reload during development
+  reload: true
+  # Cross-origin settings by environment
+  cors:
+    production:
+      - https://app.allotmint.io
+
+market_data:
+  # Run without external data fetches
+  offline_mode: false
+  # Optional proxy for FX rates
+  fx_proxy_url: ''
+  # Use AlphaVantage for quotes
+  alpha_vantage_enabled: false
+  # Time-to-live for fundamentals cache (seconds)
+  fundamentals_cache_ttl_seconds: 86400
+  # Timeout for Stooq requests (seconds)
+  stooq_timeout: 10
+  # Rate limit for Stooq requests (per minute)
+  stooq_requests_per_minute: 60
+  # URL template for Financial Times scraping
+  ft_url_template: https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}
+  # User agent string for Selenium requests
+  selenium_user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36
+  # Run Selenium headless
+  selenium_headless: true
+
+trading:
+  # Max trades allowed per month
+  max_trades_per_month: 20
+  # Minimum holding period in days
+  hold_days_min: 30
+  # Risk-free rate used for analytics
+  risk_free_rate: 0.01
+  # Skip warming trading snapshots on startup
+  skip_snapshot_warm: false
+  # Number of days to warm snapshots when enabled
+  snapshot_warm_days: 30
+  # Approval validity period in days
+  approval_valid_days: 2
+  # Exempt security types from approvals
+  approval_exempt_types: ETF
+  # Comma separated tickers exempt from approvals
+  approval_exempt_tickers: ''
+  # Parameters for automated trading agent
+  trading_agent:
+    rsi_buy: 30
+    rsi_sell: 70
+    ma_short_window: 20
+    ma_long_window: 50
+    min_sharpe: null
+    max_volatility: null
+
+ui:
+  # Enable relative performance views
+  relative_view_enabled: false
+  # Default theme: light, dark, or system
+  theme: system
+  # Toggle availability of frontend tabs
+  tabs:
+    movers: true
+    group: true
+    instrument: true
+    owner: true
+    performance: false
+    transactions: false
+    screener: false
+    trading: false
+    timeseries: true
+    watchlist: false
+    instrumentadmin: true
+    dataadmin: true
+    virtual: false
+    support: true
+    reports: true
+    scenario: true

@@ -32,6 +32,7 @@ from backend.config import config
 from backend.routes.agent import router as agent_router
 from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.alerts import router as alerts_router
+from backend.routes.approvals import router as approvals_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
 from backend.routes.instrument import router as instrument_router
@@ -41,8 +42,10 @@ from backend.routes.metrics import router as metrics_router
 from backend.routes.movers import router as movers_router
 from backend.routes.performance import router as performance_router
 from backend.routes.portfolio import (
-    router as portfolio_router,
     public_router as public_portfolio_router,
+)
+from backend.routes.portfolio import (
+    router as portfolio_router,
 )
 from backend.routes.query import router as query_router
 from backend.routes.quotes import router as quotes_router
@@ -54,10 +57,11 @@ from backend.routes.timeseries_edit import router as timeseries_edit_router
 from backend.routes.timeseries_meta import router as timeseries_router
 from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.transactions import router as transactions_router
-from backend.routes.approvals import router as approvals_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 from backend.utils import page_cache
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -146,14 +150,14 @@ def create_app() -> FastAPI:
         if not email:
             raise HTTPException(status_code=400, detail="Invalid credentials")
         token = create_access_token(email)
-# =======
-#     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-#         if config.google_auth_enabled:
-#             raise HTTPException(status_code=400, detail="Password login disabled")
-#         user = authenticate_user(form_data.username, form_data.password)
-#         if not user:
-#             raise HTTPException(status_code=400, detail="Incorrect username or password")
-#         token = create_access_token(user)
+        # =======
+        #     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+        #         if config.google_auth_enabled:
+        #             raise HTTPException(status_code=400, detail="Password login disabled")
+        #         user = authenticate_user(form_data.username, form_data.password)
+        #         if not user:
+        #             raise HTTPException(status_code=400, detail="Incorrect username or password")
+        #         token = create_access_token(user)
         return {"access_token": token, "token_type": "bearer"}
 
     @app.post("/token/google")
@@ -161,7 +165,11 @@ def create_app() -> FastAPI:
         token = payload.get("token")
         if not token:
             raise HTTPException(status_code=400, detail="Missing token")
-        email = verify_google_token(token)
+        try:
+            email = verify_google_token(token)
+        except HTTPException as exc:
+            logger.warning("Google token verification failed: %s", exc.detail)
+            raise
         jwt_token = create_access_token(email)
         return {"access_token": jwt_token, "token_type": "bearer"}
 
@@ -188,9 +196,7 @@ def create_app() -> FastAPI:
             from backend.common import instrument_api
 
             instrument_api.update_latest_prices_from_snapshot(snapshot)
-            price_task = asyncio.create_task(
-                asyncio.to_thread(instrument_api.prime_latest_prices)
-            )
+            price_task = asyncio.create_task(asyncio.to_thread(instrument_api.prime_latest_prices))
             app.state.background_tasks.append(price_task)
 
             task = refresh_snapshot_async(days=config.snapshot_warm_days or 30)

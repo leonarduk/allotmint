@@ -15,12 +15,14 @@ import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
+import type { TradingSignal } from "../types";
 
 type Props = {
   ticker: string;
   name: string;
   currency?: string;
   instrument_type?: string | null;
+  signal?: TradingSignal;
   onClose: () => void;
 };
 
@@ -58,6 +60,7 @@ export function InstrumentDetail({
   name,
   currency: currencyProp,
   instrument_type, // ← comes from props now
+  signal,
   onClose,
 }: Props) {
   const { t } = useTranslation();
@@ -171,6 +174,11 @@ export function InstrumentDetail({
       <button onClick={onClose} style={{ float: "right" }}>
         ✕
       </button>
+      {signal && (
+        <div style={{ marginBottom: "0.5rem" }}>
+          <strong>{signal.action.toUpperCase()}</strong> – {signal.reason}
+        </div>
+      )}
       <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
       <div style={{ fontSize: "0.85rem", color: "#aaa" }}>
         {ticker} • {displayCurrency} • {translateInstrumentType(t, instrument_type)} • {" "}

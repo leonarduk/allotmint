@@ -6,12 +6,13 @@ historical-simulation Value-at-Risk (VaR) for a portfolio owner.
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 
 from backend.common import portfolio_utils
+from backend.common import portfolio as portfolio_mod
 from backend.config import config
 
 
@@ -57,9 +58,11 @@ def compute_portfolio_var(
     # Allow the confidence level to be expressed as a percentage (e.g. 95)
     # or as a decimal fraction (0.95). Convert percentages to a fraction and
     # validate the result.
-    if confidence > 1:
+    if 0 < confidence < 1:
+        pass
+    elif 1 <= confidence <= 100 and float(confidence).is_integer():
         confidence = confidence / 100
-    if not 0 < confidence < 1:
+    else:
         raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
     # exclude any instruments flagged in the price snapshot until refreshed
@@ -94,6 +97,71 @@ def compute_portfolio_var(
         "1d": round(var_1d, 2) if var_1d is not None else None,
         "10d": round(var_10d, 2) if var_10d is not None else None,
     }
+
+
+def compute_portfolio_var_breakdown(
+    owner: str, days: int = 365, confidence: float = 0.95, include_cash: bool = True
+) -> List[Dict[str, float]]:
+    """Return VaR contribution for each holding in the owner's portfolio.
+
+    The calculation loads the owner's portfolio, collapses holdings to one row
+    per ticker using :func:`portfolio_utils.aggregate_by_ticker` and then
+    computes the 1-day VaR for each instrument's price series.  The resulting
+    per-unit VaR is scaled by the current position value to obtain the
+    contribution in GBP.  Instruments for which no prices are available are
+    skipped.  The returned list is sorted with the largest contributions first.
+
+    Parameters are identical to :func:`compute_portfolio_var`.
+    """
+
+    if days <= 0:
+        raise ValueError("days must be positive")
+
+    if 0 < confidence < 1:
+        pass
+    elif 1 <= confidence <= 100 and float(confidence).is_integer():
+        confidence = confidence / 100
+    else:
+        raise ValueError("confidence must be between 0 and 1 or 0 and 100")
+
+    portfolio = portfolio_mod.build_owner_portfolio(owner)
+    rows = portfolio_utils.aggregate_by_ticker(portfolio)
+
+    breakdown: List[Dict[str, float]] = []
+    for row in rows:
+        ticker = row.get("ticker")
+        if not ticker:
+            continue
+        # Optionally skip cash holdings
+        if not include_cash and ticker.startswith("CASH"):
+            continue
+
+        sym, exch = (ticker.rsplit(".", 1) + ["L"])[:2]
+        ts = portfolio_utils.load_meta_timeseries(sym, exch, days)
+        var_single = portfolio_utils.compute_var(ts, confidence=confidence)
+        if var_single is None or ts is None or ts.empty:
+            continue
+
+        closes = pd.to_numeric(ts["Close"], errors="coerce").dropna()
+        if closes.empty:
+            continue
+        last_price = float(closes.iloc[-1])
+        if last_price == 0:
+            continue
+        # Var as a fraction of price
+        var_pct = var_single / last_price
+
+        value = row.get("market_value_gbp") or 0.0
+        if not value and row.get("currency") == "GBP":
+            value = float(row.get("units", 0.0)) * last_price
+        if not value:
+            continue
+
+        contribution = var_pct * value
+        breakdown.append({"ticker": ticker, "contribution": round(float(contribution), 2)})
+
+    breakdown.sort(key=lambda x: x["contribution"], reverse=True)
+    return breakdown
 
 
 def compute_sharpe_ratio(owner: str, days: int = 365) -> float | None:

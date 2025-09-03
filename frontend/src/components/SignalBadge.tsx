@@ -1,5 +1,3 @@
-import React from "react";
-
 type Action = "buy" | "sell";
 type Props = {
   action: Action;

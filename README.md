@@ -73,7 +73,6 @@ TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ      # optional
 TELEGRAM_CHAT_ID=123456789                                  # optional
 GOOGLE_AUTH_ENABLED=true                                    # enable Google sign-in
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com   # Google OAuth client (required when enabling)
-ALLOWED_EMAILS=user1@example.com,user2@example.com           # comma-separated
 ```
 
 If `GOOGLE_AUTH_ENABLED` is `true`, you must create an OAuth 2.0 Client ID in the [Google Cloud Console](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid) and supply it via the `GOOGLE_CLIENT_ID` environment variable or the `google_client_id` entry in `config.yaml`.
@@ -86,8 +85,8 @@ When `GOOGLE_AUTH_ENABLED` is true, the backend requires a valid
 [Google Cloud Console](https://console.cloud.google.com/apis/credentials), then
 set the client ID via the `GOOGLE_CLIENT_ID` environment variable or
 `config.yaml`. With both enabled, the backend accepts Google ID tokens at
-`/token/google` and only issues API tokens for emails listed in
-`ALLOWED_EMAILS`.
+`/token/google` and only issues API tokens for emails discovered in the
+accounts directory.
 
 ### Push notification keys
 

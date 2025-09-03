@@ -1,7 +1,9 @@
-import AllocationCharts from "../pages/AllocationCharts";
+import AllocationCharts, {
+  type AllocationChartsProps,
+} from "../pages/AllocationCharts";
 import type { TabPlugin } from "./TabPlugin";
 
-const plugin: TabPlugin = {
+const plugin: TabPlugin<AllocationChartsProps> = {
   id: "allocation",
   component: AllocationCharts,
   priority: 85,

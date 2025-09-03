@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from contextvars import ContextVar
 from typing import Optional, Set
@@ -19,6 +20,8 @@ from backend.common.data_loader import (
     resolve_paths,
 )
 from backend.config import config
+
+logger = logging.getLogger(__name__)
 
 SECRET_KEY = os.getenv("JWT_SECRET", "change-me")
 ALGORITHM = "HS256"
@@ -93,13 +96,10 @@ def _allowed_emails() -> Set[str]:
 def authenticate_user(id_token_str: str) -> Optional[str]:
     """Return the email for a valid ID token or ``None`` if rejected."""
 
-    email = verify_google_token(id_token_str)
-    if not email:
-        return None
-    allowed = _allowed_emails()
-    if allowed and email.lower() not in allowed:
-        return None
-    return email
+    # ``verify_google_token`` performs all validation, including ensuring the
+    # email is present in the accounts directory.  It raises an ``HTTPException``
+    # when the token is invalid or the email is not authorised.
+    return verify_google_token(id_token_str)
 
 
 def create_access_token(email: str) -> str:
@@ -136,7 +136,10 @@ def verify_google_token(token: str) -> str:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not verified")
 
     email = info.get("email")
-    allowed = set(config.allowed_emails or [])
-    if email not in allowed:
+    allowed = _allowed_emails()
+    # Reject tokens when no account metadata is discovered or the email is not
+    # explicitly allowed.
+    if not email or (allowed and email.lower() not in allowed):
+        logger.warning("Unauthorized login attempt from %s", email)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
     return email

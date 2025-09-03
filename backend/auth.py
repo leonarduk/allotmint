@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from contextvars import ContextVar
 from typing import Optional, Set
 
@@ -25,7 +26,8 @@ logger = logging.getLogger(__name__)
 
 SECRET_KEY = os.getenv("JWT_SECRET")
 if not SECRET_KEY:
-    raise RuntimeError("JWT_SECRET environment variable must be set")
+    logger.warning("JWT_SECRET not set; generating ephemeral secret")
+    SECRET_KEY = secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -139,6 +141,9 @@ def verify_google_token(token: str) -> str:
 
     email = info.get("email")
     allowed = _allowed_emails()
+    if not allowed:
+        logger.error("No allowed emails configured; rejecting login attempt")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
     # Reject tokens whenever the email is missing or not explicitly allowed.
     if not email or email.lower() not in allowed:
         logger.warning(

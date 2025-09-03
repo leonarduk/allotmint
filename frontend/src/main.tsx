@@ -12,7 +12,7 @@ import ComplianceWarnings from './pages/ComplianceWarnings'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import InstrumentResearch from './pages/InstrumentResearch'
-import { getConfig } from './api'
+import { getConfig, logout } from './api'
 import LoginPage from './LoginPage'
 
 export function Root() {
@@ -20,6 +20,11 @@ export function Root() {
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
   const [authed, setAuthed] = useState(false)
+
+  const handleLogout = () => {
+    logout()
+    setAuthed(false)
+  }
 
   useEffect(() => {
     getConfig<Record<string, unknown>>()
@@ -48,7 +53,7 @@ export function Root() {
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
-        <Route path="/*" element={<App />} />
+        <Route path="/*" element={<App onLogout={handleLogout} />} />
       </Routes>
     </BrowserRouter>
   )

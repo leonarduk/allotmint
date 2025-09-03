@@ -23,7 +23,7 @@ else:  # pragma: no cover - Unix
 
 from fastapi import APIRouter, HTTPException
 from fastapi import Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
@@ -146,6 +146,10 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     account = _validate_component(tx_data.pop("account"), "account")
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
+
+    impact = float(tx_data.get("price_gbp", 0.0)) * float(tx_data.get("units", 0.0))
+    _PORTFOLIO_IMPACT[owner] += impact
+    _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
 
     owner_dir = Path(config.accounts_root) / owner
     owner_dir.mkdir(parents=True, exist_ok=True)

@@ -23,7 +23,9 @@ from backend.config import config
 
 logger = logging.getLogger(__name__)
 
-SECRET_KEY = os.getenv("JWT_SECRET", "change-me")
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable must be set")
 ALGORITHM = "HS256"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -137,9 +139,15 @@ def verify_google_token(token: str) -> str:
 
     email = info.get("email")
     allowed = _allowed_emails()
-    # Reject tokens when no account metadata is discovered or the email is not
-    # explicitly allowed.
-    if not email or (allowed and email.lower() not in allowed):
-        logger.warning("Unauthorized login attempt from %s", email)
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
+    # Reject tokens whenever the email is missing or not explicitly allowed.
+    if not email or email.lower() not in allowed:
+        logger.warning(
+            "Unauthorized login attempt for %s (token %.8s)",
+            email or "unknown",
+            token[:8],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized email",
+        )
     return email

@@ -25,7 +25,11 @@ def sample_accounts():
     root = Path(__file__).resolve().parents[1] / "data" / "accounts"
     for owner_dir in root.iterdir():
         if owner_dir.is_dir():
-            accounts = [p.stem for p in owner_dir.glob("*.json") if p.stem != "person"]
+            accounts = [
+                p.stem
+                for p in owner_dir.glob("*.json")
+                if p.stem != "person" and not p.stem.endswith("_transactions")
+            ]
             yield owner_dir.name, accounts
 
 

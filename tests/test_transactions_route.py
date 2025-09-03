@@ -20,11 +20,11 @@ def test_create_transaction_success(tmp_path, monkeypatch):
         "account": "ISA",
         "ticker": "AAPL",
         "date": "2024-05-01",
-        "price": 10.5,
+        "price_gbp": 10.5,
         "units": 2,
         "fees": 1.0,
         "comments": "test",
-        "reason_to_buy": "diversify",
+        "reason": "diversify",
     }
     resp = client.post("/transactions", json=payload)
     assert resp.status_code == 201
@@ -52,10 +52,11 @@ def test_create_transaction_validation_error(tmp_path, monkeypatch):
         "account": "ISA",
         "ticker": "AAPL",
         "date": "not-a-date",
-        "price": 10.5,
+        "price_gbp": 10.5,
         "units": 2,
+        "reason": "test",
     }
     resp = client.post("/transactions", json=bad_payload)
-    assert resp.status_code == 400
+    assert resp.status_code == 422
     file_path = tmp_path / "alice" / "ISA_transactions.json"
     assert not file_path.exists()

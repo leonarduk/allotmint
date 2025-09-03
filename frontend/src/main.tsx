@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import './index.css'
 import './styles/responsive.css'
 import './i18n'
@@ -11,8 +11,9 @@ import Support from './pages/Support'
 import ComplianceWarnings from './pages/ComplianceWarnings'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
+import { AuthProvider, useAuth } from './AuthContext'
 import InstrumentResearch from './pages/InstrumentResearch'
-import { getConfig } from './api'
+import { getConfig, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 
 export function Root() {
@@ -20,6 +21,15 @@ export function Root() {
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
   const [authed, setAuthed] = useState(false)
+  const { setUser } = useAuth()
+  const navigate = useNavigate()
+
+  const logout = () => {
+    setUser(null)
+    setAuthToken(null)
+    setAuthed(false)
+    navigate('/')
+  }
 
   useEffect(() => {
     getConfig<Record<string, unknown>>()
@@ -34,23 +44,21 @@ export function Root() {
   if (needsAuth && !authed) {
     if (!clientId) {
       console.error('Google client ID is missing; login disabled')
-      return <div>Google client ID missing. Login is unavailable.</div>
+      return <div>Google login is not configured.</div>
     }
     return <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/support" element={<Support />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/virtual" element={<VirtualPortfolio />} />
-        <Route path="/compliance" element={<ComplianceWarnings />} />
-        <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
-        <Route path="/research/:ticker" element={<InstrumentResearch />} />
-        <Route path="/*" element={<App />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/support" element={<Support />} />
+      <Route path="/reports" element={<Reports />} />
+      <Route path="/virtual" element={<VirtualPortfolio />} />
+      <Route path="/compliance" element={<ComplianceWarnings />} />
+      <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+      <Route path="/research/:ticker" element={<InstrumentResearch />} />
+      <Route path="/*" element={<App onLogout={logout} />} />
+    </Routes>
   )
 }
 
@@ -58,11 +66,15 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 createRoot(rootEl).render(
   <StrictMode>
-    <ConfigProvider>
-      <PriceRefreshProvider>
-        <Root />
-      </PriceRefreshProvider>
-    </ConfigProvider>
+    <AuthProvider>
+      <ConfigProvider>
+        <PriceRefreshProvider>
+          <BrowserRouter>
+            <Root />
+          </BrowserRouter>
+        </PriceRefreshProvider>
+      </ConfigProvider>
+    </AuthProvider>
   </StrictMode>,
 )
 

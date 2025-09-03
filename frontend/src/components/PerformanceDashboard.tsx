@@ -135,6 +135,11 @@ export function PerformanceDashboard({ owner }: Props) {
       </ResponsiveContainer>
 
       <h2 style={{ marginTop: "2rem" }}>Value at Risk (95%)</h2>
+      <p style={{ fontSize: "0.85rem", marginTop: "-0.5rem" }}>
+        <a href="/docs/value_at_risk.md" target="_blank" rel="noopener noreferrer">
+          Methodology
+        </a>
+      </p>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={varData}>
           <XAxis dataKey="date" />

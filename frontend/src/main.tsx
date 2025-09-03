@@ -14,6 +14,8 @@ import { PriceRefreshProvider } from './PriceRefreshContext'
 import InstrumentResearch from './pages/InstrumentResearch'
 import { getConfig, logout } from './api'
 import LoginPage from './LoginPage'
+import Profile from './pages/Profile'
+import { UserProvider } from './UserContext'
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -53,6 +55,7 @@ export function Root() {
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/*" element={<App onLogout={handleLogout} />} />
       </Routes>
     </BrowserRouter>
@@ -65,7 +68,9 @@ createRoot(rootEl).render(
   <StrictMode>
     <ConfigProvider>
       <PriceRefreshProvider>
-        <Root />
+        <UserProvider>
+          <Root />
+        </UserProvider>
       </PriceRefreshProvider>
     </ConfigProvider>
   </StrictMode>,

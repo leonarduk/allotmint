@@ -44,6 +44,7 @@ import InstrumentSearchBar from "./components/InstrumentSearchBar";
 import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
+import ProfilePage from "./pages/Profile";
 type Mode = (typeof orderedTabPlugins)[number]["id"];
 
 // derive initial mode + id from path
@@ -61,6 +62,7 @@ const initialMode: Mode =
   path[0] === "movers" ? "movers" :
   path[0] === "instrumentadmin" ? "instrumentadmin" :
   path[0] === "dataadmin" ? "dataadmin" :
+  path[0] === "profile" ? "profile" :
   path[0] === "support" ? "support" :
   path[0] === "settings" ? "settings" :
   path[0] === "scenario" ? "scenario" :
@@ -126,6 +128,8 @@ export default function App() {
         return "/allocation";
       case "instrumentadmin":
         return "/instrumentadmin";
+      case "profile":
+        return "/profile";
       default:
         return `/${m}`;
     }
@@ -171,6 +175,9 @@ export default function App() {
         break;
       case "dataadmin":
         newMode = "dataadmin";
+        break;
+      case "profile":
+        newMode = "profile";
         break;
       case "support":
         newMode = "support";
@@ -438,6 +445,7 @@ export default function App() {
       {mode === "settings" && <UserConfigPage />}
       {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}
+      {mode === "profile" && <ProfilePage />}
     </div>
   );
 }

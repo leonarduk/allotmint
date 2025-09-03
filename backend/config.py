@@ -38,6 +38,7 @@ class TabsConfig:
     virtual: bool = True
     support: bool = True
     settings: bool = True
+    profile: bool = True
     reports: bool = True
     scenario: bool = True
     logs: bool = True

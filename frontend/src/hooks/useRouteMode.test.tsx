@@ -58,6 +58,7 @@ describe("useRouteMode", () => {
       virtual: false,
       support: false,
       settings: false,
+      profile: false,
       scenario: false,
       reports: false,
       logs: false,

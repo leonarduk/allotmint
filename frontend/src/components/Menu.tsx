@@ -40,6 +40,8 @@ export default function Menu({
       ? "instrumentadmin"
       : path[0] === "dataadmin"
       ? "dataadmin"
+      : path[0] === "profile"
+      ? "profile"
       : path[0] === "support"
       ? "support"
       : path[0] === "settings"
@@ -74,6 +76,8 @@ export default function Menu({
         return "/logs";
       case "instrumentadmin":
         return "/instrumentadmin";
+      case "profile":
+        return "/profile";
       default:
         return `/${m}`;
     }

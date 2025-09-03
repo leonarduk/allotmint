@@ -26,6 +26,7 @@ export interface TabsConfig {
   virtual: boolean;
   support: boolean;
   settings: boolean;
+  profile: boolean;
   reports: boolean;
   scenario: boolean;
   logs: boolean;
@@ -66,6 +67,7 @@ const defaultTabs: TabsConfig = {
   virtual: true,
   support: true,
   settings: true,
+  profile: true,
   reports: true,
   scenario: true,
   logs: true,

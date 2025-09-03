@@ -26,6 +26,7 @@ function deriveInitial() {
     path[0] === "movers" ? "movers" :
     path[0] === "instrumentadmin" ? "instrumentadmin" :
     path[0] === "dataadmin" ? "dataadmin" :
+    path[0] === "profile" ? "profile" :
     path[0] === "support" ? "support" :
     path[0] === "scenario" ? "scenario" :
     path[0] === "logs" ? "logs" :
@@ -68,6 +69,8 @@ const { tabs, disabledTabs } = useConfig();
         return "/logs";
       case "instrumentadmin":
         return "/instrumentadmin";
+      case "profile":
+        return "/profile";
       default:
         return `/${m}`;
     }
@@ -107,6 +110,9 @@ const { tabs, disabledTabs } = useConfig();
         break;
       case "dataadmin":
         newMode = "dataadmin";
+        break;
+      case "profile":
+        newMode = "profile";
         break;
       case "support":
         newMode = "support";

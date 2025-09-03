@@ -46,7 +46,6 @@ import UserAvatar from "./components/UserAvatar";
 import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
-import ProfilePage from "./pages/Profile";
 import Menu from "./components/Menu";
 type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile";
 

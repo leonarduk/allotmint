@@ -49,6 +49,11 @@ export function ValueAtRisk({ owner }: Props) {
   return (
     <div style={{ marginBottom: "2rem" }}>
       <h2>Value at Risk</h2>
+      <p style={{ fontSize: "0.85rem", marginTop: "-0.5rem" }}>
+        <a href="/docs/value_at_risk.md" target="_blank" rel="noopener noreferrer">
+          Historical simulation details
+        </a>
+      </p>
       <div style={{ marginBottom: "0.5rem" }}>
         <label style={{ fontSize: "0.85rem" }}>
           Period:

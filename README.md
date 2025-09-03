@@ -186,7 +186,7 @@ rates from `fx_proxy_url` configured in `config.yaml`.
 
 ## Risk reporting
 
-The backend exposes Value at Risk (VaR) metrics for each portfolio.
+ The backend exposes [Value at Risk (VaR)](docs/value_at_risk.md) metrics for each portfolio.
 
 * **Defaults** – 95 % confidence over a 1‑day horizon and 99 % over 10 days.
 * **Query** – `GET /var/{owner}?days=30&confidence=0.99` fetches a 30‑day, 99 % VaR.
@@ -199,7 +199,8 @@ The backend exposes Value at Risk (VaR) metrics for each portfolio.
 * Calculations default to a 365‑day window (`days` parameter).
 
 See [backend/common/portfolio_utils.py](backend/common/portfolio_utils.py) for the return series that feed the calculation
-and [backend/common/constants.py](backend/common/constants.py) for currency labels.
+and [backend/common/constants.py](backend/common/constants.py) for currency labels, and the
+[VaR documentation](docs/value_at_risk.md) for methodology.
 
 ## Portfolio reports
 

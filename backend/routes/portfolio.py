@@ -172,6 +172,8 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, e
     Raises 404 if the owner does not exist and 400 for invalid parameters.
     """
 
+    if owner not in portfolio_mod.list_owners():
+        raise HTTPException(status_code=404, detail="Owner not found")
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
@@ -191,6 +193,8 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, e
 async def portfolio_var_breakdown(owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False):
     """Return VaR totals with per-ticker contribution breakdown."""
 
+    if owner not in portfolio_mod.list_owners():
+        raise HTTPException(status_code=404, detail="Owner not found")
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         breakdown = risk.compute_portfolio_var_breakdown(owner, days=days, confidence=confidence, include_cash=not exclude_cash)

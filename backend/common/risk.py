@@ -58,9 +58,11 @@ def compute_portfolio_var(
     # Allow the confidence level to be expressed as a percentage (e.g. 95)
     # or as a decimal fraction (0.95). Convert percentages to a fraction and
     # validate the result.
-    if confidence > 1:
+    if 0 < confidence < 1:
+        pass
+    elif 1 <= confidence <= 100 and float(confidence).is_integer():
         confidence = confidence / 100
-    if not 0 < confidence < 1:
+    else:
         raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
     # exclude any instruments flagged in the price snapshot until refreshed
@@ -115,9 +117,11 @@ def compute_portfolio_var_breakdown(
     if days <= 0:
         raise ValueError("days must be positive")
 
-    if confidence > 1:
+    if 0 < confidence < 1:
+        pass
+    elif 1 <= confidence <= 100 and float(confidence).is_integer():
         confidence = confidence / 100
-    if not 0 < confidence < 1:
+    else:
         raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
     portfolio = portfolio_mod.build_owner_portfolio(owner)
@@ -132,7 +136,7 @@ def compute_portfolio_var_breakdown(
         if not include_cash and ticker.startswith("CASH"):
             continue
 
-        sym, exch = (ticker.split(".", 1) + ["L"])[:2]
+        sym, exch = (ticker.rsplit(".", 1) + ["L"])[:2]
         ts = portfolio_utils.load_meta_timeseries(sym, exch, days)
         var_single = portfolio_utils.compute_var(ts, confidence=confidence)
         if var_single is None or ts is None or ts.empty:

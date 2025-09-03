@@ -60,6 +60,11 @@ export async function login(idToken: string): Promise<string> {
   return data.access_token;
 }
 
+export function logout() {
+  setAuthToken(null);
+  (window as any).google?.accounts.id.disableAutoSelect();
+}
+
 /* ------------------------------------------------------------------ */
 /* Generic fetch helper                                                */
 /* ------------------------------------------------------------------ */

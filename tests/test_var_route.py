@@ -23,11 +23,12 @@ def deterministic_setup(monkeypatch):
         "accounts": [
             {
                 "name": "ISA",
-                "holdings": [{"ticker": "ABC", "exchange": "L", "units": 10, "currency": "GBP"}],
+                "holdings": [{"ticker": "ABC.L", "units": 10, "currency": "GBP"}],
             }
         ],
     }
     monkeypatch.setattr(portfolio_mod, "build_owner_portfolio", lambda owner: portfolio)
+    monkeypatch.setattr(portfolio_mod, "list_owners", lambda: ["alice"])
 
     # Closing prices for five consecutive days
     prices = pd.DataFrame(
@@ -79,8 +80,6 @@ def test_var_breakdown_bad_params(deterministic_setup):
 
 def test_var_breakdown_unknown_owner(monkeypatch):
     client = _auth_client()
-    def _fail(_owner):
-        raise FileNotFoundError
-    monkeypatch.setattr(portfolio_mod, "build_owner_portfolio", _fail)
+    monkeypatch.setattr(portfolio_mod, "list_owners", lambda: ["alice"])
     resp = client.get("/var/unknown/breakdown")
     assert resp.status_code == 404

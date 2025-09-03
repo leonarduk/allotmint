@@ -1,10 +1,14 @@
+import { useConfig } from "../ConfigContext";
 import { useAuth } from "../AuthContext";
 
 export default function ProfilePage() {
   const { user } = useAuth();
+  const { theme } = useConfig();
+
   if (!user) {
     return <div className="p-4">No user information available.</div>;
   }
+
   return (
     <div className="flex flex-col items-center space-y-4 p-4">
       <h1 className="text-2xl">Profile</h1>
@@ -17,6 +21,7 @@ export default function ProfilePage() {
       )}
       {user.name && <div className="text-xl">{user.name}</div>}
       {user.email && <div className="text-gray-600">{user.email}</div>}
+      <p className="text-gray-600">Preferred theme: {theme}</p>
     </div>
   );
 }

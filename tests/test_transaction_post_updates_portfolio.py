@@ -78,7 +78,7 @@ def test_post_transaction_updates_portfolio(tmp_path, monkeypatch, offline_mode)
             "account": account,
             "ticker": "AAA",
             "date": "2024-02-01",
-            "price_gbp": 10.0,
+            "price_gbp": 10.0,  # validated to be positive
             "units": 1,
             "reason": "test",
         }

@@ -57,6 +57,7 @@ def test_create_transaction_validation_error(tmp_path, monkeypatch):
         "reason": "test",
     }
     resp = client.post("/transactions", json=bad_payload)
+    # FastAPI returns 422 Unprocessable Entity for validation errors
     assert resp.status_code == 422
     file_path = tmp_path / "alice" / "ISA_transactions.json"
     assert not file_path.exists()

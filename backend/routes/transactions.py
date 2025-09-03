@@ -23,7 +23,7 @@ else:  # pragma: no cover - Unix
 
 from fastapi import APIRouter, HTTPException
 from fastapi import Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader

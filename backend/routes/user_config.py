@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fastapi import APIRouter, Request
 
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found

@@ -118,6 +118,11 @@ export interface ValueAtRiskPoint {
     var: number;
 }
 
+export interface VarBreakdown {
+    ticker: string;
+    contribution: number;
+}
+
 export interface AlphaResponse {
     alpha_vs_benchmark: number | null;
     benchmark: string;

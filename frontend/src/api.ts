@@ -648,3 +648,18 @@ export const getRebalance = (
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ actual, target }),
   });
+
+/** Fetch per-ticker VaR contribution breakdown for an owner. */
+export const getVarBreakdown = (
+  owner: string,
+  opts: { days?: number; confidence?: number } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.days != null) params.set("days", String(opts.days));
+  if (opts.confidence != null)
+    params.set("confidence", String(opts.confidence));
+  const qs = params.toString();
+  return fetchJson<{ ticker: string; contribution: number }[]>(
+    `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
+  );
+};

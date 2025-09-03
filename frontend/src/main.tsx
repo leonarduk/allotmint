@@ -1,5 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import './index.css'
 import './styles/responsive.css'
@@ -16,6 +18,7 @@ import InstrumentResearch from './pages/InstrumentResearch'
 import { getConfig, logout, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import Profile from './pages/Profile'
+import Alerts from './pages/Alerts'
 import { UserProvider } from './UserContext'
 
 export function Root() {
@@ -66,6 +69,7 @@ export function Root() {
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/alerts" element={<Alerts />} />
         <Route path="/*" element={<App onLogout={handleLogout} />} />
       </Routes>
     </BrowserRouter>
@@ -76,15 +80,14 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 createRoot(rootEl).render(
   <StrictMode>
-    <AuthProvider>
-      <ConfigProvider>
-        <PriceRefreshProvider>
-          <BrowserRouter>
-            <Root />
-          </BrowserRouter>
-        </PriceRefreshProvider>
-      </ConfigProvider>
-    </AuthProvider>
+    <ConfigProvider>
+      <PriceRefreshProvider>
+        <UserProvider>
+          <Root />
+          <ToastContainer autoClose={5000} />
+        </UserProvider>
+      </PriceRefreshProvider>
+    </ConfigProvider>
   </StrictMode>,
 )
 

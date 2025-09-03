@@ -1,6 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 import backend.reports as reports
+from backend.app import create_app
+from backend.reports import ReportData
 from backend.routes import reports as reports_route
 
 
@@ -21,8 +23,7 @@ def client():
 @pytest.fixture
 def sample_report():
     return reports.ReportData(
-        owner="lucy",
-        start=None,
+        owner="lucy",        start=None,
         end=None,
         realized_gains_gbp=10.0,
         income_gbp=5.0,

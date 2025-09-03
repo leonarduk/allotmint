@@ -1,12 +1,15 @@
 import * as api from "../api";
 import type { Alert } from "../types";
 import { useFetch } from "../hooks/useFetch";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { toast } from "react-toastify";
+import { Link } from "react-router-dom";
 import { AlertsTicker } from "./AlertsTicker";
 export function AlertsPanel({ user = "default" }: { user?: string }) {
   const { data: alerts, loading, error } = useFetch<Alert[]>(api.getAlerts, []);
   const [threshold, setThreshold] = useState<number>();
   const [settingsError, setSettingsError] = useState(false);
+  const displayed = useRef(new Set<string>());
 
   useEffect(() => {
     if (api.getAlertSettings) {
@@ -45,6 +48,20 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
       ? otherAlerts.filter((a) => a.change_pct >= threshold)
       : otherAlerts;
 
+  useEffect(() => {
+    highPriorityAlerts.forEach((a) => {
+      const key = `${a.ticker}-${a.message}-${a.timestamp}`;
+      if (!displayed.current.has(key)) {
+        toast(
+          <span>
+            <strong>{a.ticker}</strong>: {a.message}
+          </span>
+        );
+        displayed.current.add(key);
+      }
+    });
+  }, [highPriorityAlerts]);
+
   if (!importAlert && otherAlerts.length === 0) return null;
 
   return (
@@ -71,15 +88,9 @@ export function AlertsPanel({ user = "default" }: { user?: string }) {
               Save
             </button>
           </div>
-          {highPriorityAlerts.length > 0 && (
-            <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
-              {highPriorityAlerts.map((a, i) => (
-                <li key={i}>
-                  <strong>{a.ticker}</strong>: {a.message}
-                </li>
-              ))}
-            </ul>
-          )}
+          <div style={{ marginTop: "0.5rem" }}>
+            <Link to="/alerts">View all alerts</Link>
+          </div>
           {lowPriorityAlerts.length > 0 && (
             <AlertsTicker alerts={lowPriorityAlerts} speed={30} pauseOnHover />
           )}

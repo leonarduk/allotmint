@@ -24,7 +24,7 @@ import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
 
-import { AlertsPanel } from "./components/AlertsPanel";
+import { NotificationsDrawer } from "./components/NotificationsDrawer";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
 import { ScreenerQuery } from "./pages/ScreenerQuery";
 import useFetchWithRetry from "./hooks/useFetchWithRetry";
@@ -96,6 +96,7 @@ export default function App() {
   const [backendUnavailable, setBackendUnavailable] = useState(false);
 
   const { lastRefresh, setLastRefresh } = usePriceRefresh();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const ownersReq = useFetchWithRetry(getOwners);
   const groupsReq = useFetchWithRetry(getGroups);
@@ -309,8 +310,31 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <LanguageSwitcher />
-      <AlertsPanel />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <LanguageSwitcher />
+        <button
+          aria-label="notifications"
+          onClick={() => setNotificationsOpen(true)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "1.5rem",
+          }}
+        >
+          🔔
+        </button>
+      </div>
+      <NotificationsDrawer
+        open={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+      />
       <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
         <nav role="navigation" style={{ flexGrow: 1 }}>
           {orderedTabPlugins

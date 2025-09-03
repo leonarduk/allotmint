@@ -60,19 +60,17 @@ export function Root() {
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/support" element={<Support />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/virtual" element={<VirtualPortfolio />} />
-        <Route path="/compliance" element={<ComplianceWarnings />} />
-        <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
-        <Route path="/research/:ticker" element={<InstrumentResearch />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/alerts" element={<Alerts />} />
-        <Route path="/*" element={<App onLogout={handleLogout} />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/support" element={<Support />} />
+      <Route path="/reports" element={<Reports />} />
+      <Route path="/virtual" element={<VirtualPortfolio />} />
+      <Route path="/compliance" element={<ComplianceWarnings />} />
+      <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+      <Route path="/research/:ticker" element={<InstrumentResearch />} />
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/alerts" element={<Alerts />} />
+      <Route path="/*" element={<App onLogout={handleLogout} />} />
+    </Routes>
   )
 }
 
@@ -83,7 +81,9 @@ createRoot(rootEl).render(
     <ConfigProvider>
       <PriceRefreshProvider>
         <UserProvider>
-          <Root />
+          <BrowserRouter>
+            <Root />
+          </BrowserRouter>
           <ToastContainer autoClose={5000} />
         </UserProvider>
       </PriceRefreshProvider>

@@ -56,3 +56,4 @@ tabs:
   timeseries: true
   instrumentadmin: true
   reports: true
+  profile: true

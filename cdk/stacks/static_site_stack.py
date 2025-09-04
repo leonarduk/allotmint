@@ -45,11 +45,38 @@ class StaticSiteStack(Stack):
         )
 
         frontend_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+        # Deploy hashed assets first. These files include a content hash in the
+        # filename so existing versions can remain cached indefinitely. They do
+        # not require CloudFront invalidation.
         s3_deployment.BucketDeployment(
             self,
-            "DeployStaticSite",
-            sources=[s3_deployment.Source.asset(str(frontend_dir))],
+            "DeployStaticAssets",
+            sources=[
+                s3_deployment.Source.asset(
+                    str(frontend_dir),
+                    exclude=["*.html"],
+                )
+            ],
+            destination_bucket=site_bucket,
+            prune=False,
+        )
+
+        # Upload HTML (and any other route files) after assets so the new HTML
+        # references are never served before the assets exist. Only the HTML
+        # files are invalidated on CloudFront which keeps the cache warm for all
+        # hashed assets.
+        s3_deployment.BucketDeployment(
+            self,
+            "DeployStaticHtml",
+            sources=[
+                s3_deployment.Source.asset(
+                    str(frontend_dir),
+                    exclude=["*", "!*.html"],
+                )
+            ],
             destination_bucket=site_bucket,
             distribution=distribution,
-            distribution_paths=["/*"],
+            distribution_paths=["/*.html"],
+            prune=False,
         )

@@ -414,6 +414,9 @@ def test_run_generates_ma_signal(monkeypatch):
     monkeypatch.setattr(trading_agent, "publish_alert", lambda alert: None)
     monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
     monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+    monkeypatch.setattr(trading_agent.compliance, "check_trade", lambda trade: {"warnings": []})
+    monkeypatch.setattr(trading_agent, "compute_owner_performance", lambda owner: {"max_drawdown": None})
 
     class F:
         def __init__(self, ticker: str):

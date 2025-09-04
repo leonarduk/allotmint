@@ -39,9 +39,9 @@ class StaticSiteStack(Stack):
         asset_cache_policy = cloudfront.CachePolicy(
             self,
             "AssetsCachePolicy",
-            default_ttl=Duration.days(365),
-            min_ttl=Duration.days(365),
-            max_ttl=Duration.days(365),
+            default_ttl=Duration.days(30),
+            min_ttl=Duration.seconds(0),
+            max_ttl=Duration.days(30),
             enable_accept_encoding_brotli=True,
             enable_accept_encoding_gzip=True,
         )
@@ -50,8 +50,8 @@ class StaticSiteStack(Stack):
             self,
             "HtmlCachePolicy",
             default_ttl=Duration.seconds(300),
-            min_ttl=Duration.seconds(300),
-            max_ttl=Duration.seconds(300),
+            min_ttl=Duration.seconds(0),
+            max_ttl=Duration.seconds(3600),
             enable_accept_encoding_brotli=True,
             enable_accept_encoding_gzip=True,
         )
@@ -88,7 +88,7 @@ class StaticSiteStack(Stack):
             self,
             "StaticSiteDistribution",
             default_root_object="index.html",
-            http_version=cloudfront.HttpVersion.HTTP3,
+            http_version=cloudfront.HttpVersion.HTTP2_AND_3,
             default_behavior=cloudfront.BehaviorOptions(
                 origin=s3_origin,
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,

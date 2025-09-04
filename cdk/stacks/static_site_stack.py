@@ -38,7 +38,7 @@ class StaticSiteStack(Stack):
             comment="Security headers for static site",
             security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
                 content_security_policy=cloudfront.ResponseSecurityHeadersContentSecurityPolicy(
-                    content_security_policy="default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+                    content_security_policy="default-src 'self'; script-src 'self' https://accounts.google.com; frame-src 'self' https://accounts.google.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
                     override=True,
                 ),
                 strict_transport_security=cloudfront.ResponseSecurityHeadersStrictTransportSecurity(
@@ -52,10 +52,6 @@ class StaticSiteStack(Stack):
                 ),
                 referrer_policy=cloudfront.ResponseSecurityHeadersReferrerPolicy(
                     referrer_policy=cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
-                    override=True,
-                ),
-                permissions_policy=cloudfront.ResponseSecurityHeadersPermissionsPolicy(
-                    permissions_policy="geolocation=(), microphone=(), camera=()",
                     override=True,
                 ),
             ),

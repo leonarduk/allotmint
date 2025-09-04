@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import prerender from 'vite-plugin-prerender'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -18,8 +19,12 @@ export default defineConfig({
         workbox: {
           globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}']
         }
-      })
-    ],
+      }),
+        prerender({
+          staticDir: './dist',
+          routes: ['/', '/portfolio']
+        })
+      ],
   build: {
     cssCodeSplit: false,
     cssMinify: 'esbuild',

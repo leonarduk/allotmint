@@ -1,21 +1,30 @@
-# Security Policy
+# Security
 
-## Supported Versions
+## Content Security Policy
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+AllotMint's frontend is served from S3 behind CloudFront. A Content Security Policy (CSP) header restricts where the browser may load resources from. The default policy allows only the site itself and the APIs it relies on:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+```
+default-src 'self';
+img-src 'self' data:;
+script-src 'self';
+style-src 'self' 'unsafe-inline';
+connect-src 'self' https://www.alphavantage.co;
+frame-ancestors 'none';
+```
 
-## Reporting a Vulnerability
+This prevents third‑party scripts or styles from executing unless explicitly whitelisted.
 
-Use this section to tell people how to report a vulnerability.
+### Updating allowed sources
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+To allow resources from a new domain:
+
+1. Edit the CSP string in the CloudFront response headers policy defined in `cdk/stacks/static_site_stack.py`.
+2. Add the domain to the appropriate directive (e.g. `script-src` for scripts).
+3. Redeploy the stack:
+   ```bash
+   cd cdk
+   cdk deploy StaticSiteStack
+   ```
+
+For temporary local testing you may instead inject a `<meta http-equiv="Content-Security-Policy">` tag in `frontend/index.html`, but prefer the header-based policy in production.

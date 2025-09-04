@@ -38,6 +38,7 @@ import DataAdmin from "./pages/DataAdmin";
 import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
+import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import ProfilePage from "./pages/Profile";
 import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
@@ -318,11 +319,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   }
 
   if (backendUnavailable) {
-    return (
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-        Backend unavailable—retrying…
-      </div>
-    );
+    return <BackendUnavailableCard onRetry={() => window.location.reload()} />;
   }
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import useFetch from "./useFetch";
+import retry from "../utils/retry";
 
 interface UseFetchResult<T> {
   data: T | null;
@@ -8,32 +8,55 @@ interface UseFetchResult<T> {
 }
 
 /**
- * Wraps `useFetch` and automatically retries the request until it succeeds.
- * A failed request schedules another attempt after `delay` milliseconds.
- * Retries stop after `maxAttempts` attempts and the final error is surfaced
- * to callers.
+ * Wraps a fetcher and retries with exponential backoff.
+ * Retries stop after `maxAttempts` and the final error is surfaced to callers.
  */
 export function useFetchWithRetry<T>(
   fn: () => Promise<T>,
-  delay = 2000,
+  baseDelay = 500,
   maxAttempts = 5,
 ): UseFetchResult<T> & {
   attempt: number;
   maxAttempts: number;
   unauthorized: boolean;
 } {
-  const [attempt, setAttempt] = useState(1);
-  const result = useFetch(fn, [attempt]);
-  const unauthorized = result.error?.message.includes("HTTP 401") ?? false;
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (!result.error) return;
-    if (attempt >= maxAttempts) return;
-    const timer = setTimeout(() => setAttempt((a) => a + 1), delay);
-    return () => clearTimeout(timer);
-  }, [result.error, delay, attempt, maxAttempts]);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setData(null);
 
-  return { ...result, attempt, maxAttempts, unauthorized };
+    retry(
+      () => fn(),
+      maxAttempts,
+      baseDelay,
+      (a) => {
+        if (!cancelled) setAttempt(a);
+      },
+    )
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch((e) => {
+        if (!cancelled)
+          setError(e instanceof Error ? e : new Error(String(e)));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fn, baseDelay, maxAttempts]);
+
+  const unauthorized = error?.message.includes("HTTP 401") ?? false;
+  return { data, loading, error, attempt, maxAttempts, unauthorized };
 }
 
 export default useFetchWithRetry;

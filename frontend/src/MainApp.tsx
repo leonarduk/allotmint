@@ -26,6 +26,7 @@ import { useRoute } from "./RouteContext";
 import PriceRefreshControls from "./components/PriceRefreshControls";
 import { Header } from "./components/Header";
 import InstallPwaPrompt from "./components/InstallPwaPrompt";
+import BackendUnavailableCard from "./components/BackendUnavailableCard";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
@@ -156,11 +157,7 @@ export default function MainApp() {
     );
   }
   if (backendUnavailable) {
-    return (
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-        Backend unavailable—retrying…
-      </div>
-    );
+    return <BackendUnavailableCard onRetry={() => window.location.reload()} />;
   }
 
   return (

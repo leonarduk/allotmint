@@ -55,9 +55,16 @@ export default function MainApp() {
   const [err, setErr] = useState<string | null>(null);
 
   const [backendUnavailable, setBackendUnavailable] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
-  const ownersReq = useFetchWithRetry(getOwners);
-  const groupsReq = useFetchWithRetry(getGroups);
+  const ownersReq = useFetchWithRetry(() => {
+    void retryNonce;
+    return getOwners();
+  });
+  const groupsReq = useFetchWithRetry(() => {
+    void retryNonce;
+    return getGroups();
+  });
   const demoOnly =
     ownersReq.data?.length === 1 && ownersReq.data[0].owner === "demo";
   const unauthorized = demoOnly
@@ -157,7 +164,14 @@ export default function MainApp() {
     );
   }
   if (backendUnavailable) {
-    return <BackendUnavailableCard onRetry={() => window.location.reload()} />;
+    return (
+      <BackendUnavailableCard
+        onRetry={() => {
+          setBackendUnavailable(false);
+          setRetryNonce((n) => n + 1);
+        }}
+      />
+    );
   }
 
   return (

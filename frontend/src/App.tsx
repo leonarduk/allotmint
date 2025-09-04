@@ -104,12 +104,19 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
   const [backendUnavailable, setBackendUnavailable] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const { lastRefresh, setLastRefresh } = usePriceRefresh();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const ownersReq = useFetchWithRetry(getOwners);
-  const groupsReq = useFetchWithRetry(getGroups);
+  const ownersReq = useFetchWithRetry(() => {
+    void retryNonce;
+    return getOwners();
+  });
+  const groupsReq = useFetchWithRetry(() => {
+    void retryNonce;
+    return getGroups();
+  });
 
   function pathFor(m: Mode) {
     switch (m) {
@@ -319,7 +326,14 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   }
 
   if (backendUnavailable) {
-    return <BackendUnavailableCard onRetry={() => window.location.reload()} />;
+    return (
+      <BackendUnavailableCard
+        onRetry={() => {
+          setBackendUnavailable(false);
+          setRetryNonce((n) => n + 1);
+        }}
+      />
+    );
   }
 
   return (

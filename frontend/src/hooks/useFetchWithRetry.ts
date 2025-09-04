@@ -11,6 +11,9 @@ interface UseFetchResult<T> {
  * Wraps a fetcher and retries with exponential backoff.
  * Retries stop after `maxAttempts` and the final error is surfaced to callers.
  */
+/**
+ * `fn` should be memoized to avoid unnecessary retries on each render.
+ */
 export function useFetchWithRetry<T>(
   fn: () => Promise<T>,
   baseDelay = 500,
@@ -25,8 +28,13 @@ export function useFetchWithRetry<T>(
   const [error, setError] = useState<Error | null>(null);
   const [attempt, setAttempt] = useState(0);
 
+  if (baseDelay <= 0) {
+    throw new Error("baseDelay must be positive");
+  }
+
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     setData(null);
@@ -38,6 +46,7 @@ export function useFetchWithRetry<T>(
       (a) => {
         if (!cancelled) setAttempt(a);
       },
+      controller.signal,
     )
       .then((res) => {
         if (!cancelled) setData(res);
@@ -52,6 +61,7 @@ export function useFetchWithRetry<T>(
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [fn, baseDelay, maxAttempts]);
 

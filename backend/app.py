@@ -85,8 +85,12 @@ def create_app() -> FastAPI:
 
     # ───────────────────────────── CORS ─────────────────────────────
     # The frontend origin varies by environment. Read the whitelist from
-    # configuration and fall back to the production site during development.
-    cors_origins = config.cors_origins or ["https://app.allotmint.io"]
+    # configuration and fall back to the production site plus a local
+    # development origin if none are provided to avoid blocking dev requests.
+    cors_origins = config.cors_origins or [
+        "https://app.allotmint.io",
+        "http://localhost:3000",
+    ]
     cors_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     cors_headers = ["Authorization", "Content-Type"]
     app.add_middleware(

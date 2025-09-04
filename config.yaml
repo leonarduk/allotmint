@@ -56,8 +56,8 @@ server:
   # Cross-origin settings by environment
   cors:
     local:
+      # Limit local origins to only the development server to reduce exposure
       - http://localhost:3000
-      - http://localhost:5173
     production:
       - https://app.allotmint.io
 

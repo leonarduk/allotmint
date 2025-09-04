@@ -6,6 +6,8 @@ from backend.config import config
 
 def test_cors_preflight(monkeypatch):
     monkeypatch.setattr(config, "cors_origins", ["https://app.allotmint.io"])
+    # Skip snapshot warming so tests run quickly without side effects.
+    # monkeypatch reverts this change after the test to avoid leaking config.
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     with TestClient(app) as client:

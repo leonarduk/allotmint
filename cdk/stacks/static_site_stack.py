@@ -51,7 +51,7 @@ class StaticSiteStack(Stack):
                 origin=origins.S3BucketOrigin.with_origin_access_identity(
                     site_bucket, origin_access_identity=oai
                 ),
-                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.ALLOW_ALL,
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 function_associations=[
                     cloudfront.FunctionAssociation(
                         function=redirect_fn,

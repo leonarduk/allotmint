@@ -2,7 +2,9 @@
 
 ## Content Security Policy
 
-AllotMint's frontend is served from S3 behind CloudFront. A Content Security Policy (CSP) header restricts where the browser may load resources from. The default policy allows only the site itself and the APIs it relies on:
+AllotMint's frontend is served from S3 behind CloudFront. Implementing a Content Security Policy (CSP) header limits the sources the browser may load resources from. The stack currently does **not** set a CSP header, so browsers accept resources from any origin.
+
+A restrictive policy might look like:
 
 ```
 default-src 'self';
@@ -13,15 +15,15 @@ connect-src 'self' https://www.alphavantage.co;
 frame-ancestors 'none';
 ```
 
-This prevents third‑party scripts or styles from executing unless explicitly whitelisted.
+This would prevent third‑party scripts or styles from executing unless explicitly whitelisted.
 
-### Updating allowed sources
+### Adding or updating the policy
 
-To allow resources from a new domain:
+To enforce a CSP:
 
-1. Edit the CSP string in the CloudFront response headers policy defined in `cdk/stacks/static_site_stack.py`.
-2. Add the domain to the appropriate directive (e.g. `script-src` for scripts).
-3. Redeploy the stack:
+1. Define a CloudFront response headers policy (or function) in `cdk/stacks/static_site_stack.py` that sets the `content-security-policy` header.
+2. Add your directives to the header string.
+3. Associate the policy with the distribution's behavior and redeploy:
    ```bash
    cd cdk
    cdk deploy StaticSiteStack

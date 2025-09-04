@@ -3,6 +3,7 @@ from pathlib import Path
 from aws_cdk import (
     Stack,
     RemovalPolicy,
+    Duration,
     aws_s3 as s3,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
@@ -31,16 +32,79 @@ class StaticSiteStack(Stack):
         oai = cloudfront.OriginAccessIdentity(self, "StaticSiteOAI")
         site_bucket.grant_read(oai)
 
+        s3_origin = origins.S3BucketOrigin.with_origin_access_identity(
+            site_bucket, origin_access_identity=oai
+        )
+
+        asset_cache_policy = cloudfront.CachePolicy(
+            self,
+            "AssetsCachePolicy",
+            default_ttl=Duration.days(365),
+            min_ttl=Duration.days(365),
+            max_ttl=Duration.days(365),
+            enable_accept_encoding_brotli=True,
+            enable_accept_encoding_gzip=True,
+        )
+
+        html_cache_policy = cloudfront.CachePolicy(
+            self,
+            "HtmlCachePolicy",
+            default_ttl=Duration.seconds(300),
+            min_ttl=Duration.seconds(300),
+            max_ttl=Duration.seconds(300),
+            enable_accept_encoding_brotli=True,
+            enable_accept_encoding_gzip=True,
+        )
+
+        asset_headers = cloudfront.ResponseHeadersPolicy(
+            self,
+            "AssetsResponseHeaders",
+            custom_headers_behavior=cloudfront.ResponseCustomHeadersBehavior(
+                custom_headers=[
+                    cloudfront.ResponseCustomHeader(
+                        header="Cache-Control",
+                        value="public, max-age=31536000, immutable",
+                        override=True,
+                    )
+                ]
+            ),
+        )
+
+        html_headers = cloudfront.ResponseHeadersPolicy(
+            self,
+            "HtmlResponseHeaders",
+            custom_headers_behavior=cloudfront.ResponseCustomHeadersBehavior(
+                custom_headers=[
+                    cloudfront.ResponseCustomHeader(
+                        header="Cache-Control",
+                        value="public, max-age=300",
+                        override=True,
+                    )
+                ]
+            ),
+        )
+
         distribution = cloudfront.Distribution(
             self,
             "StaticSiteDistribution",
             default_root_object="index.html",
+            http_version=cloudfront.HttpVersion.HTTP3,
             default_behavior=cloudfront.BehaviorOptions(
-                origin=origins.S3BucketOrigin.with_origin_access_identity(
-                    site_bucket, origin_access_identity=oai
-                ),
+                origin=s3_origin,
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                cache_policy=html_cache_policy,
+                response_headers_policy=html_headers,
+                compress=True,
             ),
+            additional_behaviors={
+                "assets/*": cloudfront.BehaviorOptions(
+                    origin=s3_origin,
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    cache_policy=asset_cache_policy,
+                    response_headers_policy=asset_headers,
+                    compress=True,
+                )
+            },
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )
 

@@ -13,9 +13,9 @@ import Support from './pages/Support'
 import ComplianceWarnings from './pages/ComplianceWarnings'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
-import { AuthProvider, useAuth } from './AuthContext'
+import { useAuth } from './AuthContext'
 import InstrumentResearch from './pages/InstrumentResearch'
-import { getConfig, logout, setAuthToken } from './api'
+import { getConfig, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import Profile from './pages/Profile'
 import Alerts from './pages/Alerts'
@@ -91,8 +91,11 @@ createRoot(rootEl).render(
   </StrictMode>,
 )
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js');
-  });
+    const swUrl = import.meta.env.PROD
+      ? '/service-worker.js'
+      : '/dev-sw.js?dev-sw'
+    navigator.serviceWorker.register(swUrl, { type: 'module' })
+  })
 }

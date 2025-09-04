@@ -91,11 +91,8 @@ createRoot(rootEl).render(
   </StrictMode>,
 )
 
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    const swUrl = import.meta.env.PROD
-      ? '/service-worker.js'
-      : '/dev-sw.js?dev-sw'
-    navigator.serviceWorker.register(swUrl, { type: 'module' })
+    navigator.serviceWorker.register('/service-worker.js', { type: 'module' })
   })
 }

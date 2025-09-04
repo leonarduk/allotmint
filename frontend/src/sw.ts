@@ -31,5 +31,3 @@ sw.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
   event.waitUntil(sw.clients.openWindow('/'));
 });
-
-export {};

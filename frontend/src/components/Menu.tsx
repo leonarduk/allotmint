@@ -57,15 +57,13 @@ export default function Menu({
                                     ? 'support'
                                     : path[0] === 'settings'
                                       ? 'settings'
-                                      : path[0] === 'profile'
-                                        ? 'settings'
-                                        : path[0] === 'scenario'
-                                          ? 'scenario'
-                                          : path[0] === 'logs'
-                                            ? 'logs'
-                                            : path.length === 0
-                                              ? 'group'
-                                              : 'movers';
+                                      : path[0] === 'scenario'
+                                        ? 'scenario'
+                                        : path[0] === 'logs'
+                                          ? 'logs'
+                                          : path.length === 0
+                                            ? 'group'
+                                            : 'movers';
 
   function pathFor(m: TabPluginId) {
     switch (m) {

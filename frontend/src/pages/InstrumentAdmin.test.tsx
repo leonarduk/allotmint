@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("../api", () => ({
   listInstrumentMetadata: vi.fn().mockResolvedValue([
-    { ticker: "AAA", name: "Alpha", region: "EU", sector: "Tech" },
+    { ticker: "AAA.L", name: "Alpha", region: "EU", sector: "Tech" },
   ]),
   createInstrumentMetadata: vi.fn().mockResolvedValue({}),
   updateInstrumentMetadata: vi.fn().mockResolvedValue({}),

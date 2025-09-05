@@ -11,12 +11,20 @@ from backend.common.instruments import (
     get_instrument_meta,
     instrument_meta_path,
     save_instrument_meta,
+    list_instruments,
 )
 
 router = APIRouter(
     prefix="/instrument",
     tags=["instrument"],
 )
+
+
+@router.get("/admin")
+async def list_instrument_metadata() -> list[dict[str, Any]]:
+    """Return metadata for all instruments."""
+
+    return list_instruments()
 
 
 @router.get("/admin/{exchange}/{ticker}")

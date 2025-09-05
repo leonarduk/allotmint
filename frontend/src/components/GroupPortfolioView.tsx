@@ -24,6 +24,7 @@ import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
+import { RelativeViewToggle } from "./RelativeViewToggle";
 import {
   PieChart,
   Pie,
@@ -199,7 +200,16 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   /* ── render ────────────────────────────────────────────── */
   return (
     <div style={{ marginTop: "1rem" }}>
-      <h2>{portfolio.name}</h2>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <h2>{portfolio.name}</h2>
+        <RelativeViewToggle />
+      </div>
 
       {!relativeViewEnabled && <PortfolioSummary totals={totals} />}
 

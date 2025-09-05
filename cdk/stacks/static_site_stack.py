@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from aws_cdk import (
+    CfnOutput,
     Duration,
     RemovalPolicy,
     Stack,
@@ -128,11 +129,34 @@ class StaticSiteStack(Stack):
         )
 
         frontend_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-        s3_deployment.BucketDeployment(
+
+        asset_deploy = s3_deployment.BucketDeployment(
             self,
-            "DeployStaticSite",
+            "DeployAssets",
             sources=[s3_deployment.Source.asset(str(frontend_dir))],
             destination_bucket=site_bucket,
-            distribution=distribution,
-            distribution_paths=["/*"],
+            exclude=["*.html"],  # HTML deployed separately to control caching
+            cache_control=[
+                s3_deployment.CacheControl.max_age(Duration.days(365)),
+                s3_deployment.CacheControl.immutable(),
+            ],
+            prune=True,
         )
+
+        html_deploy = s3_deployment.BucketDeployment(
+            self,
+            "DeployHtml",
+            sources=[s3_deployment.Source.asset(str(frontend_dir))],
+            destination_bucket=site_bucket,
+            exclude=["*"],
+            include=["*.html"],
+            cache_control=[s3_deployment.CacheControl.no_cache()],
+            distribution=distribution,
+            distribution_paths=["/*.html", "/*/index.html"],
+            prune=False,
+        )
+        html_deploy.node.add_dependency(asset_deploy)
+
+        CfnOutput(self, "SiteBucket", value=site_bucket.bucket_name)
+        CfnOutput(self, "DistributionId", value=distribution.distribution_id)
+        CfnOutput(self, "DistributionDomain", value=distribution.domain_name)

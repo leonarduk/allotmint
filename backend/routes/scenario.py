@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter, Query
 
-from backend.common.portfolio import build_owner_portfolio, list_owners
+from backend.common.data_loader import list_plots
+from backend.common.portfolio import build_owner_portfolio
 from backend.utils.scenario_tester import apply_price_shock
 
 router = APIRouter(tags=["scenario"])
@@ -15,8 +16,13 @@ def run_scenario(
 ):
     """Apply a percentage price shock to all portfolios for ``ticker``."""
     results = []
-    for owner in list_owners():
-        pf = build_owner_portfolio(owner)
+    owners = [p["owner"] for p in list_plots() if p.get("accounts")]
+    for owner in owners:
+        try:
+            pf = build_owner_portfolio(owner)
+        except FileNotFoundError:
+            # Skip owners with incomplete account data
+            continue
         baseline = pf.get("total_value_estimate_gbp")
         # ensure baseline exists before applying shock
         if baseline is None:

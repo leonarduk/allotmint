@@ -1,12 +1,14 @@
 from pathlib import Path
 
 from aws_cdk import (
-    Stack,
+    Duration,
     RemovalPolicy,
+    Stack,
     Duration,
     aws_s3 as s3,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
+    aws_s3 as s3,
     aws_s3_deployment as s3_deployment,
 )
 from constructs import Construct
@@ -32,6 +34,33 @@ class StaticSiteStack(Stack):
         oai = cloudfront.OriginAccessIdentity(self, "StaticSiteOAI")
         site_bucket.grant_read(oai)
 
+        security_headers = cloudfront.ResponseHeadersPolicy(
+            self,
+            "SecurityHeaders",
+            comment="Security headers for static site",
+            security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
+                # Allow Google Identity Services script and iframe, limited to /gsi paths
+                content_security_policy=cloudfront.ResponseSecurityHeadersContentSecurityPolicy(
+                    content_security_policy="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; frame-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+                    override=True,
+                ),
+                strict_transport_security=cloudfront.ResponseSecurityHeadersStrictTransportSecurity(
+                    max_age=Duration.seconds(63072000),
+                    include_subdomains=True,
+                    preload=True,
+                    override=True,
+                ),
+                content_type_options=cloudfront.ResponseSecurityHeadersContentTypeOptions(
+                    override=True
+                ),
+                referrer_policy=cloudfront.ResponseSecurityHeadersReferrerPolicy(
+                    referrer_policy=cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
+                    override=True,
+                ),
+                permissions_policy=cloudfront.ResponseSecurityHeadersPermissionsPolicy(
+                    permissions_policy="geolocation=(), microphone=(), camera=()",
+                    override=True,
+                ),
         s3_origin = origins.S3BucketOrigin.with_origin_access_identity(
             site_bucket, origin_access_identity=oai
         )
@@ -106,6 +135,15 @@ class StaticSiteStack(Stack):
             default_behavior=cloudfront.BehaviorOptions(
                 origin=s3_origin,
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                response_headers_policy=security_headers,
+            ),
+            additional_behaviors={
+                "assets/*": cloudfront.BehaviorOptions(
+                    origin=origins.S3BucketOrigin.with_origin_access_identity(
+                        site_bucket, origin_access_identity=oai
+                    ),
+                    viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                    response_headers_policy=security_headers,
                 cache_policy=html_cache_policy,
                 response_headers_policy=html_headers,
                 compress=True,

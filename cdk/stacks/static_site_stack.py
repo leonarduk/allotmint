@@ -135,7 +135,7 @@ class StaticSiteStack(Stack):
             "DeployAssets",
             sources=[s3_deployment.Source.asset(str(frontend_dir))],
             destination_bucket=site_bucket,
-            exclude=["*.html"],
+            exclude=["*.html"],  # HTML deployed separately to control caching
             cache_control=[
                 s3_deployment.CacheControl.max_age(Duration.days(365)),
                 s3_deployment.CacheControl.immutable(),
@@ -148,7 +148,8 @@ class StaticSiteStack(Stack):
             "DeployHtml",
             sources=[s3_deployment.Source.asset(str(frontend_dir))],
             destination_bucket=site_bucket,
-            exclude=["*", "!*.html"],
+            exclude=["*"],
+            include=["*.html"],
             cache_control=[s3_deployment.CacheControl.no_cache()],
             distribution=distribution,
             distribution_paths=["/*.html", "/*/index.html"],

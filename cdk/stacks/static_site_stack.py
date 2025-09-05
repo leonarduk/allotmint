@@ -31,6 +31,18 @@ class StaticSiteStack(Stack):
         oai = cloudfront.OriginAccessIdentity(self, "StaticSiteOAI")
         site_bucket.grant_read(oai)
 
+        redirect_fn = cloudfront.Function(
+            self,
+            "ViewerRequestFn",
+            code=cloudfront.FunctionCode.from_file(
+                file_path=str(
+                    Path(__file__).resolve().parents[1]
+                    / "functions"
+                    / "viewer-request.js"
+                )
+            ),
+        )
+
         distribution = cloudfront.Distribution(
             self,
             "StaticSiteDistribution",
@@ -40,6 +52,12 @@ class StaticSiteStack(Stack):
                     site_bucket, origin_access_identity=oai
                 ),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                function_associations=[
+                    cloudfront.FunctionAssociation(
+                        function=redirect_fn,
+                        event_type=cloudfront.FunctionEventType.VIEWER_REQUEST,
+                    )
+                ],
             ),
             price_class=cloudfront.PriceClass.PRICE_CLASS_100,
         )

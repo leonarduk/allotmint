@@ -1,6 +1,5 @@
 import { useConfig } from "../ConfigContext";
 import { useAuth } from "../AuthContext";
-
 export default function ProfilePage() {
   const { user } = useAuth();
   const { theme } = useConfig();
@@ -9,13 +8,26 @@ export default function ProfilePage() {
     return <div className="p-4">No user information available.</div>;
   }
 
+  const placeholder =
+    "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y&s=192";
+
   return (
     <div className="flex flex-col items-center space-y-4 p-4">
       <h1 className="text-2xl">Profile</h1>
-      {user.picture && (
+      {user.picture ? (
         <img
           src={user.picture}
           alt={user.name || user.email || "user avatar"}
+          width={96}
+          height={96}
+          className="h-24 w-24 rounded-full"
+        />
+      ) : (
+        <img
+          src={placeholder}
+          width={96}
+          height={96}
+          alt="user avatar"
           className="h-24 w-24 rounded-full"
         />
       )}

@@ -40,7 +40,10 @@ class StaticSiteStack(Stack):
             self,
             "AssetsCachePolicy",
             default_ttl=Duration.days(30),
-            min_ttl=Duration.seconds(0),
+            # Avoid a cache stampede when invalidating assets by ensuring a
+            # minimal amount of caching instead of allowing completely
+            # uncached requests.
+            min_ttl=Duration.seconds(1),
             max_ttl=Duration.days(30),
             enable_accept_encoding_brotli=True,
             enable_accept_encoding_gzip=True,
@@ -50,7 +53,9 @@ class StaticSiteStack(Stack):
             self,
             "HtmlCachePolicy",
             default_ttl=Duration.seconds(300),
-            min_ttl=Duration.seconds(0),
+            # Provide a small floor to mitigate cache stampedes while keeping
+            # HTML invalidations responsive.
+            min_ttl=Duration.seconds(1),
             max_ttl=Duration.seconds(3600),
             enable_accept_encoding_brotli=True,
             enable_accept_encoding_gzip=True,

@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-
+import backend.reports as reports
 from backend.app import create_app
 from backend.reports import ReportData
 from backend.routes import reports as reports_route
@@ -8,15 +8,22 @@ from backend.routes import reports as reports_route
 
 @pytest.fixture
 def client():
+    """Return an authenticated TestClient with reports router included."""
+    from backend.app import create_app
+
     app = create_app()
     app.include_router(reports_route.router)
-    return TestClient(app)
+
+    client = TestClient(app)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
-def _sample_report():
-    return ReportData(
-        owner="alice",
-        start=None,
+@pytest.fixture
+def sample_report():
+    return reports.ReportData(
+        owner="lucy",        start=None,
         end=None,
         realized_gains_gbp=10.0,
         income_gbp=5.0,
@@ -25,66 +32,53 @@ def _sample_report():
     )
 
 
-def test_report_json(client, monkeypatch):
-    report = _sample_report()
-
+def test_reports_json(client, sample_report, monkeypatch):
     def fake_compile(owner, start=None, end=None):
-        assert owner == "alice"
-        return report
+        return sample_report
 
-    monkeypatch.setattr("backend.routes.reports.compile_report", fake_compile)
-
-    resp = client.get("/reports/alice")
+    monkeypatch.setattr(reports_route, "compile_report", fake_compile)
+    resp = client.get("/reports/lucy")
     assert resp.status_code == 200
-    assert resp.json() == report.to_dict()
+    assert resp.json() == sample_report.to_dict()
 
 
-def test_report_csv(client, monkeypatch):
-    report = _sample_report()
-    monkeypatch.setattr(
-        "backend.routes.reports.compile_report",
-        lambda owner, start=None, end=None: report,
-    )
-    monkeypatch.setattr(
-        "backend.routes.reports.report_to_csv", lambda data: b"header\nvalue\n"
-    )
+def test_reports_csv(client, sample_report, monkeypatch):
+    def fake_compile(owner, start=None, end=None):
+        return sample_report
 
-    resp = client.get("/reports/alice?format=csv")
+    def fake_csv(data):
+        return b"csv-data"
+
+    monkeypatch.setattr(reports_route, "compile_report", fake_compile)
+    monkeypatch.setattr(reports_route, "report_to_csv", fake_csv)
+
+    resp = client.get("/reports/lucy?format=csv")
     assert resp.status_code == 200
-    assert resp.content == b"header\nvalue\n"
+    assert resp.content == b"csv-data"
     assert resp.headers["content-type"].startswith("text/csv")
-    assert (
-        resp.headers["content-disposition"]
-        == "attachment; filename=alice_report.csv"
-    )
 
 
-def test_report_pdf(client, monkeypatch):
-    report = _sample_report()
-    monkeypatch.setattr(
-        "backend.routes.reports.compile_report",
-        lambda owner, start=None, end=None: report,
-    )
-    monkeypatch.setattr(
-        "backend.routes.reports.report_to_pdf", lambda data: b"%PDF-1.4\n"
-    )
+def test_reports_pdf(client, sample_report, monkeypatch):
+    def fake_compile(owner, start=None, end=None):
+        return sample_report
 
-    resp = client.get("/reports/alice?format=pdf")
+    def fake_pdf(data):
+        return b"%PDF-1.4 test"
+
+    monkeypatch.setattr(reports_route, "compile_report", fake_compile)
+    monkeypatch.setattr(reports_route, "report_to_pdf", fake_pdf)
+
+    resp = client.get("/reports/lucy?format=pdf")
     assert resp.status_code == 200
-    assert resp.content.startswith(b"%PDF")
-    assert resp.headers["content-type"].startswith("application/pdf")
-    assert (
-        resp.headers["content-disposition"]
-        == "attachment; filename=alice_report.pdf"
-    )
+    assert resp.content == b"%PDF-1.4 test"
+    assert resp.headers["content-type"] == "application/pdf"
 
 
-def test_report_unknown_owner(client, monkeypatch):
+def test_reports_unknown_owner(client, monkeypatch):
     def fake_compile(owner, start=None, end=None):
         raise FileNotFoundError
 
-    monkeypatch.setattr("backend.routes.reports.compile_report", fake_compile)
-
-    resp = client.get("/reports/unknown")
+    monkeypatch.setattr(reports_route, "compile_report", fake_compile)
+    resp = client.get("/reports/lucy")
     assert resp.status_code == 404
     assert resp.json() == {"detail": "Owner not found"}

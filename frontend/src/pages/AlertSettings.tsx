@@ -1,22 +1,29 @@
 import { useEffect, useState } from "react";
 import Menu from "../components/Menu";
 import { getAlertThreshold, setAlertThreshold } from "../api";
+import { useUser } from "../UserContext";
 
 export default function AlertSettings() {
-  const [owner, setOwner] = useState("default");
+  const { profile } = useUser();
+  // Owner is determined from the authenticated user's profile
+  const owner = profile?.email;
   const [threshold, setThreshold] = useState<number | "">("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
 
   useEffect(() => {
+    if (!owner) {
+      setThreshold("");
+      return;
+    }
     getAlertThreshold(owner)
       .then((r) => setThreshold(r.threshold))
       .catch(() => setThreshold(""));
   }, [owner]);
 
   async function save() {
-    if (threshold === "") return;
+    if (threshold === "" || !owner) return;
     setStatus("saving");
     try {
       await setAlertThreshold(owner, Number(threshold));
@@ -30,19 +37,15 @@ export default function AlertSettings() {
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "1rem" }}>
       <Menu />
       <h1>Alert Settings</h1>
-      <div style={{ marginBottom: "1rem" }}>
-        <label>
-          Owner: {" "}
-          <input value={owner} onChange={(e) => setOwner(e.target.value)} />
-        </label>
-      </div>
       <div>
         <label>
           Threshold %:{" "}
           <input
             type="number"
             value={threshold}
-            onChange={(e) => setThreshold(e.target.value === "" ? "" : Number(e.target.value))}
+            onChange={(e) =>
+              setThreshold(e.target.value === "" ? "" : Number(e.target.value))
+            }
             style={{ width: "4rem" }}
           />
         </label>

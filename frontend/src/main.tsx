@@ -1,25 +1,27 @@
-import { StrictMode, useEffect, useState } from 'react'
+import { StrictMode, useEffect, useState, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
+import { HelmetProvider } from 'react-helmet-async'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import './index.css'
 import './styles/responsive.css'
 import './i18n'
-import App from './App.tsx'
-import VirtualPortfolio from './pages/VirtualPortfolio'
-import Reports from './pages/Reports'
-import Support from './pages/Support'
-import ComplianceWarnings from './pages/ComplianceWarnings'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
-import InstrumentResearch from './pages/InstrumentResearch'
 import { getConfig, logout, setAuthToken } from './api'
 import LoginPage from './LoginPage'
-import Profile from './pages/Profile'
-import Alerts from './pages/Alerts'
 import { UserProvider } from './UserContext'
+
+const App = lazy(() => import('./App.tsx'))
+const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))
+const Reports = lazy(() => import('./pages/Reports'))
+const Support = lazy(() => import('./pages/Support'))
+const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
+const InstrumentResearch = lazy(() => import('./pages/InstrumentResearch'))
+const Profile = lazy(() => import('./pages/Profile'))
+const Alerts = lazy(() => import('./pages/Alerts'))
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -60,7 +62,7 @@ export function Root() {
   }
 
   return (
-    <BrowserRouter>
+    <Suspense fallback={<div>Loading...</div>}>
       <Routes>
         <Route path="/support" element={<Support />} />
         <Route path="/reports" element={<Reports />} />
@@ -72,7 +74,7 @@ export function Root() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/*" element={<App onLogout={handleLogout} />} />
       </Routes>
-    </BrowserRouter>
+    </Suspense>
   )
 }
 
@@ -80,19 +82,25 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 createRoot(rootEl).render(
   <StrictMode>
-    <ConfigProvider>
-      <PriceRefreshProvider>
-        <UserProvider>
-          <Root />
-          <ToastContainer autoClose={5000} />
-        </UserProvider>
-      </PriceRefreshProvider>
-    </ConfigProvider>
+    <HelmetProvider>
+      <ConfigProvider>
+        <PriceRefreshProvider>
+          <UserProvider>
+            <BrowserRouter>
+              <Root />
+            </BrowserRouter>
+            <ToastContainer autoClose={5000} />
+          </UserProvider>
+        </PriceRefreshProvider>
+      </ConfigProvider>
+    </HelmetProvider>
   </StrictMode>,
 )
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js');
-  });
+    navigator.serviceWorker
+      .register('/service-worker.js')
+      .catch(err => console.error('Service worker registration failed:', err))
+  })
 }

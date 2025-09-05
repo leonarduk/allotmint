@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -38,6 +38,7 @@ import DataAdmin from "./pages/DataAdmin";
 import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
+import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import ProfilePage from "./pages/Profile";
 import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
@@ -103,12 +104,17 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
   const [backendUnavailable, setBackendUnavailable] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const { lastRefresh, setLastRefresh } = usePriceRefresh();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const ownersReq = useFetchWithRetry(getOwners);
-  const groupsReq = useFetchWithRetry(getGroups);
+  const handleRetry = useCallback(() => {
+    setRetryNonce((n) => n + 1);
+  }, []);
+
+  const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
+  const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
 
   function pathFor(m: Mode) {
     switch (m) {
@@ -319,9 +325,9 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
 
   if (backendUnavailable) {
     return (
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-        Backend unavailable—retrying…
-      </div>
+      <BackendUnavailableCard
+        onRetry={handleRetry}
+      />
     );
   }
 

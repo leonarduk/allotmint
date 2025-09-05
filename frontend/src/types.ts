@@ -260,7 +260,9 @@ export type Alert = {
 
 export interface ScenarioResult {
     owner: string;
-    total_value_estimate_gbp: number;
+    baseline_total_value_gbp: number | null;
+    shocked_total_value_gbp: number | null;
+    delta_gbp: number | null;
 }
 
 export type ComplianceResult = {

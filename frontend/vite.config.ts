@@ -1,10 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import prerender from 'vite-plugin-prerender'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { readdirSync } from 'node:fs'
+
+const require = createRequire(import.meta.url)
+const prerender = require('vite-plugin-prerender').default
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const staticDir = resolve(__dirname, 'dist')

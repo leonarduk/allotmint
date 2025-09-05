@@ -4,6 +4,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
 import i18n from "../i18n";
 import { configContext, type AppConfig } from "../ConfigContext";
+import { useState } from "react";
 vi.mock("./TopMoversSummary", () => ({
   TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
@@ -48,14 +49,18 @@ const defaultConfig: AppConfig = {
   },
 };
 
-const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig> = {}) =>
-  render(
+const TestProvider = ({ children }: { children: React.ReactNode }) => {
+  const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
+  return (
     <configContext.Provider
-      value={{ ...defaultConfig, ...cfg, refreshConfig: async () => {} }}
+      value={{ ...defaultConfig, relativeViewEnabled, setRelativeViewEnabled, refreshConfig: async () => {} }}
     >
-      {ui}
-    </configContext.Provider>,
+      {children}
+    </configContext.Provider>
   );
+};
+
+const renderWithConfig = (ui: React.ReactElement) => render(<TestProvider>{ui}</TestProvider>);
 
 const mockAllFetches = (portfolio: any) => {
   const fetchMock = vi.fn((input: RequestInfo) => {
@@ -149,20 +154,18 @@ describe("GroupPortfolioView", () => {
 
     mockAllFetches(mockPortfolio);
 
-    renderWithConfig(<GroupPortfolioView slug="all" />, {
-      relativeViewEnabled: true,
-    });
+    renderWithConfig(<GroupPortfolioView slug="all" />);
 
     await waitFor(() => screen.getByText("alice"));
 
+    const toggle = screen.getByLabelText('Relative view');
+    await userEvent.click(toggle);
+
     expect(screen.getByText("alice")).toBeInTheDocument();
     expect(screen.getByText("bob")).toBeInTheDocument();
-    expect(screen.getByText("66.67%"))
-      .toBeInTheDocument();
-    expect(screen.getByText("25.00%"))
-      .toBeInTheDocument();
-    expect(screen.getByText("-4.76%"))
-      .toBeInTheDocument();
+    expect(screen.getByText("66.67%")).toBeInTheDocument();
+    expect(screen.getByText("25.00%")).toBeInTheDocument();
+    expect(screen.getByText("-4.76%")).toBeInTheDocument();
     expect(screen.queryByText("Total Value")).toBeNull();
   });
 

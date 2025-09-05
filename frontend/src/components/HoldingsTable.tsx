@@ -8,6 +8,7 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
+import { RelativeViewToggle } from "./RelativeViewToggle";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { getInstrumentDetail } from "../api";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
@@ -190,6 +191,9 @@ export function HoldingsTable({
 
   return (
     <>
+      <div className="mb-2">
+        <RelativeViewToggle />
+      </div>
       <div className="mb-2">
         {t("holdingsTable.range")}
         {[7, 30, 180].map((d) => (

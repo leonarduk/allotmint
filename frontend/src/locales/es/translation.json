@@ -214,6 +214,7 @@
   },
   "instrumentadmin": {
     "ticker": "Ticker",
+    "exchange": "Exchange",
     "name": "Name",
     "region": "Region",
     "sector": "Sector",

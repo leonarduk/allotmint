@@ -76,8 +76,6 @@ export function PortfolioDashboard({ owner }: Props) {
       (dailyReturns.length - 1);
     volatility = Math.sqrt(variance);
   }
-  // eslint-disable-next-line prefer-const
-  let beta: number | null = null;
 
   return (
     <div style={{ marginTop: '1rem' }}>

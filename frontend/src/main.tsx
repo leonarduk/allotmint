@@ -10,13 +10,15 @@ import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
-import { getConfig, logout as apiLogout, setAuthToken } from './api'
+import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import { UserProvider } from './UserContext'
 
+const storedToken = getStoredAuthToken()
+if (storedToken) setAuthToken(storedToken)
+
 const App = lazy(() => import('./App.tsx'))
 const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))
-const Reports = lazy(() => import('./pages/Reports'))
 const Support = lazy(() => import('./pages/Support'))
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
 const InstrumentResearch = lazy(() => import('./pages/InstrumentResearch'))
@@ -34,14 +36,9 @@ export function Root() {
   const logout = () => {
     apiLogout()
     setUser(null)
-    setAuthToken(null)
+    apiLogout()
     setAuthed(false)
     navigate('/')
-  }
-
-  const handleLogout = () => {
-    logout()
-    setAuthed(false)
   }
 
   useEffect(() => {
@@ -66,7 +63,6 @@ export function Root() {
     <Suspense fallback={<div>Loading...</div>}>
       <Routes>
         <Route path="/support" element={<Support />} />
-        <Route path="/reports" element={<Reports />} />
         <Route path="/virtual" element={<VirtualPortfolio />} />
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />

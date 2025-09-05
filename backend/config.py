@@ -149,6 +149,16 @@ def _flatten_dict(src: Dict[str, Any], dst: Dict[str, Any]) -> None:
             dst[key] = value
 
 
+def _parse_str_list(val: Any) -> Optional[List[str]]:
+    """Convert comma-separated strings or lists into list of strings."""
+    if isinstance(val, list):
+        items = [str(v).strip() for v in val if str(v).strip()]
+        return items or []
+    if isinstance(val, str):
+        items = [s.strip() for s in val.split(",") if s.strip()]
+        return items or []
+    return None
+
 @lru_cache(maxsize=1)
 def load_config() -> Config:
     """Load configuration from config.yaml with optional env overrides."""
@@ -203,6 +213,9 @@ def load_config() -> Config:
             cors_origins = cors_raw.get(env) or cors_raw.get("default")
         else:
             cors_origins = cors_raw.get("default")
+
+    approval_exempt_types = _parse_str_list(data.get("approval_exempt_types"))
+    approval_exempt_tickers = _parse_str_list(data.get("approval_exempt_tickers"))
 
     google_auth_enabled = data.get("google_auth_enabled")
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
@@ -261,8 +274,8 @@ def load_config() -> Config:
         prices_json=prices_json,
         risk_free_rate=data.get("risk_free_rate"),
         approval_valid_days=data.get("approval_valid_days"),
-        approval_exempt_types=data.get("approval_exempt_types"),
-        approval_exempt_tickers=data.get("approval_exempt_tickers"),
+        approval_exempt_types=approval_exempt_types,
+        approval_exempt_tickers=approval_exempt_tickers,
         tabs=tabs,
         trading_agent=trading_agent,
         cors_origins=cors_origins,

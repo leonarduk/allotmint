@@ -2,6 +2,7 @@ import { render, screen, within, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import i18n from "../i18n";
+import { useState } from "react";
 vi.mock("../api", () => ({
     getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
 }));
@@ -111,34 +112,25 @@ describe("HoldingsTable", () => {
         },
     ];
 
-    const renderWithConfig = (ui: React.ReactElement, cfg: Partial<AppConfig>) =>
-        render(
-            <configContext.Provider
-                value={{ ...defaultConfig, ...cfg, refreshConfig: async () => {} }}
-            >
-                {ui}
-            </configContext.Provider>,
+    const TestProvider = ({ children }: { children: React.ReactNode }) => {
+        const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
+        return (
+            <configContext.Provider value={{ ...defaultConfig, relativeViewEnabled, setRelativeViewEnabled, refreshConfig: async () => {} }}>
+                {children}
+            </configContext.Provider>
         );
+    };
 
-    it("displays relative metrics when relative view is enabled", async () => {
-        renderWithConfig(<HoldingsTable holdings={holdings} />, { relativeViewEnabled: true });
-        await screen.findByText("AAA");
-        expect(screen.getByText("XYZ")).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', {name: /Weight %/})).toBeInTheDocument();
-        expect(screen.queryByRole('columnheader', {name: 'Units'})).toBeNull();
-        expect(screen.queryByRole('columnheader', {name: /Cost £/})).toBeNull();
-        expect(screen.queryByRole('columnheader', {name: /Gain £/})).toBeNull();
-        expect(screen.queryByRole('columnheader', {name: /Mkt £/})).toBeNull();
-    });
+    const renderWithConfig = (ui: React.ReactElement) => render(<TestProvider>{ui}</TestProvider>);
 
-    it("shows absolute columns when relative view is disabled", async () => {
-        renderWithConfig(<HoldingsTable holdings={holdings} />, { relativeViewEnabled: false });
+    it("toggles relative view", async () => {
+        renderWithConfig(<HoldingsTable holdings={holdings} />);
         await screen.findByText("AAA");
-        expect(screen.getByRole('columnheader', {name: 'Units'})).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', {name: /Cost £/})).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', {name: /Gain £/})).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', {name: /Mkt £/})).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();
+        const toggle = screen.getByLabelText('Relative view');
+        await userEvent.click(toggle);
+        expect(screen.queryByRole('columnheader', { name: 'Units' })).toBeNull();
+        expect(screen.getByRole('columnheader', { name: /Gain %/ })).toBeInTheDocument();
     });
 
     it("shows days to go if not eligible", async () => {

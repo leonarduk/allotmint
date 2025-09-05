@@ -68,3 +68,11 @@ def test_missing_owner_returns_error(client, mock_user_config):
     resp = client.post("/user-config/bob", json={"hold_days_min": 1})
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Owner not found"
+
+
+def test_defaults_from_config_return_lists(client):
+    resp = client.get("/user-config/alex")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["approval_exempt_types"] == ["ETF"]
+    assert data["approval_exempt_tickers"] == []

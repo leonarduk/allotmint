@@ -5,13 +5,14 @@ import { vi } from "vitest";
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetUserConfig = vi.hoisted(() => vi.fn());
 const mockGetApprovals = vi.hoisted(() => vi.fn());
+const mockUpdateUserConfig = vi.hoisted(() => vi.fn());
 
 vi.mock("../api", () => ({
   API_BASE: "",
   getOwners: mockGetOwners,
   getUserConfig: mockGetUserConfig,
   getApprovals: mockGetApprovals,
-  updateUserConfig: vi.fn(),
+  updateUserConfig: mockUpdateUserConfig,
   addApproval: vi.fn(),
   removeApproval: vi.fn(),
 }));
@@ -31,6 +32,7 @@ describe("UserConfig page", () => {
       approval_exempt_types: null,
     });
     mockGetApprovals.mockResolvedValue({ approvals: [] });
+    mockUpdateUserConfig.mockResolvedValue(undefined);
 
     render(<UserConfig />);
 
@@ -42,6 +44,15 @@ describe("UserConfig page", () => {
     const inputs = await screen.findAllByRole("textbox");
     expect((inputs[0] as HTMLInputElement).value).toBe("");
     expect((inputs[1] as HTMLInputElement).value).toBe("");
+
+    const saveButton = screen.getByRole("button", { name: /save/i });
+    await act(async () => {
+      await userEvent.click(saveButton);
+    });
+    expect(mockUpdateUserConfig).toHaveBeenCalledWith("alex", {
+      approval_exempt_tickers: [],
+      approval_exempt_types: null,
+    });
   });
 });
 

@@ -31,14 +31,12 @@ export default function UserConfigPage() {
     if (owner) {
       getUserConfig(owner)
         .then((res) => {
+          const toArrayOrNull = (val: unknown) =>
+            Array.isArray(val) ? val : val == null ? null : [];
           setCfg({
             ...res,
-            approval_exempt_tickers: Array.isArray(res.approval_exempt_tickers)
-              ? res.approval_exempt_tickers
-              : [],
-            approval_exempt_types: Array.isArray(res.approval_exempt_types)
-              ? res.approval_exempt_types
-              : [],
+            approval_exempt_tickers: toArrayOrNull(res.approval_exempt_tickers),
+            approval_exempt_types: toArrayOrNull(res.approval_exempt_types),
           });
         })
         .catch(() => {

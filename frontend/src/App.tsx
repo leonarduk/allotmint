@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   getGroupInstruments,
@@ -49,31 +49,54 @@ import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
 import Menu from "./components/Menu";
+
 type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
 const initialMode: Mode =
-  path[0] === "member" ? "owner" :
-  path[0] === "instrument" ? "instrument" :
-  path[0] === "transactions" ? "transactions" :
-  path[0] === "trading" ? "trading" :
-  path[0] === "performance" ? "performance" :
-  path[0] === "screener" ? "screener" :
-  path[0] === "timeseries" ? "timeseries" :
-  path[0] === "watchlist" ? "watchlist" :
-  path[0] === "allocation" ? "allocation" :
-  path[0] === "movers" ? "movers" :
-  path[0] === "instrumentadmin" ? "instrumentadmin" :
-  path[0] === "dataadmin" ? "dataadmin" :
-  path[0] === "profile" ? "profile" :
-  path[0] === "support" ? "support" :
-  path[0] === "settings" ? "settings" :
-  path[0] === "profile" ? "profile" :
-  path[0] === "scenario" ? "scenario" :
-  path[0] === "logs" ? "logs" :
-  path.length === 0 ? "group" : "movers";
+  path[0] === "member"
+    ? "owner"
+    : path[0] === "instrument"
+    ? "instrument"
+    : path[0] === "transactions"
+    ? "transactions"
+    : path[0] === "trading"
+    ? "trading"
+    : path[0] === "performance"
+    ? "performance"
+    : path[0] === "screener"
+    ? "screener"
+    : path[0] === "timeseries"
+    ? "timeseries"
+    : path[0] === "watchlist"
+    ? "watchlist"
+    : path[0] === "allocation"
+    ? "allocation"
+    : path[0] === "movers"
+    ? "movers"
+    : path[0] === "instrumentadmin"
+    ? "instrumentadmin"
+    : path[0] === "dataadmin"
+    ? "dataadmin"
+    : path[0] === "profile"
+    ? "profile"
+    : path[0] === "support"
+    ? "support"
+    : path[0] === "settings"
+    ? "settings"
+    : path[0] === "reports"
+    ? "reports"
+    : path[0] === "scenario"
+    ? "scenario"
+    : path[0] === "logs"
+    ? "logs"
+    : path.length === 0
+    ? "group"
+    : "movers";
+
 const initialSlug = path[1] ?? "";
+
 export default function App({ onLogout }: { onLogout?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -83,10 +106,10 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
-    initialMode === "owner" ? initialSlug : "",
+    initialMode === "owner" ? initialSlug : ""
   );
   const [selectedGroup, setSelectedGroup] = useState(
-    initialMode === "instrument" ? initialSlug : params.get("group") ?? "",
+    initialMode === "instrument" ? initialSlug : params.get("group") ?? ""
   );
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -98,7 +121,9 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   const [err, setErr] = useState<string | null>(null);
 
   const [refreshingPrices, setRefreshingPrices] = useState(false);
-  const [priceRefreshError, setPriceRefreshError] = useState<string | null>(null);
+  const [priceRefreshError, setPriceRefreshError] = useState<string | null>(
+    null
+  );
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
 
@@ -111,39 +136,6 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
-
-  function pathFor(m: Mode) {
-    switch (m) {
-      case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/";
-      case "instrument":
-        return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
-      case "owner":
-        return selectedOwner ? `/member/${selectedOwner}` : "/member";
-      case "performance":
-        return selectedOwner ? `/performance/${selectedOwner}` : "/performance";
-      case "movers":
-        return "/movers";
-      case "trading":
-        return "/trading";
-      case "scenario":
-        return "/scenario";
-      case "reports":
-        return "/reports";
-      case "settings":
-        return "/settings";
-      case "logs":
-        return "/logs";
-      case "allocation":
-        return "/allocation";
-      case "instrumentadmin":
-        return "/instrumentadmin";
-      case "profile":
-        return "/profile";
-      default:
-        return `/${m}`;
-    }
-  }
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
@@ -188,9 +180,6 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
         break;
       case "dataadmin":
         newMode = "dataadmin";
-        break;
-      case "profile":
-        newMode = "profile";
         break;
       case "support":
         newMode = "support";
@@ -258,6 +247,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
       setBackendUnavailable(false);
     }
   }, [ownersReq.data, groupsReq.data]);
+
   // redirect to defaults if no selection provided
   useEffect(() => {
     if (mode === "owner" && !selectedOwner && owners.length) {
@@ -320,11 +310,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   }
 
   if (backendUnavailable) {
-    return (
-      <BackendUnavailableCard
-        onRetry={handleRetry}
-      />
-    );
+    return <BackendUnavailableCard onRetry={handleRetry} />;
   }
 
   return (
@@ -355,29 +341,6 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
         onClose={() => setNotificationsOpen(false)}
       />
       <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
-        <nav role="navigation" style={{ flexGrow: 1 }}>
-          {orderedTabPlugins
-            .slice()
-            .sort((a, b) => a.priority - b.priority)
-            .filter((p) => tabs[p.id] !== false)
-            .map((p) => (
-              <Link
-                key={p.id}
-                to={pathFor(p.id)}
-                style={{
-                  marginRight: "1rem",
-                  fontWeight: mode === p.id ? "bold" : undefined,
-                }}
-              >
-                {t(`app.modes.${p.id}`)}
-              </Link>
-            ))}
-          {onLogout && (
-            <button onClick={onLogout} style={{ marginLeft: "1rem" }}>
-              Logout
-            </button>
-          )}
-        </nav>
         <Menu
           selectedOwner={selectedOwner}
           selectedGroup={selectedGroup}
@@ -406,7 +369,9 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
           {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
         </button>
         {priceRefreshError && (
-          <span style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}>
+          <span
+            style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}
+          >
             {priceRefreshError}
           </span>
         )}
@@ -434,9 +399,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
             onSelect={setSelectedGroup}
           />
           <ComplianceWarnings
-            owners={
-              groups.find((g) => g.slug === selectedGroup)?.members ?? []
-            }
+            owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
           />
           <GroupPortfolioView
             slug={selectedGroup}
@@ -458,11 +421,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
             onSelect={setSelectedGroup}
           />
           {err && <p style={{ color: "red" }}>{err}</p>}
-          {loading ? (
-            <p>{t("app.loading")}</p>
-          ) : (
-            <InstrumentTable rows={instruments} />
-          )}
+          {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
         </>
       )}
 
@@ -495,8 +454,6 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
       {mode === "settings" && <UserConfigPage />}
       {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}
-      {mode === "profile" && <ProfilePage />}
     </div>
   );
 }
-

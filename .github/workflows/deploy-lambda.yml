@@ -101,3 +101,15 @@ jobs:
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
         run: aws s3 sync data/ s3://$DATA_BUCKET/
+
+      - name: Run smoke tests
+        if: steps.parse.outputs.deploy == 'true'
+        run: ./scripts/smoke-test.sh https://app.allotmint.io
+
+      - name: Run Lighthouse CI
+        if: steps.parse.outputs.deploy == 'true'
+        run: |
+          npm install -g @lhci/cli
+          lhci autorun --collect.url=https://app.allotmint.io \
+            --upload.target=temporary-public-storage
+

@@ -8,6 +8,7 @@ import './styles/responsive.css'
 import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
+import InstrumentResearch from './pages/InstrumentResearch'
 import { AuthProvider, useAuth } from './AuthContext'
 import { getConfig, logout, setAuthToken } from './api'
 import LoginPage from './LoginPage'
@@ -94,8 +95,8 @@ createRoot(rootEl).render(
   </StrictMode>,
 )
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js');
-  });
+    navigator.serviceWorker.register('/service-worker.js', { type: 'module' })
+  })
 }

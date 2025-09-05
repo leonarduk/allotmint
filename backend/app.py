@@ -85,13 +85,34 @@ def create_app() -> FastAPI:
 
     # ───────────────────────────── CORS ─────────────────────────────
     # The frontend origin varies by environment. Read the whitelist from
-    # configuration and fall back to permissive settings during development.
-    cors_origins = config.cors_origins or ["*"]
+    # configuration and fall back to the production site plus the local
+    # development servers if none are provided to avoid blocking dev requests.
+    from urllib.parse import urlparse
+
+    def _validate_cors_origins(origins: list[str]) -> list[str]:
+        """Ensure each origin uses http(s) and has a concrete host."""
+        validated: list[str] = []
+        for origin in origins:
+            parsed = urlparse(origin)
+            if parsed.scheme in {"http", "https"} and parsed.netloc and "*" not in parsed.netloc:
+                validated.append(origin)
+            else:
+                raise ValueError(f"Invalid CORS origin: {origin}")
+        return validated
+
+    default_cors = [
+        "https://app.allotmint.io",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
+    cors_origins = _validate_cors_origins(config.cors_origins or default_cors)
+    cors_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    cors_headers = ["Authorization", "Content-Type"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=cors_methods,
+        allow_headers=cors_headers,
     )
 
     # ──────────────────────────── Routers ────────────────────────────

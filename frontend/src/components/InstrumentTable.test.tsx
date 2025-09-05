@@ -1,5 +1,7 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, type Mock } from "vitest";
+import { useState } from "react";
 import type { InstrumentSummary } from "../types";
 import { configContext, type AppConfig } from "../ConfigContext";
 
@@ -28,6 +30,19 @@ const defaultConfig: AppConfig = {
         logs: true,
     },
 };
+
+const TestProvider = ({ children }: { children: React.ReactNode }) => {
+    const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
+    return (
+        <configContext.Provider
+            value={{ ...defaultConfig, relativeViewEnabled, setRelativeViewEnabled, refreshConfig: async () => { } }}
+        >
+            {children}
+        </configContext.Provider>
+    );
+};
+
+const renderWithConfig = (ui: React.ReactElement) => render(<TestProvider>{ui}</TestProvider>);
 
 vi.mock("./InstrumentDetail", () => ({
     InstrumentDetail: vi.fn(() => <div data-testid="instrument-detail" />),
@@ -146,18 +161,11 @@ describe("InstrumentTable", () => {
         expect(screen.getByRole('columnheader', { name: 'Last £' })).toBeInTheDocument();
     });
 
-    it("hides absolute columns in relative view", () => {
-        render(
-            <configContext.Provider
-                value={{
-                    ...defaultConfig,
-                    relativeViewEnabled: true,
-                    refreshConfig: async () => {},
-                }}
-            >
-                <InstrumentTable rows={rows} />
-            </configContext.Provider>,
-        );
+    it("toggles relative view to hide absolute columns", async () => {
+        renderWithConfig(<InstrumentTable rows={rows} />);
+        expect(screen.getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();
+        const toggle = screen.getByLabelText('Relative view');
+        await userEvent.click(toggle);
         expect(screen.queryByRole('columnheader', { name: 'Units' })).toBeNull();
         expect(screen.queryByRole('columnheader', { name: 'Cost £' })).toBeNull();
         expect(screen.queryByRole('columnheader', { name: 'Market £' })).toBeNull();

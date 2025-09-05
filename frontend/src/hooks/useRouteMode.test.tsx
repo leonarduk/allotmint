@@ -70,6 +70,7 @@ describe("useRouteMode", () => {
       tabs,
       theme: "system",
       refreshConfig: async () => {},
+      setRelativeViewEnabled: () => {},
     };
 
     const wrapper = ({ children }: { children: ReactNode }) => (

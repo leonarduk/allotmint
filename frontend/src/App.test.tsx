@@ -168,6 +168,7 @@ describe("App", () => {
           relativeViewEnabled: false,
           tabs: { ...allTabs, movers: false },
           refreshConfig: vi.fn(),
+          setRelativeViewEnabled: () => {},
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
@@ -239,6 +240,7 @@ describe("App", () => {
           relativeViewEnabled: false,
           tabs: allTabs,
           refreshConfig: vi.fn(),
+          setRelativeViewEnabled: () => {},
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>

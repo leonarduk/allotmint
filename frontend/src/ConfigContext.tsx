@@ -75,6 +75,7 @@ const defaultTabs: TabsConfig = {
 
 export interface ConfigContextValue extends AppConfig {
   refreshConfig: () => Promise<void>;
+  setRelativeViewEnabled: (enabled: boolean) => void;
 }
 
 export const configContext = createContext<ConfigContextValue>({
@@ -83,15 +84,24 @@ export const configContext = createContext<ConfigContextValue>({
   tabs: defaultTabs,
   theme: "system",
   refreshConfig: async () => {},
+  setRelativeViewEnabled: () => {},
 });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
-  const [config, setConfig] = useState<AppConfig>({
-    relativeViewEnabled: false,
-    disabledTabs: [],
-    tabs: defaultTabs,
-    theme: "system",
+  const [config, setConfig] = useState<AppConfig>(() => {
+    const stored = localStorage.getItem("relativeViewEnabled");
+    return {
+      relativeViewEnabled: stored === "true",
+      disabledTabs: [],
+      tabs: defaultTabs,
+      theme: "system",
+    };
   });
+
+  const setRelativeViewEnabled = useCallback((enabled: boolean) => {
+    setConfig((prev) => ({ ...prev, relativeViewEnabled: enabled }));
+    localStorage.setItem("relativeViewEnabled", String(enabled));
+  }, []);
 
   const refreshConfig = useCallback(async () => {
     try {
@@ -107,8 +117,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         if (!enabled) disabledTabs.add(String(tab));
       }
       const theme = isTheme(cfg.theme) ? cfg.theme : "system";
+      const stored = localStorage.getItem("relativeViewEnabled");
       setConfig({
-        relativeViewEnabled: Boolean(cfg.relative_view_enabled),
+        relativeViewEnabled: stored ? stored === "true" : Boolean(cfg.relative_view_enabled),
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,
@@ -128,7 +139,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, [config.theme]);
 
   return (
-    <configContext.Provider value={{ ...config, refreshConfig }}>
+    <configContext.Provider value={{ ...config, refreshConfig, setRelativeViewEnabled }}>
       {children}
     </configContext.Provider>
   );

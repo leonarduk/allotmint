@@ -13,10 +13,10 @@ describe("ScenarioTester page", () => {
     mockRunScenario.mockResolvedValueOnce([
       {
         owner: "Test Owner",
-        total_value_estimate_gbp: 123,
-        ticker: "AAA",
-        impact: 123,
-      } as unknown as ScenarioResult,
+        baseline_total_value_gbp: 1000,
+        shocked_total_value_gbp: 950,
+        delta_gbp: -50,
+      } as ScenarioResult,
     ]);
 
     render(<ScenarioTester />);
@@ -26,7 +26,13 @@ describe("ScenarioTester page", () => {
     fireEvent.click(screen.getByText("Apply"));
 
     await waitFor(() => expect(mockRunScenario).toHaveBeenCalledWith("AAA", 5));
-    expect(screen.getByText(/"ticker": "AAA"/)).toBeInTheDocument();
+
+    const pre = await screen.findByText(/Test Owner/);
+    const data = JSON.parse(pre.textContent || "[]");
+    const result = data[0] as ScenarioResult;
+    expect(typeof result.baseline_total_value_gbp).toBe("number");
+    expect(typeof result.shocked_total_value_gbp).toBe("number");
+    expect(typeof result.delta_gbp).toBe("number");
   });
 
   it("shows error message on failure", async () => {

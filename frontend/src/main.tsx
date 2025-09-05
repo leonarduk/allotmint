@@ -10,7 +10,7 @@ import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
-import { getConfig, setAuthToken, getStoredAuthToken, logout as apiLogout } from './api'
+import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import { UserProvider } from './UserContext'
 
@@ -33,7 +33,8 @@ export function Root() {
   const { setUser } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = () => {
+  const logout = () => {
+    apiLogout()
     setUser(null)
     apiLogout()
     setAuthed(false)

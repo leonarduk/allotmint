@@ -124,7 +124,6 @@ export function PerformanceDashboard({ owner }: Props) {
           />
         </LineChart>
       </ResponsiveContainer>
-
     </div>
   );
 }

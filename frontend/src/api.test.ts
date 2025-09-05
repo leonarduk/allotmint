@@ -3,12 +3,16 @@ import { API_BASE, fetchJson, setAuthToken, login } from "./api";
 
 describe("auth token handling", () => {
   beforeEach(() => {
+    localStorage.clear();
     setAuthToken(null);
   });
 
-  it("adds Authorization header when token set", async () => {
+  it("stores token in localStorage and adds header", async () => {
     setAuthToken("token123");
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    expect(localStorage.getItem("authToken")).toBe("token123");
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
     // @ts-ignore
     global.fetch = mockFetch;
     await fetchJson("/foo");
@@ -21,6 +25,7 @@ describe("auth token handling", () => {
 
 describe("login", () => {
   beforeEach(() => {
+    localStorage.clear();
     setAuthToken(null);
   });
 
@@ -35,6 +40,7 @@ describe("login", () => {
     global.fetch = mockFetch;
     const token = await login("good-id-token");
     expect(token).toBe("abc");
+    expect(localStorage.getItem("authToken")).toBe("abc");
     expect(mockFetch).toHaveBeenCalledWith(`${API_BASE}/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

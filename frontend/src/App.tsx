@@ -40,6 +40,7 @@ import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import ProfilePage from "./pages/Profile";
+import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
 import InstrumentSearchBar from "./components/InstrumentSearchBar";
@@ -73,11 +74,6 @@ const initialMode: Mode =
   path[0] === "logs" ? "logs" :
   path.length === 0 ? "group" : "movers";
 const initialSlug = path[1] ?? "";
-
-interface AppProps {
-  onLogout?: () => void;
-}
-
 export default function App({ onLogout }: { onLogout?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -493,6 +489,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
       {mode === "watchlist" && <Watchlist />}
       {mode === "allocation" && <AllocationCharts />}
       {mode === "movers" && <TopMovers />}
+      {mode === "reports" && <Reports />}
       {mode === "support" && <Support />}
       {mode === "profile" && <ProfilePage />}
       {mode === "settings" && <UserConfigPage />}

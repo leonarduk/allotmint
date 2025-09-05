@@ -9,6 +9,7 @@ import type {
   Portfolio,
   PerformancePoint,
   ValueAtRiskResponse,
+  VarBreakdown,
   AlphaResponse,
   TrackingErrorResponse,
   MaxDrawdownResponse,
@@ -42,9 +43,18 @@ export const API_BASE =
   "http://localhost:8000";
 
 let authToken: string | null = null;
+const TOKEN_STORAGE_KEY = "authToken";
+
 export const setAuthToken = (token: string | null) => {
   authToken = token;
+  if (token) {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+  }
 };
+
+export const getStoredAuthToken = () => localStorage.getItem(TOKEN_STORAGE_KEY);
 
 export async function login(idToken: string): Promise<string> {
   const res = await fetch(`${API_BASE}/token`, {
@@ -384,21 +394,29 @@ export const rebuildTimeseriesCache = (ticker: string, exchange: string) =>
 
 // Instrument metadata admin
 export const listInstrumentMetadata = () =>
-  fetchJson<InstrumentMetadata[]>(`${API_BASE}/instrument-metadata`);
+  fetchJson<InstrumentMetadata[]>(`${API_BASE}/instrument/admin`);
 
-export const createInstrumentMetadata = (payload: InstrumentMetadata) =>
-  fetchJson<InstrumentMetadata>(`${API_BASE}/instrument-metadata`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-export const updateInstrumentMetadata = (
+export const createInstrumentMetadata = (
   ticker: string,
+  exchange: string,
   payload: InstrumentMetadata,
 ) =>
   fetchJson<InstrumentMetadata>(
-    `${API_BASE}/instrument-metadata/${encodeURIComponent(ticker)}`,
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+export const updateInstrumentMetadata = (
+  ticker: string,
+  exchange: string,
+  payload: InstrumentMetadata,
+) =>
+  fetchJson<InstrumentMetadata>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -664,7 +682,7 @@ export const getVarBreakdown = (
   if (opts.confidence != null)
     params.set("confidence", String(opts.confidence));
   const qs = params.toString();
-  return fetchJson<{ ticker: string; contribution: number }[]>(
+  return fetchJson<VarBreakdown[]>(
     `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
   );
 };

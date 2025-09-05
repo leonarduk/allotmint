@@ -121,7 +121,7 @@ export interface ValueAtRiskPoint {
 export interface VarBreakdown {
     ticker: string;
     contribution: number;
-    var: {
+    var?: {
         [horizon: string]: number | null;
     };
     sharpe_ratio?: number | null;
@@ -224,6 +224,7 @@ export interface TimeseriesSummary {
 
 export interface InstrumentMetadata {
     ticker: string;
+    exchange?: string | null;
     name: string;
     region?: string | null;
     sector?: string | null;

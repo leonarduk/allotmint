@@ -69,7 +69,8 @@ export function NotificationsDrawer({ open, onClose }: Props) {
         </div>
         {loading && <div>Loading...</div>}
         {error && <div>Cannot reach server</div>}
-        {!loading && !error && alerts && (
+        {!loading && !error && alerts?.length === 0 && <div>No alerts</div>}
+        {!loading && !error && alerts?.length > 0 && (
           <ul style={{ listStyle: "none", padding: 0 }}>
             {alerts.map((a, i) => (
               <li key={i} style={{ marginBottom: "0.5rem" }}>

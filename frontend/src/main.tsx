@@ -10,7 +10,7 @@ import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
-import { getConfig, logout, setAuthToken } from './api'
+import { getConfig, logout as apiLogout } from './api'
 import LoginPage from './LoginPage'
 import { UserProvider } from './UserContext'
 
@@ -31,16 +31,11 @@ export function Root() {
   const { setUser } = useAuth()
   const navigate = useNavigate()
 
-  const logout = () => {
+  const handleLogout = () => {
     setUser(null)
-    setAuthToken(null)
+    apiLogout()
     setAuthed(false)
     navigate('/')
-  }
-
-  const handleLogout = () => {
-    logout()
-    setAuthed(false)
   }
 
   useEffect(() => {
@@ -85,12 +80,14 @@ createRoot(rootEl).render(
     <HelmetProvider>
       <ConfigProvider>
         <PriceRefreshProvider>
-          <UserProvider>
-            <BrowserRouter>
-              <Root />
-            </BrowserRouter>
-            <ToastContainer autoClose={5000} />
-          </UserProvider>
+          <AuthProvider>
+            <UserProvider>
+              <BrowserRouter>
+                <Root />
+              </BrowserRouter>
+              <ToastContainer autoClose={5000} />
+            </UserProvider>
+          </AuthProvider>
         </PriceRefreshProvider>
       </ConfigProvider>
     </HelmetProvider>

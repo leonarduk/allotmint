@@ -73,11 +73,6 @@ const initialMode: Mode =
   path[0] === "logs" ? "logs" :
   path.length === 0 ? "group" : "movers";
 const initialSlug = path[1] ?? "";
-
-interface AppProps {
-  onLogout?: () => void;
-}
-
 export default function App({ onLogout }: { onLogout?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();

@@ -1,5 +1,6 @@
 import { StrictMode, useEffect, useState, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
+import { HelmetProvider } from 'react-helmet-async'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
@@ -82,16 +83,18 @@ const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 createRoot(rootEl).render(
   <StrictMode>
-    <ConfigProvider>
-      <PriceRefreshProvider>
-        <UserProvider>
-          <BrowserRouter>
-            <Root />
-          </BrowserRouter>
-          <ToastContainer autoClose={5000} />
-        </UserProvider>
-      </PriceRefreshProvider>
-    </ConfigProvider>
+    <HelmetProvider>
+      <ConfigProvider>
+        <PriceRefreshProvider>
+          <UserProvider>
+            <BrowserRouter>
+              <Root />
+            </BrowserRouter>
+            <ToastContainer autoClose={5000} />
+          </UserProvider>
+        </PriceRefreshProvider>
+      </ConfigProvider>
+    </HelmetProvider>
   </StrictMode>,
 )
 

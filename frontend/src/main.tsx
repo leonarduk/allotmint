@@ -36,7 +36,6 @@ export function Root() {
   const logout = () => {
     apiLogout()
     setUser(null)
-    apiLogout()
     setAuthed(false)
     navigate('/')
   }
@@ -69,7 +68,7 @@ export function Root() {
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/alerts" element={<Alerts />} />
-        <Route path="/*" element={<App onLogout={handleLogout} />} />
+        <Route path="/*" element={<App onLogout={logout} />} />
       </Routes>
     </Suspense>
   )

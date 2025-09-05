@@ -10,9 +10,12 @@ import './i18n'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
-import { getConfig, logout as apiLogout } from './api'
+import { getConfig, setAuthToken, getStoredAuthToken, logout as apiLogout } from './api'
 import LoginPage from './LoginPage'
 import { UserProvider } from './UserContext'
+
+const storedToken = getStoredAuthToken()
+if (storedToken) setAuthToken(storedToken)
 
 const App = lazy(() => import('./App.tsx'))
 const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))

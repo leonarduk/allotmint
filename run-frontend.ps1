@@ -7,7 +7,7 @@ Set-Location (Join-Path $SCRIPT_DIR 'frontend')
 Write-Host 'Installing frontend dependencies...' -ForegroundColor Yellow
 npm install
 
-$env:ALLOTMINT_ENV = 'http://localhost:5173'
+$env:VITE_APP_BASE_URL = 'http://localhost:5173'
 
 Write-Host 'Starting frontend development server...' -ForegroundColor Green
 npm run dev

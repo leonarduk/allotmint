@@ -49,7 +49,6 @@ export const LanguageSwitcher = memo(function LanguageSwitcher() {
             alt={l.code}
             width={24}
             height={24}
-            style={{ width: "100%", height: "100%" }}
           />
         </button>
       ))}

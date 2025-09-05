@@ -5,6 +5,7 @@ import { useUser } from "../UserContext";
 
 export default function AlertSettings() {
   const { profile } = useUser();
+  // Owner is determined from the authenticated user's profile
   const owner = profile?.email;
   const [threshold, setThreshold] = useState<number | "">("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(

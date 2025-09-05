@@ -26,7 +26,7 @@ export default defineConfig(({ command }) => {
       filename: 'service-worker.ts',
       manifest: false,
       // enable service worker in dev but avoid caching dev assets
-      devOptions: { enabled: true, disableRuntimeConfig: true },
+      devOptions: { enabled: true, type: 'module', disableRuntimeConfig: true },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}']
       }

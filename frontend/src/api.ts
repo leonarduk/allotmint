@@ -31,6 +31,7 @@ import type {
   UserConfig,
   InstrumentMetadata,
   ApprovalsResponse,
+  VarBreakdown,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -664,7 +665,7 @@ export const getVarBreakdown = (
   if (opts.confidence != null)
     params.set("confidence", String(opts.confidence));
   const qs = params.toString();
-  return fetchJson<{ ticker: string; contribution: number }[]>(
+  return fetchJson<VarBreakdown[]>(
     `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
   );
 };

@@ -37,6 +37,8 @@ jobs:
 
       - name: Lighthouse CI
         working-directory: frontend
+        env:
+          LHCI_INSTALL_CHROME: true
         run: npm run lighthouse
 
       - name: Upload Lighthouse report
@@ -44,3 +46,4 @@ jobs:
         with:
           name: lighthouse-report
           path: frontend/.lighthouseci
+          if-no-files-found: ignore

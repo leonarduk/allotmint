@@ -64,7 +64,6 @@ const initialMode: Mode =
   path[0] === "movers" ? "movers" :
   path[0] === "instrumentadmin" ? "instrumentadmin" :
   path[0] === "dataadmin" ? "dataadmin" :
-  path[0] === "profile" ? "profile" :
   path[0] === "support" ? "support" :
   path[0] === "settings" ? "settings" :
   path[0] === "profile" ? "profile" :
@@ -72,10 +71,6 @@ const initialMode: Mode =
   path[0] === "logs" ? "logs" :
   path.length === 0 ? "group" : "movers";
 const initialSlug = path[1] ?? "";
-
-interface AppProps {
-  onLogout?: () => void;
-}
 
 export default function App({ onLogout }: { onLogout?: () => void }) {
   const navigate = useNavigate();
@@ -186,9 +181,6 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
         break;
       case "dataadmin":
         newMode = "dataadmin";
-        break;
-      case "profile":
-        newMode = "profile";
         break;
       case "support":
         newMode = "support";

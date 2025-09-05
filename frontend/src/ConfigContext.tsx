@@ -89,7 +89,10 @@ export const configContext = createContext<ConfigContextValue>({
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(() => {
-    const stored = localStorage.getItem("relativeViewEnabled");
+    const stored =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("relativeViewEnabled")
+        : null;
     return {
       relativeViewEnabled: stored === "true",
       disabledTabs: [],
@@ -100,7 +103,9 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   const setRelativeViewEnabled = useCallback((enabled: boolean) => {
     setConfig((prev) => ({ ...prev, relativeViewEnabled: enabled }));
-    localStorage.setItem("relativeViewEnabled", String(enabled));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("relativeViewEnabled", String(enabled));
+    }
   }, []);
 
   const refreshConfig = useCallback(async () => {
@@ -117,9 +122,14 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         if (!enabled) disabledTabs.add(String(tab));
       }
       const theme = isTheme(cfg.theme) ? cfg.theme : "system";
-      const stored = localStorage.getItem("relativeViewEnabled");
+      const stored =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("relativeViewEnabled")
+          : null;
       setConfig({
-        relativeViewEnabled: stored ? stored === "true" : Boolean(cfg.relative_view_enabled),
+        relativeViewEnabled: stored
+          ? stored === "true"
+          : Boolean(cfg.relative_view_enabled),
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,

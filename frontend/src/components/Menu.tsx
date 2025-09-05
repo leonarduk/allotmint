@@ -130,7 +130,6 @@ export default function Menu({
           }}
         >
           {t('app.logout', 'Logout')}
-          {t("app.logout", "Logout")}
         </button>
       )}
     </nav>

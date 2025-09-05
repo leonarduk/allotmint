@@ -78,7 +78,7 @@ interface AppProps {
   onLogout?: () => void;
 }
 
-export default function App({ onLogout }: { onLogout?: () => void }) {
+export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();

@@ -192,7 +192,7 @@ export function PortfolioDashboard({ owner }: Props) {
         <div>
           <div style={{ fontSize: '0.9rem', color: '#aaa' }}>Beta</div>
           <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-            {beta != null ? beta.toFixed(2) : '—'}
+            {beta != null ? (beta as number).toFixed(2) : '—'}
           </div>
         </div>
       </div>

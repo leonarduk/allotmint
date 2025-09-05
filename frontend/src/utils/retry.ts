@@ -24,16 +24,17 @@ export async function retry<T>(
       lastErr = e;
       if (i === attempts - 1 || signal?.aborted) break;
       const delay = base * 2 ** i;
-      await new Promise((res, rej) => {
-        const timeout = setTimeout(res, delay);
-        signal?.addEventListener(
-          "abort",
-          () => {
-            clearTimeout(timeout);
-            rej(new Error("Cancelled"));
-          },
-          { once: true },
-        );
+      await new Promise<void>((res, rej) => {
+        const onAbort = () => {
+          clearTimeout(timeout);
+          signal?.removeEventListener("abort", onAbort);
+          rej(new Error("Cancelled"));
+        };
+        const timeout = setTimeout(() => {
+          signal?.removeEventListener("abort", onAbort);
+          res();
+        }, delay);
+        signal?.addEventListener("abort", onAbort);
       }).catch((e) => {
         lastErr = e;
       });

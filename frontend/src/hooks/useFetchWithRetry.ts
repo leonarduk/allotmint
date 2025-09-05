@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type DependencyList } from "react";
 import retry from "../utils/retry";
 
 interface UseFetchResult<T> {
@@ -18,19 +18,23 @@ export function useFetchWithRetry<T>(
   fn: () => Promise<T>,
   baseDelay = 500,
   maxAttempts = 5,
+  deps: DependencyList = [],
 ): UseFetchResult<T> & {
   attempt: number;
   maxAttempts: number;
   unauthorized: boolean;
 } {
+  if (baseDelay <= 0) {
+    throw new Error("baseDelay must be positive");
+  }
+
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [attempt, setAttempt] = useState(0);
-
-  if (baseDelay <= 0) {
-    throw new Error("baseDelay must be positive");
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +44,7 @@ export function useFetchWithRetry<T>(
     setData(null);
 
     retry(
-      () => fn(),
+      () => fnRef.current(),
       maxAttempts,
       baseDelay,
       (a) => {
@@ -63,7 +67,7 @@ export function useFetchWithRetry<T>(
       cancelled = true;
       controller.abort();
     };
-  }, [fn, baseDelay, maxAttempts]);
+  }, [baseDelay, maxAttempts, ...deps]);
 
   const unauthorized = error?.message.includes("HTTP 401") ?? false;
   return { data, loading, error, attempt, maxAttempts, unauthorized };

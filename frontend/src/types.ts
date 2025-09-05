@@ -121,7 +121,7 @@ export interface ValueAtRiskPoint {
 export interface VarBreakdown {
     ticker: string;
     contribution: number;
-    var: {
+    var?: {
         [horizon: string]: number | null;
     };
     sharpe_ratio?: number | null;
@@ -224,6 +224,7 @@ export interface TimeseriesSummary {
 
 export interface InstrumentMetadata {
     ticker: string;
+    exchange?: string | null;
     name: string;
     region?: string | null;
     sector?: string | null;
@@ -260,7 +261,9 @@ export type Alert = {
 
 export interface ScenarioResult {
     owner: string;
-    total_value_estimate_gbp: number;
+    baseline_total_value_gbp: number | null;
+    shocked_total_value_gbp: number | null;
+    delta_gbp: number | null;
 }
 
 export type ComplianceResult = {

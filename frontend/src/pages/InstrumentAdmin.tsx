@@ -5,11 +5,16 @@ import {
   createInstrumentMetadata,
   updateInstrumentMetadata,
 } from "../api";
-import type { InstrumentMetadata } from "../types";
 
-interface Row extends InstrumentMetadata {
+interface Row {
+  ticker: string;
+  exchange: string;
+  name: string;
+  region?: string | null;
+  sector?: string | null;
   isNew?: boolean;
   _originalTicker?: string;
+  _originalExchange?: string;
 }
 
 export default function InstrumentAdmin() {
@@ -21,14 +26,28 @@ export default function InstrumentAdmin() {
   useEffect(() => {
     listInstrumentMetadata()
       .then((data) =>
-        setRows(data.map((r) => ({ ...r, _originalTicker: r.ticker }))),
+        setRows(
+          data.map((r) => {
+            const [sym, exch] = r.ticker.split(".");
+            const exchange = (r as any).exchange ?? exch ?? "";
+            return {
+              ticker: sym,
+              exchange,
+              name: r.name,
+              region: r.region ?? "",
+              sector: r.sector ?? "",
+              _originalTicker: sym,
+              _originalExchange: exchange,
+            };
+          }),
+        ),
       )
       .catch((e) => setError(String(e)));
   }, []);
 
   const handleChange = (
     index: number,
-    field: keyof InstrumentMetadata,
+    field: keyof Row,
     value: string,
   ) => {
     setRows((prev) => {
@@ -41,7 +60,7 @@ export default function InstrumentAdmin() {
   const handleAdd = () =>
     setRows((prev) => [
       ...prev,
-      { ticker: "", name: "", region: "", sector: "", isNew: true },
+      { ticker: "", exchange: "", name: "", region: "", sector: "", isNew: true },
     ]);
 
   const handleSave = async (row: Row) => {
@@ -55,14 +74,35 @@ export default function InstrumentAdmin() {
       return;
     }
     try {
+      const payload = {
+        ticker: `${row.ticker}.${row.exchange}`,
+        exchange: row.exchange,
+        name: row.name,
+        region: row.region,
+        sector: row.sector,
+      };
       if (row.isNew) {
-        await createInstrumentMetadata(row);
+        await createInstrumentMetadata(row.ticker, row.exchange, payload);
       } else {
-        await updateInstrumentMetadata(row._originalTicker ?? row.ticker, row);
+        await updateInstrumentMetadata(row.ticker, row.exchange, payload);
       }
       setMessage(t("instrumentadmin.saveSuccess"));
       const fresh = await listInstrumentMetadata();
-      setRows(fresh.map((r) => ({ ...r, _originalTicker: r.ticker })));
+      setRows(
+        fresh.map((r) => {
+          const [sym, exch] = r.ticker.split(".");
+          const exchange = (r as any).exchange ?? exch ?? "";
+          return {
+            ticker: sym,
+            exchange,
+            name: r.name,
+            region: r.region ?? "",
+            sector: r.sector ?? "",
+            _originalTicker: sym,
+            _originalExchange: exchange,
+          };
+        }),
+      );
     } catch (e) {
       setMessage(t("instrumentadmin.saveError"));
     }
@@ -89,6 +129,7 @@ export default function InstrumentAdmin() {
         <thead>
           <tr>
             <th>{t("instrumentadmin.ticker")}</th>
+            <th>{t("instrumentadmin.exchange")}</th>
             <th>{t("instrumentadmin.name")}</th>
             <th>{t("instrumentadmin.region")}</th>
             <th>{t("instrumentadmin.sector")}</th>
@@ -102,6 +143,12 @@ export default function InstrumentAdmin() {
                 <input
                   value={r.ticker}
                   onChange={(e) => handleChange(idx, "ticker", e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  value={r.exchange}
+                  onChange={(e) => handleChange(idx, "exchange", e.target.value)}
                 />
               </td>
               <td>

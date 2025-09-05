@@ -79,7 +79,7 @@ const portfolio: Portfolio = {
 
 const renderWithConfig = (ui: React.ReactElement) =>
   render(
-    <configContext.Provider value={{ ...defaultConfig, refreshConfig: async () => {} }}>
+    <configContext.Provider value={{ ...defaultConfig, refreshConfig: async () => {}, setRelativeViewEnabled: () => {} }}>
       {ui}
     </configContext.Provider>,
   );

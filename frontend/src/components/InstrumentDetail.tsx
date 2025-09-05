@@ -16,6 +16,7 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import type { TradingSignal } from "../types";
+import { RelativeViewToggle } from "./RelativeViewToggle";
 
 type Props = {
   ticker: string;
@@ -179,7 +180,17 @@ export function InstrumentDetail({
           <strong>{signal.action.toUpperCase()}</strong> – {signal.reason}
         </div>
       )}
-      <h2 style={{ marginBottom: "0.2rem" }}>{name}</h2>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "0.2rem",
+        }}
+      >
+        <h2 style={{ marginBottom: 0 }}>{name}</h2>
+        <RelativeViewToggle />
+      </div>
       <div style={{ fontSize: "0.85rem", color: "#aaa" }}>
         {ticker} • {displayCurrency} • {translateInstrumentType(t, instrument_type)} • {" "}
         <Link to={editLink} style={{ color: "#00d8ff", textDecoration: "none" }}>

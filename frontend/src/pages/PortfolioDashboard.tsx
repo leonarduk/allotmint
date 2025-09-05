@@ -76,8 +76,6 @@ export function PortfolioDashboard({ owner }: Props) {
       (dailyReturns.length - 1);
     volatility = Math.sqrt(variance);
   }
-  // eslint-disable-next-line prefer-const
-  let beta: number | null = null;
 
   return (
     <div style={{ marginTop: '1rem' }}>
@@ -192,7 +190,7 @@ export function PortfolioDashboard({ owner }: Props) {
         <div>
           <div style={{ fontSize: '0.9rem', color: '#aaa' }}>Beta</div>
           <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-            {beta != null ? beta.toFixed(2) : '—'}
+            {beta != null ? (beta as number).toFixed(2) : '—'}
           </div>
         </div>
       </div>

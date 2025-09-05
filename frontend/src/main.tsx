@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from 'react'
+import { StrictMode, useEffect, useState, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
@@ -6,20 +6,21 @@ import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import './index.css'
 import './styles/responsive.css'
 import './i18n'
-import App from './App.tsx'
-import VirtualPortfolio from './pages/VirtualPortfolio'
-import Reports from './pages/Reports'
-import Support from './pages/Support'
-import ComplianceWarnings from './pages/ComplianceWarnings'
 import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
-import InstrumentResearch from './pages/InstrumentResearch'
 import { getConfig, logout, setAuthToken } from './api'
 import LoginPage from './LoginPage'
-import Profile from './pages/Profile'
-import Alerts from './pages/Alerts'
 import { UserProvider } from './UserContext'
+
+const App = lazy(() => import('./App.tsx'))
+const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))
+const Reports = lazy(() => import('./pages/Reports'))
+const Support = lazy(() => import('./pages/Support'))
+const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
+const InstrumentResearch = lazy(() => import('./pages/InstrumentResearch'))
+const Profile = lazy(() => import('./pages/Profile'))
+const Alerts = lazy(() => import('./pages/Alerts'))
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -60,17 +61,19 @@ export function Root() {
   }
 
   return (
-    <Routes>
-      <Route path="/support" element={<Support />} />
-      <Route path="/reports" element={<Reports />} />
-      <Route path="/virtual" element={<VirtualPortfolio />} />
-      <Route path="/compliance" element={<ComplianceWarnings />} />
-      <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
-      <Route path="/research/:ticker" element={<InstrumentResearch />} />
-      <Route path="/profile" element={<Profile />} />
-      <Route path="/alerts" element={<Alerts />} />
-      <Route path="/*" element={<App onLogout={handleLogout} />} />
-    </Routes>
+    <Suspense fallback={<div>Loading...</div>}>
+      <Routes>
+        <Route path="/support" element={<Support />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/virtual" element={<VirtualPortfolio />} />
+        <Route path="/compliance" element={<ComplianceWarnings />} />
+        <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+        <Route path="/research/:ticker" element={<InstrumentResearch />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/alerts" element={<Alerts />} />
+        <Route path="/*" element={<App onLogout={handleLogout} />} />
+      </Routes>
+    </Suspense>
   )
 }
 

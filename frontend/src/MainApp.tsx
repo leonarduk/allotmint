@@ -26,6 +26,7 @@ import { useRoute } from "./RouteContext";
 import PriceRefreshControls from "./components/PriceRefreshControls";
 import { Header } from "./components/Header";
 import InstallPwaPrompt from "./components/InstallPwaPrompt";
+import BackendUnavailableCard from "./components/BackendUnavailableCard";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
@@ -54,9 +55,16 @@ export default function MainApp() {
   const [err, setErr] = useState<string | null>(null);
 
   const [backendUnavailable, setBackendUnavailable] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
-  const ownersReq = useFetchWithRetry(getOwners);
-  const groupsReq = useFetchWithRetry(getGroups);
+  const ownersReq = useFetchWithRetry(() => {
+    void retryNonce;
+    return getOwners();
+  });
+  const groupsReq = useFetchWithRetry(() => {
+    void retryNonce;
+    return getGroups();
+  });
   const demoOnly =
     ownersReq.data?.length === 1 && ownersReq.data[0].owner === "demo";
   const unauthorized = demoOnly
@@ -157,9 +165,12 @@ export default function MainApp() {
   }
   if (backendUnavailable) {
     return (
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-        Backend unavailable—retrying…
-      </div>
+      <BackendUnavailableCard
+        onRetry={() => {
+          setBackendUnavailable(false);
+          setRetryNonce((n) => n + 1);
+        }}
+      />
     );
   }
 

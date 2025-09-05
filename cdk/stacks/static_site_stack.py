@@ -86,6 +86,15 @@ class StaticSiteStack(Stack):
                         override=True,
                     )
                 ]
+        redirect_fn = cloudfront.Function(
+            self,
+            "ViewerRequestFn",
+            code=cloudfront.FunctionCode.from_file(
+                file_path=str(
+                    Path(__file__).resolve().parents[1]
+                    / "functions"
+                    / "viewer-request.js"
+                )
             ),
         )
 
@@ -100,6 +109,12 @@ class StaticSiteStack(Stack):
                 cache_policy=html_cache_policy,
                 response_headers_policy=html_headers,
                 compress=True,
+                function_associations=[
+                    cloudfront.FunctionAssociation(
+                        function=redirect_fn,
+                        event_type=cloudfront.FunctionEventType.VIEWER_REQUEST,
+                    )
+                ],
             ),
             additional_behaviors={
                 "assets/*": cloudfront.BehaviorOptions(

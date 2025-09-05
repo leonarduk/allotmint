@@ -224,6 +224,7 @@ export interface TimeseriesSummary {
 
 export interface InstrumentMetadata {
     ticker: string;
+    exchange?: string | null;
     name: string;
     region?: string | null;
     sector?: string | null;

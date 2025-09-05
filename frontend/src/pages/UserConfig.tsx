@@ -29,9 +29,21 @@ export default function UserConfigPage() {
 
   useEffect(() => {
     if (owner) {
-      getUserConfig(owner).then(setCfg).catch(() => {
-        setCfg({});
-      });
+      getUserConfig(owner)
+        .then((res) => {
+          setCfg({
+            ...res,
+            approval_exempt_tickers: Array.isArray(res.approval_exempt_tickers)
+              ? res.approval_exempt_tickers
+              : [],
+            approval_exempt_types: Array.isArray(res.approval_exempt_types)
+              ? res.approval_exempt_types
+              : [],
+          });
+        })
+        .catch(() => {
+          setCfg({});
+        });
       getApprovals(owner)
         .then((res) => {
           setApprovals(res.approvals);
@@ -140,7 +152,11 @@ export default function UserConfigPage() {
               <input
                 type="text"
                 className="w-full border p-1"
-                value={(cfg.approval_exempt_tickers || []).join(",")}
+                value={(
+                  Array.isArray(cfg.approval_exempt_tickers)
+                    ? cfg.approval_exempt_tickers
+                    : []
+                ).join(",")}
                 onChange={(e) =>
                   setCfg({
                     ...cfg,
@@ -158,7 +174,11 @@ export default function UserConfigPage() {
               <input
                 type="text"
                 className="w-full border p-1"
-                value={(cfg.approval_exempt_types || []).join(",")}
+                value={(
+                  Array.isArray(cfg.approval_exempt_types)
+                    ? cfg.approval_exempt_types
+                    : []
+                ).join(",")}
                 onChange={(e) =>
                   setCfg({
                     ...cfg,

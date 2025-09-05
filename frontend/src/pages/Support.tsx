@@ -227,158 +227,193 @@ export default function Support() {
   }
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-4 p-4">
-      <h1 className="text-2xl md:text-4xl">{t("support.title")}</h1>
-      <p>
-        <strong>{t("support.online")}</strong> {online ? t("support.onlineYes") : t("support.onlineNo")}
-      </p>
-      <h2 className="text-xl md:text-2xl">{t("support.environment")}</h2>
-      <table className="text-sm">
-        <tbody>
-          {envEntries.map(([k, v]) => {
-            const value = String(v);
-            if (k === "VITE_API_URL") {
-              const base = value.replace(/\/$/, "");
+    <div className="container mx-auto max-w-3xl space-y-8 p-4">
+      <header>
+        <h1 className="mb-1 text-2xl font-bold md:text-4xl">
+          {t("support.title")}
+        </h1>
+        <p>
+          <strong>{t("support.online")}</strong>{" "}
+          {online ? t("support.onlineYes") : t("support.onlineNo")}
+        </p>
+      </header>
+
+      <section className="rounded-lg border p-4 shadow-sm">
+        <h2 className="mb-2 text-xl md:text-2xl">
+          {t("support.environment")}
+        </h2>
+        <table className="w-full table-auto text-sm">
+          <tbody>
+            {envEntries.map(([k, v]) => {
+              const value = String(v);
+              if (k === "VITE_API_URL") {
+                const base = value.replace(/\/$/, "");
+                return (
+                  <tr key={k} className="odd:bg-black/10">
+                    <td className="pr-2 font-medium">{k}</td>
+                    <td>
+                      <a href={value}>{value}</a>{" "}
+                      <a href={`${base}/docs#/`}>swagger</a>
+                    </td>
+                  </tr>
+                );
+              }
               return (
-                <tr key={k}>
-                  <td style={{ paddingRight: "0.5rem", fontWeight: 500 }}>{k}</td>
-                  <td>
-                    <a href={value}>{value}</a>{" "}
-                    <a href={`${base}/docs#/`}>swagger</a>
-                  </td>
+                <tr key={k} className="odd:bg-black/10">
+                  <td className="pr-2 font-medium">{k}</td>
+                  <td>{value}</td>
                 </tr>
               );
-            }
-            return (
-              <tr key={k}>
-                <td style={{ paddingRight: "0.5rem", fontWeight: 500 }}>{k}</td>
-                <td>{value}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <h2>Notifications</h2>
-      <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
-      {typeof Notification === "undefined" ||
-      typeof navigator === "undefined" ||
-      !("serviceWorker" in navigator) ? (
-        <p>Push not supported</p>
-      ) : (
-        <>
-          <button
-            onClick={pushEnabled ? disablePush : enablePush}
-            type="button"
-            disabled={!owner}
-          >
-            {pushEnabled ? "Disable Push Alerts" : "Enable Push Alerts"}
-          </button>
-          {pushStatus === "denied" && <p>Push permission denied.</p>}
-          {pushStatus === "error" && <p>Error handling push subscription.</p>}
-        </>
-      )}
+            })}
+          </tbody>
+        </table>
+      </section>
 
-      <h2>Configuration</h2>
-      {!Object.keys(config).length ? (
-        <p>Loading…</p>
-      ) : (
-        <form onSubmit={saveConfig}>
-          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <h3 className="font-semibold">Tabs Enabled</h3>
-              {TAB_KEYS.map((tab) => (
-                <label key={tab} className="block font-medium">
-                  <input
-                    type="checkbox"
-                    checked={tabs[tab]}
-                    onChange={(e) => handleTabChange(tab, e.target.checked)}
-                  />
-                  {tab}
-                </label>
-              ))}
-            </div>
-            <div>
-              <h3 className="font-semibold">Other Switches</h3>
-              {Object.entries(config)
-                .filter(([k, v]) => k !== "tabs" && typeof v === "boolean")
-                .map(([key, value]) => (
-                  <label key={key} className="block font-medium">
+      <section className="rounded-lg border p-4 shadow-sm">
+        <h2 className="mb-2 text-xl font-semibold">Notifications</h2>
+        <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
+        {typeof Notification === "undefined" ||
+        typeof navigator === "undefined" ||
+        !("serviceWorker" in navigator) ? (
+          <p className="mt-2">Push not supported</p>
+        ) : (
+          <div className="mt-2 space-x-2">
+            <button
+              onClick={pushEnabled ? disablePush : enablePush}
+              type="button"
+              disabled={!owner}
+              className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+            >
+              {pushEnabled ? "Disable Push Alerts" : "Enable Push Alerts"}
+            </button>
+            {pushStatus === "denied" && <p>Push permission denied.</p>}
+            {pushStatus === "error" && <p>Error handling push subscription.</p>}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border p-4 shadow-sm">
+        <h2 className="mb-2 text-xl font-semibold">Configuration</h2>
+        {!Object.keys(config).length ? (
+          <p>Loading…</p>
+        ) : (
+          <form onSubmit={saveConfig} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <h3 className="mb-1 font-semibold">Tabs Enabled</h3>
+                {TAB_KEYS.map((tab) => (
+                  <label key={tab} className="mb-1 block font-medium">
                     <input
                       type="checkbox"
-                      checked={value as boolean}
-                      onChange={(e) => handleConfigChange(key, e.target.checked)}
+                      checked={tabs[tab]}
+                      onChange={(e) => handleTabChange(tab, e.target.checked)}
+                      className="mr-1"
                     />
-                    {key}
+                    {tab}
                   </label>
                 ))}
+              </div>
+              <div>
+                <h3 className="mb-1 font-semibold">Other Switches</h3>
+                {Object.entries(config)
+                  .filter(([k, v]) => k !== "tabs" && typeof v === "boolean")
+                  .map(([key, value]) => (
+                    <label key={key} className="mb-1 block font-medium">
+                      <input
+                        type="checkbox"
+                        checked={value as boolean}
+                        onChange={(e) => handleConfigChange(key, e.target.checked)}
+                        className="mr-1"
+                      />
+                      {key}
+                    </label>
+                  ))}
+              </div>
             </div>
-          </div>
-          <div className="mb-2">
-            <h3 className="font-semibold">Other parameters</h3>
-            {Object.entries(config)
-              .filter(([k, v]) => k !== "tabs" && typeof v !== "boolean")
-              .map(([key, value]) => (
-                <div key={key} className="mb-2">
-                  {key === "theme" && typeof value === "string" ? (
-                    <div>
-                      <label className="block font-medium">{key}</label>
-                      {["dark", "light", "system"].map((opt) => (
-                        <label key={opt} className="mr-2">
-                          <input
-                            type="radio"
-                            name="theme"
-                            value={opt}
-                            checked={value === opt}
-                            onChange={(e) => handleConfigChange(key, e.target.value)}
-                          />
-                          {opt}
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      value={String(value ?? "")}
-                      onChange={(e) => handleConfigChange(key, e.target.value)}
-                      className="w-full"
-                    />
-                  )}
-                </div>
-              ))}
-          </div>
-          <button type="submit">Save</button>
-          {configStatus === "saved" && (
-            <span className="ml-2 text-green-600">Saved</span>
-          )}
-          {configStatus === "error" && (
-            <span className="ml-2 text-red-600">Error</span>
-          )}
-          {configStatus === "saving" && (
-            <span className="ml-2">Saving…</span>
-          )}
-        </form>
-      )}
-      <h2 className="text-xl md:text-2xl">{t("support.telegramMessage")}</h2>
-      <textarea
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        rows={4}
-        className="w-full"
-      />
-      <div className="mt-2">
-        <button onClick={send} disabled={!message}>
-          {t("support.send")}
-        </button>
-        {status === "sent" && (
-          <span className="ml-2 text-green-600">{t("support.status.sent")}</span>
+            <div>
+              <h3 className="mb-1 font-semibold">Other parameters</h3>
+              {Object.entries(config)
+                .filter(([k, v]) => k !== "tabs" && typeof v !== "boolean")
+                .map(([key, value]) => (
+                  <div key={key} className="mb-2">
+                    {key === "theme" && typeof value === "string" ? (
+                      <div>
+                        <label className="mb-1 block font-medium">{key}</label>
+                        {["dark", "light", "system"].map((opt) => (
+                          <label key={opt} className="mr-2">
+                            <input
+                              type="radio"
+                              name="theme"
+                              value={opt}
+                              checked={value === opt}
+                              onChange={(e) => handleConfigChange(key, e.target.value)}
+                              className="mr-1"
+                            />
+                            {opt}
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        value={String(value ?? "")}
+                        onChange={(e) => handleConfigChange(key, e.target.value)}
+                        className="w-full rounded border px-2 py-1"
+                      />
+                    )}
+                  </div>
+                ))}
+            </div>
+            <div>
+              <button
+                type="submit"
+                className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+              >
+                Save
+              </button>
+              {configStatus === "saved" && (
+                <span className="ml-2 text-green-600">Saved</span>
+              )}
+              {configStatus === "error" && (
+                <span className="ml-2 text-red-600">Error</span>
+              )}
+              {configStatus === "saving" && (
+                <span className="ml-2">Saving…</span>
+              )}
+            </div>
+          </form>
         )}
-        {status === "error" && (
-          <span className="ml-2 text-red-600">{t("support.status.error")}</span>
-        )}
-        {status === "sending" && (
-          <span className="ml-2">{t("support.status.sending")}</span>
-        )}
-      </div>
+      </section>
+
+      <section className="rounded-lg border p-4 shadow-sm">
+        <h2 className="mb-2 text-xl md:text-2xl">
+          {t("support.telegramMessage")}
+        </h2>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={4}
+          className="w-full rounded border px-2 py-1"
+        />
+        <div className="mt-2">
+          <button
+            onClick={send}
+            disabled={!message}
+            className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+          >
+            {t("support.send")}
+          </button>
+          {status === "sent" && (
+            <span className="ml-2 text-green-600">{t("support.status.sent")}</span>
+          )}
+          {status === "error" && (
+            <span className="ml-2 text-red-600">{t("support.status.error")}</span>
+          )}
+          {status === "sending" && (
+            <span className="ml-2">{t("support.status.sending")}</span>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

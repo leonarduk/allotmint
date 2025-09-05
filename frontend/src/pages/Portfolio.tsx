@@ -6,23 +6,35 @@ import type { Portfolio as PortfolioData } from "../types";
 
 export function Portfolio() {
   const [data, setData] = useState<PortfolioData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://app.allotmint.io";
+
   useEffect(() => {
-    getPortfolio("alice").then(setData).catch(() => setData(null));
+    getPortfolio("alice")
+      .then((d) => {
+        setData(d);
+        setError(null);
+      })
+      .catch(() => setError("Failed to load portfolio"))
+      .finally(() => setLoading(false));
   }, []);
   return (
     <>
       <Meta
         title="Portfolio"
         description="View and manage your investment portfolio"
-        canonical="https://example.com/portfolio"
+        canonical={`${BASE_URL}/portfolio`}
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'WebPage',
           name: 'Portfolio',
-          url: 'https://example.com/portfolio'
+          url: `${BASE_URL}/portfolio`,
+          description: 'View and manage your investment portfolio',
+          image: `${BASE_URL}/vite.svg`
         }}
       />
-      <PortfolioView data={data} />
+      <PortfolioView data={data} loading={loading} error={error} />
     </>
   );
 }

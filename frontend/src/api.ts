@@ -42,9 +42,18 @@ export const API_BASE =
   "http://localhost:8000";
 
 let authToken: string | null = null;
+const TOKEN_STORAGE_KEY = "authToken";
+
 export const setAuthToken = (token: string | null) => {
   authToken = token;
+  if (token) {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+  }
 };
+
+export const getStoredAuthToken = () => localStorage.getItem(TOKEN_STORAGE_KEY);
 
 export async function login(idToken: string): Promise<string> {
   const res = await fetch(`${API_BASE}/token`, {

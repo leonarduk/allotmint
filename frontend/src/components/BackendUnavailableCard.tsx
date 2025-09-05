@@ -22,7 +22,7 @@ export default function BackendUnavailableCard({ onRetry }: Props) {
         cached read-only view.
       </p>
       <div style={{ marginBottom: "1rem" }}>
-        <button onClick={() => onRetry?.()} disabled={!onRetry}>
+        <button onClick={onRetry} disabled={!onRetry}>
           Retry
         </button>
       </div>

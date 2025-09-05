@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -109,14 +109,12 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   const { lastRefresh, setLastRefresh } = usePriceRefresh();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const ownersReq = useFetchWithRetry(() => {
-    void retryNonce;
-    return getOwners();
-  });
-  const groupsReq = useFetchWithRetry(() => {
-    void retryNonce;
-    return getGroups();
-  });
+  const handleRetry = useCallback(() => {
+    setRetryNonce((n) => n + 1);
+  }, []);
+
+  const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
+  const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
 
   function pathFor(m: Mode) {
     switch (m) {
@@ -328,10 +326,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
   if (backendUnavailable) {
     return (
       <BackendUnavailableCard
-        onRetry={() => {
-          setBackendUnavailable(false);
-          setRetryNonce((n) => n + 1);
-        }}
+        onRetry={handleRetry}
       />
     );
   }

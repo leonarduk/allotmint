@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy } from "react";
+import { useCallback, useEffect, useState, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getGroupInstruments, getGroups, getOwners, getPortfolio } from "./api";
@@ -57,14 +57,8 @@ export default function MainApp() {
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  const ownersReq = useFetchWithRetry(() => {
-    void retryNonce;
-    return getOwners();
-  });
-  const groupsReq = useFetchWithRetry(() => {
-    void retryNonce;
-    return getGroups();
-  });
+  const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
+  const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
   const demoOnly =
     ownersReq.data?.length === 1 && ownersReq.data[0].owner === "demo";
   const unauthorized = demoOnly
@@ -72,6 +66,10 @@ export default function MainApp() {
     : ownersReq.unauthorized || groupsReq.unauthorized;
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const handleRetry = useCallback(() => {
+    setRetryNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (ownersReq.data) {
@@ -166,10 +164,7 @@ export default function MainApp() {
   if (backendUnavailable) {
     return (
       <BackendUnavailableCard
-        onRetry={() => {
-          setBackendUnavailable(false);
-          setRetryNonce((n) => n + 1);
-        }}
+        onRetry={handleRetry}
       />
     );
   }

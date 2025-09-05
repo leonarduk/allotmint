@@ -18,7 +18,7 @@ describe('Google login guard', () => {
     render(
       <BrowserRouter>
         <Root />
-      </BrowserRouter>
+      </BrowserRouter>,
     )
     expect(
       await screen.findByText(/Google login is not configured/i),

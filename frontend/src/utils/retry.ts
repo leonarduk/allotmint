@@ -12,21 +12,42 @@ export async function retry<T>(
   attempts = 5,
   base = 500,
   onAttempt?: (attempt: number) => void,
+  signal?: AbortSignal,
 ): Promise<T> {
   let lastErr: unknown = null;
   for (let i = 0; i < attempts; i++) {
+    if (signal?.aborted) break;
     onAttempt?.(i + 1);
     try {
       return await fn();
     } catch (e) {
       lastErr = e;
-      if (i === attempts - 1) break;
+      if (i === attempts - 1 || signal?.aborted) break;
       const delay = base * 2 ** i;
-      await new Promise((res) => setTimeout(res, delay));
+      await new Promise((res, rej) => {
+        const timeout = setTimeout(res, delay);
+        signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timeout);
+            rej(new Error("Cancelled"));
+          },
+          { once: true },
+        );
+      }).catch((e) => {
+        lastErr = e;
+      });
     }
   }
-  toast.error("Failed to reach backend");
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  if (signal?.aborted) {
+    throw lastErr instanceof Error
+      ? lastErr
+      : new Error(String(lastErr ?? "Cancelled"));
+  }
+  const error =
+    lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  toast.error(`Failed to reach backend: ${error.message}`);
+  throw error;
 }
 
 export default retry;

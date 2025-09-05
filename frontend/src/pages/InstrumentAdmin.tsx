@@ -84,11 +84,7 @@ export default function InstrumentAdmin() {
       if (row.isNew) {
         await createInstrumentMetadata(row.ticker, row.exchange, payload);
       } else {
-        await updateInstrumentMetadata(
-          row._originalTicker ?? row.ticker,
-          row._originalExchange ?? row.exchange,
-          payload,
-        );
+        await updateInstrumentMetadata(row.ticker, row.exchange, payload);
       }
       setMessage(t("instrumentadmin.saveSuccess"));
       const fresh = await listInstrumentMetadata();

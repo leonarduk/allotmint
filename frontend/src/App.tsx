@@ -40,6 +40,7 @@ import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import ProfilePage from "./pages/Profile";
+import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
 import { usePriceRefresh } from "./PriceRefreshContext";
 import InstrumentSearchBar from "./components/InstrumentSearchBar";
@@ -488,6 +489,7 @@ export default function App({ onLogout }: { onLogout?: () => void }) {
       {mode === "watchlist" && <Watchlist />}
       {mode === "allocation" && <AllocationCharts />}
       {mode === "movers" && <TopMovers />}
+      {mode === "reports" && <Reports />}
       {mode === "support" && <Support />}
       {mode === "profile" && <ProfilePage />}
       {mode === "settings" && <UserConfigPage />}

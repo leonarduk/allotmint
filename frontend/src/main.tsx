@@ -19,7 +19,6 @@ if (storedToken) setAuthToken(storedToken)
 
 const App = lazy(() => import('./App.tsx'))
 const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))
-const Reports = lazy(() => import('./pages/Reports'))
 const Support = lazy(() => import('./pages/Support'))
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
 const InstrumentResearch = lazy(() => import('./pages/InstrumentResearch'))
@@ -63,7 +62,6 @@ export function Root() {
     <Suspense fallback={<div>Loading...</div>}>
       <Routes>
         <Route path="/support" element={<Support />} />
-        <Route path="/reports" element={<Reports />} />
         <Route path="/virtual" element={<VirtualPortfolio />} />
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />

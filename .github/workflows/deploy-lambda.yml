@@ -16,6 +16,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      SMOKE_TEST_URL: ${{ vars.SMOKE_TEST_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -104,12 +106,12 @@ jobs:
 
       - name: Run smoke tests
         if: steps.parse.outputs.deploy == 'true'
-        run: ./scripts/smoke-test.sh https://app.allotmint.io
+        run: ./scripts/smoke-test.sh
 
       - name: Run Lighthouse CI
         if: steps.parse.outputs.deploy == 'true'
         run: |
-          npm install -g @lhci/cli
-          lhci autorun --collect.url=https://app.allotmint.io \
+          npm install --no-save @lhci/cli
+          npx lhci autorun --collect.url="$SMOKE_TEST_URL" \
             --upload.target=temporary-public-storage
 

@@ -9,6 +9,7 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
+import { RelativeViewToggle } from "./RelativeViewToggle";
 
 type Props = {
     rows: InstrumentSummary[];
@@ -62,6 +63,9 @@ export function InstrumentTable({ rows }: Props) {
 
     return (
         <>
+            <div style={{ marginBottom: "0.5rem" }}>
+                <RelativeViewToggle />
+            </div>
             <div style={{ marginBottom: "0.5rem" }}>
                 Columns:
                 {columnLabels.map(([key, label]) => (

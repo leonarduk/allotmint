@@ -44,7 +44,12 @@ export const LanguageSwitcher = memo(function LanguageSwitcher() {
           style={{ opacity: current === l.code ? 1 : 0.5 }}
           aria-label={l.code}
         >
-          <img src={l.flag} alt={l.code} style={{ width: "100%", height: "100%" }} />
+          <img
+            src={l.flag}
+            alt={l.code}
+            width={24}
+            height={24}
+          />
         </button>
       ))}
     </div>

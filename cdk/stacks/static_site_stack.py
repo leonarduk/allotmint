@@ -77,6 +77,6 @@ class StaticSiteStack(Stack):
             ],
             destination_bucket=site_bucket,
             distribution=distribution,
-            distribution_paths=["/*.html"],
+            distribution_paths=["/", "/*.html"],
             prune=False,
         )

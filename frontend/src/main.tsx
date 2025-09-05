@@ -15,7 +15,7 @@ import { ConfigProvider } from './ConfigContext'
 import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
 import InstrumentResearch from './pages/InstrumentResearch'
-import { getConfig, logout, setAuthToken } from './api'
+import { getConfig, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import Profile from './pages/Profile'
 import Alerts from './pages/Alerts'
@@ -80,12 +80,14 @@ createRoot(rootEl).render(
   <StrictMode>
     <ConfigProvider>
       <PriceRefreshProvider>
-        <UserProvider>
-          <BrowserRouter>
-            <Root />
-          </BrowserRouter>
-          <ToastContainer autoClose={5000} />
-        </UserProvider>
+        <AuthProvider>
+          <UserProvider>
+            <BrowserRouter>
+              <Root />
+            </BrowserRouter>
+            <ToastContainer autoClose={5000} />
+          </UserProvider>
+        </AuthProvider>
       </PriceRefreshProvider>
     </ConfigProvider>
   </StrictMode>,

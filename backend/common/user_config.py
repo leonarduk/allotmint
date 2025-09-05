@@ -9,6 +9,16 @@ from backend.common.data_loader import resolve_paths
 from backend.config import config
 
 
+def _parse_str_list(val: object) -> Optional[List[str]]:
+    if isinstance(val, list):
+        items = [str(v).strip() for v in val if str(v).strip()]
+        return items or []
+    if isinstance(val, str):
+        items = [s.strip() for s in val.split(",") if s.strip()]
+        return items or []
+    return None
+
+
 @dataclass
 class UserConfig:
     hold_days_min: Optional[int] = None
@@ -21,8 +31,8 @@ class UserConfig:
         return cls(
             hold_days_min=data.get("hold_days_min"),
             max_trades_per_month=data.get("max_trades_per_month"),
-            approval_exempt_types=data.get("approval_exempt_types"),
-            approval_exempt_tickers=data.get("approval_exempt_tickers"),
+            approval_exempt_types=_parse_str_list(data.get("approval_exempt_types")),
+            approval_exempt_tickers=_parse_str_list(data.get("approval_exempt_tickers")),
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -47,11 +57,17 @@ def load_user_config(owner: str, accounts_root: Path | None = None) -> UserConfi
             data = json.loads(path.read_text()) or {}
         except Exception:
             data = {}
+    types = _parse_str_list(data.get("approval_exempt_types"))
+    if types is None:
+        types = config.approval_exempt_types
+    tickers = _parse_str_list(data.get("approval_exempt_tickers"))
+    if tickers is None:
+        tickers = config.approval_exempt_tickers
     return UserConfig(
         hold_days_min=data.get("hold_days_min", config.hold_days_min),
         max_trades_per_month=data.get("max_trades_per_month", config.max_trades_per_month),
-        approval_exempt_types=data.get("approval_exempt_types", config.approval_exempt_types),
-        approval_exempt_tickers=data.get("approval_exempt_tickers", config.approval_exempt_tickers),
+        approval_exempt_types=types,
+        approval_exempt_tickers=tickers,
     )
 
 

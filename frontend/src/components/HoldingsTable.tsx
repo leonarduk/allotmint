@@ -390,6 +390,13 @@ export function HoldingsTable({
             const h = sortedRows[virtualRow.index];
             const handleClick = () =>
               onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+            const sparkData = sparks[h.ticker]?.[String(sparkRange)];
+            const sparkColor =
+              sparkData && sparkData.length > 1
+                ? sparkData[sparkData.length - 1].close_gbp >= sparkData[0].close_gbp
+                  ? "lightgreen"
+                  : "red"
+                : "#8884d8";
             return (
               <tr key={h.ticker + h.acquired_date}>
                 <td className={tableStyles.cell}>
@@ -403,10 +410,10 @@ export function HoldingsTable({
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
                 <td className={`${tableStyles.cell} w-20`}>
-                  {sparks[h.ticker]?.[String(sparkRange)]?.length ? (
+                  {sparkData?.length ? (
                     <ResponsiveContainer width="100%" height={40}>
-                      <LineChart data={sparks[h.ticker][String(sparkRange)]} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
-                        <Line type="monotone" dataKey="close_gbp" stroke="#8884d8" dot={false} strokeWidth={1} />
+                      <LineChart data={sparkData} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
+                        <Line type="monotone" dataKey="close_gbp" stroke={sparkColor} dot={false} strokeWidth={1} />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : null}

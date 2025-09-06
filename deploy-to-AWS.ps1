@@ -27,4 +27,5 @@ if ($Backend) {
   Write-Host 'Deploying frontend stack to AWS...' -ForegroundColor Green
   $env:DEPLOY_BACKEND = 'false'
   cdk deploy StaticSiteStack
+
 }

@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "prepare": "husky"
+    "prepare": "[ -d .git ] && husky || true"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.12",

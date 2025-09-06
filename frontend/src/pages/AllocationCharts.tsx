@@ -44,6 +44,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // helper to derive a stable key for each account
   const accountKey = (acct: Account, idx: number) =>
@@ -55,12 +56,15 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     );
 
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     getGroupPortfolio(slug)
       .then((p: GroupPortfolio) => {
         setPortfolio(p);
         setSelectedAccounts(p.accounts.map(accountKey));
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
   }, [slug]);
 
   useEffect(() => {
@@ -102,6 +106,8 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     setSectorData(sector);
     setRegionData(region);
   }, [portfolio, selectedAccounts, t]);
+
+  if (loading && !portfolio) return <div>Loading...</div>;
 
   const chartData =
     view === "asset" ? assetData : view === "sector" ? sectorData : regionData;

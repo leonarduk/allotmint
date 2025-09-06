@@ -209,6 +209,17 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     pct: totalValue > 0 ? (value / totalValue) * 100 : 0,
   }));
 
+  const safeAlpha =
+    alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
+  const safeTrackingError =
+    trackingError != null && Math.abs(trackingError) > 1
+      ? trackingError / 100
+      : trackingError;
+  const safeMaxDrawdown =
+    maxDrawdown != null && Math.abs(maxDrawdown) > 1
+      ? maxDrawdown / 100
+      : maxDrawdown;
+
   /* ── render ────────────────────────────────────────────── */
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -239,19 +250,19 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Alpha vs Benchmark</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(alpha)}
+            {percentOrNa(safeAlpha)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Tracking Error</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(trackingError)}
+            {percentOrNa(safeTrackingError)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(maxDrawdown)}
+            {percentOrNa(safeMaxDrawdown)}
           </div>
         </div>
       </div>

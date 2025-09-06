@@ -48,6 +48,17 @@ export function PerformanceDashboard({ owner }: Props) {
   if (err) return <p style={{ color: "red" }}>{err}</p>;
   if (!data.length) return <p>{t("common.loading")}</p>;
 
+  const safeAlpha =
+    alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
+  const safeTrackingError =
+    trackingError != null && Math.abs(trackingError) > 1
+      ? trackingError / 100
+      : trackingError;
+  const safeMaxDrawdown =
+    maxDrawdown != null && Math.abs(maxDrawdown) > 1
+      ? maxDrawdown / 100
+      : maxDrawdown;
+
   return (
     <div style={{ marginTop: "1rem" }}>
       <div style={{ marginBottom: "0.5rem" }}>
@@ -85,19 +96,19 @@ export function PerformanceDashboard({ owner }: Props) {
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.alphaVsBenchmark")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percentOrNa(alpha)}
+            {percentOrNa(safeAlpha)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.trackingError")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percentOrNa(trackingError)}
+            {percentOrNa(safeTrackingError)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.maxDrawdown")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percentOrNa(maxDrawdown)}
+            {percentOrNa(safeMaxDrawdown)}
           </div>
         </div>
       </div>

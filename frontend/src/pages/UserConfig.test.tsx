@@ -50,8 +50,8 @@ describe("UserConfig page", () => {
       await userEvent.click(saveButton);
     });
     expect(mockUpdateUserConfig).toHaveBeenCalledWith("alex", {
-      approval_exempt_tickers: [],
-      approval_exempt_types: null,
+      approval_exempt_tickers: undefined,
+      approval_exempt_types: undefined,
     });
   });
 });

@@ -28,7 +28,7 @@ export function HoldingsTable({
   onSelectInstrument,
 }: Props) {
   const { t } = useTranslation();
-  const { relativeViewEnabled } = useConfig();
+  const { relativeViewEnabled, baseCurrency } = useConfig();
 
   const viewPresets = useMemo(
     () => [
@@ -432,7 +432,10 @@ export function HoldingsTable({
                   </td>
                 )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {money(h.current_price_gbp)}
+                  {money(
+                    h.current_price_gbp,
+                    h.current_price_currency || baseCurrency,
+                  )}
                   {h.last_price_date && (
                     <span
                       className={tableStyles.badge}
@@ -454,19 +457,24 @@ export function HoldingsTable({
                     className={`${tableStyles.cell} ${tableStyles.right}`}
                     title={(h.cost_basis_gbp ?? 0) > 0 ? t("holdingsTable.actualPurchaseCost") : t("holdingsTable.inferredCost")}
                   >
-                    {money(h.cost)}
+                    {money(
+                      h.cost,
+                      h.cost_basis_currency ||
+                        h.effective_cost_basis_currency ||
+                        baseCurrency,
+                    )}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.market && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {money(h.market)}
+                    {money(h.market, h.market_value_currency || baseCurrency)}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td
                     className={`${tableStyles.cell} ${tableStyles.right} ${(h.gain ?? 0) >= 0 ? 'text-positive' : 'text-negative'}`}
                   >
-                    {money(h.gain)}
+                    {money(h.gain, h.gain_currency || baseCurrency)}
                   </td>
                 )}
                 {visibleColumns.gain_pct && (

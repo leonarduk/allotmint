@@ -326,6 +326,7 @@ export function TopMoversPage() {
                     return s ? (
                       <SignalBadge
                         action={s.action}
+                        reason={s.reason}
                         onClick={() => setSelected({ row: r, signal: s })}
                       />
                     ) : null;

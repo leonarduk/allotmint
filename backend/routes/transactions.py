@@ -8,7 +8,7 @@ import re
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 try:  # Unix-like systems
     import fcntl  # type: ignore
@@ -21,13 +21,14 @@ except ModuleNotFoundError:  # pragma: no cover - Windows
 else:  # pragma: no cover - Unix
     msvcrt = None  # type: ignore[assignment]
 
-from fastapi import APIRouter, HTTPException
-from fastapi import Request
+from fastapi import APIRouter, HTTPException, Query
+from fastapi import Request, UploadFile, File, Form
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
 from backend.config import config
+from backend import importers
 
 router = APIRouter(tags=["transactions"])
 log = logging.getLogger("transactions")
@@ -49,6 +50,7 @@ class Transaction(BaseModel):
     reason_to_buy: str | None = None
 
     model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
+
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +108,7 @@ def _load_all_transactions() -> List[Transaction]:
         except (OSError, json.JSONDecodeError):
             continue
         owner = data.get("owner", path.parent.name)
-        account = data.get(
-            "account_type", path.stem.replace("_transactions", "")
-        )
+        account = data.get("account_type", path.stem.replace("_transactions", ""))
         for t in data.get("transactions", []):
             t = dict(t)
             t.pop("account", None)
@@ -194,12 +194,28 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     return {"owner": owner, "account": account, **tx_data}
 
 
+@router.post("/transactions/import", response_model=List[Transaction])
+async def import_transactions(
+    provider: str = Form(...), file: UploadFile = File(...)
+) -> List[Transaction]:
+    """Parse a transaction export and return the contained transactions."""
+
+    data = await file.read()
+    try:
+        return importers.parse(provider, data)
+    except importers.UnknownProvider as exc:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")
+    except Exception as exc:  # pragma: no cover - parsing errors
+        raise HTTPException(status_code=400, detail=f"Failed to parse file: {exc}")
+
+
 @router.get("/transactions", response_model=List[Transaction])
 async def list_transactions(
     owner: Optional[str] = None,
     account: Optional[str] = None,
     start: Optional[str] = None,
     end: Optional[str] = None,
+    tx_type: Optional[str] = Query(None, alias="type"),
 ):
     """Return transactions with optional filtering."""
 
@@ -212,6 +228,8 @@ async def list_transactions(
             continue
         if account and t.account.lower() != account.lower():
             continue
+        if tx_type and (t.type or "").upper() != tx_type.upper():
+            continue
         tx_date = _parse_date(t.date)
         if start_d and (not tx_date or tx_date < start_d):
             continue
@@ -222,3 +240,35 @@ async def list_transactions(
     return txs
 
 
+@router.get("/dividends", response_model=List[Transaction])
+async def list_dividends(
+    owner: Optional[str] = None,
+    account: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    ticker: Optional[str] = None,
+):
+    """Return only dividend transactions, grouped per owner/instrument."""
+
+    start_d = _parse_date(start)
+    end_d = _parse_date(end)
+
+    txs: List[Transaction] = []
+    for t in _load_all_transactions():
+        ttype = (t.type or "").upper()
+        if ttype not in {"DIVIDEND", "DIVIDENDS"}:
+            continue
+        if owner and t.owner.lower() != owner.lower():
+            continue
+        if account and t.account.lower() != account.lower():
+            continue
+        if ticker and (t.ticker or "").lower() != ticker.lower():
+            continue
+        tx_date = _parse_date(t.date)
+        if start_d and (not tx_date or tx_date < start_d):
+            continue
+        if end_d and (not tx_date or tx_date > end_d):
+            continue
+        txs.append(t)
+
+    return txs

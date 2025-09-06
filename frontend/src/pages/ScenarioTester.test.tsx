@@ -24,6 +24,9 @@ describe("ScenarioTester page", () => {
           "1d": { baseline: 100, shocked: 110 },
           "1w": { baseline: 200, shocked: 180 },
         },
+        baseline_total_value_gbp: 100,
+        shocked_total_value_gbp: 110,
+        delta_gbp: 10,
       } as ScenarioResult,
     ]);
 
@@ -62,6 +65,15 @@ describe("ScenarioTester page", () => {
 
   it("disables Apply button until selections made", async () => {
     mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
+  it("disables Apply button until valid inputs provided", async () => {
+    mockRunScenario.mockResolvedValueOnce([
+      {
+        owner: "Test Owner",
+        baseline_total_value_gbp: 100,
+        shocked_total_value_gbp: 110,
+        delta_gbp: 10,
+      } as ScenarioResult,
+    ]);
     render(<ScenarioTester />);
 
     await screen.findByRole("combobox");
@@ -74,6 +86,9 @@ describe("ScenarioTester page", () => {
     expect(apply).toBeDisabled();
     fireEvent.click(screen.getByLabelText("1d"));
     expect(apply).not.toBeDisabled();
+    fireEvent.click(apply);
+    await waitFor(() => expect(mockRunScenario).toHaveBeenCalled());
+    expect(screen.getByText("Test Owner")).toBeInTheDocument();
   });
 
   it("shows error message on failure", async () => {

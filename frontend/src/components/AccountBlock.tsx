@@ -8,6 +8,7 @@ import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
 import i18n from "../i18n";
+import { useConfig } from "../ConfigContext";
 
 /* ──────────────────────────────────────────────────────────────
  * Component
@@ -27,6 +28,7 @@ export function AccountBlock({
     ticker: string;
     name: string;
   } | null>(null);
+  const { baseCurrency } = useConfig();
 
   return (
     <div className="mb-4 p-2 md:mb-8 md:p-4">
@@ -46,7 +48,11 @@ export function AccountBlock({
       {selected && (
         <>
           <div className="mb-2">
-            Est&nbsp;Value:&nbsp;{money(account.value_estimate_gbp)}
+            Est&nbsp;Value:&nbsp;
+            {money(
+              account.value_estimate_gbp,
+              account.value_estimate_currency || baseCurrency,
+            )}
           </div>
 
           {account.last_updated && (

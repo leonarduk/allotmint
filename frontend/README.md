@@ -12,6 +12,7 @@ The AllotMint frontend is a React + TypeScript single-page app that visualises f
 
 - `npm run dev` – start the Vite development server.
 - `npm test` – execute the test suite with Vitest and Testing Library.
+  Test files should be named `*.test.ts`, `*.test.tsx`, or `*.test.js` to be picked up.
 
 ## Routing
 

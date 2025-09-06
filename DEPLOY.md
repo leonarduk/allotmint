@@ -35,6 +35,19 @@ cd ..
 
 ## Deploy with AWS CDK
 
+Run the helper script from the repository root to bootstrap the environment
+and deploy both stacks:
+
+```powershell
+./deploy-to-AWS.ps1
+```
+
+The script changes into the `cdk/` directory, runs `cdk bootstrap` if
+necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` with
+`deploy_backend` enabled.
+
+Alternatively, run the commands manually:
+
 ```bash
 cd cdk
 cdk bootstrap   # once per account/region

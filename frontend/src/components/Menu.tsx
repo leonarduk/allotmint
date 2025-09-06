@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useState, useRef, useEffect } from 'react';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
 import { orderedTabPlugins } from '../tabPlugins';
@@ -21,6 +22,20 @@ export default function Menu({
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const path = location.pathname.split('/').filter(Boolean);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleFocus(e: FocusEvent) {
+      if (open && containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('focusin', handleFocus);
+    return () => {
+      document.removeEventListener('focusin', handleFocus);
+    };
+  }, [open]);
 
   const mode: TabPluginId =
     path[0] === 'member'
@@ -99,40 +114,77 @@ export default function Menu({
   }
 
   return (
-    <nav style={{ display: 'flex', flexWrap: 'wrap', margin: '1rem 0', ...(style ?? {}) }}>
-      {orderedTabPlugins
-        .slice()
-        .sort((a, b) => a.priority - b.priority)
-        .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
-        .map((p) => (
-          <Link
-            key={p.id}
-            to={pathFor(p.id)}
-            style={{
-              marginRight: '1rem',
-              fontWeight: mode === p.id ? 'bold' : undefined,
-              overflowWrap: 'anywhere',
-            }}
-          >
-            {t(`app.modes.${p.id}`)}
-          </Link>
-        ))}
-      {onLogout && (
-        <button
-          type="button"
-          onClick={onLogout}
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        aria-label="Menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '0.5rem',
+          fontSize: '1.5rem',
+          lineHeight: 1,
+        }}
+      >
+        ☰
+      </button>
+      {open && (
+        <nav
           style={{
-            marginRight: '1rem',
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            font: 'inherit',
-            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'absolute',
+            top: '100%',
+            right: 0,
+            background: 'white',
+            padding: '1rem',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            zIndex: 10,
+            ...(style ?? {}),
           }}
         >
-          {t('app.logout')}
-        </button>
+          {orderedTabPlugins
+            .slice()
+            .sort((a, b) => a.priority - b.priority)
+            .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
+            .map((p) => (
+              <Link
+                key={p.id}
+                to={pathFor(p.id)}
+                onClick={() => setOpen(false)}
+                style={{
+                  marginBottom: '0.5rem',
+                  fontWeight: mode === p.id ? 'bold' : undefined,
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {t(`app.modes.${p.id}`)}
+              </Link>
+            ))}
+          {onLogout && (
+            <button
+              type="button"
+              onClick={() => {
+                onLogout();
+                setOpen(false);
+              }}
+              style={{
+                marginTop: '0.5rem',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                font: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {t('app.logout')}
+            </button>
+          )}
+        </nav>
       )}
-    </nav>
+    </div>
   );
 }

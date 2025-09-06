@@ -53,6 +53,8 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
                 "previous_close": info.get("regularMarketPreviousClose"),
                 "volume": info.get("regularMarketVolume"),
                 "timestamp": info.get("regularMarketTime"),
+                "timezone": info.get("exchangeTimezoneName"),
+                "market_state": info.get("marketState"),
             }
         )
 

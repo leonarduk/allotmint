@@ -131,6 +131,8 @@ export const getQuotes = (symbols: string[]) => {
     previous_close?: number | null;
     volume?: number | null;
     timestamp?: number | null;
+    timezone?: string | null;
+    market_state?: string | null;
   }[]>(`${API_BASE}/api/quotes?${params.toString()}`)
     .then((rows) =>
       rows.map((r) => {
@@ -152,7 +154,10 @@ export const getQuotes = (symbols: string[]) => {
           change,
           changePct,
           volume: r.volume ?? null,
-          time: r.timestamp ? new Date(r.timestamp * 1000).toISOString() : null,
+          marketTime: r.timestamp
+            ? new Date(r.timestamp * 1000).toISOString()
+            : null,
+          marketState: r.market_state ?? "UNKNOWN",
         } as QuoteRow;
       }),
     );
@@ -472,14 +477,33 @@ export const getTransactions = (params: {
   account?: string;
   start?: string;
   end?: string;
+  type?: string;
 }) => {
   const query = new URLSearchParams();
   if (params.owner) query.set("owner", params.owner);
   if (params.account) query.set("account", params.account);
   if (params.start) query.set("start", params.start);
   if (params.end) query.set("end", params.end);
+  if (params.type) query.set("type", params.type);
   const qs = query.toString();
   return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
+};
+
+export const getDividends = (params?: {
+  owner?: string;
+  account?: string;
+  start?: string;
+  end?: string;
+  ticker?: string;
+}) => {
+  const query = new URLSearchParams();
+  if (params?.owner) query.set("owner", params.owner);
+  if (params?.account) query.set("account", params.account);
+  if (params?.start) query.set("start", params.start);
+  if (params?.end) query.set("end", params.end);
+  if (params?.ticker) query.set("ticker", params.ticker);
+  const qs = query.toString();
+  return fetchJson<Transaction[]>(`${API_BASE}/dividends${qs ? `?${qs}` : ""}`);
 };
 
 /** Retrieve recent alert messages from backend. */

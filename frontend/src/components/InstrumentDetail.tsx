@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { getInstrumentDetail } from "../api";
 import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
@@ -17,6 +9,7 @@ import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import type { TradingSignal } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import { InstrumentHistoryChart } from "./InstrumentHistoryChart";
 
 type Props = {
   ticker: string;
@@ -65,7 +58,7 @@ export function InstrumentDetail({
   onClose,
 }: Props) {
   const { t } = useTranslation();
-  const { relativeViewEnabled } = useConfig();
+  const { relativeViewEnabled, baseCurrency } = useConfig();
   const [data, setData] = useState<{
     prices: Price[];
     positions: Position[];
@@ -117,6 +110,7 @@ export function InstrumentDetail({
     return { ...p, change_gbp, change_pct };
   });
 
+  const prices = withChanges;
   const prices = withChanges.map((p, i, arr) => {
     const slice20 = arr.slice(Math.max(0, i - 19), i + 1);
     const mean20 =
@@ -320,6 +314,11 @@ export function InstrumentDetail({
           {t("instrumentDetail.rsi")}
         </label>
       </div>
+      <InstrumentHistoryChart
+        data={prices}
+        loading={loading}
+        showBollinger={showBollinger}
+      />
       {loading ? (
         <div
           style={{
@@ -457,7 +456,7 @@ export function InstrumentDetail({
                 )}
                 {!relativeViewEnabled && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {money(pos.market_value_gbp)}
+                    {money(pos.market_value_gbp, baseCurrency)}
                   </td>
                 )}
                 {!relativeViewEnabled && (
@@ -469,7 +468,7 @@ export function InstrumentDetail({
                         : "red",
                     }}
                   >
-                    {money(pos.unrealised_gain_gbp)}
+                    {money(pos.unrealised_gain_gbp, baseCurrency)}
                   </td>
                 )}
                 <td
@@ -537,13 +536,13 @@ export function InstrumentDetail({
                       )}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {money(p.close_gbp)}
+                      {money(p.close_gbp, baseCurrency)}
                     </td>
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}
                       style={{ color: colour }}
                     >
-                      {money(p.change_gbp)}
+                      {money(p.change_gbp, baseCurrency)}
                     </td>
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}

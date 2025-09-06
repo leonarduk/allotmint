@@ -4,6 +4,7 @@ import { getGroupPortfolio } from "../api";
 import type { Account, GroupPortfolio } from "../types";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { money } from "../lib/money";
+import { useConfig } from "../ConfigContext";
 import {
   PieChart,
   Pie,
@@ -31,6 +32,7 @@ export type AllocationChartsProps = {
 
 export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const { t } = useTranslation();
+  const { baseCurrency } = useConfig();
   const [view, setView] = useState<"asset" | "sector" | "region">("asset");
   const [sectorData, setSectorData] = useState<{ name: string; value: number }[]>(
     [],
@@ -158,7 +160,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
               outerRadius="80%"
               // "percent" may be undefined for empty datasets; default it to 0
               label={({ name, value, percent = 0 }) =>
-                `${name}: ${money(value)} (${(percent * 100).toFixed(2)}%)`
+                `${name}: ${money(value, baseCurrency)} (${(percent * 100).toFixed(2)}%)`
               }
             >
               {chartData.map((_, index) => (
@@ -168,10 +170,10 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                 />
               ))}
             </Pie>
-            <Tooltip formatter={(v: number) => money(v)} />
+            <Tooltip formatter={(v: number) => money(v, baseCurrency)} />
             <Legend
               formatter={(value: string, entry: any) =>
-                `${value}: ${money(entry?.payload?.value)}`
+                `${value}: ${money(entry?.payload?.value, baseCurrency)}`
               }
             />
           </PieChart>

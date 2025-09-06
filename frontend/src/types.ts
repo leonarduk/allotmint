@@ -21,6 +21,8 @@ export interface Holding {
     latest_source?: string | null;
     day_change_gbp?: number;
     instrument_type?: string | null;
+    sector?: string | null;
+    region?: string | null;
 
     days_held?: number;
     sell_eligible?: boolean;

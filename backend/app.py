@@ -42,12 +42,8 @@ from backend.routes.logs import router as logs_router
 from backend.routes.metrics import router as metrics_router
 from backend.routes.movers import router as movers_router
 from backend.routes.performance import router as performance_router
-from backend.routes.portfolio import (
-    public_router as public_portfolio_router,
-)
-from backend.routes.portfolio import (
-    router as portfolio_router,
-)
+from backend.routes.portfolio import public_router as public_portfolio_router
+from backend.routes.portfolio import router as portfolio_router
 from backend.routes.query import router as query_router
 from backend.routes.quotes import router as quotes_router
 from backend.routes.scenario import router as scenario_router
@@ -209,18 +205,17 @@ def create_app() -> FastAPI:
 
     @app.post("/token")
     async def login(body: TokenIn):
-        email = authenticate_user(body.id_token)
+        try:
+            email = authenticate_user(body.id_token)
+        except HTTPException as exc:
+            logger.warning("User authentication failed: %s", exc.detail)
+            raise
+
         if not email:
-            raise HTTPException(status_code=400, detail="Invalid credentials")
+            logger.warning("authenticate_user returned no email")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
         token = create_access_token(email)
-        # =======
-        #     async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-        #         if config.google_auth_enabled:
-        #             raise HTTPException(status_code=400, detail="Password login disabled")
-        #         user = authenticate_user(form_data.username, form_data.password)
-        #         if not user:
-        #             raise HTTPException(status_code=400, detail="Incorrect username or password")
-        #         token = create_access_token(user)
         return {"access_token": token, "token_type": "bearer"}
 
     @app.post("/token/google")

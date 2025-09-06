@@ -82,3 +82,15 @@ def test_allowed_emails_local(monkeypatch, tmp_path):
     monkeypatch.setattr(auth, "load_person_meta", lambda owner, data_root=None: {"email": f"{owner}@example.com"})
     emails = auth._allowed_emails()
     assert "alice@example.com" in emails
+
+
+def test_missing_jwt_secret_raises_error(monkeypatch):
+    import importlib
+
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+    monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.setattr(auth.config, "disable_auth", False)
+    with pytest.raises(RuntimeError):
+        importlib.reload(auth)
+    monkeypatch.setenv("JWT_SECRET", "restored")
+    importlib.reload(auth)

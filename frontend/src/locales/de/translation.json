@@ -166,6 +166,9 @@
   "portfolio": "Portfolio",
   "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",
   "approxTotal": "Ungefähre Summe: £{{value}}",
+  "allocation": {
+    "instrumentTypes": "Instrumenttypen"
+  },
   "watchlist": {
     "refresh": "Aktualisieren"
   },

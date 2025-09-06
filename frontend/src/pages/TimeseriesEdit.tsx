@@ -3,6 +3,8 @@ import type { ChangeEvent } from "react";
 import { getTimeseries, saveTimeseries, searchInstruments } from "../api";
 import type { PriceEntry } from "../types";
 import { EXCHANGES, type ExchangeCode } from "../lib/exchanges";
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 
 function parseCsv(text: string): PriceEntry[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
@@ -23,7 +25,11 @@ function parseCsv(text: string): PriceEntry[] {
     (c) => !allowedCols.includes(c as keyof PriceEntry),
   );
   if (unexpected.length)
-    throw new Error(`Unexpected column(s): ${unexpected.join(", ")}`);
+    throw new Error(
+      i18next.t("timeseriesEdit.error.unexpectedColumns", {
+        columns: unexpected.join(", "),
+      }),
+    );
 
   return rows.map<PriceEntry>((line) => {
     const parts = line.split(",");
@@ -46,6 +52,7 @@ function parseCsv(text: string): PriceEntry[] {
 }
 
 export function TimeseriesEdit() {
+  const { t } = useTranslation();
   const [ticker, setTicker] = useState("");
   const [exchange, setExchange] = useState<ExchangeCode>("L");
   const [rows, setRows] = useState<PriceEntry[]>([]);
@@ -57,9 +64,9 @@ export function TimeseriesEdit() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const t = params.get("ticker");
+    const tickerParam = params.get("ticker");
     const e = params.get("exchange");
-    if (t) setTicker(t);
+    if (tickerParam) setTicker(tickerParam);
     if (e && EXCHANGES.includes(e as ExchangeCode)) {
       setExchange(e as ExchangeCode);
     }
@@ -93,7 +100,7 @@ export function TimeseriesEdit() {
     try {
       const data = await getTimeseries(ticker, exchange);
       setRows(data);
-      setStatus(`Loaded ${data.length} rows`);
+      setStatus(t("timeseriesEdit.status.loaded", { count: data.length }));
     } catch (e) {
       setError(String(e));
     }
@@ -120,9 +127,10 @@ export function TimeseriesEdit() {
   async function handleSave() {
     setError(null);
     try {
-      if (!rows.length) throw new Error("No data to save");
+      if (!rows.length)
+        throw new Error(t("timeseriesEdit.error.noData"));
       await saveTimeseries(ticker, exchange, rows);
-      setStatus(`Saved ${rows.length} rows`);
+      setStatus(t("timeseriesEdit.status.saved", { count: rows.length }));
     } catch (e) {
       setError(String(e));
     }
@@ -130,10 +138,12 @@ export function TimeseriesEdit() {
 
   return (
     <div className="container mx-auto p-4 max-w-3xl">
-      <h2 className="mb-4 text-xl md:text-2xl">Timeseries Editor</h2>
+      <h2 className="mb-4 text-xl md:text-2xl">
+        {t("timeseriesEdit.title")}
+      </h2>
       <div className="mb-2">
         <label>
-          Ticker {" "}
+          {t("timeseriesEdit.ticker")}{" "}
           <input
             list="ticker-suggestions"
             value={ticker}
@@ -152,7 +162,7 @@ export function TimeseriesEdit() {
           </datalist>
         </label>{" "}
         <label>
-          Exchange {" "}
+          {t("timeseriesEdit.exchange")}{" "}
           <select
             value={exchange}
             onChange={(e) => setExchange(e.target.value as ExchangeCode)}
@@ -166,21 +176,21 @@ export function TimeseriesEdit() {
           </select>
         </label>{" "}
         <button onClick={handleLoad} disabled={!ticker}>
-          Load
+          {t("timeseriesEdit.load")}
         </button>
       </div>
       <div className="mb-2 overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Open</th>
-              <th>High</th>
-              <th>Low</th>
-              <th>Close</th>
-              <th>Volume</th>
-              <th>Ticker</th>
-              <th>Source</th>
+              <th>{t("timeseriesEdit.columns.date")}</th>
+              <th>{t("timeseriesEdit.columns.open")}</th>
+              <th>{t("timeseriesEdit.columns.high")}</th>
+              <th>{t("timeseriesEdit.columns.low")}</th>
+              <th>{t("timeseriesEdit.columns.close")}</th>
+              <th>{t("timeseriesEdit.columns.volume")}</th>
+              <th>{t("timeseriesEdit.columns.ticker")}</th>
+              <th>{t("timeseriesEdit.columns.source")}</th>
               <th></th>
             </tr>
           </thead>
@@ -189,7 +199,7 @@ export function TimeseriesEdit() {
               <tr key={i}>
                 <td>
                   <input
-                    aria-label="Date"
+                    aria-label={t("timeseriesEdit.columns.date")}
                     value={row.Date}
                     onChange={(e) =>
                       setRows((rs) => {
@@ -202,7 +212,7 @@ export function TimeseriesEdit() {
                 </td>
                 <td>
                   <input
-                    aria-label="Open"
+                    aria-label={t("timeseriesEdit.columns.open")}
                     type="number"
                     value={row.Open ?? ""}
                     onChange={(e) =>
@@ -219,7 +229,7 @@ export function TimeseriesEdit() {
                 </td>
                 <td>
                   <input
-                    aria-label="High"
+                    aria-label={t("timeseriesEdit.columns.high")}
                     type="number"
                     value={row.High ?? ""}
                     onChange={(e) =>
@@ -236,7 +246,7 @@ export function TimeseriesEdit() {
                 </td>
                 <td>
                   <input
-                    aria-label="Low"
+                    aria-label={t("timeseriesEdit.columns.low")}
                     type="number"
                     value={row.Low ?? ""}
                     onChange={(e) =>
@@ -253,7 +263,7 @@ export function TimeseriesEdit() {
                 </td>
                 <td>
                   <input
-                    aria-label="Close"
+                    aria-label={t("timeseriesEdit.columns.close")}
                     type="number"
                     value={row.Close ?? ""}
                     onChange={(e) =>
@@ -270,7 +280,7 @@ export function TimeseriesEdit() {
                 </td>
                 <td>
                   <input
-                    aria-label="Volume"
+                    aria-label={t("timeseriesEdit.columns.volume")}
                     type="number"
                     value={row.Volume ?? ""}
                     onChange={(e) =>
@@ -287,7 +297,7 @@ export function TimeseriesEdit() {
                 </td>
                 <td>
                   <input
-                    aria-label="Ticker"
+                    aria-label={t("timeseriesEdit.columns.ticker")}
                     value={row.Ticker ?? ""}
                     onChange={(e) =>
                       setRows((rs) => {
@@ -300,7 +310,7 @@ export function TimeseriesEdit() {
                 </td>
                 <td>
                   <input
-                    aria-label="Source"
+                    aria-label={t("timeseriesEdit.columns.source")}
                     value={row.Source ?? ""}
                     onChange={(e) =>
                       setRows((rs) => {
@@ -313,12 +323,12 @@ export function TimeseriesEdit() {
                 </td>
                 <td>
                   <button
-                    aria-label="Delete"
+                    aria-label={t("timeseriesEdit.delete")}
                     onClick={() =>
                       setRows((rs) => rs.filter((_, idx) => idx !== i))
                     }
                   >
-                    Delete
+                    {t("timeseriesEdit.delete")}
                   </button>
                 </td>
               </tr>
@@ -344,13 +354,13 @@ export function TimeseriesEdit() {
             ])
           }
         >
-          Add Row
+          {t("timeseriesEdit.addRow")}
         </button>
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
         <input type="file" accept=".csv" onChange={handleFile} />{" "}
         <button onClick={handleSave} disabled={!ticker || !rows.length}>
-          Save
+          {t("timeseriesEdit.save")}
         </button>
       </div>
       {status && <p style={{ color: "green" }}>{status}</p>}

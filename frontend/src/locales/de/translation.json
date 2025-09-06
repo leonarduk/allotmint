@@ -195,6 +195,7 @@
     "exportXlsx": "XLSX exportieren"
   },
   "screener": {
+    "watchlist": "Beobachtungsliste:",
     "tickers": "Ticker",
     "maxPeg": "Max PEG",
     "maxPe": "Max P/E",

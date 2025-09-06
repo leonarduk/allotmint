@@ -52,8 +52,11 @@ Alternatively, run the commands manually:
 cd cdk
 cdk bootstrap   # once per account/region
 DEPLOY_BACKEND=false cdk deploy StaticSiteStack
-# or deploy backend and frontend together
-DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack
+# or deploy backend and frontend together. Supply the name of your
+# data bucket either via environment variable:
+DATA_BUCKET=my-data-bucket DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack
+# or as a CDK context parameter:
+DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack -c data_bucket=my-data-bucket
 ```
 
 ## CloudFront cache invalidation

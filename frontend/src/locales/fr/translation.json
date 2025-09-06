@@ -182,6 +182,33 @@
   "timeseries": {
     "loading": "Chargement…"
   },
+  "timeseriesEdit": {
+    "title": "Éditeur de séries temporelles",
+    "ticker": "Ticker",
+    "exchange": "Bourse",
+    "load": "Charger",
+    "addRow": "Ajouter une ligne",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "columns": {
+      "date": "Date",
+      "open": "Ouverture",
+      "high": "Haut",
+      "low": "Bas",
+      "close": "Clôture",
+      "volume": "Volume",
+      "ticker": "Ticker",
+      "source": "Source"
+    },
+    "status": {
+      "loaded": "Chargé {{count}} lignes",
+      "saved": "Enregistré {{count}} lignes"
+    },
+    "error": {
+      "noData": "Pas de données à enregistrer",
+      "unexpectedColumns": "Colonne(s) inattendue(s) : {{columns}}"
+    }
+  },
   "query": {
     "start": "Début",
     "end": "Fin",

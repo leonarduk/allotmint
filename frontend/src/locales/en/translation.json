@@ -182,6 +182,33 @@
   "timeseries": {
     "loading": "Loading…"
   },
+  "timeseriesEdit": {
+    "title": "Timeseries Editor",
+    "ticker": "Ticker",
+    "exchange": "Exchange",
+    "load": "Load",
+    "addRow": "Add Row",
+    "save": "Save",
+    "delete": "Delete",
+    "columns": {
+      "date": "Date",
+      "open": "Open",
+      "high": "High",
+      "low": "Low",
+      "close": "Close",
+      "volume": "Volume",
+      "ticker": "Ticker",
+      "source": "Source"
+    },
+    "status": {
+      "loaded": "Loaded {{count}} rows",
+      "saved": "Saved {{count}} rows"
+    },
+    "error": {
+      "noData": "No data to save",
+      "unexpectedColumns": "Unexpected column(s): {{columns}}"
+    }
+  },
   "query": {
     "noResults": "No results."
   },

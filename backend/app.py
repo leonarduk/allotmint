@@ -62,6 +62,8 @@ from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.transactions import router as transactions_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
+from backend.routes.goals import router as goals_router
+from backend.routes.tax import router as tax_router
 from backend.utils import page_cache
 
 logger = logging.getLogger(__name__)
@@ -215,6 +217,8 @@ def create_app() -> FastAPI:
     app.include_router(approvals_router, dependencies=protected)
     app.include_router(scenario_router)
     app.include_router(logs_router)
+    app.include_router(goals_router, dependencies=protected)
+    app.include_router(tax_router, dependencies=protected)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):

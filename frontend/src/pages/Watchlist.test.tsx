@@ -127,6 +127,12 @@ describe("Watchlist page", () => {
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10000);
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Markets closed")).toBeInTheDocument();
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      vi.advanceTimersByTime(30000);
     });
     await act(async () => {
       await Promise.resolve();

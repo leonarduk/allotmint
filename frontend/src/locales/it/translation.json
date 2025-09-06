@@ -19,6 +19,7 @@
       "timeseries": "Timeserie",
       "watchlist": "Elenco di guardia",
       "allocation": "Allocazione",
+      "rebalance": "Rebalance",
       "movers": "Movers",
       "instrumentadmin": "Amministratore dello strumento",
       "dataadmin": "Data Admin",

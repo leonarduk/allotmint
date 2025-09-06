@@ -1,5 +1,6 @@
 import type { Account } from "../types";
 import { money, percent } from "../lib/money";
+import { useConfig } from "../ConfigContext";
 
 export type PortfolioTotals = {
   totalValue: number;
@@ -64,6 +65,7 @@ export function PortfolioSummary({ totals }: Props) {
     totalGainPct,
     totalDayChangePct,
   } = totals;
+  const { baseCurrency } = useConfig();
 
   return (
     <div
@@ -80,7 +82,7 @@ export function PortfolioSummary({ totals }: Props) {
       <div>
         <div style={{ fontSize: "1rem", color: "#aaa" }}>Total Value</div>
         <div style={{ fontSize: "2rem", fontWeight: "bold" }}>
-          {money(totalValue)}
+          {money(totalValue, baseCurrency)}
         </div>
       </div>
       <div>
@@ -92,7 +94,7 @@ export function PortfolioSummary({ totals }: Props) {
             color: totalDayChange >= 0 ? "lightgreen" : "red",
           }}
         >
-          {money(totalDayChange)} ({percent(totalDayChangePct)})
+          {money(totalDayChange, baseCurrency)} ({percent(totalDayChangePct)})
         </div>
       </div>
       <div>
@@ -104,7 +106,7 @@ export function PortfolioSummary({ totals }: Props) {
             color: totalGain >= 0 ? "lightgreen" : "red",
           }}
         >
-          {money(totalGain)} ({percent(totalGainPct)})
+          {money(totalGain, baseCurrency)} ({percent(totalGainPct)})
         </div>
       </div>
     </div>

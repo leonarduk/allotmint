@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
@@ -63,14 +64,13 @@ export default function Menu({
                                         ? 'scenario'
                                         : path[0] === 'logs'
                                           ? 'logs'
-                                        : path.length === 0
+                                          : path.length === 0
                                             ? 'group'
                                             : 'movers';
 
   const isSupportMode = SUPPORT_TABS.includes(mode);
   const inSupport = mode === 'support';
-  const supportEnabled =
-    tabs.support !== false && !disabledTabs?.includes('support');
+  const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
 
   function pathFor(m: TabPluginId) {
     switch (m) {
@@ -107,58 +107,57 @@ export default function Menu({
     }
   }
 
+  const [open, setOpen] = useState(false);
+
   return (
-    <nav style={{ display: 'flex', flexWrap: 'wrap', margin: '1rem 0', ...(style ?? {}) }}>
-      {orderedTabPlugins
-        .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
-        .slice()
-        .sort((a, b) => a.priority - b.priority)
-        .filter((p) => {
-          if (p.id === 'support') return false;
-          if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
-          return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
-        })
-        .map((p) => (
+    <nav className="mb-4">
+      <button
+        aria-label="menu"
+        className="md:hidden mb-2 p-2 border rounded"
+        onClick={() => setOpen((o) => !o)}
+      >
+        ☰
+      </button>
+      <div
+        className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
+        style={style}
+      >
+        {orderedTabPlugins
+          .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
+          .slice()
+          .sort((a, b) => a.priority - b.priority)
+          .filter((p) => {
+            if (p.id === 'support') return false;
+            if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
+            return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
+          })
+          .map((p) => (
+            <Link
+              key={p.id}
+              to={pathFor(p.id)}
+              className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
+            >
+              {t(`app.modes.${p.id}`)}
+            </Link>
+          ))}
+        {supportEnabled && (
           <Link
-            key={p.id}
-            to={pathFor(p.id)}
-            style={{
-              marginRight: '1rem',
-              fontWeight: mode === p.id ? 'bold' : undefined,
-              overflowWrap: 'anywhere',
-            }}
+            to={inSupport ? '/' : '/support'}
+            className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
           >
-            {t(`app.modes.${p.id}`)}
+            {t(inSupport ? 'app.userLink' : 'app.supportLink')}
           </Link>
-        ))}
-      {supportEnabled && (
-        <Link
-          to={inSupport ? '/' : '/support'}
-          style={{
-            marginRight: '1rem',
-            fontWeight: inSupport ? 'bold' : undefined,
-            overflowWrap: 'anywhere',
-          }}
-        >
-          {t('app.supportLink')}
-        </Link>
-      )}
-      {onLogout && (
-        <button
-          type="button"
-          onClick={onLogout}
-          style={{
-            marginRight: '1rem',
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            font: 'inherit',
-            cursor: 'pointer',
-          }}
-        >
-          {t('app.logout')}
-        </button>
-      )}
+        )}
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
+          >
+            {t('app.logout')}
+          </button>
+        )}
+      </div>
     </nav>
   );
 }

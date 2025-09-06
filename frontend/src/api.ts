@@ -752,3 +752,47 @@ export const getVarBreakdown = (
     `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
   );
 };
+
+// ───────────── Goals API ─────────────
+export interface Goal {
+  name: string;
+  target_amount: number;
+  target_date: string;
+}
+
+export const getGoals = () => fetchJson<Goal[]>(`${API_BASE}/goals`);
+
+export const createGoal = (goal: Goal) =>
+  fetchJson<Goal>(`${API_BASE}/goals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(goal),
+  });
+
+export const getGoal = (name: string, current: number) =>
+  fetchJson<Goal & { progress: number; trades: any[] }>(
+    `${API_BASE}/goals/${encodeURIComponent(name)}?current_amount=${current}`,
+  );
+
+export const updateGoal = (name: string, goal: Goal) =>
+  fetchJson<Goal>(`${API_BASE}/goals/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(goal),
+  });
+
+export const deleteGoal = (name: string) =>
+  fetchJson<{ status: string }>(`${API_BASE}/goals/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+
+// ───────────── Tax API ─────────────
+export const harvestTax = (
+  positions: { ticker: string; basis: number; price: number }[],
+  threshold = 0,
+) =>
+  fetchJson<{ trades: any[] }>(`${API_BASE}/tax/harvest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ positions, threshold }),
+  });

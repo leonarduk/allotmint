@@ -36,9 +36,13 @@ from backend.config import config
 logger = logging.getLogger(__name__)
 
 SECRET_KEY = os.getenv("JWT_SECRET")
+_testing = os.getenv("TESTING")
 if not SECRET_KEY:
-    logger.warning("JWT_SECRET not set; generating ephemeral secret")
-    SECRET_KEY = secrets.token_urlsafe(32)
+    if config.disable_auth or _testing:
+        logger.warning("JWT_SECRET not set; using ephemeral secret for tests")
+        SECRET_KEY = secrets.token_urlsafe(32)
+    else:
+        raise RuntimeError("JWT_SECRET environment variable is required")
 ALGORITHM = "HS256"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

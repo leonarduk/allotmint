@@ -6,6 +6,7 @@
     "last": "Dernier :",
     "loading": "Chargement…",
     "supportLink": "Support",
+    "userLink": "App",
     "logout": "Déconnexion",
     "modes": {
       "group": "Groupe",
@@ -127,6 +128,10 @@
       "max": "MAX"
     },
     "bollingerBands": "Bandes de Bollinger",
+    "ma20": "20d MA",
+    "ma50": "50d MA",
+    "ma200": "200d MA",
+    "rsi": "RSI",
     "positions": "Positions",
     "columns": {
       "account": "Compte",

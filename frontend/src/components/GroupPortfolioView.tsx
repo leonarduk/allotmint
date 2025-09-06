@@ -88,7 +88,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
 
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
   const { t } = useTranslation();
-  const { relativeViewEnabled } = useConfig();
+  const { relativeViewEnabled, baseCurrency } = useConfig();
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
@@ -289,7 +289,12 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
                   />
                 ))}
               </Pie>
-              <Tooltip formatter={(v: number, n: string) => [money(v), n]} />
+              <Tooltip
+                formatter={(v: number, n: string) => [
+                  money(v, baseCurrency),
+                  n,
+                ]}
+              />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
@@ -323,7 +328,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
             >
               <XAxis dataKey={contribTab === "sector" ? "sector" : "region"} />
               <YAxis />
-              <Tooltip formatter={(v: number) => money(v)} />
+              <Tooltip formatter={(v: number) => money(v, baseCurrency)} />
               <Bar dataKey="gain_gbp">
                 {(contribTab === "sector" ? sectorContrib : regionContrib)?.map(
                   (row, idx) => (
@@ -373,14 +378,16 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
                 {row.owner}
               </td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                {relativeViewEnabled ? percent(row.valuePct) : money(row.value)}
+                {relativeViewEnabled
+                  ? percent(row.valuePct)
+                  : money(row.value, baseCurrency)}
               </td>
               {!relativeViewEnabled && (
                 <td
                   className={`${tableStyles.cell} ${tableStyles.right}`}
                   style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
                 >
-                  {money(row.dayChange)}
+                  {money(row.dayChange, baseCurrency)}
                 </td>
               )}
               <td
@@ -394,7 +401,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
                   className={`${tableStyles.cell} ${tableStyles.right}`}
                   style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
                 >
-                  {money(row.gain)}
+                  {money(row.gain, baseCurrency)}
                 </td>
               )}
               <td
@@ -438,7 +445,11 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
               ) : (
                 <>{acct.owner ?? "—"}</>
               )}{" "}
-              • {acct.account_type} — {money(acct.value_estimate_gbp)}
+              • {acct.account_type} —
+              {money(
+                acct.value_estimate_gbp,
+                acct.value_estimate_currency || baseCurrency,
+              )}
             </h3>
 
             {checked && (

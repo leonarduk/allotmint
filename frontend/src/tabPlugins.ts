@@ -23,25 +23,30 @@ export const tabPluginMap = {
 };
 export type TabPluginId = keyof typeof tabPluginMap;
 export const orderedTabPlugins = [
-  { id: "group", priority: 0 },
-  { id: "movers", priority: 10 },
-  { id: "instrument", priority: 20 },
-  { id: "owner", priority: 30 },
-  { id: "performance", priority: 40 },
-  { id: "transactions", priority: 50 },
-  { id: "trading", priority: 55 },
-  { id: "screener", priority: 60 },
-  { id: "timeseries", priority: 70 },
-  { id: "watchlist", priority: 80 },
-  { id: "allocation", priority: 85 },
-  { id: "rebalance", priority: 86 },
-  { id: "instrumentadmin", priority: 85 },
-  { id: "dataadmin", priority: 90 },
-  { id: "reports", priority: 100 },
-  { id: "settings", priority: 105 },
-  { id: "profile", priority: 106 },
-  { id: "support", priority: 110 },
-  { id: "logs", priority: 115 },
-  { id: "scenario", priority: 120 },
+  { id: "group", priority: 0, section: "user" },
+  { id: "movers", priority: 10, section: "user" },
+  { id: "instrument", priority: 20, section: "user" },
+  { id: "owner", priority: 30, section: "user" },
+  { id: "performance", priority: 40, section: "user" },
+  { id: "transactions", priority: 50, section: "user" },
+  { id: "trading", priority: 55, section: "user" },
+  { id: "screener", priority: 60, section: "user" },
+  { id: "timeseries", priority: 70, section: "user" },
+  { id: "watchlist", priority: 80, section: "user" },
+  { id: "allocation", priority: 85, section: "user" },
+  { id: "instrumentadmin", priority: 85, section: "support" },
+  { id: "dataadmin", priority: 90, section: "support" },
+  { id: "reports", priority: 100, section: "user" },
+  { id: "settings", priority: 105, section: "user" },
+  { id: "profile", priority: 106, section: "user" },
+  { id: "support", priority: 110, section: "support" },
+  { id: "logs", priority: 115, section: "support" },
+  { id: "scenario", priority: 120, section: "support" },
 ] as const;
+export const USER_TABS = orderedTabPlugins
+  .filter((p) => p.section === "user")
+  .map((p) => p.id);
+export const SUPPORT_TABS = orderedTabPlugins
+  .filter((p) => p.section === "support")
+  .map((p) => p.id);
 export type TabPlugin = typeof orderedTabPlugins[number];

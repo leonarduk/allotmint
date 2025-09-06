@@ -17,7 +17,10 @@ Optional for images in PDF:
   pip install pillow
 
 Example:
-  python site_snapshot.py --base-url http://localhost:5173/movers --depth 1 --max-pages 30
+  python site_snapshot.py --base-url http://localhost:5173/movers \
+      --depth 1 --max-pages 30 \
+      --ai-model gpt-4o-mini \
+      --ai-prompt "Describe this page."
 """
 
 import asyncio
@@ -52,6 +55,7 @@ from openai import OpenAI
 OUTPUT_DIR = Path("site_manual")
 SCREENSHOT_DIR = OUTPUT_DIR / "screenshots"
 MARKDOWN_DIR = OUTPUT_DIR / "markdown"
+FEEDBACK_DIR = OUTPUT_DIR / "feedback"
 PDF_PATH = OUTPUT_DIR / "manual.pdf"
 SITEPLAN_DIR = Path("docs/siteplan")
 
@@ -265,10 +269,13 @@ async def snapshot_pages(
     viewport: Tuple[int, int],
     concurrency: int,
     page_timeout_ms: int,
+    ai_model: str,
+    ai_prompt: str,
 ) -> List[PageDoc]:
     out_dir.mkdir(parents=True, exist_ok=True)
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     MARKDOWN_DIR.mkdir(parents=True, exist_ok=True)
+    FEEDBACK_DIR.mkdir(parents=True, exist_ok=True)
 
     sem = asyncio.Semaphore(concurrency)
     results: List[PageDoc] = []
@@ -301,17 +308,19 @@ async def snapshot_pages(
                     analysis = ""
                     if png_path.exists():
                         try:
-                            b64_img = base64.b64encode(png_path.read_bytes()).decode("utf-8")
+                            b64_img = base64.b64encode(png_path.read_bytes()).decode(
+                                "utf-8"
+                            )
                             resp = await asyncio.to_thread(
                                 client.chat.completions.create,
-                                model="gpt-4o-mini",
+                                model=ai_model,
                                 messages=[
                                     {
                                         "role": "user",
                                         "content": [
                                             {
                                                 "type": "text",
-                                                "text": "Describe this page.",
+                                                "text": ai_prompt,
                                             },
                                             {
                                                 "type": "image_url",
@@ -319,11 +328,15 @@ async def snapshot_pages(
                                                     "url": f"data:image/png;base64,{b64_img}",
                                                 },
                                             },
+                                            {"type": "text", "text": md},
                                         ],
                                     }
                                 ],
                             )
                             analysis = resp.choices[0].message.content.strip()
+                            (FEEDBACK_DIR / f"{idx:03}_{_slug(title)}.md").write_text(
+                                analysis, encoding="utf-8"
+                            )
                         except Exception as e_ai:
                             logging.warning("Analysis failed for %s: %s", url, e_ai)
                     md_path = MARKDOWN_DIR / f"{idx:03}_{_slug(title)}.md"
@@ -352,7 +365,12 @@ async def snapshot_pages(
     return results
 
 
-def build_pdf(pages: List[PageDoc], pdf_path: Path, font_path: Optional[Path] = None):
+def build_pdf(
+    pages: List[PageDoc],
+    pdf_path: Path,
+    font_path: Optional[Path] = None,
+    summary: Optional[str] = None,
+):
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     unicode_font = False
     if font_path and font_path.exists() and font_path.suffix.lower() == ".ttf":
@@ -388,6 +406,12 @@ def build_pdf(pages: List[PageDoc], pdf_path: Path, font_path: Optional[Path] = 
         title = d.title.strip() or d.url
         url_wrapped = _wrap_url_for_pdf(d.url)
         multicell(f"{d.idx:03}  {title}  -  {url_wrapped}")
+
+    if summary:
+        pdf.add_page()
+        cell("Site-wide Summary", size=16, bold=True)
+        pdf.ln(2)
+        multicell(summary, size=11)
 
     for d in pages:
         pdf.add_page()
@@ -508,6 +532,16 @@ def parse_args() -> argparse.Namespace:
         help="Timeout per snapshot page (ms).",
     )
     ap.add_argument(
+        "--ai-model",
+        default="gpt-4o-mini",
+        help="OpenAI model for per-page analysis (default: gpt-4o-mini)",
+    )
+    ap.add_argument(
+        "--ai-prompt",
+        default="Describe this page.",
+        help="Prompt sent to the AI model (default: 'Describe this page.')",
+    )
+    ap.add_argument(
         "--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"]
     )
     return ap.parse_args()
@@ -559,11 +593,44 @@ async def main_async(ns: argparse.Namespace):
         viewport=viewport,
         concurrency=max(1, ns.concurrency),
         page_timeout_ms=ns.page_timeout_ms,
+        ai_model=ns.ai_model,
+        ai_prompt=ns.ai_prompt,
     )
+    analyses = [d.analysis for d in pages if d.analysis]
+    summary_text = ""
+    if analyses:
+        try:
+            client = OpenAI()
+            combined = "\n\n".join(analyses)
+            resp = await asyncio.to_thread(
+                client.chat.completions.create,
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Given the following per-page analyses, provide an overall summary of the site's strengths and weaknesses.",
+                            },
+                            {"type": "text", "text": combined},
+                        ],
+                    }
+                ],
+            )
+            summary_text = resp.choices[0].message.content.strip()
+        except Exception as e:
+            logging.warning("Site-wide summary failed: %s", e)
 
-    build_pdf(pages, PDF_PATH, FONT_PATH if FONT_PATH else None)
+    if summary_text:
+        summary_path = OUTPUT_DIR / "summary.md"
+        summary_path.write_text(f"# Site Summary\n\n{summary_text}\n", encoding="utf-8")
+
+    build_pdf(pages, PDF_PATH, FONT_PATH if FONT_PATH else None, summary=summary_text or None)
     print(f"OK • {len(pages)} pages → {out_dir}")
     print(f"- PDF: {PDF_PATH}")
+    if summary_text:
+        print(f"- Summary: {summary_path}")
     print(f"- Screenshots: {SCREENSHOT_DIR}")
     print(f"- Markdown: {MARKDOWN_DIR}")
 

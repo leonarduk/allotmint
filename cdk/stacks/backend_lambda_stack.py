@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 from aws_cdk import (
-    BundlingOptions,
     Stack,
 )
 from aws_cdk import aws_apigateway as apigw
@@ -21,24 +20,10 @@ class BackendLambdaStack(Stack):
         project_root = Path(__file__).resolve().parents[2]
         backend_path = project_root / "backend"
 
-        dependencies_layer = _lambda.LayerVersion(
-            self,
-            "BackendDependencies",
-            code=_lambda.Code.from_asset(
-                str(backend_path),
-                bundling=BundlingOptions(
-                    image=_lambda.Runtime.PYTHON_3_12.bundling_image,
-                    command=[
-                        "bash",
-                        "-c",
-                        "pip install -r requirements-lambda.txt -t /asset-output/python",
-                    ],
-                ),
-            ),
-            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
+        # Build a Docker image for the Lambda runtime to avoid large zip/layer sizes
+        image_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root), file="backend/Dockerfile.lambda"
         )
-
-        backend_code = _lambda.Code.from_asset(str(backend_path))
 
         bucket_name = self.node.try_get_context("data_bucket") or os.getenv("DATA_BUCKET")
         if not bucket_name:
@@ -47,13 +32,10 @@ class BackendLambdaStack(Stack):
             )
         env = self.node.try_get_context("app_env") or os.getenv("APP_ENV") or "aws"
 
-        backend_fn = _lambda.Function(
+        backend_fn = _lambda.DockerImageFunction(
             self,
             "BackendLambda",
-            runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="backend.lambda_api.handler.lambda_handler",
-            code=backend_code,
-            layers=[dependencies_layer],
+            code=image_code,
             environment={
                 "GOOGLE_AUTH_ENABLED": "true",
                 "GOOGLE_CLIENT_ID": "${GOOGLE_CLIENT_ID}",
@@ -66,13 +48,14 @@ class BackendLambdaStack(Stack):
         apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)
 
         # Scheduled function to refresh prices daily
-        refresh_fn = _lambda.Function(
+        refresh_fn = _lambda.DockerImageFunction(
             self,
             "PriceRefreshLambda",
-            runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="backend.lambda_api.price_refresh.lambda_handler",
-            code=backend_code,
-            layers=[dependencies_layer],
+            code=_lambda.DockerImageCode.from_image_asset(
+                str(project_root),
+                file="backend/Dockerfile.lambda",
+                cmd=["backend.lambda_api.price_refresh.lambda_handler"],
+            ),
         )
         refresh_fn.add_environment("APP_ENV", env)
         refresh_fn.add_environment("DATA_BUCKET", bucket_name)

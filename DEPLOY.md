@@ -12,7 +12,7 @@ Copy `.env.example` to `.env` and supply the following values:
 | `TELEGRAM_CHAT_ID` | Telegram chat for alerts |
 | `API_TOKEN` | Token securing sensitive routes |
 | `OPENAI_API_KEY` | Optional key for OpenAI features |
-| `DATA_BUCKET` | S3 bucket holding account data when deploying the backend |
+| `DATA_BUCKET` | S3 bucket holding account data when deploying the backend. May also be supplied via the script's `-DataBucket` parameter |
 | `METADATA_BUCKET` | Bucket containing instrument metadata |
 | `METADATA_PREFIX` | Prefix within the metadata bucket |
 | `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
@@ -35,16 +35,21 @@ cd ..
 
 ## Deploy with AWS CDK
 
-Run the helper script from the repository root to bootstrap the environment
-and deploy both stacks:
+Run the helper script from the repository root to bootstrap the environment.
+When deploying the backend, provide the S3 bucket for account data either via
+the `-DataBucket` parameter or by setting `DATA_BUCKET`:
 
 ```powershell
+# Deploy backend and frontend stacks
+./deploy-to-AWS.ps1 -Backend -DataBucket my-bucket
+
+# Deploy only the frontend stack
 ./deploy-to-AWS.ps1
 ```
 
 The script changes into the `cdk/` directory, runs `cdk bootstrap` if
-necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` with
-`deploy_backend` enabled.
+necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` when
+`-Backend` is specified.
 
 Alternatively, run the commands manually:
 

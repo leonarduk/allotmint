@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TopMoversPage } from "./TopMoversPage";
 import type { MoverRow } from "../types";
 
@@ -67,6 +67,11 @@ vi.mock("../api", () => ({
     ...args: Parameters<typeof mockGetTradingSignals>
   ) => mockGetTradingSignals(...args),
 }));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  window.localStorage.clear();
+});
 
 vi.mock("./InstrumentDetail", () => ({
   InstrumentDetail: ({

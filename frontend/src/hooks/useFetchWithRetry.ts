@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type DependencyList } from "react";
 import retry from "../utils/retry";
+import errorToast from "../utils/errorToast";
 
 interface UseFetchResult<T> {
   data: T | null;
@@ -56,8 +57,11 @@ export function useFetchWithRetry<T>(
         if (!cancelled) setData(res);
       })
       .catch((e) => {
-        if (!cancelled)
-          setError(e instanceof Error ? e : new Error(String(e)));
+        const err = e instanceof Error ? e : new Error(String(e));
+        if (!cancelled) {
+          setError(err);
+          errorToast(err);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

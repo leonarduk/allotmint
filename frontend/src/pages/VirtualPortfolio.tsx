@@ -7,6 +7,7 @@ import {
   deleteVirtualPortfolio,
   getOwners,
 } from "../api";
+import errorToast from "../utils/errorToast";
 import type {
   SyntheticHolding,
   VirtualPortfolio as VP,
@@ -22,12 +23,45 @@ export function VirtualPortfolio() {
   const [holdings, setHoldings] = useState<SyntheticHolding[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getVirtualPortfolios()
-      .then(setPortfolios)
-      .catch((e) => setError(String(e)));
-    getOwners().then(setOwners).catch((e) => setError(String(e)));
+    let cancelled = false;
+    const withTimeout = <T,>(p: Promise<T>) =>
+      Promise.race([
+        p,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 5000),
+        ),
+      ]);
+
+    (async () => {
+      try {
+        const [ps, os] = await Promise.all([
+          withTimeout(getVirtualPortfolios()),
+          withTimeout(getOwners()),
+        ]);
+        if (!cancelled) {
+          setPortfolios(ps);
+          setOwners(os);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            navigator.onLine
+              ? "Request timed out. Please try again."
+              : "You appear to be offline.",
+          );
+          errorToast(e);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function load(id: number) {
@@ -38,7 +72,9 @@ export function VirtualPortfolio() {
       setAccounts(vp.accounts);
       setHoldings(vp.holdings || []);
     } catch (e) {
-      setError(String(e));
+      const err = e instanceof Error ? e.message : String(e);
+      setError(err);
+      errorToast(e);
     }
   }
 
@@ -82,7 +118,9 @@ export function VirtualPortfolio() {
       setMessage("Saved");
       setPortfolios(await getVirtualPortfolios());
     } catch (e) {
-      setError(String(e));
+      const err = e instanceof Error ? e.message : String(e);
+      setError(err);
+      errorToast(e);
     }
   }
 
@@ -96,9 +134,14 @@ export function VirtualPortfolio() {
       setHoldings([]);
       setPortfolios(await getVirtualPortfolios());
     } catch (e) {
-      setError(String(e));
+      const err = e instanceof Error ? e.message : String(e);
+      setError(err);
+      errorToast(e);
     }
   }
+
+  if (loading) return <div>Loading...</div>;
+  if (error && portfolios.length === 0) return <div>{error}</div>;
 
   return (
     <div className="container mx-auto p-4">

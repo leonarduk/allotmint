@@ -74,9 +74,11 @@ export function Watchlist() {
 
   useEffect(() => {
     if (!auto) return;
+    const hasRegular = rows.some((r) => r.marketState === "REGULAR");
+    if (!hasRegular) return;
     const id = setInterval(fetchData, 10000);
     return () => clearInterval(id);
-  }, [auto, fetchData]);
+  }, [auto, fetchData, rows]);
 
   const sorted = useMemo(() => {
     const data = [...rows];
@@ -142,7 +144,7 @@ export function Watchlist() {
                 { k: "change", l: "Chg" },
                 { k: "changePct", l: "Chg %" },
                 { k: "volume", l: "Vol" },
-                { k: "time", l: "Time" },
+                { k: "marketTime", l: "Time" },
               ].map((c) => (
                 <th
                   key={c.k}
@@ -218,7 +220,7 @@ export function Watchlist() {
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
                     {formatVol(r.volume)}
                   </td>
-                  <td style={{ padding: "4px 6px" }}>{formatTime(r.time)}</td>
+                  <td style={{ padding: "4px 6px" }}>{formatTime(r.marketTime)}</td>
                 </tr>
               );
             })}

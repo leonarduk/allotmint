@@ -247,7 +247,8 @@ export interface QuoteRow {
     change: number | null;
     changePct: number | null;
     volume: number | null;
-    time: string | null;
+    marketTime: string | null;
+    marketState: string;
 }
 
 export interface MoverRow {

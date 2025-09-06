@@ -160,9 +160,16 @@ def create_app() -> FastAPI:
 
     @app.post("/token")
     async def login(body: TokenIn):
-        email = authenticate_user(body.id_token)
+        try:
+            email = authenticate_user(body.id_token)
+        except HTTPException as exc:
+            logger.warning("User authentication failed: %s", exc.detail)
+            raise
+
         if not email:
-            raise HTTPException(status_code=400, detail="Invalid credentials")
+            logger.warning("authenticate_user returned no email")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
         token = create_access_token(email)
         return {"access_token": token, "token_type": "bearer"}
 

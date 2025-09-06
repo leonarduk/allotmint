@@ -69,6 +69,8 @@ export default function Menu({
 
   const isSupportMode = SUPPORT_TABS.includes(mode);
   const inSupport = mode === 'support';
+  const supportEnabled =
+    tabs.support !== false && !disabledTabs?.includes('support');
 
   function pathFor(m: TabPluginId) {
     switch (m) {
@@ -129,16 +131,18 @@ export default function Menu({
             {t(`app.modes.${p.id}`)}
           </Link>
         ))}
-      <Link
-        to={inSupport ? '/' : '/support'}
-        style={{
-          marginRight: '1rem',
-          fontWeight: inSupport ? 'bold' : undefined,
-          overflowWrap: 'anywhere',
-        }}
-      >
-        {t('app.supportLink')}
-      </Link>
+      {supportEnabled && (
+        <Link
+          to={inSupport ? '/' : '/support'}
+          style={{
+            marginRight: '1rem',
+            fontWeight: inSupport ? 'bold' : undefined,
+            overflowWrap: 'anywhere',
+          }}
+        >
+          {t('app.supportLink')}
+        </Link>
+      )}
       {onLogout && (
         <button
           type="button"

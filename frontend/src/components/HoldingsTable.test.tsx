@@ -12,6 +12,7 @@ import { configContext, type AppConfig } from "../ConfigContext";
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
     theme: "system",
+    baseCurrency: "GBP",
     tabs: {
         group: true,
         owner: true,
@@ -115,7 +116,15 @@ describe("HoldingsTable", () => {
     const TestProvider = ({ children }: { children: React.ReactNode }) => {
         const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
         return (
-            <configContext.Provider value={{ ...defaultConfig, relativeViewEnabled, setRelativeViewEnabled, refreshConfig: async () => {} }}>
+            <configContext.Provider
+              value={{
+                ...defaultConfig,
+                relativeViewEnabled,
+                setRelativeViewEnabled,
+                refreshConfig: async () => {},
+                setBaseCurrency: () => {},
+              }}
+            >
                 {children}
             </configContext.Provider>
         );

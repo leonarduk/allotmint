@@ -6,6 +6,7 @@ import { Selector } from "./Selector";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { money } from "../lib/money";
+import { useConfig } from "../ConfigContext";
 import i18n from "../i18n";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +20,7 @@ export function TransactionsPage({ owners }: Props) {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const { t } = useTranslation();
+  const { baseCurrency } = useConfig();
   const fetchTransactions = useCallback(
     () =>
       getTransactions({
@@ -112,7 +114,7 @@ export function TransactionsPage({ owners }: Props) {
                 <td className={tableStyles.cell}>{t.type || t.kind}</td>
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {t.amount_minor != null
-                    ? money(t.amount_minor / 100, t.currency ?? "GBP")
+                    ? money(t.amount_minor / 100, t.currency ?? baseCurrency)
                     : ""}
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>{t.shares ?? ""}</td>

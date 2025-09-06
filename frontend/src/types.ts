@@ -11,15 +11,21 @@ export interface Holding {
     acquired_date: string;
     price?: number;
     cost_basis_gbp?: number;
+    cost_basis_currency?: string | null;
     effective_cost_basis_gbp?: number;
+    effective_cost_basis_currency?: string | null;
     market_value_gbp?: number;
+    market_value_currency?: string | null;
     gain_gbp?: number;
+    gain_currency?: string | null;
     gain_pct?: number;
     current_price_gbp?: number | null;
+    current_price_currency?: string | null;
     /** Date of the last known price for this holding */
     last_price_date?: string | null;
     latest_source?: string | null;
     day_change_gbp?: number;
+    day_change_currency?: string | null;
     instrument_type?: string | null;
     sector?: string | null;
     region?: string | null;
@@ -35,6 +41,7 @@ export type Account = {
     currency: string;
     last_updated?: string;
     value_estimate_gbp: number;
+    value_estimate_currency?: string | null;
     holdings: Holding[];
     owner?: string;
 };
@@ -45,6 +52,7 @@ export type Portfolio = {
     trades_this_month: number;
     trades_remaining: number;
     total_value_estimate_gbp: number;
+    total_value_estimate_currency?: string | null;
     accounts: Account[];
 };
 
@@ -60,12 +68,14 @@ export type GroupPortfolio = {
     as_of: string;
     members: string[];
     total_value_estimate_gbp: number;
+    total_value_estimate_currency?: string | null;
     trades_this_month?: number;
     trades_remaining?: number;
     accounts: Account[];
     members_summary: {
         owner: string;
         total_value_estimate_gbp: number;
+        total_value_estimate_currency?: string | null;
         trades_this_month: number;
         trades_remaining: number;
     }[];
@@ -78,12 +88,15 @@ export type InstrumentSummary = {
     currency?: string | null;
     units: number;
     market_value_gbp: number;
+    market_value_currency?: string | null;
     gain_gbp: number;
+    gain_currency?: string | null;
     instrument_type?: string | null;
     gain_pct?: number;
 
     /* last-price enrichment */
     last_price_gbp?: number | null;
+    last_price_currency?: string | null;
     last_price_date?: string | null;
     change_7d_pct?: number | null;
     change_30d_pct?: number | null;
@@ -94,6 +107,7 @@ export type SectorContribution = {
     market_value_gbp: number;
     gain_gbp: number;
     cost_gbp: number;
+    currency?: string | null;
     gain_pct?: number | null;
     contribution_pct?: number | null;
 };
@@ -103,6 +117,7 @@ export type RegionContribution = {
     market_value_gbp: number;
     gain_gbp: number;
     cost_gbp: number;
+    currency?: string | null;
     gain_pct?: number | null;
     contribution_pct?: number | null;
 };
@@ -164,6 +179,11 @@ export interface InstrumentDetailMini {
         close: number;
         close_gbp: number;
     }[];
+}
+
+export interface NewsItem {
+    headline: string;
+    url: string;
 }
 
 export interface InstrumentPosition {

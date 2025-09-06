@@ -5,7 +5,6 @@ from typing import Union
 
 import pandas as pd
 
-
 # ------------------------------------------------------------------ #
 #  Public helpers
 # ------------------------------------------------------------------ #
@@ -124,6 +123,90 @@ def extract_holdings_from_transactions(
                     "isin": meta.get("isin", ""),
                     "quantity": qty,
                     "acquired_date": acq_date,
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def extract_dividends_from_transactions(
+    xml_file: str,
+    *,
+    by_account: bool = False,
+    cutoff_date: Union[str, datetime, None] = None,
+) -> pd.DataFrame:
+    """Return dividend payouts from ``<portfolio-transaction>`` entries.
+
+    The resulting DataFrame has one row per dividend with columns:
+
+    - account: optional account name if ``by_account`` is True
+    - securityId / name / ticker / isin: instrument metadata
+    - date: payout date (ISO string)
+    - amount_minor: dividend amount in minor currency units
+    """
+
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+
+    if isinstance(cutoff_date, str):
+        cutoff_date = datetime.strptime(cutoff_date, "%Y-%m-%d")
+
+    def _date_ok(iso: str | None) -> bool:
+        if cutoff_date is None or not iso:
+            return True
+        return datetime.strptime(iso[:10], "%Y-%m-%d") <= cutoff_date
+
+    sec_meta = {}
+    for s in root.findall(".//securities/security"):
+        sid = s.attrib.get("id") or s.findtext("uuid")
+        if not sid:
+            continue
+        sec_meta[sid] = {
+            "name": s.findtext("name", ""),
+            "isin": s.findtext("isin", ""),
+            "ticker": s.findtext("tickerSymbol", ""),
+        }
+
+    account_nodes = root.findall(".//account") if by_account else [root]
+
+    rows = []
+    for account in account_nodes:
+        acct_name = account.findtext("name", "Portfolio") if by_account else ""
+
+        for ptx in account.findall(".//portfolio-transaction"):
+            ttype = ptx.findtext("type", "").strip()
+            if ttype != "DIVIDEND":
+                continue
+
+            date_str = ptx.findtext("date")
+            if not _date_ok(date_str):
+                continue
+
+            amount_raw = ptx.findtext("amount")
+            if not amount_raw:
+                continue
+            try:
+                amount_minor = float(amount_raw)
+            except ValueError:
+                continue
+
+            sid_elem = ptx.find("security")
+            if sid_elem is None:
+                continue
+            sid = sid_elem.attrib.get("reference")
+            if not sid:
+                continue
+            meta = sec_meta.get(sid, {})
+
+            rows.append(
+                {
+                    "account": acct_name,
+                    "securityId": sid,
+                    "name": meta.get("name", ""),
+                    "ticker": meta.get("ticker", ""),
+                    "isin": meta.get("isin", ""),
+                    "date": date_str or "",
+                    "amount_minor": amount_minor,
                 }
             )
 

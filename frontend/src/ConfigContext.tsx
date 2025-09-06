@@ -42,6 +42,7 @@ export interface AppConfig {
   disabledTabs?: string[];
   tabs: TabsConfig;
   theme: "dark" | "light" | "system";
+  baseCurrency: string;
 }
 
 export interface RawConfig {
@@ -76,6 +77,7 @@ const defaultTabs: TabsConfig = {
 export interface ConfigContextValue extends AppConfig {
   refreshConfig: () => Promise<void>;
   setRelativeViewEnabled: (enabled: boolean) => void;
+  setBaseCurrency: (currency: string) => void;
 }
 
 export const configContext = createContext<ConfigContextValue>({
@@ -83,21 +85,28 @@ export const configContext = createContext<ConfigContextValue>({
   disabledTabs: [],
   tabs: defaultTabs,
   theme: "system",
+  baseCurrency: "GBP",
   refreshConfig: async () => {},
   setRelativeViewEnabled: () => {},
+  setBaseCurrency: () => {},
 });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(() => {
-    const stored =
+    const storedRel =
       typeof window !== "undefined"
         ? window.localStorage.getItem("relativeViewEnabled")
         : null;
+    const storedCurrency =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("baseCurrency")
+        : null;
     return {
-      relativeViewEnabled: stored === "true",
+      relativeViewEnabled: storedRel === "true",
       disabledTabs: [],
       tabs: defaultTabs,
       theme: "system",
+      baseCurrency: storedCurrency || "GBP",
     };
   });
 
@@ -105,6 +114,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     setConfig((prev) => ({ ...prev, relativeViewEnabled: enabled }));
     if (typeof window !== "undefined") {
       window.localStorage.setItem("relativeViewEnabled", String(enabled));
+    }
+  }, []);
+
+  const setBaseCurrency = useCallback((currency: string) => {
+    setConfig((prev) => ({ ...prev, baseCurrency: currency }));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("baseCurrency", currency);
     }
   }, []);
 
@@ -133,12 +149,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         disabledTabs: Array.from(disabledTabs),
         tabs,
         theme,
+        baseCurrency: config.baseCurrency,
       });
       applyTheme(theme);
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [config.baseCurrency]);
 
   useEffect(() => {
     refreshConfig();
@@ -149,7 +166,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, [config.theme]);
 
   return (
-    <configContext.Provider value={{ ...config, refreshConfig, setRelativeViewEnabled }}>
+    <configContext.Provider value={{ ...config, refreshConfig, setRelativeViewEnabled, setBaseCurrency }}>
       {children}
     </configContext.Provider>
   );
@@ -157,6 +174,24 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
 export function useConfig() {
   return useContext(configContext);
+}
+
+export function BaseCurrencySelector() {
+  const { baseCurrency, setBaseCurrency } = useConfig();
+  const currencies = ["GBP", "USD", "EUR", "CHF", "JPY", "CAD"];
+  return (
+    <select
+      value={baseCurrency}
+      onChange={(e) => setBaseCurrency(e.target.value)}
+      aria-label="base currency"
+    >
+      {currencies.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 function isTheme(value: unknown): value is AppConfig["theme"] {

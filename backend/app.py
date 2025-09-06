@@ -9,6 +9,7 @@ by FastAPI.
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -16,6 +17,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 from backend.auth import (
     authenticate_user,
@@ -119,6 +124,21 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.background_tasks = []
+
+    storage_uri = "memory://"
+    if config.app_env in {"production", "aws"}:
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            storage_uri = redis_url
+
+    limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=["60/minute"],
+        storage_uri=storage_uri,
+    )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
 
     paths = resolve_paths(config.repo_root, config.accounts_root)
     app.state.repo_root = paths.repo_root

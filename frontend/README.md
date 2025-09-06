@@ -19,6 +19,15 @@ The app opts into upcoming React Router v7 behavior by enabling the
 `v7_startTransition` and `v7_relativeSplatPath` flags. This allows testing
 future navigation features ahead of the final release.
 
+### Routes
+
+- `/` – portfolio overview
+- `/discover` – browse curated opportunities
+- `/research/:ticker` – research page for a specific ticker
+- `/screener` – build and run custom screeners
+- `/watchlist` – manage personal watchlists
+- `/transactions` – view transaction history
+
 ## Installation
 
 1. Install dependencies with `npm install`.

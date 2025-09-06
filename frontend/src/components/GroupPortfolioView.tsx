@@ -66,11 +66,11 @@ type Props = {
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props) {
   const fetchPortfolio = useCallback(() => getGroupPortfolio(slug), [slug]);
-  const { data: portfolio, loading, error } = useFetch<GroupPortfolio>(
-    fetchPortfolio,
-    [slug],
-    !!slug
-  );
+  const {
+    data: portfolio,
+    loading,
+    error: portfolioError,
+  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug], !!slug);
   const fetchSector = useCallback(() => getGroupSectorContributions(slug), [slug]);
   const fetchRegion = useCallback(() => getGroupRegionContributions(slug), [slug]);
   const { data: sectorContrib } = useFetch<SectorContribution[]>(
@@ -90,6 +90,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
+  const [error, setError] = useState<Error | null>(null);
   const [contribTab, setContribTab] = useState<"sector" | "region">("sector");
 
   // helper to derive a stable key for each account
@@ -105,6 +106,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
 
   useEffect(() => {
     if (!slug) return;
+    setError(null);
     Promise.all([
       getGroupAlphaVsBenchmark(slug, "VWRL.L"),
       getGroupTrackingError(slug, "VWRL.L"),
@@ -115,7 +117,9 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         setTrackingError(te.tracking_error);
         setMaxDrawdown(md.max_drawdown);
       })
-      .catch(() => {});
+      .catch((e) =>
+        setError(e instanceof Error ? e : new Error(String(e)))
+      );
   }, [slug]);
 
   useEffect(() => {
@@ -133,7 +137,12 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
 
   /* ── early‑return states ───────────────────────────────── */
   if (!slug) return <p>{t("group.select")}</p>;
-  if (error) return <p style={{ color: "red" }}>{t("common.error")}: {error.message}</p>;
+  if (portfolioError)
+    return (
+      <p style={{ color: "red" }}>
+        {t("common.error")}: {portfolioError.message}
+      </p>
+    );
   if (loading || !portfolio) return <p>{t("common.loading")}</p>;
 
   const perOwner: Record<
@@ -243,6 +252,12 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
           </div>
         </div>
       </div>
+
+      {error && (
+        <p style={{ color: "red" }}>
+          {t("common.error")}: {error.message}
+        </p>
+      )}
 
       {typeRows.length > 0 && (
         <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>

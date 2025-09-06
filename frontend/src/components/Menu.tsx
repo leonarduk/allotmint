@@ -5,6 +5,8 @@ import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
 import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
 
+const SUPPORT_ONLY_TABS: TabPluginId[] = ['logs'];
+
 interface MenuProps {
   selectedOwner?: string;
   selectedGroup?: string;
@@ -42,33 +44,33 @@ export default function Menu({
                     ? 'watchlist'
                     : path[0] === 'allocation'
                       ? 'allocation'
-                      : path[0] === 'rebalance'
-                        ? 'rebalance'
-                        : path[0] === 'movers'
-                          ? 'movers'
-                          : path[0] === 'instrumentadmin'
-                            ? 'instrumentadmin'
-                            : path[0] === 'dataadmin'
-                              ? 'dataadmin'
-                              : path[0] === 'profile'
-                                ? 'profile'
-                                : path[0] === 'virtual'
-                                  ? 'virtual'
-                                  : path[0] === 'reports'
-                                    ? 'reports'
-                                    : path[0] === 'support'
-                                      ? 'support'
-                                      : path[0] === 'settings'
-                                        ? 'settings'
-                                        : path[0] === 'scenario'
-                                          ? 'scenario'
-                                          : path[0] === 'logs'
-                                            ? 'logs'
-                                            : path.length === 0
-                                              ? 'group'
-                                              : 'movers';
+                      : path[0] === 'movers'
+                        ? 'movers'
+                        : path[0] === 'instrumentadmin'
+                          ? 'instrumentadmin'
+                          : path[0] === 'dataadmin'
+                            ? 'dataadmin'
+                            : path[0] === 'profile'
+                              ? 'profile'
+                              : path[0] === 'virtual'
+                                ? 'virtual'
+                                : path[0] === 'reports'
+                                  ? 'reports'
+                                  : path[0] === 'support'
+                                    ? 'support'
+                                    : path[0] === 'settings'
+                                      ? 'settings'
+                                      : path[0] === 'scenario'
+                                        ? 'scenario'
+                                        : path[0] === 'logs'
+                                          ? 'logs'
+                                          : path.length === 0
+                                            ? 'group'
+                                            : 'movers';
 
   const isSupportMode = SUPPORT_TABS.includes(mode);
+  const inSupport = mode === 'support';
+  const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
 
   function pathFor(m: TabPluginId) {
     switch (m) {
@@ -124,7 +126,11 @@ export default function Menu({
           .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
           .slice()
           .sort((a, b) => a.priority - b.priority)
-          .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
+          .filter((p) => {
+            if (p.id === 'support') return false;
+            if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
+            return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
+          })
           .map((p) => (
             <Link
               key={p.id}
@@ -134,12 +140,14 @@ export default function Menu({
               {t(`app.modes.${p.id}`)}
             </Link>
           ))}
-        <Link
-          to={isSupportMode ? pathFor('group') : '/support'}
-          className="mr-4 break-words"
-        >
-          {t(isSupportMode ? 'app.userLink' : 'app.supportLink')}
-        </Link>
+        {supportEnabled && (
+          <Link
+            to={inSupport ? '/' : '/support'}
+            className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
+          >
+            {t(inSupport ? 'app.userLink' : 'app.supportLink')}
+          </Link>
+        )}
         {onLogout && (
           <button
             type="button"

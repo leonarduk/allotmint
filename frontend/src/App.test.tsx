@@ -399,9 +399,10 @@ describe("App", () => {
       "Allocation",
       "Reports",
       "User Settings",
+      "Scenario Tester",
       "Support",
     ]);
-  });
+    });
 
   it("renders the user avatar when logged in", async () => {
     window.history.pushState({}, "", "/");

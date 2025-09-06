@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type { ChangeEvent } from "react";
 import { getTimeseries, saveTimeseries } from "../api";
 import type { PriceEntry } from "../types";
+import { EXCHANGES, type ExchangeCode } from "../lib/exchanges";
 
 function parseCsv(text: string): PriceEntry[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
@@ -46,7 +47,7 @@ function parseCsv(text: string): PriceEntry[] {
 
 export function TimeseriesEdit() {
   const [ticker, setTicker] = useState("");
-  const [exchange, setExchange] = useState("L");
+  const [exchange, setExchange] = useState<ExchangeCode>("L");
   const [rows, setRows] = useState<PriceEntry[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,9 @@ export function TimeseriesEdit() {
     const t = params.get("ticker");
     const e = params.get("exchange");
     if (t) setTicker(t);
-    if (e) setExchange(e);
+    if (e && EXCHANGES.includes(e as ExchangeCode)) {
+      setExchange(e as ExchangeCode);
+    }
   }, []);
 
   async function handleLoad() {
@@ -109,11 +112,17 @@ export function TimeseriesEdit() {
         </label>{" "}
         <label>
           Exchange {" "}
-          <input
+          <select
             value={exchange}
-            onChange={(e) => setExchange(e.target.value)}
+            onChange={(e) => setExchange(e.target.value as ExchangeCode)}
             style={{ width: "4rem" }}
-          />
+          >
+            {EXCHANGES.map((ex) => (
+              <option key={ex} value={ex}>
+                {ex}
+              </option>
+            ))}
+          </select>
         </label>{" "}
         <button onClick={handleLoad} disabled={!ticker}>
           Load

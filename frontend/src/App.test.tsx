@@ -393,15 +393,11 @@ describe("App", () => {
       "Timeseries",
       "Watchlist",
       "Allocation",
-      "Instrument Admin",
-      "Data Admin",
       "Reports",
-        "User Settings",
-        "Support",
-        "Logs",
-        "Scenario Tester",
-      ]);
-    });
+      "User Settings",
+      "Support",
+    ]);
+  });
 
   it("renders the user avatar when logged in", async () => {
     window.history.pushState({}, "", "/");

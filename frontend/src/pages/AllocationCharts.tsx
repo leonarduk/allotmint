@@ -150,10 +150,10 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
               cx="50%"
               cy="50%"
               outerRadius="80%"
-              label={({ name, value, percent }) => {
-                const pct = percent ?? 0;
-                return `${name}: ${money(value)} (${(pct * 100).toFixed(2)}%)`;
-              }}
+              // "percent" may be undefined for empty datasets; default it to 0
+              label={({ name, value, percent = 0 }) =>
+                `${name}: ${money(value)} (${(percent * 100).toFixed(2)}%)`
+              }
             >
               {chartData.map((_, index) => (
                 <Cell

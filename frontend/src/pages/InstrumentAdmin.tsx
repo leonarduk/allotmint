@@ -31,9 +31,9 @@ export default function InstrumentAdmin() {
   } = useFilterableTable<Row, { search: Filter<Row, string> }>(rows, "ticker", {
     search: {
       value: "",
-      predicate: (row, value) => {
+      predicate: (row, value: unknown) => {
         if (!value) return true;
-        const q = value.toLowerCase();
+        const q = String(value).toLowerCase();
         return [
           row.ticker,
           row.exchange,

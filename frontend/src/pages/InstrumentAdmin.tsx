@@ -28,10 +28,10 @@ export default function InstrumentAdmin() {
     rows: filteredRows,
     setFilter,
     filters,
-  } = useFilterableTable<Row>(rows, "ticker", {
+  } = useFilterableTable<Row, { search: Filter<Row, unknown> }>(rows, "ticker", {
     search: {
-      value: "",
-      predicate: (row, value: unknown) => {
+      value: "" as unknown,
+      predicate: (row, value) => {
         if (!value) return true;
         const q = String(value).toLowerCase();
         return [
@@ -143,7 +143,7 @@ export default function InstrumentAdmin() {
       <input
         type="text"
         placeholder={t("instrumentadmin.searchPlaceholder")}
-        value={filters.search}
+        value={String(filters.search ?? "")}
         onChange={(e) => setFilter("search", e.target.value)}
         style={{ marginBottom: "0.5rem", display: "block" }}
       />

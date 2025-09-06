@@ -1,3 +1,7 @@
+param(
+    [Parameter(Mandatory=$false)][string]$DataBucket
+)
+
 $ErrorActionPreference = 'Stop'
 
 # Navigate to repository root
@@ -14,12 +18,21 @@ try {
     exit 1
   }
 
+  # Determine data bucket
+  if (-not $DataBucket) {
+    $DataBucket = $env:DATA_BUCKET
+  }
+  if (-not $DataBucket) {
+    Write-Error 'DATA_BUCKET must be provided via -DataBucket parameter or DATA_BUCKET environment variable.'
+    exit 1
+  }
+
   # Bootstrap environment (safe to run multiple times)
   cdk bootstrap
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   # Deploy backend and frontend stacks
-  cdk deploy BackendLambdaStack StaticSiteStack -c deploy_backend=true
+  cdk deploy BackendLambdaStack StaticSiteStack -c deploy_backend=true -c data_bucket=$DataBucket
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 catch {
@@ -30,3 +43,4 @@ finally {
   # Return to repository root
   Set-Location $SCRIPT_DIR
 }
+

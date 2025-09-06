@@ -36,15 +36,21 @@ cd ..
 ## Deploy with AWS CDK
 
 Run the helper script from the repository root to bootstrap the environment
-and deploy both stacks:
+and deploy both stacks. Provide the S3 bucket that stores account data via
+the `-DataBucket` parameter or the `DATA_BUCKET` environment variable:
 
 ```powershell
+# Pass bucket name explicitly
+./deploy-to-AWS.ps1 -DataBucket my-data-bucket
+
+# Or rely on the environment variable
+$env:DATA_BUCKET = "my-data-bucket"
 ./deploy-to-AWS.ps1
 ```
 
 The script changes into the `cdk/` directory, runs `cdk bootstrap` if
 necessary, then deploys `BackendLambdaStack` and `StaticSiteStack` with
-`deploy_backend` enabled.
+`deploy_backend` enabled and the supplied data bucket.
 
 Alternatively, run the commands manually:
 

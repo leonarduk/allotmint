@@ -39,7 +39,8 @@ def load_cache(page_name: str) -> Any | None:
     try:
         with path.open("r", encoding="utf-8") as fh:
             return json.load(fh)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, OSError):
+        logger.exception("Cache load failed for %s", page_name)
         return None
 
 

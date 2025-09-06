@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
-import { orderedTabPlugins } from '../tabPlugins';
+import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
 
 const SUPPORT_ONLY_TABS: TabPluginId[] = ['logs'];
 
@@ -67,6 +67,7 @@ export default function Menu({
                                             ? 'group'
                                             : 'movers';
 
+  const isSupportMode = SUPPORT_TABS.includes(mode);
   const inSupport = mode === 'support';
 
   function pathFor(m: TabPluginId) {
@@ -93,6 +94,8 @@ export default function Menu({
         return '/logs';
       case 'allocation':
         return '/allocation';
+      case 'rebalance':
+        return '/rebalance';
       case 'instrumentadmin':
         return '/instrumentadmin';
       case 'profile':
@@ -105,6 +108,7 @@ export default function Menu({
   return (
     <nav style={{ display: 'flex', flexWrap: 'wrap', margin: '1rem 0', ...(style ?? {}) }}>
       {orderedTabPlugins
+        .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
         .slice()
         .sort((a, b) => a.priority - b.priority)
         .filter((p) => {

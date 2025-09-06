@@ -71,6 +71,9 @@ describe("Reports page", () => {
           tabs: allTabs,
           disabledTabs: [],
           refreshConfig: vi.fn(),
+          setRelativeViewEnabled: () => {},
+          baseCurrency: "GBP",
+          setBaseCurrency: () => {},
         }}
       >
         <MemoryRouter initialEntries={["/reports"]}>

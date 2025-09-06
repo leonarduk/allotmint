@@ -43,6 +43,22 @@ uvicorn app:app --reload --port 8000 --host 0.0.0.0
 npm i && npm run dev
 ```
 
+## Importing Transactions
+
+The backend can parse transaction exports from supported providers. Upload a
+file and specify the provider name:
+
+```
+curl -F provider=degiro -F file=@transactions.csv \
+     http://localhost:8000/transactions/import
+```
+
+For convenience, use the helper script:
+
+```
+python scripts/import_transactions.py degiro path/to/transactions.csv
+```
+
 ---
 
 ## Backend dependencies

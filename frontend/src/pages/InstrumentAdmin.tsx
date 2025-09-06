@@ -5,7 +5,7 @@ import {
   createInstrumentMetadata,
   updateInstrumentMetadata,
 } from "../api";
-import { useFilterableTable, type Filter } from "../hooks/useFilterableTable";
+import { useFilterableTable } from "../hooks/useFilterableTable";
 
 interface Row {
   ticker: string;

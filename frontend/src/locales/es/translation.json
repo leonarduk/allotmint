@@ -126,6 +126,10 @@
       "max": "MÁX"
     },
     "bollingerBands": "Bandas de Bollinger",
+    "ma20": "20d MA",
+    "ma50": "50d MA",
+    "ma200": "200d MA",
+    "rsi": "RSI",
     "positions": "Posiciones",
     "columns": {
       "account": "Cuenta",

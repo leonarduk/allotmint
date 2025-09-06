@@ -8,6 +8,13 @@ export default function InstrumentResearch() {
   const [detail, setDetail] = useState<InstrumentDetail | null>(null);
   const [metrics, setMetrics] = useState<ScreenerResult | null>(null);
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
+  const [inWatchlist, setInWatchlist] = useState(() => {
+    const list = (localStorage.getItem("watchlistSymbols") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return !!tkr && list.includes(tkr);
+  });
 
   useEffect(() => {
     if (!tkr) return;
@@ -29,6 +36,31 @@ export default function InstrumentResearch() {
     };
   }, [tkr]);
 
+  useEffect(() => {
+    const list = (localStorage.getItem("watchlistSymbols") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setInWatchlist(!!tkr && list.includes(tkr));
+  }, [tkr]);
+
+  function toggleWatchlist() {
+    const list = (localStorage.getItem("watchlistSymbols") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!tkr) return;
+    if (list.includes(tkr)) {
+      const updated = list.filter((s) => s !== tkr);
+      localStorage.setItem("watchlistSymbols", updated.join(","));
+      setInWatchlist(false);
+    } else {
+      list.push(tkr);
+      localStorage.setItem("watchlistSymbols", list.join(","));
+      setInWatchlist(true);
+    }
+  }
+
   if (!tkr) return <div>Invalid ticker</div>;
 
   return (
@@ -39,6 +71,9 @@ export default function InstrumentResearch() {
           View Screener
         </Link>
         <Link to="/watchlist">Watchlist</Link>
+        <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>
+          {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+        </button>
       </div>
       {metrics && (
         <table style={{ marginBottom: "1rem" }}>

@@ -280,15 +280,16 @@ def enrich_holding(
     # with generic placeholders from security metadata, causing
     # instrument names to appear as tickers on the group page.
     meta = {**sec_meta, **instr_meta}
-    out["currency"] = meta.get("currency")
-    out["name"] = out.get("name") or meta.get("name") or full
 
     if _is_cash(full, account_ccy):
-        out = dict(h)
         units = float(out.get(UNITS, 0) or 0.0)
         out["name"] = out.get("name") or _cash_name(full, account_ccy)
         out["currency"] = meta.get("currency") or account_ccy
-        out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type") or "Cash"
+        out["instrument_type"] = (
+            meta.get("instrumentType") or meta.get("instrument_type") or "Cash"
+        )
+        out["sector"] = out.get("sector") or meta.get("sector")
+        out["region"] = out.get("region") or meta.get("region")
 
         # price is 1.0 in account currency
         out["price"] = 1.0
@@ -329,6 +330,9 @@ def enrich_holding(
 
     out["currency"] = meta.get("currency")
     out["instrument_type"] = meta.get("instrumentType") or meta.get("instrument_type")
+    out["name"] = out.get("name") or meta.get("name") or full
+    out["sector"] = out.get("sector") or meta.get("sector")
+    out["region"] = out.get("region") or meta.get("region")
 
     units = float(out.get(UNITS, 0) or 0.0)
     if units <= 0:

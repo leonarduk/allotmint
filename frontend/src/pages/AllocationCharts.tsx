@@ -47,7 +47,12 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
 
   // helper to derive a stable key for each account
   const accountKey = (acct: Account, idx: number) =>
-    `${acct.owner ?? "owner"}-${acct.account_type}-${idx}`;
+    `${acct.owner?.trim() || "unknown"}-${acct.account_type}-${idx}`;
+
+  const toggleAccount = (key: string) =>
+    setSelectedAccounts((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
 
   useEffect(() => {
     getGroupPortfolio(slug)
@@ -126,13 +131,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                 <input
                   type="checkbox"
                   checked={selectedAccounts.includes(key)}
-                  onChange={() =>
-                    setSelectedAccounts((prev) =>
-                      prev.includes(key)
-                        ? prev.filter((k) => k !== key)
-                        : [...prev, key],
-                    )
-                  }
+                  onChange={() => toggleAccount(key)}
                 />
                 {`${acct.owner ?? "—"} - ${acct.account_type}`}
               </label>
@@ -140,7 +139,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
           })}
         </div>
       )}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p className="text-red-500">{error}</p>}
       <div style={{ width: "100%", height: 400 }}>
         <ResponsiveContainer>
           <PieChart>

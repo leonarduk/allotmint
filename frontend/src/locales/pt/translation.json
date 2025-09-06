@@ -222,6 +222,7 @@
     "exportXlsx": "Exportar XLSX"
   },
   "screener": {
+    "watchlist": "Lista de observação:",
     "tickers": "Tickers",
     "maxPeg": "PEG máx",
     "maxPe": "P/E máx",

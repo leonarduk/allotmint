@@ -21,6 +21,10 @@ export function PerformanceDashboard({ owner }: Props) {
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
+  const [timeWeightedReturn, setTimeWeightedReturn] = useState<number | null>(
+    null,
+  );
+  const [xirr, setXirr] = useState<number | null>(null);
   const [excludeCash, setExcludeCash] = useState<boolean>(false);
   const { t, i18n } = useTranslation();
 
@@ -36,10 +40,12 @@ export function PerformanceDashboard({ owner }: Props) {
       getPerformance(owner, reqDays, excludeCash),
     ])
       .then(([alphaRes, teRes, mdRes, perf]) => {
-        setData(perf);
+        setData(perf.history);
         setAlpha(alphaRes.alpha_vs_benchmark);
         setTrackingError(teRes.tracking_error);
         setMaxDrawdown(mdRes.max_drawdown);
+        setTimeWeightedReturn(perf.time_weighted_return ?? null);
+        setXirr(perf.xirr ?? null);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, [owner, days, excludeCash]);
@@ -58,6 +64,12 @@ export function PerformanceDashboard({ owner }: Props) {
     maxDrawdown != null && Math.abs(maxDrawdown) > 1
       ? maxDrawdown / 100
       : maxDrawdown;
+  const safeTwr =
+    timeWeightedReturn != null && Math.abs(timeWeightedReturn) > 1
+      ? timeWeightedReturn / 100
+      : timeWeightedReturn;
+  const safeXirr =
+    xirr != null && Math.abs(xirr) > 1 ? xirr / 100 : xirr;
 
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -109,6 +121,18 @@ export function PerformanceDashboard({ owner }: Props) {
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.maxDrawdown")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             {percentOrNa(safeMaxDrawdown)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.timeWeightedReturn")}</div>
+          <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+            {percentOrNa(safeTwr)}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.xirr")}</div>
+          <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+            {percentOrNa(safeXirr)}
           </div>
         </div>
       </div>

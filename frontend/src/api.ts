@@ -8,6 +8,7 @@ import type {
   OwnerSummary,
   Portfolio,
   PerformancePoint,
+  PerformanceResponse,
   ValueAtRiskResponse,
   VarBreakdown,
   AlphaResponse,
@@ -240,12 +241,23 @@ export const getPerformance = (
   owner: string,
   days = 365,
   excludeCash = false,
-) => {
+): Promise<PerformanceResponse> => {
   const params = new URLSearchParams({ days: String(days) });
   if (excludeCash) params.set("exclude_cash", "1");
-  return fetchJson<{ owner: string; history: PerformancePoint[] }>(
+  const base = fetchJson<{ owner: string; history: PerformancePoint[] }>(
     `${API_BASE}/performance/${owner}?${params.toString()}`,
-  ).then((res) => res.history);
+  );
+  const twr = fetchJson<{ owner: string; time_weighted_return: number | null }>(
+    `${API_BASE}/performance/${owner}/twr?days=${days}`,
+  );
+  const xirr = fetchJson<{ owner: string; xirr: number | null }>(
+    `${API_BASE}/performance/${owner}/xirr?days=${days}`,
+  );
+  return Promise.all([base, twr, xirr]).then(([p, t, x]) => ({
+    history: p.history,
+    time_weighted_return: t.time_weighted_return,
+    xirr: x.xirr,
+  }));
 };
 
 export const getAlphaVsBenchmark = (

@@ -238,18 +238,18 @@
   "instrumentadmin": {
     "ticker": "Ticker",
     "exchange": "Exchange",
-    "name": "Name",
-    "region": "Region",
-    "sector": "Sector",
-    "actions": "Actions",
-    "add": "Add Instrument",
-  "save": "Save",
-  "saveSuccess": "Saved",
-  "saveError": "Error saving",
-  "searchPlaceholder": "Filter instruments…",
+    "name": "Nome",
+    "region": "Região",
+    "sector": "Setor",
+    "actions": "Ações",
+    "add": "Adicionar instrumento",
+  "save": "Salvar",
+  "saveSuccess": "Salvo",
+  "saveError": "Erro ao salvar",
+  "searchPlaceholder": "Filtrar instrumentos…",
   "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required"
+    "ticker": "Ticker é obrigatório",
+    "name": "Nome é obrigatório"
   }
 }
 }

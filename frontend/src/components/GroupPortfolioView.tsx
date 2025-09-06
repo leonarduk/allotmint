@@ -25,6 +25,7 @@ import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import metricStyles from "../styles/metrics.module.css";
 import {
   PieChart,
   Pie,
@@ -133,7 +134,8 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
 
   /* ── early‑return states ───────────────────────────────── */
   if (!slug) return <p>{t("group.select")}</p>;
-  if (error) return <p style={{ color: "red" }}>{t("common.error")}: {error.message}</p>;
+  if (error)
+    return <p className="text-red-500">{t("common.error")}: {error.message}</p>;
   if (loading || !portfolio) return <p>{t("common.loading")}</p>;
 
   const perOwner: Record<
@@ -199,53 +201,37 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
 
   /* ── render ────────────────────────────────────────────── */
   return (
-    <div style={{ marginTop: "1rem" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
+    <div className="mt-4">
+      <div className="flex justify-between items-center">
         <h2>{portfolio.name}</h2>
         <RelativeViewToggle />
       </div>
 
       {!relativeViewEnabled && <PortfolioSummary totals={totals} />}
 
-      <div
-        style={{
-          display: "flex",
-          gap: "2rem",
-          marginBottom: "1rem",
-          padding: "0.75rem 1rem",
-          backgroundColor: "#222",
-          border: "1px solid #444",
-          borderRadius: "6px",
-        }}
-      >
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Alpha vs Benchmark</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+      <div className={metricStyles.metricContainer}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Alpha vs Benchmark</div>
+          <div className={metricStyles.metricValue}>
             {percent(alpha != null ? alpha * 100 : null)}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Tracking Error</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Tracking Error</div>
+          <div className={metricStyles.metricValue}>
             {percent(trackingError != null ? trackingError * 100 : null)}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Max Drawdown</div>
+          <div className={metricStyles.metricValue}>
             {percent(maxDrawdown != null ? maxDrawdown * 100 : null)}
           </div>
         </div>
       </div>
 
       {typeRows.length > 0 && (
-        <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>
+        <div className="w-full h-60 my-4">
           <ResponsiveContainer>
             <PieChart>
               <Pie
@@ -268,12 +254,12 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
       )}
 
       {(sectorContrib?.length || regionContrib?.length) && (
-        <div style={{ width: "100%", height: 300, margin: "1rem 0" }}>
-          <div style={{ marginBottom: "0.5rem" }}>
+        <div className="w-full h-[300px] my-4">
+          <div className="mb-2">
             <button
               onClick={() => setContribTab("sector")}
               disabled={contribTab === "sector"}
-              style={{ marginRight: "0.5rem" }}
+              className="mr-2"
             >
               Sector
             </button>
@@ -313,7 +299,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
       <TopMoversSummary slug={slug} />
 
       {/* Per-owner summary */}
-      <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
+      <table className={`${tableStyles.table} mb-4`}>
         <thead>
           <tr>
             <th className={tableStyles.cell}>Owner</th>
@@ -348,29 +334,33 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
               </td>
               {!relativeViewEnabled && (
                 <td
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
+                  className={`${tableStyles.cell} ${tableStyles.right} ${
+                    row.dayChange >= 0 ? "text-[lightgreen]" : "text-red-500"
+                  }`}
                 >
                   {money(row.dayChange)}
                 </td>
               )}
               <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
+                className={`${tableStyles.cell} ${tableStyles.right} ${
+                  row.dayChange >= 0 ? "text-[lightgreen]" : "text-red-500"
+                }`}
               >
                 {percent(row.dayChangePct)}
               </td>
               {!relativeViewEnabled && (
                 <td
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+                  className={`${tableStyles.cell} ${tableStyles.right} ${
+                    row.gain >= 0 ? "text-[lightgreen]" : "text-red-500"
+                  }`}
                 >
                   {money(row.gain)}
                 </td>
               )}
               <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+                className={`${tableStyles.cell} ${tableStyles.right} ${
+                  row.gain >= 0 ? "text-[lightgreen]" : "text-red-500"
+                }`}
               >
                 {percent(row.gainPct)}
               </td>
@@ -384,7 +374,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         const key = accountKey(acct, idx);
         const checked = activeKeys.has(key);
         return (
-          <div key={key} style={{ marginBottom: "1.5rem" }}>
+          <div key={key} className="mb-6">
             <h3>
               <input
                 type="checkbox"
@@ -397,7 +387,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
                   )
                 }
                 aria-label={`${acct.owner ?? "—"} ${acct.account_type}`}
-                style={{ marginRight: "0.5rem" }}
+                className="mr-2"
               />
               {onSelectMember ? (
                 <span

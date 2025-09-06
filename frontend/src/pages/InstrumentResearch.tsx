@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getInstrumentDetail, getScreener } from "../api";
 import type { ScreenerResult, InstrumentDetail } from "../types";
+import { largeNumber } from "../lib/money";
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
@@ -89,6 +90,30 @@ export default function InstrumentResearch() {
             <tr>
               <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>D/E</th>
               <td>{metrics.de_ratio ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>LT D/E</th>
+              <td>{metrics.lt_de_ratio ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Market Cap</th>
+              <td>{largeNumber(metrics.market_cap)}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>EPS</th>
+              <td>{metrics.eps ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Dividend Yield</th>
+              <td>{metrics.dividend_yield ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Beta</th>
+              <td>{metrics.beta ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Avg Volume</th>
+              <td>{largeNumber(metrics.avg_volume)}</td>
             </tr>
           </tbody>
         </table>

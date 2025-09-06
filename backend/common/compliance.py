@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -80,7 +80,7 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
             warnings.append(f"{cnt} trades in {month} (max {ucfg.max_trades_per_month})")
             logger.info(
                 "%s MAX_TRADES_PER_MONTH %s %s",
-                datetime.utcnow().isoformat(),
+                datetime.now(UTC).isoformat(),
                 owner,
                 month,
             )
@@ -113,7 +113,7 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
                 )
                 logger.info(
                     "%s HOLD_DAYS_MIN %s %s",
-                    datetime.utcnow().isoformat(),
+                    datetime.now(UTC).isoformat(),
                     owner,
                     ticker,
                 )
@@ -133,7 +133,7 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
                     warnings.append(f"Sold {ticker} without approval")
                     logger.info(
                         "%s APPROVAL_REQUIRED %s %s",
-                        datetime.utcnow().isoformat(),
+                        datetime.now(UTC).isoformat(),
                         owner,
                         ticker,
                     )

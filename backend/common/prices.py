@@ -17,9 +17,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Optional, Iterable, Dict, List
+from typing import Iterable, Dict, List, Optional
 
 import pandas as pd
 
@@ -164,7 +164,7 @@ def refresh_prices() -> Dict:
     check_price_alerts()
 
     logger.debug(f"Snapshot written to {path}")
-    ts = datetime.utcnow().isoformat() + "Z"
+    ts = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     return {
         "tickers": tickers,
         "snapshot": snapshot,

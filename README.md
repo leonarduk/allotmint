@@ -50,6 +50,22 @@ calculates holding returns over several horizons from the event date. When a
 holding lacks data for a given horizon, returns fall back to the event's
 `proxy_index` via `load_meta_timeseries_range`.
 
+## Importing Transactions
+
+The backend can parse transaction exports from supported providers. Upload a
+file and specify the provider name:
+
+```
+curl -F provider=degiro -F file=@transactions.csv \
+     http://localhost:8000/transactions/import
+```
+
+For convenience, use the helper script:
+
+```
+python scripts/import_transactions.py degiro path/to/transactions.csv
+```
+
 ---
 
 ## Backend dependencies
@@ -68,13 +84,17 @@ packages are needed.
 ### Environment variables
 
 Sensitive settings are loaded from environment variables rather than
-`config.yaml`. Create a `.env` file (copy from `.env.example`) to keep them in
-one place:
+`config.yaml`. Create a `.env` file with the helper script:
+
+```bash
+python scripts/setup_env.py
+```
+
+This copies `.env.example` to `.env` and prompts for required values such as
+`ALPHA_VANTAGE_KEY` and `JWT_SECRET`. You can then edit `.env` to set optional
+values like:
 
 ```
-cp .env.example .env
-# then edit .env with values such as
-ALPHA_VANTAGE_KEY=your-alpha-vantage-api-key
 SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:allotmint   # optional
 TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ      # optional
 TELEGRAM_CHAT_ID=123456789                                  # optional

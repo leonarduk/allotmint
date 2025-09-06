@@ -49,6 +49,7 @@ import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
 import Menu from "./components/Menu";
+import Rebalance from "./pages/Rebalance";
 
 interface AppProps {
   onLogout?: () => void;
@@ -77,6 +78,8 @@ const initialMode: Mode =
     ? "watchlist"
     : path[0] === "allocation"
     ? "allocation"
+    : path[0] === "rebalance"
+    ? "rebalance"
     : path[0] === "movers"
     ? "movers"
     : path[0] === "instrumentadmin"
@@ -175,6 +178,9 @@ export default function App({ onLogout }: AppProps) {
         break;
       case "allocation":
         newMode = "allocation";
+        break;
+      case "rebalance":
+        newMode = "rebalance";
         break;
       case "movers":
         newMode = "movers";
@@ -451,6 +457,7 @@ export default function App({ onLogout }: AppProps) {
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "allocation" && <AllocationCharts />}
+      {mode === "rebalance" && <Rebalance />}
       {mode === "movers" && <TopMovers />}
       {mode === "reports" && <Reports />}
       {mode === "support" && <Support />}

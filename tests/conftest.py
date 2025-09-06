@@ -1,10 +1,9 @@
 import os
-import secrets
 
 import boto3
 import pytest
 
-os.environ.setdefault("JWT_SECRET", secrets.token_urlsafe(32))
+os.environ.setdefault("TESTING", "1")
 
 from backend.config import config
 

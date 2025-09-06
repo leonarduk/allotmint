@@ -9,6 +9,7 @@ by FastAPI.
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -16,6 +17,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 from backend.auth import (
     authenticate_user,
@@ -40,6 +45,7 @@ from backend.routes.instrument import router as instrument_router
 from backend.routes.instrument_admin import router as instrument_admin_router
 from backend.routes.logs import router as logs_router
 from backend.routes.metrics import router as metrics_router
+from backend.routes.news import router as news_router
 from backend.routes.movers import router as movers_router
 from backend.routes.performance import router as performance_router
 from backend.routes.portfolio import public_router as public_portfolio_router
@@ -56,6 +62,8 @@ from backend.routes.trading_agent import router as trading_agent_router
 from backend.routes.transactions import router as transactions_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
+from backend.routes.goals import router as goals_router
+from backend.routes.tax import router as tax_router
 from backend.utils import page_cache
 
 logger = logging.getLogger(__name__)
@@ -118,6 +126,21 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.background_tasks = []
+
+    storage_uri = "memory://"
+    if config.app_env in {"production", "aws"}:
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            storage_uri = redis_url
+
+    limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=["60/minute"],
+        storage_uri=storage_uri,
+    )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
 
     paths = resolve_paths(config.repo_root, config.accounts_root)
     app.state.repo_root = paths.repo_root
@@ -188,11 +211,14 @@ def create_app() -> FastAPI:
     app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(config_router)
     app.include_router(quotes_router)
+    app.include_router(news_router)
     app.include_router(movers_router)
     app.include_router(user_config_router, dependencies=protected)
     app.include_router(approvals_router, dependencies=protected)
     app.include_router(scenario_router)
     app.include_router(logs_router)
+    app.include_router(goals_router, dependencies=protected)
+    app.include_router(tax_router, dependencies=protected)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):

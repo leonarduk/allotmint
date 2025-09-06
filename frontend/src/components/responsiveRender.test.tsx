@@ -17,6 +17,7 @@ vi.mock("../api", () => ({
 const defaultConfig: AppConfig = {
   relativeViewEnabled: false,
   theme: "system",
+  baseCurrency: "GBP",
   tabs: {
     group: true,
     owner: true,
@@ -79,7 +80,14 @@ const portfolio: Portfolio = {
 
 const renderWithConfig = (ui: React.ReactElement) =>
   render(
-    <configContext.Provider value={{ ...defaultConfig, refreshConfig: async () => {}, setRelativeViewEnabled: () => {} }}>
+    <configContext.Provider
+      value={{
+        ...defaultConfig,
+        refreshConfig: async () => {},
+        setRelativeViewEnabled: () => {},
+        setBaseCurrency: () => {},
+      }}
+    >
       {ui}
     </configContext.Provider>,
   );

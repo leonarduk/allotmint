@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 import i18n from "../i18n";
 import Menu from "./Menu";
+import { configContext, type ConfigContextValue } from "../ConfigContext";
 
 describe("Menu", () => {
   it("hides links by default and shows them after toggle", () => {
@@ -14,7 +15,69 @@ describe("Menu", () => {
     expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: /menu/i });
     fireEvent.click(toggle);
+    expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
+      "href",
+      "/support",
+    );
+    expect(screen.queryByRole("link", { name: "Logs" })).toBeNull();
+    fireEvent.click(screen.getByLabelText("menu"));
+    expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute("href", "/support");
+    expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
+  });
+
+  it("shows support tabs on support route", () => {
+    render(
+      <MemoryRouter initialEntries={["/support"]}>
+        <Menu />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByLabelText("menu"));
     expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+  });
+
+  it("hides support toggle when support tab disabled", () => {
+    const config: ConfigContextValue = {
+      relativeViewEnabled: false,
+      disabledTabs: ["support"],
+      tabs: {
+        group: true,
+        owner: true,
+        instrument: true,
+        performance: true,
+        transactions: true,
+        screener: true,
+        trading: true,
+        timeseries: true,
+        watchlist: true,
+        movers: true,
+        instrumentadmin: true,
+        dataadmin: true,
+        virtual: true,
+        support: false,
+        settings: true,
+        profile: false,
+        reports: true,
+        scenario: true,
+        logs: true,
+      },
+      theme: "system",
+      baseCurrency: "GBP",
+      refreshConfig: async () => {},
+      setRelativeViewEnabled: () => {},
+      setBaseCurrency: () => {},
+    };
+    render(
+      <configContext.Provider value={config}>
+        <MemoryRouter>
+          <Menu />
+        </MemoryRouter>
+      </configContext.Provider>,
+    );
+    expect(screen.queryByRole("link", { name: "Support" })).toBeNull();
   });
 
   it("renders logout button when callback provided", () => {
@@ -27,6 +90,7 @@ describe("Menu", () => {
     );
     const toggle = screen.getByRole("button", { name: /menu/i });
     fireEvent.click(toggle);
+    fireEvent.click(screen.getByLabelText("menu"));
     const btn = screen.getByRole("button", { name: "Déconnexion" });
     fireEvent.click(btn);
     expect(onLogout).toHaveBeenCalled();

@@ -82,7 +82,6 @@ def schedule_refresh(page_name: str, ttl: int, builder: Callable[[], Any]) -> No
             while True:
                 try:
                     data = await _call_builder()
-                    save_cache(page_name, data)
                 except Exception as exc:
                     if isinstance(exc, asyncio.CancelledError):  # pragma: no cover - defensive
                         raise
@@ -96,6 +95,25 @@ def schedule_refresh(page_name: str, ttl: int, builder: Callable[[], Any]) -> No
                     # noticeably slower).  By continuing here we skip the
                     # sleep below and run the builder again right away.
                     continue
+
+                cancelled = False
+                while True:
+                    try:
+                        save_cache(page_name, data)
+                        break
+                    except BaseException as exc:
+                        if isinstance(exc, asyncio.CancelledError):
+                            cancelled = True
+                        else:
+                            logger.exception("Cache persist failed for %s", page_name)
+                        try:
+                            await asyncio.sleep(0)
+                        except asyncio.CancelledError:
+                            cancelled = True
+
+                if cancelled:
+                    raise asyncio.CancelledError
+
                 await asyncio.sleep(ttl)
         except asyncio.CancelledError:  # pragma: no cover - defensive
             pass

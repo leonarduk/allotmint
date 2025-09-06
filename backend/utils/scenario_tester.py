@@ -59,6 +59,35 @@ def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float)
     return shocked
 
 
+def apply_historical_event(
+    portfolio: Dict[str, Any],
+    event_id: str | None = None,
+    date: str | None = None,
+    horizons: Iterable[int] | None = None,
+) -> Dict[int, Dict[str, Any]]:
+    """Return shocked portfolios for each horizon of a historical event.
+
+    This helper currently applies a simple uniform scaling to the portfolio's
+    account values for each requested horizon. The scaling factor is derived
+    from the horizon length (e.g. a horizon of ``1`` applies a 1% drop). The
+    original ``portfolio`` is not modified.
+    """
+
+    horizons = list(horizons or [1])
+    shocked: Dict[int, Dict[str, Any]] = {}
+    for horizon in horizons:
+        factor = max(0.0, 1 - horizon / 100.0)
+        pf_copy = deepcopy(portfolio)
+        for acct in pf_copy.get("accounts", []):
+            val = float(acct.get("value_estimate_gbp") or 0.0) * factor
+            acct["value_estimate_gbp"] = round(val, 2)
+        pf_copy["total_value_estimate_gbp"] = round(
+            sum(a.get("value_estimate_gbp") or 0.0 for a in pf_copy.get("accounts", [])),
+            2,
+        )
+        shocked[horizon] = pf_copy
+    return shocked
+
 def _parse_date(val: Any) -> date:
     """Best-effort conversion of ``val`` to ``date``."""
     if isinstance(val, date):

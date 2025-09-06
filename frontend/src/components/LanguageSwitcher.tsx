@@ -13,6 +13,7 @@ const LANGUAGES = [
 
 export const LanguageSwitcher = memo(function LanguageSwitcher() {
   const [current, setCurrent] = useState(i18n.language);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("lang");
@@ -28,31 +29,49 @@ export const LanguageSwitcher = memo(function LanguageSwitcher() {
     setCurrent(code);
   }
 
+  function selectLanguage(code: string) {
+    handleChange(code);
+    setOpen(false);
+  }
+
+  const currentLang =
+    LANGUAGES.find((l) => l.code === current) || LANGUAGES[0];
+
   return (
     <div
       style={{
+        position: "relative",
         display: "flex",
-        gap: "0.5rem",
         justifyContent: "flex-end",
         marginBottom: "1rem",
       }}
     >
-      {LANGUAGES.map((l) => (
-        <button
-          key={l.code}
-          onClick={() => handleChange(l.code)}
-          className="language-btn"
-          style={{ opacity: current === l.code ? 1 : 0.5 }}
-          aria-label={l.code}
-        >
-          <img
-            src={l.flag}
-            alt={l.code}
-            width={24}
-            height={24}
-          />
-        </button>
-      ))}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="language-btn"
+        aria-label={currentLang.code}
+      >
+        <img
+          src={currentLang.flag}
+          alt={currentLang.code}
+          width={24}
+          height={24}
+        />
+      </button>
+      {open && (
+        <div className="language-menu">
+          {LANGUAGES.filter((l) => l.code !== current).map((l) => (
+            <button
+              key={l.code}
+              onClick={() => selectLanguage(l.code)}
+              className="language-btn"
+              aria-label={l.code}
+            >
+              <img src={l.flag} alt={l.code} width={24} height={24} />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 });

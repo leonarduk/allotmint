@@ -8,7 +8,7 @@ import logging
 import math
 import os
 from dataclasses import asdict
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set
 
@@ -244,7 +244,7 @@ def _log_trade(ticker: str, action: str, price: float, ts: Optional[datetime] = 
     The log is stored as CSV at :data:`backend.common.trade_metrics.TRADE_LOG_PATH`.
     """
 
-    ts = ts or datetime.utcnow()
+    ts = ts or datetime.now(UTC)
     header = not TRADE_LOG_PATH.exists()
     TRADE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     with TRADE_LOG_PATH.open("a", newline="") as f:

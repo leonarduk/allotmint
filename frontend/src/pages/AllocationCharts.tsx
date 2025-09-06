@@ -120,7 +120,9 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
               cx="50%"
               cy="50%"
               outerRadius="80%"
-              label
+              label={({ name, percent = 0 }) =>
+                `${name}: ${(percent * 100).toFixed(2)}%`
+              }
             >
               {chartData.map((_, index) => (
                 <Cell

@@ -131,6 +131,8 @@ export const getQuotes = (symbols: string[]) => {
     previous_close?: number | null;
     volume?: number | null;
     timestamp?: number | null;
+    timezone?: string | null;
+    market_state?: string | null;
   }[]>(`${API_BASE}/api/quotes?${params.toString()}`)
     .then((rows) =>
       rows.map((r) => {
@@ -152,7 +154,10 @@ export const getQuotes = (symbols: string[]) => {
           change,
           changePct,
           volume: r.volume ?? null,
-          time: r.timestamp ? new Date(r.timestamp * 1000).toISOString() : null,
+          marketTime: r.timestamp
+            ? new Date(r.timestamp * 1000).toISOString()
+            : null,
+          marketState: r.market_state ?? "UNKNOWN",
         } as QuoteRow;
       }),
     );

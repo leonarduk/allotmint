@@ -20,7 +20,8 @@ const sampleRows: QuoteRow[] = [
     change: 1,
     changePct: 10,
     volume: 1000,
-    time: "2024-01-01T00:00:00Z",
+    marketTime: "2024-01-01T00:00:00Z",
+    marketState: "REGULAR",
   },
   {
     name: "Beta",
@@ -32,7 +33,8 @@ const sampleRows: QuoteRow[] = [
     change: -1,
     changePct: -20,
     volume: 2000,
-    time: "2024-01-01T01:00:00Z",
+    marketTime: "2024-01-01T01:00:00Z",
+    marketState: "REGULAR",
   },
 ];
 
@@ -110,17 +112,21 @@ describe("Watchlist page", () => {
     vi.useRealTimers();
   });
 
-  it("stops polling when markets are closed", async () => {
+  it("skips auto-refresh when markets are closed", async () => {
     vi.useFakeTimers();
-    const closedRows = sampleRows.map((r) => ({ ...r, marketState: "CLOSED" }));
-    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(closedRows as any);
-    localStorage.setItem("watchlistSymbols", "AAA,BBB");
+    const closed = sampleRows.map((r) => ({ ...r, marketState: "CLOSED" }));
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(closed);
+    localStorage.setItem("watchlistSymbols", "AAA");
 
     render(<Watchlist />);
 
     await act(async () => {
       await Promise.resolve();
     });
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.getByText("Markets closed")).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);

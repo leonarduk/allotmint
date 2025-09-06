@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
-import { orderedTabPlugins } from '../tabPlugins';
+import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
 
 interface MenuProps {
   selectedOwner?: string;
@@ -63,7 +63,9 @@ export default function Menu({
                                           ? 'logs'
                                           : path.length === 0
                                             ? 'group'
-                                            : 'movers';
+                                          : 'movers';
+
+  const isSupportMode = SUPPORT_TABS.includes(mode);
 
   function pathFor(m: TabPluginId) {
     switch (m) {
@@ -101,6 +103,7 @@ export default function Menu({
   return (
     <nav style={{ display: 'flex', flexWrap: 'wrap', margin: '1rem 0', ...(style ?? {}) }}>
       {orderedTabPlugins
+        .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
         .slice()
         .sort((a, b) => a.priority - b.priority)
         .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
@@ -117,6 +120,12 @@ export default function Menu({
             {t(`app.modes.${p.id}`)}
           </Link>
         ))}
+      <Link
+        to={isSupportMode ? pathFor('group') : '/support'}
+        style={{ marginRight: '1rem', overflowWrap: 'anywhere' }}
+      >
+        {t(isSupportMode ? 'app.userLink' : 'app.supportLink')}
+      </Link>
       {onLogout && (
         <button
           type="button"

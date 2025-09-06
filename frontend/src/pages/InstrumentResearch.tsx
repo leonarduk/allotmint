@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getInstrumentDetail, getScreener, getNews } from "../api";
 import type { ScreenerResult, InstrumentDetail, NewsItem } from "../types";
+import { largeNumber } from "../lib/money";
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
@@ -9,6 +10,13 @@ export default function InstrumentResearch() {
   const [metrics, setMetrics] = useState<ScreenerResult | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
+  const [inWatchlist, setInWatchlist] = useState(() => {
+    const list = (localStorage.getItem("watchlistSymbols") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return !!tkr && list.includes(tkr);
+  });
 
   useEffect(() => {
     if (!tkr) return;
@@ -37,6 +45,31 @@ export default function InstrumentResearch() {
     };
   }, [tkr]);
 
+  useEffect(() => {
+    const list = (localStorage.getItem("watchlistSymbols") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setInWatchlist(!!tkr && list.includes(tkr));
+  }, [tkr]);
+
+  function toggleWatchlist() {
+    const list = (localStorage.getItem("watchlistSymbols") || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!tkr) return;
+    if (list.includes(tkr)) {
+      const updated = list.filter((s) => s !== tkr);
+      localStorage.setItem("watchlistSymbols", updated.join(","));
+      setInWatchlist(false);
+    } else {
+      list.push(tkr);
+      localStorage.setItem("watchlistSymbols", list.join(","));
+      setInWatchlist(true);
+    }
+  }
+
   if (!tkr) return <div>Invalid ticker</div>;
 
   return (
@@ -47,6 +80,9 @@ export default function InstrumentResearch() {
           View Screener
         </Link>
         <Link to="/watchlist">Watchlist</Link>
+        <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>
+          {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+        </button>
       </div>
       {metrics && (
         <table style={{ marginBottom: "1rem" }}>
@@ -62,6 +98,30 @@ export default function InstrumentResearch() {
             <tr>
               <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>D/E</th>
               <td>{metrics.de_ratio ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>LT D/E</th>
+              <td>{metrics.lt_de_ratio ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Market Cap</th>
+              <td>{largeNumber(metrics.market_cap)}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>EPS</th>
+              <td>{metrics.eps ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Dividend Yield</th>
+              <td>{metrics.dividend_yield ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Beta</th>
+              <td>{metrics.beta ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Avg Volume</th>
+              <td>{largeNumber(metrics.avg_volume)}</td>
             </tr>
           </tbody>
         </table>

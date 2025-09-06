@@ -39,18 +39,18 @@ class StaticSiteStack(Stack):
             comment="Security headers for static site",
             security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
                 # Allow Google Identity Services script and iframe
-                content_security_policy=cloudfront.ResponseSecurityHeadersContentSecurityPolicy(
+                content_security_policy=cloudfront.ResponseHeadersContentSecurityPolicy(
                     content_security_policy="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; frame-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
                     override=True,
                 ),
-                strict_transport_security=cloudfront.ResponseSecurityHeadersStrictTransportSecurity(
-                    max_age=Duration.seconds(63072000),
+                strict_transport_security=cloudfront.ResponseHeadersStrictTransportSecurity(
+                    access_control_max_age=Duration.seconds(63072000),
                     include_subdomains=True,
                     preload=True,
                     override=True,
                 ),
-                content_type_options=cloudfront.ResponseSecurityHeadersContentTypeOptions(override=True),
-                referrer_policy=cloudfront.ResponseSecurityHeadersReferrerPolicy(
+                content_type_options=cloudfront.ResponseHeadersContentTypeOptions(override=True),
+                referrer_policy=cloudfront.ResponseHeadersReferrerPolicy(
                     referrer_policy=cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
                     override=True,
                 ),

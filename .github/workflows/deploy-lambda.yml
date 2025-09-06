@@ -30,6 +30,9 @@ jobs:
       - name: Install AWS CDK
         run: npm install -g aws-cdk
 
+      - name: Install root dependencies
+        run: npm ci
+
       - name: Install frontend dependencies
         run: npm ci
         working-directory: frontend

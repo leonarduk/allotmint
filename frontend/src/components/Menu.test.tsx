@@ -22,7 +22,7 @@ describe("Menu", () => {
       </MemoryRouter>,
     );
     expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "App" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "User" })).toHaveAttribute("href", "/");
   });
 
   it("renders logout button when callback provided", () => {

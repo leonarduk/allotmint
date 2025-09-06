@@ -1,15 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  getGroupSectorContributions,
-  getGroupRegionContributions,
-  getGroupPortfolio,
-} from "../api";
-import type {
-  SectorContribution,
-  RegionContribution,
-  GroupPortfolio,
-} from "../types";
+import { getGroupPortfolio } from "../api";
+import type { Account, GroupPortfolio } from "../types";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { money } from "../lib/money";
 import {
@@ -49,46 +41,62 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const [assetData, setAssetData] = useState<{ name: string; value: number }[]>(
     [],
   );
+  const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // helper to derive a stable key for each account
+  const accountKey = (acct: Account, idx: number) =>
+    `${acct.owner ?? "owner"}-${acct.account_type}-${idx}`;
+
   useEffect(() => {
-    getGroupSectorContributions(slug)
-      .then((rows: SectorContribution[]) =>
-        setSectorData(
-          rows.map((r) => ({
-            name: r.sector || t("common.other"),
-            value: r.market_value_gbp,
-          })),
-        ),
-      )
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-    getGroupRegionContributions(slug)
-      .then((rows: RegionContribution[]) =>
-        setRegionData(
-          rows.map((r) => ({
-            name: r.region || t("common.other"),
-            value: r.market_value_gbp,
-          })),
-        ),
-      )
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
     getGroupPortfolio(slug)
       .then((p: GroupPortfolio) => {
-        const byType: Record<string, number> = {};
-        for (const acct of p.accounts) {
-          for (const h of acct.holdings) {
-            const typeName = translateInstrumentType(t, h.instrument_type);
-            const mv = h.market_value_gbp ?? 0;
-            byType[typeName] = (byType[typeName] || 0) + mv;
-          }
-        }
-        const data = Object.entries(byType)
-          .map(([name, value]) => ({ name, value }))
-          .sort((a, b) => b.value - a.value);
-        setAssetData(data);
+        setPortfolio(p);
+        setSelectedAccounts(p.accounts.map(accountKey));
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [slug, t]);
+  }, [slug]);
+
+  useEffect(() => {
+    if (!portfolio) return;
+    const activeKeys = selectedAccounts.length
+      ? new Set(selectedAccounts)
+      : new Set(portfolio.accounts.map(accountKey));
+    const activeAccounts = portfolio.accounts.filter((acct, idx) =>
+      activeKeys.has(accountKey(acct, idx)),
+    );
+
+    const byType: Record<string, number> = {};
+    const bySector: Record<string, number> = {};
+    const byRegion: Record<string, number> = {};
+
+    for (const acct of activeAccounts) {
+      for (const h of acct.holdings) {
+        const mv = h.market_value_gbp ?? 0;
+        const typeName = translateInstrumentType(t, h.instrument_type);
+        byType[typeName] = (byType[typeName] || 0) + mv;
+        const sector = h.sector || t("common.other");
+        bySector[sector] = (bySector[sector] || 0) + mv;
+        const region = h.region || t("common.other");
+        byRegion[region] = (byRegion[region] || 0) + mv;
+      }
+    }
+
+    const asset = Object.entries(byType)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+    const sector = Object.entries(bySector)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+    const region = Object.entries(byRegion)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    setAssetData(asset);
+    setSectorData(sector);
+    setRegionData(region);
+  }, [portfolio, selectedAccounts, t]);
 
   const chartData =
     view === "asset" ? assetData : view === "sector" ? sectorData : regionData;
@@ -109,6 +117,29 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
           {t("Region", { defaultValue: "Regions" })}
         </button>
       </div>
+      {portfolio && (
+        <div className="mb-4 flex flex-wrap gap-4">
+          {portfolio.accounts.map((acct, idx) => {
+            const key = accountKey(acct, idx);
+            return (
+              <label key={key} className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={selectedAccounts.includes(key)}
+                  onChange={() =>
+                    setSelectedAccounts((prev) =>
+                      prev.includes(key)
+                        ? prev.filter((k) => k !== key)
+                        : [...prev, key],
+                    )
+                  }
+                />
+                {`${acct.owner ?? "—"} - ${acct.account_type}`}
+              </label>
+            );
+          })}
+        </div>
+      )}
       {error && <p style={{ color: "red" }}>{error}</p>}
       <div style={{ width: "100%", height: 400 }}>
         <ResponsiveContainer>

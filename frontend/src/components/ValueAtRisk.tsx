@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+
 import {
   getValueAtRisk,
   recomputeValueAtRisk,
@@ -12,6 +14,7 @@ interface Props {
 }
 
 export function ValueAtRisk({ owner }: Props) {
+  const { t } = useTranslation();
   const [days, setDays] = useState<number>(30);
   const [var95, setVar95] = useState<number | null>(null);
   const [var99, setVar99] = useState<number | null>(null);
@@ -55,15 +58,15 @@ export function ValueAtRisk({ owner }: Props) {
 
   return (
     <div style={{ marginBottom: "2rem" }}>
-      <h2>Value at Risk</h2>
+      <h2>{t("var.title")}</h2>
       <p style={{ fontSize: "0.85rem", marginTop: "-0.5rem" }}>
         <a href="/docs/value_at_risk.md" target="_blank" rel="noopener noreferrer">
-          Historical simulation details
+          {t("var.details")}
         </a>
       </p>
       <div style={{ marginBottom: "0.5rem" }}>
         <label style={{ fontSize: "0.85rem" }}>
-          Period:
+          {t("common.period")}
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
@@ -76,11 +79,11 @@ export function ValueAtRisk({ owner }: Props) {
           </select>
         </label>
       </div>
-      {loading && <div>Loading…</div>}
+      {loading && <div>{t("common.loading")}</div>}
       {err && <div style={{ color: "red" }}>{err}</div>}
       {!loading && !err && var95 == null && var99 == null && (
         <div style={{ fontStyle: "italic", color: "#666" }}>
-          No VaR data available.
+          {t("var.noData")}
         </div>
       )}
       {!loading && !err && !(var95 == null && var99 == null) && (

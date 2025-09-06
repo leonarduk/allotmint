@@ -36,7 +36,8 @@
     "ticker": "Ticker",
     "name": "Nombre",
     "action": "Acción",
-    "reason": "Motivo"
+    "reason": "Motivo",
+    "period": "Período:"
   },
   "instrumentType": {
     "equity": "Acción",
@@ -299,5 +300,10 @@
     "ticker": "Ticker is required",
     "name": "Name is required"
   }
-}
+},
+  "var": {
+    "title": "Valor en Riesgo",
+    "details": "Detalles de la simulación histórica",
+    "noData": "No hay datos de VaR disponibles."
+  }
 }

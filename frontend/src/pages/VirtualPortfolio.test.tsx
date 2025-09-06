@@ -51,6 +51,8 @@ describe("VirtualPortfolio page", () => {
 
     render(<VirtualPortfolio />);
 
-    expect(await screen.findByText(/fail/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Request timed out\. Please try again\./i),
+    ).toBeInTheDocument();
   });
 });

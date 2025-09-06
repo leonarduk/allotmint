@@ -1,5 +1,5 @@
 import { Screener } from "./Screener";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   API_BASE,
@@ -11,6 +11,7 @@ import type { CustomQuery } from "../types";
 import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { SavedQueries } from "../components/SavedQueries";
+import { z } from "zod";
 
 const TICKER_OPTIONS = ["AAA", "BBB", "CCC"];
 const METRIC_OPTIONS = ["market_value_gbp", "gain_gbp"];
@@ -30,6 +31,32 @@ function QuerySection() {
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const raw = {
+      start: sp.get("start") || undefined,
+      end: sp.get("end") || undefined,
+      owners: sp.get("owners")?.split(","),
+      tickers: sp.get("tickers")?.split(","),
+      metrics: sp.get("metrics")?.split(","),
+    };
+    const schema = z.object({
+      start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      owners: z.array(z.string().regex(/^[\w-]+$/)).optional(),
+      tickers: z.array(z.string().regex(/^[\w-]+$/)).optional(),
+      metrics: z.array(z.string().regex(/^[\w-]+$/)).optional(),
+    });
+    const parsed = schema.safeParse(raw);
+    if (parsed.success) {
+      setStart(parsed.data.start ?? "");
+      setEnd(parsed.data.end ?? "");
+      setSelectedOwners(parsed.data.owners ?? []);
+      setSelectedTickers(parsed.data.tickers ?? []);
+      setMetrics(parsed.data.metrics ?? []);
+    }
+  }, []);
 
   const columns = rows.length ? (Object.keys(rows[0]) as (keyof ResultRow)[]) : [];
   const { sorted, handleSort } = useSortableTable<ResultRow>(
@@ -76,6 +103,32 @@ function QuerySection() {
       metrics,
     };
     void saveCustomQuery(name, params);
+  }
+
+  function buildCopyLink() {
+    const parts: string[] = [];
+    if (start) parts.push(`start=${encodeURIComponent(start)}`);
+    if (end) parts.push(`end=${encodeURIComponent(end)}`);
+    if (selectedOwners.length)
+      parts.push(
+        `owners=${selectedOwners.map((o) => encodeURIComponent(o)).join(",")}`,
+      );
+    if (selectedTickers.length)
+      parts.push(
+        `tickers=${selectedTickers
+          .map((t) => encodeURIComponent(t))
+          .join(",")}`,
+      );
+    if (metrics.length)
+      parts.push(
+        `metrics=${metrics.map((m) => encodeURIComponent(m)).join(",")}`,
+      );
+    const qs = parts.join("&");
+    return `${window.location.origin}${window.location.pathname}${qs ? `?${qs}` : ""}`;
+  }
+
+  function handleCopyLink() {
+    void navigator.clipboard.writeText(buildCopyLink());
   }
 
   function loadSaved(params: CustomQuery) {
@@ -170,6 +223,9 @@ function QuerySection() {
         </button>
         <button type="button" onClick={handleSave} className="mr-2">
           {t("query.save")}
+        </button>
+        <button type="button" onClick={handleCopyLink} className="mr-2">
+          {t("query.copyLink")}
         </button>
         {rows.length > 0 && (
           <span>

@@ -4,6 +4,17 @@ Param(
 
 $ErrorActionPreference = 'Stop'
 
+# Ensure Python is available (try `python` then `py`)
+$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonCmd) {
+  $pythonCmd = Get-Command py -ErrorAction SilentlyContinue
+}
+if (-not $pythonCmd) {
+  Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
+  exit 1
+}
+$PYTHON = $pythonCmd.Name
+
 Write-Host "# -------- Configuration --------" -ForegroundColor DarkCyan
 Write-Host "# Set offline_mode: true in config.yaml to skip dependency installation" -ForegroundColor DarkCyan
 Write-Host "# --------------------------------" -ForegroundColor DarkCyan
@@ -63,7 +74,7 @@ function Read-Config([string]$path) {
 # ───────────── create & activate venv ─────────
 if (-not (Test-Path '.\.venv\Scripts\Activate.ps1')) {
   Write-Host 'Creating Python virtual environment (.venv)...' -ForegroundColor Yellow
-  python -m venv .venv
+  & $PYTHON -m venv .venv
 }
 
 Write-Host 'Activating virtual environment...' -ForegroundColor Cyan
@@ -81,7 +92,7 @@ if ($cfg.PSObject.Properties.Name -contains 'offline_mode') {
 
 if (-not $offline) {
   Write-Host 'Installing backend requirements...' -ForegroundColor Yellow
-  python -m pip install -r .\requirements.txt
+  & $PYTHON -m pip install -r .\requirements.txt
 } else {
   Write-Host 'Offline mode detected; skipping dependency installation.' -ForegroundColor Yellow
 }
@@ -105,4 +116,4 @@ $arguments = @(
 )
 if ($reload) { $arguments += '--reload' }
 
-python -m uvicorn @arguments
+& $PYTHON -m uvicorn @arguments

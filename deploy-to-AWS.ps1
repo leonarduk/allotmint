@@ -1,32 +1,31 @@
+Param(
+  [switch]$Backend
+)
+
 $ErrorActionPreference = 'Stop'
 
-# Navigate to repository root
-$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $SCRIPT_DIR
-
-try {
-  # Move into CDK directory
-  Set-Location (Join-Path $SCRIPT_DIR 'cdk')
-
-  # Ensure CDK CLI is available
-  if (-not (Get-Command 'cdk' -ErrorAction SilentlyContinue)) {
-    Write-Error 'AWS CDK CLI not found. Install it and try again.'
-    exit 1
-  }
-
-  # Bootstrap environment (safe to run multiple times)
-  cdk bootstrap
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-  # Deploy backend and frontend stacks
-  cdk deploy BackendLambdaStack StaticSiteStack -c deploy_backend=true
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+# Ensure Python is available (try `python` then `py`)
+$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonCmd) {
+  $pythonCmd = Get-Command py -ErrorAction SilentlyContinue
 }
-catch {
-  Write-Error $_
+if (-not $pythonCmd) {
+  Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
   exit 1
 }
-finally {
-  # Return to repository root
-  Set-Location $SCRIPT_DIR
+$PYTHON = $pythonCmd.Name
+
+# Determine repository root and navigate to CDK directory
+$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location (Join-Path $SCRIPT_DIR 'cdk')
+
+if ($Backend) {
+  Write-Host 'Deploying backend and frontend stacks to AWS...' -ForegroundColor Green
+  $env:DEPLOY_BACKEND = 'true'
+  cdk deploy BackendLambdaStack StaticSiteStack
+} else {
+  Write-Host 'Deploying frontend stack to AWS...' -ForegroundColor Green
+  $env:DEPLOY_BACKEND = 'false'
+  cdk deploy StaticSiteStack
+
 }

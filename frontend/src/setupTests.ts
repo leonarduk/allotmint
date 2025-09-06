@@ -16,11 +16,11 @@ class ResizeObserver {
 declare global {
   interface GlobalThis {
     ResizeObserver: typeof ResizeObserver;
+    sparks: Record<string, any>;
   }
 }
 
 globalThis.ResizeObserver = ResizeObserver;
-
 // Some components expect a global `sparks` object with sparkline data.
 // Provide an empty stub to satisfy references in tests.
 (globalThis as any).sparks = {};

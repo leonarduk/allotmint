@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { createInstance } from "i18next";
 import type { ReactElement } from "react";
@@ -72,6 +72,10 @@ function renderWithI18n(ui: ReactElement) {
 }
 
 describe("Screener & Query page", () => {
+  afterEach(() => {
+    window.history.pushState({}, "", "/");
+    vi.clearAllMocks();
+  });
   it("runs screener and displays results", async () => {
     renderWithI18n(<ScreenerQuery />);
 
@@ -146,11 +150,84 @@ describe("Screener & Query page", () => {
     );
   });
 
+  it("persists selected parameters in export URLs", async () => {
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+
+    await screen.findByLabelText("Alice");
+
+    fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
+      target: { value: "2024-01-01" },
+    });
+    fireEvent.change(screen.getByLabelText(i18n.t("query.end")), {
+      target: { value: "2024-02-01" },
+    });
+
+    fireEvent.click(screen.getByLabelText("Alice"));
+    fireEvent.click(screen.getByLabelText("AAA"));
+    fireEvent.click(screen.getByLabelText("market_value_gbp"));
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: i18n.t("query.run") })[1],
+    );
+
+    const csv = await screen.findByRole("link", { name: /csv/i });
+    const href = csv.getAttribute("href") ?? "";
+    expect(href).toContain("start=2024-01-01");
+    expect(href).toContain("end=2024-02-01");
+    expect(href).toContain("owners=Alice");
+    expect(href).toContain("tickers=AAA");
+    expect(href).toContain("metrics=market_value_gbp");
+  });
+
   it("loads saved queries into the form", async () => {
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     const btn = await screen.findByText("Saved1");
     fireEvent.click(btn);
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("2024-01-01");
+  });
+
+  it("initializes form from query string", async () => {
+    window.history.pushState(
+      {},
+      "",
+      "/?start=2024-01-01&owners=Alice&tickers=AAA&metrics=market_value_gbp",
+    );
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText("Alice");
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
+      "2024-01-01",
+    );
+    expect(screen.getByLabelText("Alice")).toBeChecked();
+    expect(screen.getByLabelText("AAA")).toBeChecked();
+    expect(screen.getByLabelText("market_value_gbp")).toBeChecked();
+  });
+
+  it("sanitizes malicious query parameters", async () => {
+    window.history.pushState(
+      {},
+      "",
+      "/?owners=<script>alert(1)</script>&start=not-a-date",
+    );
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText(i18n.t("query.start"));
+    expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("");
+    expect(screen.getByLabelText("Alice")).not.toBeChecked();
+    expect(screen.getByLabelText("Bob")).not.toBeChecked();
+  });
+
+  it("copies an encoded link to the clipboard", async () => {
+    const writeText = vi.fn();
+    Object.assign(navigator, { clipboard: { writeText } });
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+    await screen.findByLabelText("Alice");
+    fireEvent.click(screen.getByLabelText("Alice"));
+    fireEvent.click(screen.getByLabelText("AAA"));
+    fireEvent.click(screen.getByLabelText("market_value_gbp"));
+    fireEvent.click(
+      screen.getByRole("button", { name: i18n.t("query.copyLink") }),
+    );
+    expect(writeText).toHaveBeenCalled();
+    expect(writeText.mock.calls[0][0]).toContain("owners=Alice");
   });
 
   it("switches labels when language changes", async () => {

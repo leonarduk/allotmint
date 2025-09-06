@@ -8,7 +8,7 @@ import {
   getMaxDrawdown,
 } from "../api";
 import type { PerformancePoint } from "../types";
-import { percent } from "../lib/money";
+import { percent, percentOrNa } from "../lib/money";
 
 type Props = {
   owner: string | null;
@@ -85,19 +85,19 @@ export function PerformanceDashboard({ owner }: Props) {
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.alphaVsBenchmark")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percent(alpha != null ? alpha * 100 : null)}
+            {percentOrNa(alpha)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.trackingError")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percent(trackingError != null ? trackingError * 100 : null)}
+            {percentOrNa(trackingError)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.maxDrawdown")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percent(maxDrawdown != null ? maxDrawdown * 100 : null)}
+            {percentOrNa(maxDrawdown)}
           </div>
         </div>
       </div>

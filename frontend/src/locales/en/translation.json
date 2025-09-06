@@ -250,6 +250,7 @@
     "run": "Run",
     "running": "Running…",
     "save": "Save",
+    "copyLink": "Copy Link",
     "exportCsv": "Export CSV",
     "exportXlsx": "Export XLSX"
   },

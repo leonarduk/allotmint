@@ -27,3 +27,15 @@ export const percent = (
         }).format(v) + "%"
     );
 };
+
+export const percentOrNa = (
+    v: number | null | undefined,
+    fractionDigits = 2,
+    locale: string = i18n.language,
+): string => {
+    if (typeof v !== "number" || !Number.isFinite(v) || Math.abs(v) > 1) {
+        console.warn("Metric value out of range:", v);
+        return "N/A";
+    }
+    return percent(v * 100, fractionDigits, locale);
+};

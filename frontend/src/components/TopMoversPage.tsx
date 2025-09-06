@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +16,7 @@ import { SignalBadge } from "./SignalBadge";
 import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 const PERIODS = { "1d": 1, "1w": 7, "1m": 30, "3m": 90, "1y": 365 } as const;
 type PeriodKey = keyof typeof PERIODS;
@@ -129,6 +130,32 @@ export function TopMoversPage() {
     return map;
   }, [signals]);
 
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  useEffect(() => {
+    if (tableHeaderRef.current) {
+      setHeaderHeight(tableHeaderRef.current.getBoundingClientRect().height);
+    }
+  }, []);
+
+  const rowVirtualizer = useVirtualizer({
+    count: sorted.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 40,
+    overscan: 5,
+    scrollMargin: headerHeight,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const paddingTop = virtualRows.length ? virtualRows[0].start : 0;
+  const paddingBottom = virtualRows.length
+    ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+    : 0;
+  const items = virtualRows.length
+    ? virtualRows
+    : sorted.map((_, index) => ({ index, start: index * 40, end: (index + 1) * 40 }));
+  const colSpan = watchlist === "Portfolio" ? 6 : 4;
+
   if (loading) return <p>{t("common.loading")}</p>;
   if (error != null) {
     const match = error?.message.match(/^HTTP (\d+)\s+[–-]\s+(.*)$/);
@@ -210,8 +237,12 @@ export function TopMoversPage() {
         <p style={{ color: "red" }}>{t("movers.loginPrompt")}</p>
       )}
 
+      <div
+        ref={tableContainerRef}
+        style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "auto" }}
+      >
       <table className={tableStyles.table}>
-        <thead>
+        <thead ref={tableHeaderRef}>
           <tr>
             <th
               className={`${tableStyles.cell} ${tableStyles.clickable}`}
@@ -243,61 +274,75 @@ export function TopMoversPage() {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((r) => (
-            <tr key={r.ticker}>
-              <td className={tableStyles.cell}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelected({ row: r, signal: signalMap.get(r.ticker) })
-                  }
-                  style={{
-                    color: "dodgerblue",
-                    textDecoration: "underline",
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    font: "inherit",
-                    cursor: "pointer",
-                  }}
-                >
-                  {r.ticker}
-                </button>
-              </td>
-              <td className={tableStyles.cell}>{r.name}</td>
-              <td className={tableStyles.cell}>
-                {(() => {
-                  const s = signalMap.get(r.ticker);
-                  return s ? (
-                    <SignalBadge
-                      action={s.action}
-                      onClick={() => setSelected({ row: r, signal: s })}
-                    />
-                  ) : null;
-                })()}
-              </td>
-              <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: r.change_pct >= 0 ? "green" : "red" }}
-              >
-                {r.change_pct.toFixed(2)}
-              </td>
-              {watchlist === "Portfolio" && (
-                <>
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {r.delta_gbp != null ? r.delta_gbp.toFixed(2) : ""}
-                  </td>
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {r.pct_portfolio != null
-                      ? r.pct_portfolio.toFixed(2)
-                      : ""}
-                  </td>
-                </>
-              )}
+          {paddingTop > 0 && (
+            <tr style={{ height: paddingTop }}>
+              <td colSpan={colSpan} style={{ padding: 0, border: 0 }} />
             </tr>
-          ))}
+          )}
+          {items.map((virtualRow) => {
+            const r = sorted[virtualRow.index];
+            return (
+              <tr key={r.ticker}>
+                <td className={tableStyles.cell}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelected({ row: r, signal: signalMap.get(r.ticker) })
+                    }
+                    style={{
+                      color: "dodgerblue",
+                      textDecoration: "underline",
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      font: "inherit",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {r.ticker}
+                  </button>
+                </td>
+                <td className={tableStyles.cell}>{r.name}</td>
+                <td className={tableStyles.cell}>
+                  {(() => {
+                    const s = signalMap.get(r.ticker);
+                    return s ? (
+                      <SignalBadge
+                        action={s.action}
+                        onClick={() => setSelected({ row: r, signal: s })}
+                      />
+                    ) : null;
+                  })()}
+                </td>
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  style={{ color: r.change_pct >= 0 ? "green" : "red" }}
+                >
+                  {r.change_pct.toFixed(2)}
+                </td>
+                {watchlist === "Portfolio" && (
+                  <>
+                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                      {r.delta_gbp != null ? r.delta_gbp.toFixed(2) : ""}
+                    </td>
+                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                      {r.pct_portfolio != null
+                        ? r.pct_portfolio.toFixed(2)
+                        : ""}
+                    </td>
+                  </>
+                )}
+              </tr>
+            );
+          })}
+          {paddingBottom > 0 && (
+            <tr style={{ height: paddingBottom }}>
+              <td colSpan={colSpan} style={{ padding: 0, border: 0 }} />
+            </tr>
+          )}
         </tbody>
       </table>
+      </div>
       {signalsLoading ? (
         <p>{t("common.loading")}</p>
       ) : signalsError ? (

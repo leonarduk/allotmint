@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef , useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import type { Holding, InstrumentDetailMini } from "../types";
+import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useSortableTable } from "../hooks/useSortableTable";
@@ -10,8 +10,7 @@ import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { getInstrumentDetail } from "../api";
-import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { Sparkline } from "./Sparkline";
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 
@@ -62,7 +61,6 @@ export function HoldingsTable({
   });
 
   const [sparkRange, setSparkRange] = useState<7 | 30 | 180>(30);
-  const [sparks, setSparks] = useState<Record<string, InstrumentDetailMini>>({});
 
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -72,28 +70,6 @@ export function HoldingsTable({
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Track tickers we've already fetched to avoid re-fetching on re-renders
-  const fetchedTickersRef = useRef<Set<string>>(new Set());
-
-  // Fetch sparkline data for new tickers whenever holdings change
-  useEffect(() => {
-    const tickers = Array.from(new Set(holdings.map((h) => h.ticker)));
-    const toFetch = tickers.filter(
-      (t) => !sparks[t] && !fetchedTickersRef.current.has(t),
-    );
-
-    toFetch.forEach((t) => {
-      fetchedTickersRef.current.add(t);
-      getInstrumentDetail(t, 180)
-        .then((d) => {
-          const m = d?.mini;
-          if (m) {
-            setSparks((prev) => ({ ...prev, [t]: m }));
-          }
-        })
-        .catch(() => {});
-    });
-  }, [holdings, sparks]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -403,13 +379,7 @@ export function HoldingsTable({
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
                 <td className={`${tableStyles.cell} w-20`}>
-                  {sparks[h.ticker]?.[String(sparkRange)]?.length ? (
-                    <ResponsiveContainer width="100%" height={40}>
-                      <LineChart data={sparks[h.ticker][String(sparkRange)]} margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
-                        <Line type="monotone" dataKey="close_gbp" stroke="#8884d8" dot={false} strokeWidth={1} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : null}
+                  <Sparkline ticker={h.ticker} days={sparkRange} />
                 </td>
                 <td className={tableStyles.cell}>
                   {isSupportedFx(h.currency) ? (

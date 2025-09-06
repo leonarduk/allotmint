@@ -21,6 +21,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from backend.common.instruments import list_instruments
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import get_security_meta
 from backend.timeseries.cache import load_meta_timeseries_range
@@ -35,6 +36,48 @@ env = Environment(
 # Group the instrument endpoints under their own router to keep ``app.py``
 # tidy and allow reuse across different deployment targets.
 router = APIRouter(prefix="/instrument", tags=["instrument"])
+
+MAX_SEARCH_RESULTS = 20
+
+
+@router.get("/search")
+async def search_instruments(
+    q: str | None = Query(None, description="Search term for ticker or name"),
+    sector: str | None = Query(None),
+    region: str | None = Query(None),
+):
+    if not q or not q.strip():
+        raise HTTPException(400, "query is required")
+    if sector is not None and not sector.strip():
+        raise HTTPException(400, "sector must be non-empty")
+    if region is not None and not region.strip():
+        raise HTTPException(400, "region must be non-empty")
+
+    q_lower = q.strip().lower()
+    sector_lower = sector.strip().lower() if sector else None
+    region_lower = region.strip().lower() if region else None
+
+    matches: list[dict[str, Any]] = []
+    for inst in list_instruments():
+        ticker = inst.get("ticker") or ""
+        name = inst.get("name") or ""
+        if q_lower not in ticker.lower() and q_lower not in name.lower():
+            continue
+        if sector_lower and (inst.get("sector") or "").lower() != sector_lower:
+            continue
+        if region_lower and (inst.get("region") or "").lower() != region_lower:
+            continue
+        matches.append(
+            {
+                "ticker": ticker,
+                "name": name,
+                "sector": inst.get("sector"),
+                "region": inst.get("region"),
+            }
+        )
+        if len(matches) >= MAX_SEARCH_RESULTS:
+            break
+    return matches
 
 
 # ────────────────────────────────────────────────────────────────

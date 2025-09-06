@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type PluginOption, type UserConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
@@ -8,9 +8,9 @@ const pageRoutes: string[] = []
 
 // https://vite.dev/config/
 export default defineConfig(async ({ command }) => {
-  const plugins = [
-    react(),
-    VitePWA({
+  const plugins: PluginOption[] = [
+    ...react(),
+    ...VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['vite.svg'],
       strategies: 'injectManifest',
@@ -26,23 +26,24 @@ export default defineConfig(async ({ command }) => {
   ]
 
   if (command === 'build') {
-    const { default: vitePrerender } = await import('vite-plugin-prerender')
-    plugins.push(
-      vitePrerender({
-        staticDir,
-        routes: ['/', ...pageRoutes]
-      })
-    )
+    const { createRequire } = await import('node:module')
+    const require = createRequire(import.meta.url)
+    const vitePrerender = require('vite-plugin-prerender')
+    const prerenderPlugin = vitePrerender({
+      staticDir,
+      routes: ['/', ...pageRoutes]
+    })
+    plugins.push(...(Array.isArray(prerenderPlugin) ? prerenderPlugin : [prerenderPlugin]))
   }
 
-  return {
+  const config: UserConfig = {
     plugins,
     build: {
       cssCodeSplit: false,
       cssMinify: 'esbuild',
       rollupOptions: {
         output: {
-          assetFileNames: (assetInfo) => {
+          assetFileNames: (assetInfo: { name?: string }) => {
             if (assetInfo.name && assetInfo.name.endsWith('.css')) {
               return 'styles.css'
             }
@@ -52,5 +53,6 @@ export default defineConfig(async ({ command }) => {
       }
     }
   }
+  return config
 })
 

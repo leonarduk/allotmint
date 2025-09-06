@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { getTradingSignals } from "../api";
-import type { TradingSignal } from "../types";
-import { InstrumentDetail } from "../components/InstrumentDetail";
-import tableStyles from "../styles/table.module.css";
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { getTradingSignals } from '../api';
+import type { TradingSignal } from '../types';
+import { InstrumentDetail } from '../components/InstrumentDetail';
+import tableStyles from '../styles/table.module.css';
 
 export default function Trading() {
   const { t } = useTranslation();
@@ -14,22 +14,21 @@ export default function Trading() {
   useEffect(() => {
     getTradingSignals()
       .then(setSignals)
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : String(e)),
-      );
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   if (error) {
-    return <p style={{ color: "red" }}>{error}</p>;
+    return <p style={{ color: 'red' }}>{error}</p>;
   }
 
   if (!signals.length) {
-    return <p>{t("trading.noSignals")}</p>;
+    return <p>{t('trading.noSignals')}</p>;
   }
 
   return (
     <>
       <table className={tableStyles.table}>
+        <caption>{t('trading.signalsTableCaption', 'Trading signals')}</caption>
         <thead>
           <tr>
             <th className={tableStyles.cell}>Ticker</th>
@@ -40,11 +39,14 @@ export default function Trading() {
         <tbody>
           {signals.map((s) => (
             <tr key={s.ticker}>
-              <td
-                className={`${tableStyles.cell} ${tableStyles.clickable}`}
-                onClick={() => setSelected(s)}
-              >
-                {s.ticker}
+              <td className={tableStyles.cell}>
+                <button
+                  type="button"
+                  className={tableStyles.clickable}
+                  onClick={() => setSelected(s)}
+                >
+                  {s.ticker}
+                </button>
               </td>
               <td className={tableStyles.cell}>{s.action}</td>
               <td className={tableStyles.cell}>{s.reason}</td>

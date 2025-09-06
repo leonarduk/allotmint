@@ -160,6 +160,11 @@ export interface InstrumentDetailMini {
     }[];
 }
 
+export interface NewsItem {
+    headline: string;
+    url: string;
+}
+
 export interface InstrumentPosition {
     owner: string;
     account: string;

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import math
 from copy import deepcopy
 from typing import Any, Dict
 
@@ -118,10 +119,15 @@ def _forward_returns(
     df = df.sort_values(date_col)
 
     base = _price_on_or_after(df, date_col, price_col, event_date)
+    if base is not None and not math.isfinite(base):
+        base = None
+
     results: Dict[str, float | None] = {}
     for label, days in _HORIZONS.items():
         tgt = event_date + dt.timedelta(days=days)
         end_price = _price_on_or_after(df, date_col, price_col, tgt)
+        if end_price is not None and not math.isfinite(end_price):
+            end_price = None
         if base is not None and end_price is not None:
             results[label] = end_price / base - 1.0
         else:

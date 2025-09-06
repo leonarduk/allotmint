@@ -9,6 +9,7 @@ import { configContext, type AppConfig } from "../ConfigContext";
 const defaultConfig: AppConfig = {
   relativeViewEnabled: false,
   theme: "system",
+  baseCurrency: "GBP",
   tabs: {
     group: true,
     owner: true,
@@ -59,7 +60,13 @@ describe("InstrumentDetail", () => {
     const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
     return (
       <configContext.Provider
-        value={{ ...defaultConfig, relativeViewEnabled, setRelativeViewEnabled, refreshConfig: async () => {} }}
+        value={{
+          ...defaultConfig,
+          relativeViewEnabled,
+          setRelativeViewEnabled,
+          refreshConfig: async () => {},
+          setBaseCurrency: () => {},
+        }}
       >
         <MemoryRouter>{children}</MemoryRouter>
       </configContext.Provider>

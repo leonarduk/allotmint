@@ -32,6 +32,7 @@ import type {
   UserConfig,
   InstrumentMetadata,
   ApprovalsResponse,
+  NewsItem,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -121,7 +122,53 @@ export const refreshPrices = () =>
 /** Fetch quote snapshots for a list of symbols. */
 export const getQuotes = (symbols: string[]) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });
-  return fetchJson<QuoteRow[]>(`${API_BASE}/api/quotes?${params.toString()}`);
+  return fetchJson<{
+    symbol: string;
+    price: number | null;
+    open?: number | null;
+    high?: number | null;
+    low?: number | null;
+    previous_close?: number | null;
+    volume?: number | null;
+    timestamp?: number | null;
+    timezone?: string | null;
+    market_state?: string | null;
+  }[]>(`${API_BASE}/api/quotes?${params.toString()}`)
+    .then((rows) =>
+      rows.map((r) => {
+        const change =
+          r.price != null && r.previous_close != null
+            ? r.price - r.previous_close
+            : null;
+        const changePct =
+          change != null && r.previous_close
+            ? (change / r.previous_close) * 100
+            : null;
+        return {
+          name: null,
+          symbol: r.symbol,
+          last: r.price ?? null,
+          open: r.open ?? null,
+          high: r.high ?? null,
+          low: r.low ?? null,
+          change,
+          changePct,
+          volume: r.volume ?? null,
+          marketTime: r.timestamp
+            ? new Date(r.timestamp * 1000).toISOString()
+            : null,
+          marketState: r.market_state ?? "UNKNOWN",
+        } as QuoteRow;
+      }),
+    );
+};
+
+/** Retrieve recent news headlines for a ticker. */
+export const getNews = (ticker: string, signal?: AbortSignal) => {
+  const params = new URLSearchParams({ ticker });
+  return fetchJson<NewsItem[]>(`${API_BASE}/news?${params.toString()}`, {
+    signal,
+  });
 };
 
 /** Retrieve top movers across tickers for a period. */
@@ -430,14 +477,33 @@ export const getTransactions = (params: {
   account?: string;
   start?: string;
   end?: string;
+  type?: string;
 }) => {
   const query = new URLSearchParams();
   if (params.owner) query.set("owner", params.owner);
   if (params.account) query.set("account", params.account);
   if (params.start) query.set("start", params.start);
   if (params.end) query.set("end", params.end);
+  if (params.type) query.set("type", params.type);
   const qs = query.toString();
   return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
+};
+
+export const getDividends = (params?: {
+  owner?: string;
+  account?: string;
+  start?: string;
+  end?: string;
+  ticker?: string;
+}) => {
+  const query = new URLSearchParams();
+  if (params?.owner) query.set("owner", params.owner);
+  if (params?.account) query.set("account", params.account);
+  if (params?.start) query.set("start", params.start);
+  if (params?.end) query.set("end", params.end);
+  if (params?.ticker) query.set("ticker", params.ticker);
+  const qs = query.toString();
+  return fetchJson<Transaction[]>(`${API_BASE}/dividends${qs ? `?${qs}` : ""}`);
 };
 
 /** Retrieve recent alert messages from backend. */
@@ -686,3 +752,47 @@ export const getVarBreakdown = (
     `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
   );
 };
+
+// ───────────── Goals API ─────────────
+export interface Goal {
+  name: string;
+  target_amount: number;
+  target_date: string;
+}
+
+export const getGoals = () => fetchJson<Goal[]>(`${API_BASE}/goals`);
+
+export const createGoal = (goal: Goal) =>
+  fetchJson<Goal>(`${API_BASE}/goals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(goal),
+  });
+
+export const getGoal = (name: string, current: number) =>
+  fetchJson<Goal & { progress: number; trades: any[] }>(
+    `${API_BASE}/goals/${encodeURIComponent(name)}?current_amount=${current}`,
+  );
+
+export const updateGoal = (name: string, goal: Goal) =>
+  fetchJson<Goal>(`${API_BASE}/goals/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(goal),
+  });
+
+export const deleteGoal = (name: string) =>
+  fetchJson<{ status: string }>(`${API_BASE}/goals/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+
+// ───────────── Tax API ─────────────
+export const harvestTax = (
+  positions: { ticker: string; basis: number; price: number }[],
+  threshold = 0,
+) =>
+  fetchJson<{ trades: any[] }>(`${API_BASE}/tax/harvest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ positions, threshold }),
+  });

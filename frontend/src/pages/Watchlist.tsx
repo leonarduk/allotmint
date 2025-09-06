@@ -3,6 +3,10 @@ import { useTranslation } from "react-i18next";
 import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 
+interface QuoteWithState extends QuoteRow {
+  marketState?: string;
+}
+
 const DEFAULT_SYMBOLS =
   "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,USDGBP=X,EURGBP=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
 
@@ -42,9 +46,11 @@ export function Watchlist() {
   const [symbols, setSymbols] = useState(() =>
     localStorage.getItem("watchlistSymbols") || DEFAULT_SYMBOLS,
   );
-  const [rows, setRows] = useState<QuoteRow[]>([]);
+  const [intervalMs, setIntervalMs] = useState(60000);
+  const [rows, setRows] = useState<QuoteWithState[]>([]);
   const [auto, setAuto] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [allClosed, setAllClosed] = useState(false);
   const [sortKey, setSortKey] = useState<keyof QuoteRow>("symbol");
   const [asc, setAsc] = useState(true);
 
@@ -59,9 +65,26 @@ export function Watchlist() {
       return;
     }
     try {
-      const data = await getQuotes(symbolList);
+      const data = (await getQuotes(symbolList)) as QuoteWithState[];
       setRows(data);
       setError(null);
+
+      const closed =
+        data.length > 0 &&
+        data.every((r) => r.marketState && r.marketState !== "REGULAR");
+
+      setAllClosed((prev) => {
+        if (closed) {
+          if (!prev) {
+            setAuto(false);
+          }
+          return true;
+        }
+        if (prev) {
+          setAuto(true);
+        }
+        return false;
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -73,10 +96,19 @@ export function Watchlist() {
   }, [fetchData, symbols]);
 
   useEffect(() => {
-    if (!auto) return;
-    const id = setInterval(fetchData, 10000);
+    if (intervalMs <= 0) return;
+    const id = setInterval(fetchData, intervalMs);
     return () => clearInterval(id);
-  }, [auto, fetchData]);
+  }, [intervalMs, fetchData]);
+    if (auto) {
+      const id = setInterval(fetchData, 10000);
+      return () => clearInterval(id);
+    }
+    if (allClosed) {
+      const id = setInterval(fetchData, 60000);
+      return () => clearInterval(id);
+    }
+  }, [auto, allClosed, fetchData]);
 
   const sorted = useMemo(() => {
     const data = [...rows];
@@ -116,17 +148,29 @@ export function Watchlist() {
         />
       </div>
       <div className="mb-2 flex items-center gap-2">
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={auto}
-            onChange={(e) => setAuto(e.target.checked)}
-          />{" "}Auto-refresh
+        <label className="flex items-center gap-1">
+          {t("watchlist.refreshFrequency", { defaultValue: "Auto-refresh" })}
+          <select
+            value={intervalMs}
+            onChange={(e) => setIntervalMs(Number(e.target.value))}
+          >
+            <option value={60000}>
+              {t("watchlist.everyMinute", { defaultValue: "Every minute" })}
+            </option>
+            <option value={0}>
+              {t("watchlist.manual", { defaultValue: "Manual" })}
+            </option>
+          </select>
         </label>
         <button onClick={fetchData}>{t("watchlist.refresh")}</button>
       </div>
       {error && (
         <div className="mb-2 text-red-500">{error}</div>
+      )}
+      {allClosed && (
+        <div className="mb-2 text-gray-500">
+          {t("watchlist.marketsClosed", { defaultValue: "Markets closed" })}
+        </div>
       )}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
@@ -142,7 +186,7 @@ export function Watchlist() {
                 { k: "change", l: "Chg" },
                 { k: "changePct", l: "Chg %" },
                 { k: "volume", l: "Vol" },
-                { k: "time", l: "Time" },
+                { k: "marketTime", l: "Time" },
               ].map((c) => (
                 <th
                   key={c.k}
@@ -218,7 +262,7 @@ export function Watchlist() {
                   <td style={{ textAlign: "right", padding: "4px 6px" }}>
                     {formatVol(r.volume)}
                   </td>
-                  <td style={{ padding: "4px 6px" }}>{formatTime(r.time)}</td>
+                  <td style={{ padding: "4px 6px" }}>{formatTime(r.marketTime)}</td>
                 </tr>
               );
             })}

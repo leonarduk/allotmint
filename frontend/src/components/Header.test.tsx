@@ -1,6 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { Header } from "./Header";
+import Menu from "./Menu";
+import { MemoryRouter } from "react-router-dom";
+import { fireEvent } from "@testing-library/react";
 
 describe("Header", () => {
   it("shows trade meter when data present", () => {
@@ -13,5 +16,16 @@ describe("Header", () => {
   it("renders nothing without data", () => {
     const { container } = render(<Header />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("toggles menu drawer", () => {
+    render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>
+    );
+    const toggle = screen.getByLabelText("menu");
+    fireEvent.click(toggle);
+    expect(screen.getByRole("link", { name: "Support" })).toBeInTheDocument();
   });
 });

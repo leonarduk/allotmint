@@ -88,7 +88,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
 
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
   const { t } = useTranslation();
-  const { relativeViewEnabled } = useConfig();
+  const { relativeViewEnabled, baseCurrency } = useConfig();
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
@@ -209,6 +209,17 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     pct: totalValue > 0 ? (value / totalValue) * 100 : 0,
   }));
 
+  const safeAlpha =
+    alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
+  const safeTrackingError =
+    trackingError != null && Math.abs(trackingError) > 1
+      ? trackingError / 100
+      : trackingError;
+  const safeMaxDrawdown =
+    maxDrawdown != null && Math.abs(maxDrawdown) > 1
+      ? maxDrawdown / 100
+      : maxDrawdown;
+
   /* ── render ────────────────────────────────────────────── */
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -239,19 +250,19 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Alpha vs Benchmark</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(alpha)}
+            {percentOrNa(safeAlpha)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Tracking Error</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(trackingError)}
+            {percentOrNa(safeTrackingError)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(maxDrawdown)}
+            {percentOrNa(safeMaxDrawdown)}
           </div>
         </div>
       </div>
@@ -278,7 +289,12 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
                   />
                 ))}
               </Pie>
-              <Tooltip formatter={(v: number, n: string) => [money(v), n]} />
+              <Tooltip
+                formatter={(v: number, n: string) => [
+                  money(v, baseCurrency),
+                  n,
+                ]}
+              />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
@@ -312,7 +328,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
             >
               <XAxis dataKey={contribTab === "sector" ? "sector" : "region"} />
               <YAxis />
-              <Tooltip formatter={(v: number) => money(v)} />
+              <Tooltip formatter={(v: number) => money(v, baseCurrency)} />
               <Bar dataKey="gain_gbp">
                 {(contribTab === "sector" ? sectorContrib : regionContrib)?.map(
                   (row, idx) => (
@@ -362,14 +378,16 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
                 {row.owner}
               </td>
               <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                {relativeViewEnabled ? percent(row.valuePct) : money(row.value)}
+                {relativeViewEnabled
+                  ? percent(row.valuePct)
+                  : money(row.value, baseCurrency)}
               </td>
               {!relativeViewEnabled && (
                 <td
                   className={`${tableStyles.cell} ${tableStyles.right}`}
                   style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
                 >
-                  {money(row.dayChange)}
+                  {money(row.dayChange, baseCurrency)}
                 </td>
               )}
               <td
@@ -383,7 +401,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
                   className={`${tableStyles.cell} ${tableStyles.right}`}
                   style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
                 >
-                  {money(row.gain)}
+                  {money(row.gain, baseCurrency)}
                 </td>
               )}
               <td
@@ -427,7 +445,11 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
               ) : (
                 <>{acct.owner ?? "—"}</>
               )}{" "}
-              • {acct.account_type} — {money(acct.value_estimate_gbp)}
+              • {acct.account_type} —
+              {money(
+                acct.value_estimate_gbp,
+                acct.value_estimate_currency || baseCurrency,
+              )}
             </h3>
 
             {checked && (

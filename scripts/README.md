@@ -8,10 +8,17 @@ Crawl a website, capture screenshots, run AI analysis on each page and build PDF
 
 1. Install dependencies:
    ```bash
-   pip install beautifulsoup4 fpdf Pillow markdownify playwright tldextract openai
+   pip install beautifulsoup4 fpdf Pillow markdownify playwright tldextract openai python-dotenv
    playwright install
    ```
-2. Set your `OPENAI_API_KEY` environment variable to enable per-page analysis.
+2. Provide your `OPENAI_API_KEY` for per-page analysis. The script will read it
+   from the environment and automatically load a `.env` file if `python-dotenv`
+   is installed. For example:
+   ```bash
+   export OPENAI_API_KEY=your_api_key
+   # or place the key in a .env file:
+   echo "OPENAI_API_KEY=your_api_key" > .env
+   ```
 3. Download the [DejaVuSans.ttf](https://github.com/dejavu-fonts/dejavu-fonts/raw/version_2_37/ttf/DejaVuSans.ttf) font.
    If you download the ZIP release, extract `DejaVuSans.ttf` from the archive.
 4. Save the font and set `FONT_PATH` in `site_snapshot.py` to its location.
@@ -24,3 +31,13 @@ Crawl a website, capture screenshots, run AI analysis on each page and build PDF
 6. Output appears in `site_manual/` with screenshots, per-page Markdown files (including AI analysis) and a combined PDF manual embedding the analysis text under each screenshot.
 
 The script uses Playwright to render pages so that JavaScript-generated links are discovered correctly. Pillow enables image support in FPDF; without it, PDFs are generated without screenshots. If OpenAI analysis fails for a page, the rest of the snapshot continues with an empty analysis.
+
+## import_transactions.py
+
+Upload a local transaction export to the running backend for parsing:
+
+```
+python scripts/import_transactions.py degiro path/to/transactions.csv
+```
+
+Use `--api` to point at a different backend URL. Parsed transactions are printed as JSON.

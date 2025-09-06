@@ -94,4 +94,15 @@ button:focus-visible {
     }
 }
 
+/* Ensure toast notifications are legible in both themes */
+.Toastify__toast {
+    background-color: #333;
+    color: rgba(255, 255, 255, 0.87);
+}
+
+:root[data-theme='light'] .Toastify__toast {
+    background-color: #ffffff;
+    color: #213547;
+}
+
 

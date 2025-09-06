@@ -1,9 +1,12 @@
+// src/components/Menu.tsx
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useState, useRef, useEffect } from 'react';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
-import { orderedTabPlugins } from '../tabPlugins';
+import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
+
+const SUPPORT_ONLY_TABS: TabPluginId[] = ['logs'];
 
 interface MenuProps {
   selectedOwner?: string;
@@ -22,6 +25,7 @@ export default function Menu({
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const path = location.pathname.split('/').filter(Boolean);
+
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +84,10 @@ export default function Menu({
                                             ? 'group'
                                             : 'movers';
 
+  const isSupportMode = SUPPORT_TABS.includes(mode);
+  const inSupport = mode === 'support';
+  const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
+
   function pathFor(m: TabPluginId) {
     switch (m) {
       case 'group':
@@ -104,6 +112,8 @@ export default function Menu({
         return '/logs';
       case 'allocation':
         return '/allocation';
+      case 'rebalance':
+        return '/rebalance';
       case 'instrumentadmin':
         return '/instrumentadmin';
       case 'profile':
@@ -114,77 +124,59 @@ export default function Menu({
   }
 
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
+    <nav className="mb-4" ref={containerRef}>
       <button
-        type="button"
-        aria-label="Menu"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '0.5rem',
-          fontSize: '1.5rem',
-          lineHeight: 1,
-        }}
+        aria-label="menu"
+        className="md:hidden mb-2 p-2 border rounded"
+        onClick={() => setOpen((o) => !o)}
       >
         ☰
       </button>
-      {open && (
-        <nav
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'absolute',
-            top: '100%',
-            right: 0,
-            background: 'white',
-            padding: '1rem',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            zIndex: 10,
-            ...(style ?? {}),
-          }}
-        >
-          {orderedTabPlugins
-            .slice()
-            .sort((a, b) => a.priority - b.priority)
-            .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
-            .map((p) => (
-              <Link
-                key={p.id}
-                to={pathFor(p.id)}
-                onClick={() => setOpen(false)}
-                style={{
-                  marginBottom: '0.5rem',
-                  fontWeight: mode === p.id ? 'bold' : undefined,
-                  overflowWrap: 'anywhere',
-                }}
-              >
-                {t(`app.modes.${p.id}`)}
-              </Link>
-            ))}
-          {onLogout && (
-            <button
-              type="button"
-              onClick={() => {
-                onLogout();
-                setOpen(false);
-              }}
-              style={{
-                marginTop: '0.5rem',
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                font: 'inherit',
-                cursor: 'pointer',
-              }}
+      <div
+        className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
+        style={style}
+      >
+        {orderedTabPlugins
+          .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
+          .slice()
+          .sort((a, b) => a.priority - b.priority)
+          .filter((p) => {
+            if (p.id === 'support') return false;
+            if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
+            return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
+          })
+          .map((p) => (
+            <Link
+              key={p.id}
+              to={pathFor(p.id)}
+              className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
+              onClick={() => setOpen(false)}
             >
-              {t('app.logout')}
-            </button>
-          )}
-        </nav>
-      )}
-    </div>
+              {t(`app.modes.${p.id}`)}
+            </Link>
+          ))}
+        {supportEnabled && (
+          <Link
+            to={inSupport ? '/' : '/support'}
+            className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
+            onClick={() => setOpen(false)}
+          >
+            {t(inSupport ? 'app.userLink' : 'app.supportLink')}
+          </Link>
+        )}
+        {onLogout && (
+          <button
+            type="button"
+            onClick={() => {
+              onLogout();
+              setOpen(false);
+            }}
+            className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
+          >
+            {t('app.logout')}
+          </button>
+        )}
+      </div>
+    </nav>
   );
 }

@@ -17,7 +17,10 @@ Optional for images in PDF:
   pip install pillow
 
 Example:
-  python site_snapshot.py --base-url http://localhost:5173/movers --depth 1 --max-pages 30
+  python site_snapshot.py --base-url http://localhost:5173/movers \
+      --depth 1 --max-pages 30 \
+      --ai-model gpt-4o-mini \
+      --ai-prompt "Describe this page."
 """
 
 import asyncio
@@ -265,6 +268,8 @@ async def snapshot_pages(
     viewport: Tuple[int, int],
     concurrency: int,
     page_timeout_ms: int,
+    ai_model: str,
+    ai_prompt: str,
 ) -> List[PageDoc]:
     out_dir.mkdir(parents=True, exist_ok=True)
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
@@ -304,14 +309,14 @@ async def snapshot_pages(
                             b64_img = base64.b64encode(png_path.read_bytes()).decode("utf-8")
                             resp = await asyncio.to_thread(
                                 client.chat.completions.create,
-                                model="gpt-4o-mini",
+                                model=ai_model,
                                 messages=[
                                     {
                                         "role": "user",
                                         "content": [
                                             {
                                                 "type": "text",
-                                                "text": "Describe this page.",
+                                                "text": ai_prompt,
                                             },
                                             {
                                                 "type": "image_url",
@@ -508,6 +513,16 @@ def parse_args() -> argparse.Namespace:
         help="Timeout per snapshot page (ms).",
     )
     ap.add_argument(
+        "--ai-model",
+        default="gpt-4o-mini",
+        help="OpenAI model for per-page analysis (default: gpt-4o-mini)",
+    )
+    ap.add_argument(
+        "--ai-prompt",
+        default="Describe this page.",
+        help="Prompt sent to the AI model (default: 'Describe this page.')",
+    )
+    ap.add_argument(
         "--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"]
     )
     return ap.parse_args()
@@ -559,6 +574,8 @@ async def main_async(ns: argparse.Namespace):
         viewport=viewport,
         concurrency=max(1, ns.concurrency),
         page_timeout_ms=ns.page_timeout_ms,
+        ai_model=ns.ai_model,
+        ai_prompt=ns.ai_prompt,
     )
 
     build_pdf(pages, PDF_PATH, FONT_PATH if FONT_PATH else None)

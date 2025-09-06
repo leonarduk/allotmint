@@ -52,7 +52,9 @@ export function Portfolio() {
           image: `${BASE_URL}/vite.svg`
         }}
       />
-      <PortfolioView data={data} loading={loading} error={error} />
+      <div className="p-4 md:p-8">
+        <PortfolioView data={data} loading={loading} error={error} />
+      </div>
     </>
   );
 }

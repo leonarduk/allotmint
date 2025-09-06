@@ -11,6 +11,7 @@ describe("Menu", () => {
         <Menu />
       </MemoryRouter>,
     );
+    fireEvent.click(screen.getByLabelText("menu"));
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute("href", "/support");
     expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
   });
@@ -21,6 +22,7 @@ describe("Menu", () => {
         <Menu />
       </MemoryRouter>,
     );
+    fireEvent.click(screen.getByLabelText("menu"));
     expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "App" })).toHaveAttribute("href", "/");
   });
@@ -33,6 +35,7 @@ describe("Menu", () => {
         <Menu onLogout={onLogout} />
       </MemoryRouter>,
     );
+    fireEvent.click(screen.getByLabelText("menu"));
     const btn = screen.getByRole("button", { name: "Déconnexion" });
     fireEvent.click(btn);
     expect(onLogout).toHaveBeenCalled();

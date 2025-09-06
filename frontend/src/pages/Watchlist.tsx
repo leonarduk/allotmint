@@ -43,7 +43,7 @@ export function Watchlist() {
     localStorage.getItem("watchlistSymbols") || DEFAULT_SYMBOLS,
   );
   const [rows, setRows] = useState<QuoteRow[]>([]);
-  const [auto, setAuto] = useState(true);
+  const [intervalMs, setIntervalMs] = useState(60000);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<keyof QuoteRow>("symbol");
   const [asc, setAsc] = useState(true);
@@ -73,10 +73,10 @@ export function Watchlist() {
   }, [fetchData, symbols]);
 
   useEffect(() => {
-    if (!auto) return;
-    const id = setInterval(fetchData, 10000);
+    if (intervalMs <= 0) return;
+    const id = setInterval(fetchData, intervalMs);
     return () => clearInterval(id);
-  }, [auto, fetchData]);
+  }, [intervalMs, fetchData]);
 
   const sorted = useMemo(() => {
     const data = [...rows];
@@ -116,12 +116,19 @@ export function Watchlist() {
         />
       </div>
       <div className="mb-2 flex items-center gap-2">
-        <label className="flex items-center">
-          <input
-            type="checkbox"
-            checked={auto}
-            onChange={(e) => setAuto(e.target.checked)}
-          />{" "}Auto-refresh
+        <label className="flex items-center gap-1">
+          {t("watchlist.refreshFrequency", { defaultValue: "Auto-refresh" })}
+          <select
+            value={intervalMs}
+            onChange={(e) => setIntervalMs(Number(e.target.value))}
+          >
+            <option value={60000}>
+              {t("watchlist.everyMinute", { defaultValue: "Every minute" })}
+            </option>
+            <option value={0}>
+              {t("watchlist.manual", { defaultValue: "Manual" })}
+            </option>
+          </select>
         </label>
         <button onClick={fetchData}>{t("watchlist.refresh")}</button>
       </div>

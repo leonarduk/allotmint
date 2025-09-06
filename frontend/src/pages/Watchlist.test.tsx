@@ -100,7 +100,46 @@ describe("Watchlist page", () => {
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("allows toggling refresh frequency", async () => {
+    vi.useFakeTimers();
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
+    localStorage.setItem("watchlistSymbols", "AAA");
+
+    render(<Watchlist />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+      target: { value: "0" },
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+      target: { value: "60000" },
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
     });
     await act(async () => {
       await Promise.resolve();

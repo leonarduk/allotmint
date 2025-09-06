@@ -166,6 +166,9 @@
   "portfolio": "Portefeuille",
   "asOf": "Au {{date}} • Transactions ce mois: {{trades}} / 20 (Restantes: {{remaining}})",
   "approxTotal": "Total approximatif: £{{value}}",
+  "allocation": {
+    "instrumentTypes": "Types d'instruments"
+  },
   "watchlist": {
     "refresh": "Actualiser"
   },

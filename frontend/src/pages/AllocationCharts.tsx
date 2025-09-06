@@ -100,7 +100,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
       </h1>
       <div className="mb-4 flex gap-2">
         <button onClick={() => setView("asset")} disabled={view === "asset"}>
-          {t("instrumentType.other", { defaultValue: "Asset Classes" })}
+          {t("allocation.instrumentTypes", { defaultValue: "Instrument Types" })}
         </button>
         <button onClick={() => setView("sector")} disabled={view === "sector"}>
           {t("Sector", { defaultValue: "Industries" })}

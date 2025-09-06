@@ -352,7 +352,12 @@ async def snapshot_pages(
     return results
 
 
-def build_pdf(pages: List[PageDoc], pdf_path: Path, font_path: Optional[Path] = None):
+def build_pdf(
+    pages: List[PageDoc],
+    pdf_path: Path,
+    font_path: Optional[Path] = None,
+    summary: Optional[str] = None,
+):
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     unicode_font = False
     if font_path and font_path.exists() and font_path.suffix.lower() == ".ttf":
@@ -388,6 +393,12 @@ def build_pdf(pages: List[PageDoc], pdf_path: Path, font_path: Optional[Path] = 
         title = d.title.strip() or d.url
         url_wrapped = _wrap_url_for_pdf(d.url)
         multicell(f"{d.idx:03}  {title}  -  {url_wrapped}")
+
+    if summary:
+        pdf.add_page()
+        cell("Site-wide Summary", size=16, bold=True)
+        pdf.ln(2)
+        multicell(summary, size=11)
 
     for d in pages:
         pdf.add_page()
@@ -560,10 +571,41 @@ async def main_async(ns: argparse.Namespace):
         concurrency=max(1, ns.concurrency),
         page_timeout_ms=ns.page_timeout_ms,
     )
+    analyses = [d.analysis for d in pages if d.analysis]
+    summary_text = ""
+    if analyses:
+        try:
+            client = OpenAI()
+            combined = "\n\n".join(analyses)
+            resp = await asyncio.to_thread(
+                client.chat.completions.create,
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Given the following per-page analyses, provide an overall summary of the site's strengths and weaknesses.",
+                            },
+                            {"type": "text", "text": combined},
+                        ],
+                    }
+                ],
+            )
+            summary_text = resp.choices[0].message.content.strip()
+        except Exception as e:
+            logging.warning("Site-wide summary failed: %s", e)
 
-    build_pdf(pages, PDF_PATH, FONT_PATH if FONT_PATH else None)
+    if summary_text:
+        summary_path = OUTPUT_DIR / "summary.md"
+        summary_path.write_text(f"# Site Summary\n\n{summary_text}\n", encoding="utf-8")
+
+    build_pdf(pages, PDF_PATH, FONT_PATH if FONT_PATH else None, summary=summary_text or None)
     print(f"OK • {len(pages)} pages → {out_dir}")
     print(f"- PDF: {PDF_PATH}")
+    if summary_text:
+        print(f"- Summary: {summary_path}")
     print(f"- Screenshots: {SCREENSHOT_DIR}")
     print(f"- Markdown: {MARKDOWN_DIR}")
 

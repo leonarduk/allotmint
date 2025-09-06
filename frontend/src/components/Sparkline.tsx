@@ -1,43 +1,38 @@
 import React, { useMemo } from "react";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 
-type SparklineDataProps = {
-  data: number[];
+type SparklineBaseProps = {
   width?: number;
   height?: number;
+  color?: string;
+  ariaLabel?: string;
+  tabIndex?: number;
 };
 
-type SparklineFetchProps = {
+type SparklineDataProps = SparklineBaseProps & {
+  data: number[] | { price: number }[];
+  ticker?: never;
+  days?: never;
+};
+
+type SparklineFetchProps = SparklineBaseProps & {
   ticker: string;
   days: number;
-  width?: number;
-  height?: number;
+  data?: never;
 };
 
 type SparklineProps = SparklineDataProps | SparklineFetchProps;
 
-/**
- * Renders a small SVG sparkline.
- * - If `data` is provided, it will render directly from the numeric series.
- * - If `ticker` and `days` are provided, it fetches history and renders close/close_gbp values.
- * Kept dependency-light for simple testing and predictable rendering.
- */
-export function Sparkline(props: SparklineProps) {
-  const width = props.width ?? 100;
-  const height = props.height ?? 20;
-
-  // Build numeric series either from props.data or fetched history
-  const series: number[] = ((): number[] => {
-    if ("data" in props) return props.data ?? [];
-
-    const { ticker, days } = props;
-    const { data } = useInstrumentHistory(ticker, days);
-    const points = data?.[String(days)] ?? [];
-    return points
-      .map((p: any) => (p.close_gbp ?? p.close) as number | undefined)
-      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
-  })();
-
+function SparklineSvg({
+  series,
+  width = 100,
+  height = 20,
+  color = "#8884d8",
+  ariaLabel = "Price trend",
+  tabIndex = 0,
+}: {
+  series: number[];
+} & Required<Pick<SparklineBaseProps, "width" | "height" | "color" | "ariaLabel" | "tabIndex">>) {
   const pointsAttr = useMemo(() => {
     if (series.length === 0) return "";
     const max = Math.max(...series);
@@ -54,14 +49,99 @@ export function Sparkline(props: SparklineProps) {
   }, [series, width, height]);
 
   if (series.length === 0) {
-    return <svg width={width} height={height} data-testid="sparkline-empty" />;
+    return (
+      <svg
+        width={width}
+        height={height}
+        role="img"
+        aria-label={ariaLabel}
+        tabIndex={tabIndex}
+        data-testid="sparkline-empty"
+      />
+    );
   }
 
   return (
-    <svg width={width} height={height} data-testid="sparkline">
-      <polyline points={pointsAttr} fill="none" stroke="currentColor" />
+    <svg
+      width={width}
+      height={height}
+      role="img"
+      aria-label={ariaLabel}
+      tabIndex={tabIndex}
+      data-testid="sparkline"
+    >
+      <polyline points={pointsAttr} fill="none" stroke={color} />
     </svg>
   );
 }
 
-export default Sparkline;
+function SparklineFromData({
+  data,
+  width,
+  height,
+  color,
+  ariaLabel,
+  tabIndex,
+}: SparklineDataProps) {
+  const series =
+    (data as any[])?.map((d) =>
+      typeof d === "number" ? d : (d?.price as number),
+    ).filter((v) => typeof v === "number" && Number.isFinite(v)) ?? [];
+
+  return (
+    <SparklineSvg
+      series={series}
+      width={width ?? 100}
+      height={height ?? 20}
+      color={color ?? "#8884d8"}
+      ariaLabel={ariaLabel ?? "Price trend"}
+      tabIndex={tabIndex ?? 0}
+    />
+  );
+}
+
+function SparklineFromFetch({
+  ticker,
+  days,
+  width,
+  height,
+  color,
+  ariaLabel,
+  tabIndex,
+}: SparklineFetchProps) {
+  const { data } = useInstrumentHistory(ticker, days);
+  const points = data?.[String(days)] ?? [];
+  const series =
+    points
+      .map(
+        (p: any) =>
+          (p.close_gbp ?? p.close ?? p.price) as number | undefined,
+      )
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v)) ??
+    [];
+
+  return (
+    <SparklineSvg
+      series={series}
+      width={width ?? 100}
+      height={height ?? 20}
+      color={color ?? "#8884d8"}
+      ariaLabel={ariaLabel ?? `Price trend for ${ticker}`}
+      tabIndex={tabIndex ?? 0}
+    />
+  );
+}
+
+/**
+ * Sparkline
+ * - Use <Sparkline data={[...]} /> to render from a numeric series (or [{price}]).
+ * - Or <Sparkline ticker="VWRL.L" days={90} /> to fetch and render history.
+ * - Accessible with role="img" and aria-label.
+ * - No external charting libs; lightweight SVG for easy testing.
+ */
+export default function Sparkline(props: SparklineProps) {
+  if ("data" in props) {
+    return <SparklineFromData {...props} />;
+  }
+  return <SparklineFromFetch {...props} />;
+}

@@ -46,30 +46,55 @@ export default function Alerts() {
     estimateSize: () => 32,
     overscan: 5,
   });
+
   const virtualRows = rowVirtualizer.getVirtualItems();
   const paddingTop = virtualRows.length ? virtualRows[0].start : 0;
   const paddingBottom = virtualRows.length
     ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
     : 0;
+
+  // Fallback items before measurement so we still render something
   const items = virtualRows.length
     ? virtualRows
     : alerts.map((_, index) => ({ index, start: index * 32, end: (index + 1) * 32 }));
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>{error}</div>;
-  if (alerts.length === 0) return <div>No alerts.</div>;
+  if (loading) {
+    return (
+      <div role="status" aria-live="polite">
+        Loading...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" aria-live="assertive">
+        {error}
+      </div>
+    );
+  }
+
+  if (alerts.length === 0) {
+    return (
+      <div role="status" aria-live="polite">
+        No alerts.
+      </div>
+    );
+  }
 
   return (
     <div
       ref={parentRef}
       style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "hidden" }}
+      aria-live="polite"
     >
       <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
         {paddingTop > 0 && <li style={{ height: paddingTop }} />}
         {items.map((virtualRow) => {
           const a = alerts[virtualRow.index];
+          const key = (a as any)?.id ?? `${a.ticker}-${virtualRow.index}`;
           return (
-            <li key={virtualRow.index} style={{ height: 32 }}>
+            <li key={key} style={{ height: 32, display: "flex", alignItems: "center" }}>
               <strong>{a.ticker}</strong>: {a.message}
             </li>
           );

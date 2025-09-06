@@ -13,7 +13,6 @@ import logging
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from backend.common.data_loader import (
     list_plots,  # owner -> ["isa", "sipp", ...]
@@ -29,9 +28,9 @@ log = logging.getLogger("portfolio_loader")
 # ────────────────────────────────────────────────────────────────
 # Private helpers
 # ────────────────────────────────────────────────────────────────
-def _load_accounts_for_owner(owner: str, acct_names: List[str]) -> List[Dict]:
+def _load_accounts_for_owner(owner: str, acct_names: list[str]) -> list[dict]:
     """Load every <owner>/<account>.json and return the parsed dicts."""
-    accounts: List[Dict] = []
+    accounts: list[dict] = []
     for name in acct_names:
         try:
             acct = load_account(owner, name)
@@ -43,7 +42,7 @@ def _load_accounts_for_owner(owner: str, acct_names: List[str]) -> List[Dict]:
     return accounts
 
 
-def _build_owner_portfolio(owner_summary: Dict) -> Dict:
+def _build_owner_portfolio(owner_summary: dict) -> dict:
     """
     owner_summary ≅ {'owner': 'alex', 'accounts': ['isa', 'sipp']}
     returns        ≅ {
@@ -65,16 +64,16 @@ def _build_owner_portfolio(owner_summary: Dict) -> Dict:
 # ────────────────────────────────────────────────────────────────
 # Public API
 # ────────────────────────────────────────────────────────────────
-def list_portfolios() -> List[Dict]:
+def list_portfolios() -> list[dict]:
     """Discover every owner / account on disk and build a portfolio tree."""
-    portfolios: List[Dict] = []
+    portfolios: list[dict] = []
     for owner_row in list_plots():
         portfolios.append(_build_owner_portfolio(owner_row))
     return portfolios
 
 
 # (Optional) convenience helper - not used by the current backend, but handy.
-def load_portfolio(owner: str) -> Dict | None:
+def load_portfolio(owner: str) -> dict | None:
     """Return a single owner's portfolio tree, or None if owner not found."""
     for pf in list_portfolios():
         if pf["owner"].lower() == owner.lower():
@@ -88,8 +87,8 @@ def load_portfolio(owner: str) -> Dict | None:
 def rebuild_account_holdings(
     owner: str,
     account: str,
-    accounts_root: Optional[Path] = None,
-) -> Dict[str, any]:
+    accounts_root: Path | None = None,
+) -> dict[str, object]:
     """Recreate ``<account>.json`` from its ``*_transactions.json`` file.
 
     The implementation mirrors the logic from
@@ -179,7 +178,7 @@ def rebuild_account_holdings(
     for tick, qty in ledger.items():
         if abs(qty) < 1e-9:
             continue
-        h: Dict[str, any] = {"ticker": tick, "units": qty, "cost_basis_gbp": 0.0}
+        h: dict[str, object] = {"ticker": tick, "units": qty, "cost_basis_gbp": 0.0}
         acq_date = acquisition.get(tick)
         if acq_date:
             h["acquired_date"] = acq_date

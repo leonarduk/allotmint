@@ -76,25 +76,25 @@ function PortfolioDashboard({
         <div className={metricStyles.metricCard}>
           <div className={metricStyles.metricLabel}>Alpha vs Benchmark</div>
           <div className={metricStyles.metricValue}>
-            {percentOrNa(alpha != null ? alpha * 100 : null)}
+            {percentOrNa(alpha)}
           </div>
         </div>
         <div className={metricStyles.metricCard}>
           <div className={metricStyles.metricLabel}>Tracking Error</div>
           <div className={metricStyles.metricValue}>
-            {percentOrNa(trackingError != null ? trackingError * 100 : null)}
+            {percentOrNa(trackingError)}
           </div>
         </div>
         <div className={metricStyles.metricCard}>
           <div className={metricStyles.metricLabel}>Max Drawdown</div>
           <div className={metricStyles.metricValue}>
-            {percentOrNa(maxDrawdown != null ? maxDrawdown * 100 : null)}
+            {percentOrNa(maxDrawdown)}
           </div>
         </div>
         <div className={metricStyles.metricCard}>
           <div className={metricStyles.metricLabel}>Volatility</div>
           <div className={metricStyles.metricValue}>
-            {percentOrNa(volatility != null ? volatility * 100 : null)}
+            {percentOrNa(volatility)}
           </div>
         </div>
       </div>

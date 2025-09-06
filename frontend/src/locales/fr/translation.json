@@ -6,19 +6,22 @@
     "last": "Dernier :",
     "loading": "Chargement…",
     "supportLink": "Support",
+    "logout": "Déconnexion",
     "modes": {
       "group": "Groupe",
       "instrument": "Instrument",
       "owner": "Membre",
       "performance": "Performance",
       "transactions": "Transactions",
-      "screener": "Screener & Query",
+      "trading": "Trading",
+      "screener": "Filtre & Requête",
       "timeseries": "Séries temporelles",
-      "watchlist": "Watchlist",
+      "watchlist": "Liste de suivi",
+      "allocation": "Allocation",
       "movers": "Movers",
-      "instrumentadmin": "Instrument Admin",
-      "dataadmin": "Data Admin",
-      "settings": "User Settings",
+      "instrumentadmin": "Administration des instruments",
+      "dataadmin": "Administration des données",
+      "settings": "Paramètres utilisateur",
       "profile": "Profil",
       "reports": "Rapports",
       "support": "Support",
@@ -171,6 +174,13 @@
   },
   "watchlist": {
     "refresh": "Actualiser"
+  },
+  "trading": {
+    "noPositions": "Aucune position.",
+    "noSignals": "Aucun signal."
+  },
+  "timeseries": {
+    "loading": "Chargement…"
   },
   "query": {
     "start": "Début",

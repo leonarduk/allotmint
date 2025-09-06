@@ -1,10 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import path from 'node:path'
+
+const staticDir = path.resolve(__dirname, 'dist')
+const pageRoutes: string[] = []
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [
+export default defineConfig(async ({ command }) => {
+  const plugins = [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -22,7 +26,7 @@ export default defineConfig({
   ]
 
   if (command === 'build') {
-    const vitePrerender = require('vite-plugin-prerender')
+    const { default: vitePrerender } = await import('vite-plugin-prerender')
     plugins.push(
       vitePrerender({
         staticDir,
@@ -44,7 +48,6 @@ export default defineConfig({
             }
             return 'assets/[name]-[hash][extname]'
           }
-          return 'assets/[name]-[hash][extname]'
         }
       }
     }

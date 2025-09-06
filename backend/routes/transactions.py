@@ -184,8 +184,10 @@ async def create_transaction(tx: TransactionCreate) -> dict:
         _unlock_file(f)
 
     try:
-        portfolio_loader.rebuild_account_holdings(owner, account, Path(config.accounts_root))
-        portfolio_mod.build_owner_portfolio(owner, Path(config.accounts_root))
+        accounts_root = Path(config.accounts_root)
+        if not config.offline_mode:
+            portfolio_loader.rebuild_account_holdings(owner, account, accounts_root)
+        portfolio_mod.build_owner_portfolio(owner, accounts_root)
     except FileNotFoundError as exc:
         log.warning("Portfolio rebuild failed: %s", exc)
 

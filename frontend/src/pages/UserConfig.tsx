@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   getOwners,
   getUserConfig,
@@ -7,36 +7,42 @@ import {
   getApprovals,
   addApproval,
   removeApproval,
-} from "../api";
-import type { Approval, OwnerSummary, UserConfig } from "../types";
+} from '../api';
+import type { Approval, OwnerSummary, UserConfig } from '../types';
 
 export default function UserConfigPage() {
   const { t } = useTranslation();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
-  const [owner, setOwner] = useState("");
+  const [owner, setOwner] = useState('');
   const [cfg, setCfg] = useState<UserConfig>({});
   const [status, setStatus] = useState<string | null>(null);
   const [approvals, setApprovals] = useState<Approval[]>([]);
-  const [newTicker, setNewTicker] = useState("");
-  const [newDate, setNewDate] = useState("");
+  const [newTicker, setNewTicker] = useState('');
+  const [newDate, setNewDate] = useState('');
   const [approvalsError, setApprovalsError] = useState<string | null>(null);
 
   useEffect(() => {
-    getOwners().then(setOwners).catch(() => {
-      /* ignore */
-    });
+    getOwners()
+      .then(setOwners)
+      .catch(() => {
+        /* ignore */
+      });
   }, []);
 
   useEffect(() => {
     if (owner) {
       getUserConfig(owner)
         .then((res) => {
-          const toArrayOrNull = (val: unknown) =>
-            Array.isArray(val) ? val : val == null ? null : [];
+          const toArrayOrUndefined = (val: unknown): string[] | undefined =>
+            Array.isArray(val) ? val : undefined;
           setCfg({
             ...res,
-            approval_exempt_tickers: toArrayOrNull(res.approval_exempt_tickers),
-            approval_exempt_types: toArrayOrNull(res.approval_exempt_types),
+            approval_exempt_tickers: toArrayOrUndefined(
+              res.approval_exempt_tickers
+            ),
+            approval_exempt_types: toArrayOrUndefined(
+              res.approval_exempt_types
+            ),
           });
         })
         .catch(() => {
@@ -49,7 +55,7 @@ export default function UserConfigPage() {
         })
         .catch(() => {
           setApprovals([]);
-          setApprovalsError("Failed to load approvals");
+          setApprovalsError('Failed to load approvals');
         });
     }
   }, [owner]);
@@ -57,12 +63,12 @@ export default function UserConfigPage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!owner) return;
-    setStatus("saving");
+    setStatus('saving');
     try {
       await updateUserConfig(owner, cfg);
-      setStatus("saved");
+      setStatus('saved');
     } catch {
-      setStatus("error");
+      setStatus('error');
     }
   }
 
@@ -72,11 +78,11 @@ export default function UserConfigPage() {
     try {
       const res = await addApproval(owner, newTicker, newDate);
       setApprovals(res.approvals);
-      setNewTicker("");
-      setNewDate("");
+      setNewTicker('');
+      setNewDate('');
       setApprovalsError(null);
     } catch {
-      setApprovalsError("Failed to add approval");
+      setApprovalsError('Failed to add approval');
     }
   }
 
@@ -87,19 +93,21 @@ export default function UserConfigPage() {
       setApprovals(res.approvals);
       setApprovalsError(null);
     } catch {
-      setApprovalsError("Failed to remove approval");
+      setApprovalsError('Failed to remove approval');
     }
   }
 
   return (
     <div className="container mx-auto max-w-xl space-y-4 p-4">
-      <h1 className="text-2xl md:text-4xl">{t("userConfig.title", "User Settings")}</h1>
+      <h1 className="text-2xl md:text-4xl">
+        {t('userConfig.title', 'User Settings')}
+      </h1>
       <select
         className="w-full border p-2"
         value={owner}
         onChange={(e) => setOwner(e.target.value)}
       >
-        <option value="">{t("userConfig.selectOwner", "Select owner")}</option>
+        <option value="">{t('userConfig.selectOwner', 'Select owner')}</option>
         {owners.map((o) => (
           <option key={o.owner} value={o.owner}>
             {o.owner}
@@ -111,28 +119,30 @@ export default function UserConfigPage() {
           <form onSubmit={save} className="space-y-2">
             <div>
               <label className="block text-sm">
-                {t("userConfig.holdDays", "Min Hold Days")}
+                {t('userConfig.holdDays', 'Min Hold Days')}
               </label>
               <input
                 type="number"
                 className="w-full border p-1"
-                value={cfg.hold_days_min ?? ""}
+                value={cfg.hold_days_min ?? ''}
                 onChange={(e) =>
                   setCfg({
                     ...cfg,
-                    hold_days_min: e.target.value ? Number(e.target.value) : undefined,
+                    hold_days_min: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
                   })
                 }
               />
             </div>
             <div>
               <label className="block text-sm">
-                {t("userConfig.maxTrades", "Max Trades / Month")}
+                {t('userConfig.maxTrades', 'Max Trades / Month')}
               </label>
               <input
                 type="number"
                 className="w-full border p-1"
-                value={cfg.max_trades_per_month ?? ""}
+                value={cfg.max_trades_per_month ?? ''}
                 onChange={(e) =>
                   setCfg({
                     ...cfg,
@@ -145,16 +155,15 @@ export default function UserConfigPage() {
             </div>
             <div>
               <label className="block text-sm">
-                {t("userConfig.exemptTickers", "Approval Exempt Tickers")}
+                {t('userConfig.exemptTickers', 'Approval Exempt Tickers')}
               </label>
               <input
                 type="text"
                 className="w-full border p-1"
-                value={(
-                  Array.isArray(cfg.approval_exempt_tickers)
-                    ? cfg.approval_exempt_tickers
-                    : []
-                ).join(",")}
+                value={(Array.isArray(cfg.approval_exempt_tickers)
+                  ? cfg.approval_exempt_tickers
+                  : []
+                ).join(',')}
                 onChange={(e) =>
                   setCfg({
                     ...cfg,
@@ -167,16 +176,15 @@ export default function UserConfigPage() {
             </div>
             <div>
               <label className="block text-sm">
-                {t("userConfig.exemptTypes", "Approval Exempt Types")}
+                {t('userConfig.exemptTypes', 'Approval Exempt Types')}
               </label>
               <input
                 type="text"
                 className="w-full border p-1"
-                value={(
-                  Array.isArray(cfg.approval_exempt_types)
-                    ? cfg.approval_exempt_types
-                    : []
-                ).join(",")}
+                value={(Array.isArray(cfg.approval_exempt_types)
+                  ? cfg.approval_exempt_types
+                  : []
+                ).join(',')}
                 onChange={(e) =>
                   setCfg({
                     ...cfg,
@@ -190,20 +198,24 @@ export default function UserConfigPage() {
             <button
               type="submit"
               className="bg-blue-500 px-4 py-2 text-white"
-              disabled={status === "saving"}
+              disabled={status === 'saving'}
             >
-              {status === "saving"
-                ? t("userConfig.saving", "Saving...")
-                : t("userConfig.save", "Save")}
+              {status === 'saving'
+                ? t('userConfig.saving', 'Saving...')
+                : t('userConfig.save', 'Save')}
             </button>
-            {status === "saved" && <span>{t("userConfig.saved", "Saved")}</span>}
-            {status === "error" && (
-              <span className="text-red-500">{t("userConfig.error", "Error")}</span>
+            {status === 'saved' && (
+              <span>{t('userConfig.saved', 'Saved')}</span>
+            )}
+            {status === 'error' && (
+              <span className="text-red-500">
+                {t('userConfig.error', 'Error')}
+              </span>
             )}
           </form>
           <div className="space-y-2 pt-4">
             <h2 className="text-xl">
-              {t("userConfig.approvals", "Approvals")}
+              {t('userConfig.approvals', 'Approvals')}
             </h2>
             <table className="w-full border">
               <thead>
@@ -224,7 +236,7 @@ export default function UserConfigPage() {
                         className="text-red-500"
                         onClick={() => remove(a.ticker)}
                       >
-                        {t("userConfig.remove", "Remove")}
+                        {t('userConfig.remove', 'Remove')}
                       </button>
                     </td>
                   </tr>
@@ -249,7 +261,7 @@ export default function UserConfigPage() {
                 onChange={(e) => setNewDate(e.target.value)}
               />
               <button type="submit" className="bg-blue-500 px-2 text-white">
-                {t("userConfig.add", "Add")}
+                {t('userConfig.add', 'Add')}
               </button>
             </form>
           </div>

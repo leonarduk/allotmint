@@ -16,7 +16,9 @@ class ResizeObserver {
 declare global {
   interface GlobalThis {
     ResizeObserver: typeof ResizeObserver;
+    sparks: Record<string, any>;
   }
 }
 
 globalThis.ResizeObserver = ResizeObserver;
+globalThis.sparks = {};

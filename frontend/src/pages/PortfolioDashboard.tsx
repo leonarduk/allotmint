@@ -14,7 +14,7 @@ import {
   getMaxDrawdown,
 } from '../api';
 import type { PerformancePoint } from '../types';
-import { percent } from '../lib/money';
+import { percent, percentOrNa } from '../lib/money';
 import i18n from '../i18n';
 
 interface Props {
@@ -164,7 +164,7 @@ export function PortfolioDashboard({ owner }: Props) {
             Alpha vs Benchmark
           </div>
           <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-            {percent(alpha != null ? alpha * 100 : null)}
+            {percentOrNa(alpha)}
           </div>
         </div>
         <div>
@@ -172,19 +172,19 @@ export function PortfolioDashboard({ owner }: Props) {
             Tracking Error
           </div>
           <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-            {percent(trackingError != null ? trackingError * 100 : null)}
+            {percentOrNa(trackingError)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: '0.9rem', color: '#aaa' }}>Max Drawdown</div>
           <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-            {percent(maxDrawdown != null ? maxDrawdown * 100 : null)}
+            {percentOrNa(maxDrawdown)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: '0.9rem', color: '#aaa' }}>Volatility</div>
           <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
-            {percent(volatility != null ? volatility * 100 : null)}
+            {percentOrNa(volatility)}
           </div>
         </div>
       </div>

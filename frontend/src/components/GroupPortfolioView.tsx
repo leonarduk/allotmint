@@ -17,7 +17,7 @@ import {
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { TopMoversSummary } from "./TopMoversSummary";
-import { money, percent } from "../lib/money";
+import { money, percent, percentOrNa } from "../lib/money";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { useFetch } from "../hooks/useFetch";
@@ -227,19 +227,19 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Alpha vs Benchmark</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percent(alpha != null ? alpha * 100 : null)}
+            {percentOrNa(alpha)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Tracking Error</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percent(trackingError != null ? trackingError * 100 : null)}
+            {percentOrNa(trackingError)}
           </div>
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percent(maxDrawdown != null ? maxDrawdown * 100 : null)}
+            {percentOrNa(maxDrawdown)}
           </div>
         </div>
       </div>

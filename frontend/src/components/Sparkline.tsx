@@ -139,9 +139,11 @@ function SparklineFromFetch({
  * - Accessible with role="img" and aria-label.
  * - No external charting libs; lightweight SVG for easy testing.
  */
-export default function Sparkline(props: SparklineProps) {
+export function Sparkline(props: SparklineProps) {
   if ("data" in props) {
     return <SparklineFromData {...props} />;
   }
   return <SparklineFromFetch {...props} />;
 }
+
+export default Sparkline;

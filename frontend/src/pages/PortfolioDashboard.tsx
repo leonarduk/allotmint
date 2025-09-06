@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Line,
   LineChart,
@@ -6,16 +6,17 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
+} from "recharts";
 import {
   getPerformance,
   getAlphaVsBenchmark,
   getTrackingError,
   getMaxDrawdown,
-} from '../api';
-import type { PerformancePoint } from '../types';
-import { percent } from '../lib/money';
-import i18n from '../i18n';
+} from "../api";
+import type { PerformancePoint } from "../types";
+import { percent } from "../lib/money";
+import i18n from "../i18n";
+import metricStyles from "../styles/metrics.module.css";
 
 interface Props {
   owner: string | null;
@@ -51,7 +52,7 @@ export function PortfolioDashboard({ owner }: Props) {
   }, [owner, days, excludeCash]);
 
   if (!owner) return <p>Select a member.</p>;
-  if (err) return <p style={{ color: 'red' }}>{err}</p>;
+  if (err) return <p className="text-red-500">{err}</p>;
   if (!data.length) return <p>Loading…</p>;
 
   const last = data[data.length - 1];
@@ -78,14 +79,14 @@ export function PortfolioDashboard({ owner }: Props) {
   }
 
   return (
-    <div style={{ marginTop: '1rem' }}>
-      <div style={{ marginBottom: '0.5rem' }}>
-        <label style={{ fontSize: '0.85rem' }}>
+    <div className="mt-4">
+      <div className="mb-2">
+        <label className="text-[0.85rem]">
           Range:
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            style={{ marginLeft: '0.25rem' }}
+            className="ml-1"
           >
             <option value={7}>1W</option>
             <option value={30}>1M</option>
@@ -94,96 +95,72 @@ export function PortfolioDashboard({ owner }: Props) {
             <option value={0}>MAX</option>
           </select>
         </label>
-        <label style={{ fontSize: '0.85rem', marginLeft: '1rem' }}>
+        <label className="text-[0.85rem] ml-4">
           Exclude cash
           <input
             type="checkbox"
             checked={excludeCash}
             onChange={(e) => setExcludeCash(e.target.checked)}
-            style={{ marginLeft: '0.25rem' }}
+            className="ml-1"
           />
         </label>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: '2rem',
-          marginBottom: '1rem',
-          padding: '0.75rem 1rem',
-          backgroundColor: '#222',
-          border: '1px solid #444',
-          borderRadius: '6px',
-        }}
-      >
-        <div>
-          <div style={{ fontSize: '0.9rem', color: '#aaa' }}>TWR</div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+      <div className={metricStyles.metricContainer}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>TWR</div>
+          <div className={metricStyles.metricValue}>
             {percent(twr != null ? twr * 100 : null)}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: '0.9rem', color: '#aaa' }}>IRR</div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>IRR</div>
+          <div className={metricStyles.metricValue}>
             {percent(irr != null ? irr * 100 : null)}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: '0.9rem', color: '#aaa' }}>Best Day</div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Best Day</div>
+          <div className={metricStyles.metricValue}>
             {percent(bestDay != null ? bestDay * 100 : null)}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: '0.9rem', color: '#aaa' }}>Worst Day</div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Worst Day</div>
+          <div className={metricStyles.metricValue}>
             {percent(worstDay != null ? worstDay * 100 : null)}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: '0.9rem', color: '#aaa' }}>Last Day</div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Last Day</div>
+          <div className={metricStyles.metricValue}>
             {percent(lastDay != null ? lastDay * 100 : null)}
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: '2rem',
-          marginBottom: '1rem',
-          padding: '0.75rem 1rem',
-          backgroundColor: '#222',
-          border: '1px solid #444',
-          borderRadius: '6px',
-        }}
-      >
-        <div>
-          <div style={{ fontSize: '0.9rem', color: '#aaa' }}>
-            Alpha vs Benchmark
-          </div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+      <div className={metricStyles.metricContainer}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Alpha vs Benchmark</div>
+          <div className={metricStyles.metricValue}>
             {percent(alpha != null ? alpha * 100 : null)}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: '0.9rem', color: '#aaa' }}>
-            Tracking Error
-          </div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Tracking Error</div>
+          <div className={metricStyles.metricValue}>
             {percent(trackingError != null ? trackingError * 100 : null)}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: '0.9rem', color: '#aaa' }}>Max Drawdown</div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Max Drawdown</div>
+          <div className={metricStyles.metricValue}>
             {percent(maxDrawdown != null ? maxDrawdown * 100 : null)}
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: '0.9rem', color: '#aaa' }}>Volatility</div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+        <div className={metricStyles.metricCard}>
+          <div className={metricStyles.metricLabel}>Volatility</div>
+          <div className={metricStyles.metricValue}>
             {percent(volatility != null ? volatility * 100 : null)}
           </div>
         </div>
@@ -199,7 +176,7 @@ export function PortfolioDashboard({ owner }: Props) {
         </LineChart>
       </ResponsiveContainer>
 
-      <h2 style={{ marginTop: '2rem' }}>Cumulative Return</h2>
+      <h2 className="mt-8">Cumulative Return</h2>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>
           <XAxis dataKey="date" />

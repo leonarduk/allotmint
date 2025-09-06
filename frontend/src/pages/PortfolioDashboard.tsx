@@ -7,6 +7,8 @@ import {
   YAxis,
 } from "recharts";
 import { percent, percentOrNa } from "../lib/money";
+import metricStyles from "../styles/metrics.module.css";
+import { Link } from "react-router-dom";
 
 type Props = {
   twr: number | null;
@@ -122,6 +124,9 @@ function PortfolioDashboard({
           />
         </LineChart>
       </ResponsiveContainer>
+      <p className="mt-8">
+        <Link to="/goals">View Goals</Link>
+      </p>
     </>
   );
 }

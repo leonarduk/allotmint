@@ -10,7 +10,7 @@ import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Sparkline } from "./Sparkline";
+import Sparkline from "./Sparkline";
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 

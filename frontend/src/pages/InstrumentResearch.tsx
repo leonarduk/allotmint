@@ -1,13 +1,21 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { getInstrumentDetail, getScreener } from "../api";
 import type { ScreenerResult, InstrumentDetail } from "../types";
+import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
+import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
   const [detail, setDetail] = useState<InstrumentDetail | null>(null);
   const [metrics, setMetrics] = useState<ScreenerResult | null>(null);
+  const [days, setDays] = useState(30);
+  const [showBollinger, setShowBollinger] = useState(false);
+  const { t } = useTranslation();
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
+  const { data: history, loading: historyLoading } = useInstrumentHistory(tkr, days);
+  const historyPrices = history?.[String(days)] ?? [];
 
   useEffect(() => {
     if (!tkr) return;
@@ -40,6 +48,31 @@ export default function InstrumentResearch() {
         </Link>
         <Link to="/watchlist">Watchlist</Link>
       </div>
+      <div style={{ marginBottom: "0.5rem" }}>
+        {[7, 30, 180, 365].map((d) => (
+          <button
+            key={d}
+            onClick={() => setDays(d)}
+            disabled={days === d}
+            style={{ marginRight: "0.5rem" }}
+          >
+            {d}d
+          </button>
+        ))}
+        <label style={{ marginLeft: "1rem", fontSize: "0.85rem" }}>
+          <input
+            type="checkbox"
+            checked={showBollinger}
+            onChange={(e) => setShowBollinger(e.target.checked)}
+          />{" "}
+          {t("instrumentDetail.bollingerBands")}
+        </label>
+      </div>
+      <InstrumentHistoryChart
+        data={historyPrices}
+        loading={historyLoading}
+        showBollinger={showBollinger}
+      />
       {metrics && (
         <table style={{ marginBottom: "1rem" }}>
           <tbody>

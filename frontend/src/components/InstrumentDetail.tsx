@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { getInstrumentDetail } from "../api";
 import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
@@ -17,6 +9,7 @@ import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import type { TradingSignal } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import { InstrumentHistoryChart } from "./InstrumentHistoryChart";
 
 type Props = {
   ticker: string;
@@ -113,22 +106,7 @@ export function InstrumentDetail({
     return { ...p, change_gbp, change_pct };
   });
 
-  const prices = withChanges.map((p, i, arr) => {
-    const start = Math.max(0, i - 19);
-    const slice = arr.slice(start, i + 1);
-    const mean = slice.reduce((sum, s) => sum + s.close_gbp, 0) / slice.length;
-    const variance =
-      slice.reduce((sum, s) => sum + Math.pow(s.close_gbp - mean, 2), 0) /
-      slice.length;
-    const stdDev = Math.sqrt(variance);
-    const hasFullWindow = slice.length === 20;
-    return {
-      ...p,
-      bb_mid: hasFullWindow ? mean : NaN,
-      bb_upper: hasFullWindow ? mean + 2 * stdDev : NaN,
-      bb_lower: hasFullWindow ? mean - 2 * stdDev : NaN,
-    };
-  });
+  const prices = withChanges;
 
   // 7d / 30d change calculations
   const latestClose = rawPrices[rawPrices.length - 1]?.close_gbp ?? NaN;
@@ -249,52 +227,11 @@ export function InstrumentDetail({
           {t("instrumentDetail.bollingerBands")}
         </label>
       </div>
-      {loading ? (
-        <div
-          style={{
-            height: 220,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {t("app.loading")}
-        </div>
-      ) : (
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={prices}>
-            <XAxis dataKey="date" hide />
-            <YAxis domain={["auto", "auto"]} />
-            <Tooltip wrapperStyle={{ color: "#000" }} labelStyle={{ color: "#000" }} />
-            {showBollinger && (
-              <>
-                <Line
-                  type="monotone"
-                  dataKey="bb_upper"
-                  stroke="#8884d8"
-                  dot={false}
-                  strokeDasharray="3 3"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="bb_mid"
-                  stroke="#ff7300"
-                  dot={false}
-                  strokeDasharray="5 5"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="bb_lower"
-                  stroke="#8884d8"
-                  dot={false}
-                  strokeDasharray="3 3"
-                />
-              </>
-            )}
-            <Line type="monotone" dataKey="close_gbp" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      )}
+      <InstrumentHistoryChart
+        data={prices}
+        loading={loading}
+        showBollinger={showBollinger}
+      />
 
       {/* Positions */}
       <h3 style={{ marginTop: "1.5rem" }}>{t("instrumentDetail.positions")}</h3>

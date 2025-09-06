@@ -6,6 +6,7 @@
     "last": "Scorso:",
     "loading": "Caricamento…",
     "supportLink": "Supporto",
+    "userLink": "App",
     "logout": "Logout",
     "modes": {
       "group": "Gruppo",
@@ -18,6 +19,7 @@
       "timeseries": "Timeserie",
       "watchlist": "Elenco di guardia",
       "allocation": "Allocazione",
+      "rebalance": "Rebalance",
       "movers": "Movers",
       "instrumentadmin": "Amministratore dello strumento",
       "dataadmin": "Data Admin",
@@ -126,6 +128,10 @@
       "max": "Max"
     },
     "bollingerBands": "Bande Bollinger",
+    "ma20": "20d MA",
+    "ma50": "50d MA",
+    "ma200": "200d MA",
+    "rsi": "RSI",
     "positions": "Posizioni",
     "columns": {
       "account": "Account",

@@ -17,7 +17,7 @@ type Props = {
 
 export function InstrumentTable({ rows }: Props) {
     const { t } = useTranslation();
-    const { relativeViewEnabled } = useConfig();
+    const { relativeViewEnabled, baseCurrency } = useConfig();
     const [selected, setSelected] = useState<InstrumentSummary | null>(null);
     const [visibleColumns, setVisibleColumns] = useState({
         units: true,
@@ -205,14 +205,24 @@ export function InstrumentTable({ rows }: Props) {
                                     </td>
                                 )}
                                 {!relativeViewEnabled && visibleColumns.cost && (
-                                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(r.cost)}</td>
+                                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                                        {money(
+                                            r.cost,
+                                            r.market_value_currency || baseCurrency,
+                                        )}
+                                    </td>
                                 )}
                                 {!relativeViewEnabled && visibleColumns.market && (
-                                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>{money(r.market_value_gbp)}</td>
+                                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                                        {money(
+                                            r.market_value_gbp,
+                                            r.market_value_currency || baseCurrency,
+                                        )}
+                                    </td>
                                 )}
                                 {!relativeViewEnabled && visibleColumns.gain && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`} style={{ color: gainColour }}>
-                                        {money(r.gain_gbp)}
+                                        {money(r.gain_gbp, r.gain_currency || baseCurrency)}
                                     </td>
                                 )}
                                 {visibleColumns.gain_pct && (
@@ -225,7 +235,12 @@ export function InstrumentTable({ rows }: Props) {
                                 )}
                                 {!relativeViewEnabled && (
                                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                                        {r.last_price_gbp != null ? money(r.last_price_gbp) : "—"}
+                                        {r.last_price_gbp != null
+                                            ? money(
+                                                  r.last_price_gbp,
+                                                  r.last_price_currency || baseCurrency,
+                                              )
+                                            : "—"}
                                     </td>
                                 )}
                                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>

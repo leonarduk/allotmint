@@ -39,3 +39,11 @@ export const percentOrNa = (
     }
     return percent(v * 100, fractionDigits, locale);
 };
+
+export const largeNumber = (
+    v: number | null | undefined,
+    locale: string = i18n.language,
+): string => {
+    if (typeof v !== "number" || !Number.isFinite(v)) return "—";
+    return new Intl.NumberFormat(locale).format(v);
+};

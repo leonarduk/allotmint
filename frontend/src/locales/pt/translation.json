@@ -32,7 +32,11 @@
   "common": {
     "error": "Erro",
     "loading": "Carregando…",
-    "other": "Outro"
+    "other": "Outro",
+    "ticker": "Ticker",
+    "name": "Nome",
+    "action": "Ação",
+    "reason": "Motivo"
   },
   "instrumentType": {
     "equity": "Ação",
@@ -178,6 +182,15 @@
   "trading": {
     "noPositions": "Sem posições.",
     "noSignals": "Sem sinais."
+  },
+  "movers": {
+    "watchlist": "Lista de observação:",
+    "period": "Período:",
+    "excludeSmall": "Excluir posições <{{min}}%",
+    "loginPrompt": "Faça login para ver os movers baseados no portfólio.",
+    "loadFailed": "Falha ao carregar os movers{{status}}",
+    "signal": "Sinal",
+    "pctPortfolio": "% do portfólio"
   },
   "timeseries": {
     "loading": "Carregando…"

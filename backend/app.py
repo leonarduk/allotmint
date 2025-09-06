@@ -50,6 +50,7 @@ from backend.routes.movers import router as movers_router
 from backend.routes.performance import router as performance_router
 from backend.routes.portfolio import public_router as public_portfolio_router
 from backend.routes.portfolio import router as portfolio_router
+from backend.routes.pension import router as pension_router
 from backend.routes.query import router as query_router
 from backend.routes.quotes import router as quotes_router
 from backend.routes.scenario import router as scenario_router
@@ -219,6 +220,7 @@ def create_app() -> FastAPI:
     app.include_router(logs_router)
     app.include_router(goals_router, dependencies=protected)
     app.include_router(tax_router, dependencies=protected)
+    app.include_router(pension_router)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):

@@ -125,7 +125,8 @@ function PortfolioDashboard({
         </LineChart>
       </ResponsiveContainer>
       <p className="mt-8">
-        <Link to="/goals">View Goals</Link>
+        <Link to="/goals">View Goals</Link> |{" "}
+        <Link to="/pension/forecast">Pension Forecast</Link>
       </p>
     </>
   );

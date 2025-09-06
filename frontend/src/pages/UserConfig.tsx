@@ -65,7 +65,12 @@ export default function UserConfigPage() {
     if (!owner) return;
     setStatus('saving');
     try {
-      await updateUserConfig(owner, cfg);
+      const payload: any = {
+        ...cfg,
+        approval_exempt_tickers: cfg.approval_exempt_tickers ?? [],
+        approval_exempt_types: cfg.approval_exempt_types ?? null,
+      };
+      await updateUserConfig(owner, payload);
       setStatus('saved');
     } catch {
       setStatus('error');

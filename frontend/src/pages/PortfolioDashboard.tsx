@@ -21,6 +21,7 @@ type Props = {
   maxDrawdown: number | null;
   volatility: number | null;
   data: { date: string; value: number; cumulative_return: number }[];
+  owner?: string;
 };
 
 function PortfolioDashboard({
@@ -34,7 +35,9 @@ function PortfolioDashboard({
   maxDrawdown,
   volatility,
   data,
+  owner,
 }: Props) {
+  void owner;
   return (
     <>
       <div className={metricStyles.metricContainer}>

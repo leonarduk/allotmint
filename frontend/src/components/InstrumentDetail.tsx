@@ -76,6 +76,10 @@ export function InstrumentDetail({
   const [err, setErr] = useState<string | null>(null);
   const [currencyFromData, setCurrencyFromData] = useState<string | null>(null);
   const [showBollinger, setShowBollinger] = useState(false);
+  const [showMA20, setShowMA20] = useState(false);
+  const [showMA50, setShowMA50] = useState(false);
+  const [showMA200, setShowMA200] = useState(false);
+  const [showRSI, setShowRSI] = useState(false);
   const [days, setDays] = useState<number>(365);
 
   useEffect(() => {
@@ -114,19 +118,54 @@ export function InstrumentDetail({
   });
 
   const prices = withChanges.map((p, i, arr) => {
-    const start = Math.max(0, i - 19);
-    const slice = arr.slice(start, i + 1);
-    const mean = slice.reduce((sum, s) => sum + s.close_gbp, 0) / slice.length;
+    const slice20 = arr.slice(Math.max(0, i - 19), i + 1);
+    const mean20 =
+      slice20.reduce((sum, s) => sum + s.close_gbp, 0) / slice20.length;
     const variance =
-      slice.reduce((sum, s) => sum + Math.pow(s.close_gbp - mean, 2), 0) /
-      slice.length;
+      slice20.reduce((sum, s) => Math.pow(s.close_gbp - mean20, 2) + sum, 0) /
+      slice20.length;
     const stdDev = Math.sqrt(variance);
-    const hasFullWindow = slice.length === 20;
+    const has20 = slice20.length === 20;
+
+    const slice50 = arr.slice(Math.max(0, i - 49), i + 1);
+    const mean50 =
+      slice50.reduce((sum, s) => sum + s.close_gbp, 0) / slice50.length;
+    const has50 = slice50.length === 50;
+
+    const slice200 = arr.slice(Math.max(0, i - 199), i + 1);
+    const mean200 =
+      slice200.reduce((sum, s) => sum + s.close_gbp, 0) / slice200.length;
+    const has200 = slice200.length === 200;
+
+    const rsiSlice = arr.slice(Math.max(0, i - 14), i + 1);
+    let rsi = NaN;
+    if (rsiSlice.length === 15) {
+      let gains = 0;
+      let losses = 0;
+      for (let j = 1; j < rsiSlice.length; j++) {
+        const diff = rsiSlice[j].close_gbp - rsiSlice[j - 1].close_gbp;
+        if (diff >= 0) gains += diff;
+        else losses -= diff;
+      }
+      const avgGain = gains / 14;
+      const avgLoss = losses / 14;
+      if (avgLoss === 0) rsi = 100;
+      else if (avgGain === 0) rsi = 0;
+      else {
+        const rs = avgGain / avgLoss;
+        rsi = 100 - 100 / (1 + rs);
+      }
+    }
+
     return {
       ...p,
-      bb_mid: hasFullWindow ? mean : NaN,
-      bb_upper: hasFullWindow ? mean + 2 * stdDev : NaN,
-      bb_lower: hasFullWindow ? mean - 2 * stdDev : NaN,
+      bb_mid: has20 ? mean20 : NaN,
+      bb_upper: has20 ? mean20 + 2 * stdDev : NaN,
+      bb_lower: has20 ? mean20 - 2 * stdDev : NaN,
+      ma20: has20 ? mean20 : NaN,
+      ma50: has50 ? mean50 : NaN,
+      ma200: has200 ? mean200 : NaN,
+      rsi,
     };
   });
 
@@ -248,6 +287,38 @@ export function InstrumentDetail({
           />{" "}
           {t("instrumentDetail.bollingerBands")}
         </label>
+        <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+          <input
+            type="checkbox"
+            checked={showMA20}
+            onChange={(e) => setShowMA20(e.target.checked)}
+          />{" "}
+          {t("instrumentDetail.ma20")}
+        </label>
+        <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+          <input
+            type="checkbox"
+            checked={showMA50}
+            onChange={(e) => setShowMA50(e.target.checked)}
+          />{" "}
+          {t("instrumentDetail.ma50")}
+        </label>
+        <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+          <input
+            type="checkbox"
+            checked={showMA200}
+            onChange={(e) => setShowMA200(e.target.checked)}
+          />{" "}
+          {t("instrumentDetail.ma200")}
+        </label>
+        <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+          <input
+            type="checkbox"
+            checked={showRSI}
+            onChange={(e) => setShowRSI(e.target.checked)}
+          />{" "}
+          {t("instrumentDetail.rsi")}
+        </label>
       </div>
       {loading ? (
         <div
@@ -264,7 +335,8 @@ export function InstrumentDetail({
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={prices}>
             <XAxis dataKey="date" hide />
-            <YAxis domain={["auto", "auto"]} />
+            <YAxis yAxisId="price" domain={["auto", "auto"]} />
+            {showRSI && <YAxis yAxisId="rsi" domain={[0, 100]} orientation="right" />}
             <Tooltip wrapperStyle={{ color: "#000" }} labelStyle={{ color: "#000" }} />
             {showBollinger && (
               <>
@@ -274,6 +346,7 @@ export function InstrumentDetail({
                   stroke="#8884d8"
                   dot={false}
                   strokeDasharray="3 3"
+                  yAxisId="price"
                 />
                 <Line
                   type="monotone"
@@ -281,6 +354,7 @@ export function InstrumentDetail({
                   stroke="#ff7300"
                   dot={false}
                   strokeDasharray="5 5"
+                  yAxisId="price"
                 />
                 <Line
                   type="monotone"
@@ -288,10 +362,47 @@ export function InstrumentDetail({
                   stroke="#8884d8"
                   dot={false}
                   strokeDasharray="3 3"
+                  yAxisId="price"
                 />
               </>
             )}
-            <Line type="monotone" dataKey="close_gbp" dot={false} />
+            {showMA20 && (
+              <Line
+                type="monotone"
+                dataKey="ma20"
+                stroke="#ff7300"
+                dot={false}
+                yAxisId="price"
+              />
+            )}
+            {showMA50 && (
+              <Line
+                type="monotone"
+                dataKey="ma50"
+                stroke="#00bfff"
+                dot={false}
+                yAxisId="price"
+              />
+            )}
+            {showMA200 && (
+              <Line
+                type="monotone"
+                dataKey="ma200"
+                stroke="#800080"
+                dot={false}
+                yAxisId="price"
+              />
+            )}
+            {showRSI && (
+              <Line
+                type="monotone"
+                dataKey="rsi"
+                stroke="#ff0000"
+                dot={false}
+                yAxisId="rsi"
+              />
+            )}
+            <Line type="monotone" dataKey="close_gbp" dot={false} yAxisId="price" />
           </LineChart>
         </ResponsiveContainer>
       )}

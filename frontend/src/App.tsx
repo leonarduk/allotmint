@@ -50,6 +50,10 @@ import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
 import Menu from "./components/Menu";
 
+interface AppProps {
+  onLogout?: () => void;
+}
+
 type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile";
 
 // derive initial mode + id from path

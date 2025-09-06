@@ -117,6 +117,15 @@ export default function Menu({
             {t(`app.modes.${p.id}`)}
           </Link>
         ))}
+      <Link
+        to={mode === 'support' ? pathFor('group') : '/support'}
+        style={{
+          marginRight: '1rem',
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {t(mode === 'support' ? 'app.userLink' : 'app.supportLink')}
+      </Link>
       {onLogout && (
         <button
           type="button"

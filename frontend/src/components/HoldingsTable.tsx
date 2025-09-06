@@ -13,6 +13,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
 import Sparkline from "./Sparkline";
 
+declare const sparks: Record<string, Record<string, any[]>>;
+
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 
 type Props = {

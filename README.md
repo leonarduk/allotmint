@@ -279,6 +279,9 @@ open http://localhost:5173/
 - **Authentication**:
   - Set `API_TOKEN` and include it as an `X-API-Token` header in requests, or
   - Leave `API_TOKEN` unset to disable authentication during local development.
+  - A previous username/password flow using `OAuth2PasswordRequestForm` has been
+    removed. Reintroduce it manually if needed by recreating a login endpoint
+    that validates credentials and issues tokens with `create_access_token`.
   See the [Authentication](USER_README.md#authentication) section for details.
 
 ## Alerts

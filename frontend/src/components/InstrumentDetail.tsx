@@ -65,7 +65,7 @@ export function InstrumentDetail({
   onClose,
 }: Props) {
   const { t } = useTranslation();
-  const { relativeViewEnabled } = useConfig();
+  const { relativeViewEnabled, baseCurrency } = useConfig();
   const [data, setData] = useState<{
     prices: Price[];
     positions: Position[];
@@ -457,7 +457,7 @@ export function InstrumentDetail({
                 )}
                 {!relativeViewEnabled && (
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {money(pos.market_value_gbp)}
+                    {money(pos.market_value_gbp, baseCurrency)}
                   </td>
                 )}
                 {!relativeViewEnabled && (
@@ -469,7 +469,7 @@ export function InstrumentDetail({
                         : "red",
                     }}
                   >
-                    {money(pos.unrealised_gain_gbp)}
+                    {money(pos.unrealised_gain_gbp, baseCurrency)}
                   </td>
                 )}
                 <td
@@ -537,13 +537,13 @@ export function InstrumentDetail({
                       )}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {money(p.close_gbp)}
+                      {money(p.close_gbp, baseCurrency)}
                     </td>
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}
                       style={{ color: colour }}
                     >
-                      {money(p.change_gbp)}
+                      {money(p.change_gbp, baseCurrency)}
                     </td>
                     <td
                       className={`${tableStyles.cell} ${tableStyles.right}`}

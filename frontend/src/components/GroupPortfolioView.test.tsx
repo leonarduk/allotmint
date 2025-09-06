@@ -119,7 +119,6 @@ const mockAllFetches = (
     } as Response);
   });
   vi.stubGlobal("fetch", fetchMock);
-  (globalThis as any).sparks = {};
   return fetchMock;
 };
 

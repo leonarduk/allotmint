@@ -21,6 +21,7 @@ declare global {
 }
 
 globalThis.ResizeObserver = ResizeObserver;
-// Some components expect a global `sparks` object with sparkline data.
-// Provide an empty stub to satisfy references in tests.
-(globalThis as any).sparks = {};
+// Provide default sparkline data container to satisfy components referencing it
+// in tests. In the application this is populated elsewhere.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+globalThis.sparks = {} as Record<string, Record<string, any[]>>;

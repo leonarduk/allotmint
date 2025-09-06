@@ -32,7 +32,8 @@
   "common": {
     "error": "Fehler",
     "loading": "Laden…",
-    "other": "Andere"
+    "other": "Andere",
+    "period": "Zeitraum:"
   },
   "instrumentType": {
     "equity": "Aktie",
@@ -241,5 +242,10 @@
     "ticker": "Ticker is required",
     "name": "Name is required"
   }
-}
+  },
+  "var": {
+    "title": "Value at Risk",
+    "details": "Details der historischen Simulation",
+    "noData": "Keine VaR-Daten verfügbar."
+  }
 }

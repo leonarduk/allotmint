@@ -1,8 +1,10 @@
 import pytest
+
 from backend.utils.positions import (
+    extract_dividends_from_transactions,
     extract_holdings_from_transactions,
-    get_unique_tickers,
     get_name_map_from_xml,
+    get_unique_tickers,
 )
 
 
@@ -73,6 +75,12 @@ def portfolio_xml(tmp_path):
         <shares>20000000</shares>
         <security reference="sec2" />
       </portfolio-transaction>
+      <portfolio-transaction>
+        <date>2023-06-01</date>
+        <type>DIVIDEND</type>
+        <amount>1234</amount>
+        <security reference="sec1" />
+      </portfolio-transaction>
     </account>
     <account>
       <name>B</name>
@@ -99,6 +107,12 @@ def portfolio_xml(tmp_path):
         <type>TRANSFER_OUT</type>
         <shares>10000000</shares>
         <security reference="sec1" />
+      </portfolio-transaction>
+      <portfolio-transaction>
+        <date>2023-06-15</date>
+        <type>DIVIDEND</type>
+        <amount>5678</amount>
+        <security reference="sec2" />
       </portfolio-transaction>
     </account>
   </accounts>
@@ -155,3 +169,10 @@ def test_get_name_map_from_xml(portfolio_xml):
     assert name_map["FOO"] == "Foo Corp (FOO)"
     assert name_map["US0000002"] == "Bar Inc (BAR)"
     assert name_map["BAR"] == "Bar Inc (BAR)"
+
+
+def test_extract_dividends(portfolio_xml):
+    df = extract_dividends_from_transactions(portfolio_xml, by_account=True)
+    rec = {(r["account"], r["ticker"]): r for _, r in df.iterrows()}
+    assert rec[("A", "FOO")]["amount_minor"] == 1234
+    assert rec[("B", "BAR")]["amount_minor"] == 5678

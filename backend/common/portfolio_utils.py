@@ -870,24 +870,37 @@ def compute_xirr(owner: str, days: int = 365) -> float | None:
         )
 
     rate = 0.1
+    converged = False
     for _ in range(100):
-        f = xnpv(rate)
+        try:
+            f = float(xnpv(rate))
+        except (OverflowError, ValueError, TypeError):
+            return None
         if abs(f) < 1e-6:
+            converged = True
             break
-        df = sum(
-            -( (d - start).days / 365.0 ) * amt /
-            (1.0 + rate) ** ( (d - start).days / 365.0 + 1 )
-            for d, amt in flows
-        )
-        if df == 0:
-            break
+        try:
+            df = float(
+                sum(
+                    -((d - start).days / 365.0) * amt /
+                    (1.0 + rate) ** ((d - start).days / 365.0 + 1)
+                    for d, amt in flows
+                )
+            )
+        except (OverflowError, ValueError, TypeError):
+            return None
+        if df == 0 or not math.isfinite(df):
+            return None
         rate_new = rate - f / df
+        if not math.isfinite(rate_new) or rate_new <= -1:
+            return None
         if abs(rate_new - rate) < 1e-7:
             rate = rate_new
+            converged = True
             break
         rate = rate_new
 
-    if not math.isfinite(rate):
+    if not converged or not math.isfinite(rate):
         return None
     return float(rate)
 

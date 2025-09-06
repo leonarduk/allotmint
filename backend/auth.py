@@ -14,6 +14,17 @@ from fastapi.security import OAuth2PasswordBearer
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
+try:
+    from botocore.exceptions import BotoCoreError, ClientError
+except ImportError:  # pragma: no cover - botocore is optional in tests
+
+    class BotoCoreError(Exception):
+        """Fallback when botocore isn't installed."""
+
+    class ClientError(Exception):
+        """Fallback when botocore isn't installed."""
+
+
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     PLOTS_PREFIX,
@@ -40,7 +51,12 @@ current_user: ContextVar[str | None] = ContextVar("current_user", default=None)
 
 
 def _allowed_emails() -> Set[str]:
-    """Return the set of configured account emails."""
+    """Return the set of configured account emails.
+
+    When running in AWS, owner metadata is loaded from S3. If this request
+    fails, the exception is logged and an empty set is returned so that login
+    attempts are rejected cleanly.
+    """
 
     emails: Set[str] = set()
 
@@ -72,8 +88,9 @@ def _allowed_emails() -> Set[str]:
                         token = resp.get("NextContinuationToken")
                     else:
                         break
-            except Exception:
-                pass
+            except (BotoCoreError, ClientError):
+                logger.exception("Failed to list allowed emails from S3")
+                return set()
         for owner in owners:
             try:
                 meta = load_person_meta(owner)

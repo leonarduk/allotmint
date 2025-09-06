@@ -1,22 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
-import { readdirSync } from 'node:fs'
-import { createRequire } from 'module'
-
-const require = createRequire(import.meta.url)
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const staticDir = resolve(__dirname, 'dist')
-const pageRoutes = readdirSync(resolve(__dirname, 'src/pages'))
-  .filter((f) => f.endsWith('.tsx') && !f.endsWith('.test.tsx'))
-  .map((f) => '/' + f.replace(/\.tsx$/, '').toLowerCase())
 
 // https://vite.dev/config/
-export default defineConfig(({ command }) => {
-  const plugins = [
+export default defineConfig({
+  plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -56,8 +44,10 @@ export default defineConfig(({ command }) => {
             }
             return 'assets/[name]-[hash][extname]'
           }
+          return 'assets/[name]-[hash][extname]'
         }
       }
     }
   }
 })
+

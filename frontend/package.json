@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "prepare": "husky"
+    "prepare": "[ -d .git ] && husky || true"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.12",
@@ -22,7 +22,6 @@
     "react-toastify": "^10.0.0",
     "recharts": "^3.1.2",
     "sharp": "^0.34.3",
-    "vite-plugin-prerender": "^1.0.8",
     "vite-plugin-ssr": "^0.4.142"
   },
   "devDependencies": {
@@ -63,5 +62,8 @@
     "*.{json,css,md}": [
       "prettier --check"
     ]
+  },
+  "overrides": {
+    "glob": "^10.3.10"
   }
 }

@@ -8,7 +8,7 @@ configurable time-to-live (TTL) controlled by the ``fundamentals_cache_ttl_secon
 setting in :mod:`backend.config`. The TTL is capped between one and seven days.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import requests
@@ -86,7 +86,7 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         )
 
     key = (ticker.upper(), date.today().isoformat())
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
 
     if key in _CACHE:
         cached_at, cached_value = _CACHE[key]

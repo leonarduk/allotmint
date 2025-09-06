@@ -25,15 +25,17 @@ def sample_accounts():
     root = Path(__file__).resolve().parents[1] / "data" / "accounts"
     for owner_dir in root.iterdir():
         if owner_dir.is_dir():
+            files = list(owner_dir.glob("*.json"))
+            stems_lower = {f.stem.lower() for f in files}
             accounts = []
-            for p in owner_dir.glob("*.json"):
-                if p.stem == "person":
+            for p in files:
+                stem = p.stem
+                lower = stem.lower()
+                if lower == "person":
                     continue
-                if p.stem.endswith("_transactions") and (
-                    owner_dir / f"{p.stem[:-13]}.json"
-                ).exists():
+                if lower.endswith("_transactions") and lower[:-13] in stems_lower:
                     continue
-                accounts.append(p.stem)
+                accounts.append(stem)
             yield owner_dir.name, accounts
 
 

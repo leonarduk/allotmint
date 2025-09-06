@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -50,10 +50,10 @@ def test_per_instrument_throttling(monkeypatch):
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     class DummyDatetime(datetime):
-        current = datetime(2024, 1, 1, 0, 0, 0)
+        current = datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)
 
         @classmethod
-        def utcnow(cls):
+        def now(cls, tz=None):
             return cls.current
 
     monkeypatch.setattr(alerts, "datetime", DummyDatetime)
@@ -82,10 +82,10 @@ def test_publish_only_on_state_change(monkeypatch):
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     class DummyDatetime(datetime):
-        current = datetime(2024, 1, 1, 0, 0, 0)
+        current = datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)
 
         @classmethod
-        def utcnow(cls):
+        def now(cls, tz=None):
             return cls.current
 
     monkeypatch.setattr(alerts, "datetime", DummyDatetime)

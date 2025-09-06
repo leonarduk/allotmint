@@ -1,6 +1,6 @@
 from typing import Dict
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from backend import alerts as alert_utils
@@ -51,7 +51,7 @@ async def set_settings(user: str, payload: ThresholdPayload, request: Request):
 async def add_push_subscription(user: str, payload: PushSubscriptionPayload, request: Request):
     """Persist a Web Push subscription for ``user``."""
     _validate_owner(user, request)
-    alert_utils.set_user_push_subscription(user, payload.dict())
+    alert_utils.set_user_push_subscription(user, payload.model_dump())
     return {"status": "ok"}
 
 

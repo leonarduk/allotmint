@@ -8,7 +8,7 @@ Light-weight time-series download endpoint for AllotMint.
 
 import io
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -101,7 +101,7 @@ def get_timeseries(
     df.to_csv(buf, index=False)
     buf.seek(0)
 
-    filename = f"{ticker}_{period}_{interval}_{datetime.utcnow():%Y%m%d}.csv"
+    filename = f"{ticker}_{period}_{interval}_{datetime.now(UTC):%Y%m%d}.csv"
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
 
     return StreamingResponse(buf, media_type="text/csv", headers=headers)

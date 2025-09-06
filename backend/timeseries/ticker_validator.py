@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -27,7 +27,7 @@ def record_skipped_ticker(ticker: str, exchange: str, *, reason: str = "") -> No
     """Append ticker to the skipped log for later auditing."""
     try:
         SKIPPED_TICKERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        ts = datetime.utcnow().isoformat()
+        ts = datetime.now(UTC).isoformat()
         line = f"{ts},{ticker},{exchange},{reason}\n"
         with SKIPPED_TICKERS_FILE.open("a", encoding="utf-8") as f:
             f.write(line)

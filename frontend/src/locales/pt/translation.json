@@ -6,19 +6,22 @@
     "last": "Último:",
     "loading": "Carregando…",
     "supportLink": "Suporte",
+    "logout": "Sair",
     "modes": {
       "group": "Grupo",
       "instrument": "Instrumento",
       "owner": "Membro",
       "performance": "Desempenho",
       "transactions": "Transações",
-      "screener": "Screener & Query",
+      "trading": "Negociação",
+      "screener": "Filtro e consulta",
       "timeseries": "Série temporal",
-      "watchlist": "Watchlist",
+      "watchlist": "Lista de observação",
+      "allocation": "Alocação",
       "movers": "Movers",
-      "instrumentadmin": "Instrument Admin",
-      "dataadmin": "Data Admin",
-      "settings": "User Settings",
+      "instrumentadmin": "Administração de instrumentos",
+      "dataadmin": "Administração de dados",
+      "settings": "Configurações do usuário",
       "profile": "Perfil",
       "reports": "Relatórios",
       "support": "Suporte",
@@ -166,8 +169,18 @@
   "portfolio": "Portfólio",
   "asOf": "Em {{date}} • Negociações este mês: {{trades}} / 20 (Restantes: {{remaining}})",
   "approxTotal": "Total aproximado: £{{value}}",
+  "allocation": {
+    "instrumentTypes": "Tipos de instrumentos"
+  },
   "watchlist": {
     "refresh": "Atualizar"
+  },
+  "trading": {
+    "noPositions": "Sem posições.",
+    "noSignals": "Sem sinais."
+  },
+  "timeseries": {
+    "loading": "Carregando…"
   },
   "query": {
     "start": "Início",
@@ -230,12 +243,13 @@
     "sector": "Sector",
     "actions": "Actions",
     "add": "Add Instrument",
-    "save": "Save",
-    "saveSuccess": "Saved",
-    "saveError": "Error saving",
-    "validation": {
-      "ticker": "Ticker is required",
-      "name": "Name is required"
-    }
+  "save": "Save",
+  "saveSuccess": "Saved",
+  "saveError": "Error saving",
+  "searchPlaceholder": "Filter instruments…",
+  "validation": {
+    "ticker": "Ticker is required",
+    "name": "Name is required"
   }
+}
 }

@@ -18,45 +18,44 @@ interface Row {
   _originalExchange?: string;
 }
 
-const initialFilters: Record<string, Filter<Row, unknown>> = {
-  search: {
-    value: "",
-    predicate: (row, value) => {
-      const v = value as string;
-      return (
-        row.ticker.toLowerCase().includes(v.toLowerCase()) ||
-        row.exchange.toLowerCase().includes(v.toLowerCase()) ||
-        row.name.toLowerCase().includes(v.toLowerCase()) ||
-        (row.region ?? "").toLowerCase().includes(v.toLowerCase()) ||
-        (row.sector ?? "").toLowerCase().includes(v.toLowerCase())
-      );
-    },
-  },
-} satisfies Record<string, Filter<Row, unknown>>;
-
 export default function InstrumentAdmin() {
   const { t } = useTranslation();
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const { rows: filteredRows } = useFilterableTable(rows, "ticker", initialFilters);
+
+  const {
+    rows: filteredRows,
+    setFilter,
+    filters,
+  } = useFilterableTable<Row, { search: Filter<Row, unknown> }>(rows, "ticker", {
+    search: {
+      value: "" as unknown,
+      predicate: (row, value) => {
+        if (!value) return true;
+        const q = String(value).toLowerCase();
+        return [row.ticker, row.exchange, row.name, row.region ?? "", row.sector ?? ""]
+          .some((field) => field.toLowerCase().includes(q));
+      },
+    },
+  });
 
   useEffect(() => {
     listInstrumentMetadata()
       .then((data) =>
         setRows(
-          data.map((r) => {
-            const [sym, exch] = r.ticker.split(".");
-            const exchange = (r as any).exchange ?? exch ?? "";
+          data.map((r: any) => {
+            const [sym, exch] = String(r.ticker ?? "").split(".");
+            const exchange = r.exchange ?? exch ?? "";
             return {
-              ticker: sym,
+              ticker: sym ?? "",
               exchange,
-              name: r.name,
+              name: r.name ?? "",
               region: r.region ?? "",
               sector: r.sector ?? "",
-              _originalTicker: sym,
+              _originalTicker: sym ?? "",
               _originalExchange: exchange,
-            };
+            } as Row;
           }),
         ),
       )
@@ -105,18 +104,18 @@ export default function InstrumentAdmin() {
       setMessage(t("instrumentadmin.saveSuccess"));
       const fresh = await listInstrumentMetadata();
       setRows(
-        fresh.map((r) => {
-          const [sym, exch] = r.ticker.split(".");
-          const exchange = (r as any).exchange ?? exch ?? "";
+        fresh.map((r: any) => {
+          const [sym, exch] = String(r.ticker ?? "").split(".");
+          const exchange = r.exchange ?? exch ?? "";
           return {
-            ticker: sym,
+            ticker: sym ?? "",
             exchange,
-            name: r.name,
+            name: r.name ?? "",
             region: r.region ?? "",
             sector: r.sector ?? "",
-            _originalTicker: sym,
+            _originalTicker: sym ?? "",
             _originalExchange: exchange,
-          };
+          } as Row;
         }),
       );
     } catch (e) {
@@ -134,6 +133,13 @@ export default function InstrumentAdmin() {
         {t("app.modes.instrumentadmin")}
       </h2>
       {message && <p>{message}</p>}
+      <input
+        type="text"
+        placeholder={t("instrumentadmin.searchPlaceholder")}
+        value={String((filters as any).search ?? "")}
+        onChange={(e) => setFilter("search", e.target.value)}
+        style={{ marginBottom: "0.5rem", display: "block" }}
+      />
       <button
         type="button"
         onClick={handleAdd}
@@ -197,4 +203,3 @@ export default function InstrumentAdmin() {
     </div>
   );
 }
-

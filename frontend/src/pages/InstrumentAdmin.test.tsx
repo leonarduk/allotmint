@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../api", () => ({
   listInstrumentMetadata: vi.fn().mockResolvedValue([
     { ticker: "AAA.L", name: "Alpha", region: "EU", sector: "Tech" },
+    { ticker: "BBB.N", name: "Beta", region: "US", sector: "Finance" },
   ]),
   createInstrumentMetadata: vi.fn().mockResolvedValue({}),
   updateInstrumentMetadata: vi.fn().mockResolvedValue({}),
@@ -21,8 +22,28 @@ describe("InstrumentAdmin page", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByDisplayValue("AAA")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /save/i })[0]);
     await waitFor(() => expect(updateInstrumentMetadata).toHaveBeenCalled());
+  });
+
+  it("filters rows based on search", async () => {
+    render(
+      <MemoryRouter>
+        <InstrumentAdmin />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByDisplayValue("AAA")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("BBB")).toBeInTheDocument();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("Filter instruments…"),
+      { target: { value: "beta" } },
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue("AAA")).not.toBeInTheDocument();
+      expect(screen.getByDisplayValue("BBB")).toBeInTheDocument();
+    });
   });
 });
 

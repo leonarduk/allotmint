@@ -1,21 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
-import { readdirSync } from 'node:fs'
-import { createRequire } from 'module'
+import path from 'node:path'
 
-const require = createRequire(import.meta.url)
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const staticDir = resolve(__dirname, 'dist')
-const pageRoutes = readdirSync(resolve(__dirname, 'src/pages'))
-  .filter((f) => f.endsWith('.tsx') && !f.endsWith('.test.tsx'))
-  .map((f) => '/' + f.replace(/\.tsx$/, '').toLowerCase())
+const staticDir = path.resolve(__dirname, 'dist')
+const pageRoutes: string[] = []
 
 // https://vite.dev/config/
-export default defineConfig(({ command }) => {
+export default defineConfig(async ({ command }) => {
   const plugins = [
     react(),
     VitePWA({
@@ -34,7 +26,7 @@ export default defineConfig(({ command }) => {
   ]
 
   if (command === 'build') {
-    const vitePrerender = require('vite-plugin-prerender').default
+    const { default: vitePrerender } = await import('vite-plugin-prerender')
     plugins.push(
       vitePrerender({
         staticDir,
@@ -61,3 +53,4 @@ export default defineConfig(({ command }) => {
     }
   }
 })
+

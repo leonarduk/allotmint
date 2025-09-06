@@ -31,6 +31,7 @@ export default memo(function InstrumentSearchBar() {
   const [sector, setSector] = useState("");
   const [region, setRegion] = useState("");
   const [results, setResults] = useState<Result[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [index, setIndex] = useState(-1);
   const listRef = useRef<HTMLUListElement | null>(null);
 
@@ -38,6 +39,7 @@ export default memo(function InstrumentSearchBar() {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       setResults([]);
+      setError(null);
       return;
     }
     const controller = new AbortController();
@@ -48,11 +50,15 @@ export default memo(function InstrumentSearchBar() {
         region || undefined,
         controller.signal,
       )
-        .then(setResults)
+        .then((res) => {
+          setResults(res);
+          setError(null);
+        })
         .catch((err) => {
           if (err.name !== "AbortError") {
             console.error(err);
             setResults([]);
+            setError("Search failed");
           }
         });
     }, 300);
@@ -91,6 +97,7 @@ export default memo(function InstrumentSearchBar() {
           onChange={(e) => {
             setQuery(e.target.value);
             setIndex(-1);
+            setError(null);
           }}
           onKeyDown={handleKeyDown}
           style={{ padding: "0.25rem" }}
@@ -121,6 +128,11 @@ export default memo(function InstrumentSearchBar() {
           ))}
         </select>
       </div>
+      {error && (
+        <div role="alert" style={{ color: "red" }}>
+          {error}
+        </div>
+      )}
       {results.length > 0 && (
         <ul
           ref={listRef}

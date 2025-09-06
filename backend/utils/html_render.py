@@ -1,3 +1,5 @@
+import html
+
 import pandas as pd
 from fastapi.responses import HTMLResponse
 from pandas import DataFrame
@@ -12,11 +14,14 @@ def render_timeseries_html(df: DataFrame, title: str, subtitle: str = "") -> HTM
 
     html_table = df.to_html(index=False, classes="table table-striped text-center", border=0)
 
+    escaped_title = html.escape(title)
+    escaped_subtitle = html.escape(subtitle)
+
     return HTMLResponse(
         content=f"""
     <html>
     <head>
-        <title>{title}</title>
+        <title>{escaped_title}</title>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
         <style>
             body {{ padding: 2rem; }}
@@ -26,7 +31,7 @@ def render_timeseries_html(df: DataFrame, title: str, subtitle: str = "") -> HTM
         </style>
     </head>
     <body>
-        <h2>{title}<br><small>{subtitle}</small></h2>
+        <h2>{escaped_title}<br><small>{escaped_subtitle}</small></h2>
         {html_table}
     </body>
     </html>

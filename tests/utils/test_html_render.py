@@ -53,3 +53,26 @@ def test_render_timeseries_html():
     # Snapshot for regression detection
     expected = (ROOT / "tests/snapshots/render_timeseries.html").read_text()
     assert html_str == expected
+
+
+def test_render_timeseries_html_escapes_title_and_subtitle():
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-01"]),
+            "Open": [1.0],
+            "High": [1.0],
+            "Low": [1.0],
+            "Close": [1.0],
+            "Volume": [1],
+            "Ticker": ["ABC"],
+            "Source": ["Test"],
+        }
+    )
+
+    response = render_timeseries_html(df, "Title <script>", "Sub <b>")
+    html_str = response.body.decode()
+
+    assert "&lt;script&gt;" in html_str
+    assert "<script>" not in html_str
+    assert "&lt;b&gt;" in html_str
+    assert "<b>" not in html_str

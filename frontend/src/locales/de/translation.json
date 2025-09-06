@@ -6,19 +6,22 @@
     "last": "Zuletzt:",
     "loading": "Laden…",
     "supportLink": "Support",
+    "logout": "Abmelden",
     "modes": {
       "group": "Gruppe",
       "instrument": "Instrument",
       "owner": "Mitglied",
       "performance": "Leistung",
       "transactions": "Transaktionen",
-      "screener": "Screener & Query",
+      "trading": "Handel",
+      "screener": "Filter & Abfrage",
       "timeseries": "Zeitreihe",
-      "watchlist": "Watchlist",
+      "watchlist": "Beobachtungsliste",
+      "allocation": "Allokation",
       "movers": "Movers",
-      "instrumentadmin": "Instrument Admin",
-      "dataadmin": "Data Admin",
-      "settings": "User Settings",
+      "instrumentadmin": "Instrumentverwaltung",
+      "dataadmin": "Datenverwaltung",
+      "settings": "Benutzereinstellungen",
       "profile": "Profil",
       "reports": "Berichte",
       "support": "Support",
@@ -37,7 +40,7 @@
     "cash": "Bargeld",
     "etf": "ETF",
     "fund": "Fonds",
-    "investmentTrust": "Investment Trust",
+    "investmentTrust": "Investmentgesellschaft",
     "realEstate": "Immobilien",
     "other": "Andere"
   },
@@ -166,8 +169,18 @@
   "portfolio": "Portfolio",
   "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",
   "approxTotal": "Ungefähre Summe: £{{value}}",
+  "allocation": {
+    "instrumentTypes": "Instrumenttypen"
+  },
   "watchlist": {
     "refresh": "Aktualisieren"
+  },
+  "trading": {
+    "noPositions": "Keine Positionen.",
+    "noSignals": "Keine Signale."
+  },
+  "timeseries": {
+    "loading": "Laden…"
   },
   "query": {
     "start": "Start",
@@ -220,12 +233,13 @@
     "sector": "Sector",
     "actions": "Actions",
     "add": "Add Instrument",
-    "save": "Save",
-    "saveSuccess": "Saved",
-    "saveError": "Error saving",
-    "validation": {
-      "ticker": "Ticker is required",
-      "name": "Name is required"
-    }
+  "save": "Save",
+  "saveSuccess": "Saved",
+  "saveError": "Error saving",
+  "searchPlaceholder": "Filter instruments…",
+  "validation": {
+    "ticker": "Ticker is required",
+    "name": "Name is required"
   }
+}
 }

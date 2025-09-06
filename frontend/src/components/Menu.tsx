@@ -129,7 +129,7 @@ export default function Menu({
             cursor: 'pointer',
           }}
         >
-          {t('app.logout', 'Logout')}
+          {t('app.logout')}
         </button>
       )}
     </nav>

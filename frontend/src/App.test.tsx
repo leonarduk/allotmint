@@ -169,6 +169,8 @@ describe("App", () => {
           tabs: { ...allTabs, movers: false },
           refreshConfig: vi.fn(),
           setRelativeViewEnabled: () => {},
+          baseCurrency: "GBP",
+          setBaseCurrency: () => {},
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>
@@ -241,6 +243,8 @@ describe("App", () => {
           tabs: allTabs,
           refreshConfig: vi.fn(),
           setRelativeViewEnabled: () => {},
+          baseCurrency: "GBP",
+          setBaseCurrency: () => {},
         }}
       >
         <MemoryRouter initialEntries={["/movers"]}>

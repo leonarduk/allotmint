@@ -32,6 +32,7 @@ import type {
   UserConfig,
   InstrumentMetadata,
   ApprovalsResponse,
+  NewsItem,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -155,6 +156,14 @@ export const getQuotes = (symbols: string[]) => {
         } as QuoteRow;
       }),
     );
+};
+
+/** Retrieve recent news headlines for a ticker. */
+export const getNews = (ticker: string, signal?: AbortSignal) => {
+  const params = new URLSearchParams({ ticker });
+  return fetchJson<NewsItem[]>(`${API_BASE}/news?${params.toString()}`, {
+    signal,
+  });
 };
 
 /** Retrieve top movers across tickers for a period. */

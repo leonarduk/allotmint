@@ -197,9 +197,7 @@ export default function MainApp() {
         open={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       />
-      {mode !== "support" && (
-        <Menu selectedOwner={selectedOwner} selectedGroup={selectedGroup} />
-      )}
+      <Menu selectedOwner={selectedOwner} selectedGroup={selectedGroup} />
 
       <Header
         tradesThisMonth={tradeInfo?.tradesThisMonth}

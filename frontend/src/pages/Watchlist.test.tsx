@@ -20,7 +20,8 @@ const sampleRows: QuoteRow[] = [
     change: 1,
     changePct: 10,
     volume: 1000,
-    time: "2024-01-01T00:00:00Z",
+    marketTime: "2024-01-01T00:00:00Z",
+    marketState: "REGULAR",
   },
   {
     name: "Beta",
@@ -32,7 +33,8 @@ const sampleRows: QuoteRow[] = [
     change: -1,
     changePct: -20,
     volume: 2000,
-    time: "2024-01-01T01:00:00Z",
+    marketTime: "2024-01-01T01:00:00Z",
+    marketState: "REGULAR",
   },
 ];
 
@@ -100,12 +102,81 @@ describe("Watchlist page", () => {
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
+      await vi.advanceTimersByTimeAsync(60000);
     });
     await act(async () => {
       await Promise.resolve();
     });
     expect(getQuotes).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("allows toggling refresh frequency", async () => {
+    vi.useFakeTimers();
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
+    localStorage.setItem("watchlistSymbols", "AAA");
+
+    render(<Watchlist />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+      target: { value: "0" },
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+      target: { value: "60000" },
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("skips auto-refresh when markets are closed", async () => {
+    vi.useFakeTimers();
+    const closed = sampleRows.map((r) => ({ ...r, marketState: "CLOSED" }));
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(closed);
+    localStorage.setItem("watchlistSymbols", "AAA");
+
+    render(<Watchlist />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Markets closed")).toBeInTheDocument();
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      vi.advanceTimersByTime(30000);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(1);
 
     vi.useRealTimers();
   });

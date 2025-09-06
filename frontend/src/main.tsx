@@ -24,6 +24,7 @@ const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
 const InstrumentResearch = lazy(() => import('./pages/InstrumentResearch'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Alerts = lazy(() => import('./pages/Alerts'))
+const Goals = lazy(() => import('./pages/Goals'))
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -68,6 +69,7 @@ export function Root() {
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/alerts" element={<Alerts />} />
+        <Route path="/goals" element={<Goals />} />
         <Route path="/*" element={<App onLogout={logout} />} />
       </Routes>
     </Suspense>

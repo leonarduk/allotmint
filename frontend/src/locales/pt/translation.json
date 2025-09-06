@@ -6,6 +6,7 @@
     "last": "Último:",
     "loading": "Carregando…",
     "supportLink": "Suporte",
+    "userLink": "App",
     "logout": "Sair",
     "modes": {
       "group": "Grupo",
@@ -18,6 +19,7 @@
       "timeseries": "Série temporal",
       "watchlist": "Lista de observação",
       "allocation": "Alocação",
+      "rebalance": "Rebalance",
       "movers": "Movers",
       "instrumentadmin": "Administração de instrumentos",
       "dataadmin": "Administração de dados",
@@ -126,6 +128,10 @@
       "max": "MÁX"
     },
     "bollingerBands": "Bandas de Bollinger",
+    "ma20": "20d MA",
+    "ma50": "50d MA",
+    "ma200": "200d MA",
+    "rsi": "RSI",
     "positions": "Posições",
     "columns": {
       "account": "Conta",
@@ -165,6 +171,8 @@
     "alphaVsBenchmark": "Alfa vs Referência",
     "trackingError": "Erro de acompanhamento",
     "maxDrawdown": "Máxima queda",
+    "timeWeightedReturn": "Retorno ponderado no tempo",
+    "xirr": "XIRR",
     "portfolioValue": "Valor da carteira",
     "cumulativeReturn": "Retorno acumulado"
   },

@@ -8,6 +8,7 @@ import type {
   OwnerSummary,
   Portfolio,
   PerformancePoint,
+  PerformanceResponse,
   ValueAtRiskResponse,
   VarBreakdown,
   AlphaResponse,
@@ -26,12 +27,14 @@ import type {
   MoverRow,
   TimeseriesSummary,
   ScenarioResult,
+  ScenarioEvent,
   TradeSuggestion,
   SectorContribution,
   RegionContribution,
   UserConfig,
   InstrumentMetadata,
   ApprovalsResponse,
+  NewsItem,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -121,7 +124,53 @@ export const refreshPrices = () =>
 /** Fetch quote snapshots for a list of symbols. */
 export const getQuotes = (symbols: string[]) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });
-  return fetchJson<QuoteRow[]>(`${API_BASE}/api/quotes?${params.toString()}`);
+  return fetchJson<{
+    symbol: string;
+    price: number | null;
+    open?: number | null;
+    high?: number | null;
+    low?: number | null;
+    previous_close?: number | null;
+    volume?: number | null;
+    timestamp?: number | null;
+    timezone?: string | null;
+    market_state?: string | null;
+  }[]>(`${API_BASE}/api/quotes?${params.toString()}`)
+    .then((rows) =>
+      rows.map((r) => {
+        const change =
+          r.price != null && r.previous_close != null
+            ? r.price - r.previous_close
+            : null;
+        const changePct =
+          change != null && r.previous_close
+            ? (change / r.previous_close) * 100
+            : null;
+        return {
+          name: null,
+          symbol: r.symbol,
+          last: r.price ?? null,
+          open: r.open ?? null,
+          high: r.high ?? null,
+          low: r.low ?? null,
+          change,
+          changePct,
+          volume: r.volume ?? null,
+          marketTime: r.timestamp
+            ? new Date(r.timestamp * 1000).toISOString()
+            : null,
+          marketState: r.market_state ?? "UNKNOWN",
+        } as QuoteRow;
+      }),
+    );
+};
+
+/** Retrieve recent news headlines for a ticker. */
+export const getNews = (ticker: string, signal?: AbortSignal) => {
+  const params = new URLSearchParams({ ticker });
+  return fetchJson<NewsItem[]>(`${API_BASE}/news?${params.toString()}`, {
+    signal,
+  });
 };
 
 /** Retrieve top movers across tickers for a period. */
@@ -155,10 +204,18 @@ export const getGroupMovers = (
   );
 };
 
-/** Apply a price shock scenario to all portfolios. */
-export const runScenario = (ticker: string, pct: number) => {
-  const params = new URLSearchParams({ ticker, pct: String(pct) });
-  return fetchJson<ScenarioResult[]>(`${API_BASE}/scenario?${params.toString()}`);
+/** Retrieve available predefined events for scenario testing. */
+export const getEvents = () => fetchJson<ScenarioEvent[]>(`${API_BASE}/events`);
+
+/** Apply a predefined scenario to all portfolios. */
+export const runScenario = (eventId: string, horizons: string[]) => {
+  const params = new URLSearchParams({
+    event: eventId,
+    horizons: horizons.join(","),
+  });
+  return fetchJson<ScenarioResult[]>(
+    `${API_BASE}/scenario?${params.toString()}`,
+  );
 };
 
 /** Retrieve per-ticker aggregation for a group portfolio. */
@@ -184,12 +241,23 @@ export const getPerformance = (
   owner: string,
   days = 365,
   excludeCash = false,
-) => {
+): Promise<PerformanceResponse> => {
   const params = new URLSearchParams({ days: String(days) });
   if (excludeCash) params.set("exclude_cash", "1");
-  return fetchJson<{ owner: string; history: PerformancePoint[] }>(
+  const base = fetchJson<{ owner: string; history: PerformancePoint[] }>(
     `${API_BASE}/performance/${owner}?${params.toString()}`,
-  ).then((res) => res.history);
+  );
+  const twr = fetchJson<{ owner: string; time_weighted_return: number | null }>(
+    `${API_BASE}/performance/${owner}/twr?days=${days}`,
+  );
+  const xirr = fetchJson<{ owner: string; xirr: number | null }>(
+    `${API_BASE}/performance/${owner}/xirr?days=${days}`,
+  );
+  return Promise.all([base, twr, xirr]).then(([p, t, x]) => ({
+    history: p.history,
+    time_weighted_return: t.time_weighted_return,
+    xirr: x.xirr,
+  }));
 };
 
 export const getAlphaVsBenchmark = (
@@ -430,14 +498,33 @@ export const getTransactions = (params: {
   account?: string;
   start?: string;
   end?: string;
+  type?: string;
 }) => {
   const query = new URLSearchParams();
   if (params.owner) query.set("owner", params.owner);
   if (params.account) query.set("account", params.account);
   if (params.start) query.set("start", params.start);
   if (params.end) query.set("end", params.end);
+  if (params.type) query.set("type", params.type);
   const qs = query.toString();
   return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
+};
+
+export const getDividends = (params?: {
+  owner?: string;
+  account?: string;
+  start?: string;
+  end?: string;
+  ticker?: string;
+}) => {
+  const query = new URLSearchParams();
+  if (params?.owner) query.set("owner", params.owner);
+  if (params?.account) query.set("account", params.account);
+  if (params?.start) query.set("start", params.start);
+  if (params?.end) query.set("end", params.end);
+  if (params?.ticker) query.set("ticker", params.ticker);
+  const qs = query.toString();
+  return fetchJson<Transaction[]>(`${API_BASE}/dividends${qs ? `?${qs}` : ""}`);
 };
 
 /** Retrieve recent alert messages from backend. */
@@ -684,5 +771,69 @@ export const getVarBreakdown = (
   const qs = params.toString();
   return fetchJson<VarBreakdown[]>(
     `${API_BASE}/var/${owner}/breakdown${qs ? `?${qs}` : ""}`
+  );
+};
+
+// ───────────── Goals API ─────────────
+export interface Goal {
+  name: string;
+  target_amount: number;
+  target_date: string;
+}
+
+export const getGoals = () => fetchJson<Goal[]>(`${API_BASE}/goals`);
+
+export const createGoal = (goal: Goal) =>
+  fetchJson<Goal>(`${API_BASE}/goals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(goal),
+  });
+
+export const getGoal = (name: string, current: number) =>
+  fetchJson<Goal & { progress: number; trades: any[] }>(
+    `${API_BASE}/goals/${encodeURIComponent(name)}?current_amount=${current}`,
+  );
+
+export const updateGoal = (name: string, goal: Goal) =>
+  fetchJson<Goal>(`${API_BASE}/goals/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(goal),
+  });
+
+export const deleteGoal = (name: string) =>
+  fetchJson<{ status: string }>(`${API_BASE}/goals/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+
+// ───────────── Tax API ─────────────
+export const harvestTax = (
+  positions: { ticker: string; basis: number; price: number }[],
+  threshold = 0,
+) =>
+  fetchJson<{ trades: any[] }>(`${API_BASE}/tax/harvest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ positions, threshold }),
+  });
+
+// ───────────── Pension Forecast ─────────────
+export const getPensionForecast = (
+  dob: string,
+  retirementAge: number,
+  deathAge: number,
+  statePensionAnnual?: number,
+) => {
+  const params = new URLSearchParams({
+    dob,
+    retirement_age: String(retirementAge),
+    death_age: String(deathAge),
+  });
+  if (statePensionAnnual !== undefined) {
+    params.set("state_pension_annual", String(statePensionAnnual));
+  }
+  return fetchJson<{ forecast: { age: number; income: number }[] }>(
+    `${API_BASE}/pension/forecast?${params.toString()}`,
   );
 };

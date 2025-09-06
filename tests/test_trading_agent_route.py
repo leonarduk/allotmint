@@ -4,7 +4,7 @@ from backend.app import create_app
 
 
 def test_trading_agent_signals_route(monkeypatch):
-    fake_signals = [{"ticker": "AAA", "action": "BUY"}]
+    fake_signals = [{"ticker": "AAA", "action": "BUY", "reason": "r", "ignored": True}]
     monkeypatch.setattr("backend.agent.trading_agent.run", lambda: fake_signals)
     app = create_app()
     with TestClient(app) as client:
@@ -12,4 +12,4 @@ def test_trading_agent_signals_route(monkeypatch):
         client.headers.update({"Authorization": f"Bearer {token}"})
         resp = client.get("/trading-agent/signals")
     assert resp.status_code == 200
-    assert resp.json() == fake_signals
+    assert resp.json() == [{"ticker": "AAA", "action": "BUY", "reason": "r"}]

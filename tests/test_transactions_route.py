@@ -61,3 +61,36 @@ def test_create_transaction_validation_error(tmp_path, monkeypatch):
     assert resp.status_code == 422
     file_path = tmp_path / "alice" / "ISA_transactions.json"
     assert not file_path.exists()
+
+
+def test_dividends_endpoint(tmp_path, monkeypatch):
+    client = _make_client(tmp_path, monkeypatch)
+    owner_dir = tmp_path / "alice"
+    owner_dir.mkdir()
+    data = {
+        "owner": "alice",
+        "account_type": "ISA",
+        "transactions": [
+            {"date": "2024-01-02", "type": "DIVIDEND", "amount_minor": 500, "ticker": "AAPL"},
+            {
+                "date": "2024-01-03",
+                "type": "BUY",
+                "price_gbp": 10,
+                "units": 1,
+                "ticker": "AAPL",
+                "reason": "t",
+            },
+        ],
+    }
+    (owner_dir / "ISA_transactions.json").write_text(json.dumps(data))
+
+    resp = client.get("/dividends")
+    assert resp.status_code == 200
+    divs = resp.json()
+    assert len(divs) == 1
+    assert divs[0]["ticker"] == "AAPL"
+    assert divs[0]["amount_minor"] == 500
+
+    resp2 = client.get("/transactions?type=DIVIDEND")
+    assert resp2.status_code == 200
+    assert len(resp2.json()) == 1

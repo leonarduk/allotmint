@@ -19,7 +19,9 @@ from typing import Any, Dict, Optional
 DEFAULT_ANNUITY_MULTIPLE = 20  # crude capitalisation proxy
 
 
-def _age_from_dob(dob_str: Optional[str], today: Optional[dt.date] = None) -> Optional[float]:
+def _age_from_dob(
+    dob_str: Optional[str], today: Optional[dt.date] = None
+) -> Optional[float]:
     """Convert YYYY-MM-DD string to fractional years age."""
     if not dob_str:
         return None
@@ -69,3 +71,46 @@ def estimate_db_pension_value(
         "annuity_multiple_used": annuity_multiple,
         "est_capital_value_gbp": est_capital,
     }
+
+
+def forecast_pension(
+    *,
+    dob: str,
+    retirement_age: int,
+    death_age: int,
+    db_pensions: Optional[list[Dict[str, float]]] = None,
+    state_pension_annual: Optional[float] = None,
+    today: Optional[dt.date] = None,
+) -> list[Dict[str, float]]:
+    """Return a simple year-by-year pension income forecast.
+
+    Each entry in ``db_pensions`` should contain ``annual_income_gbp`` and
+    ``normal_retirement_age`` fields.  The state pension amount, if provided,
+    is assumed to start at ``retirement_age``.  The forecast runs from the
+    current age (rounded down) up to but excluding ``death_age``.
+    """
+
+    today = today or dt.date.today()
+    current_age = _age_from_dob(dob, today)
+    if current_age is None:
+        raise ValueError("Invalid dob")
+
+    start_age = int(current_age)
+    if death_age <= start_age:
+        return []
+
+    pensions = db_pensions or []
+    forecast: list[Dict[str, float]] = []
+    for age in range(start_age, death_age):
+        income = 0.0
+        if state_pension_annual is not None and age >= retirement_age:
+            income += state_pension_annual
+        for p in pensions:
+            try:
+                start = int(p.get("normal_retirement_age", retirement_age))
+                if age >= start:
+                    income += float(p.get("annual_income_gbp", 0.0))
+            except Exception:
+                continue
+        forecast.append({"age": age, "income": income})
+    return forecast

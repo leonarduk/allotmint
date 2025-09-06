@@ -13,7 +13,8 @@ import json
 import logging
 import math
 import os
-from datetime import UTC, datetime, timedelta
+from collections import defaultdict
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -29,9 +30,11 @@ from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
 )
+from backend.common.compliance import load_transactions
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries, load_meta_timeseries_range
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
+from backend.utils.fx_rates import fetch_fx_rate_range
 
 logger = logging.getLogger("portfolio_utils")
 
@@ -72,6 +75,28 @@ def _safe_num(val, default: float = 0.0) -> float:
         return float(val)
     except (TypeError, ValueError):
         return default
+
+
+def _fx_to_gbp(currency: str, cache: Dict[str, float]) -> float:
+    """Return GBP per unit of ``currency`` using recent FX rates."""
+    currency = currency.upper()
+    if currency in cache:
+        return cache[currency]
+    if currency == "GBP":
+        cache["GBP"] = 1.0
+        return 1.0
+    end = date.today()
+    start = end - timedelta(days=7)
+    try:
+        df = fetch_fx_rate_range(currency, start, end)
+        if not df.empty:
+            rate = float(df["Rate"].iloc[-1])
+            cache[currency] = rate
+            return rate
+    except Exception:
+        pass
+    cache[currency] = 1.0
+    return 1.0
 
 
 # ──────────────────────────────────────────────────────────────
@@ -320,11 +345,16 @@ def list_all_unique_tickers() -> List[str]:
 # ──────────────────────────────────────────────────────────────
 # Core aggregation
 # ──────────────────────────────────────────────────────────────
-def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
-    """
-    Collapse a nested portfolio tree into one row per ticker,
+def aggregate_by_ticker(
+    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
+) -> List[dict]:
+    """Collapse a nested portfolio tree into one row per ticker,
     enriched with latest-price snapshot.
+
+    Values are converted to ``base_currency`` using recent FX rates.
     """
+    base_currency = base_currency.upper()
+    fx_cache: Dict[str, float] = {}
     if isinstance(portfolio, VirtualPortfolio):
         portfolio = portfolio.as_portfolio_dict()
     from backend.common import instrument_api
@@ -362,11 +392,15 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                     "gain_gbp": 0.0,
                     "cost_gbp": 0.0,
                     "last_price_gbp": None,
+                    "last_price_currency": base_currency,
                     "last_price_date": None,
                     "change_7d_pct": None,
                     "change_30d_pct": None,
                     "instrument_type": meta.get("instrumentType")
                     or meta.get("instrument_type"),
+                    "cost_currency": base_currency,
+                    "market_value_currency": base_currency,
+                    "gain_currency": base_currency,
                 },
             )
 
@@ -421,16 +455,38 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio) -> List[dict]:
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
 
+    gbp_per_base = _fx_to_gbp(base_currency, fx_cache)
     for r in rows.values():
+        if gbp_per_base and gbp_per_base != 1:
+            r["cost_gbp"] = round(r["cost_gbp"] / gbp_per_base, 2)
+            r["market_value_gbp"] = round(r["market_value_gbp"] / gbp_per_base, 2)
+            r["gain_gbp"] = round(r["gain_gbp"] / gbp_per_base, 2)
+            if r.get("last_price_gbp") is not None:
+                r["last_price_gbp"] = round(
+                    _safe_num(r["last_price_gbp"]) / gbp_per_base, 4
+                )
+            if r.get("day_change_gbp") is not None:
+                r["day_change_gbp"] = round(
+                    _safe_num(r["day_change_gbp"]) / gbp_per_base, 2
+                )
         cost = r["cost_gbp"]
         r["gain_pct"] = (r["gain_gbp"] / cost * 100.0) if cost else None
+        r["cost_currency"] = base_currency
+        r["market_value_currency"] = base_currency
+        r["gain_currency"] = base_currency
+        if r.get("last_price_gbp") is not None:
+            r["last_price_currency"] = base_currency
+        if r.get("day_change_gbp") is not None:
+            r["day_change_currency"] = base_currency
 
     return list(rows.values())
 
 
-def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str) -> List[dict]:
+def _aggregate_by_field(
+    portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP"
+) -> List[dict]:
     """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
-    rows = aggregate_by_ticker(portfolio)
+    rows = aggregate_by_ticker(portfolio, base_currency)
     groups: Dict[str, dict] = {}
     for r in rows:
         key = r.get(field) or "Unknown"
@@ -441,6 +497,7 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str) -> List[
                 "market_value_gbp": 0.0,
                 "gain_gbp": 0.0,
                 "cost_gbp": 0.0,
+                "currency": base_currency,
             },
         )
         g["market_value_gbp"] += _safe_num(r.get("market_value_gbp"))
@@ -457,14 +514,18 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str) -> List[
     return list(groups.values())
 
 
-def aggregate_by_sector(portfolio: dict | VirtualPortfolio) -> List[dict]:
+def aggregate_by_sector(
+    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
+) -> List[dict]:
     """Return aggregated holdings grouped by sector with return contribution."""
-    return _aggregate_by_field(portfolio, "sector")
+    return _aggregate_by_field(portfolio, "sector", base_currency)
 
 
-def aggregate_by_region(portfolio: dict | VirtualPortfolio) -> List[dict]:
+def aggregate_by_region(
+    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
+) -> List[dict]:
     """Return aggregated holdings grouped by region with return contribution."""
-    return _aggregate_by_field(portfolio, "region")
+    return _aggregate_by_field(portfolio, "region", base_currency)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -713,6 +774,135 @@ def compute_max_drawdown(owner: str, days: int = 365) -> float | None:
 
 def compute_group_max_drawdown(slug: str, days: int = 365) -> float | None:
     return _max_drawdown(slug, days, group=True)
+
+
+# ──────────────────────────────────────────────────────────────
+# Return metrics
+# ──────────────────────────────────────────────────────────────
+def _parse_date(val: Any) -> date | None:
+    if not val:
+        return None
+    try:
+        return datetime.fromisoformat(str(val)).date()
+    except Exception:
+        return None
+
+
+_CASH_FLOW_SIGNS = {
+    "DEPOSIT": 1,
+    "WITHDRAWAL": -1,
+    "DIVIDENDS": 1,
+    "INTEREST": 1,
+}
+
+
+def compute_time_weighted_return(owner: str, days: int = 365) -> float | None:
+    """Compute time-weighted return for ``owner`` over ``days``."""
+
+    total = _portfolio_value_series(owner, days)
+    if total.empty or len(total) < 2:
+        return None
+
+    start = total.index.min()
+    end = total.index.max()
+
+    txs = load_transactions(owner)
+    flows: defaultdict[date, float] = defaultdict(float)
+    for t in txs:
+        d = _parse_date(t.get("date"))
+        if not d or d < start or d > end:
+            continue
+        typ = (t.get("type") or t.get("kind") or "").upper()
+        if typ in _CASH_FLOW_SIGNS:
+            try:
+                amt = float(t.get("amount_minor") or 0.0) / 100.0
+            except (TypeError, ValueError):
+                continue
+            flows[d] += amt * _CASH_FLOW_SIGNS[typ]
+
+    twr = 1.0
+    prev_val = float(total.iloc[0])
+    for d, val in total.iloc[1:].items():
+        cf = flows.get(d, 0.0)
+        if prev_val:
+            r = (val - cf) / prev_val - 1.0
+            twr *= 1.0 + r
+        prev_val = val
+
+    return float(twr - 1.0)
+
+
+def compute_xirr(owner: str, days: int = 365) -> float | None:
+    """Compute XIRR for ``owner`` over ``days`` using cash flows."""
+
+    total = _portfolio_value_series(owner, days)
+    if total.empty:
+        return None
+
+    start = total.index.min()
+    end = total.index.max()
+
+    txs = load_transactions(owner)
+    flows: list[tuple[date, float]] = []
+    for t in txs:
+        d = _parse_date(t.get("date"))
+        if not d or d < start or d > end:
+            continue
+        typ = (t.get("type") or t.get("kind") or "").upper()
+        if typ in _CASH_FLOW_SIGNS:
+            try:
+                amt = float(t.get("amount_minor") or 0.0) / 100.0
+            except (TypeError, ValueError):
+                continue
+            sign = 1 if _CASH_FLOW_SIGNS[typ] < 0 else -1
+            flows.append((d, amt * sign))
+
+    flows.append((end, float(total.iloc[-1])))
+    if len(flows) < 2:
+        return None
+
+    flows.sort(key=lambda x: x[0])
+    start = flows[0][0]
+
+    def xnpv(rate: float) -> float:
+        return sum(
+            amt / (1.0 + rate) ** ((d - start).days / 365.0) for d, amt in flows
+        )
+
+    rate = 0.1
+    converged = False
+    for _ in range(100):
+        try:
+            f = float(xnpv(rate))
+        except (OverflowError, ValueError, TypeError):
+            return None
+        if abs(f) < 1e-6:
+            converged = True
+            break
+        try:
+            df = float(
+                sum(
+                    -((d - start).days / 365.0) * amt /
+                    (1.0 + rate) ** ((d - start).days / 365.0 + 1)
+                    for d, amt in flows
+                )
+            )
+        except (OverflowError, ValueError, TypeError):
+            return None
+        if df == 0 or not math.isfinite(df):
+            return None
+        rate_new = rate - f / df
+        if not math.isfinite(rate_new) or rate_new <= -1:
+            return None
+        if abs(rate_new - rate) < 1e-7:
+            rate = rate_new
+            converged = True
+            break
+        rate = rate_new
+
+    if not converged or not math.isfinite(rate):
+        return None
+    return float(rate)
 
 
 # ──────────────────────────────────────────────────────────────

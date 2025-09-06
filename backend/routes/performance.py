@@ -43,6 +43,28 @@ async def owner_max_drawdown(owner: str, days: int = 365):
         raise_owner_not_found()
 
 
+@router.get("/performance/{owner}/twr")
+@handle_owner_not_found
+async def owner_twr(owner: str, days: int = 365):
+    """Return time-weighted return for ``owner``."""
+    try:
+        val = portfolio_utils.compute_time_weighted_return(owner, days)
+        return {"owner": owner, "time_weighted_return": val}
+    except FileNotFoundError:
+        raise_owner_not_found()
+
+
+@router.get("/performance/{owner}/xirr")
+@handle_owner_not_found
+async def owner_xirr(owner: str, days: int = 365):
+    """Return XIRR for ``owner``."""
+    try:
+        val = portfolio_utils.compute_xirr(owner, days)
+        return {"owner": owner, "xirr": val}
+    except FileNotFoundError:
+        raise_owner_not_found()
+
+
 @router.get("/performance-group/{slug}/alpha")
 async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return alpha vs. benchmark for a group portfolio."""

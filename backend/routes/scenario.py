@@ -1,10 +1,12 @@
 """Simple scenario testing endpoint."""
 
-from fastapi import APIRouter, Query
+from typing import List
+
+from fastapi import APIRouter, HTTPException, Query
 
 from backend.common.data_loader import list_plots
 from backend.common.portfolio import build_owner_portfolio
-from backend.utils.scenario_tester import apply_price_shock
+from backend.utils.scenario_tester import apply_historical_event, apply_price_shock
 
 router = APIRouter(tags=["scenario"])
 
@@ -43,4 +45,57 @@ def run_scenario(
                 "delta_gbp": delta,
             }
         )
+    return results
+
+
+@router.get("/scenario/historical")
+def run_historical_scenario(
+    event_id: str | None = Query(None, description="Historical event identifier"),
+    date: str | None = Query(None, description="Event date (YYYY-MM-DD)"),
+    horizons: List[int] | None = Query(
+        None, description="Event horizons in days", alias="horizons"
+    ),
+):
+    """Apply a historical event to all portfolios."""
+
+    if not event_id and not date:
+        raise HTTPException(status_code=400, detail="event_id or date required")
+
+    results = []
+    owners = [p["owner"] for p in list_plots() if p.get("accounts")]
+    for owner in owners:
+        try:
+            pf = build_owner_portfolio(owner)
+        except FileNotFoundError:
+            continue
+        baseline = pf.get("total_value_estimate_gbp")
+        if baseline is None:
+            baseline = sum(
+                a.get("value_estimate_gbp") or 0.0 for a in pf.get("accounts", [])
+            )
+            pf["total_value_estimate_gbp"] = baseline
+
+        shocked = apply_historical_event(
+            pf, event_id=event_id, date=date, horizons=horizons
+        )
+
+        horizon_results = {}
+        for horizon, shocked_pf in shocked.items():
+            shocked_total = shocked_pf.get("total_value_estimate_gbp")
+            pct_change = None
+            if baseline:
+                pct_change = round(((shocked_total - baseline) / baseline) * 100.0, 2)
+            horizon_results[str(horizon)] = {
+                "shocked_total_value_gbp": shocked_total,
+                "pct_change": pct_change,
+            }
+
+        results.append(
+            {
+                "owner": owner,
+                "baseline_total_value_gbp": baseline,
+                "horizons": horizon_results,
+            }
+        )
+
     return results

@@ -49,12 +49,14 @@ import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
 import Menu from "./components/Menu";
+import Rebalance from "./pages/Rebalance";
+import PensionForecast from "./pages/PensionForecast";
 
 interface AppProps {
   onLogout?: () => void;
 }
 
-type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile";
+type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile" | "pension";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -77,6 +79,8 @@ const initialMode: Mode =
     ? "watchlist"
     : path[0] === "allocation"
     ? "allocation"
+    : path[0] === "rebalance"
+    ? "rebalance"
     : path[0] === "movers"
     ? "movers"
     : path[0] === "instrumentadmin"
@@ -95,6 +99,8 @@ const initialMode: Mode =
     ? "scenario"
     : path[0] === "logs"
     ? "logs"
+    : path[0] === "pension"
+    ? "pension"
     : path.length === 0
     ? "group"
     : "movers";
@@ -176,6 +182,9 @@ export default function App({ onLogout }: AppProps) {
       case "allocation":
         newMode = "allocation";
         break;
+      case "rebalance":
+        newMode = "rebalance";
+        break;
       case "movers":
         newMode = "movers";
         break;
@@ -190,6 +199,9 @@ export default function App({ onLogout }: AppProps) {
         break;
       case "logs":
         newMode = "logs";
+        break;
+      case "pension":
+        newMode = "pension";
         break;
       case "settings":
         newMode = "settings";
@@ -451,6 +463,7 @@ export default function App({ onLogout }: AppProps) {
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "allocation" && <AllocationCharts />}
+      {mode === "rebalance" && <Rebalance />}
       {mode === "movers" && <TopMovers />}
       {mode === "reports" && <Reports />}
       {mode === "support" && <Support />}
@@ -458,6 +471,7 @@ export default function App({ onLogout }: AppProps) {
       {mode === "settings" && <UserConfigPage />}
       {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}
+      {mode === "pension" && <PensionForecast />}
     </div>
   );
 }

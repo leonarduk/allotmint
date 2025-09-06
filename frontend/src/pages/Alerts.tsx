@@ -2,18 +2,42 @@ import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import type { Alert } from "../types";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import errorToast from "../utils/errorToast";
 
 export default function Alerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const parentRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .getAlerts()
-      .then(setAlerts)
-      .catch(() => setAlerts([]))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("timeout")), 5000),
+    );
+
+    Promise.race([api.getAlerts(), timeout])
+      .then((res) => {
+        if (!cancelled) setAlerts(res);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setAlerts([]);
+          setError(
+            navigator.onLine
+              ? "Request timed out. Please try again."
+              : "You appear to be offline.",
+          );
+          errorToast(e);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const rowVirtualizer = useVirtualizer({
@@ -32,6 +56,7 @@ export default function Alerts() {
     : alerts.map((_, index) => ({ index, start: index * 32, end: (index + 1) * 32 }));
 
   if (loading) return <div>Loading...</div>;
+  if (error) return <div>{error}</div>;
   if (alerts.length === 0) return <div>No alerts.</div>;
 
   return (

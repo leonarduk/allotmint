@@ -17,6 +17,7 @@ import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
 import tableStyles from "../styles/table.module.css";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { loadJSON, saveJSON } from "../utils/storage";
 
 const PERIODS = { "1d": 1, "1w": 7, "1m": 30, "3m": 90, "1y": 365 } as const;
 type PeriodKey = keyof typeof PERIODS;
@@ -27,8 +28,12 @@ const WATCHLIST_OPTIONS: WatchlistOption[] = [
 ];
 
 export function TopMoversPage() {
-  const [watchlist, setWatchlist] = useState<WatchlistOption>("Portfolio");
-  const [period, setPeriod] = useState<PeriodKey>("1d");
+  const [watchlist, setWatchlist] = useState<WatchlistOption>(() =>
+    loadJSON<WatchlistOption>("topMovers.watchlist", "Portfolio"),
+  );
+  const [period, setPeriod] = useState<PeriodKey>(() =>
+    loadJSON<PeriodKey>("topMovers.period", "1d"),
+  );
   const [selected, setSelected] = useState<
     { row: MoverRow; signal?: TradingSignal } | null
   >(null);
@@ -39,10 +44,22 @@ export function TopMoversPage() {
   const [signalsError, setSignalsError] = useState<string | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
   const [portfolioTotal, setPortfolioTotal] = useState<number | null>(null);
-  const [excludeSmall, setExcludeSmall] = useState(false);
+  const [excludeSmall, setExcludeSmall] = useState(() =>
+    loadJSON<boolean>("topMovers.excludeSmall", false),
+  );
   const [fallbackError, setFallbackError] = useState<string | null>(null);
 
   const MIN_WEIGHT = 0.5;
+
+  useEffect(() => {
+    saveJSON("topMovers.watchlist", watchlist);
+  }, [watchlist]);
+  useEffect(() => {
+    saveJSON("topMovers.period", period);
+  }, [period]);
+  useEffect(() => {
+    saveJSON("topMovers.excludeSmall", excludeSmall);
+  }, [excludeSmall]);
 
   const fetchMovers = useCallback(async () => {
     if (watchlist === "Portfolio") {

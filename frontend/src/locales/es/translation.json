@@ -32,7 +32,12 @@
   "common": {
     "error": "Error",
     "loading": "Cargando…",
-    "other": "Otro"
+    "other": "Otro",
+    "ticker": "Ticker",
+    "name": "Nombre",
+    "action": "Acción",
+    "reason": "Motivo",
+    "period": "Período:"
   },
   "instrumentType": {
     "equity": "Acción",
@@ -146,6 +151,23 @@
   "group": {
     "select": "Seleccione un grupo."
   },
+  "dashboard": {
+    "selectMember": "Seleccione un miembro.",
+    "range": "Rango:",
+    "rangeOptions": {
+      "1w": "1S",
+      "1m": "1M",
+      "1y": "1A",
+      "10y": "10A",
+      "max": "MÁX"
+    },
+    "excludeCash": "Excluir efectivo",
+    "alphaVsBenchmark": "Alfa vs Referencia",
+    "trackingError": "Error de seguimiento",
+    "maxDrawdown": "Máxima caída",
+    "portfolioValue": "Valor de la cartera",
+    "cumulativeReturn": "Retorno acumulado"
+  },
   "support": {
     "title": "Soporte",
     "online": "En línea",
@@ -178,6 +200,15 @@
   "trading": {
     "noPositions": "Sin posiciones.",
     "noSignals": "Sin señales."
+  },
+  "movers": {
+    "watchlist": "Lista de seguimiento:",
+    "period": "Período:",
+    "excludeSmall": "Excluir posiciones <{{min}}%",
+    "loginPrompt": "Inicia sesión para ver los movers basados en el portafolio.",
+    "loadFailed": "Error al cargar los movers{{status}}",
+    "signal": "Señal",
+    "pctPortfolio": "% del portafolio"
   },
   "timeseries": {
     "loading": "Cargando…"
@@ -222,6 +253,7 @@
     "exportXlsx": "Exportar XLSX"
   },
   "screener": {
+    "watchlist": "Lista de seguimiento:",
     "tickers": "Tickers",
     "maxPeg": "PEG máx",
     "maxPe": "P/E máx",
@@ -268,5 +300,10 @@
     "ticker": "Ticker is required",
     "name": "Name is required"
   }
-}
+},
+  "var": {
+    "title": "Valor en Riesgo",
+    "details": "Detalles de la simulación histórica",
+    "noData": "No hay datos de VaR disponibles."
+  }
 }

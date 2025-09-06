@@ -32,7 +32,12 @@
   "common": {
     "error": "Erreur",
     "loading": "Chargement…",
-    "other": "Autre"
+    "other": "Autre",
+    "ticker": "Ticker",
+    "name": "Nom",
+    "action": "Action",
+    "reason": "Raison",
+    "period": "Période:"
   },
   "instrumentType": {
     "equity": "Action",
@@ -146,6 +151,23 @@
   "group": {
     "select": "Sélectionnez un groupe."
   },
+  "dashboard": {
+    "selectMember": "Sélectionnez un membre.",
+    "range": "Plage :",
+    "rangeOptions": {
+      "1w": "1S",
+      "1m": "1M",
+      "1y": "1A",
+      "10y": "10A",
+      "max": "MAX"
+    },
+    "excludeCash": "Exclure la trésorerie",
+    "alphaVsBenchmark": "Alpha vs Indice",
+    "trackingError": "Erreur de suivi",
+    "maxDrawdown": "Drawdown maximal",
+    "portfolioValue": "Valeur du portefeuille",
+    "cumulativeReturn": "Rendement cumulatif"
+  },
   "support": {
     "title": "Support",
     "online": "En ligne",
@@ -178,6 +200,15 @@
   "trading": {
     "noPositions": "Aucune position.",
     "noSignals": "Aucun signal."
+  },
+  "movers": {
+    "watchlist": "Liste de suivi :",
+    "period": "Période :",
+    "excludeSmall": "Exclure les positions <{{min}} %",
+    "loginPrompt": "Veuillez vous connecter pour afficher les movers basés sur le portefeuille.",
+    "loadFailed": "Échec du chargement des movers{{status}}",
+    "signal": "Signal",
+    "pctPortfolio": "% du portefeuille"
   },
   "timeseries": {
     "loading": "Chargement…"
@@ -222,6 +253,7 @@
     "exportXlsx": "Exporter XLSX"
   },
   "screener": {
+    "watchlist": "Liste de suivi:",
     "tickers": "Tickers",
     "maxPeg": "PEG max",
     "maxPe": "P/E max",
@@ -268,5 +300,10 @@
     "ticker": "Ticker is required",
     "name": "Name is required"
   }
-}
+},
+  "var": {
+    "title": "Valeur à risque",
+    "details": "Détails de la simulation historique",
+    "noData": "Pas de données VaR disponibles."
+  }
 }

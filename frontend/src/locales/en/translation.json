@@ -32,7 +32,12 @@
   "common": {
     "error": "Error",
     "loading": "Loading…",
-    "other": "Other"
+    "other": "Other",
+    "ticker": "Ticker",
+    "name": "Name",
+    "action": "Action",
+    "reason": "Reason",
+    "period": "Period:"
   },
   "instrumentType": {
     "equity": "Equity",
@@ -146,6 +151,23 @@
   "group": {
     "select": "Select a group."
   },
+  "dashboard": {
+    "selectMember": "Select a member.",
+    "range": "Range:",
+    "rangeOptions": {
+      "1w": "1W",
+      "1m": "1M",
+      "1y": "1Y",
+      "10y": "10Y",
+      "max": "MAX"
+    },
+    "excludeCash": "Exclude cash",
+    "alphaVsBenchmark": "Alpha vs Benchmark",
+    "trackingError": "Tracking Error",
+    "maxDrawdown": "Max Drawdown",
+    "portfolioValue": "Portfolio Value",
+    "cumulativeReturn": "Cumulative Return"
+  },
   "support": {
     "title": "Support",
     "online": "Online",
@@ -179,6 +201,15 @@
     "noPositions": "No positions.",
     "noSignals": "No signals."
   },
+  "movers": {
+    "watchlist": "Watchlist:",
+    "period": "Period:",
+    "excludeSmall": "Exclude positions <{{min}}%",
+    "loginPrompt": "Please log in to view portfolio-based movers.",
+    "loadFailed": "Failed to load movers{{status}}",
+    "signal": "Signal",
+    "pctPortfolio": "% of portfolio"
+  },
   "timeseries": {
     "loading": "Loading…"
   },
@@ -210,9 +241,7 @@
     }
   },
   "query": {
-    "noResults": "No results."
-  },
-  "query": {
+    "noResults": "No results.",
     "start": "Start",
     "end": "End",
     "owners": "Owners",
@@ -225,6 +254,7 @@
     "exportXlsx": "Export XLSX"
   },
   "screener": {
+    "watchlist": "Watchlist:",
     "tickers": "Tickers",
     "maxPeg": "Max PEG",
     "maxPe": "Max P/E",
@@ -271,5 +301,10 @@
     "ticker": "Ticker is required",
     "name": "Name is required"
   }
-}
+},
+  "var": {
+    "title": "Value at Risk",
+    "details": "Historical simulation details",
+    "noData": "No VaR data available."
+  }
 }

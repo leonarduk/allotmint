@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   getTopMovers,
@@ -31,6 +32,7 @@ export function TopMoversPage() {
     { row: MoverRow; signal?: TradingSignal } | null
   >(null);
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [signals, setSignals] = useState<TradingSignal[]>([]);
   const [signalsLoading, setSignalsLoading] = useState(true);
   const [signalsError, setSignalsError] = useState<string | null>(null);
@@ -127,14 +129,17 @@ export function TopMoversPage() {
     return map;
   }, [signals]);
 
-  if (loading) return <p>Loading…</p>;
+  if (loading) return <p>{t("common.loading")}</p>;
   if (error != null) {
     const match = error?.message.match(/^HTTP (\d+)\s+[–-]\s+(.*)$/);
     const status = match?.[1];
     const msg = match?.[2] ?? error?.message;
     return (
       <p style={{ color: "red" }}>
-        Failed to load movers{status ? ` (HTTP ${status})` : ""}: {msg}
+        {t("movers.loadFailed", {
+          status: status ? ` (HTTP ${status})` : "",
+        })}
+        : {msg}
       </p>
     );
   }
@@ -147,7 +152,10 @@ export function TopMoversPage() {
         const msg = match?.[2] ?? raw;
         return (
           <p style={{ color: "red" }}>
-            Failed to load movers{status ? ` (HTTP ${status})` : ""}: {msg}
+            {t("movers.loadFailed", {
+              status: status ? ` (HTTP ${status})` : "",
+            })}
+            : {msg}
           </p>
         );
       })()
@@ -158,7 +166,7 @@ export function TopMoversPage() {
       {errorBanner}
       <div style={{ marginBottom: "0.5rem" }}>
         <label style={{ marginRight: "0.5rem" }}>
-          Watchlist:
+          {t("movers.watchlist")}
           <select
             value={watchlist}
             onChange={(e) => setWatchlist(e.target.value as WatchlistOption)}
@@ -166,13 +174,13 @@ export function TopMoversPage() {
           >
             {WATCHLIST_OPTIONS.map((name) => (
               <option key={name} value={name}>
-                {name}
+                {name === "Portfolio" ? t("portfolio") : name}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Period:
+          {t("movers.period")}
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as PeriodKey)}
@@ -193,15 +201,13 @@ export function TopMoversPage() {
               onChange={(e) => setExcludeSmall(e.target.checked)}
               style={{ marginRight: "0.25rem" }}
             />
-            Exclude positions &lt;{MIN_WEIGHT}%
+            {t("movers.excludeSmall", { min: MIN_WEIGHT })}
           </label>
         )}
       </div>
 
       {needsLogin && (
-        <p style={{ color: "red" }}>
-          Please log in to view portfolio-based movers.
-        </p>
+        <p style={{ color: "red" }}>{t("movers.loginPrompt")}</p>
       )}
 
       <table className={tableStyles.table}>
@@ -211,15 +217,15 @@ export function TopMoversPage() {
               className={`${tableStyles.cell} ${tableStyles.clickable}`}
               onClick={() => handleSort("ticker")}
             >
-              Ticker
+              {t("common.ticker")}
             </th>
             <th
               className={`${tableStyles.cell} ${tableStyles.clickable}`}
               onClick={() => handleSort("name")}
             >
-              Name
+              {t("common.name")}
             </th>
-            <th className={tableStyles.cell}>Signal</th>
+            <th className={tableStyles.cell}>{t("movers.signal")}</th>
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
               onClick={() => handleSort("change_pct")}
@@ -229,7 +235,9 @@ export function TopMoversPage() {
             {watchlist === "Portfolio" && (
               <>
                 <th className={`${tableStyles.cell} ${tableStyles.right}`}>Δ £</th>
-                <th className={`${tableStyles.cell} ${tableStyles.right}`}>% of portfolio</th>
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {t("movers.pctPortfolio")}
+                </th>
               </>
             )}
           </tr>
@@ -291,18 +299,18 @@ export function TopMoversPage() {
         </tbody>
       </table>
       {signalsLoading ? (
-        <p>Loading…</p>
+        <p>{t("common.loading")}</p>
       ) : signalsError ? (
         <p style={{ color: "red" }}>{signalsError}</p>
       ) : signals.length === 0 ? (
-        <p>No signals.</p>
+        <p>{t("trading.noSignals")}</p>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", padding: "4px" }}>Ticker</th>
-              <th style={{ textAlign: "left", padding: "4px" }}>Action</th>
-              <th style={{ textAlign: "left", padding: "4px" }}>Reason</th>
+              <th style={{ textAlign: "left", padding: "4px" }}>{t("common.ticker")}</th>
+              <th style={{ textAlign: "left", padding: "4px" }}>{t("common.action")}</th>
+              <th style={{ textAlign: "left", padding: "4px" }}>{t("common.reason")}</th>
             </tr>
           </thead>
           <tbody>

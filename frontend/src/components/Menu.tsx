@@ -99,7 +99,7 @@ export default function Menu({
   }
 
   return (
-    <nav style={{ margin: '1rem 0', ...(style ?? {}) }}>
+    <nav style={{ display: 'flex', flexWrap: 'wrap', margin: '1rem 0', ...(style ?? {}) }}>
       {orderedTabPlugins
         .slice()
         .sort((a, b) => a.priority - b.priority)
@@ -111,6 +111,7 @@ export default function Menu({
             style={{
               marginRight: '1rem',
               fontWeight: mode === p.id ? 'bold' : undefined,
+              overflowWrap: 'anywhere',
             }}
           >
             {t(`app.modes.${p.id}`)}

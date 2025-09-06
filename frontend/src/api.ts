@@ -805,3 +805,23 @@ export const harvestTax = (
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ positions, threshold }),
   });
+
+// ───────────── Pension Forecast ─────────────
+export const getPensionForecast = (
+  dob: string,
+  retirementAge: number,
+  deathAge: number,
+  statePensionAnnual?: number,
+) => {
+  const params = new URLSearchParams({
+    dob,
+    retirement_age: String(retirementAge),
+    death_age: String(deathAge),
+  });
+  if (statePensionAnnual !== undefined) {
+    params.set("state_pension_annual", String(statePensionAnnual));
+  }
+  return fetchJson<{ forecast: { age: number; income: number }[] }>(
+    `${API_BASE}/pension/forecast?${params.toString()}`,
+  );
+};

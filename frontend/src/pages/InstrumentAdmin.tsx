@@ -5,7 +5,7 @@ import {
   createInstrumentMetadata,
   updateInstrumentMetadata,
 } from "../api";
-import { useFilterableTable } from "../hooks/useFilterableTable";
+import { useFilterableTable, type Filter } from "../hooks/useFilterableTable";
 
 interface Row {
   ticker: string;
@@ -34,13 +34,8 @@ export default function InstrumentAdmin() {
       predicate: (row, value) => {
         if (!value) return true;
         const q = String(value).toLowerCase();
-        return [
-          row.ticker,
-          row.exchange,
-          row.name,
-          row.region ?? "",
-          row.sector ?? "",
-        ].some((field) => field.toLowerCase().includes(q));
+        return [row.ticker, row.exchange, row.name, row.region ?? "", row.sector ?? ""]
+          .some((field) => field.toLowerCase().includes(q));
       },
     },
   });
@@ -49,30 +44,28 @@ export default function InstrumentAdmin() {
     listInstrumentMetadata()
       .then((data) =>
         setRows(
-          data.map((r) => {
-            const [sym, exch] = r.ticker.split(".");
-            const exchange = (r as any).exchange ?? exch ?? "";
+          data.map((r: any) => {
+            const [sym, exch] = String(r.ticker ?? "").split(".");
+            const exchange = r.exchange ?? exch ?? "";
             return {
-              ticker: sym,
+              ticker: sym ?? "",
               exchange,
-              name: r.name,
+              name: r.name ?? "",
               region: r.region ?? "",
               sector: r.sector ?? "",
-              _originalTicker: sym,
+              _originalTicker: sym ?? "",
               _originalExchange: exchange,
-            };
+            } as Row;
           }),
         ),
       )
       .catch((e) => setError(String(e)));
   }, []);
 
-  const handleChange = (
-    index: number,
-    field: keyof Row,
-    value: string,
-  ) => {
+  const handleChange = (row: Row, field: keyof Row, value: string) => {
     setRows((prev) => {
+      const index = prev.indexOf(row);
+      if (index === -1) return prev;
       const copy = [...prev];
       copy[index] = { ...copy[index], [field]: value };
       return copy;
@@ -111,18 +104,18 @@ export default function InstrumentAdmin() {
       setMessage(t("instrumentadmin.saveSuccess"));
       const fresh = await listInstrumentMetadata();
       setRows(
-        fresh.map((r) => {
-          const [sym, exch] = r.ticker.split(".");
-          const exchange = (r as any).exchange ?? exch ?? "";
+        fresh.map((r: any) => {
+          const [sym, exch] = String(r.ticker ?? "").split(".");
+          const exchange = r.exchange ?? exch ?? "";
           return {
-            ticker: sym,
+            ticker: sym ?? "",
             exchange,
-            name: r.name,
+            name: r.name ?? "",
             region: r.region ?? "",
             sector: r.sector ?? "",
-            _originalTicker: sym,
+            _originalTicker: sym ?? "",
             _originalExchange: exchange,
-          };
+          } as Row;
         }),
       );
     } catch (e) {
@@ -143,7 +136,7 @@ export default function InstrumentAdmin() {
       <input
         type="text"
         placeholder={t("instrumentadmin.searchPlaceholder")}
-        value={String(filters.search ?? "")}
+        value={String((filters as any).search ?? "")}
         onChange={(e) => setFilter("search", e.target.value)}
         style={{ marginBottom: "0.5rem", display: "block" }}
       />
@@ -166,51 +159,47 @@ export default function InstrumentAdmin() {
           </tr>
         </thead>
         <tbody>
-          {filteredRows.map((r) => {
-            const idx = rows.indexOf(r);
-            return (
-              <tr key={r._originalTicker ?? idx}>
-                <td>
-                  <input
-                    value={r.ticker}
-                    onChange={(e) => handleChange(idx, "ticker", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    value={r.exchange}
-                    onChange={(e) => handleChange(idx, "exchange", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    value={r.name}
-                    onChange={(e) => handleChange(idx, "name", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    value={r.region ?? ""}
-                    onChange={(e) => handleChange(idx, "region", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    value={r.sector ?? ""}
-                    onChange={(e) => handleChange(idx, "sector", e.target.value)}
-                  />
-                </td>
-                <td>
-                  <button type="button" onClick={() => handleSave(r)}>
-                    {t("instrumentadmin.save")}
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
+          {filteredRows.map((r, idx) => (
+            <tr key={r._originalTicker ?? idx}>
+              <td>
+                <input
+                  value={r.ticker}
+                  onChange={(e) => handleChange(r, "ticker", e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  value={r.exchange}
+                  onChange={(e) => handleChange(r, "exchange", e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  value={r.name}
+                  onChange={(e) => handleChange(r, "name", e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  value={r.region ?? ""}
+                  onChange={(e) => handleChange(r, "region", e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  value={r.sector ?? ""}
+                  onChange={(e) => handleChange(r, "sector", e.target.value)}
+                />
+              </td>
+              <td>
+                <button type="button" onClick={() => handleSave(r)}>
+                  {t("instrumentadmin.save")}
+                </button>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
   );
 }
-

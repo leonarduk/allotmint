@@ -54,7 +54,7 @@ describe("ScenarioTester page", () => {
     expect(screen.getByText(fmt.format(10))).toBeInTheDocument();
   });
 
-  it("disables Apply button until valid inputs provided", () => {
+  it("disables Apply button until valid inputs provided", async () => {
     render(<ScenarioTester />);
     const apply = screen.getByText("Apply");
 

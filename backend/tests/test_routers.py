@@ -50,12 +50,12 @@ def test_trading_agent_route(monkeypatch):
 
     monkeypatch.setattr(
         "backend.agent.trading_agent.run",
-        lambda: [{"ticker": "AAA", "action": "BUY"}],
+        lambda: [{"ticker": "AAA", "action": "BUY", "reason": "x", "extra": 1}],
     )
     with TestClient(app) as client:
         resp = client.get("/trading-agent/signals")
     assert resp.status_code == 200
-    assert resp.json() == [{"ticker": "AAA", "action": "BUY"}]
+    assert resp.json() == [{"ticker": "AAA", "action": "BUY", "reason": "x"}]
 
 
 def test_rebalance_route(monkeypatch):
@@ -86,9 +86,12 @@ def test_rebalance_route(monkeypatch):
     ]
     assert all(isinstance(item["amount"], float) for item in data)
 
-    def test_agent_stats_route(monkeypatch):
+
+def test_agent_stats_route(monkeypatch):
     fake_metrics = {"win_rate": 0.5, "average_profit": 1.23}
-    monkeypatch.setattr("backend.common.trade_metrics.load_and_compute_metrics", lambda: fake_metrics)
+    monkeypatch.setattr(
+        "backend.common.trade_metrics.load_and_compute_metrics", lambda: fake_metrics
+    )
     agent = importlib.import_module("backend.routes.agent")
     importlib.reload(agent)
     app = FastAPI()

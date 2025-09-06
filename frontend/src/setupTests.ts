@@ -23,7 +23,12 @@ class ResizeObserver {
 declare global {
   interface GlobalThis {
     ResizeObserver: typeof ResizeObserver;
+    sparks: Record<string, any>;
   }
 }
 
 globalThis.ResizeObserver = ResizeObserver;
+// Provide default sparkline data container to satisfy components referencing it
+// in tests. In the application this is populated elsewhere.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+globalThis.sparks = {} as Record<string, Record<string, any[]>>;

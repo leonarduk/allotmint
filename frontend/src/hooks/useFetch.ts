@@ -1,4 +1,5 @@
 import { useEffect, useState, type DependencyList } from "react";
+import errorToast from "../utils/errorToast";
 
 /**
  * Small helper hook that wraps an async function and provides
@@ -30,18 +31,20 @@ export function useFetch<T>(
     setError(null);
     setData(null);
 
-    fn()
-      .then((res) => {
+    (async () => {
+      try {
+        const res = await fn();
         if (!cancelled) setData(res);
-      })
-      .catch((e) => {
+      } catch (e) {
+        const err = e instanceof Error ? e : new Error(String(e));
         if (!cancelled) {
-          setError(e instanceof Error ? e : new Error(String(e)));
+          setError(err);
+          errorToast(err);
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;

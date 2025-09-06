@@ -1,4 +1,3 @@
-import { toast } from "react-toastify";
 
 /**
  * Retry a function with exponential backoff. The delay after each failed
@@ -47,7 +46,6 @@ export async function retry<T>(
   }
   const error =
     lastErr instanceof Error ? lastErr : new Error(String(lastErr));
-  toast.error(`Failed to reach backend: ${error.message}`);
   throw error;
 }
 

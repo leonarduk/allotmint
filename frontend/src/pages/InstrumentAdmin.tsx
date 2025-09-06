@@ -5,6 +5,7 @@ import {
   createInstrumentMetadata,
   updateInstrumentMetadata,
 } from "../api";
+import { useFilterableTable, type Filter } from "../hooks/useFilterableTable";
 
 interface Row {
   ticker: string;
@@ -17,11 +18,28 @@ interface Row {
   _originalExchange?: string;
 }
 
+const initialFilters: Record<string, Filter<Row, unknown>> = {
+  search: {
+    value: "",
+    predicate: (row, value) => {
+      const v = value as string;
+      return (
+        row.ticker.toLowerCase().includes(v.toLowerCase()) ||
+        row.exchange.toLowerCase().includes(v.toLowerCase()) ||
+        row.name.toLowerCase().includes(v.toLowerCase()) ||
+        (row.region ?? "").toLowerCase().includes(v.toLowerCase()) ||
+        (row.sector ?? "").toLowerCase().includes(v.toLowerCase())
+      );
+    },
+  },
+} satisfies Record<string, Filter<Row, unknown>>;
+
 export default function InstrumentAdmin() {
   const { t } = useTranslation();
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const { rows: filteredRows } = useFilterableTable(rows, "ticker", initialFilters);
 
   useEffect(() => {
     listInstrumentMetadata()
@@ -137,7 +155,7 @@ export default function InstrumentAdmin() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, idx) => (
+          {filteredRows.map((r, idx) => (
             <tr key={r._originalTicker ?? idx}>
               <td>
                 <input

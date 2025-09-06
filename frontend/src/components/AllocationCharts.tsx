@@ -1,4 +1,5 @@
-import React from "react";
+import { useMemo } from "react";
+import type { FC } from "react";
 
 /**
  * Build a three-level hierarchy (asset_class -> industry -> region) from
@@ -59,10 +60,10 @@ export function buildAllocationHierarchy(
  * Simple component that renders the hierarchy as JSON.  Charting libraries
  * can consume the ``buildAllocationHierarchy`` result instead.
  */
-const AllocationCharts: React.FC<{ instruments: InstrumentSummary[] }> = ({
+const AllocationCharts: FC<{ instruments: InstrumentSummary[] }> = ({
   instruments,
 }) => {
-  const data = React.useMemo(
+  const data = useMemo(
     () => buildAllocationHierarchy(instruments),
     [instruments],
   );

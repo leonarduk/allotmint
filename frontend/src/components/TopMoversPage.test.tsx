@@ -189,6 +189,7 @@ describe("TopMoversPage", () => {
     const row = tickerBtn.closest("tr");
     expect(row).not.toBeNull();
     const badge = within(row as HTMLElement).getByText(/buy/i);
+    expect(badge).toHaveAttribute("title", "go long");
     fireEvent.click(badge);
     const detail = await screen.findByTestId("detail");
     expect(detail).toHaveTextContent("AAA");

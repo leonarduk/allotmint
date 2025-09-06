@@ -14,6 +14,8 @@ export function NotificationsDrawer({ open, onClose }: Props) {
     open,
   );
 
+  const alertList = alerts ?? [];
+
   if (!open) return null;
 
   return (
@@ -69,10 +71,10 @@ export function NotificationsDrawer({ open, onClose }: Props) {
         </div>
         {loading && <div>Loading...</div>}
         {error && <div>Cannot reach server</div>}
-        {!loading && !error && alerts?.length === 0 && <div>No alerts</div>}
-        {!loading && !error && alerts?.length > 0 && (
+        {!loading && !error && alertList.length === 0 && <div>No alerts</div>}
+        {!loading && !error && alertList.length > 0 && (
           <ul style={{ listStyle: "none", padding: 0 }}>
-            {alerts.map((a, i) => (
+            {alertList.map((a, i) => (
               <li key={i} style={{ marginBottom: "0.5rem" }}>
                 <div>
                   <strong>{a.ticker}</strong>: {a.message}

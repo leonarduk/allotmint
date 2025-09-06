@@ -18,6 +18,7 @@
       "timeseries": "Serie temporal",
       "watchlist": "Lista de seguimiento",
       "allocation": "Asignación",
+      "rebalance": "Rebalance",
       "movers": "Movers",
       "instrumentadmin": "Administración de Instrumentos",
       "dataadmin": "Administración de datos",

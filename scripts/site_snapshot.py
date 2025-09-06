@@ -11,10 +11,13 @@ Fixes:
 - Embeds screenshots only if Pillow is installed; otherwise skips cleanly.
 
 Install:
-  pip install beautifulsoup4 fpdf markdownify playwright tldextract
+  pip install beautifulsoup4 fpdf markdownify playwright tldextract python-dotenv
   playwright install
 Optional for images in PDF:
   pip install pillow
+
+The script reads `OPENAI_API_KEY` from the environment. If `python-dotenv` is
+installed, variables from a `.env` file are loaded automatically.
 
 Example:
   python site_snapshot.py --base-url http://localhost:5173/movers \
@@ -35,6 +38,14 @@ from pathlib import Path
 from typing import Iterable, Optional, Set, Tuple, List
 from urllib.parse import urljoin, urlparse, urlunparse, parse_qsl
 import shutil
+
+# Load environment variables from .env if available
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    pass
 
 # Optional Pillow detection (PNG embedding)
 try:

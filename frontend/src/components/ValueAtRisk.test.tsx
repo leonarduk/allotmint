@@ -31,27 +31,31 @@ describe("ValueAtRisk component", () => {
   });
 
   it("opens breakdown modal when VaR value clicked", async () => {
-    vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce({
+    vi.spyOn(globalThis, "fetch").mockImplementation((input: RequestInfo) => {
+      if (typeof input === "string" && input.includes("/breakdown")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            { ticker: "AAA", contribution: 60 },
+            { ticker: "BBB", contribution: 40 },
+          ],
+        } as unknown as Response);
+      }
+      return Promise.resolve({
         ok: true,
-        json: async () => [{ date: "2024-01-01", var: 100 }],
-      } as unknown as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [{ date: "2024-01-01", var: 100 }],
-      } as unknown as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => [
-          { ticker: "AAA", contribution: 60 },
-          { ticker: "BBB", contribution: 40 },
-        ],
+        json: async () => ({
+          owner: "alice",
+          as_of: "2024-01-01",
+          var: { "1d": 100, "10d": 200 },
+        }),
       } as unknown as Response);
+    });
 
     render(<ValueAtRisk owner="alice" />);
 
-    await waitFor(() => screen.getByText(/95%:/));
+    await waitFor(() =>
+      expect(screen.getByText(/95%:/)).toHaveTextContent("£100.00")
+    );
 
     const btn = screen.getAllByRole("button")[0];
     fireEvent.click(btn);

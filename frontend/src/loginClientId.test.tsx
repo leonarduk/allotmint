@@ -12,12 +12,17 @@ describe('Root login behaviour', () => {
       createRoot: () => ({ render: vi.fn() })
     }))
 
-    vi.doMock('./api', () => ({
-      getConfig: vi.fn().mockResolvedValue({
-        google_auth_enabled: true,
-        google_client_id: ''
-      })
-    }))
+    vi.doMock('./api', async importOriginal => {
+      const mod = await importOriginal<typeof import('./api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: true,
+          google_client_id: ''
+        }),
+        getStoredAuthToken: vi.fn()
+      }
+    })
 
     vi.doMock('./LoginPage', () => ({
       default: () => <div data-testid="login-page">login-page</div>

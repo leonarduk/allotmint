@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 
 type SparklineBaseProps = {
@@ -141,9 +141,9 @@ function SparklineFromFetch({
  */
 export function Sparkline(props: SparklineProps) {
   if ("data" in props) {
-    return <SparklineFromData {...props} />;
+    return <SparklineFromData {...(props as SparklineDataProps)} />;
   }
-  return <SparklineFromFetch {...props} />;
+  return <SparklineFromFetch {...(props as SparklineFetchProps)} />;
 }
 
 export default Sparkline;

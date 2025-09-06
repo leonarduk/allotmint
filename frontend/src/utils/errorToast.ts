@@ -1,6 +1,6 @@
-import { toast, type ToastId } from "react-toastify";
+import { toast, type Id } from "react-toastify";
 
-const activeToasts = new Map<string, ToastId>();
+const activeToasts = new Map<string, Id>();
 
 /**
  * Show an error toast, deduping by message so the same error isn't shown

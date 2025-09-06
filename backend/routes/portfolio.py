@@ -399,9 +399,20 @@ async def group_movers(
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str):
     try:
-        data = data_loader.load_account(owner, account.lower())
+        data = data_loader.load_account(owner, account)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Account not found")
+        paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
+        owner_dir = paths.accounts_root / owner
+        if not owner_dir.exists():
+            raise HTTPException(status_code=404, detail="Account not found")
+        match = next(
+            (f.stem for f in owner_dir.glob("*.json") if f.stem.lower() == account.lower()),
+            None,
+        )
+        if not match:
+            raise HTTPException(status_code=404, detail="Account not found")
+        data = data_loader.load_account(owner, match)
+        account = match
     data.setdefault("account_type", account)
     return data
 

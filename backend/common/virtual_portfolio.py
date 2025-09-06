@@ -38,7 +38,7 @@ class VirtualPortfolio(BaseModel):
                 {
                     "account_type": "virtual",
                     "currency": "GBP",
-                    "holdings": [h.dict() for h in self.holdings],
+                    "holdings": [h.model_dump() for h in self.holdings],
                 }
             ],
         }

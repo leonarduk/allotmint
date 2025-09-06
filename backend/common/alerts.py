@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from typing import Dict, List, Set
 
@@ -48,7 +48,7 @@ def publish_sns_alert(alert: Dict) -> None:
     instrument = alert.get("instrument")
     state = alert.get("state")
 
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
 
     if instrument is not None and state is not None:
         previous_state = _LAST_ALERT_STATE.get(instrument)

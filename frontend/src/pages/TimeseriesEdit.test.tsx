@@ -6,15 +6,20 @@ vi.mock("../api", () => ({
     { Date: "2024-01-01", Open: 1, High: 1, Low: 1, Close: 1, Volume: 1 },
   ]),
   saveTimeseries: vi.fn().mockResolvedValue({ status: "ok", rows: 1 }),
+  searchInstruments: vi.fn().mockResolvedValue([]),
 }));
 
 import { TimeseriesEdit } from "./TimeseriesEdit";
-import { getTimeseries, saveTimeseries } from "../api";
+import { getTimeseries, saveTimeseries, searchInstruments } from "../api";
 
 describe("TimeseriesEdit page", () => {
   it("loads, edits, adds and deletes rows, then saves", async () => {
     vi.clearAllMocks();
     render(<TimeseriesEdit />);
+
+    expect(
+      (screen.getByLabelText(/Exchange/i) as HTMLSelectElement).value,
+    ).toBe("L");
 
     fireEvent.change(screen.getByLabelText(/Ticker/i), {
       target: { value: "ABC" },
@@ -50,10 +55,22 @@ describe("TimeseriesEdit page", () => {
   });
 
   it("prefills ticker and exchange from URL", async () => {
-    window.history.pushState({}, "", "/timeseries?ticker=XYZ&exchange=US");
+    window.history.pushState({}, "", "/timeseries?ticker=XYZ&exchange=DE");
     render(<TimeseriesEdit />);
     expect(await screen.findByDisplayValue("XYZ")).toBeInTheDocument();
-    expect(await screen.findByDisplayValue("US")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("DE")).toBeInTheDocument();
     window.history.pushState({}, "", "/");
+  });
+
+  it("suggests tickers and updates value when one is selected", async () => {
+    const searchMock = searchInstruments as unknown as vi.Mock;
+    searchMock.mockResolvedValue([{ ticker: "AAA", name: "AAA Corp" }]);
+    render(<TimeseriesEdit />);
+    const input = screen.getByLabelText(/Ticker/i);
+    fireEvent.change(input, { target: { value: "AA" } });
+    await new Promise((r) => setTimeout(r, 350));
+    expect(await screen.findByText("AAA — AAA Corp")).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "AAA" } });
+    expect(input).toHaveValue("AAA");
   });
 });

@@ -10,7 +10,6 @@ on:
 
 jobs:
   code_review:
-    if: secrets.OPENAI_API_KEY != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

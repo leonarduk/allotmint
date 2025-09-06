@@ -363,6 +363,43 @@ def test_screener_endpoint(client, monkeypatch):
     assert data[0]["ticker"] == "AAA"
 
 
+def test_hash_params_helper(monkeypatch):
+    from backend.screener import Fundamentals
+    from backend.routes.screener import _hash_params
+
+    def mock_fetch(ticker: str) -> Fundamentals:
+        if ticker == "AAA":
+            return Fundamentals(ticker="AAA", peg_ratio=0.5, roe=0.2)
+        return Fundamentals(ticker="BBB", peg_ratio=2.0, roe=0.1)
+
+    monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
+
+    symbols = ["AAA", "BBB"]
+    page1, call1 = _hash_params(symbols, peg_max=1, pe_max=None, de_max=None, lt_de_max=None,
+                                interest_coverage_min=None, current_ratio_min=None,
+                                quick_ratio_min=None, fcf_min=None, eps_min=None,
+                                gross_margin_min=None, operating_margin_min=None,
+                                net_margin_min=None, ebitda_margin_min=None, roa_min=None,
+                                roe_min=0.15, roi_min=None, dividend_yield_min=None,
+                                dividend_payout_ratio_max=None, beta_max=None,
+                                shares_outstanding_min=None, float_shares_min=None,
+                                market_cap_min=None, high_52w_max=None, low_52w_min=None,
+                                avg_volume_min=None)
+    page2, _ = _hash_params(symbols, peg_max=1, pe_max=None, de_max=None, lt_de_max=None,
+                             interest_coverage_min=None, current_ratio_min=None,
+                             quick_ratio_min=None, fcf_min=None, eps_min=None,
+                             gross_margin_min=None, operating_margin_min=None,
+                             net_margin_min=None, ebitda_margin_min=None, roa_min=None,
+                             roe_min=0.15, roi_min=None, dividend_yield_min=None,
+                             dividend_payout_ratio_max=None, beta_max=None,
+                             shares_outstanding_min=None, float_shares_min=None,
+                             market_cap_min=None, high_52w_max=None, low_52w_min=None,
+                             avg_volume_min=None)
+    assert page1 == page2
+    payload = call1()
+    assert [d["ticker"] for d in payload] == ["AAA"]
+
+
 def test_var_endpoint_default(client):
     if backend_config.config.offline_mode:
         pytest.skip("VaR endpoint requires data unavailable in offline mode")

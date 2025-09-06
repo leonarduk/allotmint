@@ -19,15 +19,30 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}']
       }
     })
-  ],
-  build: {
-    cssCodeSplit: false,
-    cssMinify: 'esbuild',
-    rollupOptions: {
-      output: {
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name && assetInfo.name.endsWith('.css')) {
-            return 'styles.css'
+  ]
+
+  if (command === 'build') {
+    const vitePrerender = require('vite-plugin-prerender')
+    plugins.push(
+      vitePrerender({
+        staticDir,
+        routes: ['/', ...pageRoutes]
+      })
+    )
+  }
+
+  return {
+    plugins,
+    build: {
+      cssCodeSplit: false,
+      cssMinify: 'esbuild',
+      rollupOptions: {
+        output: {
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+              return 'styles.css'
+            }
+            return 'assets/[name]-[hash][extname]'
           }
           return 'assets/[name]-[hash][extname]'
         }

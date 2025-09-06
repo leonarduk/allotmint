@@ -168,6 +168,9 @@
   "portfolio": "Portfolio",
   "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",
   "approxTotal": "Approx Total: £{{value}}",
+  "allocation": {
+    "instrumentTypes": "Instrument Types"
+  },
   "watchlist": {
     "refresh": "Refresh"
   },
@@ -232,12 +235,13 @@
     "sector": "Sector",
     "actions": "Actions",
     "add": "Add Instrument",
-    "save": "Save",
-    "saveSuccess": "Saved",
-    "saveError": "Error saving",
-    "validation": {
-      "ticker": "Ticker is required",
-      "name": "Name is required"
-    }
+  "save": "Save",
+  "saveSuccess": "Saved",
+  "saveError": "Error saving",
+  "searchPlaceholder": "Filter instruments…",
+  "validation": {
+    "ticker": "Ticker is required",
+    "name": "Name is required"
   }
+}
 }

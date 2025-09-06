@@ -13,7 +13,7 @@ import json
 import logging
 import math
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -145,7 +145,7 @@ def refresh_snapshot_in_memory(
     if new_snapshot is None:
         new_snapshot, timestamp = _load_snapshot()
     elif timestamp is None:
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
     _PRICE_SNAPSHOT = new_snapshot
     _PRICE_SNAPSHOT_TS = timestamp
     logger.debug("In-memory price snapshot refreshed, %d tickers", len(_PRICE_SNAPSHOT))
@@ -777,7 +777,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             logger.warning("Could not get timeseries for %s: %s", t, e)
 
     # store in-memory
-    refresh_snapshot_in_memory(snapshot, datetime.utcnow())
+    refresh_snapshot_in_memory(snapshot, datetime.now(UTC))
 
     # write to disk
     try:

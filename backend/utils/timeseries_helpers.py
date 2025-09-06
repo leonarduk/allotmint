@@ -1,4 +1,5 @@
 import datetime
+import json
 import re
 from pathlib import Path
 from typing import Optional
@@ -30,9 +31,6 @@ def apply_scaling(df: pd.DataFrame, scale: float, scale_volume: bool = False) ->
         df[col] = pd.to_numeric(df[col], errors="coerce") * scale
 
     return df
-
-
-import json
 
 
 def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional[float]) -> float:

@@ -15,6 +15,8 @@ export function NotificationsDrawer({ open, onClose }: Props) {
   );
   const alertList = alerts ?? [];
 
+  const alertList = alerts ?? [];
+
   if (!open) return null;
 
   return (

@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "prepare": "[ -d .git ] && husky || true"
+    "prepare": "node -e \"if(require('fs').existsSync('.git')){require('husky').install();}\""
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.12",

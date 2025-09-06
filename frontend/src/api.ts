@@ -430,14 +430,33 @@ export const getTransactions = (params: {
   account?: string;
   start?: string;
   end?: string;
+  type?: string;
 }) => {
   const query = new URLSearchParams();
   if (params.owner) query.set("owner", params.owner);
   if (params.account) query.set("account", params.account);
   if (params.start) query.set("start", params.start);
   if (params.end) query.set("end", params.end);
+  if (params.type) query.set("type", params.type);
   const qs = query.toString();
   return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
+};
+
+export const getDividends = (params?: {
+  owner?: string;
+  account?: string;
+  start?: string;
+  end?: string;
+  ticker?: string;
+}) => {
+  const query = new URLSearchParams();
+  if (params?.owner) query.set("owner", params.owner);
+  if (params?.account) query.set("account", params.account);
+  if (params?.start) query.set("start", params.start);
+  if (params?.end) query.set("end", params.end);
+  if (params?.ticker) query.set("ticker", params.ticker);
+  const qs = query.toString();
+  return fetchJson<Transaction[]>(`${API_BASE}/dividends${qs ? `?${qs}` : ""}`);
 };
 
 /** Retrieve recent alert messages from backend. */

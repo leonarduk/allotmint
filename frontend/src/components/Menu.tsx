@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
@@ -104,48 +105,51 @@ export default function Menu({
     }
   }
 
+  const [open, setOpen] = useState(false);
+
   return (
-    <nav style={{ display: 'flex', flexWrap: 'wrap', margin: '1rem 0', ...(style ?? {}) }}>
-      {orderedTabPlugins
-        .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
-        .slice()
-        .sort((a, b) => a.priority - b.priority)
-        .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
-        .map((p) => (
-          <Link
-            key={p.id}
-            to={pathFor(p.id)}
-            style={{
-              marginRight: '1rem',
-              fontWeight: mode === p.id ? 'bold' : undefined,
-              overflowWrap: 'anywhere',
-            }}
-          >
-            {t(`app.modes.${p.id}`)}
-          </Link>
-        ))}
-      <Link
-        to={isSupportMode ? pathFor('group') : '/support'}
-        style={{ marginRight: '1rem', overflowWrap: 'anywhere' }}
+    <nav className="mb-4">
+      <button
+        aria-label="menu"
+        className="md:hidden mb-2 p-2 border rounded"
+        onClick={() => setOpen((o) => !o)}
       >
-        {t(isSupportMode ? 'app.userLink' : 'app.supportLink')}
-      </Link>
-      {onLogout && (
-        <button
-          type="button"
-          onClick={onLogout}
-          style={{
-            marginRight: '1rem',
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            font: 'inherit',
-            cursor: 'pointer',
-          }}
+        ☰
+      </button>
+      <div
+        className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
+        style={style}
+      >
+        {orderedTabPlugins
+          .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
+          .slice()
+          .sort((a, b) => a.priority - b.priority)
+          .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
+          .map((p) => (
+            <Link
+              key={p.id}
+              to={pathFor(p.id)}
+              className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
+            >
+              {t(`app.modes.${p.id}`)}
+            </Link>
+          ))}
+        <Link
+          to={isSupportMode ? pathFor('group') : '/support'}
+          className="mr-4 break-words"
         >
-          {t('app.logout')}
-        </button>
-      )}
+          {t(isSupportMode ? 'app.userLink' : 'app.supportLink')}
+        </Link>
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
+          >
+            {t('app.logout')}
+          </button>
+        )}
+      </div>
     </nav>
   );
 }

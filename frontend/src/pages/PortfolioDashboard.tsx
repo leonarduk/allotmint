@@ -40,61 +40,61 @@ function PortfolioDashboard({
   void owner;
   return (
     <>
-      <div className={metricStyles.metricContainer}>
-        <div className={metricStyles.metricCard}>
-          <div className={metricStyles.metricLabel}>TWR</div>
-          <div className={metricStyles.metricValue}>
+      <div className="grid grid-cols-2 gap-4 p-4 mb-4 bg-gray-900 border border-gray-700 rounded sm:grid-cols-3 md:grid-cols-5">
+        <div className="flex flex-col">
+          <div className="text-sm text-gray-400">TWR</div>
+          <div className="text-lg font-bold">
             {percent(twr != null ? twr * 100 : null)}
           </div>
         </div>
-        <div className={metricStyles.metricCard}>
-          <div className={metricStyles.metricLabel}>IRR</div>
-          <div className={metricStyles.metricValue}>
+        <div className="flex flex-col">
+          <div className="text-sm text-gray-400">IRR</div>
+          <div className="text-lg font-bold">
             {percent(irr != null ? irr * 100 : null)}
           </div>
         </div>
-        <div className={metricStyles.metricCard}>
-          <div className={metricStyles.metricLabel}>Best Day</div>
-          <div className={metricStyles.metricValue}>
+        <div className="flex flex-col">
+          <div className="text-sm text-gray-400">Best Day</div>
+          <div className="text-lg font-bold">
             {percent(bestDay != null ? bestDay * 100 : null)}
           </div>
         </div>
-        <div className={metricStyles.metricCard}>
-          <div className={metricStyles.metricLabel}>Worst Day</div>
-          <div className={metricStyles.metricValue}>
+        <div className="flex flex-col">
+          <div className="text-sm text-gray-400">Worst Day</div>
+          <div className="text-lg font-bold">
             {percent(worstDay != null ? worstDay * 100 : null)}
           </div>
         </div>
-        <div className={metricStyles.metricCard}>
-          <div className={metricStyles.metricLabel}>Last Day</div>
-          <div className={metricStyles.metricValue}>
+        <div className="flex flex-col">
+          <div className="text-sm text-gray-400">Last Day</div>
+          <div className="text-lg font-bold">
             {percent(lastDay != null ? lastDay * 100 : null)}
           </div>
         </div>
       </div>
 
-      <div className={metricStyles.metricContainer}>
-        <div className={metricStyles.metricCard}>
-          <div className={metricStyles.metricLabel}>Alpha vs Benchmark</div>
-          <div className={metricStyles.metricValue}>
+      <div className="grid grid-cols-2 gap-4 p-4 mb-4 bg-gray-900 border border-gray-700 rounded sm:grid-cols-4">
+        <div className="flex flex-col">
+          <div className="text-sm text-gray-400">Alpha vs Benchmark</div>
+          <div className="text-lg font-bold">
             {percentOrNa(alpha)}
           </div>
         </div>
-        <div className={metricStyles.metricCard}>
-          <div className={metricStyles.metricLabel}>Tracking Error</div>
-          <div className={metricStyles.metricValue}>
+        <div className="flex flex-col">
+          <div className="text-sm text-gray-400">Tracking Error</div>
+          <div className="text-lg font-bold">
             {percentOrNa(trackingError)}
           </div>
         </div>
-        <div className={metricStyles.metricCard}>
-          <div className={metricStyles.metricLabel}>Max Drawdown</div>
-          <div className={metricStyles.metricValue}>
+        <div className="flex flex-col">
+          <div className="text-sm text-gray-400">Max Drawdown</div>
+          <div className="text-lg font-bold">
             {percentOrNa(maxDrawdown)}
           </div>
         </div>
-        <div className={metricStyles.metricCard}>
-          <div className={metricStyles.metricLabel}>Volatility</div>
-          <div className={metricStyles.metricValue}>
+        <div className="flex flex-col">
+          <div className="text-sm text-gray-400">Volatility</div>
+          <div className="text-lg font-bold">
             {percentOrNa(volatility)}
           </div>
         </div>

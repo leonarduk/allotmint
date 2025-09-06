@@ -13,7 +13,8 @@ import json
 import logging
 import math
 import os
-from datetime import UTC, datetime, timedelta
+from collections import defaultdict
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -29,6 +30,7 @@ from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
 )
+from backend.common.compliance import load_transactions
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries, load_meta_timeseries_range
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
@@ -713,6 +715,122 @@ def compute_max_drawdown(owner: str, days: int = 365) -> float | None:
 
 def compute_group_max_drawdown(slug: str, days: int = 365) -> float | None:
     return _max_drawdown(slug, days, group=True)
+
+
+# ──────────────────────────────────────────────────────────────
+# Return metrics
+# ──────────────────────────────────────────────────────────────
+def _parse_date(val: Any) -> date | None:
+    if not val:
+        return None
+    try:
+        return datetime.fromisoformat(str(val)).date()
+    except Exception:
+        return None
+
+
+_CASH_FLOW_SIGNS = {
+    "DEPOSIT": 1,
+    "WITHDRAWAL": -1,
+    "DIVIDENDS": 1,
+    "INTEREST": 1,
+}
+
+
+def compute_time_weighted_return(owner: str, days: int = 365) -> float | None:
+    """Compute time-weighted return for ``owner`` over ``days``."""
+
+    total = _portfolio_value_series(owner, days)
+    if total.empty or len(total) < 2:
+        return None
+
+    start = total.index.min()
+    end = total.index.max()
+
+    txs = load_transactions(owner)
+    flows: defaultdict[date, float] = defaultdict(float)
+    for t in txs:
+        d = _parse_date(t.get("date"))
+        if not d or d < start or d > end:
+            continue
+        typ = (t.get("type") or t.get("kind") or "").upper()
+        if typ in _CASH_FLOW_SIGNS:
+            try:
+                amt = float(t.get("amount_minor") or 0.0) / 100.0
+            except (TypeError, ValueError):
+                continue
+            flows[d] += amt * _CASH_FLOW_SIGNS[typ]
+
+    twr = 1.0
+    prev_val = float(total.iloc[0])
+    for d, val in total.iloc[1:].items():
+        cf = flows.get(d, 0.0)
+        if prev_val:
+            r = (val - cf) / prev_val - 1.0
+            twr *= 1.0 + r
+        prev_val = val
+
+    return float(twr - 1.0)
+
+
+def compute_xirr(owner: str, days: int = 365) -> float | None:
+    """Compute XIRR for ``owner`` over ``days`` using cash flows."""
+
+    total = _portfolio_value_series(owner, days)
+    if total.empty:
+        return None
+
+    start = total.index.min()
+    end = total.index.max()
+
+    txs = load_transactions(owner)
+    flows: list[tuple[date, float]] = []
+    for t in txs:
+        d = _parse_date(t.get("date"))
+        if not d or d < start or d > end:
+            continue
+        typ = (t.get("type") or t.get("kind") or "").upper()
+        if typ in _CASH_FLOW_SIGNS:
+            try:
+                amt = float(t.get("amount_minor") or 0.0) / 100.0
+            except (TypeError, ValueError):
+                continue
+            sign = 1 if _CASH_FLOW_SIGNS[typ] < 0 else -1
+            flows.append((d, amt * sign))
+
+    flows.append((end, float(total.iloc[-1])))
+    if len(flows) < 2:
+        return None
+
+    flows.sort(key=lambda x: x[0])
+    start = flows[0][0]
+
+    def xnpv(rate: float) -> float:
+        return sum(
+            amt / (1.0 + rate) ** ((d - start).days / 365.0) for d, amt in flows
+        )
+
+    rate = 0.1
+    for _ in range(100):
+        f = xnpv(rate)
+        if abs(f) < 1e-6:
+            break
+        df = sum(
+            -( (d - start).days / 365.0 ) * amt /
+            (1.0 + rate) ** ( (d - start).days / 365.0 + 1 )
+            for d, amt in flows
+        )
+        if df == 0:
+            break
+        rate_new = rate - f / df
+        if abs(rate_new - rate) < 1e-7:
+            rate = rate_new
+            break
+        rate = rate_new
+
+    if not math.isfinite(rate):
+        return None
+    return float(rate)
 
 
 # ──────────────────────────────────────────────────────────────

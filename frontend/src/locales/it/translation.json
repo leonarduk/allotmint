@@ -165,6 +165,8 @@
     "alphaVsBenchmark": "Alpha vs benchmark",
     "trackingError": "Errore di tracciamento",
     "maxDrawdown": "Drawdown massimo",
+    "timeWeightedReturn": "Rendimento ponderato nel tempo",
+    "xirr": "XIRR",
     "portfolioValue": "Valore del portafoglio",
     "cumulativeReturn": "Ritorno cumulativo"
   },

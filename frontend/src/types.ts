@@ -115,6 +115,12 @@ export interface PerformancePoint {
     cumulative_return?: number | null;
 }
 
+export interface PerformanceResponse {
+    history: PerformancePoint[];
+    time_weighted_return?: number | null;
+    xirr?: number | null;
+}
+
 export interface ValueAtRiskPoint {
     date: string;
     var: number;

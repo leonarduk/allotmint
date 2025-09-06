@@ -55,6 +55,7 @@ from openai import OpenAI
 OUTPUT_DIR = Path("site_manual")
 SCREENSHOT_DIR = OUTPUT_DIR / "screenshots"
 MARKDOWN_DIR = OUTPUT_DIR / "markdown"
+FEEDBACK_DIR = OUTPUT_DIR / "feedback"
 PDF_PATH = OUTPUT_DIR / "manual.pdf"
 SITEPLAN_DIR = Path("docs/siteplan")
 
@@ -274,6 +275,7 @@ async def snapshot_pages(
     out_dir.mkdir(parents=True, exist_ok=True)
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     MARKDOWN_DIR.mkdir(parents=True, exist_ok=True)
+    FEEDBACK_DIR.mkdir(parents=True, exist_ok=True)
 
     sem = asyncio.Semaphore(concurrency)
     results: List[PageDoc] = []
@@ -306,7 +308,9 @@ async def snapshot_pages(
                     analysis = ""
                     if png_path.exists():
                         try:
-                            b64_img = base64.b64encode(png_path.read_bytes()).decode("utf-8")
+                            b64_img = base64.b64encode(png_path.read_bytes()).decode(
+                                "utf-8"
+                            )
                             resp = await asyncio.to_thread(
                                 client.chat.completions.create,
                                 model=ai_model,
@@ -324,11 +328,15 @@ async def snapshot_pages(
                                                     "url": f"data:image/png;base64,{b64_img}",
                                                 },
                                             },
+                                            {"type": "text", "text": md},
                                         ],
                                     }
                                 ],
                             )
                             analysis = resp.choices[0].message.content.strip()
+                            (FEEDBACK_DIR / f"{idx:03}_{_slug(title)}.md").write_text(
+                                analysis, encoding="utf-8"
+                            )
                         except Exception as e_ai:
                             logging.warning("Analysis failed for %s: %s", url, e_ai)
                     md_path = MARKDOWN_DIR / f"{idx:03}_{_slug(title)}.md"

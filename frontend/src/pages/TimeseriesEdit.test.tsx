@@ -16,6 +16,10 @@ describe("TimeseriesEdit page", () => {
     vi.clearAllMocks();
     render(<TimeseriesEdit />);
 
+    expect(
+      (screen.getByLabelText(/Exchange/i) as HTMLSelectElement).value,
+    ).toBe("L");
+
     fireEvent.change(screen.getByLabelText(/Ticker/i), {
       target: { value: "ABC" },
     });
@@ -50,10 +54,10 @@ describe("TimeseriesEdit page", () => {
   });
 
   it("prefills ticker and exchange from URL", async () => {
-    window.history.pushState({}, "", "/timeseries?ticker=XYZ&exchange=US");
+    window.history.pushState({}, "", "/timeseries?ticker=XYZ&exchange=DE");
     render(<TimeseriesEdit />);
     expect(await screen.findByDisplayValue("XYZ")).toBeInTheDocument();
-    expect(await screen.findByDisplayValue("US")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("DE")).toBeInTheDocument();
     window.history.pushState({}, "", "/");
   });
 });

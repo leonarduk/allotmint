@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   getPerformance,
@@ -8,7 +9,6 @@ import {
 } from "../api";
 import type { PerformancePoint } from "../types";
 import { percent } from "../lib/money";
-import i18n from "../i18n";
 
 type Props = {
   owner: string | null;
@@ -22,6 +22,7 @@ export function PerformanceDashboard({ owner }: Props) {
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [excludeCash, setExcludeCash] = useState<boolean>(false);
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     if (!owner) return;
@@ -43,29 +44,29 @@ export function PerformanceDashboard({ owner }: Props) {
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, [owner, days, excludeCash]);
 
-  if (!owner) return <p>Select a member.</p>;
+  if (!owner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
-  if (!data.length) return <p>Loading…</p>;
+  if (!data.length) return <p>{t("common.loading")}</p>;
 
   return (
     <div style={{ marginTop: "1rem" }}>
       <div style={{ marginBottom: "0.5rem" }}>
         <label style={{ fontSize: "0.85rem" }}>
-          Range:
+          {t("dashboard.range")}
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
             style={{ marginLeft: "0.25rem" }}
           >
-            <option value={7}>1W</option>
-            <option value={30}>1M</option>
-            <option value={365}>1Y</option>
-            <option value={3650}>10Y</option>
-            <option value={0}>MAX</option>
+            <option value={7}>{t("dashboard.rangeOptions.1w")}</option>
+            <option value={30}>{t("dashboard.rangeOptions.1m")}</option>
+            <option value={365}>{t("dashboard.rangeOptions.1y")}</option>
+            <option value={3650}>{t("dashboard.rangeOptions.10y")}</option>
+            <option value={0}>{t("dashboard.rangeOptions.max")}</option>
           </select>
         </label>
         <label style={{ fontSize: "0.85rem", marginLeft: "1rem" }}>
-          Exclude cash
+          {t("dashboard.excludeCash")}
           <input
             type="checkbox"
             checked={excludeCash}
@@ -82,25 +83,25 @@ export function PerformanceDashboard({ owner }: Props) {
         }}
       >
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Alpha vs Benchmark</div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.alphaVsBenchmark")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             {percent(alpha != null ? alpha * 100 : null)}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Tracking Error</div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.trackingError")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             {percent(trackingError != null ? trackingError * 100 : null)}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
+          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.maxDrawdown")}</div>
           <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
             {percent(maxDrawdown != null ? maxDrawdown * 100 : null)}
           </div>
         </div>
       </div>
-      <h2>Portfolio Value</h2>
+      <h2>{t("dashboard.portfolioValue")}</h2>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>
           <XAxis dataKey="date" />
@@ -110,7 +111,7 @@ export function PerformanceDashboard({ owner }: Props) {
         </LineChart>
       </ResponsiveContainer>
 
-      <h2 style={{ marginTop: "2rem" }}>Cumulative Return</h2>
+      <h2 style={{ marginTop: "2rem" }}>{t("dashboard.cumulativeReturn")}</h2>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>
           <XAxis dataKey="date" />

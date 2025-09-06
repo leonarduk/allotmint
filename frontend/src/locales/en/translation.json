@@ -150,6 +150,23 @@
   "group": {
     "select": "Select a group."
   },
+  "dashboard": {
+    "selectMember": "Select a member.",
+    "range": "Range:",
+    "rangeOptions": {
+      "1w": "1W",
+      "1m": "1M",
+      "1y": "1Y",
+      "10y": "10Y",
+      "max": "MAX"
+    },
+    "excludeCash": "Exclude cash",
+    "alphaVsBenchmark": "Alpha vs Benchmark",
+    "trackingError": "Tracking Error",
+    "maxDrawdown": "Max Drawdown",
+    "portfolioValue": "Portfolio Value",
+    "cumulativeReturn": "Cumulative Return"
+  },
   "support": {
     "title": "Support",
     "online": "Online",

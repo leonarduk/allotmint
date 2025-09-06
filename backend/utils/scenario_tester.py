@@ -93,6 +93,16 @@ def _calc_return(ticker: str, exchange: str | None, start: date, horizon: int) -
     df = load_meta_timeseries_range(ticker, exchange or "", start_date=start, end_date=end)
     if df.empty or len(df) < 2:
         return None
+
+    # Ensure the data covers (most of) the requested horizon.
+    last = df.index[-1]
+    if isinstance(last, pd.Timestamp):
+        last = last.date()
+    expected_end = start + timedelta(days=horizon)
+    # Allow a few calendar days of tolerance for weekends/holidays.
+    if (expected_end - last).days > 3:
+        return None
+
     start_price = _get_close(df.iloc[0])
     end_price = _get_close(df.iloc[-1])
     if not start_price or not end_price:

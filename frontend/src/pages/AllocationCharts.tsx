@@ -150,7 +150,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
               cx="50%"
               cy="50%"
               outerRadius="80%"
-              label={({ name, value, percent }) =>
+              label={({ name, value, percent = 0 }) =>
                 `${name}: ${money(value)} (${(percent * 100).toFixed(2)}%)`
               }
             >

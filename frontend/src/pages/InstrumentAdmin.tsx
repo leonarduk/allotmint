@@ -63,12 +63,10 @@ export default function InstrumentAdmin() {
       .catch((e) => setError(String(e)));
   }, []);
 
-  const handleChange = (
-    index: number,
-    field: keyof Row,
-    value: string,
-  ) => {
+  const handleChange = (row: Row, field: keyof Row, value: string) => {
     setRows((prev) => {
+      const index = prev.indexOf(row);
+      if (index === -1) return prev;
       const copy = [...prev];
       copy[index] = { ...copy[index], [field]: value };
       return copy;
@@ -160,31 +158,31 @@ export default function InstrumentAdmin() {
               <td>
                 <input
                   value={r.ticker}
-                  onChange={(e) => handleChange(idx, "ticker", e.target.value)}
+                  onChange={(e) => handleChange(r, "ticker", e.target.value)}
                 />
               </td>
               <td>
                 <input
                   value={r.exchange}
-                  onChange={(e) => handleChange(idx, "exchange", e.target.value)}
+                  onChange={(e) => handleChange(r, "exchange", e.target.value)}
                 />
               </td>
               <td>
                 <input
                   value={r.name}
-                  onChange={(e) => handleChange(idx, "name", e.target.value)}
+                  onChange={(e) => handleChange(r, "name", e.target.value)}
                 />
               </td>
               <td>
                 <input
                   value={r.region ?? ""}
-                  onChange={(e) => handleChange(idx, "region", e.target.value)}
+                  onChange={(e) => handleChange(r, "region", e.target.value)}
                 />
               </td>
               <td>
                 <input
                   value={r.sector ?? ""}
-                  onChange={(e) => handleChange(idx, "sector", e.target.value)}
+                  onChange={(e) => handleChange(r, "sector", e.target.value)}
                 />
               </td>
               <td>

@@ -9,6 +9,7 @@ export const tabPluginMap = {
   timeseries: {},
   watchlist: {},
   allocation: {},
+  rebalance: {},
   movers: {},
   instrumentadmin: {},
   dataadmin: {},

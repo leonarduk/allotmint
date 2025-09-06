@@ -41,29 +41,31 @@ export default function Menu({
                     ? 'watchlist'
                     : path[0] === 'allocation'
                       ? 'allocation'
-                      : path[0] === 'movers'
-                        ? 'movers'
-                        : path[0] === 'instrumentadmin'
-                          ? 'instrumentadmin'
-                          : path[0] === 'dataadmin'
-                            ? 'dataadmin'
-                            : path[0] === 'profile'
-                              ? 'profile'
-                              : path[0] === 'virtual'
-                                ? 'virtual'
-                                : path[0] === 'reports'
-                                  ? 'reports'
-                                  : path[0] === 'support'
-                                    ? 'support'
-                                    : path[0] === 'settings'
-                                      ? 'settings'
-                                      : path[0] === 'scenario'
-                                        ? 'scenario'
-                                        : path[0] === 'logs'
-                                          ? 'logs'
-                                          : path.length === 0
-                                            ? 'group'
-                                          : 'movers';
+                      : path[0] === 'rebalance'
+                        ? 'rebalance'
+                        : path[0] === 'movers'
+                          ? 'movers'
+                          : path[0] === 'instrumentadmin'
+                            ? 'instrumentadmin'
+                            : path[0] === 'dataadmin'
+                              ? 'dataadmin'
+                              : path[0] === 'profile'
+                                ? 'profile'
+                                : path[0] === 'virtual'
+                                  ? 'virtual'
+                                  : path[0] === 'reports'
+                                    ? 'reports'
+                                    : path[0] === 'support'
+                                      ? 'support'
+                                      : path[0] === 'settings'
+                                        ? 'settings'
+                                        : path[0] === 'scenario'
+                                          ? 'scenario'
+                                          : path[0] === 'logs'
+                                            ? 'logs'
+                                            : path.length === 0
+                                              ? 'group'
+                                              : 'movers';
 
   const isSupportMode = SUPPORT_TABS.includes(mode);
 
@@ -91,6 +93,8 @@ export default function Menu({
         return '/logs';
       case 'allocation':
         return '/allocation';
+      case 'rebalance':
+        return '/rebalance';
       case 'instrumentadmin':
         return '/instrumentadmin';
       case 'profile':

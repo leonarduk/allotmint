@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getInstrumentDetail, getScreener } from "../api";
-import type { ScreenerResult, InstrumentDetail } from "../types";
+import { getInstrumentDetail, getScreener, getQuotes } from "../api";
+import type { ScreenerResult, InstrumentDetail, QuoteRow } from "../types";
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
   const [detail, setDetail] = useState<InstrumentDetail | null>(null);
   const [metrics, setMetrics] = useState<ScreenerResult | null>(null);
+  const [quote, setQuote] = useState<QuoteRow | null>(null);
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
 
   useEffect(() => {
@@ -23,6 +24,9 @@ export default function InstrumentResearch() {
       .catch((err) => {
         if (err.name !== "AbortError") console.error(err);
       });
+    getQuotes([tkr])
+      .then((rows) => setQuote(rows[0] || null))
+      .catch((err) => console.error(err));
     return () => {
       detailCtrl.abort();
       screenerCtrl.abort();
@@ -40,6 +44,44 @@ export default function InstrumentResearch() {
         </Link>
         <Link to="/watchlist">Watchlist</Link>
       </div>
+      {(quote || metrics) && (
+        <table style={{ marginBottom: "1rem" }}>
+          <tbody>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Price</th>
+              <td>{quote?.last ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Change %</th>
+              <td>
+                {quote?.changePct != null
+                  ? `${quote.changePct.toFixed(2)}%`
+                  : "—"}
+              </td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                Day Range
+              </th>
+              <td>
+                {quote
+                  ? `${quote.low ?? "—"} - ${quote.high ?? "—"}`
+                  : "—"}
+              </td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                52W Range
+              </th>
+              <td>
+                {metrics
+                  ? `${metrics.low_52w ?? "—"} - ${metrics.high_52w ?? "—"}`
+                  : "—"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
       {metrics && (
         <table style={{ marginBottom: "1rem" }}>
           <tbody>

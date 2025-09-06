@@ -189,6 +189,7 @@ async def crawl(
     drop_query: bool,
     keep_params: Optional[List[str]],
     network_idle_ms: int,
+    wait_until: str,
 ) -> List[str]:
     """
     Returns a list of canonical URLs to snapshot.
@@ -220,7 +221,7 @@ async def crawl(
             cur_url = raw_url
             try:
                 await page.goto(
-                    raw_url, wait_until="networkidle", timeout=network_idle_ms
+                    raw_url, wait_until=wait_until, timeout=network_idle_ms
                 )
                 html = await page.content()
                 cur_url = page.url or raw_url
@@ -278,6 +279,7 @@ async def snapshot_pages(
     content_selectors: List[str],
     out_dir: Path,
     viewport: Tuple[int, int],
+    wait_until: str,
     concurrency: int,
     page_timeout_ms: int,
     ai_model: str,
@@ -304,7 +306,7 @@ async def snapshot_pages(
                 page = await context.new_page()
                 try:
                     await page.goto(
-                        url, wait_until="networkidle", timeout=page_timeout_ms
+                        url, wait_until=wait_until, timeout=page_timeout_ms
                     )
                     await _hide_selectors(page, hide_selectors)
                     await page.wait_for_timeout(300)
@@ -531,6 +533,13 @@ def parse_args() -> argparse.Namespace:
         help="Selectors to extract markdown from (repeatable).",
     )
     ap.add_argument(
+        "--wait-until",
+        default="networkidle",
+        choices=["networkidle", "load", "domcontentloaded"],
+        help="Playwright wait condition for navigation (default: networkidle)."
+        " Switch to 'load' for dev servers that maintain open connections.",
+    )
+    ap.add_argument(
         "--network-idle-ms",
         type=int,
         default=15000,
@@ -589,6 +598,7 @@ async def main_async(ns: argparse.Namespace):
         drop_query=ns.drop_query and not ns.keep_param,
         keep_params=keep_params,
         network_idle_ms=ns.network_idle_ms,
+        wait_until=ns.wait_until,
     )
     if not urls:
         logging.error(
@@ -602,6 +612,7 @@ async def main_async(ns: argparse.Namespace):
         content_selectors=content_selectors,
         out_dir=out_dir,
         viewport=viewport,
+        wait_until=ns.wait_until,
         concurrency=max(1, ns.concurrency),
         page_timeout_ms=ns.page_timeout_ms,
         ai_model=ns.ai_model,

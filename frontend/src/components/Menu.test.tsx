@@ -6,12 +6,15 @@ import Menu from "./Menu";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
 
 describe("Menu", () => {
-  it("renders support toggle link", () => {
+  it("hides links by default and shows them after toggle", () => {
     render(
       <MemoryRouter>
         <Menu />
       </MemoryRouter>,
     );
+    expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: /menu/i });
+    fireEvent.click(toggle);
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
       "/support",
@@ -85,6 +88,8 @@ describe("Menu", () => {
         <Menu onLogout={onLogout} />
       </MemoryRouter>,
     );
+    const toggle = screen.getByRole("button", { name: /menu/i });
+    fireEvent.click(toggle);
     fireEvent.click(screen.getByLabelText("menu"));
     const btn = screen.getByRole("button", { name: "Déconnexion" });
     fireEvent.click(btn);

@@ -43,6 +43,13 @@ uvicorn app:app --reload --port 8000 --host 0.0.0.0
 npm i && npm run dev
 ```
 
+## Scenario Tester
+
+Simulate historical shocks against your portfolio. `apply_historical_event`
+calculates holding returns over several horizons from the event date. When a
+holding lacks data for a given horizon, returns fall back to the event's
+`proxy_index` via `load_meta_timeseries_range`.
+
 ## Importing Transactions
 
 The backend can parse transaction exports from supported providers. Upload a

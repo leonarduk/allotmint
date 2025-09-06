@@ -1,4 +1,5 @@
-import { useState } from 'react';
+// src/components/Menu.tsx
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
@@ -24,6 +25,21 @@ export default function Menu({
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const path = location.pathname.split('/').filter(Boolean);
+
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleFocus(e: FocusEvent) {
+      if (open && containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('focusin', handleFocus);
+    return () => {
+      document.removeEventListener('focusin', handleFocus);
+    };
+  }, [open]);
 
   const mode: TabPluginId =
     path[0] === 'member'
@@ -107,10 +123,8 @@ export default function Menu({
     }
   }
 
-  const [open, setOpen] = useState(false);
-
   return (
-    <nav className="mb-4">
+    <nav className="mb-4" ref={containerRef}>
       <button
         aria-label="menu"
         className="md:hidden mb-2 p-2 border rounded"
@@ -136,6 +150,7 @@ export default function Menu({
               key={p.id}
               to={pathFor(p.id)}
               className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
+              onClick={() => setOpen(false)}
             >
               {t(`app.modes.${p.id}`)}
             </Link>
@@ -144,6 +159,7 @@ export default function Menu({
           <Link
             to={inSupport ? '/' : '/support'}
             className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
+            onClick={() => setOpen(false)}
           >
             {t(inSupport ? 'app.userLink' : 'app.supportLink')}
           </Link>
@@ -151,7 +167,10 @@ export default function Menu({
         {onLogout && (
           <button
             type="button"
-            onClick={onLogout}
+            onClick={() => {
+              onLogout();
+              setOpen(false);
+            }}
             className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
           >
             {t('app.logout')}

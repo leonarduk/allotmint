@@ -20,9 +20,6 @@ describe("ScenarioTester page", () => {
         baseline_total_value_gbp: 100,
         shocked_total_value_gbp: 110,
         delta_gbp: 10,
-        baseline_total_value_gbp: 1000,
-        shocked_total_value_gbp: 950,
-        delta_gbp: -50,
       } as ScenarioResult,
     ]);
 
@@ -55,6 +52,14 @@ describe("ScenarioTester page", () => {
   });
 
   it("disables Apply button until valid inputs provided", async () => {
+    mockRunScenario.mockResolvedValueOnce([
+      {
+        owner: "Test Owner",
+        baseline_total_value_gbp: 100,
+        shocked_total_value_gbp: 110,
+        delta_gbp: 10,
+      } as ScenarioResult,
+    ]);
     render(<ScenarioTester />);
     const apply = screen.getByText("Apply");
 
@@ -71,13 +76,9 @@ describe("ScenarioTester page", () => {
       target: { value: "10" },
     });
     expect(apply).not.toBeDisabled();
-
-    const pre = await screen.findByText(/Test Owner/);
-    const data = JSON.parse(pre.textContent || "[]");
-    const result = data[0] as ScenarioResult;
-    expect(typeof result.baseline_total_value_gbp).toBe("number");
-    expect(typeof result.shocked_total_value_gbp).toBe("number");
-    expect(typeof result.delta_gbp).toBe("number");
+    fireEvent.click(apply);
+    await waitFor(() => expect(mockRunScenario).toHaveBeenCalled());
+    expect(screen.getByText("Test Owner")).toBeInTheDocument();
   });
 
   it("shows error message on failure", async () => {

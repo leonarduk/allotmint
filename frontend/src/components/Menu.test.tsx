@@ -5,13 +5,24 @@ import i18n from "../i18n";
 import Menu from "./Menu";
 
 describe("Menu", () => {
-  it("renders Logs tab", () => {
+  it("renders support link and no Logs tab by default", () => {
     render(
       <MemoryRouter>
         <Menu />
       </MemoryRouter>,
     );
+    expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute("href", "/support");
+    expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
+  });
+
+  it("renders Logs tab in support mode", () => {
+    render(
+      <MemoryRouter initialEntries={["/support"]}>
+        <Menu />
+      </MemoryRouter>,
+    );
     expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "App" })).toHaveAttribute("href", "/");
   });
 
   it("renders logout button when callback provided", () => {

@@ -4,6 +4,7 @@ import type { Portfolio, Account } from "../types";
 import { AccountBlock } from "./AccountBlock";
 import { ValueAtRisk } from "./ValueAtRisk";
 import { money } from "../lib/money";
+import { useConfig } from "../ConfigContext";
 import i18n from "../i18n";
 import { complianceForOwner } from "../api";
 
@@ -60,6 +61,8 @@ export function PortfolioView({ data, loading, error }: Props) {
     selectedAccounts.length ? selectedAccounts : allKeys
   );
 
+  const { baseCurrency } = useConfig();
+
   const totalValue = data.accounts.reduce(
     (sum, acct, idx) =>
       activeSet.has(accountKey(acct, idx))
@@ -77,7 +80,7 @@ export function PortfolioView({ data, loading, error }: Props) {
         As of {new Intl.DateTimeFormat(i18n.language).format(new Date(data.as_of))}
       </div>
       <div className="mb-8">
-        Approx Total: {money(totalValue)}
+        Approx Total: {money(totalValue, baseCurrency)}
       </div>
         {hasWarnings && (
           <div className="mb-4">

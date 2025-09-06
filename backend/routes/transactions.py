@@ -22,11 +22,13 @@ else:  # pragma: no cover - Unix
     msvcrt = None  # type: ignore[assignment]
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi import Request, UploadFile, File, Form
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
 from backend.config import config
+from backend import importers
 
 router = APIRouter(tags=["transactions"])
 log = logging.getLogger("transactions")
@@ -190,6 +192,21 @@ async def create_transaction(tx: TransactionCreate) -> dict:
         log.warning("Portfolio rebuild failed: %s", exc)
 
     return {"owner": owner, "account": account, **tx_data}
+
+
+@router.post("/transactions/import", response_model=List[Transaction])
+async def import_transactions(
+    provider: str = Form(...), file: UploadFile = File(...)
+) -> List[Transaction]:
+    """Parse a transaction export and return the contained transactions."""
+
+    data = await file.read()
+    try:
+        return importers.parse(provider, data)
+    except importers.UnknownProvider as exc:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")
+    except Exception as exc:  # pragma: no cover - parsing errors
+        raise HTTPException(status_code=400, detail=f"Failed to parse file: {exc}")
 
 
 @router.get("/transactions", response_model=List[Transaction])

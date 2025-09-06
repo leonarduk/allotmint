@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
-import { orderedTabPlugins } from '../tabPlugins';
+import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
 
 interface MenuProps {
   selectedOwner?: string;
@@ -41,29 +41,33 @@ export default function Menu({
                     ? 'watchlist'
                     : path[0] === 'allocation'
                       ? 'allocation'
-                      : path[0] === 'movers'
-                        ? 'movers'
-                        : path[0] === 'instrumentadmin'
-                          ? 'instrumentadmin'
-                          : path[0] === 'dataadmin'
-                            ? 'dataadmin'
-                            : path[0] === 'profile'
-                              ? 'profile'
-                              : path[0] === 'virtual'
-                                ? 'virtual'
-                                : path[0] === 'reports'
-                                  ? 'reports'
-                                  : path[0] === 'support'
-                                    ? 'support'
-                                    : path[0] === 'settings'
-                                      ? 'settings'
-                                      : path[0] === 'scenario'
-                                        ? 'scenario'
-                                        : path[0] === 'logs'
-                                          ? 'logs'
-                                          : path.length === 0
-                                            ? 'group'
-                                            : 'movers';
+                      : path[0] === 'rebalance'
+                        ? 'rebalance'
+                        : path[0] === 'movers'
+                          ? 'movers'
+                          : path[0] === 'instrumentadmin'
+                            ? 'instrumentadmin'
+                            : path[0] === 'dataadmin'
+                              ? 'dataadmin'
+                              : path[0] === 'profile'
+                                ? 'profile'
+                                : path[0] === 'virtual'
+                                  ? 'virtual'
+                                  : path[0] === 'reports'
+                                    ? 'reports'
+                                    : path[0] === 'support'
+                                      ? 'support'
+                                      : path[0] === 'settings'
+                                        ? 'settings'
+                                        : path[0] === 'scenario'
+                                          ? 'scenario'
+                                          : path[0] === 'logs'
+                                            ? 'logs'
+                                            : path.length === 0
+                                              ? 'group'
+                                              : 'movers';
+
+  const isSupportMode = SUPPORT_TABS.includes(mode);
 
   function pathFor(m: TabPluginId) {
     switch (m) {
@@ -89,6 +93,8 @@ export default function Menu({
         return '/logs';
       case 'allocation':
         return '/allocation';
+      case 'rebalance':
+        return '/rebalance';
       case 'instrumentadmin':
         return '/instrumentadmin';
       case 'profile':
@@ -101,6 +107,7 @@ export default function Menu({
   return (
     <nav style={{ display: 'flex', flexWrap: 'wrap', margin: '1rem 0', ...(style ?? {}) }}>
       {orderedTabPlugins
+        .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
         .slice()
         .sort((a, b) => a.priority - b.priority)
         .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
@@ -117,6 +124,12 @@ export default function Menu({
             {t(`app.modes.${p.id}`)}
           </Link>
         ))}
+      <Link
+        to={isSupportMode ? pathFor('group') : '/support'}
+        style={{ marginRight: '1rem', overflowWrap: 'anywhere' }}
+      >
+        {t(isSupportMode ? 'app.userLink' : 'app.supportLink')}
+      </Link>
       {onLogout && (
         <button
           type="button"

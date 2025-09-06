@@ -41,7 +41,19 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
             continue
         info = getattr(ticker, "info", {})
         price = info.get("regularMarketPrice")
-        if price is not None:
-            results.append({"symbol": sym, "price": price})
+        if price is None:
+            continue
+        results.append(
+            {
+                "symbol": sym,
+                "price": price,
+                "open": info.get("regularMarketOpen"),
+                "high": info.get("regularMarketDayHigh"),
+                "low": info.get("regularMarketDayLow"),
+                "previous_close": info.get("regularMarketPreviousClose"),
+                "volume": info.get("regularMarketVolume"),
+                "timestamp": info.get("regularMarketTime"),
+            }
+        )
 
     return results

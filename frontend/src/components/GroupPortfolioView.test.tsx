@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor, act, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { GroupPortfolioView } from "./GroupPortfolioView";
@@ -62,7 +62,11 @@ const TestProvider = ({ children }: { children: React.ReactNode }) => {
 
 const renderWithConfig = (ui: React.ReactElement) => render(<TestProvider>{ui}</TestProvider>);
 
-const mockAllFetches = (portfolio: any) => {
+const mockAllFetches = (
+  portfolio: any,
+  metrics: { alpha?: any; trackingError?: any; maxDrawdown?: any } = {},
+) => {
+  const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics;
   const fetchMock = vi.fn((input: RequestInfo) => {
     const url = typeof input === "string" ? input : input.url;
     if (url.includes("/portfolio-group/") && url.includes("/movers")) {
@@ -82,19 +86,19 @@ const mockAllFetches = (portfolio: any) => {
     if (url.includes("alpha-vs-benchmark")) {
       return Promise.resolve({
         ok: true,
-        json: async () => ({ alpha_vs_benchmark: 0 }),
+        json: async () => ({ alpha_vs_benchmark: alpha }),
       } as Response);
     }
     if (url.includes("tracking-error")) {
       return Promise.resolve({
         ok: true,
-        json: async () => ({ tracking_error: 0 }),
+        json: async () => ({ tracking_error: trackingError }),
       } as Response);
     }
     if (url.includes("max-drawdown")) {
       return Promise.resolve({
         ok: true,
-        json: async () => ({ max_drawdown: 0 }),
+        json: async () => ({ max_drawdown: maxDrawdown }),
       } as Response);
     }
     if (url.includes("sector-contributions")) {
@@ -347,5 +351,27 @@ describe("GroupPortfolioView", () => {
         "£100.00",
       ),
     );
+  });
+
+  it("shows N/A for invalid performance metrics", async () => {
+    const mockPortfolio = { name: "All owners combined", accounts: [] };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mockAllFetches(mockPortfolio, {
+      alpha: 2,
+      trackingError: null,
+      maxDrawdown: Infinity,
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" />);
+
+    const alphaLabel = await screen.findByText("Alpha vs Benchmark");
+    within(alphaLabel.parentElement!).getByText("N/A");
+    const teLabel = await screen.findByText("Tracking Error");
+    within(teLabel.parentElement!).getByText("N/A");
+    const mdLabel = await screen.findByText("Max Drawdown");
+    within(mdLabel.parentElement!).getByText("N/A");
+
+    expect(warnSpy).toHaveBeenCalledTimes(3);
   });
 });

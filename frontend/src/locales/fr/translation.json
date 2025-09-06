@@ -249,6 +249,7 @@
     "run": "Exécuter",
     "running": "Exécution…",
     "save": "Enregistrer",
+    "copyLink": "Copier le lien",
     "exportCsv": "Exporter CSV",
     "exportXlsx": "Exporter XLSX"
   },

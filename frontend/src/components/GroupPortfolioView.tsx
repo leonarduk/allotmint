@@ -11,7 +11,8 @@ import {
   getGroupPortfolio,
   getGroupAlphaVsBenchmark,
   getGroupTrackingError,
-  getGroupMaxDrawdown,getGroupSectorContributions,
+  getGroupMaxDrawdown,
+  getGroupSectorContributions,
   getGroupRegionContributions,
 } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
@@ -71,6 +72,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     loading,
     error: portfolioError,
   } = useFetch<GroupPortfolio>(fetchPortfolio, [slug], !!slug);
+
   const fetchSector = useCallback(() => getGroupSectorContributions(slug), [slug]);
   const fetchRegion = useCallback(() => getGroupRegionContributions(slug), [slug]);
   const { data: sectorContrib } = useFetch<SectorContribution[]>(
@@ -83,6 +85,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     [slug],
     !!slug
   );
+
   const [selected, setSelected] = useState<SelectedInstrument | null>(null);
   const { t } = useTranslation();
   const { relativeViewEnabled } = useConfig();
@@ -135,7 +138,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     }
   }, [portfolio, onTradeInfo]);
 
-  /* ── early‑return states ───────────────────────────────── */
+  /* ── early-return states ───────────────────────────────── */
   if (!slug) return <p>{t("group.select")}</p>;
   if (portfolioError)
     return (
@@ -439,7 +442,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         );
       })}
 
-      {/* Slide‑in instrument detail panel */}
+      {/* Slide-in instrument detail panel */}
       {selected && (
         <InstrumentDetail
           ticker={selected.ticker}

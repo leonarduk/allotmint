@@ -1,5 +1,9 @@
-import "./i18n";
-import "@testing-library/jest-dom";
+import './i18n';
+import '@testing-library/jest-dom';
+import { expect } from 'vitest';
+import { toHaveNoViolations } from 'jest-axe';
+
+expect.extend(toHaveNoViolations);
 
 // Polyfill for libraries relying on ResizeObserver (e.g. recharts)
 class ResizeObserver {
@@ -8,7 +12,10 @@ class ResizeObserver {
     this.cb = cb;
   }
   observe() {
-    this.cb([{ contentRect: { width: 400, height: 400 } } as ResizeObserverEntry], this);
+    this.cb(
+      [{ contentRect: { width: 400, height: 400 } } as ResizeObserverEntry],
+      this
+    );
   }
   unobserve() {}
   disconnect() {}
@@ -16,7 +23,12 @@ class ResizeObserver {
 declare global {
   interface GlobalThis {
     ResizeObserver: typeof ResizeObserver;
+    sparks: Record<string, any>;
   }
 }
 
 globalThis.ResizeObserver = ResizeObserver;
+// Provide default sparkline data container to satisfy components referencing it
+// in tests. In the application this is populated elsewhere.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+globalThis.sparks = {} as Record<string, Record<string, any[]>>;

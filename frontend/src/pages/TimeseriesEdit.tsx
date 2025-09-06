@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { ChangeEvent } from "react";
-import { getTimeseries, saveTimeseries } from "../api";
+import { getTimeseries, saveTimeseries, searchInstruments } from "../api";
 import type { PriceEntry } from "../types";
 import { EXCHANGES, type ExchangeCode } from "../lib/exchanges";
 
@@ -51,6 +51,9 @@ export function TimeseriesEdit() {
   const [rows, setRows] = useState<PriceEntry[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<
+    { ticker: string; name: string }[]
+  >([]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -61,6 +64,29 @@ export function TimeseriesEdit() {
       setExchange(e as ExchangeCode);
     }
   }, []);
+
+  useEffect(() => {
+    const trimmed = ticker.trim();
+    if (trimmed.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      searchInstruments(trimmed, undefined, undefined, controller.signal)
+        .then(setSuggestions)
+        .catch((err) => {
+          if (err.name !== "AbortError") {
+            console.error(err);
+            setSuggestions([]);
+          }
+        });
+    }, 300);
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [ticker]);
 
   async function handleLoad() {
     setError(null);
@@ -108,7 +134,22 @@ export function TimeseriesEdit() {
       <div className="mb-2">
         <label>
           Ticker {" "}
-          <input value={ticker} onChange={(e) => setTicker(e.target.value)} />
+          <input
+            list="ticker-suggestions"
+            value={ticker}
+            onChange={(e) => {
+              const val = e.target.value;
+              const match = suggestions.find((s) => s.ticker === val);
+              setTicker(match ? match.ticker : val);
+            }}
+          />
+          <datalist id="ticker-suggestions">
+            {suggestions.map((r) => (
+              <option key={r.ticker} value={r.ticker}>
+                {`${r.ticker} — ${r.name}`}
+              </option>
+            ))}
+          </datalist>
         </label>{" "}
         <label>
           Exchange {" "}

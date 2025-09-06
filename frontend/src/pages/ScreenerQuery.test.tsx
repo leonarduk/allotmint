@@ -146,6 +146,35 @@ describe("Screener & Query page", () => {
     );
   });
 
+  it("persists selected parameters in export URLs", async () => {
+    const { i18n } = renderWithI18n(<ScreenerQuery />);
+
+    await screen.findByLabelText("Alice");
+
+    fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
+      target: { value: "2024-01-01" },
+    });
+    fireEvent.change(screen.getByLabelText(i18n.t("query.end")), {
+      target: { value: "2024-02-01" },
+    });
+
+    fireEvent.click(screen.getByLabelText("Alice"));
+    fireEvent.click(screen.getByLabelText("AAA"));
+    fireEvent.click(screen.getByLabelText("market_value_gbp"));
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: i18n.t("query.run") })[1],
+    );
+
+    const csv = await screen.findByRole("link", { name: /csv/i });
+    const href = csv.getAttribute("href") ?? "";
+    expect(href).toContain("start=2024-01-01");
+    expect(href).toContain("end=2024-02-01");
+    expect(href).toContain("owners=Alice");
+    expect(href).toContain("tickers=AAA");
+    expect(href).toContain("metrics=market_value_gbp");
+  });
+
   it("loads saved queries into the form", async () => {
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     const btn = await screen.findByText("Saved1");

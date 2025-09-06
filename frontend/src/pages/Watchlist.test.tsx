@@ -109,5 +109,31 @@ describe("Watchlist page", () => {
 
     vi.useRealTimers();
   });
+
+  it("stops polling when markets are closed", async () => {
+    vi.useFakeTimers();
+    const closedRows = sampleRows.map((r) => ({ ...r, marketState: "CLOSED" }));
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(closedRows as any);
+    localStorage.setItem("watchlistSymbols", "AAA,BBB");
+
+    render(<Watchlist />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Markets closed")).toBeInTheDocument();
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      vi.advanceTimersByTime(30000);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getQuotes).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
 });
 

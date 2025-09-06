@@ -26,6 +26,7 @@ import type {
   MoverRow,
   TimeseriesSummary,
   ScenarioResult,
+  ScenarioEvent,
   TradeSuggestion,
   SectorContribution,
   RegionContribution,
@@ -202,10 +203,18 @@ export const getGroupMovers = (
   );
 };
 
-/** Apply a price shock scenario to all portfolios. */
-export const runScenario = (ticker: string, pct: number) => {
-  const params = new URLSearchParams({ ticker, pct: String(pct) });
-  return fetchJson<ScenarioResult[]>(`${API_BASE}/scenario?${params.toString()}`);
+/** Retrieve available predefined events for scenario testing. */
+export const getEvents = () => fetchJson<ScenarioEvent[]>(`${API_BASE}/events`);
+
+/** Apply a predefined scenario to all portfolios. */
+export const runScenario = (eventId: string, horizons: string[]) => {
+  const params = new URLSearchParams({
+    event: eventId,
+    horizons: horizons.join(","),
+  });
+  return fetchJson<ScenarioResult[]>(
+    `${API_BASE}/scenario?${params.toString()}`,
+  );
 };
 
 /** Retrieve per-ticker aggregation for a group portfolio. */

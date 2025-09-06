@@ -282,11 +282,19 @@ export type Alert = {
     timestamp: string;
 };
 
+export interface ScenarioEvent {
+    id: string;
+    name: string;
+}
+
+export interface ScenarioHorizonResult {
+    baseline: number | null;
+    shocked: number | null;
+}
+
 export interface ScenarioResult {
     owner: string;
-    baseline_total_value_gbp: number | null;
-    shocked_total_value_gbp: number | null;
-    delta_gbp: number | null;
+    horizons: Record<string, ScenarioHorizonResult>;
 }
 
 export type ComplianceResult = {

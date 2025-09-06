@@ -4,6 +4,8 @@ import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
 import { orderedTabPlugins } from '../tabPlugins';
 
+const SUPPORT_ONLY_TABS: TabPluginId[] = ['logs'];
+
 interface MenuProps {
   selectedOwner?: string;
   selectedGroup?: string;
@@ -61,9 +63,11 @@ export default function Menu({
                                         ? 'scenario'
                                         : path[0] === 'logs'
                                           ? 'logs'
-                                          : path.length === 0
+                                        : path.length === 0
                                             ? 'group'
                                             : 'movers';
+
+  const inSupport = mode === 'support';
 
   function pathFor(m: TabPluginId) {
     switch (m) {
@@ -103,7 +107,11 @@ export default function Menu({
       {orderedTabPlugins
         .slice()
         .sort((a, b) => a.priority - b.priority)
-        .filter((p) => tabs[p.id] !== false && !disabledTabs?.includes(p.id))
+        .filter((p) => {
+          if (p.id === 'support') return false;
+          if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
+          return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
+        })
         .map((p) => (
           <Link
             key={p.id}
@@ -117,6 +125,16 @@ export default function Menu({
             {t(`app.modes.${p.id}`)}
           </Link>
         ))}
+      <Link
+        to={inSupport ? '/' : '/support'}
+        style={{
+          marginRight: '1rem',
+          fontWeight: inSupport ? 'bold' : undefined,
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {t('app.supportLink')}
+      </Link>
       {onLogout && (
         <button
           type="button"

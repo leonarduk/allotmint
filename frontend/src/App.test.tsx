@@ -396,11 +396,10 @@ describe("App", () => {
       "Instrument Admin",
       "Data Admin",
       "Reports",
-        "User Settings",
-        "Support",
-        "Logs",
-        "Scenario Tester",
-      ]);
+      "User Settings",
+      "Scenario Tester",
+      "Support",
+    ]);
     });
 
   it("renders the user avatar when logged in", async () => {

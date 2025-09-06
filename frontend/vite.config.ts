@@ -2,6 +2,7 @@ import { defineConfig, type PluginOption, type UserConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
+import { glob } from 'glob'
 
 const staticDir = path.resolve(__dirname, 'dist')
 const pageRoutes: string[] = []
@@ -26,6 +27,13 @@ export default defineConfig(async ({ command }) => {
   ]
 
   if (command === 'build') {
+    const files = await glob('src/pages/**/*.tsx', {
+      cwd: __dirname,
+      ignore: ['**/*.test.tsx']
+    })
+    pageRoutes.push(
+      ...files.map((file) => `/${path.basename(file, '.tsx')}`)
+    )
     const { createRequire } = await import('node:module')
     const require = createRequire(import.meta.url)
     const vitePrerender = require('vite-plugin-prerender')

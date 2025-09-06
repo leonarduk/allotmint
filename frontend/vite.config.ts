@@ -34,7 +34,7 @@ export default defineConfig(({ command }) => {
   ]
 
   if (command === 'build') {
-    const vitePrerender = require('vite-plugin-prerender').default
+    const vitePrerender = require('vite-plugin-prerender')
     plugins.push(
       vitePrerender({
         staticDir,

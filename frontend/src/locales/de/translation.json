@@ -146,6 +146,23 @@
   "group": {
     "select": "Wählen Sie eine Gruppe."
   },
+  "dashboard": {
+    "selectMember": "Wählen Sie ein Mitglied.",
+    "range": "Zeitraum:",
+    "rangeOptions": {
+      "1w": "1W",
+      "1m": "1M",
+      "1y": "1J",
+      "10y": "10J",
+      "max": "MAX"
+    },
+    "excludeCash": "Bargeld ausschließen",
+    "alphaVsBenchmark": "Alpha vs Benchmark",
+    "trackingError": "Tracking Error",
+    "maxDrawdown": "Max Drawdown",
+    "portfolioValue": "Portfoliowert",
+    "cumulativeReturn": "Kumulierte Rendite"
+  },
   "support": {
     "title": "Support",
     "online": "Online",

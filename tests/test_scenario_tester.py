@@ -39,11 +39,42 @@ def test_historical_event_falls_back_to_proxy(monkeypatch):
         "proxy_index": {"ticker": "SPY", "exchange": "N"},
     }
 
-    df_proxy = pd.DataFrame({"Close": [100.0, 110.0]})
+    df_proxy = pd.DataFrame(
+        {"Close": [100.0, 110.0]},
+        index=pd.to_datetime(["2020-01-01", "2020-01-06"]),
+    )
 
     def fake_load(ticker, exchange, start_date, end_date):
         if ticker == "AAA":
             return pd.DataFrame()
+        return df_proxy
+
+    monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
+
+    returns = sc_tester.apply_historical_event(portfolio, event)
+    assert returns["AAA.L"][5] == pytest.approx(0.1)
+
+
+def test_historical_event_uses_proxy_when_data_incomplete(monkeypatch):
+    portfolio = {"accounts": [{"holdings": [{"ticker": "AAA.L"}]}]}
+    event = {
+        "date": date(2020, 1, 1),
+        "horizons": [5],
+        "proxy_index": {"ticker": "SPY", "exchange": "N"},
+    }
+
+    df_partial = pd.DataFrame(
+        {"Close": [100.0, 101.0]},
+        index=pd.to_datetime(["2020-01-01", "2020-01-02"]),
+    )
+    df_proxy = pd.DataFrame(
+        {"Close": [100.0, 110.0]},
+        index=pd.to_datetime(["2020-01-01", "2020-01-06"]),
+    )
+
+    def fake_load(ticker, exchange, start_date, end_date):
+        if ticker == "AAA":
+            return df_partial
         return df_proxy
 
     monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)

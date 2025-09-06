@@ -119,6 +119,7 @@ const mockAllFetches = (
     } as Response);
   });
   vi.stubGlobal("fetch", fetchMock);
+  (globalThis as any).sparks = {};
   return fetchMock;
 };
 
@@ -162,7 +163,7 @@ describe("GroupPortfolioView", () => {
 
     await waitFor(() => screen.getByText("alice"));
 
-    const toggle = screen.getByLabelText('Relative view');
+    const toggle = screen.getAllByLabelText('Relative view')[0];
     await userEvent.click(toggle);
 
     expect(screen.getByText("alice")).toBeInTheDocument();
@@ -274,6 +275,36 @@ describe("GroupPortfolioView", () => {
     );
     render(<GroupPortfolioView slug="all" />);
     expect(screen.getByText(i18n.t("common.loading"))).toBeInTheDocument();
+  });
+
+  it("renders metrics error message", async () => {
+    const mockPortfolio = {
+      name: "All owners combined",
+      accounts: [],
+    };
+
+    const fetchMock = mockAllFetches(mockPortfolio);
+    const originalImpl = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation((input: RequestInfo) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (
+        url.includes("alpha-vs-benchmark") ||
+        url.includes("tracking-error") ||
+        url.includes("max-drawdown")
+      ) {
+        return Promise.reject(new Error("boom"));
+      }
+      return originalImpl ? originalImpl(input) : Promise.resolve({
+        ok: true,
+        json: async () => mockPortfolio,
+      } as Response);
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" />);
+
+    await waitFor(() =>
+      screen.getByText(`${i18n.t("common.error")}: boom`)
+    );
   });
 
   it("updates totals when accounts are toggled", async () => {

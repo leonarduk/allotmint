@@ -13,9 +13,11 @@
       "owner": "Mitglied",
       "performance": "Leistung",
       "transactions": "Transaktionen",
+      "trading": "Handel",
       "screener": "Filter & Abfrage",
       "timeseries": "Zeitreihe",
       "watchlist": "Beobachtungsliste",
+      "allocation": "Allokation",
       "movers": "Movers",
       "instrumentadmin": "Instrumentverwaltung",
       "dataadmin": "Datenverwaltung",
@@ -172,6 +174,13 @@
   },
   "watchlist": {
     "refresh": "Aktualisieren"
+  },
+  "trading": {
+    "noPositions": "Keine Positionen.",
+    "noSignals": "Keine Signale."
+  },
+  "timeseries": {
+    "loading": "Laden…"
   },
   "query": {
     "start": "Start",

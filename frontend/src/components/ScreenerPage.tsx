@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { InstrumentDetail } from "./InstrumentDetail";
@@ -10,6 +11,7 @@ import i18n from "../i18n";
 
 
 export function ScreenerPage() {
+  const { t } = useTranslation();
   const [watchlist, setWatchlist] = useState<WatchlistName>("FTSE 100");
   const fetchScreener = useCallback(
     () => getScreener(WATCHLISTS[watchlist]),
@@ -24,13 +26,13 @@ export function ScreenerPage() {
 
   const { sorted, handleSort } = useSortableTable(rows ?? [], "peg_ratio");
 
-  if (loading) return <p>Loading…</p>;
+  if (loading) return <p>{t("common.loading")}</p>;
   if (error) return <p style={{ color: "red" }}>{error.message}</p>;
 
   return (
     <>
       <label style={{ display: "inline-block", marginBottom: "0.5rem" }}>
-        Watchlist:
+        {t("screener.watchlist")}
         <select
           value={watchlist}
           onChange={(e) => setWatchlist(e.target.value as WatchlistName)}

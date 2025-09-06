@@ -240,9 +240,7 @@
     }
   },
   "query": {
-    "noResults": "No results."
-  },
-  "query": {
+    "noResults": "No results.",
     "start": "Start",
     "end": "End",
     "owners": "Owners",

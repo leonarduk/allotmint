@@ -120,7 +120,9 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
               cx="50%"
               cy="50%"
               outerRadius="80%"
-              label
+              label={({ name, value, percent }) =>
+                `${name}: ${money(value)} (${(percent * 100).toFixed(2)}%)`
+              }
             >
               {chartData.map((_, index) => (
                 <Cell
@@ -130,7 +132,11 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
               ))}
             </Pie>
             <Tooltip formatter={(v: number) => money(v)} />
-            <Legend />
+            <Legend
+              formatter={(value: string, entry: any) =>
+                `${value}: ${money(entry?.payload?.value)}`
+              }
+            />
           </PieChart>
         </ResponsiveContainer>
       </div>

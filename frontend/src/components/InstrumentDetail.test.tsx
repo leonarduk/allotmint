@@ -99,7 +99,7 @@ describe("InstrumentDetail", () => {
     expect(screen.getByText(/test reason/)).toBeInTheDocument();
   });
 
-  it.each(["en", "fr", "de", "es", "pt"]) (
+  it.each(["en", "fr", "de", "es", "pt", "it"]) (
     "links to timeseries edit page (%s)",
     async (lang) => {
       mockGetInstrumentDetail.mockResolvedValue({

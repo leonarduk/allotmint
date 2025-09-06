@@ -8,6 +8,7 @@ const LANGUAGES = [
   { code: "de", flag: "/flags/de.svg" },
   { code: "es", flag: "/flags/es.svg" },
   { code: "pt", flag: "/flags/pt.svg" },
+  { code: "it", flag: "/flags/it.svg" },
 ];
 
 export const LanguageSwitcher = memo(function LanguageSwitcher() {

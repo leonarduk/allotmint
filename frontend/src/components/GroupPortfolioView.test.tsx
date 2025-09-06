@@ -240,7 +240,7 @@ describe("GroupPortfolioView", () => {
   });
 
 
-  const locales = ["en", "fr", "de", "es", "pt"] as const;
+  const locales = ["en", "fr", "de", "es", "pt", "it"] as const;
 
   it.each(locales)("renders select group message in %s", async (lng) => {
     await act(async () => {

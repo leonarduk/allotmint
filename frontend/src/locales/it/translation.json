@@ -1,0 +1,310 @@
+{
+  "app": {
+    "relativeView": "Vista relativa",
+    "refreshPrices": "Aggiorna i prezzi",
+    "refreshing": "Rinfrescante…",
+    "last": "Scorso:",
+    "loading": "Caricamento…",
+    "supportLink": "Supporto",
+    "logout": "Logout",
+    "modes": {
+      "group": "Gruppo",
+      "instrument": "Strumento",
+      "owner": "Membro",
+      "performance": "Prestazione",
+      "transactions": "Transazioni",
+      "trading": "Commercio",
+      "screener": "Screener & query",
+      "timeseries": "Timeserie",
+      "watchlist": "Elenco di guardia",
+      "allocation": "Allocazione",
+      "movers": "Movers",
+      "instrumentadmin": "Amministratore dello strumento",
+      "dataadmin": "Data Admin",
+      "settings": "Impostazioni utente",
+      "profile": "Profilo",
+      "reports": "Segnalazioni",
+      "support": "Supporto",
+      "scenario": "Tester di scenario",
+      "logs": "Tronchi"
+    }
+  },
+  "common": {
+    "error": "Errore",
+    "loading": "Caricamento…",
+    "other": "Altro",
+    "ticker": "Ticker",
+    "name": "Nome",
+    "action": "Azione",
+    "reason": "Motivo",
+    "period": "Periodo:"
+  },
+  "instrumentType": {
+    "equity": "Equità",
+    "bond": "Legame",
+    "cash": "Contanti",
+    "etf": "ETF",
+    "fund": "Finanziare",
+    "investmentTrust": "Fiducia degli investimenti",
+    "realEstate": "Immobiliare",
+    "other": "Altro"
+  },
+  "instrumentTable": {
+    "noInstruments": "Nessun strumento.",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nome",
+      "ccy": "CCY",
+      "type": "Tipo",
+      "units": "Unità",
+      "cost": "Costo £",
+      "market": "MERCATO £",
+      "gain": "Guadagna £",
+      "gainPct": "Guadagno %",
+      "last": "Ultimo £",
+      "lastDate": "Ultimo appuntamento",
+      "delta7d": "7d %",
+      "delta30d": "30d %"
+    }
+  },
+  "holdingsTable": {
+    "range": "Allineare:",
+    "rangeOption": "{{Count}} d",
+    "view": "Visualizzazione:",
+    "viewPresets": {
+      "all": "Tutto"
+    },
+    "quickFilters": "Filtri veloci:",
+    "quickFiltersSellEligible": "Idoneo alla vendita",
+    "quickFiltersGainPct": "Guadagnare%> x",
+    "minimumGainPrompt": "Min guadagno %",
+    "columnsLabel": "Colonne:",
+    "columns": {
+      "ticker": "Ticker",
+      "name": "Nome",
+      "trend": "Tendenza",
+      "ccy": "CCY",
+      "type": "Tipo",
+      "units": "Unità",
+      "price": "Px £",
+      "cost": "Costo £",
+      "market": "Mkt £",
+      "gain": "Guadagna £",
+      "gainPct": "Guadagno %",
+      "weightPct": "Peso %",
+      "acquired": "Acquisito",
+      "daysHeld": "Giorni tenuti",
+      "eligible": "Idoneo?"
+    },
+    "filters": {
+      "ticker": "Ticker",
+      "name": "Nome",
+      "type": "Tipo",
+      "units": "Unità",
+      "gainPct": "Guadagno %",
+      "sellEligible": "Vendi idonei",
+      "all": "Tutto",
+      "yes": "SÌ",
+      "no": "NO"
+    },
+    "noHoldings": "Nessuna partecipazione corrisponde ai filtri attuali.",
+    "source": "Fonte:",
+    "actualPurchaseCost": "Costo di acquisto effettivo",
+    "inferredCost": "Dedotto dal prezzo alla data di acquisizione",
+    "eligible": "Idoneo"
+  },
+  "instrumentDetail": {
+    "edit": "Modificare",
+    "change7d": "7d",
+    "change30d": "30D",
+    "range": "Allineare:",
+    "rangeOptions": {
+      "1w": "1W",
+      "1m": "1 m",
+      "1y": "1y",
+      "10y": "10y",
+      "max": "Max"
+    },
+    "bollingerBands": "Bande Bollinger",
+    "positions": "Posizioni",
+    "columns": {
+      "account": "Account",
+      "units": "Unità",
+      "market": "Mkt £",
+      "gain": "Guadagna £",
+      "gainPct": "Guadagno %"
+    },
+    "noPositions": "Nessuna posizione",
+    "recentPrices": "Prezzi recenti",
+    "priceColumns": {
+      "date": "Data",
+      "close": "£ Close",
+      "delta": "Δ £",
+      "deltaPct": "Δ %"
+    },
+    "noPriceData": "Nessun dati sui prezzi"
+  },
+  "owner": {
+    "label": "Proprietario",
+    "select": "Seleziona un proprietario."
+  },
+  "group": {
+    "select": "Seleziona un gruppo."
+  },
+  "dashboard": {
+    "selectMember": "Seleziona un membro.",
+    "range": "Allineare:",
+    "rangeOptions": {
+      "1w": "1W",
+      "1m": "1 m",
+      "1y": "1y",
+      "10y": "10y",
+      "max": "Max"
+    },
+    "excludeCash": "Escludere contanti",
+    "alphaVsBenchmark": "Alpha vs benchmark",
+    "trackingError": "Errore di tracciamento",
+    "maxDrawdown": "Drawdown massimo",
+    "portfolioValue": "Valore del portafoglio",
+    "cumulativeReturn": "Ritorno cumulativo"
+  },
+  "support": {
+    "title": "Supporto",
+    "online": "Online",
+    "onlineYes": "SÌ",
+    "onlineNo": "NO",
+    "environment": "Ambiente",
+    "telegramMessage": "Messaggio del telegramma",
+    "send": "Inviare",
+    "status": {
+      "sent": "Inviato",
+      "error": "Errore",
+      "sending": "Invio ..."
+    }
+  },
+  "reports": {
+    "title": "Segnalazioni",
+    "csv": "Scarica CSV",
+    "pdf": "Scarica PDF"
+  },
+  "loadingPortfolio": "Caricamento del portafoglio ...",
+  "portfolio": "Portfolio",
+  "asOf": "A partire da {{date}} • scambia questo mese: {{scambi}} / 20 (rimanente: {{rimanente}})",
+  "approxTotal": "Circa totale: £ {{value}}",
+  "allocation": {
+    "instrumentTypes": "Tipi di strumenti"
+  },
+  "watchlist": {
+    "refresh": "Rinfrescare"
+  },
+  "trading": {
+    "noPositions": "Nessuna posizione.",
+    "noSignals": "Nessun segnali."
+  },
+  "movers": {
+    "watchlist": "Watchlist:",
+    "period": "Periodo:",
+    "excludeSmall": "Escludere le posizioni <{{min}}%",
+    "loginPrompt": "Accedi per visualizzare i traslochi basati sul portafoglio.",
+    "loadFailed": "Impossibile caricare i motori {{status}}",
+    "signal": "Segnale",
+    "pctPortfolio": "% del portafoglio"
+  },
+  "timeseries": {
+    "loading": "Caricamento…"
+  },
+  "timeseriesEdit": {
+    "title": "Editor Timeseries",
+    "ticker": "Ticker",
+    "exchange": "Scambio",
+    "load": "Carico",
+    "addRow": "Aggiungi riga",
+    "save": "Salva",
+    "delete": "Eliminare",
+    "columns": {
+      "date": "Data",
+      "open": "Aprire",
+      "high": "Alto",
+      "low": "Basso",
+      "close": "Vicino",
+      "volume": "Volume",
+      "ticker": "Ticker",
+      "source": "Fonte"
+    },
+    "status": {
+      "loaded": "Caricato {{Count}} ROWS",
+      "saved": "Saved {{count}} righe"
+    },
+    "error": {
+      "noData": "Nessun dato da salvare",
+      "unexpectedColumns": "Colonna (s) imprevisto: {{colonne}}"
+    }
+  },
+  "query": {
+    "noResults": "Nessun risultato.",
+    "start": "Inizio",
+    "end": "FINE",
+    "owners": "Proprietari",
+    "tickers": "Ticker",
+    "metrics": "Metrica",
+    "run": "Correre",
+    "running": "Corsa…",
+    "save": "Salva",
+    "exportCsv": "Esportazione CSV",
+    "exportXlsx": "Esporta XLSX"
+  },
+  "screener": {
+    "watchlist": "Watchlist:",
+    "tickers": "Ticker",
+    "maxPeg": "Max Peg",
+    "maxPe": "Max p/e",
+    "maxDe": "Max d/e",
+    "maxLtDe": "Max lt d/e",
+    "minInterestCoverage": "Copertura di interesse min",
+    "minCurrentRatio": "Rapporto di corrente min",
+    "minQuickRatio": "Min Rapporto rapido",
+    "minFcf": "Min fcf",
+    "minEps": "Min eps",
+    "minGrossMargin": "Margine lordo min",
+    "minOperatingMargin": "Margine operativo min",
+    "minNetMargin": "Margine netto min",
+    "minEbitdaMargin": "Min Margin EBITDA",
+    "minRoa": "Min roa",
+    "minRoe": "Min Roe",
+    "minRoi": "Min Roi",
+    "minDividendYield": "Min Desidend Resa",
+    "maxDividendPayoutRatio": "Rapporto di pagamento di dividendi massimo",
+    "maxBeta": "Max beta",
+    "minSharesOutstanding": "Min condivide in circolazione",
+    "minFloatShares": "Min Float azioni",
+    "minMarketCap": "Min Market Chap",
+    "max52WeekHigh": "Massimo 52W di altezza",
+    "max52WeekLow": "MAX 52W BASSO",
+    "min52WeekLow": "Minimo 52W",
+    "minAvgVolume": "Volume Min Avg",
+    "run": "Correre",
+    "loading": "Caricamento…"
+  },
+  "instrumentadmin": {
+    "ticker": "Ticker",
+    "exchange": "Scambio",
+    "name": "Nome",
+    "region": "Regione",
+    "sector": "Settore",
+    "actions": "Azioni",
+    "add": "Aggiungi strumento",
+    "save": "Salva",
+    "saveSuccess": "Salvato",
+    "saveError": "Risparmio di errore",
+    "searchPlaceholder": "Filtro Strumenti ...",
+    "validation": {
+      "ticker": "È richiesto il ticker",
+      "name": "È richiesto il nome"
+    }
+  },
+  "var": {
+    "title": "Valore a rischio",
+    "details": "Dettagli di simulazione storica",
+    "noData": "Nessun dati VAR disponibile."
+  }
+}

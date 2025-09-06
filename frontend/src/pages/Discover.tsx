@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { CriteriaBuilder, Criterion } from "../components/CriteriaBuilder";
+import { useState } from "react";
+import { CriteriaBuilder } from "../components/CriteriaBuilder";
+import type { Criterion } from "../components/CriteriaBuilder";
 import { Sparkline } from "../components/Sparkline";
 
 /**

@@ -1,5 +1,3 @@
-import React from "react";
-
 export interface Criterion {
   field: string;
   operator: string;

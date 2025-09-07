@@ -867,6 +867,9 @@ export const getPensionForecast = (
   retirementAge: number,
   deathAge: number,
   statePensionAnnual?: number,
+  contributionAnnual?: number,
+  desiredIncomeAnnual?: number,
+  investmentGrowthPct?: number,
 ) => {
   const params = new URLSearchParams({
     dob,
@@ -876,9 +879,20 @@ export const getPensionForecast = (
   if (statePensionAnnual !== undefined) {
     params.set("state_pension_annual", String(statePensionAnnual));
   }
-  return fetchJson<{ forecast: { age: number; income: number }[] }>(
-    `${API_BASE}/pension/forecast?${params.toString()}`,
-  );
+  if (contributionAnnual !== undefined) {
+    params.set("contribution_annual", String(contributionAnnual));
+  }
+  if (desiredIncomeAnnual !== undefined) {
+    params.set("desired_income_annual", String(desiredIncomeAnnual));
+  }
+  if (investmentGrowthPct !== undefined) {
+    params.set("investment_growth_pct", String(investmentGrowthPct));
+  }
+  return fetchJson<{
+    forecast: { age: number; income: number }[];
+    projected_pot_gbp: number;
+    earliest_retirement_age: number | null;
+  }>(`${API_BASE}/pension/forecast?${params.toString()}`);
 };
 
 // ───────────── Quests API ─────────────

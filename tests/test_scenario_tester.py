@@ -1,11 +1,12 @@
 import datetime as dt
-from datetime import date
 
-import backend.common.prices as prices
 import pandas as pd
 import pytest
 from backend.utils import scenario_tester as sc
-from backend.utils.scenario_tester import apply_historical_event, apply_price_shock
+import backend.common.prices as prices
+from datetime import date
+
+import backend.utils.scenario_tester as sc_tester
 
 
 def test_price_shock_uses_cached_price_for_missing_current_price(monkeypatch):

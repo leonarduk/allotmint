@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../api", () => ({
@@ -26,5 +26,35 @@ describe("useInstrumentHistory", () => {
     });
 
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(3);
+  });
+
+  it("uses Retry-After header for backoff", async () => {
+    vi.useFakeTimers();
+    const randSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+
+    const err = new Error("HTTP 429 – Too Many Requests") as any;
+    err.response = { headers: new Headers({ "Retry-After": "2" }) };
+
+    mockGetInstrumentDetail
+      .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce({ mini: { 7: [], 30: [], 180: [] } });
+
+    const { result } = renderHook(() => useInstrumentHistory("ABC", 7));
+
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+    expect(result.current.data).not.toBeNull();
+
+    randSpy.mockRestore();
+    vi.useRealTimers();
   });
 });

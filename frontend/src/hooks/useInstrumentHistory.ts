@@ -80,7 +80,29 @@ export function useInstrumentHistory(ticker: string, days: number) {
         } catch (e) {
           const err = e instanceof Error ? e : new Error(String(e));
           if (err.message.includes("HTTP 429")) {
-            const delay = 500 * 2 ** attempt;
+            // Prefer server-provided Retry-After header over exponential backoff
+            let delay: number | undefined;
+            const retryAfter =
+              // Some fetch wrappers attach the response for easier introspection
+              (err as any).response?.headers?.get?.("Retry-After") ??
+              (err as any).headers?.get?.("Retry-After");
+
+            if (retryAfter) {
+              // Retry-After can be seconds or an HTTP-date
+              const seconds = Number(retryAfter);
+              if (!Number.isNaN(seconds)) {
+                delay = seconds * 1000;
+              } else {
+                const dateMs = Date.parse(retryAfter);
+                if (!Number.isNaN(dateMs)) delay = dateMs - Date.now();
+              }
+            }
+
+            if (delay == null || delay <= 0) {
+              delay = 500 * 2 ** attempt;
+            }
+            // Add a small random jitter to avoid synchronized retries
+            delay += Math.random() * 100;
             await new Promise((r) => setTimeout(r, delay));
             continue;
           }

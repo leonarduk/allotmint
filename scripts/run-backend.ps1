@@ -24,6 +24,16 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
 Set-Location $REPO_ROOT
 
+# Load environment variables from .env if present
+if (Test-Path '.env') {
+    Get-Content '.env' | ForEach-Object {
+        if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)\s*$') {
+            $key = $matches[1]; $value = $matches[2];
+            Set-Item -Path Env:$key -Value $value
+        }
+    }
+}
+
 # Ensure data directory exists
 if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
   Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
@@ -108,7 +118,7 @@ if (-not $offline) {
 
 # ───────────── env + defaults (PS 5.1) ────────
 $env:ALLOTMINT_ENV = Coalesce $cfg.app_env 'local'
-$env:DATA_ROOT = Coalesce $cfg.paths.data_root 'data'
+$env:DATA_ROOT = Coalesce $env:DATA_ROOT (Coalesce $cfg.paths.data_root 'data')
 $port      = Coalesce $cfg.uvicorn_port $Port
 $logConfig = Coalesce $cfg.log_config   'logging.ini'
 $reloadRaw = Coalesce $cfg.reload       $true

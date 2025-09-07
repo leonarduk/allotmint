@@ -98,9 +98,13 @@ values like:
 SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:allotmint   # optional
 TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ      # optional
 TELEGRAM_CHAT_ID=123456789                                  # optional
+DATA_ROOT=./data                                             # base directory for application data
 GOOGLE_AUTH_ENABLED=true                                    # enable Google sign-in
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com   # Google OAuth client (required when enabling)
 ```
+
+`DATA_ROOT` overrides the `paths.data_root` value in `config.yaml`, allowing the
+backend to load data from a different directory.
 
 If `GOOGLE_AUTH_ENABLED` is `true`, you must create an OAuth 2.0 Client ID in the [Google Cloud Console](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid) and supply it via the `GOOGLE_CLIENT_ID` environment variable or the `google_client_id` entry in `config.yaml`.
 

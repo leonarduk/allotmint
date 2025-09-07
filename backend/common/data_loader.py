@@ -36,9 +36,10 @@ def resolve_paths(
     if accounts_root and Path(accounts_root).exists():
         accounts_path = Path(accounts_root)
     else:
-        accounts_path = repo_path / "data" / "accounts"
+        base = Path(config.data_root) if config.data_root else repo_path / "data"
+        accounts_path = base / "accounts"
 
-    virtual_root = repo_path / "data" / "virtual_portfolios"
+    virtual_root = (Path(config.data_root) if config.data_root else repo_path / "data") / "virtual_portfolios"
     return ResolvedPaths(repo_path, accounts_path, virtual_root)
 
 

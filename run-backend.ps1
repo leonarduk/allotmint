@@ -23,6 +23,9 @@ Write-Host "# --------------------------------" -ForegroundColor DarkCyan
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $SCRIPT_DIR
 
+# Place synthesized CDK templates outside the repository
+$env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
+
 # ───────────────── helpers ───────────────────
 function Get-HasCommand($name) {
   return [bool](Get-Command $name -ErrorAction SilentlyContinue)

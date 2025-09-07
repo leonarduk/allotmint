@@ -98,6 +98,7 @@ jobs:
         if: steps.parse.outputs.deploy == 'true'
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+          CDK_OUTDIR: ../../.cdk.out
         run: cdk deploy --require-approval never
         working-directory: cdk
 

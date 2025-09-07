@@ -100,6 +100,8 @@ export function Watchlist() {
     const id = setInterval(fetchData, intervalMs);
     return () => clearInterval(id);
   }, [intervalMs, fetchData]);
+
+  useEffect(() => {
     if (auto) {
       const id = setInterval(fetchData, 10000);
       return () => clearInterval(id);

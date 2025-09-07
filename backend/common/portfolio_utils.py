@@ -468,14 +468,24 @@ def aggregate_by_ticker(
             if price and price == price:  # guard against None/NaN/0
                 row["last_price_gbp"] = price
                 row["last_price_date"] = snap.get("last_price_date")
-                row["change_7d_pct"] = snap.get("change_7d_pct")
-                row["change_30d_pct"] = snap.get("change_30d_pct")
                 row["market_value_gbp"] = round(row["units"] * price, 2)
                 row["gain_gbp"] = (
                     round(row["market_value_gbp"] - row["cost_gbp"], 2)
                     if row["cost_gbp"]
                     else row["gain_gbp"]
                 )
+
+            # ensure percentage change fields are populated
+            if row.get("change_7d_pct") is None:
+                change_7d = snap.get("change_7d_pct") if isinstance(snap, dict) else None
+                if change_7d is None:
+                    change_7d = instrument_api.price_change_pct(full_tkr, 7)
+                row["change_7d_pct"] = change_7d
+            if row.get("change_30d_pct") is None:
+                change_30d = snap.get("change_30d_pct") if isinstance(snap, dict) else None
+                if change_30d is None:
+                    change_30d = instrument_api.price_change_pct(full_tkr, 30)
+                row["change_30d_pct"] = change_30d
 
             # pass-through misc attributes (first non-null wins)
             for k in ("asset_class", "industry", "region", "owner", "sector"):

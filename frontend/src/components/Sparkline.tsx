@@ -1,5 +1,8 @@
 import { useMemo } from "react";
-import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
+import {
+  useInstrumentHistory,
+  getCachedInstrumentHistory,
+} from "../hooks/useInstrumentHistory";
 
 type SparklineBaseProps = {
   width?: number;
@@ -110,7 +113,8 @@ function SparklineFromFetch({
   tabIndex,
 }: SparklineFetchProps) {
   const { data, error } = useInstrumentHistory(ticker, days);
-  const points = data?.[String(days)] ?? [];
+  const cached = getCachedInstrumentHistory(ticker, days);
+  const points = (cached ?? data)?.[String(days)] ?? [];
   const series =
     points
       .map(

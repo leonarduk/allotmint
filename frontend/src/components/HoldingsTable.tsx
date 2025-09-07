@@ -18,6 +18,7 @@ import { RelativeViewToggle } from "./RelativeViewToggle";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
 import Sparkline from "./Sparkline";
+import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 
 declare const sparks: Record<string, Record<string, any[]>>;
 
@@ -70,6 +71,13 @@ export function HoldingsTable({
   });
 
   const [sparkRange, setSparkRange] = useState<7 | 30 | 180>(30);
+
+  useEffect(() => {
+    const tickers = Array.from(new Set(holdings.map((h) => h.ticker)));
+    if (tickers.length) {
+      preloadInstrumentHistory(tickers, sparkRange).catch(() => {});
+    }
+  }, [holdings, sparkRange]);
 
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));

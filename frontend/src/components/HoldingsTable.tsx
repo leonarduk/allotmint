@@ -12,6 +12,7 @@ import { RelativeViewToggle } from "./RelativeViewToggle";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
 import Sparkline from "./Sparkline";
+import { getGrowthStage } from "../utils/growthStage";
 
 declare const sparks: Record<string, Record<string, any[]>>;
 
@@ -289,6 +290,7 @@ export function HoldingsTable({
             <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             <th className={tableStyles.cell}></th>
             <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+            <th className={tableStyles.cell}></th>
             <th className={`${tableStyles.cell} ${tableStyles.center}`}>
               <select
                 aria-label={t("holdingsTable.filters.sellEligible")}
@@ -355,6 +357,7 @@ export function HoldingsTable({
             >
               {t("holdingsTable.columns.daysHeld")}{sortKey === "days_held" ? (asc ? " ▲" : " ▼") : ""}
             </th>
+            <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.stage")}</th>
             <th className={`${tableStyles.cell} ${tableStyles.center}`}>{t("holdingsTable.columns.eligible")}</th>
           </tr>
         </thead>
@@ -362,7 +365,7 @@ export function HoldingsTable({
         <tbody>
           {paddingTop > 0 && (
             <tr style={{ height: paddingTop }}>
-              <td colSpan={20} className="p-0 border-0" />
+              <td colSpan={21} className="p-0 border-0" />
             </tr>
           )}
           {items.map((virtualRow) => {
@@ -497,6 +500,12 @@ export function HoldingsTable({
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {h.days_held ?? "—"}
                 </td>
+                <td className={`${tableStyles.cell} ${tableStyles.center}`}>
+                  {(() => {
+                    const stage = getGrowthStage({ daysHeld: h.days_held });
+                    return <span title={stage.message}>{stage.icon}</span>;
+                  })()}
+                </td>
                 <td
                   className={`${tableStyles.cell} ${tableStyles.center} ${h.sell_eligible ? 'text-positive' : 'text-warning'}`}
                   title={
@@ -516,7 +525,7 @@ export function HoldingsTable({
           })}
           {paddingBottom > 0 && (
             <tr style={{ height: paddingBottom }}>
-              <td colSpan={20} className="p-0 border-0" />
+              <td colSpan={21} className="p-0 border-0" />
             </tr>
           )}
         </tbody>

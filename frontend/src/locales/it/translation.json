@@ -96,6 +96,7 @@
       "weightPct": "Peso %",
       "acquired": "Acquisito",
       "daysHeld": "Giorni tenuti",
+      "stage": "Stage",
       "eligible": "Idoneo?"
     },
     "filters": {

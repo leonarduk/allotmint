@@ -80,14 +80,24 @@ def forecast_pension(
     death_age: int,
     db_pensions: Optional[list[Dict[str, float]]] = None,
     state_pension_annual: Optional[float] = None,
+    contribution_annual: float = 0.0,
+    investment_growth_pct: float = 5.0,
+    desired_income_annual: Optional[float] = None,
+    annuity_multiple: float = DEFAULT_ANNUITY_MULTIPLE,
     today: Optional[dt.date] = None,
-) -> list[Dict[str, float]]:
+) -> Dict[str, Any]:
     """Return a simple year-by-year pension income forecast.
 
     Each entry in ``db_pensions`` should contain ``annual_income_gbp`` and
     ``normal_retirement_age`` fields.  The state pension amount, if provided,
-    is assumed to start at ``retirement_age``.  The forecast runs from the
-    current age (rounded down) up to but excluding ``death_age``.
+    is assumed to start at ``retirement_age``.  ``contribution_annual`` and
+    ``investment_growth_pct`` are used to project the size of a defined
+    contribution pot.  ``desired_income_annual`` is compared against the
+    projected pot (via ``annuity_multiple``) to determine the earliest age
+    that the desired income could be supported.
+
+    The forecast runs from the current age (rounded down) up to but excluding
+    ``death_age``.
     """
 
     today = today or dt.date.today()
@@ -97,11 +107,26 @@ def forecast_pension(
 
     start_age = int(current_age)
     if death_age <= start_age:
-        return []
+        return {"forecast": [], "projected_pot_gbp": 0.0, "earliest_retirement_age": None}
 
     pensions = db_pensions or []
     forecast: list[Dict[str, float]] = []
+    pot = 0.0
+    pot_at_retirement = 0.0
+    earliest_age: Optional[int] = None
+    growth_factor = 1 + investment_growth_pct / 100.0
     for age in range(start_age, death_age):
+        # update pot for the year
+        if age < retirement_age:
+            pot += contribution_annual
+        pot *= growth_factor
+        if age + 1 == retirement_age:
+            pot_at_retirement = pot
+        if desired_income_annual is not None and earliest_age is None:
+            if pot / annuity_multiple >= desired_income_annual:
+                earliest_age = age + 1
+
+        # income forecast (defined benefit + state)
         income = 0.0
         if state_pension_annual is not None and age >= retirement_age:
             income += state_pension_annual
@@ -113,4 +138,9 @@ def forecast_pension(
             except Exception:
                 continue
         forecast.append({"age": age, "income": income})
-    return forecast
+
+    return {
+        "forecast": forecast,
+        "projected_pot_gbp": pot_at_retirement,
+        "earliest_retirement_age": earliest_age,
+    }

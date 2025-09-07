@@ -7,15 +7,14 @@ vi.mock("../hooks/useFetch");
 
 describe("NotificationsDrawer", () => {
   it("shows empty message when there are no alerts", () => {
-    (useFetch as Mock).mockReturnValue({
-      data: [],
-      loading: false,
-      error: undefined,
-    });
+    (useFetch as Mock)
+      .mockReturnValueOnce({ data: [], loading: false, error: undefined })
+      .mockReturnValueOnce({ data: [], loading: false, error: undefined });
 
     render(<NotificationsDrawer open onClose={() => {}} />);
 
     expect(screen.getByText(/No alerts/i)).toBeInTheDocument();
+    expect(screen.getByText(/No nudges/i)).toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 });

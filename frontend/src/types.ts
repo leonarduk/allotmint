@@ -288,6 +288,12 @@ export type Alert = {
     timestamp: string;
 };
 
+export type Nudge = {
+    id: string;
+    message: string;
+    timestamp: string;
+};
+
 export interface ScenarioEvent {
     id: string;
     name: string;

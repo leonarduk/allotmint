@@ -10,6 +10,8 @@
 - Verify that Python (3.12) and Node.js versions meet project requirements.
 - Clear cached data under `data/cache/` if stale responses cause issues.
 - Run `pytest` and `npm test` to check for failing tests before debugging.
+  Sample account JSON files in `data/accounts/` allow these tests to run
+  without extra setup.
 - Ensure environment variables like `DATA_BUCKET` or API keys are correctly set.
 
 ## Log Locations

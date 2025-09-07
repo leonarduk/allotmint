@@ -89,6 +89,9 @@ If the variable is unset the UI defaults to `http://localhost:8000` (or
 - **Run tests**:
   - Backend: `pytest`
   - Frontend: `cd frontend && npm test`
+  - Sample account data under `data/accounts/` (e.g.,
+    `data/accounts/alice/savings.json`) allows tests to run without extra
+    setup.
 - **Get trading agent signals**: `curl http://localhost:8000/trading-agent/signals` or invoke the `price_refresh` Lambda
 - **Deploy to AWS**:
   1. `cd frontend && npm run build`

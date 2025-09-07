@@ -98,9 +98,13 @@ values like:
 SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789012:allotmint   # optional
 TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ      # optional
 TELEGRAM_CHAT_ID=123456789                                  # optional
+DATA_ROOT=./data                                             # base directory for application data
 GOOGLE_AUTH_ENABLED=true                                    # enable Google sign-in
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com   # Google OAuth client (required when enabling)
 ```
+
+`DATA_ROOT` overrides the `paths.data_root` value in `config.yaml`, allowing the
+backend to load data from a different directory.
 
 If `GOOGLE_AUTH_ENABLED` is `true`, you must create an OAuth 2.0 Client ID in the [Google Cloud Console](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid) and supply it via the `GOOGLE_CLIENT_ID` environment variable or the `google_client_id` entry in `config.yaml`.
 
@@ -323,20 +327,97 @@ variables:
 
 When several transports are configured, alerts are sent to each of them.
 
-## AWS data bucket
+## External data store
+
+Account and instrument files live in a separate data repository. Clone or
+sync it alongside the application before running the backend:
+
+```bash
+# clone once
+git clone git@github.com:your-org/allotmint-data.git data
+# pull updates
+cd data && git pull
+```
+
+### Local development
+
+Point the backend at the checked-out data by setting ``DATA_ROOT`` (or
+``accounts_root`` in ``config.yaml``) to the directory path:
+
+```bash
+# .env or shell
+DATA_ROOT=$(pwd)/data
+```
+
+The backend uses this folder when ``config.app_env: local`` or when
+``DATA_BUCKET`` is unset. Commit changes to update the data set:
+
+All runtime data now resides in an external S3 bucket instead of the
+repository. Sync the contents before starting the backend:
+
+```bash
+aws s3 sync s3://$DATA_BUCKET/ data/
+```
 
 When running the backend in AWS (``config.app_env: aws``), account and
-metadata JSON files are loaded from an S3 bucket.
+metadata JSON files are loaded from this bucket.
 
-Set the ``DATA_BUCKET`` environment variable to the name of the bucket
-containing the ``accounts/OWNER/ACCOUNT.json`` objects. The Lambda execution
-role requires the following minimal IAM permissions on that bucket:
+The local startup scripts (`run-local-api.sh` and `run-backend.ps1`) perform
+this sync automatically when `DATA_BUCKET` is set.
+
+```bash
+cd data
+git add accounts/alice/trades.csv
+git commit -m "Update Alice trades"
+git push
+```
+
+### AWS
+
+When running in AWS (``config.app_env: aws``), account and metadata JSON files
+are loaded from S3. Set the following environment variables:
+
+```bash
+DATA_BUCKET=allotmint-prod-data
+METADATA_BUCKET=allotmint-metadata
+METADATA_PREFIX=instruments/
+```
+
+The Lambda execution role requires:
 
 * ``s3:ListBucket`` (with a prefix of ``accounts/``) – discover available
   accounts.
 * ``s3:GetObject`` on ``accounts/*`` – read account and ``person.json`` files.
+* ``s3:PutObject``/``s3:DeleteObject`` on the same paths to push updates.
 
-Instrument metadata can reside in a separate bucket. Set ``METADATA_BUCKET`` to the bucket storing instrument JSON files and ``METADATA_PREFIX`` to the key prefix (default ``instruments/``). Updates made locally will be uploaded to this S3 path when configured.
+Instrument metadata resides under ``METADATA_PREFIX`` in ``METADATA_BUCKET``.
+To upload new data:
+
+```bash
+aws s3 sync data/accounts s3://$DATA_BUCKET/accounts/
+```
+
+Uploading requires IAM permissions matching the above ``s3:PutObject`` rules.
+
+### Bucket layout
+
+The S3 bucket mirrors the previous ``data/`` directory:
+
+```
+accounts/
+cache/
+events/
+instruments/
+metrics/
+prices/
+timeseries/
+transactions/
+alert_thresholds.json
+jpm.json
+scaling_overrides.json
+skipped_tickers.log
+virtual_portfolios/
+```
 
 ## Tests
 

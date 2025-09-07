@@ -51,6 +51,17 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Sync data from S3
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+        run: aws s3 sync s3://$DATA_BUCKET/ data/
+
       - name: Lint frontend
         run: npm run lint
         working-directory: frontend
@@ -78,12 +89,6 @@ jobs:
             echo "deploy=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
       - name: Verify DATA_BUCKET secret
         if: steps.parse.outputs.deploy == 'true'
         env:
@@ -98,14 +103,9 @@ jobs:
         if: steps.parse.outputs.deploy == 'true'
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+          CDK_OUTDIR: ../../.cdk.out
         run: cdk deploy --require-approval never
         working-directory: cdk
-
-      - name: Sync data folder to S3
-        if: steps.parse.outputs.deploy == 'true'
-        env:
-          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
-        run: aws s3 sync data/ s3://$DATA_BUCKET/
 
       - name: Run smoke tests
         if: steps.parse.outputs.deploy == 'true'

@@ -22,7 +22,7 @@ from backend.timeseries.cache import load_meta_timeseries_range
 
 router = APIRouter(prefix="/custom-query", tags=["query"])
 
-QUERIES_DIR = Path("data/queries")
+QUERIES_DIR = config.data_root / "queries"
 DATA_BUCKET_ENV = "DATA_BUCKET"
 QUERIES_PREFIX = "queries/"
 

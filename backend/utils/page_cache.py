@@ -18,7 +18,9 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict
 
-CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "cache"
+from backend.config import config
+
+CACHE_DIR = config.data_root / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 _refresh_tasks: Dict[str, asyncio.Task] = {}

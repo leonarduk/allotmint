@@ -96,7 +96,7 @@ async def timeseries_admin() -> list[dict[str, Any]]:
                 break
         return summaries
 
-    base = Path("data/timeseries/meta")
+    base = config.data_root / "timeseries" / "meta"
     if not base.exists():
         return summaries
     for path in sorted(base.glob("*.parquet")):

@@ -19,7 +19,12 @@ venv/
 .env/
 
 # CDK / CloudFormation
+# Root-level CDK outputs (if ever generated)
 cdk.out/
+# CDK app subfolder outputs
+cdk/cdk.out/
+cdk/cdk.out.backend/
+.cdk.out/
 
 # IDE / OS
 .DS_Store
@@ -27,11 +32,8 @@ cdk.out/
 .idea/
 .vscode/
 
-# Data dumps (keep in S3 instead)
-data/**/*.csv
-/data/accounts/*
-!/data/accounts/demo/
-!/data/accounts/demo/**
+# Data directory managed externally
+data/
 
 # Logs
 backend.log

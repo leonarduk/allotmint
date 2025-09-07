@@ -20,6 +20,11 @@ $PYTHON = $pythonCmd.Name
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $SCRIPT_DIR
 
+# Place synthesized CDK templates outside the repository
+$env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
+
+Set-Location (Join-Path $SCRIPT_DIR 'cdk')
+
 if ($Backend) {
   if (-not $env:DATA_BUCKET -and -not $DataBucket) {
     Write-Host 'Provide the S3 bucket for account data via -DataBucket or DATA_BUCKET environment variable.' -ForegroundColor Red

@@ -28,6 +28,8 @@ if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction Silently
   Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
   bash scripts/sync_data.sh
 }
+# Place synthesized CDK templates outside the repository
+$env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
 
 # ───────────────── helpers ───────────────────
 function Get-HasCommand($name) {
@@ -105,10 +107,18 @@ if (-not $offline) {
 
 # ───────────── env + defaults (PS 5.1) ────────
 $env:ALLOTMINT_ENV = Coalesce $cfg.app_env 'local'
+$env:DATA_ROOT = Coalesce $cfg.paths.data_root 'data'
 $port      = Coalesce $cfg.uvicorn_port $Port
 $logConfig = Coalesce $cfg.log_config   'logging.ini'
 $reloadRaw = Coalesce $cfg.reload       $true
 $reload    = [bool]$reloadRaw
+
+if ($env:DATA_BUCKET) {
+  Write-Host "Syncing data from s3://$env:DATA_BUCKET/" -ForegroundColor Yellow
+  aws s3 sync "s3://$env:DATA_BUCKET/" data/ | Out-Null
+} else {
+  Write-Host "DATA_BUCKET not set; skipping data sync" -ForegroundColor Yellow
+}
 
 # ───────────── start server ───────────────────
 Write-Host "Starting AllotMint Local API on http://localhost:$port ..." -ForegroundColor Green

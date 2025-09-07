@@ -29,6 +29,7 @@ import type {
   ScenarioResult,
   ScenarioEvent,
   TradeSuggestion,
+  QuestResponse,
   SectorContribution,
   RegionContribution,
   UserConfig,
@@ -837,3 +838,12 @@ export const getPensionForecast = (
     `${API_BASE}/pension/forecast?${params.toString()}`,
   );
 };
+
+// ───────────── Quests API ─────────────
+export const getQuests = () =>
+  fetchJson<QuestResponse>(`${API_BASE}/quests/today`);
+
+export const completeQuest = (id: string) =>
+  fetchJson<QuestResponse>(`${API_BASE}/quests/${encodeURIComponent(id)}/complete`, {
+    method: "POST",
+  });

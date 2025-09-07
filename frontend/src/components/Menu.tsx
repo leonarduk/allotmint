@@ -161,7 +161,7 @@ export default function Menu({
             className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
             onClick={() => setOpen(false)}
           >
-            {t(inSupport ? 'app.userLink' : 'app.supportLink')}
+            {t('app.supportLink')}
           </Link>
         )}
         {onLogout && (

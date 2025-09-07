@@ -10,6 +10,14 @@ import { useConfig } from "../ConfigContext";
 import type { TradingSignal } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { InstrumentHistoryChart } from "./InstrumentHistoryChart";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from "recharts";
 
 type Props = {
   ticker: string;

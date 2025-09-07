@@ -14,6 +14,7 @@ import type {
   AlphaResponse,
   TrackingErrorResponse,
   MaxDrawdownResponse,
+  ReturnComparisonResponse,
   Transaction,
   Alert,
   PriceEntry,
@@ -288,6 +289,11 @@ export const getTrackingError = (
 export const getMaxDrawdown = (owner: string, days = 365) =>
   fetchJson<MaxDrawdownResponse>(
     `${API_BASE}/performance/${owner}/max-drawdown?days=${days}`,
+  );
+
+export const getReturnComparison = (owner: string, days = 365) =>
+  fetchJson<ReturnComparisonResponse>(
+    `${API_BASE}/returns/compare?owner=${encodeURIComponent(owner)}&days=${days}`,
   );
 
 export const getGroupAlphaVsBenchmark = (

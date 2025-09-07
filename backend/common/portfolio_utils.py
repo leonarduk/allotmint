@@ -1006,6 +1006,72 @@ def compute_xirr(owner: str, days: int = 365) -> float | None:
     return float(rate)
 
 
+def compute_cagr(owner: str, days: int = 365) -> float | None:
+    """Compute the portfolio CAGR for ``owner`` over ``days``."""
+
+    total = _portfolio_value_series(owner, days)
+    if total.empty or len(total) < 2:
+        return None
+
+    start_val = float(total.iloc[0])
+    end_val = float(total.iloc[-1])
+    years = (total.index[-1] - total.index[0]).days / 365.0
+    if start_val <= 0 or years <= 0:
+        return None
+    return float((end_val / start_val) ** (1 / years) - 1)
+
+
+def _cash_value_series(owner: str, days: int = 365) -> pd.Series:
+    """Helper to compute daily cash values for an owner."""
+
+    pf = portfolio_mod.build_owner_portfolio(owner)
+    from backend.common import instrument_api
+
+    holdings: list[tuple[str, str, float]] = []
+    for acct in pf.get("accounts", []):
+        for h in acct.get("holdings", []):
+            tkr = (h.get("ticker") or "").upper()
+            if not tkr.startswith("CASH"):
+                continue
+            units = _safe_num(h.get("units"))
+            if not units:
+                continue
+            resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
+            if resolved:
+                sym, inferred = resolved
+            else:
+                sym, inferred = (tkr.split(".", 1) + [None])[:2]
+            exch = (h.get("exchange") or inferred or "GBP").upper()
+            holdings.append((sym, exch, units))
+
+    total = pd.Series(dtype=float)
+    for ticker, exchange, units in holdings:
+        df = load_meta_timeseries(ticker, exchange, days)
+        if df.empty or "Date" not in df.columns or "Close" not in df.columns:
+            continue
+        df = df[["Date", "Close"]].copy()
+        df["Date"] = pd.to_datetime(df["Date"]).dt.date
+        values = df.set_index("Date")["Close"] * units
+        total = total.add(values, fill_value=0)
+
+    return total.sort_index()
+
+
+def compute_cash_apy(owner: str, days: int = 365) -> float | None:
+    """Compute the APY of cash holdings for ``owner`` over ``days``."""
+
+    total = _cash_value_series(owner, days)
+    if total.empty or len(total) < 2:
+        return None
+
+    start_val = float(total.iloc[0])
+    end_val = float(total.iloc[-1])
+    years = (total.index[-1] - total.index[0]).days / 365.0
+    if start_val <= 0 or years <= 0:
+        return None
+    return float((end_val / start_val) ** (1 / years) - 1)
+
+
 # ──────────────────────────────────────────────────────────────
 # Snapshot refresher (used by /prices/refresh)
 # ──────────────────────────────────────────────────────────────

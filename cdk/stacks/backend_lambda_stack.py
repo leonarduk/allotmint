@@ -21,44 +21,67 @@ class BackendLambdaStack(Stack):
         backend_path = project_root / "backend"
 
         # Build a Docker image for the Lambda runtime to avoid large zip/layer sizes
-        image_code = _lambda.DockerImageCode.from_image_asset(
-            str(project_root / "backend"), file="Dockerfile.lambda"
-        )
-
+        data_repo = os.getenv("DATA_REPO")
+        data_branch = os.getenv("DATA_BRANCH", "main")
         bucket_name = self.node.try_get_context("data_bucket") or os.getenv("DATA_BUCKET")
         if not bucket_name:
             raise ValueError(
                 "DATA_BUCKET must be provided via context or DATA_BUCKET environment variable",
             )
+        build_args: dict[str, str] = {
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+        }
+        if data_repo:
+            build_args["DATA_REPO"] = data_repo
+
+        image_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root), file="backend/Dockerfile.lambda", build_args=build_args
+        )
+
         env = self.node.try_get_context("app_env") or os.getenv("APP_ENV") or "aws"
+
+        backend_env = {
+            "GOOGLE_AUTH_ENABLED": "true",
+            "GOOGLE_CLIENT_ID": "${GOOGLE_CLIENT_ID}",
+            "DISABLE_AUTH": "false",
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+        }
+        if data_repo:
+            backend_env["DATA_REPO"] = data_repo
 
         backend_fn = _lambda.DockerImageFunction(
             self,
             "BackendLambda",
             code=image_code,
-            environment={
-                "GOOGLE_AUTH_ENABLED": "true",
-                "GOOGLE_CLIENT_ID": "${GOOGLE_CLIENT_ID}",
-                "DISABLE_AUTH": "false",
-            },
+            environment=backend_env,
         )
         backend_fn.add_environment("APP_ENV", env)
-        backend_fn.add_environment("DATA_BUCKET", bucket_name)
 
         apigw.LambdaRestApi(self, "BackendApi", handler=backend_fn)
 
         # Scheduled function to refresh prices daily
+        refresh_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root),
+            file="backend/Dockerfile.lambda",
+            cmd=["backend.lambda_api.price_refresh.lambda_handler"],
+            build_args=build_args,
+        )
+        refresh_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+        }
+        if data_repo:
+            refresh_env["DATA_REPO"] = data_repo
+
         refresh_fn = _lambda.DockerImageFunction(
             self,
             "PriceRefreshLambda",
-            code=_lambda.DockerImageCode.from_image_asset(
-                str(project_root / "backend"),
-                file="Dockerfile.lambda",
-                cmd=["backend.lambda_api.price_refresh.lambda_handler"],
-            ),
+            code=refresh_code,
+            environment=refresh_env,
         )
-        refresh_fn.add_environment("APP_ENV", env)
-        refresh_fn.add_environment("DATA_BUCKET", bucket_name)
 
         events.Rule(
             self,

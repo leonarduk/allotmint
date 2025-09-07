@@ -33,7 +33,12 @@ cdk/cdk.out.backend/
 .vscode/
 
 # Data directory managed externally
-data/
+data/*
+!data/accounts/
+!data/accounts/**
+!data/instruments/
+!data/instruments/**
+!data/scaling_overrides.json
 
 # Logs
 backend.log

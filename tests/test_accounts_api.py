@@ -22,7 +22,12 @@ def client():
 
 
 def sample_accounts():
-    root = Path(__file__).resolve().parents[1] / "data" / "accounts"
+    root = Path(
+        config.accounts_root
+        or (Path(__file__).resolve().parents[1] / "data" / "accounts")
+    )
+    if not root.exists():
+        pytest.skip("accounts sample data unavailable", allow_module_level=True)
     for owner_dir in root.iterdir():
         if owner_dir.is_dir():
             files = list(owner_dir.glob("*.json"))

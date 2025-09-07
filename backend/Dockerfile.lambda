@@ -1,11 +1,22 @@
 FROM public.ecr.aws/lambda/python:3.12
 
-# Install application dependencies
-COPY backend/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+ARG DATA_BUCKET
+ARG DATA_REPO
+ARG DATA_BRANCH
 
-# Copy application code into the Lambda task root
+# Install application dependencies and sync prerequisites
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && yum install -y git \
+    && pip install awscli
+
+# Copy application code and sync script into the Lambda task root
 COPY backend/ /var/task/
+COPY scripts/sync_data.sh /var/task/scripts/sync_data.sh
+
+WORKDIR /var/task
+RUN chmod +x scripts/sync_data.sh \
+    && DATA_BUCKET=$DATA_BUCKET DATA_REPO=$DATA_REPO DATA_BRANCH=$DATA_BRANCH scripts/sync_data.sh
 
 # Set the Lambda handler
 CMD ["backend.lambda_api.handler.lambda_handler"]

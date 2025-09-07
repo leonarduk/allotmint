@@ -5,6 +5,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# ensure data directory exists
+if [[ ! -d data || -z "$(ls -A data 2>/dev/null)" ]]; then
+  echo "Data directory missing; syncing..." >&2
+  scripts/sync_data.sh
+fi
+
 # Load Telegram credentials if available
 if [[ -f .env ]]; then
   set -o allexport

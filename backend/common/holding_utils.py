@@ -396,19 +396,23 @@ def enrich_holding(
     # Choose cost for gains: prefer booked cost if present, else effective
     cost_for_gain = float(out.get(EFFECTIVE_COST_BASIS_GBP) or 0.0) or ecb
 
-    # Current price as of "yesterday" (app constraint)
-    asof_date = today - dt.timedelta(days=1)
-    px, px_source = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
-
     units = float(out.get(UNITS, 0) or 0)
+
+    px = px_source = prev_px = None
+    if units != 0:
+        # Current price as of "yesterday" (app constraint)
+        asof_date = today - dt.timedelta(days=1)
+        px, px_source = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
+
+        # price one day before to calculate day-on-day change
+        prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
+        prev_px, _ = _get_price_for_date_scaled(
+            ticker, exchange, prev_date, field="Close_gbp"
+        )
 
     out["price"] = px  # legacy name used in parts of UI
     out["current_price_gbp"] = px
     out["latest_source"] = px_source
-
-    # price one day before to calculate day-on-day change
-    prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
-    prev_px, _ = _get_price_for_date_scaled(ticker, exchange, prev_date, field="Close_gbp")
 
     if px is not None:
         mv = round(units * float(px), 2)

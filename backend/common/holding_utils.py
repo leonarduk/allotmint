@@ -333,6 +333,11 @@ def enrich_holding(
     out["name"] = out.get("name") or meta.get("name") or full
     out["sector"] = out.get("sector") or meta.get("sector")
     out["region"] = out.get("region") or meta.get("region")
+    out["asset_class"] = (
+        out.get("asset_class")
+        or meta.get("assetClass")
+        or meta.get("asset_class")
+    )
 
     units = float(out.get(UNITS, 0) or 0.0)
     if units <= 0:
@@ -376,10 +381,21 @@ def enrich_holding(
         out["next_eligible_sell_date"] = None
 
     instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
+    asset_class = (
+        meta.get("assetClass") or meta.get("asset_class") or ""
+    ).upper()
+    sector = (meta.get("sector") or "").upper()
+    is_commodity = asset_class == "COMMODITY" or sector == "COMMODITY"
+    is_etf = instr_type == "ETF"
     exempt_tickers = {t.upper() for t in (ucfg.approval_exempt_tickers or [])}
     exempt_types = {t.upper() for t in (ucfg.approval_exempt_types or [])}
+    exempt_type = instr_type in exempt_types
+    if is_etf and is_commodity:
+        exempt_type = False
     needs_approval = not (
-        ticker.upper() in exempt_tickers or full.upper() in exempt_tickers or instr_type in exempt_types
+        ticker.upper() in exempt_tickers
+        or full.upper() in exempt_tickers
+        or exempt_type
     )
     approved = False
     if approvals and needs_approval:

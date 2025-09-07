@@ -122,10 +122,19 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
             instr_type = (
                 meta.get("instrumentType") or meta.get("instrument_type") or ""
             ).upper()
+            asset_class = (
+                meta.get("assetClass") or meta.get("asset_class") or ""
+            ).upper()
+            sector = (meta.get("sector") or "").upper()
+            is_commodity = asset_class == "COMMODITY" or sector == "COMMODITY"
+            is_etf = instr_type == "ETF"
+            exempt_type = instr_type in exempt_types
+            if is_etf and is_commodity:
+                exempt_type = False
             needs_approval = not (
                 ticker in exempt_tickers
                 or ticker.split(".")[0] in exempt_tickers
-                or instr_type in exempt_types
+                or exempt_type
             )
             if needs_approval:
                 appr = approvals.get(ticker) or approvals.get(ticker.split(".")[0])

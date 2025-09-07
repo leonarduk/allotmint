@@ -29,7 +29,7 @@ BASE_QUERY = {
     "start": "2025-01-01",
     "end": "2025-01-10",
     "tickers": ["HFEL.L"],
-    "metrics": ["var", "meta"],
+    "metrics": [Metric.VAR, Metric.META],
 }
 
 
@@ -53,3 +53,11 @@ def test_save_and_load_query(client, tmp_path):
 
     resp = client.get("/custom-query/saved")
     assert slug in resp.json()
+
+
+def test_unknown_metric_rejected():
+    resp = client.post(
+        "/custom-query/run",
+        json={**BASE_QUERY, "metrics": ["bogus"]},
+    )
+    assert resp.status_code == 422

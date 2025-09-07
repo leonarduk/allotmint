@@ -183,9 +183,30 @@ INSTRUMENTS_DIR = config.data_root / "instruments"
 INSTRUMENTS_S3_PREFIX = "instruments"
 
 
+# Cache paths for which we've already logged missing metadata warnings to avoid
+# spamming the logs when the same lookup fails repeatedly.
+_MISSING_META: set[str] = set()
+
+# Shortcut metadata for well-known symbols that don't need a filesystem/S3
+# lookup.
+_DEFAULT_META: Dict[str, Dict[str, str | None]] = {
+    "GBP.CASH": {
+        "name": "GBP Cash",
+        "sector": None,
+        "region": None,
+        "currency": "GBP",
+        "asset_class": "cash",
+        "industry": None,
+    }
+}
+
+
 def _meta_from_file(ticker: str) -> Dict[str, str] | None:
     """Best-effort lookup of instrument metadata from data files or S3."""
-    sym, exch = (ticker.split(".", 1) + ["Unknown"])[:2]
+    t = ticker.upper()
+    if t in _DEFAULT_META:
+        return _DEFAULT_META[t]
+    sym, exch = (t.split(".", 1) + ["Unknown"])[:2]
     data: Dict[str, Any] | None = None
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
@@ -228,7 +249,12 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
         try:
             data = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("Instrument metadata %s not found or invalid: %s", path, exc)
+            path_str = str(path)
+            if path_str not in _MISSING_META:
+                _MISSING_META.add(path_str)
+                logger.warning(
+                    "Instrument metadata %s not found or invalid: %s", path_str, exc
+                )
             return None
     return {
         "name": data.get("name", ticker.upper()),

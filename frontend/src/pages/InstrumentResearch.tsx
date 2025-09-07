@@ -19,7 +19,6 @@ export default function InstrumentResearch() {
   const historyPrices = history?.[String(days)] ?? [];
   const [quote, setQuote] = useState<QuoteRow | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
-  const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
   const [inWatchlist, setInWatchlist] = useState(() => {
     const list = (localStorage.getItem("watchlistSymbols") || "")
       .split(",")

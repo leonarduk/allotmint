@@ -47,6 +47,8 @@ def test_s3_save_load_and_list(monkeypatch):
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     client = TestClient(create_app())
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
 
     slug = "aws-query"
     resp = client.post(f"/custom-query/{slug}", json=BASE_QUERY)

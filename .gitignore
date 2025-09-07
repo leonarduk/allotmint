@@ -33,7 +33,9 @@ cdk/cdk.out.backend/
 .vscode/
 
 # Data directory managed externally
-data/
+data/*
+!data/accounts/
+!data/accounts/**
 
 # Logs
 backend.log

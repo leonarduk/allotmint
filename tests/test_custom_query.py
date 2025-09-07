@@ -56,7 +56,7 @@ def test_save_and_load_query(client, tmp_path):
     assert slug in resp.json()
 
 
-def test_unknown_metric_rejected():
+def test_unknown_metric_rejected(client):
     resp = client.post(
         "/custom-query/run",
         json={**BASE_QUERY, "metrics": ["bogus"]},

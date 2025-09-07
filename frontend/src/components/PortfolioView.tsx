@@ -7,6 +7,7 @@ import { money } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 import i18n from "../i18n";
 import { complianceForOwner } from "../api";
+import { getGrowthStage } from "../utils/growthStage";
 
 // Props accepted by the view. `data` is null until a portfolio is loaded.
 type Props = {
@@ -92,19 +93,29 @@ export function PortfolioView({ data, loading, error }: Props) {
       {data.accounts.map((acct, idx) => {
         const key = accountKey(acct, idx);
         const checked = activeSet.has(key);
+        const order: Record<string, number> = { seed: 0, growing: 1, harvest: 2 };
+        const stageInfo = acct.holdings.reduce(
+          (prev, h) => {
+            const s = getGrowthStage({ daysHeld: h.days_held });
+            return order[s.stage] > order[prev.stage] ? s : prev;
+          },
+          getGrowthStage({})
+        );
         return (
-          <AccountBlock
-            key={key}
-            account={acct}
-            selected={checked}
-            onToggle={() =>
-              setSelectedAccounts((prev) =>
-                prev.includes(key)
-                  ? prev.filter((k) => k !== key)
-                  : [...prev, key]
-              )
-            }
-          />
+          <div key={key} className="flex items-start">
+            <span className="mr-2" title={stageInfo.message}>{stageInfo.icon}</span>
+            <AccountBlock
+              account={acct}
+              selected={checked}
+              onToggle={() =>
+                setSelectedAccounts((prev) =>
+                  prev.includes(key)
+                    ? prev.filter((k) => k !== key)
+                    : [...prev, key]
+                )
+              }
+            />
+          </div>
         );
       })}
     </div>

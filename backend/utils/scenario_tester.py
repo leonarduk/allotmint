@@ -6,8 +6,9 @@ portfolios.
 
 from __future__ import annotations
 
+import datetime as dt
+import math
 from copy import deepcopy
-from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable
 
 import pandas as pd
@@ -18,6 +19,10 @@ from backend.common.constants import (
 )
 from backend.common.prices import get_price_gbp
 from backend.timeseries.cache import load_meta_timeseries_range
+from backend.utils.timeseries_helpers import (
+    apply_scaling,
+    get_scaling_override,
+)
 
 
 def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float) -> Dict[str, Any]:
@@ -61,6 +66,7 @@ def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float)
     )
     return shocked
 
+
 # ---------------------------------------------------------------------------
 # Historical event application
 
@@ -85,9 +91,7 @@ def _close_column(df: pd.DataFrame) -> str | None:
     return nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
 
 
-def _price_on_or_after(
-    df: pd.DataFrame, date_col: str, price_col: str, target: dt.date
-) -> float | None:
+def _price_on_or_after(df: pd.DataFrame, date_col: str, price_col: str, target: dt.date) -> float | None:
     mask = df[date_col] >= target
     if not mask.any():
         return None
@@ -97,9 +101,7 @@ def _price_on_or_after(
         return None
 
 
-def _forward_returns(
-    ticker: str, exchange: str, event_date: dt.date
-) -> Dict[str, float | None]:
+def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> Dict[str, float | None]:
     end = event_date + dt.timedelta(days=max(_HORIZONS.values()) + 5)
     df = load_meta_timeseries_range(ticker, exchange, start_date=event_date, end_date=end)
     if df is None or df.empty:
@@ -161,9 +163,7 @@ def apply_historical_event(
 
     baseline = float(portfolio.get("total_value_estimate_gbp") or 0.0)
     if baseline == 0.0:
-        baseline = sum(
-            float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", [])
-        )
+        baseline = sum(float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", []))
 
     proxy_tkr, proxy_ex = _parse_full_ticker(getattr(event, "proxy", ""))
     proxy_returns = _forward_returns(proxy_tkr, proxy_ex, event.date)
@@ -198,9 +198,8 @@ def apply_historical_event(
         }
     return result
 
-def _scale_portfolio(
-    portfolio: Dict[str, Any], horizons: Iterable[int] | None = None
-) -> Dict[int, Dict[str, Any]]:
+
+def _scale_portfolio(portfolio: Dict[str, Any], horizons: Iterable[int] | None = None) -> Dict[int, Dict[str, Any]]:
     """Scale ``portfolio`` by a simple factor for each horizon."""
 
     horizons = list(horizons or [1])
@@ -218,12 +217,13 @@ def _scale_portfolio(
         shocked[horizon] = pf_copy
     return shocked
 
-def _parse_date(val: Any) -> date:
+
+def _parse_date(val: Any) -> dt.date:
     """Best-effort conversion of ``val`` to ``date``."""
-    if isinstance(val, date):
+    if isinstance(val, dt.date):
         return val
     try:
-        return datetime.fromisoformat(str(val)).date()
+        return dt.datetime.fromisoformat(str(val)).date()
     except Exception:
         raise ValueError(f"Invalid date value: {val!r}")
 
@@ -246,9 +246,9 @@ def _get_close(row: pd.Series) -> float | None:
     return None
 
 
-def _calc_return(ticker: str, exchange: str | None, start: date, horizon: int) -> float | None:
+def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int) -> float | None:
     """Calculate percentage return for ``ticker.exchange`` over ``horizon`` days."""
-    end = start + timedelta(days=horizon)
+    end = start + dt.timedelta(days=horizon)
     df = load_meta_timeseries_range(ticker, exchange or "", start_date=start, end_date=end)
     if df.empty or len(df) < 2:
         return None
@@ -257,7 +257,7 @@ def _calc_return(ticker: str, exchange: str | None, start: date, horizon: int) -
     last = df.index[-1]
     if isinstance(last, pd.Timestamp):
         last = last.date()
-    expected_end = start + timedelta(days=horizon)
+    expected_end = start + dt.timedelta(days=horizon)
     # Allow a few calendar days of tolerance for weekends/holidays.
     if (expected_end - last).days > 3:
         return None

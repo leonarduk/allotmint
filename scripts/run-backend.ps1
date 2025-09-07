@@ -1,5 +1,6 @@
 Param(
-  [int]$Port = 8000
+  [int]$Port = 8000,
+  [switch]$Offline
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,6 +10,27 @@ $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
 if (-not $pythonCmd) {
   $pythonCmd = Get-Command py -ErrorAction SilentlyContinue
 }
+
+function Get-ConfigValue([object]$obj, [object[]]$path, [object]$default) {
+  try {
+    $cur = $obj
+    foreach ($key in $path) {
+      if ($null -eq $cur) { return $default }
+      if ($cur -is [hashtable]) {
+        if (-not $cur.ContainsKey($key)) { return $default }
+        $cur = $cur[$key]
+      } elseif ($cur.PSObject -and ($cur.PSObject.Properties.Name -contains $key)) {
+        $cur = $cur.$key
+      } else {
+        return $default
+      }
+    }
+    if ($null -eq $cur -or $cur -eq '') { return $default }
+    return $cur
+  } catch {
+    return $default
+  }
+}
 if (-not $pythonCmd) {
   Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
   exit 1
@@ -16,7 +38,8 @@ if (-not $pythonCmd) {
 $PYTHON = $pythonCmd.Name
 
 Write-Host "# -------- Configuration --------" -ForegroundColor DarkCyan
-Write-Host "# Set offline_mode: true in config.yaml to skip dependency installation" -ForegroundColor DarkCyan
+Write-Host "# Set market_data.offline_mode: true in config.yaml to skip dependency installation" -ForegroundColor DarkCyan
+Write-Host "# You can also pass -Offline to this script" -ForegroundColor DarkCyan
 Write-Host "# --------------------------------" -ForegroundColor DarkCyan
 
 # ───────────────── repo root ─────────────────
@@ -24,11 +47,6 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
 Set-Location $REPO_ROOT
 
-# Ensure data directory exists
-if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
-  Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
-  bash scripts/sync_data.sh
-}
 # Place synthesized CDK templates outside the repository
 $env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
 
@@ -81,13 +99,9 @@ function Read-Config([string]$path) {
 }
 
 # ───────────── create & activate venv ─────────
-if (-not (Test-Path '.\.venv\Scripts\Activate.ps1')) {
-  Write-Host 'Creating Python virtual environment (.venv)...' -ForegroundColor Yellow
-  & $PYTHON -m venv .venv
-}
 
-Write-Host 'Activating virtual environment...' -ForegroundColor Cyan
-. .\.venv\Scripts\Activate.ps1
+
+# (activation moved below)
 
 # ───────────────── load config ────────────────
 $configPath = Join-Path $REPO_ROOT 'config.yaml'
@@ -99,6 +113,21 @@ if ($cfg.PSObject.Properties.Name -contains 'offline_mode') {
   $offline = [bool]$cfg.offline_mode
 }
 
+# Derive offline mode (param overrides config)
+$offlineCfg = Get-ConfigValue $cfg @('market_data','offline_mode') $false
+$offline = ($Offline.IsPresent -and $Offline) -or [bool]$offlineCfg
+
+if (-not $offline) {
+  if (-not (Test-Path '.\.venv\Scripts\Activate.ps1')) {
+    Write-Host 'Creating Python virtual environment (.venv)...' -ForegroundColor Yellow
+    & $PYTHON -m venv .venv
+  }
+  Write-Host 'Activating virtual environment...' -ForegroundColor Cyan
+  . .\.venv\Scripts\Activate.ps1
+} else {
+  Write-Host 'Offline mode: using current Python environment (no venv activation).' -ForegroundColor Yellow
+}
+
 if (-not $offline) {
   Write-Host 'Installing backend requirements...' -ForegroundColor Yellow
   & $PYTHON -m pip install -r .\requirements.txt
@@ -107,16 +136,19 @@ if (-not $offline) {
 }
 
 # ───────────── env + defaults (PS 5.1) ────────
-$env:ALLOTMINT_ENV = Coalesce $cfg.app_env 'local'
-$env:DATA_ROOT = Coalesce $cfg.paths.data_root 'data'
-$port      = Coalesce $cfg.uvicorn_port $Port
-$logConfig = Coalesce $cfg.log_config   'logging.ini'
-$reloadRaw = Coalesce $cfg.reload       $true
-$reload    = [bool]$reloadRaw
+$env:ALLOTMINT_ENV = Get-ConfigValue $cfg @('server','app_env') 'local'
+$env:DATA_ROOT     = Get-ConfigValue $cfg @('paths','data_root') 'data'
+$port              = Get-ConfigValue $cfg @('server','uvicorn_port') $Port
+$logConfig         = Get-ConfigValue $cfg @('paths','log_config') 'backend/logging.ini'
+$reload            = [bool](Get-ConfigValue $cfg @('server','reload') $true)
 
 if ($env:DATA_BUCKET) {
-  Write-Host "Syncing data from s3://$env:DATA_BUCKET/" -ForegroundColor Yellow
-  aws s3 sync "s3://$env:DATA_BUCKET/" data/ | Out-Null
+  if (Get-HasCommand 'aws') {
+    Write-Host "Syncing data from s3://$env:DATA_BUCKET/" -ForegroundColor Yellow
+    aws s3 sync "s3://$env:DATA_BUCKET/" data/ | Out-Null
+  } else {
+    Write-Host "AWS CLI not found; skipping data sync from s3://$env:DATA_BUCKET/" -ForegroundColor Yellow
+  }
 } else {
   Write-Host "DATA_BUCKET not set; skipping data sync" -ForegroundColor Yellow
 }

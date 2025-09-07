@@ -47,6 +47,21 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
 Set-Location $REPO_ROOT
 
+# Load environment variables from .env if present
+if (Test-Path '.env') {
+    Get-Content '.env' | ForEach-Object {
+        if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)\s*$') {
+            $key = $matches[1]; $value = $matches[2];
+            Set-Item -Path Env:$key -Value $value
+        }
+    }
+}
+
+# Ensure data directory exists
+if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
+  Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
+  bash scripts/sync_data.sh
+}
 # Place synthesized CDK templates outside the repository
 $env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
 
@@ -136,11 +151,12 @@ if (-not $offline) {
 }
 
 # ───────────── env + defaults (PS 5.1) ────────
-$env:ALLOTMINT_ENV = Get-ConfigValue $cfg @('server','app_env') 'local'
-$env:DATA_ROOT     = Get-ConfigValue $cfg @('paths','data_root') 'data'
-$port              = Get-ConfigValue $cfg @('server','uvicorn_port') $Port
-$logConfig         = Get-ConfigValue $cfg @('paths','log_config') 'backend/logging.ini'
-$reload            = [bool](Get-ConfigValue $cfg @('server','reload') $true)
+$env:ALLOTMINT_ENV = Coalesce $cfg.app_env 'local'
+$env:DATA_ROOT = Coalesce $env:DATA_ROOT (Coalesce $cfg.paths.data_root 'data')
+$port      = Coalesce $cfg.uvicorn_port $Port
+$logConfig = Coalesce $cfg.log_config   'logging.ini'
+$reloadRaw = Coalesce $cfg.reload       $true
+$reload    = [bool]$reloadRaw
 
 if ($env:DATA_BUCKET) {
   if (Get-HasCommand 'aws') {

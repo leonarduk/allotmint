@@ -1,4 +1,4 @@
 {
   "app": "python app.py",
-  "output": "../.cdk.out"
+  "output": "../../.cdk.out"
 }

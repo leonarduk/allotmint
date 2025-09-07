@@ -50,16 +50,16 @@ def run_scenario(
 
 @router.get("/scenario/historical")
 def run_historical_scenario(
-    event_id: str | None = Query(None, description="Historical event identifier"),
-    date: str | None = Query(None, description="Event date (YYYY-MM-DD)"),
-    horizons: List[int] | None = Query(
-        None, description="Event horizons in days", alias="horizons"
-    ),
+    date: str = Query(..., description="Event date (YYYY-MM-DD)"),
+    horizons: List[int] = Query(..., description="Event horizons in days"),
+    proxy_ticker: str | None = Query(None, description="Proxy index ticker"),
+    proxy_exchange: str | None = Query(None, description="Proxy index exchange"),
 ):
-    """Apply a historical event to all portfolios."""
+    """Calculate holding returns for all portfolios from a historical event."""
 
-    if not event_id and not date:
-        raise HTTPException(status_code=400, detail="event_id or date required")
+    event = {"date": date, "horizons": horizons}
+    if proxy_ticker:
+        event["proxy_index"] = {"ticker": proxy_ticker, "exchange": proxy_exchange}
 
     results = []
     owners = [p["owner"] for p in list_plots() if p.get("accounts")]
@@ -68,34 +68,7 @@ def run_historical_scenario(
             pf = build_owner_portfolio(owner)
         except FileNotFoundError:
             continue
-        baseline = pf.get("total_value_estimate_gbp")
-        if baseline is None:
-            baseline = sum(
-                a.get("value_estimate_gbp") or 0.0 for a in pf.get("accounts", [])
-            )
-            pf["total_value_estimate_gbp"] = baseline
-
-        shocked = apply_historical_event(
-            pf, event_id=event_id, date=date, horizons=horizons
-        )
-
-        horizon_results = {}
-        for horizon, shocked_pf in shocked.items():
-            shocked_total = shocked_pf.get("total_value_estimate_gbp")
-            pct_change = None
-            if baseline:
-                pct_change = round(((shocked_total - baseline) / baseline) * 100.0, 2)
-            horizon_results[str(horizon)] = {
-                "shocked_total_value_gbp": shocked_total,
-                "pct_change": pct_change,
-            }
-
-        results.append(
-            {
-                "owner": owner,
-                "baseline_total_value_gbp": baseline,
-                "horizons": horizon_results,
-            }
-        )
+        returns = apply_historical_event(pf, event)
+        results.append({"owner": owner, "returns": returns})
 
     return results

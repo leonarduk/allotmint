@@ -107,8 +107,8 @@ def test_handles_http_429(monkeypatch, caplog):
 
     responses = iter(
         [
-            SimpleNamespace(status_code=429, raise_for_status=lambda: None),
-            SimpleNamespace(status_code=200, raise_for_status=lambda: None),
+            SimpleNamespace(status_code=429, headers={}, raise_for_status=lambda: None),
+            SimpleNamespace(status_code=200, headers={}, raise_for_status=lambda: None),
         ]
     )
 
@@ -125,6 +125,44 @@ def test_handles_http_429(monkeypatch, caplog):
 
     assert len(calls) == 2
     assert any("rate limit" in r.message.lower() for r in caplog.records)
+
+
+def test_uses_retry_after_header(monkeypatch):
+    telegram_utils.RECENT_MESSAGES.clear()
+    telegram_utils._NEXT_ALLOWED_TIME = 0
+    monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
+
+    start = 1000.0
+    current = [start]
+    sleeps = []
+
+    def fake_time():
+        return current[0]
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        current[0] += seconds
+
+    responses = iter(
+        [
+            SimpleNamespace(status_code=429, headers={"Retry-After": "5"}, raise_for_status=lambda: None),
+            SimpleNamespace(status_code=200, headers={}, raise_for_status=lambda: None),
+        ]
+    )
+
+    def fake_post(url, data, timeout):
+        return next(responses)
+
+    monkeypatch.setattr(telegram_utils.time, "time", fake_time)
+    monkeypatch.setattr(telegram_utils.time, "sleep", fake_sleep)
+
+    with patch("backend.utils.telegram_utils.requests.post", fake_post):
+        telegram_utils.send_message("rate")
+
+    assert sleeps == [5]
+    assert telegram_utils._NEXT_ALLOWED_TIME == start + 5 + telegram_utils.RATE_LIMIT_SECONDS
 
 
 def test_handles_timeout(monkeypatch, caplog):

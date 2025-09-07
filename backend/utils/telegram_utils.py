@@ -99,8 +99,15 @@ def send_message(text: str) -> None:
             if not warning_logged:
                 logger.warning("Telegram rate limit hit; backing off", extra={"skip_telegram": True})
                 warning_logged = True
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 60)
+            retry_after = resp.headers.get("Retry-After")
+            try:
+                delay = float(retry_after) if retry_after is not None else backoff
+            except ValueError:
+                delay = backoff
+            delay = max(0, min(delay, 60))
+            _NEXT_ALLOWED_TIME = time.time() + delay
+            time.sleep(delay)
+            backoff = min(delay * 2, 60)
             continue
 
         try:

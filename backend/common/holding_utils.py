@@ -333,6 +333,11 @@ def enrich_holding(
     out["name"] = out.get("name") or meta.get("name") or full
     out["sector"] = out.get("sector") or meta.get("sector")
     out["region"] = out.get("region") or meta.get("region")
+    out["asset_class"] = (
+        out.get("asset_class")
+        or meta.get("assetClass")
+        or meta.get("asset_class")
+    )
 
     units = float(out.get(UNITS, 0) or 0.0)
     if units <= 0:
@@ -376,10 +381,21 @@ def enrich_holding(
         out["next_eligible_sell_date"] = None
 
     instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
+    asset_class = (
+        meta.get("assetClass") or meta.get("asset_class") or ""
+    ).upper()
+    sector = (meta.get("sector") or "").upper()
+    is_commodity = asset_class == "COMMODITY" or sector == "COMMODITY"
+    is_etf = instr_type == "ETF"
     exempt_tickers = {t.upper() for t in (ucfg.approval_exempt_tickers or [])}
     exempt_types = {t.upper() for t in (ucfg.approval_exempt_types or [])}
+    exempt_type = instr_type in exempt_types
+    if is_etf and is_commodity:
+        exempt_type = False
     needs_approval = not (
-        ticker.upper() in exempt_tickers or full.upper() in exempt_tickers or instr_type in exempt_types
+        ticker.upper() in exempt_tickers
+        or full.upper() in exempt_tickers
+        or exempt_type
     )
     approved = False
     if approvals and needs_approval:
@@ -396,19 +412,23 @@ def enrich_holding(
     # Choose cost for gains: prefer booked cost if present, else effective
     cost_for_gain = float(out.get(EFFECTIVE_COST_BASIS_GBP) or 0.0) or ecb
 
-    # Current price as of "yesterday" (app constraint)
-    asof_date = today - dt.timedelta(days=1)
-    px, px_source = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
-
     units = float(out.get(UNITS, 0) or 0)
+
+    px = px_source = prev_px = None
+    if units != 0:
+        # Current price as of "yesterday" (app constraint)
+        asof_date = today - dt.timedelta(days=1)
+        px, px_source = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
+
+        # price one day before to calculate day-on-day change
+        prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
+        prev_px, _ = _get_price_for_date_scaled(
+            ticker, exchange, prev_date, field="Close_gbp"
+        )
 
     out["price"] = px  # legacy name used in parts of UI
     out["current_price_gbp"] = px
     out["latest_source"] = px_source
-
-    # price one day before to calculate day-on-day change
-    prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
-    prev_px, _ = _get_price_for_date_scaled(ticker, exchange, prev_date, field="Close_gbp")
 
     if px is not None:
         mv = round(units * float(px), 2)

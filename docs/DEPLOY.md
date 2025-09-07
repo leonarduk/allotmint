@@ -19,6 +19,20 @@ Copy `.env.example` to `.env` and supply the following values:
 | `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
 | `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign‑in is enabled |
 
+## API rate limiting
+
+The backend throttles requests per client using SlowAPI. The default limit is
+60 requests per minute. Adjust `rate_limit_per_minute` under the `server`
+section of `config.yaml` to raise or lower the limit for each environment:
+
+```yaml
+server:
+  rate_limit_per_minute: 120  # allow 120 requests/minute
+```
+
+Higher values are useful for local development or trusted environments, while
+lower limits help protect production resources.
+
 ## Sync external data store
 
 Account and instrument files are managed in a separate repository. Clone it

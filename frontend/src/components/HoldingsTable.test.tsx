@@ -3,11 +3,23 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import i18n from "../i18n";
 import { useState } from "react";
+import { MemoryRouter } from "react-router-dom";
 vi.mock("../api", () => ({
     getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
+    getGroupPortfolio: vi.fn(),
+    getGroupAlphaVsBenchmark: vi.fn(() => Promise.resolve({ alpha_vs_benchmark: 0 })),
+    getGroupTrackingError: vi.fn(() => Promise.resolve({ tracking_error: 0 })),
+    getGroupMaxDrawdown: vi.fn(() => Promise.resolve({ max_drawdown: 0 })),
+    getGroupSectorContributions: vi.fn(() => Promise.resolve([])),
+    getGroupRegionContributions: vi.fn(() => Promise.resolve([])),
+}));
+vi.mock("./TopMoversSummary", () => ({
+    TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
 import { HoldingsTable } from "./HoldingsTable";
+import { GroupPortfolioView } from "./GroupPortfolioView";
 import { configContext, type AppConfig } from "../ConfigContext";
+import { getGroupPortfolio } from "../api";
 
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
@@ -287,6 +299,53 @@ describe("HoldingsTable", () => {
               await userEvent.click(screen.getByRole('button', { name: 'All' }));
           });
           expect(screen.getByText('AAA')).toBeInTheDocument();
+      });
+
+      it("opens InstrumentDetail without altering search params", async () => {
+        const portfolio = {
+          name: "All owners combined",
+          accounts: [
+            {
+              owner: "alice",
+              account_type: "isa",
+              holdings: [
+                {
+                  ticker: "AAA",
+                  name: "Alpha",
+                  currency: "GBP",
+                  instrument_type: "Equity",
+                  units: 1,
+                  cost_basis_gbp: 100,
+                  market_value_gbp: 150,
+                  gain_gbp: 50,
+                },
+              ],
+            },
+          ],
+        };
+        vi.mocked(getGroupPortfolio).mockResolvedValue(portfolio as any);
+        vi.stubGlobal(
+          "ResponsiveContainer",
+          ({ children }: any) => <div>{children}</div>,
+        );
+        vi.stubGlobal("LineChart", ({ children }: any) => <div>{children}</div>);
+        vi.stubGlobal("Line", () => <div />);
+        vi.stubGlobal("XAxis", () => <div />);
+        vi.stubGlobal("YAxis", () => <div />);
+        vi.stubGlobal("Tooltip", () => <div />);
+        renderWithConfig(
+          <MemoryRouter>
+            <GroupPortfolioView slug="all" />
+          </MemoryRouter>,
+        );
+        await screen.findByRole("button", { name: "AAA" });
+        const initial = window.location.search;
+        await act(async () => {
+          await userEvent.click(screen.getByRole("button", { name: "AAA" }));
+        });
+        await screen.findByRole("heading", { name: "Alpha" });
+        expect(window.location.search).toBe(initial);
+        vi.unstubAllGlobals();
       });
 
       it("renders translated text in Spanish", async () => {

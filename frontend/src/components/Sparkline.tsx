@@ -1,5 +1,8 @@
 import { useMemo } from "react";
-import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
+import {
+  useInstrumentHistory,
+  getCachedInstrumentHistory,
+} from "../hooks/useInstrumentHistory";
 
 type SparklineBaseProps = {
   width?: number;
@@ -109,8 +112,9 @@ function SparklineFromFetch({
   ariaLabel,
   tabIndex,
 }: SparklineFetchProps) {
-  const { data } = useInstrumentHistory(ticker, days);
-  const points = data?.[String(days)] ?? [];
+  const { data, error } = useInstrumentHistory(ticker, days);
+  const cached = getCachedInstrumentHistory(ticker, days);
+  const points = (cached ?? data)?.[String(days)] ?? [];
   const series =
     points
       .map(
@@ -119,6 +123,19 @@ function SparklineFromFetch({
       )
       .filter((v): v is number => typeof v === "number" && Number.isFinite(v)) ??
     [];
+
+  if (error) {
+    return (
+      <SparklineSvg
+        series={[]}
+        width={width ?? 100}
+        height={height ?? 20}
+        color={color ?? "#8884d8"}
+        ariaLabel={ariaLabel ?? `Price trend for ${ticker}`}
+        tabIndex={tabIndex ?? 0}
+      />
+    );
+  }
 
   return (
     <SparklineSvg

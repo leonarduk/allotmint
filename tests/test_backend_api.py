@@ -173,9 +173,12 @@ def test_invalid_portfolio(client):
 def test_valid_account(client):
     groups = client.get("/groups").json()
     assert groups, "No groups found"
-    first_name = groups[0]["members"][0]
-    # You'll need to replace with a valid account name like "ISA" or "SIPP"
-    resp = client.get(f"/account/{first_name}/ISA")
+    owner = groups[0]["members"][0]
+    portfolio = client.get(f"/portfolio/{owner}").json()
+    accounts = portfolio.get("accounts", [])
+    assert accounts, "No accounts found for owner"
+    account_name = accounts[0]["account_type"]
+    resp = client.get(f"/account/{owner}/{account_name}")
     assert resp.status_code == 200
 
 

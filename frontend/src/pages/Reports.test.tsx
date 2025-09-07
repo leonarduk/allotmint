@@ -82,6 +82,8 @@ describe("Reports page", () => {
       </configContext.Provider>
     );
 
+    // Open the menu to ensure links are visible in tests
+    fireEvent.click(await screen.findByRole("button", { name: /menu/i }));
     expect(
       await screen.findByRole("link", { name: /reports/i })
     ).toBeInTheDocument();

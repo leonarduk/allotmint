@@ -12,7 +12,7 @@ Copy `.env.example` to `.env` and supply the following values:
 | `TELEGRAM_CHAT_ID` | Telegram chat for alerts |
 | `API_TOKEN` | Token securing sensitive routes |
 | `OPENAI_API_KEY` | Optional key for OpenAI features |
-| `DATA_ROOT` | Path to a local checkout of the external data repository |
+| `DATA_ROOT` | Base directory for local data; overrides `paths.data_root` in `config.yaml` |
 | `DATA_BUCKET` | S3 bucket holding account data when deploying the backend. May also be supplied via the script's `-DataBucket` parameter |
 | `METADATA_BUCKET` | Bucket containing instrument metadata |
 | `METADATA_PREFIX` | Prefix within the metadata bucket |

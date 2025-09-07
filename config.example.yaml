@@ -1,11 +1,12 @@
 # File and directory paths
 paths:
   repo_root: .                        # Base path for the repository
-  accounts_root: data/accounts        # Directory containing account files
-  prices_json: data/prices/latest_prices.json # Location for cached price data
-  timeseries_cache_base: data/timeseries    # Cache directory for time series data
-  portfolio_xml_path: data/portfolio/investments.xml # Portfolio XML input file
-  transactions_output_root: data/accounts # Where generated transactions are written
+  data_root: data                     # Base directory for application data
+  accounts_root: accounts             # Directory containing account files
+  prices_json: prices/latest_prices.json # Location for cached price data
+  timeseries_cache_base: timeseries   # Cache directory for time series data
+  portfolio_xml_path: portfolio/investments.xml # Portfolio XML input file
+  transactions_output_root: accounts  # Where generated transactions are written
   log_config: backend/logging.ini     # Logging configuration file
 
 tabs:

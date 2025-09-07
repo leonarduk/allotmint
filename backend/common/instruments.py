@@ -10,7 +10,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List
 
-_INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
+from backend.config import config
+
+_INSTRUMENTS_DIR = config.data_root / "instruments"
 _VALID_RE = re.compile(r"^[A-Z0-9-]+$")
 
 METADATA_BUCKET_ENV = "METADATA_BUCKET"

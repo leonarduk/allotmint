@@ -16,11 +16,13 @@ The script is idempotent – running it multiple times is safe.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTRUMENTS_DIR = ROOT / "data" / "instruments"
+DATA_ROOT = Path(os.getenv("DATA_ROOT", ROOT / "data"))
+INSTRUMENTS_DIR = DATA_ROOT / "instruments"
 NEW_FIELDS = {
     "asset_class": None,
     "industry": None,

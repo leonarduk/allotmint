@@ -102,6 +102,7 @@ if (-not $offline) {
 
 # ───────────── env + defaults (PS 5.1) ────────
 $env:ALLOTMINT_ENV = Coalesce $cfg.app_env 'local'
+$env:DATA_ROOT = Coalesce $cfg.paths.data_root 'data'
 $port      = Coalesce $cfg.uvicorn_port $Port
 $logConfig = Coalesce $cfg.log_config   'logging.ini'
 $reloadRaw = Coalesce $cfg.reload       $true

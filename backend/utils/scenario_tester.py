@@ -288,7 +288,7 @@ def apply_historical_returns(
     """
 
     start = _parse_date(event.get("date"))
-    horizons = list(horizons or event.get("horizons", []))
+    horizons = list(horizons or event.get("horizons") or [5])
     proxy = event.get("proxy_index") or {}
     proxy_ticker = proxy.get("ticker")
     proxy_exchange = proxy.get("exchange")

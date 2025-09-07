@@ -1,9 +1,11 @@
 from fastapi.testclient import TestClient
 
-from backend.local_api.main import app
+from backend.app import create_app
+from backend.routes import scenario as scenario_route
 
 
 def _auth_client():
+    app = create_app()
     client = TestClient(app)
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
@@ -24,7 +26,16 @@ def test_scenario_route():
         assert "delta_gbp" in first
 
 
-def test_historical_scenario_route():
+def test_historical_scenario_route(monkeypatch):
+    def fake_apply_historical_event(portfolio, event_id=None, date=None, horizons=None):
+        horizons = horizons or [1]
+        total = portfolio.get("total_value_estimate_gbp") or 0.0
+        return {h: {"total_value_estimate_gbp": total} for h in horizons}
+
+    monkeypatch.setattr(
+        scenario_route, "apply_historical_event", fake_apply_historical_event
+    )
+
     client = _auth_client()
     resp = client.get("/scenario/historical?event_id=test&horizons=1&horizons=5")
     assert resp.status_code == 200

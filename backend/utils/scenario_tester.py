@@ -6,8 +6,6 @@ portfolios.
 
 from __future__ import annotations
 
-import datetime as dt
-import math
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable
@@ -18,7 +16,6 @@ from backend.common.constants import (
     COST_BASIS_GBP,
     EFFECTIVE_COST_BASIS_GBP,
 )
-from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 from backend.common.prices import get_price_gbp
 from backend.timeseries.cache import load_meta_timeseries_range
 

@@ -1,4 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  type MouseEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
@@ -367,8 +373,11 @@ export function HoldingsTable({
           )}
           {items.map((virtualRow) => {
             const h = sortedRows[virtualRow.index];
-            const handleClick = () =>
+            const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+              event.preventDefault();
+              event.stopPropagation();
               onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+            };
             const sparkData =
               (globalThis as any).sparks?.[h.ticker]?.[String(sparkRange)] ?? [];
             const sparkColor =

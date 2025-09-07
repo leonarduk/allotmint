@@ -19,9 +19,10 @@ from backend.config import settings
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
 # Cache configuration
 _MIN_TTL = 24 * 60 * 60  # one day
+ttl_cfg = settings.fundamentals_cache_ttl_seconds or _MIN_TTL
 _CACHE_TTL_SECONDS = max(
     _MIN_TTL,
-    min(settings.fundamentals_cache_ttl_seconds, 7 * 24 * 60 * 60),
+    min(ttl_cfg, 7 * 24 * 60 * 60),
 )
 _CACHE: Dict[Tuple[str, str], Tuple[datetime, "Fundamentals"]] = {}
 

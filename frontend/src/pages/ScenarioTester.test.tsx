@@ -63,9 +63,8 @@ describe("ScenarioTester page", () => {
     expect(screen.getByText("-10.00%")).toBeInTheDocument();
   });
 
-  it("disables Apply button until selections made", async () => {
-    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
   it("disables Apply button until valid inputs provided", async () => {
+    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
     mockRunScenario.mockResolvedValueOnce([
       {
         owner: "Test Owner",

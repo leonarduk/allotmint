@@ -106,7 +106,7 @@ export function Watchlist() {
       const id = setInterval(fetchData, 10000);
       return () => clearInterval(id);
     }
-    if (allClosed) {
+    if (!allClosed) {
       const id = setInterval(fetchData, 60000);
       return () => clearInterval(id);
     }

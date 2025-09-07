@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from datetime import date, timedelta, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -35,6 +36,7 @@ from backend.timeseries.fetch_stooq_timeseries import (
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_range
 from backend.timeseries.fetch_alphavantage_timeseries import (
     fetch_alphavantage_timeseries_range,
+    AlphaVantageRateLimitError,
 )
 from backend.utils.timeseries_helpers import (
     _nearest_weekday,
@@ -219,6 +221,10 @@ def fetch_meta_timeseries(
                 if _coverage_ratio(combined, expected_dates) >= min_coverage:
                     return combined
                 data.append(av)
+        except AlphaVantageRateLimitError as exc:
+            logger.debug("Alpha Vantage rate limit for %s.%s: %s", ticker, exchange, exc)
+            if exc.retry_after:
+                time.sleep(exc.retry_after)
         except Exception as exc:
             logger.debug("Alpha Vantage miss for %s.%s: %s", ticker, exchange, exc)
     else:

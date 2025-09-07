@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import date, timedelta
 
 import pandas as pd
@@ -12,6 +13,14 @@ from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 logger = logging.getLogger("alphavantage_timeseries")
 
 BASE_URL = "https://www.alphavantage.co/query"
+
+
+class AlphaVantageRateLimitError(RuntimeError):
+    """Raised when the Alpha Vantage rate limit has been exceeded."""
+
+    def __init__(self, message: str, retry_after: int | None = None):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 def _build_symbol(ticker: str, exchange: str) -> str:
@@ -34,6 +43,24 @@ def _build_symbol(ticker: str, exchange: str) -> str:
     if ticker.endswith(suffix):
         return ticker
     return ticker + suffix
+
+
+def _parse_retry_after(response: requests.Response, message: str) -> int | None:
+    """Extract retry delay from headers or message if available."""
+    ra = response.headers.get("Retry-After")
+    if ra:
+        try:
+            return int(ra)
+        except ValueError:
+            pass
+    match = re.search(r"(\d+)\s*(seconds?|minutes?)", message, re.IGNORECASE)
+    if match:
+        delay = int(match.group(1))
+        unit = match.group(2).lower()
+        if unit.startswith("min"):
+            delay *= 60
+        return delay
+    return None
 
 
 def fetch_alphavantage_timeseries_range(
@@ -64,6 +91,11 @@ def fetch_alphavantage_timeseries_range(
     logger.debug("Fetching Alpha Vantage data for %s from %s to %s", symbol, start_date, end_date)
     try:
         response = requests.get(BASE_URL, params=params, timeout=30)
+
+        if response.status_code == 429:
+            retry_after = _parse_retry_after(response, "")
+            raise AlphaVantageRateLimitError("Rate limit exceeded", retry_after)
+
         response.raise_for_status()
         data = response.json()
         if "Time Series (Daily)" not in data:
@@ -75,6 +107,10 @@ def fetch_alphavantage_timeseries_range(
                 or "Unexpected response"
             )
             logger.debug("Alpha Vantage raw response for %s: %s", symbol, data)
+            lower_msg = message.lower()
+            if any(k in lower_msg for k in ["frequency", "limit", "try again"]):
+                retry_after = _parse_retry_after(response, lower_msg)
+                raise AlphaVantageRateLimitError(message, retry_after)
             raise ValueError(message)
 
         ts = data["Time Series (Daily)"]

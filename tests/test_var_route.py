@@ -4,10 +4,11 @@ from fastapi.testclient import TestClient
 
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_utils
-from backend.local_api.main import app
+from backend.app import create_app
 
 
 def _auth_client():
+    app = create_app()
     client = TestClient(app)
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})

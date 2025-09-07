@@ -5,6 +5,43 @@ import type { InstrumentDetailMini } from "../types";
 // Simple in-memory cache keyed by ticker+days
 const cache = new Map<string, InstrumentDetailMini>();
 
+export function getCachedInstrumentHistory(
+  ticker: string,
+  days: number,
+) {
+  return cache.get(`${ticker}:${days}`) ?? null;
+}
+
+export async function preloadInstrumentHistory(
+  tickers: string[],
+  days: number,
+  concurrency = 5,
+) {
+  const unique = Array.from(new Set(tickers));
+  const queue = unique.slice();
+  const workers = Array.from(
+    { length: Math.min(concurrency, queue.length) },
+    () =>
+      (async () => {
+        while (queue.length) {
+          const ticker = queue.shift();
+          if (!ticker) break;
+          const key = `${ticker}:${days}`;
+          if (cache.has(key)) continue;
+          try {
+            const res = await getInstrumentDetail(ticker, days);
+            if (res.mini) {
+              cache.set(key, res.mini);
+            }
+          } catch {
+            // ignore errors during preloading
+          }
+        }
+      })(),
+  );
+  await Promise.all(workers);
+}
+
 /**
  * Retrieve mini history for an instrument and cache responses to avoid
  * refetching on re-renders. Subsequent calls with the same ticker and days

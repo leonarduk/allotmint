@@ -102,7 +102,7 @@ def _fx_to_gbp(currency: str, cache: Dict[str, float]) -> float:
 # ──────────────────────────────────────────────────────────────
 # Snapshot loader (last_price / deltas)
 # ──────────────────────────────────────────────────────────────
-_PRICES_PATH = Path("data/prices/latest_prices.json")
+_PRICES_PATH = config.prices_json
 _PRICES_S3_KEY = "prices/latest_prices.json"
 
 
@@ -179,7 +179,7 @@ def refresh_snapshot_in_memory(
 # ──────────────────────────────────────────────────────────────
 # Securities universe
 # ──────────────────────────────────────────────────────────────
-INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
+INSTRUMENTS_DIR = config.data_root / "instruments"
 INSTRUMENTS_S3_PREFIX = "instruments"
 
 

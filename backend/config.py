@@ -83,8 +83,8 @@ class Config:
     telegram_chat_id: Optional[str] = None
 
     # paths / app settings
-    portfolio_xml_path: Optional[str] = None
-    transactions_output_root: Optional[str] = None
+    portfolio_xml_path: Optional[Path] = None
+    transactions_output_root: Optional[Path] = None
     uvicorn_port: Optional[int] = None
     reload: Optional[bool] = None
     log_config: Optional[str] = None
@@ -116,6 +116,7 @@ class Config:
     max_trades_per_month: Optional[int] = None
     hold_days_min: Optional[int] = None
     repo_root: Optional[Path] = None
+    data_root: Optional[Path] = None
     accounts_root: Optional[Path] = None
     prices_json: Optional[Path] = None
     risk_free_rate: Optional[float] = None
@@ -190,11 +191,35 @@ def load_config() -> Config:
     repo_root_raw = data.get("repo_root")
     repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
 
+    data_root_raw = data.get("data_root") or "data"
+    env_data_root = os.getenv("DATA_ROOT")
+    if env_data_root:
+        data_root_raw = env_data_root
+    data_root_path = Path(data_root_raw)
+    data_root = (
+        data_root_path if data_root_path.is_absolute() else (repo_root / data_root_path)
+    ).resolve()
+
     accounts_root_raw = data.get("accounts_root")
-    accounts_root = (repo_root / accounts_root_raw).resolve() if accounts_root_raw else None
+    accounts_root = (data_root / accounts_root_raw).resolve() if accounts_root_raw else None
 
     prices_json_raw = data.get("prices_json")
-    prices_json = (repo_root / prices_json_raw).resolve() if prices_json_raw else None
+    prices_json = (data_root / prices_json_raw).resolve() if prices_json_raw else None
+
+    ts_cache_raw = data.get("timeseries_cache_base")
+    timeseries_cache_base = (
+        str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
+    )
+
+    portfolio_xml_raw = data.get("portfolio_xml_path")
+    portfolio_xml_path = (
+        (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None
+    )
+
+    tx_output_raw = data.get("transactions_output_root")
+    transactions_output_root = (
+        (data_root / tx_output_raw).resolve() if tx_output_raw else None
+    )
 
     tabs_raw = data.get("tabs")
     tabs = validate_tabs(tabs_raw)
@@ -245,8 +270,8 @@ def load_config() -> Config:
         sns_topic_arn=data.get("sns_topic_arn"),
         telegram_bot_token=data.get("telegram_bot_token"),
         telegram_chat_id=data.get("telegram_chat_id"),
-        portfolio_xml_path=data.get("portfolio_xml_path"),
-        transactions_output_root=data.get("transactions_output_root"),
+        portfolio_xml_path=portfolio_xml_path,
+        transactions_output_root=transactions_output_root,
         uvicorn_port=data.get("uvicorn_port"),
         reload=data.get("reload"),
         log_config=data.get("log_config"),
@@ -262,7 +287,7 @@ def load_config() -> Config:
         google_client_id=google_client_id,
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),
-        timeseries_cache_base=data.get("timeseries_cache_base"),
+        timeseries_cache_base=timeseries_cache_base,
         fx_proxy_url=data.get("fx_proxy_url"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
@@ -270,6 +295,7 @@ def load_config() -> Config:
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),
         repo_root=repo_root,
+        data_root=data_root,
         accounts_root=accounts_root,
         prices_json=prices_json,
         risk_free_rate=data.get("risk_free_rate"),

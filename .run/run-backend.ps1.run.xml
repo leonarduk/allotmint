@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="run-backend.ps1" type="PowerShellRunType" factoryName="PowerShell" scriptUrl="$PROJECT_DIR$/run-backend.ps1" executablePath="powershell.exe">
+  <configuration default="false" name="run-backend.ps1" type="PowerShellRunType" factoryName="PowerShell" scriptUrl="$PROJECT_DIR$/scripts/run-backend.ps1" executablePath="powershell.exe">
     <envs />
     <method v="2" />
   </configuration>

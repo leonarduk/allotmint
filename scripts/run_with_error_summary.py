@@ -2,7 +2,7 @@
 """Run a command and record stderr error lines to error_summary.log.
 
 Usage:
-    python run_with_error_summary.py [<command> [args...]]
+    python scripts/run_with_error_summary.py [<command> [args...]]
 
 When called without a command, the script loads a default command from
 ``config.yaml`` under ``error_summary.default_command``. Explicit CLI arguments

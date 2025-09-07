@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Ensure the script runs from repository root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/frontend"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT/frontend"
 
 # Install dependencies
 npm install

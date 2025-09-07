@@ -32,7 +32,7 @@ future navigation features ahead of the final release.
 ## Installation
 
 1. Install dependencies with `npm install`.
-2. Ensure the backend API is running. From the repository root you can start it with `./run-local-api.sh`, which serves `http://localhost:8000` by default.
+2. Ensure the backend API is running. From the repository root you can start it with `./scripts/run-local-api.sh`, which serves `http://localhost:8000` by default.
 3. If the backend runs elsewhere, set `VITE_ALLOTMINT_API_BASE` (or the legacy `VITE_API_URL`) before starting the dev server, e.g.:
 
    ```bash

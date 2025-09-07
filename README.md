@@ -296,7 +296,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 
 # configure API settings
 # (see config.yaml for app_env, uvicorn_host, uvicorn_port, reload and log_config)
-./run-local-api.sh    # or use run-backend.ps1 on Windows
+./scripts/run-local-api.sh    # or use scripts/run-backend.ps1 on Windows
 
 # in another shell install React deps and start Vite on :5173
 cd frontend
@@ -362,7 +362,7 @@ aws s3 sync s3://$DATA_BUCKET/ data/
 When running the backend in AWS (``config.app_env: aws``), account and
 metadata JSON files are loaded from this bucket.
 
-The local startup scripts (`run-local-api.sh` and `run-backend.ps1`) perform
+The local startup scripts (`scripts/run-local-api.sh` and `scripts/run-backend.ps1`) perform
 this sync automatically when `DATA_BUCKET` is set.
 
 ```bash
@@ -439,7 +439,7 @@ PY_COV_MIN=80 PYTEST_ADDOPTS="--cov-fail-under=$PY_COV_MIN" pytest
 ## Error summary helper
 
 An optional `error_summary` section in `config.yaml` stores settings for the
-`run_with_error_summary.py` utility. When the field is missing the backend falls
+`scripts/run_with_error_summary.py` utility. When the field is missing the backend falls
 back to an empty mapping so the script can still be used with explicit
 arguments. You can capture error lines by running the helper which writes them
 to `error_summary.log`. Optionally set a default command in
@@ -451,12 +451,12 @@ error_summary:
   default_command: ["pytest"]
 ```
 
-Running `python run_with_error_summary.py` with no arguments will then use the
+Running `python scripts/run_with_error_summary.py` with no arguments will then use the
 configured default.
 
 ```bash
 # example
-python run_with_error_summary.py pytest
+python scripts/run_with_error_summary.py pytest
 ```
 
 

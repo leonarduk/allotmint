@@ -14,7 +14,7 @@
 
 ## Log Locations
 - Backend logs are written to `backend.log` as configured in `backend/logging.ini`.
-- The `run_with_error_summary.py` helper records errors in `error_summary.log`.
+- The `scripts/run_with_error_summary.py` helper records errors in `error_summary.log`.
 
 ## Escalation Contacts
 - **Primary**: engineering@allotmint.example.com

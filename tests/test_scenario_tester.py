@@ -2,11 +2,12 @@ import datetime as dt
 
 import pandas as pd
 import pytest
+import backend.utils.scenario_tester as sc_tester
+from backend.utils.scenario_tester import apply_historical_event, apply_price_shock, apply_historical_returns
 from backend.utils import scenario_tester as sc
 import backend.common.prices as prices
 from datetime import date
 
-import backend.utils.scenario_tester as sc_tester
 
 
 def test_price_shock_uses_cached_price_for_missing_current_price(monkeypatch):
@@ -78,7 +79,9 @@ def test_apply_historical_event_uses_proxy_for_missing(monkeypatch):
             return pd.DataFrame()
         return df.loc[:pd.to_datetime(end_date)]
 
-    monkeypatch.setattr(sc, "load_meta_timeseries_range", fake_load)
+    monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
+    monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
+    monkeypatch.setattr(sc_tester, "apply_scaling", lambda df, scale, scale_volume=False: df)
 
     result = apply_historical_event(portfolio, event, horizons=[1, 365])
 
@@ -128,7 +131,7 @@ def test_historical_event_falls_back_to_proxy(monkeypatch):
 
     monkeypatch.setattr(sc, "load_meta_timeseries_range", fake_load)
 
-    returns = apply_historical_event(portfolio, event, horizons=[5])
+    returns = sc_tester.apply_historical_returns(portfolio, event)
     assert returns["AAA.L"][5] == pytest.approx(0.1)
 
 
@@ -155,5 +158,5 @@ def test_historical_event_uses_proxy_when_data_incomplete(monkeypatch):
 
     monkeypatch.setattr(sc, "load_meta_timeseries_range", fake_load)
 
-    returns = apply_historical_event(portfolio, event, horizons=[5])
+    returns = sc_tester.apply_historical_returns(portfolio, event)
     assert returns["AAA.L"][5] == pytest.approx(0.1)

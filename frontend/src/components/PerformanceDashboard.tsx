@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   getPerformance,
@@ -27,6 +28,7 @@ export function PerformanceDashboard({ owner }: Props) {
   const [xirr, setXirr] = useState<number | null>(null);
   const [excludeCash, setExcludeCash] = useState<boolean>(false);
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!owner) return;
@@ -160,6 +162,14 @@ export function PerformanceDashboard({ owner }: Props) {
           />
         </LineChart>
       </ResponsiveContainer>
+      <div style={{ marginTop: "1rem" }}>
+        <button
+          disabled={!owner}
+          onClick={() => owner && navigate(`/performance/${owner}/diagnostics`)}
+        >
+          Drill down
+        </button>
+      </div>
     </div>
   );
 }

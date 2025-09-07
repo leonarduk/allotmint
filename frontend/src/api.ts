@@ -29,12 +29,14 @@ import type {
   ScenarioResult,
   ScenarioEvent,
   TradeSuggestion,
+  QuestResponse,
   SectorContribution,
   RegionContribution,
   UserConfig,
   InstrumentMetadata,
   ApprovalsResponse,
   NewsItem,
+  HoldingValue,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -267,6 +269,11 @@ export const getAlphaVsBenchmark = (
 ) =>
   fetchJson<AlphaResponse>(
     `${API_BASE}/performance/${owner}/alpha?benchmark=${benchmark}&days=${days}`,
+  );
+
+export const getPortfolioHoldings = (owner: string, date: string) =>
+  fetchJson<{ owner: string; date: string; holdings: HoldingValue[] }>(
+    `${API_BASE}/performance/${owner}/holdings?date=${encodeURIComponent(date)}`,
   );
 
 export const getTrackingError = (
@@ -837,3 +844,12 @@ export const getPensionForecast = (
     `${API_BASE}/pension/forecast?${params.toString()}`,
   );
 };
+
+// ───────────── Quests API ─────────────
+export const getQuests = () =>
+  fetchJson<QuestResponse>(`${API_BASE}/quests/today`);
+
+export const completeQuest = (id: string) =>
+  fetchJson<QuestResponse>(`${API_BASE}/quests/${encodeURIComponent(id)}/complete`, {
+    method: "POST",
+  });

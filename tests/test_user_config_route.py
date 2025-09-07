@@ -22,7 +22,10 @@ def client(monkeypatch):
 
 @pytest.fixture
 def mock_user_config(monkeypatch):
-    store = {"alice": {"hold_days_min": 5}}
+    store = {
+        "alice": {"hold_days_min": 5},
+        "alex": {},
+    }
 
     def fake_load(owner: str, accounts_root=None):
         if owner not in store:

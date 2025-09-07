@@ -171,7 +171,7 @@ export function Watchlist() {
         <div className="mb-2 text-red-500">{error}</div>
       )}
       {allClosed && (
-        <div className="mb-2 text-gray-500">
+        <div className="mb-2 text-gray-800 dark:text-gray-200">
           {t("watchlist.marketsClosed", { defaultValue: "Markets closed" })}
         </div>
       )}

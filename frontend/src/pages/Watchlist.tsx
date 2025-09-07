@@ -96,19 +96,22 @@ export function Watchlist() {
   }, [fetchData, symbols]);
 
   useEffect(() => {
-    if (intervalMs <= 0) return;
+    if (intervalMs <= 0 || auto) return;
     const id = setInterval(fetchData, intervalMs);
     return () => clearInterval(id);
-  }, [intervalMs, fetchData]);
+  }, [intervalMs, auto, fetchData]);
+
+  useEffect(() => {
+    if (intervalMs <= 0) return;
     if (auto) {
       const id = setInterval(fetchData, 10000);
       return () => clearInterval(id);
     }
-    if (allClosed) {
+    if (!allClosed) {
       const id = setInterval(fetchData, 60000);
       return () => clearInterval(id);
     }
-  }, [auto, allClosed, fetchData]);
+  }, [auto, allClosed, fetchData, intervalMs]);
 
   const sorted = useMemo(() => {
     const data = [...rows];

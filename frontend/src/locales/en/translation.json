@@ -96,6 +96,7 @@
       "weightPct": "Weight %",
       "acquired": "Acquired",
       "daysHeld": "Days Held",
+      "stage": "Stage",
       "eligible": "Eligible?"
     },
     "filters": {

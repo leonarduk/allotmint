@@ -32,8 +32,12 @@ export default function ProfilePage() {
         />
       )}
       {user.name && <div className="text-xl">{user.name}</div>}
-      {user.email && <div className="text-gray-600">{user.email}</div>}
-      <p className="text-gray-600">Preferred theme: {theme}</p>
+      {user.email && (
+        <div className="text-gray-800 dark:text-gray-200">{user.email}</div>
+      )}
+      <p className="text-gray-800 dark:text-gray-200">
+        Preferred theme: {theme}
+      </p>
     </div>
   );
 }

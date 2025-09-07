@@ -3,12 +3,12 @@ import i18n from "i18next";
 import "./LanguageSwitcher.css";
 
 const LANGUAGES = [
-  { code: "en", flag: "/flags/en.svg" },
-  { code: "fr", flag: "/flags/fr.svg" },
-  { code: "de", flag: "/flags/de.svg" },
-  { code: "es", flag: "/flags/es.svg" },
-  { code: "pt", flag: "/flags/pt.svg" },
-  { code: "it", flag: "/flags/it.svg" },
+  { code: "en", flag: "/flags/en.svg", name: "English" },
+  { code: "fr", flag: "/flags/fr.svg", name: "French" },
+  { code: "de", flag: "/flags/de.svg", name: "German" },
+  { code: "es", flag: "/flags/es.svg", name: "Spanish" },
+  { code: "pt", flag: "/flags/pt.svg", name: "Portuguese" },
+  { code: "it", flag: "/flags/it.svg", name: "Italian" },
 ];
 
 export const LanguageSwitcher = memo(function LanguageSwitcher() {
@@ -49,14 +49,15 @@ export const LanguageSwitcher = memo(function LanguageSwitcher() {
       <button
         onClick={() => setOpen((o) => !o)}
         className="language-btn"
-        aria-label={currentLang.code}
+        aria-label={currentLang.name}
       >
         <img
           src={currentLang.flag}
-          alt={currentLang.code}
+          alt={currentLang.name}
           width={24}
           height={24}
         />
+        <span className="language-name">{currentLang.name}</span>
       </button>
       {open && (
         <div className="language-menu">
@@ -65,9 +66,10 @@ export const LanguageSwitcher = memo(function LanguageSwitcher() {
               key={l.code}
               onClick={() => selectLanguage(l.code)}
               className="language-btn"
-              aria-label={l.code}
+              aria-label={l.name}
             >
-              <img src={l.flag} alt={l.code} width={24} height={24} />
+              <img src={l.flag} alt={l.name} width={24} height={24} />
+              <span className="language-name">{l.name}</span>
             </button>
           ))}
         </div>

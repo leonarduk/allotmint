@@ -66,6 +66,24 @@ def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float)
     )
     return shocked
 
+def _scale_portfolio(portfolio: Dict[str, Any], horizons: Iterable[int] | None = None) -> Dict[int, Dict[str, Any]]:
+    """Scale ``portfolio`` by a simple factor for each horizon."""
+
+    horizons = list(horizons or [1])
+    shocked: Dict[int, Dict[str, Any]] = {}
+    for horizon in horizons:
+        factor = max(0.0, 1 - horizon / 100.0)
+        pf_copy = deepcopy(portfolio)
+        for acct in pf_copy.get("accounts", []):
+            val = float(acct.get("value_estimate_gbp") or 0.0) * factor
+            acct["value_estimate_gbp"] = round(val, 2)
+        pf_copy["total_value_estimate_gbp"] = round(
+            sum(a.get("value_estimate_gbp") or 0.0 for a in pf_copy.get("accounts", [])),
+            2,
+        )
+        shocked[horizon] = pf_copy
+    return shocked
+
 
 # ---------------------------------------------------------------------------
 # Historical event application
@@ -199,25 +217,6 @@ def apply_historical_event(
     return result
 
 
-def _scale_portfolio(portfolio: Dict[str, Any], horizons: Iterable[int] | None = None) -> Dict[int, Dict[str, Any]]:
-    """Scale ``portfolio`` by a simple factor for each horizon."""
-
-    horizons = list(horizons or [1])
-    shocked: Dict[int, Dict[str, Any]] = {}
-    for horizon in horizons:
-        factor = max(0.0, 1 - horizon / 100.0)
-        pf_copy = deepcopy(portfolio)
-        for acct in pf_copy.get("accounts", []):
-            val = float(acct.get("value_estimate_gbp") or 0.0) * factor
-            acct["value_estimate_gbp"] = round(val, 2)
-        pf_copy["total_value_estimate_gbp"] = round(
-            sum(a.get("value_estimate_gbp") or 0.0 for a in pf_copy.get("accounts", [])),
-            2,
-        )
-        shocked[horizon] = pf_copy
-    return shocked
-
-
 def _parse_date(val: Any) -> dt.date:
     """Best-effort conversion of ``val`` to ``date``."""
     if isinstance(val, dt.date):
@@ -253,6 +252,9 @@ def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int
     if df.empty or len(df) < 2:
         return None
 
+    scale = get_scaling_override(ticker, exchange or "", None)
+    df = apply_scaling(df, scale)
+
     # Ensure the data covers (most of) the requested horizon.
     last = df.index[-1]
     if isinstance(last, pd.Timestamp):
@@ -274,6 +276,32 @@ def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int
 
 def apply_historical_returns(
     portfolio: Dict[str, Any],
+    event: Dict[str, Any] | None = None,
+    *,
+    event_id: str | None = None,
+    date: str | None = None,
+    horizons: Iterable[int] | None = None,
+) -> Dict[Any, Any]:
+    """Apply a historical event to ``portfolio``.
+
+    When ``event`` is provided, per-holding returns are calculated for the
+    requested ``horizons`` (or those defined within ``event``) and returned as
+    ``{ticker: {horizon: return}}``.  If ``event`` is omitted but an
+    ``event_id`` or ``date`` is supplied, a simple placeholder scaling is
+    applied instead.
+    """
+
+    if event is None and (event_id or date):
+        return _scale_portfolio(portfolio, horizons)
+
+    if event is None:
+        raise ValueError("event must be provided")
+
+    return apply_historical_returns(portfolio, event, horizons=horizons)
+
+
+def apply_historical_returns(
+    portfolio: Dict[str, Any],
     event: Dict[str, Any],
     horizons: Iterable[int] | None = None,
 ) -> Dict[str, Dict[int, float | None]]:
@@ -288,7 +316,7 @@ def apply_historical_returns(
     """
 
     start = _parse_date(event.get("date"))
-    horizons = list(horizons or event.get("horizons", []))
+    horizons = list(horizons or event.get("horizons") or [5])
     proxy = event.get("proxy_index") or {}
     proxy_ticker = proxy.get("ticker")
     proxy_exchange = proxy.get("exchange")

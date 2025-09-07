@@ -65,6 +65,19 @@ async def owner_xirr(owner: str, days: int = 365):
         raise_owner_not_found()
 
 
+@router.get("/performance/{owner}/holdings")
+@handle_owner_not_found
+async def owner_holdings(owner: str, date: str):
+    """Return holding values for ``owner`` on a specific date."""
+    try:
+        rows = portfolio_utils.portfolio_value_breakdown(owner, date)
+        return {"owner": owner, "date": date, "holdings": rows}
+    except FileNotFoundError:
+        raise_owner_not_found()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/performance-group/{slug}/alpha")
 async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return alpha vs. benchmark for a group portfolio."""

@@ -15,7 +15,11 @@ export default function InstrumentResearch() {
   const [showBollinger, setShowBollinger] = useState(false);
   const { t } = useTranslation();
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
-  const { data: history, loading: historyLoading } = useInstrumentHistory(tkr, days);
+  const {
+    data: history,
+    loading: historyLoading,
+    error: historyError,
+  } = useInstrumentHistory(tkr, days);
   const historyPrices = history?.[String(days)] ?? [];
   const [quote, setQuote] = useState<QuoteRow | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -116,11 +120,24 @@ export default function InstrumentResearch() {
           {t("instrumentDetail.bollingerBands")}
         </label>
       </div>
-      <InstrumentHistoryChart
-        data={historyPrices}
-        loading={historyLoading}
-        showBollinger={showBollinger}
-      />
+      {historyError && !historyLoading ? (
+        <div
+          style={{
+            height: 220,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          History unavailable
+        </div>
+      ) : (
+        <InstrumentHistoryChart
+          data={historyPrices}
+          loading={historyLoading}
+          showBollinger={showBollinger}
+        />
+      )}
       {(quote || metrics) && (
         <table style={{ marginBottom: "1rem" }}>
           <tbody>

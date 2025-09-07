@@ -128,12 +128,22 @@ export interface PerformancePoint {
     daily_return?: number | null;
     weekly_return?: number | null;
     cumulative_return?: number | null;
+    running_max?: number;
+    drawdown?: number | null;
 }
 
 export interface PerformanceResponse {
     history: PerformancePoint[];
     time_weighted_return?: number | null;
     xirr?: number | null;
+}
+
+export interface HoldingValue {
+    ticker: string;
+    exchange: string;
+    units: number;
+    price?: number | null;
+    value?: number | null;
 }
 
 export interface ValueAtRiskPoint {
@@ -383,5 +393,18 @@ export interface TradeSuggestion {
     ticker: string;
     action: string;
     amount: number;
+}
+
+export interface Quest {
+    id: string;
+    title: string;
+    xp: number;
+    completed: boolean;
+}
+
+export interface QuestResponse {
+    quests: Quest[];
+    xp: number;
+    streak: number;
 }
 

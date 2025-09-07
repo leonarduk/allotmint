@@ -395,3 +395,16 @@ export interface TradeSuggestion {
     amount: number;
 }
 
+export interface Quest {
+    id: string;
+    title: string;
+    xp: number;
+    completed: boolean;
+}
+
+export interface QuestResponse {
+    quests: Quest[];
+    xp: number;
+    streak: number;
+}
+

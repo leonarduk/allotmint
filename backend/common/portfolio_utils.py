@@ -93,8 +93,8 @@ def _fx_to_gbp(currency: str, cache: Dict[str, float]) -> float:
             rate = float(df["Rate"].iloc[-1])
             cache[currency] = rate
             return rate
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to fetch FX rate for %s: %s", currency, exc)
     cache[currency] = 1.0
     return 1.0
 

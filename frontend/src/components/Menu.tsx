@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
 import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
+import PomodoroTimer from './PomodoroTimer';
+import { useFocusMode } from '../FocusModeContext';
 
 const SUPPORT_ONLY_TABS: TabPluginId[] = ['logs'];
 
@@ -25,6 +27,8 @@ export default function Menu({
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const path = location.pathname.split('/').filter(Boolean);
+
+  const { focusMode, setFocusMode } = useFocusMode();
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -132,52 +136,72 @@ export default function Menu({
       >
         ☰
       </button>
-      <div
-        className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
-        style={style}
-      >
-        {orderedTabPlugins
-          .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
-          .slice()
-          .sort((a, b) => a.priority - b.priority)
-          .filter((p) => {
-            if (p.id === 'support') return false;
-            if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
-            return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
-          })
-          .map((p) => (
-            <Link
-              key={p.id}
-              to={pathFor(p.id)}
-              className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
-              style={{ fontWeight: mode === p.id ? 'bold' as const : undefined }}
-              onClick={() => setOpen(false)}
-            >
-              {t(`app.modes.${p.id}`)}
-            </Link>
-          ))}
-        {supportEnabled && (
-          <Link
-            to={inSupport ? '/' : '/support'}
-            className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
-            onClick={() => setOpen(false)}
-          >
-            {t('app.supportLink')}
-          </Link>
-        )}
-        {onLogout && (
+      {focusMode ? (
+        <div className="flex flex-col" style={style}>
+          <PomodoroTimer />
           <button
             type="button"
-            onClick={() => {
-              onLogout();
-              setOpen(false);
-            }}
+            onClick={() => setFocusMode(false)}
+            className="mt-2 mr-4 bg-transparent border-0 p-0 cursor-pointer self-start"
+          >
+            Exit Focus Mode
+          </button>
+        </div>
+      ) : (
+        <div
+          className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
+          style={style}
+        >
+          {orderedTabPlugins
+            .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
+            .slice()
+            .sort((a, b) => a.priority - b.priority)
+            .filter((p) => {
+              if (p.id === 'support') return false;
+              if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
+              return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
+            })
+            .map((p) => (
+              <Link
+                key={p.id}
+                to={pathFor(p.id)}
+                className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
+                style={{ fontWeight: mode === p.id ? 'bold' as const : undefined }}
+                onClick={() => setOpen(false)}
+              >
+                {t(`app.modes.${p.id}`)}
+              </Link>
+            ))}
+          {supportEnabled && (
+            <Link
+              to={inSupport ? '/' : '/support'}
+              className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
+              onClick={() => setOpen(false)}
+            >
+              {t('app.supportLink')}
+            </Link>
+          )}
+          {onLogout && (
+            <button
+              type="button"
+              onClick={() => {
+                onLogout();
+                setOpen(false);
+              }}
+              className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
+            >
+              {t('app.logout')}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setFocusMode(true)}
             className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
           >
-            {t('app.logout')}
+            Focus Mode
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </nav>
   );
 }

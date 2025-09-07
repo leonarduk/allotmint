@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from './AuthContext'
 import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import { UserProvider } from './UserContext'
+import { FocusModeProvider } from './FocusModeContext'
 
 const storedToken = getStoredAuthToken()
 if (storedToken) setAuthToken(storedToken)
@@ -87,10 +88,12 @@ createRoot(rootEl).render(
         <PriceRefreshProvider>
           <AuthProvider>
             <UserProvider>
-              <BrowserRouter>
-                <Root />
-              </BrowserRouter>
-              <ToastContainer autoClose={5000} />
+              <FocusModeProvider>
+                <BrowserRouter>
+                  <Root />
+                </BrowserRouter>
+                <ToastContainer autoClose={5000} />
+              </FocusModeProvider>
             </UserProvider>
           </AuthProvider>
         </PriceRefreshProvider>

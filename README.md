@@ -352,6 +352,19 @@ DATA_ROOT=$(pwd)/data
 The backend uses this folder when ``config.app_env: local`` or when
 ``DATA_BUCKET`` is unset. Commit changes to update the data set:
 
+All runtime data now resides in an external S3 bucket instead of the
+repository. Sync the contents before starting the backend:
+
+```bash
+aws s3 sync s3://$DATA_BUCKET/ data/
+```
+
+When running the backend in AWS (``config.app_env: aws``), account and
+metadata JSON files are loaded from this bucket.
+
+The local startup scripts (`run-local-api.sh` and `run-backend.ps1`) perform
+this sync automatically when `DATA_BUCKET` is set.
+
 ```bash
 cd data
 git add accounts/alice/trades.csv
@@ -385,6 +398,26 @@ aws s3 sync data/accounts s3://$DATA_BUCKET/accounts/
 ```
 
 Uploading requires IAM permissions matching the above ``s3:PutObject`` rules.
+
+### Bucket layout
+
+The S3 bucket mirrors the previous ``data/`` directory:
+
+```
+accounts/
+cache/
+events/
+instruments/
+metrics/
+prices/
+timeseries/
+transactions/
+alert_thresholds.json
+jpm.json
+scaling_overrides.json
+skipped_tickers.log
+virtual_portfolios/
+```
 
 ## Tests
 

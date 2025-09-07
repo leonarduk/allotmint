@@ -28,6 +28,13 @@ LOG_CONFIG=$(awk -F': ' '/^log_config:/ {print $2}' "$CONFIG_FILE" | tr -d '"')
 
 export ALLOTMINT_ENV="$APP_ENV"
 
+if [[ -n "${DATA_BUCKET:-}" ]]; then
+  echo "Syncing data from s3://$DATA_BUCKET/" >&2
+  aws s3 sync "s3://$DATA_BUCKET/" data/
+else
+  echo "DATA_BUCKET not set; skipping data sync" >&2
+fi
+
 CMD=(uvicorn backend.local_api.main:app --reload-dir backend --port "$UVICORN_PORT" --host "$UVICORN_HOST" --log-config "$LOG_CONFIG")
 if [[ "$RELOAD" == "true" ]]; then
   CMD+=(--reload)

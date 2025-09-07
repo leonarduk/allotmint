@@ -19,7 +19,52 @@ Copy `.env.example` to `.env` and supply the following values:
 | `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
 | `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign‑in is enabled |
 
-Install dependencies:
+## Sync external data store
+
+Account and instrument files are managed in a separate repository. Clone it
+next to this project or pull the latest changes before running the backend:
+
+```bash
+# first time
+git clone git@github.com:your-org/allotmint-data.git data
+# fetch updates
+cd data && git pull
+```
+
+For local runs, point the backend at the checkout by setting ``DATA_ROOT`` or
+``accounts_root`` in ``config.yaml``:
+
+```bash
+DATA_ROOT=$(pwd)/data
+```
+
+In AWS, specify the S3 buckets instead:
+
+```bash
+DATA_BUCKET=my-data-bucket
+METADATA_BUCKET=my-metadata-bucket
+METADATA_PREFIX=instruments/
+```
+
+### Updating data
+
+Commit and push changes in the data repository for local development:
+
+```bash
+cd data
+git add accounts/alice/trades.csv
+git commit -m "Update Alice trades"
+git push
+```
+
+To update the S3 bucket, sync the local data and ensure your IAM role allows
+``s3:PutObject`` and ``s3:DeleteObject`` on the target paths:
+
+```bash
+aws s3 sync data/accounts s3://$DATA_BUCKET/accounts/
+```
+
+## Install dependencies
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
@@ -39,6 +84,9 @@ cd ..
 Run the helper script from the repository root to bootstrap the environment.
 When deploying the backend, provide the S3 bucket for account data either via
 the `-DataBucket` parameter or by setting `DATA_BUCKET`:
+
+CDK writes synthesized templates to `../.cdk.out`, a directory outside the
+repository root that is ignored by git.
 
 ```powershell
 # Deploy backend and frontend stacks

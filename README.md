@@ -327,20 +327,64 @@ variables:
 
 When several transports are configured, alerts are sent to each of them.
 
-## AWS data bucket
+## External data store
 
-When running the backend in AWS (``config.app_env: aws``), account and
-metadata JSON files are loaded from an S3 bucket.
+Account and instrument files live in a separate data repository. Clone or
+sync it alongside the application before running the backend:
 
-Set the ``DATA_BUCKET`` environment variable to the name of the bucket
-containing the ``accounts/OWNER/ACCOUNT.json`` objects. The Lambda execution
-role requires the following minimal IAM permissions on that bucket:
+```bash
+# clone once
+git clone git@github.com:your-org/allotmint-data.git data
+# pull updates
+cd data && git pull
+```
+
+### Local development
+
+Point the backend at the checked-out data by setting ``DATA_ROOT`` (or
+``accounts_root`` in ``config.yaml``) to the directory path:
+
+```bash
+# .env or shell
+DATA_ROOT=$(pwd)/data
+```
+
+The backend uses this folder when ``config.app_env: local`` or when
+``DATA_BUCKET`` is unset. Commit changes to update the data set:
+
+```bash
+cd data
+git add accounts/alice/trades.csv
+git commit -m "Update Alice trades"
+git push
+```
+
+### AWS
+
+When running in AWS (``config.app_env: aws``), account and metadata JSON files
+are loaded from S3. Set the following environment variables:
+
+```bash
+DATA_BUCKET=allotmint-prod-data
+METADATA_BUCKET=allotmint-metadata
+METADATA_PREFIX=instruments/
+```
+
+The Lambda execution role requires:
 
 * ``s3:ListBucket`` (with a prefix of ``accounts/``) – discover available
   accounts.
 * ``s3:GetObject`` on ``accounts/*`` – read account and ``person.json`` files.
+* ``s3:PutObject``/``s3:DeleteObject`` on the same paths to push updates.
 
-Instrument metadata can reside in a separate bucket. Set ``METADATA_BUCKET`` to the bucket storing instrument JSON files and ``METADATA_PREFIX`` to the key prefix (default ``instruments/``). Updates made locally will be uploaded to this S3 path when configured.
+Instrument metadata resides under ``METADATA_PREFIX`` in ``METADATA_BUCKET``.
+To upload new data:
+
+```bash
+aws s3 sync data/accounts s3://$DATA_BUCKET/accounts/
+```
+
+Uploading requires IAM permissions matching the above ``s3:PutObject`` rules.
 
 ## Tests
 

@@ -1,9 +1,11 @@
 import os
+from pathlib import Path
 
 import boto3
 import pytest
 
 os.environ.setdefault("TESTING", "1")
+os.environ.setdefault("DATA_ROOT", str(Path(__file__).resolve().parent.parent / "data"))
 
 from backend.config import config
 

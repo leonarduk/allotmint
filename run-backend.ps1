@@ -23,6 +23,9 @@ Write-Host "# --------------------------------" -ForegroundColor DarkCyan
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $SCRIPT_DIR
 
+# Place synthesized CDK templates outside the repository
+$env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
+
 # ───────────────── helpers ───────────────────
 function Get-HasCommand($name) {
   return [bool](Get-Command $name -ErrorAction SilentlyContinue)
@@ -99,6 +102,7 @@ if (-not $offline) {
 
 # ───────────── env + defaults (PS 5.1) ────────
 $env:ALLOTMINT_ENV = Coalesce $cfg.app_env 'local'
+$env:DATA_ROOT = Coalesce $cfg.paths.data_root 'data'
 $port      = Coalesce $cfg.uvicorn_port $Port
 $logConfig = Coalesce $cfg.log_config   'logging.ini'
 $reloadRaw = Coalesce $cfg.reload       $true

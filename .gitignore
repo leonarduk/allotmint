@@ -20,6 +20,7 @@ venv/
 
 # CDK / CloudFormation
 cdk.out/
+.cdk.out/
 
 # IDE / OS
 .DS_Store

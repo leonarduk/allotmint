@@ -23,16 +23,18 @@ tabs:
 paths:
   # Base path for the repository. Default '.'
   repo_root: .
-  # Directory containing account files (relative to repo_root)
-  accounts_root: data/accounts
-  # Location for cached price data
-  prices_json: data/prices/latest_prices.json
-  # Cache directory for time series data
-  timeseries_cache_base: data/timeseries
-  # Portfolio XML input file
-  portfolio_xml_path: data/portfolio/investments.xml
-  # Where generated transactions are written
-  transactions_output_root: data/accounts
+  # Base directory containing application data (relative to repo_root by default)
+  data_root: data
+  # Directory containing account files (relative to data_root)
+  accounts_root: accounts
+  # Location for cached price data (relative to data_root)
+  prices_json: prices/latest_prices.json
+  # Cache directory for time series data (relative to data_root)
+  timeseries_cache_base: timeseries
+  # Portfolio XML input file (relative to data_root)
+  portfolio_xml_path: portfolio/investments.xml
+  # Where generated transactions are written (relative to data_root)
+  transactions_output_root: accounts
   # Logging configuration file
   log_config: backend/logging.ini
 

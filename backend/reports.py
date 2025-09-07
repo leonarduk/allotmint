@@ -64,7 +64,7 @@ def _transaction_roots() -> Iterable[str]:
         roots.append(str(config.transactions_output_root))
     if config.accounts_root:
         roots.append(str(config.accounts_root))
-    roots.append("data/transactions")
+    roots.append(str(config.data_root / "transactions"))
     seen = set()
     for r in roots:
         path = Path(r)

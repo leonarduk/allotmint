@@ -64,21 +64,38 @@ export function useInstrumentHistory(ticker: string, days: number) {
       return;
     }
 
-    setLoading(true);
-    getInstrumentDetail(ticker, days)
-      .then((res) => {
-        if (!active) return;
-        if (res.mini) {
-          cache.set(key, res.mini);
-          setData(res.mini);
+    async function fetchWithRetry() {
+      setLoading(true);
+      setError(null);
+      const maxAttempts = 3;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          const res = await getInstrumentDetail(ticker, days);
+          if (!active) return;
+          if (res.mini) {
+            cache.set(key, res.mini);
+            setData(res.mini);
+          }
+          return;
+        } catch (e) {
+          const err = e instanceof Error ? e : new Error(String(e));
+          if (err.message.includes("HTTP 429")) {
+            const delay = 500 * 2 ** attempt;
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+          if (active) setError(err);
+          return;
         }
-      })
-      .catch((e) => {
-        if (active) setError(e instanceof Error ? e : new Error(String(e)));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      }
+      // All retries failed with 429
+      if (active)
+        setError(new Error("HTTP 429 – Too Many Requests"));
+    }
+
+    fetchWithRetry().finally(() => {
+      if (active) setLoading(false);
+    });
 
     return () => {
       active = false;

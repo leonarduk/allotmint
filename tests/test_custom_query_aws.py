@@ -12,7 +12,7 @@ BASE_QUERY = {
     "start": "2025-01-01",
     "end": "2025-01-10",
     "tickers": ["HFEL.L"],
-    "metrics": ["var", "meta"],
+    "metrics": [qr.Metric.VAR, qr.Metric.META],
 }
 
 

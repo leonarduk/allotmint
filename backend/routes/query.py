@@ -7,6 +7,7 @@ import json
 import os
 import re
 from datetime import date
+from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 
@@ -27,12 +28,17 @@ DATA_BUCKET_ENV = "DATA_BUCKET"
 QUERIES_PREFIX = "queries/"
 
 
+class Metric(str, Enum):
+    VAR = "var"
+    META = "meta"
+
+
 class CustomQuery(BaseModel):
     start: date
     end: date
     owners: Optional[List[str]] = None
     tickers: Optional[List[str]] = None
-    metrics: List[str] = Field(default_factory=list)
+    metrics: List[Metric] = Field(default_factory=list)
     name: Optional[str] = None
     format: Optional[str] = Field("json", pattern="^(json|csv|xlsx)$")
 
@@ -146,9 +152,9 @@ async def run_query(q: CustomQuery):
         sym, exch = (t.split(".", 1) + ["L"])[:2]
         df = load_meta_timeseries_range(sym, exch, start_date=q.start, end_date=q.end)
         row = {"ticker": t}
-        if "var" in q.metrics:
-            row["var"] = compute_var(df)
-        if "meta" in q.metrics:
+        if Metric.VAR in q.metrics:
+            row[Metric.VAR.value] = compute_var(df)
+        if Metric.META in q.metrics:
             meta = get_security_meta(t) or {}
             row.update(meta)
         rows.append(row)

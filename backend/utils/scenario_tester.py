@@ -6,8 +6,6 @@ portfolios.
 
 from __future__ import annotations
 
-import datetime as dt
-import math
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable
@@ -18,7 +16,6 @@ from backend.common.constants import (
     COST_BASIS_GBP,
     EFFECTIVE_COST_BASIS_GBP,
 )
-from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 from backend.common.prices import get_price_gbp
 from backend.timeseries.cache import load_meta_timeseries_range
 
@@ -62,158 +59,6 @@ def apply_price_shock(portfolio: Dict[str, Any], ticker: str, pct_change: float)
         sum(a.get("value_estimate_gbp") or 0.0 for a in shocked.get("accounts", [])),
         2,
     )
-    return shocked
-
-# ---------------------------------------------------------------------------
-# Historical event application
-
-_HORIZONS: Dict[str, int] = {
-    "1d": 1,
-    "1w": 7,
-    "1m": 30,
-    "3m": 90,
-    "1y": 365,
-}
-
-
-def _parse_full_ticker(full: str) -> tuple[str, str]:
-    parts = (full or "").upper().split(".", 1)
-    if len(parts) == 2:
-        return parts[0], parts[1]
-    return parts[0], "L"
-
-
-def _close_column(df: pd.DataFrame) -> str | None:
-    nm = {c.lower(): c for c in df.columns}
-    return nm.get("close_gbp") or nm.get("close") or nm.get("adj close") or nm.get("adj_close")
-
-
-def _price_on_or_after(
-    df: pd.DataFrame, date_col: str, price_col: str, target: dt.date
-) -> float | None:
-    mask = df[date_col] >= target
-    if not mask.any():
-        return None
-    try:
-        return float(df.loc[mask, price_col].iloc[0])
-    except Exception:
-        return None
-
-
-def _forward_returns(
-    ticker: str, exchange: str, event_date: dt.date
-) -> Dict[str, float | None]:
-    end = event_date + dt.timedelta(days=max(_HORIZONS.values()) + 5)
-    df = load_meta_timeseries_range(ticker, exchange, start_date=event_date, end_date=end)
-    if df is None or df.empty:
-        return {k: None for k in _HORIZONS}
-
-    scale = get_scaling_override(ticker, exchange, None)
-    df = apply_scaling(df, scale)
-
-    nm = {c.lower(): c for c in df.columns}
-    date_col = nm.get("date") or df.columns[0]
-    price_col = _close_column(df)
-    if not price_col:
-        return {k: None for k in _HORIZONS}
-
-    df = df.copy()
-    df[date_col] = pd.to_datetime(df[date_col], errors="coerce").dt.date
-    df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
-    df = df.sort_values(date_col)
-
-    base = _price_on_or_after(df, date_col, price_col, event_date)
-    if base is not None and not math.isfinite(base):
-        base = None
-
-    results: Dict[str, float | None] = {}
-    for label, days in _HORIZONS.items():
-        tgt = event_date + dt.timedelta(days=days)
-        end_price = _price_on_or_after(df, date_col, price_col, tgt)
-        if end_price is not None and not math.isfinite(end_price):
-            end_price = None
-        if base is not None and end_price is not None:
-            results[label] = end_price / base - 1.0
-        else:
-            results[label] = None
-    return results
-
-
-def apply_historical_event(portfolio: Dict[str, Any], event: Any) -> Dict[str, Dict[str, float]]:
-    """Apply historical forward returns from ``event`` to ``portfolio``.
-
-    For each holding, forward returns from ``event.date`` are computed for the
-    horizons defined in ``_HORIZONS``.  Missing data falls back to the event's
-    proxy index.  The function returns the simulated portfolio totals and
-    deltas versus the current baseline for each horizon.
-    """
-
-    baseline = float(portfolio.get("total_value_estimate_gbp") or 0.0)
-    if baseline == 0.0:
-        baseline = sum(
-            float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", [])
-        )
-
-    proxy_tkr, proxy_ex = _parse_full_ticker(getattr(event, "proxy", ""))
-    proxy_returns = _forward_returns(proxy_tkr, proxy_ex, event.date)
-
-    totals = {k: 0.0 for k in _HORIZONS}
-    cache: Dict[str, Dict[str, float | None]] = {}
-    for acct in portfolio.get("accounts", []):
-        for h in acct.get("holdings", []):
-            mv = float(h.get("market_value_gbp") or 0.0)
-            if mv == 0.0:
-                continue
-            full = (h.get("ticker") or "").upper()
-            tkr, ex = _parse_full_ticker(full)
-            key = f"{tkr}.{ex}"
-            if key not in cache:
-                cache[key] = _forward_returns(tkr, ex, event.date)
-            rets = cache[key]
-            for label in _HORIZONS:
-                r = rets.get(label)
-                if r is None:
-                    r = proxy_returns.get(label)
-                if r is None:
-                    r = 0.0
-                totals[label] += mv * (1 + r)
-
-    result: Dict[str, Dict[str, float]] = {}
-    for label in _HORIZONS:
-        total = round(totals[label], 2)
-        result[label] = {
-            "total_value_gbp": total,
-            "delta_gbp": round(total - baseline, 2),
-        }
-    return result
-
-def apply_historical_event(
-    portfolio: Dict[str, Any],
-    event_id: str | None = None,
-    date: str | None = None,
-    horizons: Iterable[int] | None = None,
-) -> Dict[int, Dict[str, Any]]:
-    """Return shocked portfolios for each horizon of a historical event.
-
-    This helper currently applies a simple uniform scaling to the portfolio's
-    account values for each requested horizon. The scaling factor is derived
-    from the horizon length (e.g. a horizon of ``1`` applies a 1% drop). The
-    original ``portfolio`` is not modified.
-    """
-
-    horizons = list(horizons or [1])
-    shocked: Dict[int, Dict[str, Any]] = {}
-    for horizon in horizons:
-        factor = max(0.0, 1 - horizon / 100.0)
-        pf_copy = deepcopy(portfolio)
-        for acct in pf_copy.get("accounts", []):
-            val = float(acct.get("value_estimate_gbp") or 0.0) * factor
-            acct["value_estimate_gbp"] = round(val, 2)
-        pf_copy["total_value_estimate_gbp"] = round(
-            sum(a.get("value_estimate_gbp") or 0.0 for a in pf_copy.get("accounts", [])),
-            2,
-        )
-        shocked[horizon] = pf_copy
     return shocked
 
 def _parse_date(val: Any) -> date:

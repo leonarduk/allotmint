@@ -479,12 +479,18 @@ def aggregate_by_ticker(
             if row.get("change_7d_pct") is None:
                 change_7d = snap.get("change_7d_pct") if isinstance(snap, dict) else None
                 if change_7d is None:
-                    change_7d = instrument_api.price_change_pct(full_tkr, 7)
+                    try:
+                        change_7d = instrument_api.price_change_pct(full_tkr, 7)
+                    except Exception:
+                        change_7d = None
                 row["change_7d_pct"] = change_7d
             if row.get("change_30d_pct") is None:
                 change_30d = snap.get("change_30d_pct") if isinstance(snap, dict) else None
                 if change_30d is None:
-                    change_30d = instrument_api.price_change_pct(full_tkr, 30)
+                    try:
+                        change_30d = instrument_api.price_change_pct(full_tkr, 30)
+                    except Exception:
+                        change_30d = None
                 row["change_30d_pct"] = change_30d
 
             # pass-through misc attributes (first non-null wins)

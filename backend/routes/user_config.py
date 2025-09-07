@@ -13,12 +13,7 @@ async def get_user_config(owner: str, request: Request):
     try:
         cfg = load_user_config(owner, request.app.state.accounts_root)
     except FileNotFoundError:
-        cfg = UserConfig(
-            hold_days_min=config.hold_days_min,
-            max_trades_per_month=config.max_trades_per_month,
-            approval_exempt_types=config.approval_exempt_types or [],
-            approval_exempt_tickers=config.approval_exempt_tickers or [],
-        )
+        raise_owner_not_found()
     return cfg.to_dict()
 
 

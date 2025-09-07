@@ -55,6 +55,8 @@ server:
   uvicorn_port: 8000
   # Auto-reload during development
   reload: true
+  # API request rate limit per client (per minute)
+  rate_limit_per_minute: 60
   # Cross-origin settings by environment
   cors:
     local:

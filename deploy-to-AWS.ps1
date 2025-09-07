@@ -18,7 +18,7 @@ $PYTHON = $pythonCmd.Name
 
 # Determine repository root and navigate to CDK directory
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location (Join-Path $SCRIPT_DIR 'cdk')
+Set-Location $SCRIPT_DIR
 
 if ($Backend) {
   if (-not $env:DATA_BUCKET -and -not $DataBucket) {
@@ -28,10 +28,16 @@ if ($Backend) {
   if ($DataBucket) {
     $env:DATA_BUCKET = $DataBucket
   }
+  if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
+    Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
+    bash scripts/sync_data.sh
+  }
+  Set-Location (Join-Path $SCRIPT_DIR 'cdk')
   Write-Host 'Deploying backend and frontend stacks to AWS...' -ForegroundColor Green
   $env:DEPLOY_BACKEND = 'true'
   cdk deploy BackendLambdaStack StaticSiteStack
 } else {
+  Set-Location (Join-Path $SCRIPT_DIR 'cdk')
   Write-Host 'Deploying frontend stack to AWS...' -ForegroundColor Green
   $env:DEPLOY_BACKEND = 'false'
   cdk deploy StaticSiteStack

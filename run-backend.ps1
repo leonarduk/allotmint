@@ -23,6 +23,12 @@ Write-Host "# --------------------------------" -ForegroundColor DarkCyan
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $SCRIPT_DIR
 
+# Ensure data directory exists
+if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
+  Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
+  bash scripts/sync_data.sh
+}
+
 # ───────────────── helpers ───────────────────
 function Get-HasCommand($name) {
   return [bool](Get-Command $name -ErrorAction SilentlyContinue)

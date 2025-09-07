@@ -17,9 +17,7 @@ def validate_google_auth(enabled: Optional[bool], client_id: Optional[str]) -> N
     """Ensure Google auth is configured correctly."""
     if enabled:
         if not client_id or not client_id.strip():
-            raise ConfigValidationError(
-                "google_auth_enabled is true but google_client_id is missing"
-            )
+            raise ConfigValidationError("google_auth_enabled is true but google_client_id is missing")
 
 
 def validate_tabs(tabs_raw: Any) -> TabsConfig:
@@ -87,6 +85,7 @@ class Config:
     transactions_output_root: Optional[Path] = None
     uvicorn_port: Optional[int] = None
     reload: Optional[bool] = None
+    rate_limit_per_minute: int = 60
     log_config: Optional[str] = None
     skip_snapshot_warm: Optional[bool] = None
     snapshot_warm_days: Optional[int] = None
@@ -160,6 +159,7 @@ def _parse_str_list(val: Any) -> Optional[List[str]]:
         return items or []
     return None
 
+
 @lru_cache(maxsize=1)
 def load_config() -> Config:
     """Load configuration from config.yaml with optional env overrides."""
@@ -196,9 +196,7 @@ def load_config() -> Config:
     if env_data_root:
         data_root_raw = env_data_root
     data_root_path = Path(data_root_raw)
-    data_root = (
-        data_root_path if data_root_path.is_absolute() else (repo_root / data_root_path)
-    ).resolve()
+    data_root = (data_root_path if data_root_path.is_absolute() else (repo_root / data_root_path)).resolve()
 
     accounts_root_raw = data.get("accounts_root")
     accounts_root = (data_root / accounts_root_raw).resolve() if accounts_root_raw else None
@@ -207,19 +205,13 @@ def load_config() -> Config:
     prices_json = (data_root / prices_json_raw).resolve() if prices_json_raw else None
 
     ts_cache_raw = data.get("timeseries_cache_base")
-    timeseries_cache_base = (
-        str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
-    )
+    timeseries_cache_base = str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
 
     portfolio_xml_raw = data.get("portfolio_xml_path")
-    portfolio_xml_path = (
-        (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None
-    )
+    portfolio_xml_path = (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None
 
     tx_output_raw = data.get("transactions_output_root")
-    transactions_output_root = (
-        (data_root / tx_output_raw).resolve() if tx_output_raw else None
-    )
+    transactions_output_root = (data_root / tx_output_raw).resolve() if tx_output_raw else None
 
     tabs_raw = data.get("tabs")
     tabs = validate_tabs(tabs_raw)
@@ -274,6 +266,7 @@ def load_config() -> Config:
         transactions_output_root=transactions_output_root,
         uvicorn_port=data.get("uvicorn_port"),
         reload=data.get("reload"),
+        rate_limit_per_minute=data.get("rate_limit_per_minute", 60),
         log_config=data.get("log_config"),
         skip_snapshot_warm=data.get("skip_snapshot_warm"),
         snapshot_warm_days=data.get("snapshot_warm_days"),

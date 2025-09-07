@@ -1,5 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { vi } from "vitest";
+vi.mock("../api", () => ({ getGroups: vi.fn().mockResolvedValue([]) }));
 import {
   configContext,
   type ConfigContextValue,

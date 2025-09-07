@@ -16,6 +16,7 @@ import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
+import QuestBoard from "./components/QuestBoard";
 
 import { NotificationsDrawer } from "./components/NotificationsDrawer";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
@@ -203,6 +204,8 @@ export default function MainApp() {
         tradesThisMonth={tradeInfo?.tradesThisMonth}
         tradesRemaining={tradeInfo?.tradesRemaining}
       />
+
+      <QuestBoard />
 
       <PriceRefreshControls
         mode={mode}

@@ -81,6 +81,29 @@ def test_validate_trade(tmp_path, monkeypatch):
         assert data2["warnings"] == []
 
 
+def test_validate_trade_commodity_etf_requires_approval(tmp_path, monkeypatch):
+    app = _setup_app(tmp_path)
+    monkeypatch.setattr(
+        "backend.common.compliance.get_instrument_meta",
+        lambda t: {"instrumentType": "ETF", "asset_class": "Commodity"},
+    )
+    monkeypatch.setattr(compliance.config, "approval_exempt_types", ["ETF"])
+    with TestClient(app) as client:
+        resp = client.post(
+            "/compliance/validate",
+            json={
+                "owner": "alice",
+                "account": "brokerage",
+                "date": "2024-02-15",
+                "type": "sell",
+                "ticker": "AAA",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert any("without approval" in w for w in data["warnings"])
+
+
 def test_validate_trade_missing_owner(tmp_path):
     app = _setup_app(tmp_path)
     with TestClient(app) as client:

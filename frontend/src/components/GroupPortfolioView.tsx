@@ -26,6 +26,7 @@ import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import {
   PieChart,
   Pie,
@@ -104,6 +105,16 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   useEffect(() => {
     if (portfolio?.accounts) {
       setSelectedAccounts(portfolio.accounts.map(accountKey));
+    }
+  }, [portfolio]);
+
+  useEffect(() => {
+    const tickers = portfolio?.accounts?.flatMap((acct) =>
+      acct.holdings?.map((h) => h.ticker) ?? [],
+    );
+    const unique = Array.from(new Set(tickers));
+    if (unique.length) {
+      preloadInstrumentHistory(unique, 30).catch(() => {});
     }
   }, [portfolio]);
 

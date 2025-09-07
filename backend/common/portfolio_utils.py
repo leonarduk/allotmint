@@ -31,6 +31,7 @@ from backend.common.virtual_portfolio import (
     list_virtual_portfolios,
 )
 from backend.common.compliance import load_transactions
+from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries, load_meta_timeseries_range
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
@@ -93,8 +94,8 @@ def _fx_to_gbp(currency: str, cache: Dict[str, float]) -> float:
             rate = float(df["Rate"].iloc[-1])
             cache[currency] = rate
             return rate
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to fetch FX rate for %s: %s", currency, exc)
     cache[currency] = 1.0
     return 1.0
 
@@ -183,9 +184,30 @@ INSTRUMENTS_DIR = config.data_root / "instruments"
 INSTRUMENTS_S3_PREFIX = "instruments"
 
 
+# Cache paths for which we've already logged missing metadata warnings to avoid
+# spamming the logs when the same lookup fails repeatedly.
+_MISSING_META: set[str] = set()
+
+# Shortcut metadata for well-known symbols that don't need a filesystem/S3
+# lookup.
+_DEFAULT_META: Dict[str, Dict[str, str | None]] = {
+    "GBP.CASH": {
+        "name": "GBP Cash",
+        "sector": None,
+        "region": None,
+        "currency": "GBP",
+        "asset_class": "cash",
+        "industry": None,
+    }
+}
+
+
 def _meta_from_file(ticker: str) -> Dict[str, str] | None:
     """Best-effort lookup of instrument metadata from data files or S3."""
-    sym, exch = (ticker.split(".", 1) + ["Unknown"])[:2]
+    t = ticker.upper()
+    if t in _DEFAULT_META:
+        return _DEFAULT_META[t]
+    sym, exch = (t.split(".", 1) + ["Unknown"])[:2]
     data: Dict[str, Any] | None = None
     if config.app_env == "aws":
         bucket = os.getenv(DATA_BUCKET_ENV)
@@ -228,7 +250,12 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
         try:
             data = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("Instrument metadata %s not found or invalid: %s", path, exc)
+            path_str = str(path)
+            if path_str not in _MISSING_META:
+                _MISSING_META.add(path_str)
+                logger.warning(
+                    "Instrument metadata %s not found or invalid: %s", path_str, exc
+                )
             return None
     return {
         "name": data.get("name", ticker.upper()),
@@ -441,14 +468,24 @@ def aggregate_by_ticker(
             if price and price == price:  # guard against None/NaN/0
                 row["last_price_gbp"] = price
                 row["last_price_date"] = snap.get("last_price_date")
-                row["change_7d_pct"] = snap.get("change_7d_pct")
-                row["change_30d_pct"] = snap.get("change_30d_pct")
                 row["market_value_gbp"] = round(row["units"] * price, 2)
                 row["gain_gbp"] = (
                     round(row["market_value_gbp"] - row["cost_gbp"], 2)
                     if row["cost_gbp"]
                     else row["gain_gbp"]
                 )
+
+            # ensure percentage change fields are populated
+            if row.get("change_7d_pct") is None:
+                change_7d = snap.get("change_7d_pct") if isinstance(snap, dict) else None
+                if change_7d is None:
+                    change_7d = instrument_api.price_change_pct(full_tkr, 7)
+                row["change_7d_pct"] = change_7d
+            if row.get("change_30d_pct") is None:
+                change_30d = snap.get("change_30d_pct") if isinstance(snap, dict) else None
+                if change_30d is None:
+                    change_30d = instrument_api.price_change_pct(full_tkr, 30)
+                row["change_30d_pct"] = change_30d
 
             # pass-through misc attributes (first non-null wins)
             for k in ("asset_class", "industry", "region", "owner", "sector"):
@@ -650,6 +687,64 @@ def compute_owner_performance(
         )
 
     return {"history": out, "max_drawdown": max_drawdown}
+
+
+def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:
+    """Return each holding's units, price and value for ``date``.
+
+    Parameters
+    ----------
+    owner:
+        Portfolio owner slug.
+    date:
+        ISO formatted date (``YYYY-MM-DD``) for which to fetch prices.
+    """
+
+    try:
+        target = datetime.fromisoformat(date).date()
+    except ValueError as exc:  # invalid date string
+        raise ValueError(f"Invalid date: {date}") from exc
+
+    pf = portfolio_mod.build_owner_portfolio(owner)
+
+    from backend.common import instrument_api
+
+    holdings: Dict[str, Dict[str, Any]] = {}
+    for acct in pf.get("accounts", []):
+        for h in acct.get("holdings", []):
+            tkr = (h.get("ticker") or "").upper()
+            if not tkr:
+                continue
+            units = _safe_num(h.get("units"))
+            if not units:
+                continue
+            resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
+            if resolved:
+                sym, inferred = resolved
+            else:
+                sym, inferred = (tkr.split(".", 1) + [None])[:2]
+                if not h.get("exchange"):
+                    logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
+            exch = (h.get("exchange") or inferred or "L").upper()
+            key = f"{sym}.{exch}"
+            row = holdings.setdefault(
+                key,
+                {"ticker": sym, "exchange": exch, "units": 0.0},
+            )
+            row["units"] += units
+
+    result: List[Dict[str, Any]] = []
+    for row in holdings.values():
+        price, _src = _get_price_for_date_scaled(row["ticker"], row["exchange"], target)
+        if price is not None:
+            row["price"] = round(price, 4)
+            row["value"] = round(row["units"] * price, 2)
+        else:
+            row["price"] = None
+            row["value"] = None
+        result.append(row)
+
+    return result
 
 
 def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) -> pd.Series:

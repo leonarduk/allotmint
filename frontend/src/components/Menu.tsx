@@ -150,6 +150,7 @@ export default function Menu({
               key={p.id}
               to={pathFor(p.id)}
               className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
+              style={{ fontWeight: mode === p.id ? 'bold' as const : undefined }}
               onClick={() => setOpen(false)}
             >
               {t(`app.modes.${p.id}`)}
@@ -161,7 +162,7 @@ export default function Menu({
             className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
             onClick={() => setOpen(false)}
           >
-            {t(inSupport ? 'app.userLink' : 'app.supportLink')}
+            {t('app.supportLink')}
           </Link>
         )}
         {onLogout && (

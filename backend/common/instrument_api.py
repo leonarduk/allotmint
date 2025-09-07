@@ -14,6 +14,7 @@ Public API
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,9 @@ from backend.timeseries.cache import (
     load_meta_timeseries_range,
 )
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
+
+
+logger = logging.getLogger("instrument_api")
 
 
 # ───────────────────────────────────────────────────────────────
@@ -83,6 +87,9 @@ _TICKER_EXCHANGE_MAP: Dict[str, str] = _build_exchange_map(_ALL_TICKERS)
 # on demand to avoid network access during module import.  ``create_app`` primes
 # this in a background task unless ``config.skip_snapshot_warm`` is set.
 _LATEST_PRICES: Dict[str, float] = {}
+
+MIN_PRICE_THRESHOLD = 1e-2
+MAX_CHANGE_PCT = float(getattr(config, "max_change_pct", 500.0))
 
 
 def prime_latest_prices() -> None:
@@ -218,7 +225,19 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
     px_then = _close_on(sym, ex, yday - dt.timedelta(days=days))
     if px_now is None or px_then is None or px_then == 0:
         return None
-    return (px_now / px_then - 1.0) * 100.0
+    if px_then < MIN_PRICE_THRESHOLD:
+        logger.warning("price_change_pct: px_then %.4f below threshold for %s", px_then, ticker)
+        return None
+    pct = (px_now / px_then - 1.0) * 100.0
+    if abs(pct) > MAX_CHANGE_PCT:
+        logger.warning(
+            "price_change_pct: change %.2f%% exceeds max %.2f%% for %s",
+            pct,
+            MAX_CHANGE_PCT,
+            ticker,
+        )
+        return None
+    return pct
 
 
 def top_movers(
@@ -244,12 +263,14 @@ def top_movers(
     today = dt.date.today()
     yday = today - dt.timedelta(days=1)
     rows: List[Dict[str, Any]] = []
+    anomalies: List[str] = []
 
     for t in tickers:
         if min_weight and weights and weights.get(t, 0.0) < min_weight:
             continue
         change = price_change_pct(t, days)
         if change is None:
+            anomalies.append(t)
             continue
         resolved = _resolve_full_ticker(t, _LATEST_PRICES)
         if not resolved:
@@ -277,7 +298,7 @@ def top_movers(
         [r for r in rows if r["change_pct"] < 0],
         key=lambda r: r["change_pct"],
     )
-    return {"gainers": pos[:limit], "losers": neg[:limit]}
+    return {"gainers": pos[:limit], "losers": neg[:limit], "anomalies": anomalies}
 
 
 @lru_cache(maxsize=2048)

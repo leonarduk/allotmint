@@ -2,6 +2,13 @@
   background: none;
   border: none;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+}
+
+.language-btn img {
   width: 24px;
   height: 24px;
 }
@@ -16,7 +23,7 @@
 }
 
 @media (max-width: 480px) {
-  .language-btn {
+  .language-btn img {
     width: 18px;
     height: 18px;
   }

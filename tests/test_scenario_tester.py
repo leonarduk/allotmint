@@ -1,11 +1,13 @@
 import datetime as dt
-from datetime import date
-from types import SimpleNamespace
 
-import backend.common.prices as prices
 import pandas as pd
+import pytest
+import backend.utils.scenario_tester as sc_tester
+from backend.utils.scenario_tester import apply_historical_event, apply_price_shock, apply_historical_returns
 from backend.utils import scenario_tester as sc
-from backend.utils.scenario_tester import apply_historical_event, apply_price_shock
+import backend.common.prices as prices
+from datetime import date
+
 
 
 def test_price_shock_uses_cached_price_for_missing_current_price(monkeypatch):
@@ -27,7 +29,7 @@ def test_price_shock_uses_cached_price_for_missing_current_price(monkeypatch):
 
     monkeypatch.setattr(prices, "_price_cache", {"ABC.L": 5.0})
 
-    shocked = sc_tester.apply_price_shock(portfolio, "ABC.L", 10)
+    shocked = apply_price_shock(portfolio, "ABC.L", 10)
 
     assert shocked["accounts"][0]["value_estimate_gbp"] > 0
     assert shocked["total_value_estimate_gbp"] > 0
@@ -46,7 +48,10 @@ def test_apply_historical_event_uses_proxy_for_missing(monkeypatch):
         "total_value_estimate_gbp": 200,
     }
 
-    event = SimpleNamespace(date=dt.date(2020, 1, 1), proxy="IDX.L")
+    event = {
+        "date": dt.date(2020, 1, 1),
+        "proxy_index": {"ticker": "IDX", "exchange": "L"},
+    }
 
     dates = [
         dt.date(2020, 1, 1),
@@ -56,41 +61,61 @@ def test_apply_historical_event_uses_proxy_for_missing(monkeypatch):
         dt.date(2020, 3, 31),
         dt.date(2020, 12, 31),
     ]
-    abc = pd.DataFrame({"Date": dates, "Close": [10, 11, 12, 15, 20, 30]})
-    idx = pd.DataFrame({"Date": dates, "Close": [100, 110, 120, 150, 200, 300]})
+    abc = pd.DataFrame(
+        {"Close": [10, 11, 12, 15, 20, 30]},
+        index=pd.to_datetime(dates),
+    )
+    idx = pd.DataFrame(
+        {"Close": [100, 110, 120, 150, 200, 300]},
+        index=pd.to_datetime(dates),
+    )
 
     def fake_load(ticker, exchange, start_date, end_date):
         if ticker == "ABC":
-            return abc
-        if ticker == "IDX":
-            return idx
-        return pd.DataFrame()
+            df = abc
+        elif ticker == "IDX":
+            df = idx
+        else:
+            return pd.DataFrame()
+        return df.loc[:pd.to_datetime(end_date)]
+
+    monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
+    monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
+    monkeypatch.setattr(sc_tester, "apply_scaling", lambda df, scale, scale_volume=False: df)
+
+    result = apply_historical_event(portfolio, event, horizons=[1, 365])
+
+    assert result["ABC.L"][1] == pytest.approx(0.1)
+    assert result["MISSING.L"][1] == pytest.approx(0.1)
+    assert result["ABC.L"][365] == pytest.approx(2.0)
+    assert result["MISSING.L"][365] == pytest.approx(2.0)
+
+def test_apply_historical_event_scales_portfolio(monkeypatch):
+    portfolio = {"accounts": [{"holdings": [{"ticker": "AAA.L"}]}]}
+    df = pd.DataFrame(
+        {"Close": [100.0, 90.0, 80.0]},
+        index=pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-06"]),
+    )
+
+    def fake_load(ticker, exchange, start_date, end_date):
+        return df.loc[:pd.to_datetime(end_date)]
 
     monkeypatch.setattr(sc, "load_meta_timeseries_range", fake_load)
-    monkeypatch.setattr(sc, "get_scaling_override", lambda *a, **k: 1.0)
-    monkeypatch.setattr(sc, "apply_scaling", lambda df, scale, scale_volume=False: df)
 
-    result = apply_historical_event(portfolio, event)
-
-    assert result["1d"]["total_value_gbp"] == 220.0
-    assert result["1y"]["total_value_gbp"] == 600.0
-
-def test_apply_historical_event_scales_portfolio():
-    portfolio = {
-        "accounts": [{"value_estimate_gbp": 100.0}],
-        "total_value_estimate_gbp": 100.0,
+    event = {
+        "date": date(2020, 1, 1),
+        "proxy_index": {"ticker": "SPY", "exchange": "N"},
     }
 
-    shocked = apply_historical_event(portfolio, event_id="dummy", horizons=[1, 5])
+    returns = apply_historical_event(portfolio, event, horizons=[1, 5])
 
-    assert 1 in shocked and 5 in shocked
-    assert shocked[1]["total_value_estimate_gbp"] < portfolio["total_value_estimate_gbp"]
+    assert returns["AAA.L"][1] == pytest.approx(-0.1)
+    assert returns["AAA.L"][5] == pytest.approx(-0.2)
 
 def test_historical_event_falls_back_to_proxy(monkeypatch):
     portfolio = {"accounts": [{"holdings": [{"ticker": "AAA.L"}]}]}
     event = {
         "date": date(2020, 1, 1),
-        "horizons": [5],
         "proxy_index": {"ticker": "SPY", "exchange": "N"},
     }
 
@@ -104,9 +129,9 @@ def test_historical_event_falls_back_to_proxy(monkeypatch):
             return pd.DataFrame()
         return df_proxy
 
-    monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
+    monkeypatch.setattr(sc, "load_meta_timeseries_range", fake_load)
 
-    returns = sc_tester.apply_historical_event(portfolio, event)
+    returns = sc_tester.apply_historical_returns(portfolio, event)
     assert returns["AAA.L"][5] == pytest.approx(0.1)
 
 
@@ -114,7 +139,6 @@ def test_historical_event_uses_proxy_when_data_incomplete(monkeypatch):
     portfolio = {"accounts": [{"holdings": [{"ticker": "AAA.L"}]}]}
     event = {
         "date": date(2020, 1, 1),
-        "horizons": [5],
         "proxy_index": {"ticker": "SPY", "exchange": "N"},
     }
 
@@ -132,7 +156,7 @@ def test_historical_event_uses_proxy_when_data_incomplete(monkeypatch):
             return df_partial
         return df_proxy
 
-    monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
+    monkeypatch.setattr(sc, "load_meta_timeseries_range", fake_load)
 
-    returns = sc_tester.apply_historical_event(portfolio, event)
+    returns = sc_tester.apply_historical_returns(portfolio, event)
     assert returns["AAA.L"][5] == pytest.approx(0.1)

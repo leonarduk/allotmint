@@ -44,8 +44,9 @@ export function NotificationsDrawer({ open, onClose }: Props) {
           right: 0,
           width: "300px",
           height: "100%",
-          background: "#fff",
-          borderLeft: "1px solid #ccc",
+          background: "var(--drawer-bg)",
+          color: "var(--drawer-color)",
+          borderLeft: "1px solid var(--drawer-border-color)",
           boxShadow: "-2px 0 5px rgba(0,0,0,0.3)",
           padding: "1rem",
           zIndex: 1000,
@@ -84,7 +85,12 @@ export function NotificationsDrawer({ open, onClose }: Props) {
                 <div>
                   <strong>{a.ticker}</strong>: {a.message}
                 </div>
-                <div style={{ fontSize: "0.8rem", color: "#666" }}>
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "var(--drawer-muted-color)",
+                  }}
+                >
                   {new Date(a.timestamp).toLocaleString()}
                 </div>
               </li>

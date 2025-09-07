@@ -18,6 +18,10 @@ $PYTHON = $pythonCmd.Name
 
 # Determine repository root and navigate to CDK directory
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# Place synthesized CDK templates outside the repository
+$env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
+
 Set-Location (Join-Path $SCRIPT_DIR 'cdk')
 
 if ($Backend) {

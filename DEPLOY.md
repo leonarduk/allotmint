@@ -39,6 +39,9 @@ Run the helper script from the repository root to bootstrap the environment.
 When deploying the backend, provide the S3 bucket for account data either via
 the `-DataBucket` parameter or by setting `DATA_BUCKET`:
 
+CDK writes synthesized templates to `../.cdk.out`, a directory outside the
+repository root that is ignored by git.
+
 ```powershell
 # Deploy backend and frontend stacks
 ./deploy-to-AWS.ps1 -Backend -DataBucket my-bucket

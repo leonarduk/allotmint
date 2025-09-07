@@ -825,6 +825,16 @@ export const harvestTax = (
     body: JSON.stringify({ positions, threshold }),
   });
 
+// ───────────── Allowance Tracker ─────────────
+export const getAllowances = (owner?: string) => {
+  const suffix = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+  return fetchJson<{
+    owner: string;
+    tax_year: string;
+    allowances: Record<string, { used: number; limit: number; remaining: number }>;
+  }>(`${API_BASE}/tax/allowances${suffix}`);
+};
+
 // ───────────── Pension Forecast ─────────────
 export const getPensionForecast = (
   dob: string,

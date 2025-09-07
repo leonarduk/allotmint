@@ -9,7 +9,6 @@ CloudWatch cron event or similar scheduler.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from dataclasses import dataclass
@@ -47,51 +46,63 @@ _SUBSCRIPTIONS: Dict[str, Dict] = {}
 _RECENT_NUDGES: List[Dict] = []
 
 
-def _load_subscriptions() -> None:
-    """Populate ``_SUBSCRIPTIONS`` from configured storage."""
-    if _SUBSCRIPTIONS:
+def _load_state() -> None:
+    """Populate caches from configured storage."""
+    if _SUBSCRIPTIONS or _RECENT_NUDGES:
         return
     try:
         data = _SUBSCRIPTION_STORAGE.load()
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.warning("Failed to load nudge subscriptions: %s", exc)
+        logger.warning("Failed to load nudge storage: %s", exc)
         return
-    if isinstance(data, dict):
-        _SUBSCRIPTIONS.update(data)
+    if not isinstance(data, dict):
+        return
+    # backwards compatibility: old format only stored subscriptions
+    subs = data.get("subscriptions", data)
+    nudges = data.get("recent_nudges", [])
+    if isinstance(subs, dict):
+        _SUBSCRIPTIONS.update(subs)
+    if isinstance(nudges, list):
+        _RECENT_NUDGES.extend(nudges)
 
 
-def _save_subscriptions() -> None:
-    """Persist current subscriptions to storage."""
+def _save_state() -> None:
+    """Persist current subscriptions and nudges to storage."""
     try:
-        _SUBSCRIPTION_STORAGE.save(_SUBSCRIPTIONS)
+        _SUBSCRIPTION_STORAGE.save(
+            {
+                "subscriptions": _SUBSCRIPTIONS,
+                "recent_nudges": _RECENT_NUDGES[-50:],
+            }
+        )
     except Exception as exc:  # pragma: no cover - storage backend failures
-        logger.error("Failed to save nudge subscriptions: %s", exc)
+        logger.error("Failed to save nudge storage: %s", exc)
 
 
 def set_user_nudge(user: str, frequency: int, snooze_until: Optional[str] = None) -> None:
     """Create or update nudge settings for ``user``."""
-    _load_subscriptions()
+    _load_state()
     _SUBSCRIPTIONS[user] = {
         "frequency": int(frequency) if frequency else _DEFAULT_FREQ_DAYS,
         "snoozed_until": snooze_until,
         "last_sent": _SUBSCRIPTIONS.get(user, {}).get("last_sent"),
     }
-    _save_subscriptions()
+    _save_state()
 
 
 def snooze_user(user: str, days: int) -> None:
     """Snooze nudges for ``user`` by ``days`` days."""
-    _load_subscriptions()
+    _load_state()
     if user not in _SUBSCRIPTIONS:
         _SUBSCRIPTIONS[user] = {"frequency": _DEFAULT_FREQ_DAYS}
     until = datetime.now(UTC) + timedelta(days=days)
     _SUBSCRIPTIONS[user]["snoozed_until"] = until.isoformat()
-    _save_subscriptions()
+    _save_state()
 
 
 def iter_due_users(now: Optional[datetime] = None) -> Iterable[str]:
     """Yield users whose reminders are due at ``now``."""
-    _load_subscriptions()
+    _load_state()
     now = now or datetime.now(UTC)
     for user, cfg in _SUBSCRIPTIONS.items():
         freq = cfg.get("frequency", _DEFAULT_FREQ_DAYS)
@@ -122,11 +133,12 @@ def send_due_nudges() -> None:
         _RECENT_NUDGES.append({"id": user, "message": message, "timestamp": now.isoformat()})
         _SUBSCRIPTIONS[user]["last_sent"] = now.isoformat()
     if _RECENT_NUDGES:
-        _save_subscriptions()
+        _save_state()
 
 
 def get_recent_nudges(limit: int = 50) -> List[Dict]:
     """Return recently generated nudges."""
+    _load_state()
     return _RECENT_NUDGES[-limit:]
 
 

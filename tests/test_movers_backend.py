@@ -91,3 +91,32 @@ def test_top_movers_min_weight(monkeypatch):
     )
     assert [r["ticker"] for r in res["gainers"]] == ["AAA.L", "CCC.L"]
     assert [r["ticker"] for r in res["losers"]] == []
+
+
+def test_top_movers_anomaly(monkeypatch):
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2023, 1, 9)
+
+    monkeypatch.setattr(ia.dt, "date", FixedDate)
+    monkeypatch.setattr(
+        ia,
+        "_resolve_full_ticker",
+        lambda t, latest: (t.split(".", 1)[0], t.split(".", 1)[1] if "." in t else "L"),
+    )
+    monkeypatch.setattr(ia, "_LATEST_PRICES", {})
+
+    def fake_close_on(sym: str, ex: str, d: dt.date):
+        if d == dt.date(2023, 1, 8):
+            return 100.0
+        if d == dt.date(2023, 1, 1):
+            return 0.0001
+        return None
+
+    monkeypatch.setattr(ia, "_close_on", fake_close_on)
+
+    res = ia.top_movers(["AAA.L"], 7, limit=5)
+    assert res["gainers"] == []
+    assert res["losers"] == []
+    assert "AAA.L" in res["anomalies"]

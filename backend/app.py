@@ -41,21 +41,23 @@ from backend.routes.alerts import router as alerts_router
 from backend.routes.approvals import router as approvals_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
+from backend.routes.goals import router as goals_router
 from backend.routes.instrument import router as instrument_router
 from backend.routes.instrument_admin import router as instrument_admin_router
 from backend.routes.logs import router as logs_router
 from backend.routes.metrics import router as metrics_router
-from backend.routes.news import router as news_router
 from backend.routes.movers import router as movers_router
+from backend.routes.news import router as news_router
+from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
 from backend.routes.portfolio import public_router as public_portfolio_router
 from backend.routes.portfolio import router as portfolio_router
-from backend.routes.pension import router as pension_router
 from backend.routes.query import router as query_router
 from backend.routes.quotes import router as quotes_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
 from backend.routes.support import router as support_router
+from backend.routes.tax import router as tax_router
 from backend.routes.timeseries_admin import router as timeseries_admin_router
 from backend.routes.timeseries_edit import router as timeseries_edit_router
 from backend.routes.timeseries_meta import router as timeseries_router
@@ -98,9 +100,7 @@ def create_app() -> FastAPI:
             from backend.common import instrument_api
 
             instrument_api.update_latest_prices_from_snapshot(snapshot)
-            price_task = asyncio.create_task(
-                asyncio.to_thread(instrument_api.prime_latest_prices)
-            )
+            price_task = asyncio.create_task(asyncio.to_thread(instrument_api.prime_latest_prices))
             app.state.background_tasks.append(price_task)
 
             task = refresh_snapshot_async(days=config.snapshot_warm_days or 30)
@@ -137,7 +137,7 @@ def create_app() -> FastAPI:
 
     limiter = Limiter(
         key_func=get_remote_address,
-        default_limits=["60/minute"],
+        default_limits=[f"{config.rate_limit_per_minute}/minute"],
         storage_uri=storage_uri,
     )
     app.state.limiter = limiter
@@ -207,7 +207,7 @@ def create_app() -> FastAPI:
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(support_router)
-    app.include_router(query_router)
+    app.include_router(query_router, dependencies=protected)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)
     app.include_router(agent_router)

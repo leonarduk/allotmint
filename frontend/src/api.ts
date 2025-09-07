@@ -36,6 +36,7 @@ import type {
   InstrumentMetadata,
   ApprovalsResponse,
   NewsItem,
+  HoldingValue,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -268,6 +269,11 @@ export const getAlphaVsBenchmark = (
 ) =>
   fetchJson<AlphaResponse>(
     `${API_BASE}/performance/${owner}/alpha?benchmark=${benchmark}&days=${days}`,
+  );
+
+export const getPortfolioHoldings = (owner: string, date: string) =>
+  fetchJson<{ owner: string; date: string; holdings: HoldingValue[] }>(
+    `${API_BASE}/performance/${owner}/holdings?date=${encodeURIComponent(date)}`,
   );
 
 export const getTrackingError = (

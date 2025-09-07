@@ -91,7 +91,7 @@ export default function DataAdmin() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate(`/instrument/${r.ticker}`)}
+                  onClick={() => navigate(`/research/${r.ticker}`)}
                   style={{ marginLeft: "0.25rem" }}
                 >
                   Open instrument

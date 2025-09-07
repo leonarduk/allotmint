@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useConfig } from "../ConfigContext";
 import type { Mode } from "../modes";
+import useFetch from "./useFetch";
+import { getGroups } from "../api";
 
 interface RouteState {
   mode: Mode;
@@ -33,14 +35,16 @@ function deriveInitial() {
     path.length === 0 ? "group" : "movers";
   const slug = path[1] ?? "";
   const owner = mode === "owner" ? slug : "";
-  const group = mode === "instrument" ? slug : params.get("group") ?? "";
+  const group =
+    mode === "instrument" ? "" : params.get("group") ?? "";
   return { mode, owner, group };
 }
 
 export function useRouteMode(): RouteState {
   const navigate = useNavigate();
   const location = useLocation();
-const { tabs, disabledTabs } = useConfig();
+  const { tabs, disabledTabs } = useConfig();
+  const { data: groups } = useFetch(getGroups);
 
   const initial = deriveInitial();
   const [mode, setMode] = useState<Mode>(initial.mode);
@@ -156,11 +160,29 @@ const { tabs, disabledTabs } = useConfig();
     if (newMode === "owner") {
       setSelectedOwner(segs[1] ?? "");
     } else if (newMode === "instrument") {
-      setSelectedGroup(segs[1] ?? "");
+      const slug = segs[1] ?? "";
+      if (!slug) {
+        setSelectedGroup("");
+      } else if (groups) {
+        const isValid = groups.some((g) => g.slug === slug);
+        if (isValid) {
+          setSelectedGroup(slug);
+        } else {
+          navigate(`/research/${slug}`, { replace: true });
+          return;
+        }
+      }
     } else if (newMode === "group") {
       setSelectedGroup(params.get("group") ?? "");
     }
-  }, [location.pathname, location.search, tabs, disabledTabs, navigate]);
+  }, [
+    location.pathname,
+    location.search,
+    tabs,
+    disabledTabs,
+    navigate,
+    groups,
+  ]);
 
   return {
     mode,

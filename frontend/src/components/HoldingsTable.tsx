@@ -1,4 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  type MouseEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
@@ -12,6 +18,7 @@ import { RelativeViewToggle } from "./RelativeViewToggle";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
 import Sparkline from "./Sparkline";
+import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 
 declare const sparks: Record<string, Record<string, any[]>>;
 
@@ -64,6 +71,13 @@ export function HoldingsTable({
   });
 
   const [sparkRange, setSparkRange] = useState<7 | 30 | 180>(30);
+
+  useEffect(() => {
+    const tickers = Array.from(new Set(holdings.map((h) => h.ticker)));
+    if (tickers.length) {
+      preloadInstrumentHistory(tickers, sparkRange).catch(() => {});
+    }
+  }, [holdings, sparkRange]);
 
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -367,8 +381,11 @@ export function HoldingsTable({
           )}
           {items.map((virtualRow) => {
             const h = sortedRows[virtualRow.index];
-            const handleClick = () =>
+            const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+              event.preventDefault();
+              event.stopPropagation();
               onSelectInstrument?.(h.ticker, h.name ?? h.ticker);
+            };
             const sparkData =
               (globalThis as any).sparks?.[h.ticker]?.[String(sparkRange)] ?? [];
             const sparkColor =

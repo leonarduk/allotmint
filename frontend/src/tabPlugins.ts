@@ -41,7 +41,7 @@ export const orderedTabPlugins = [
   { id: "profile", priority: 106, section: "user" },
   { id: "support", priority: 110, section: "support" },
   { id: "logs", priority: 115, section: "support" },
-  { id: "scenario", priority: 120, section: "support" },
+  { id: "scenario", priority: 120, section: "user" },
 ] as const;
 export const USER_TABS = orderedTabPlugins
   .filter((p) => p.section === "user")

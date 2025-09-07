@@ -32,10 +32,12 @@ export default function App() {
   if (!accessToken) {
     return (
       <View style={{ padding: 20 }}>
+        <Text allowFontScaling={true}>ID Token</Text>
         <TextInput
           placeholder="ID Token"
           value={idToken}
           onChangeText={setIdToken}
+          accessibilityLabel="ID Token"
           style={{ borderWidth: 1, marginBottom: 12, padding: 8 }}
         />
         <Button title="Login" onPress={handleLogin} />
@@ -45,10 +47,12 @@ export default function App() {
 
   return (
     <ScrollView style={{ padding: 20 }}>
+      <Text allowFontScaling={true}>Owner</Text>
       <TextInput
         placeholder="Owner"
         value={owner}
         onChangeText={setOwner}
+        accessibilityLabel="Owner"
         style={{ borderWidth: 1, marginBottom: 12, padding: 8 }}
       />
       <Button title="Load Portfolio" onPress={loadPortfolio} />

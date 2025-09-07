@@ -1,0 +1,6 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="run-frontend.ps1" type="PowerShellRunType" factoryName="PowerShell" scriptUrl="C:\workspaces\github\allotmint\scripts\run-frontend.ps1" workingDirectory="C:\workspaces\github\allotmint" executablePath="$PROJECT_DIR$/../../../WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe">
+    <envs />
+    <method v="2" />
+  </configuration>
+</component>

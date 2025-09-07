@@ -1,0 +1,12 @@
+# Exclude non-backend directories from Docker build context
+node_modules/
+frontend/
+mobile/
+tests/
+docs/
+cdk/
+infra/
+scripts/
+*.md
+*.ps1
+*.sh

@@ -22,7 +22,7 @@ class BackendLambdaStack(Stack):
 
         # Build a Docker image for the Lambda runtime to avoid large zip/layer sizes
         image_code = _lambda.DockerImageCode.from_image_asset(
-            str(project_root), file="backend/Dockerfile.lambda"
+            str(project_root / "backend"), file="Dockerfile.lambda"
         )
 
         bucket_name = self.node.try_get_context("data_bucket") or os.getenv("DATA_BUCKET")
@@ -52,8 +52,8 @@ class BackendLambdaStack(Stack):
             self,
             "PriceRefreshLambda",
             code=_lambda.DockerImageCode.from_image_asset(
-                str(project_root),
-                file="backend/Dockerfile.lambda",
+                str(project_root / "backend"),
+                file="Dockerfile.lambda",
                 cmd=["backend.lambda_api.price_refresh.lambda_handler"],
             ),
         )

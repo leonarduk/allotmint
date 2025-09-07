@@ -48,27 +48,16 @@ def run_scenario(
 
 @router.get("/scenario/historical")
 def run_historical_scenario(
-    date: str = Query(..., description="Event date (YYYY-MM-DD)"),
+    event_id: str | None = Query(None, description="Historical event identifier"),
+    date: str | None = Query(None, description="Event date (YYYY-MM-DD)"),
     horizons: List[int] = Query(..., description="Event horizons in days"),
-    proxy_ticker: str | None = Query(None, description="Proxy index ticker"),
-    proxy_exchange: str | None = Query(None, description="Proxy index exchange"),
 ):
-    """Calculate holding returns for all portfolios from a historical event."""
+    """Calculate shocked portfolio values for a historical event."""
 
-    event = {"date": date, "horizons": horizons}
-    if proxy_ticker:
-        event["proxy_index"] = {"ticker": proxy_ticker, "exchange": proxy_exchange}
-
-#     event_id: str | None = Query(None, description="Historical event identifier"),
-#     date: str | None = Query(None, description="Event date (YYYY-MM-DD)"),
-#     horizons: List[int] = Query(..., description="Event horizons in days"),
-# ):
-#     """Calculate shocked portfolio values for a historical event."""
-
-#     if event_id is None and date is None:
-#         raise HTTPException(status_code=400, detail="event_id or date must be provided")
-#     if not horizons:
-#         raise HTTPException(status_code=400, detail="horizons must be provided")
+    if event_id is None and date is None:
+        raise HTTPException(status_code=400, detail="event_id or date must be provided")
+    if not horizons:
+        raise HTTPException(status_code=400, detail="horizons must be provided")
 
     results = []
     owners = [p["owner"] for p in list_plots() if p.get("accounts")]
@@ -77,10 +66,6 @@ def run_historical_scenario(
             pf = build_owner_portfolio(owner)
         except FileNotFoundError:
             continue
-
-#         returns = apply_historical_event(pf, event)
-#         results.append({"owner": owner, "returns": returns})
-# =======
 
         baseline = pf.get("total_value_estimate_gbp")
         if baseline is None:

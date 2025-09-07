@@ -36,6 +36,9 @@ cdk/cdk.out.backend/
 data/*
 !data/accounts/
 !data/accounts/**
+!data/instruments/
+!data/instruments/**
+!data/scaling_overrides.json
 
 # Logs
 backend.log

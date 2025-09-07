@@ -97,6 +97,8 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
                     <SignalBadge
                       action={s.action}
                       reason={s.reason}
+                      confidence={s.confidence}
+                      rationale={s.rationale}
                       onClick={() => setSelected({ ticker: r.ticker, name: r.name })}
                     />
                   ) : null;

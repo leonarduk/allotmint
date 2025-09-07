@@ -218,6 +218,10 @@ export function InstrumentDetail({
       {signal && (
         <div style={{ marginBottom: "0.5rem" }}>
           <strong>{signal.action.toUpperCase()}</strong> – {signal.reason}
+          {signal.confidence != null && (
+            <div>Confidence: {(signal.confidence * 100).toFixed(0)}%</div>
+          )}
+          {signal.rationale && <div>{signal.rationale}</div>}
         </div>
       )}
       <div

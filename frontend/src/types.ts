@@ -371,6 +371,8 @@ export interface TradingSignal {
     name: string;
     action: "buy" | "sell";
     reason: string;
+    confidence?: number;
+    rationale?: string;
     currency?: string | null;
     instrument_type?: string | null;
 }

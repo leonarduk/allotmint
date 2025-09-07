@@ -11,6 +11,10 @@ from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from backend.screener import Fundamentals, screen
 from backend.utils import page_cache
 
+class RankedFundamentals(Fundamentals):
+    rank: int
+
+
 router = APIRouter(prefix="/screener", tags=["screener"])
 
 SCREENER_TTL = 900  # seconds
@@ -114,7 +118,20 @@ def _hash_params(
     return page, _call
 
 
-@router.get("/", response_model=List[Fundamentals])
+def _apply_rank(rows: List[dict]) -> None:
+    rows.sort(
+        key=lambda x: (
+            float("inf")
+            if x.get("peg_ratio") in (None,)
+            or x.get("roe") in (None, 0)
+            else x["peg_ratio"] / x["roe"]
+        )
+    )
+    for i, row in enumerate(rows, 1):
+        row["rank"] = i
+
+
+@router.get("/", response_model=List[RankedFundamentals])
 async def screener(
     background_tasks: BackgroundTasks,
     tickers: str = Query(..., description="Comma-separated list of tickers"),
@@ -183,10 +200,12 @@ async def screener(
     if not page_cache.is_stale(page, SCREENER_TTL):
         cached = page_cache.load_cache(page)
         if cached is not None:
+            _apply_rank(cached)
             return cached
 
     try:
         payload = call()
+        _apply_rank(payload)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except RuntimeError as e:

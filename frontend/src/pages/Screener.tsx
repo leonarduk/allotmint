@@ -4,9 +4,13 @@ import { getScreener } from "../api";
 import type { ScreenerResult } from "../types";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { InstrumentDetail } from "../components/InstrumentDetail";
+import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import i18n from "../i18n";
 
 export function Screener() {
+  const [watchlist, setWatchlist] = useState<WatchlistName | "Custom">(
+    "Custom",
+  );
   const [tickers, setTickers] = useState("");
   const [pegMax, setPegMax] = useState("");
   const [peMax, setPeMax] = useState("");
@@ -40,17 +44,20 @@ export function Screener() {
   const [selected, setSelected] = useState<string | null>(null);
   const { t } = useTranslation();
 
-  const { sorted, handleSort } = useSortableTable(rows, "peg_ratio");
+  const { sorted, handleSort } = useSortableTable(rows, "rank");
 
   const cell = { padding: "4px 6px" } as const;
   const right = { ...cell, textAlign: "right", cursor: "pointer" } as const;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const symbols = tickers
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const symbols =
+      watchlist === "Custom"
+        ? tickers
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : WATCHLISTS[watchlist];
     if (!symbols.length) return;
 
     setLoading(true);
@@ -121,16 +128,36 @@ export function Screener() {
         className="mb-4 flex flex-wrap items-center gap-2"
       >
         <label className="mr-2">
-          {t("screener.tickers")}
-          <input
-            aria-label={t("screener.tickers")}
-            type="text"
-            value={tickers}
-            onChange={(e) => setTickers(e.target.value)}
-            placeholder="AAPL,MSFT,…"
-            style={{ marginLeft: "0.25rem" }}
-          />
+          Watchlist
+          <select
+            value={watchlist}
+            onChange={(e) =>
+              setWatchlist(e.target.value as WatchlistName | "Custom")
+            }
+            className="ml-1 border px-2 py-1"
+            aria-label="Watchlist"
+          >
+            <option value="Custom">Custom</option>
+            {(Object.keys(WATCHLISTS) as WatchlistName[]).map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
         </label>
+        {watchlist === "Custom" && (
+          <label className="mr-2">
+            {t("screener.tickers")}
+            <input
+              aria-label={t("screener.tickers")}
+              type="text"
+              value={tickers}
+              onChange={(e) => setTickers(e.target.value)}
+              placeholder="AAPL,MSFT,…"
+              style={{ marginLeft: "0.25rem" }}
+            />
+          </label>
+        )}
         <label style={{ marginRight: "0.5rem" }}>
           {t("screener.maxPeg")}
           <input
@@ -418,6 +445,7 @@ export function Screener() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
+              <th style={right} onClick={() => handleSort("rank")}>Rank</th>
               <th
                 style={{ ...cell, cursor: "pointer" }}
                 onClick={() => handleSort("ticker")}
@@ -498,6 +526,7 @@ export function Screener() {
                   }
                 }}
               >
+                <td style={right}>{r.rank}</td>
                 <td style={cell}>{r.ticker}</td>
                 <td style={right}>{r.peg_ratio ?? "—"}</td>
                 <td style={right}>{r.pe_ratio ?? "—"}</td>

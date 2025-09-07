@@ -323,6 +323,7 @@ export type ComplianceResult = {
 };
 
 export interface ScreenerResult {
+    rank: number;
     ticker: string;
     name?: string | null;
     peg_ratio: number | null;

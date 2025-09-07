@@ -22,6 +22,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
+          pip install awscli
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Sync data from S3
+        env:
+          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+        run: aws s3 sync s3://$DATA_BUCKET/ data/
 
       - name: Run tests
         env:

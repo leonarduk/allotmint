@@ -104,6 +104,13 @@ $logConfig = Coalesce $cfg.log_config   'logging.ini'
 $reloadRaw = Coalesce $cfg.reload       $true
 $reload    = [bool]$reloadRaw
 
+if ($env:DATA_BUCKET) {
+  Write-Host "Syncing data from s3://$env:DATA_BUCKET/" -ForegroundColor Yellow
+  aws s3 sync "s3://$env:DATA_BUCKET/" data/ | Out-Null
+} else {
+  Write-Host "DATA_BUCKET not set; skipping data sync" -ForegroundColor Yellow
+}
+
 # ───────────── start server ───────────────────
 Write-Host "Starting AllotMint Local API on http://localhost:$port ..." -ForegroundColor Green
 

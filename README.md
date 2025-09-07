@@ -325,8 +325,18 @@ When several transports are configured, alerts are sent to each of them.
 
 ## AWS data bucket
 
+All runtime data now resides in an external S3 bucket instead of the
+repository. Sync the contents before starting the backend:
+
+```bash
+aws s3 sync s3://$DATA_BUCKET/ data/
+```
+
 When running the backend in AWS (``config.app_env: aws``), account and
-metadata JSON files are loaded from an S3 bucket.
+metadata JSON files are loaded from this bucket.
+
+The local startup scripts (`run-local-api.sh` and `run-backend.ps1`) perform
+this sync automatically when `DATA_BUCKET` is set.
 
 Set the ``DATA_BUCKET`` environment variable to the name of the bucket
 containing the ``accounts/OWNER/ACCOUNT.json`` objects. The Lambda execution
@@ -337,6 +347,26 @@ role requires the following minimal IAM permissions on that bucket:
 * ``s3:GetObject`` on ``accounts/*`` – read account and ``person.json`` files.
 
 Instrument metadata can reside in a separate bucket. Set ``METADATA_BUCKET`` to the bucket storing instrument JSON files and ``METADATA_PREFIX`` to the key prefix (default ``instruments/``). Updates made locally will be uploaded to this S3 path when configured.
+
+### Bucket layout
+
+The S3 bucket mirrors the previous ``data/`` directory:
+
+```
+accounts/
+cache/
+events/
+instruments/
+metrics/
+prices/
+timeseries/
+transactions/
+alert_thresholds.json
+jpm.json
+scaling_overrides.json
+skipped_tickers.log
+virtual_portfolios/
+```
 
 ## Tests
 

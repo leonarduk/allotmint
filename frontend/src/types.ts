@@ -183,6 +183,12 @@ export interface MaxDrawdownResponse {
     max_drawdown: number | null;
 };
 
+export interface ReturnComparisonResponse {
+    owner: string;
+    cagr: number | null;
+    cash_apy: number | null;
+}
+
 export interface InstrumentDetailMini {
     [range: string]: {
         date: string;

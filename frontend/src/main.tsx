@@ -27,6 +27,7 @@ const Profile = lazy(() => import('./pages/Profile'))
 const Alerts = lazy(() => import('./pages/Alerts'))
 const Goals = lazy(() => import('./pages/Goals'))
 const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'))
+const ReturnComparison = lazy(() => import('./pages/ReturnComparison'))
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -73,6 +74,7 @@ export function Root() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/goals" element={<Goals />} />
         <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
+        <Route path="/returns/compare" element={<ReturnComparison />} />
         <Route path="/*" element={<App onLogout={logout} />} />
       </Routes>
     </Suspense>

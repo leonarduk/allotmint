@@ -58,11 +58,16 @@ INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
 def _resolve_exchange_from_metadata(symbol: str) -> str:
     """Return exchange code for *symbol* using instrument metadata if possible."""
     sym = symbol.upper()
-    for ex_dir in INSTRUMENTS_DIR.iterdir():
-        if not ex_dir.is_dir() or ex_dir.name.lower() == "cash":
-            continue
-        if (ex_dir / f"{sym}.json").exists():
-            return ex_dir.name.upper()
+    if not INSTRUMENTS_DIR.exists():
+        return ""
+    try:
+        for ex_dir in INSTRUMENTS_DIR.iterdir():
+            if not ex_dir.is_dir() or ex_dir.name.lower() == "cash":
+                continue
+            if (ex_dir / f"{sym}.json").exists():
+                return ex_dir.name.upper()
+    except OSError:
+        return ""
     return ""
 
 

@@ -19,7 +19,11 @@ venv/
 .env/
 
 # CDK / CloudFormation
+# Root-level CDK outputs (if ever generated)
 cdk.out/
+# CDK app subfolder outputs
+cdk/cdk.out/
+cdk/cdk.out.backend/
 
 # IDE / OS
 .DS_Store

@@ -11,6 +11,11 @@
     color: rgba(255, 255, 255, 0.87);
     background-color: #242424;
 
+    --drawer-bg: #333;
+    --drawer-color: rgba(255, 255, 255, 0.87);
+    --drawer-border-color: #444;
+    --drawer-muted-color: #aaa;
+
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -21,12 +26,22 @@
     color-scheme: light;
     color: #213547;
     background-color: #ffffff;
+
+    --drawer-bg: #ffffff;
+    --drawer-color: #213547;
+    --drawer-border-color: #ccc;
+    --drawer-muted-color: #666;
 }
 
 :root[data-theme='dark'] {
     color-scheme: dark;
     color: rgba(255, 255, 255, 0.87);
     background-color: #242424;
+
+    --drawer-bg: #333;
+    --drawer-color: rgba(255, 255, 255, 0.87);
+    --drawer-border-color: #444;
+    --drawer-muted-color: #aaa;
 }
 
 a {
@@ -83,6 +98,11 @@ button:focus-visible {
     :root:not([data-theme]) {
         color: #213547;
         background-color: #ffffff;
+
+        --drawer-bg: #ffffff;
+        --drawer-color: #213547;
+        --drawer-border-color: #ccc;
+        --drawer-muted-color: #666;
     }
 
     :root:not([data-theme]) a:hover {

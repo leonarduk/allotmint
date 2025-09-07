@@ -6,8 +6,6 @@ from backend.config import config
 
 router = APIRouter(prefix="/user-config", tags=["user-config"])
 
-
-@router.get("/{owner}")
 @handle_owner_not_found
 async def get_user_config(owner: str, request: Request):
     try:
@@ -17,7 +15,6 @@ async def get_user_config(owner: str, request: Request):
     return cfg.to_dict()
 
 
-@router.post("/{owner}")
 @handle_owner_not_found
 async def update_user_config(owner: str, request: Request):
     data = await request.json()
@@ -27,3 +24,7 @@ async def update_user_config(owner: str, request: Request):
         return cfg.to_dict()
     except FileNotFoundError:
         raise_owner_not_found()
+
+
+router.get("/{owner}")(get_user_config)
+router.post("/{owner}")(update_user_config)

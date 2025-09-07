@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
 import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
+import { useFocusMode } from '../FocusModeContext';
+import PomodoroTimer from './PomodoroTimer';
 
 const SUPPORT_ONLY_TABS: TabPluginId[] = ['logs'];
 
@@ -28,6 +30,7 @@ export default function Menu({
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { focusMode, setFocusMode } = useFocusMode();
 
   useEffect(() => {
     function handleFocus(e: FocusEvent) {
@@ -133,49 +136,65 @@ export default function Menu({
         ☰
       </button>
       <div
-        className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
+        className={`${open || focusMode ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
         style={style}
       >
-        {orderedTabPlugins
-          .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
-          .slice()
-          .sort((a, b) => a.priority - b.priority)
-          .filter((p) => {
-            if (p.id === 'support') return false;
-            if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
-            return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
-          })
-          .map((p) => (
-            <Link
-              key={p.id}
-              to={pathFor(p.id)}
-              className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
-              onClick={() => setOpen(false)}
-            >
-              {t(`app.modes.${p.id}`)}
-            </Link>
-          ))}
-        {supportEnabled && (
-          <Link
-            to={inSupport ? '/' : '/support'}
-            className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
-            onClick={() => setOpen(false)}
-          >
-            {t(inSupport ? 'app.userLink' : 'app.supportLink')}
-          </Link>
+        {focusMode ? (
+          <PomodoroTimer />
+        ) : (
+          <>
+            {orderedTabPlugins
+              .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
+              .slice()
+              .sort((a, b) => a.priority - b.priority)
+              .filter((p) => {
+                if (p.id === 'support') return false;
+                if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
+                return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
+              })
+              .map((p) => (
+                <Link
+                  key={p.id}
+                  to={pathFor(p.id)}
+                  className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
+                  onClick={() => setOpen(false)}
+                >
+                  {t(`app.modes.${p.id}`)}
+                </Link>
+              ))}
+            {supportEnabled && (
+              <Link
+                to={inSupport ? '/' : '/support'}
+                className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
+                onClick={() => setOpen(false)}
+              >
+                {t(inSupport ? 'app.userLink' : 'app.supportLink')}
+              </Link>
+            )}
+            {onLogout && (
+              <button
+                type="button"
+                onClick={() => {
+                  onLogout();
+                  setOpen(false);
+                }}
+                className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
+              >
+                {t('app.logout')}
+              </button>
+            )}
+          </>
         )}
-        {onLogout && (
-          <button
-            type="button"
-            onClick={() => {
-              onLogout();
-              setOpen(false);
-            }}
-            className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
-          >
-            {t('app.logout')}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => {
+            setFocusMode(!focusMode);
+            setOpen(false);
+          }}
+          className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
+        >
+          {focusMode ? 'Exit Focus Mode' : 'Focus Mode'}
+        </button>
       </div>
     </nav>
   );

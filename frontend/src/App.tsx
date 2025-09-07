@@ -51,6 +51,7 @@ import InstrumentAdmin from "./pages/InstrumentAdmin";
 import Menu from "./components/Menu";
 import Rebalance from "./pages/Rebalance";
 import PensionForecast from "./pages/PensionForecast";
+import { useFocusMode } from "./FocusModeContext";
 
 interface AppProps {
   onLogout?: () => void;
@@ -138,6 +139,7 @@ export default function App({ onLogout }: AppProps) {
   const [retryNonce, setRetryNonce] = useState(0);
 
   const { lastRefresh, setLastRefresh } = usePriceRefresh();
+  const { focusMode } = useFocusMode();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const handleRetry = useCallback(() => {
@@ -331,29 +333,31 @@ export default function App({ onLogout }: AppProps) {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <LanguageSwitcher />
-        <button
-          aria-label="notifications"
-          onClick={() => setNotificationsOpen(true)}
+      {!focusMode && (
+        <div
           style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "1.5rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          🔔
-        </button>
-      </div>
+          <LanguageSwitcher />
+          <button
+            aria-label="notifications"
+            onClick={() => setNotificationsOpen(true)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "1.5rem",
+            }}
+          >
+            🔔
+          </button>
+        </div>
+      )}
       <NotificationsDrawer
-        open={notificationsOpen}
+        open={!focusMode && notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       />
       <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
@@ -363,35 +367,41 @@ export default function App({ onLogout }: AppProps) {
           onLogout={onLogout}
           style={{ flexGrow: 1, margin: 0 }}
         />
-        <InstrumentSearchBar />
-        {lastRefresh && (
-          <span
-            style={{
-              background: "#eee",
-              borderRadius: "1rem",
-              padding: "0.25rem 0.5rem",
-              fontSize: "0.75rem",
-            }}
-            title={t("app.last") ?? undefined}
-          >
-            {new Date(lastRefresh).toLocaleString()}
-          </span>
+        {!focusMode && (
+          <>
+            <InstrumentSearchBar />
+            {lastRefresh && (
+              <span
+                style={{
+                  background: "#eee",
+                  borderRadius: "1rem",
+                  padding: "0.25rem 0.5rem",
+                  fontSize: "0.75rem",
+                }}
+                title={t("app.last") ?? undefined}
+              >
+                {new Date(lastRefresh).toLocaleString()}
+              </span>
+            )}
+            <UserAvatar />
+          </>
         )}
-        <UserAvatar />
       </div>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
-          {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
-        </button>
-        {priceRefreshError && (
-          <span
-            style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}
-          >
-            {priceRefreshError}
-          </span>
-        )}
-      </div>
+      {!focusMode && (
+        <div style={{ marginBottom: "1rem" }}>
+          <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
+            {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
+          </button>
+          {priceRefreshError && (
+            <span
+              style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}
+            >
+              {priceRefreshError}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* OWNER VIEW */}
       {mode === "owner" && (

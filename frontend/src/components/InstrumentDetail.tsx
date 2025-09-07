@@ -110,7 +110,6 @@ export function InstrumentDetail({
     return { ...p, change_gbp, change_pct };
   });
 
-  const prices = withChanges;
   const prices = withChanges.map((p, i, arr) => {
     const slice20 = arr.slice(Math.max(0, i - 19), i + 1);
     const mean20 =

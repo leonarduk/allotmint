@@ -384,7 +384,7 @@ export function TopMoversPage() {
                     href="#"
                     onClick={(e) => {
                       e.preventDefault();
-                      navigate(`/instrument/${s.ticker}`);
+                      navigate(`/research/${s.ticker}`);
                     }}
                   >
                     {s.ticker}

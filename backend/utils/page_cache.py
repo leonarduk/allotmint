@@ -96,6 +96,7 @@ def schedule_refresh(page_name: str, ttl: int, builder: Callable[[], Any]) -> No
                     # example on Windows CI where thread start-up can be
                     # noticeably slower).  By continuing here we skip the
                     # sleep below and run the builder again right away.
+                    await asyncio.sleep(0)
                     continue
 
                 cancelled = False

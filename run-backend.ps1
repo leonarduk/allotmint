@@ -23,6 +23,11 @@ Write-Host "# --------------------------------" -ForegroundColor DarkCyan
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $SCRIPT_DIR
 
+# Ensure data directory exists
+if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
+  Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
+  bash scripts/sync_data.sh
+}
 # Place synthesized CDK templates outside the repository
 $env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
 

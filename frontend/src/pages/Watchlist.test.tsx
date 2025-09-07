@@ -102,7 +102,7 @@ describe("Watchlist page", () => {
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60000);
+      await vi.advanceTimersByTimeAsync(10000);
     });
     await act(async () => {
       await Promise.resolve();
@@ -129,7 +129,7 @@ describe("Watchlist page", () => {
     });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60000);
+      await vi.advanceTimersByTimeAsync(10000);
     });
     await act(async () => {
       await Promise.resolve();
@@ -141,7 +141,7 @@ describe("Watchlist page", () => {
     });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60000);
+      await vi.advanceTimersByTimeAsync(10000);
     });
     await act(async () => {
       await Promise.resolve();
@@ -166,6 +166,7 @@ describe("Watchlist page", () => {
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10000);
+    });
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.getByText("Markets closed")).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);

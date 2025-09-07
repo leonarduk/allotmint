@@ -428,9 +428,8 @@ pytest
 cd frontend && npm test
 ```
 
-Sample account JSON files live under `data/accounts/` (for example,
-`data/accounts/alice/savings.json`) so tests can run without additional
-setup.
+Some API tests load sample account data from `config.accounts_root` (defaulting
+to `data/accounts`). If this directory is absent, the tests are skipped.
 
 The `PY_COV_MIN` environment variable lets you enforce a minimum coverage
 percentage during `pytest` runs. Use it together with `PYTEST_ADDOPTS` to pass

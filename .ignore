@@ -1,3 +1,4 @@
 cdk.out/
 cdk/cdk.out/
 cdk/cdk.out.backend/
+tests/.coverage

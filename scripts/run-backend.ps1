@@ -21,7 +21,8 @@ Write-Host "# --------------------------------" -ForegroundColor DarkCyan
 
 # ───────────────── repo root ─────────────────
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $SCRIPT_DIR
+$REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
+Set-Location $REPO_ROOT
 
 # Ensure data directory exists
 if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
@@ -89,7 +90,7 @@ Write-Host 'Activating virtual environment...' -ForegroundColor Cyan
 . .\.venv\Scripts\Activate.ps1
 
 # ───────────────── load config ────────────────
-$configPath = Join-Path $SCRIPT_DIR 'config.yaml'
+$configPath = Join-Path $REPO_ROOT 'config.yaml'
 $cfg = Read-Config $configPath
 
 # ───────────── offline mode & installs ────────

@@ -36,7 +36,7 @@ def stream_reader(stream, callback):
 
 def load_default_command() -> Optional[List[str]]:
     """Return default command from config.yaml if available."""
-    config_path = pathlib.Path("config.yaml")
+    config_path = pathlib.Path("../config.yaml")
     if not config_path.exists():
         return None
     try:

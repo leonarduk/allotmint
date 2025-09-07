@@ -4,8 +4,9 @@ from types import SimpleNamespace
 
 import backend.common.prices as prices
 import pandas as pd
-from backend.utils import scenario_tester as sc
-from backend.utils.scenario_tester import apply_historical_event, apply_price_shock
+import pytest
+import backend.utils.scenario_tester as sc_tester
+from backend.utils.scenario_tester import apply_historical_event, apply_price_shock, apply_historical_returns
 
 
 def test_price_shock_uses_cached_price_for_missing_current_price(monkeypatch):
@@ -27,7 +28,7 @@ def test_price_shock_uses_cached_price_for_missing_current_price(monkeypatch):
 
     monkeypatch.setattr(prices, "_price_cache", {"ABC.L": 5.0})
 
-    shocked = sc_tester.apply_price_shock(portfolio, "ABC.L", 10)
+    shocked = apply_price_shock(portfolio, "ABC.L", 10)
 
     assert shocked["accounts"][0]["value_estimate_gbp"] > 0
     assert shocked["total_value_estimate_gbp"] > 0
@@ -66,9 +67,9 @@ def test_apply_historical_event_uses_proxy_for_missing(monkeypatch):
             return idx
         return pd.DataFrame()
 
-    monkeypatch.setattr(sc, "load_meta_timeseries_range", fake_load)
-    monkeypatch.setattr(sc, "get_scaling_override", lambda *a, **k: 1.0)
-    monkeypatch.setattr(sc, "apply_scaling", lambda df, scale, scale_volume=False: df)
+    monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
+    monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
+    monkeypatch.setattr(sc_tester, "apply_scaling", lambda df, scale, scale_volume=False: df)
 
     result = apply_historical_event(portfolio, event)
 
@@ -106,7 +107,7 @@ def test_historical_event_falls_back_to_proxy(monkeypatch):
 
     monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
 
-    returns = sc_tester.apply_historical_event(portfolio, event)
+    returns = sc_tester.apply_historical_returns(portfolio, event)
     assert returns["AAA.L"][5] == pytest.approx(0.1)
 
 
@@ -134,5 +135,5 @@ def test_historical_event_uses_proxy_when_data_incomplete(monkeypatch):
 
     monkeypatch.setattr(sc_tester, "load_meta_timeseries_range", fake_load)
 
-    returns = sc_tester.apply_historical_event(portfolio, event)
+    returns = sc_tester.apply_historical_returns(portfolio, event)
     assert returns["AAA.L"][5] == pytest.approx(0.1)

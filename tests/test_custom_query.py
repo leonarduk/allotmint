@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from backend.config import config
 import backend.timeseries.cache as ts_cache
+from backend.routes.query import Metric
 
 
 @pytest.fixture

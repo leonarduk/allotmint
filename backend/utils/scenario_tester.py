@@ -139,14 +139,28 @@ def _forward_returns(
     return results
 
 
-def apply_historical_event(portfolio: Dict[str, Any], event: Any) -> Dict[str, Dict[str, float]]:
-    """Apply historical forward returns from ``event`` to ``portfolio``.
+def apply_historical_event(
+    portfolio: Dict[str, Any],
+    event: Any | None = None,
+    *,
+    event_id: str | None = None,
+    date: str | None = None,
+    horizons: Iterable[int] | None = None,
+) -> Dict[Any, Any]:
+    """Apply a historical event to a portfolio.
 
-    For each holding, forward returns from ``event.date`` are computed for the
-    horizons defined in ``_HORIZONS``.  Missing data falls back to the event's
-    proxy index.  The function returns the simulated portfolio totals and
-    deltas versus the current baseline for each horizon.
+    When ``event`` is supplied, forward returns are calculated for each holding
+    from the event date with an optional proxy index. The portfolio totals are
+    returned for each of the standard horizons. If ``event`` is omitted but an
+    ``event_id``/``date`` is provided, a simple placeholder scaling is applied
+    instead.
     """
+
+    if event is None and (event_id or date):
+        return _scale_portfolio(portfolio, horizons)
+
+    if event is None:
+        raise ValueError("event must be provided")
 
     baseline = float(portfolio.get("total_value_estimate_gbp") or 0.0)
     if baseline == 0.0:
@@ -187,19 +201,10 @@ def apply_historical_event(portfolio: Dict[str, Any], event: Any) -> Dict[str, D
         }
     return result
 
-def apply_historical_event(
-    portfolio: Dict[str, Any],
-    event_id: str | None = None,
-    date: str | None = None,
-    horizons: Iterable[int] | None = None,
+def _scale_portfolio(
+    portfolio: Dict[str, Any], horizons: Iterable[int] | None = None
 ) -> Dict[int, Dict[str, Any]]:
-    """Return shocked portfolios for each horizon of a historical event.
-
-    This helper currently applies a simple uniform scaling to the portfolio's
-    account values for each requested horizon. The scaling factor is derived
-    from the horizon length (e.g. a horizon of ``1`` applies a 1% drop). The
-    original ``portfolio`` is not modified.
-    """
+    """Scale ``portfolio`` by a simple factor for each horizon."""
 
     horizons = list(horizons or [1])
     shocked: Dict[int, Dict[str, Any]] = {}
@@ -270,7 +275,7 @@ def _calc_return(ticker: str, exchange: str | None, start: date, horizon: int) -
         return None
 
 
-def apply_historical_event(
+def apply_historical_returns(
     portfolio: Dict[str, Any],
     event: Dict[str, Any],
     horizons: Iterable[int] | None = None,

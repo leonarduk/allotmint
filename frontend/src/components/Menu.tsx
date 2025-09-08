@@ -96,7 +96,7 @@ export default function Menu({
   const inSupport = mode === 'support';
   const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
 
-  function pathFor(m: TabPluginId) {
+  function pathFor(m: string) {
     switch (m) {
       case 'group':
         return selectedGroup ? `/?group=${selectedGroup}` : '/';
@@ -170,7 +170,7 @@ export default function Menu({
             .map((p) => (
               <Link
                 key={p.id}
-                to={pathFor(p.id)}
+                to={pathFor(p.id as string)}
                 className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
                 style={{ fontWeight: mode === p.id ? 'bold' as const : undefined }}
                 onClick={() => setOpen(false)}

@@ -7,7 +7,7 @@ import {
   YAxis,
 } from "recharts";
 import { percent, percentOrNa } from "../lib/money";
-import metricStyles from "../styles/metrics.module.css";
+// import metricStyles from "../styles/metrics.module.css";
 import { Link } from "react-router-dom";
 
 type Props = {

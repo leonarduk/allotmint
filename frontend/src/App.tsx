@@ -57,7 +57,12 @@ interface AppProps {
   onLogout?: () => void;
 }
 
-type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile";
+type Mode =
+  | (typeof orderedTabPlugins)[number]["id"]
+  | "profile"
+  | "pension"
+  | "market"
+  | "rebalance";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -455,7 +460,19 @@ export default function App({ onLogout }: AppProps) {
             selected={selectedOwner}
             onSelect={setSelectedOwner}
           />
-          <PortfolioDashboard owner={selectedOwner} />
+          <PortfolioDashboard
+            twr={null}
+            irr={null}
+            bestDay={null}
+            worstDay={null}
+            lastDay={null}
+            alpha={null}
+            trackingError={null}
+            maxDrawdown={null}
+            volatility={null}
+            data={[]}
+            owner={selectedOwner}
+          />
         </>
       )}
 

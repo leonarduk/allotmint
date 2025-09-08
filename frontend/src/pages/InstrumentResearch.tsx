@@ -9,7 +9,7 @@ import {
   getQuotes,
   fetchInstrumentDetailWithRetry,
 } from "../api";
-import type { ScreenerResult, NewsItem, QuoteRow, InstrumentDetail } from "../types";
+import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
 import { largeNumber } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 
@@ -140,12 +140,12 @@ export default function InstrumentResearch() {
           : ""}
       </h1>
       <div style={{ marginBottom: "1rem" }}>
-        {tabs.screener && !disabledTabs.includes("screener") && (
+        {tabs.screener && !(disabledTabs ?? []).includes("screener") && (
           <Link to="/screener" style={{ marginRight: "1rem" }}>
             View Screener
           </Link>
         )}
-        {tabs.watchlist && !disabledTabs.includes("watchlist") && (
+        {tabs.watchlist && !(disabledTabs ?? []).includes("watchlist") && (
           <Link to="/watchlist">Watchlist</Link>
         )}
         <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>

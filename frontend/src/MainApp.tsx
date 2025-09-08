@@ -283,7 +283,19 @@ export default function MainApp() {
             selected={selectedOwner}
             onSelect={setSelectedOwner}
           />
-          <PortfolioDashboard owner={selectedOwner} />
+          <PortfolioDashboard
+            twr={null}
+            irr={null}
+            bestDay={null}
+            worstDay={null}
+            lastDay={null}
+            alpha={null}
+            trackingError={null}
+            maxDrawdown={null}
+            volatility={null}
+            data={[]}
+            owner={selectedOwner}
+          />
         </>
       )}
 

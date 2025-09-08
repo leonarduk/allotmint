@@ -108,30 +108,33 @@ export default function Support() {
     for (const [k, v] of Object.entries(config)) {
       if (k === "tabs") continue; // rebuilt from toggle state
       if (UI_KEYS.has(k)) {
-        if (typeof v === "string") {
-          let parsed: unknown = v;
-          try {
-            parsed = JSON.parse(v);
-          } catch {
-            /* keep as string */
+        const parsedVal = (() => {
+          if (typeof v === "string") {
+            try {
+              return JSON.parse(v);
+            } catch {
+              return v;
+            }
           }
-          ui[k] = parsed;
-        } else {
-          ui[k] = v;
-        }
+          return v;
+        })();
+        ui[k] = parsedVal;
         continue;
       }
-      if (typeof v === "string") {
-        try {
-          parsed = JSON.parse(v);
-        } catch {
-          /* keep as string */
+      const parsedVal = (() => {
+        if (typeof v === "string") {
+          try {
+            return JSON.parse(v);
+          } catch {
+            return v;
+          }
         }
-      }
+        return v;
+      })();
       if (k === "relative_view_enabled" || k === "theme") {
-        ui[k] = parsed;
+        ui[k] = parsedVal;
       } else {
-        payload[k] = parsed;
+        payload[k] = parsedVal;
       }
     }
     ui.tabs = { ...tabs };

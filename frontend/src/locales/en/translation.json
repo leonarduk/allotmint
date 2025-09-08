@@ -157,6 +157,10 @@
     "label": "Owner",
     "select": "Select an owner."
   },
+  "pensionForecast": {
+    "currentAge": "Current age: {{age}}",
+    "retirementAge": "Retirement age: {{age}}"
+  },
   "group": {
     "select": "Select a group."
   },

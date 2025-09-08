@@ -407,10 +407,11 @@ describe("App", () => {
       "Allocation",
       "Reports",
       "User Settings",
+      "Pension Forecast",
       "Scenario Tester",
       "Support",
     ]);
-    });
+  });
 
   it("renders the user avatar when logged in", async () => {
     window.history.pushState({}, "", "/");

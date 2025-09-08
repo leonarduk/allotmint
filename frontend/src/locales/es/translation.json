@@ -157,6 +157,10 @@
     "label": "Propietario",
     "select": "Seleccione un propietario."
   },
+  "pensionForecast": {
+    "currentAge": "Edad actual: {{age}}",
+    "retirementAge": "Edad de jubilación: {{age}}"
+  },
   "group": {
     "select": "Seleccione un grupo."
   },

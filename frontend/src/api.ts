@@ -930,18 +930,23 @@ export const getAllowances = (owner?: string) => {
 };
 
 // ───────────── Pension Forecast ─────────────
-export const getPensionForecast = (
-  dob: string,
-  retirementAge: number,
-  deathAge: number,
-  statePensionAnnual?: number,
-  contributionAnnual?: number,
-  desiredIncomeAnnual?: number,
-  investmentGrowthPct?: number,
-) => {
+export const getPensionForecast = ({
+  owner,
+  deathAge,
+  statePensionAnnual,
+  contributionAnnual,
+  desiredIncomeAnnual,
+  investmentGrowthPct,
+}: {
+  owner: string;
+  deathAge: number;
+  statePensionAnnual?: number;
+  contributionAnnual?: number;
+  desiredIncomeAnnual?: number;
+  investmentGrowthPct?: number;
+}) => {
   const params = new URLSearchParams({
-    dob,
-    retirement_age: String(retirementAge),
+    owner,
     death_age: String(deathAge),
   });
   if (statePensionAnnual !== undefined) {
@@ -959,7 +964,8 @@ export const getPensionForecast = (
   return fetchJson<{
     forecast: { age: number; income: number }[];
     projected_pot_gbp: number;
-    earliest_retirement_age: number | null;
+    current_age: number;
+    retirement_age: number;
   }>(`${API_BASE}/pension/forecast?${params.toString()}`);
 };
 

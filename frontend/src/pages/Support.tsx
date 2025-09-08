@@ -11,24 +11,11 @@ import {
 import { useConfig } from "../ConfigContext";
 import { OwnerSelector } from "../components/OwnerSelector";
 import type { OwnerSummary } from "../types";
+import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 
-const TAB_KEYS = [
-  "instrument",
-  "performance",
-  "transactions",
-  "screener",
-  "trading",
-  "timeseries",
-  "watchlist",
-  "virtual",
-  "support",
-  "logs",
-  "settings",
-  "profile",
-  "reports",
-] as const;
+const TAB_KEYS = orderedTabPlugins.map((p) => p.id) as TabPluginId[];
 const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record<
-  (typeof TAB_KEYS)[number],
+  TabPluginId,
   boolean
 >;
 
@@ -41,7 +28,7 @@ export default function Support() {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigState>({});
-  const [tabs, setTabs] = useState<Record<string, boolean>>(EMPTY_TABS);
+  const [tabs, setTabs] = useState<Record<TabPluginId, boolean>>(EMPTY_TABS);
   const [configStatus, setConfigStatus] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -107,7 +94,7 @@ export default function Support() {
     setConfig((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleTabChange(key: string, value: boolean) {
+  function handleTabChange(key: TabPluginId, value: boolean) {
     setTabs((prev) => ({ ...prev, [key]: value }));
   }
 

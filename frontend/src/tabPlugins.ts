@@ -1,5 +1,6 @@
 export const tabPluginMap = {
   group: {},
+  market: {},
   owner: {},
   instrument: {},
   performance: {},
@@ -24,6 +25,7 @@ export const tabPluginMap = {
 export type TabPluginId = keyof typeof tabPluginMap;
 export const orderedTabPlugins = [
   { id: "group", priority: 0, section: "user" },
+  { id: "market", priority: 5, section: "user" },
   { id: "movers", priority: 10, section: "user" },
   { id: "instrument", priority: 20, section: "user" },
   { id: "owner", priority: 30, section: "user" },

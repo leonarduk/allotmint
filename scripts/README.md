@@ -41,3 +41,16 @@ python scripts/import_transactions.py degiro path/to/transactions.csv
 ```
 
 Use `--api` to point at a different backend URL. Parsed transactions are printed as JSON.
+
+## reconcile_drawdown.py
+
+Inspect max drawdowns and dump holding price data when the portfolio suffers a
+large daily drop:
+
+```
+python scripts/reconcile_drawdown.py alice --days 180
+python scripts/reconcile_drawdown.py --group family --ticker VUSA.L --ticker MSFT
+```
+
+Price series for each holding is written to `TICKER.EXCHANGE.csv` and `.json`
+in the current directory for manual inspection.

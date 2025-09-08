@@ -971,3 +971,16 @@ export const completeQuest = (id: string) =>
   fetchJson<QuestResponse>(`${API_BASE}/quests/${encodeURIComponent(id)}/complete`, {
     method: "POST",
   });
+
+// ───────────── Support tools ─────────────
+export interface Finding {
+  level: "info" | "warning" | "error";
+  message: string;
+  suggestion?: string;
+}
+
+export const checkPortfolioHealth = () =>
+  fetchJson<{ findings: Finding[] }>(
+    `${API_BASE}/support/portfolio-health`,
+    { method: "POST" },
+  );

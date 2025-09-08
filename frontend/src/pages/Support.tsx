@@ -8,6 +8,8 @@ import {
   updateConfig,
   savePushSubscription,
   deletePushSubscription,
+  checkPortfolioHealth,
+  type Finding,
 } from "../api";
 import { useConfig } from "../ConfigContext";
 import { OwnerSelector } from "../components/OwnerSelector";
@@ -37,6 +39,9 @@ export default function Support() {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [owner, setOwner] = useState("");
   const [pushStatus, setPushStatus] = useState<string | null>(null);
+  const [health, setHealth] = useState<Finding[]>([]);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [healthRunning, setHealthRunning] = useState(false);
 
   const envEntries = Object.entries(import.meta.env).sort();
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
@@ -99,6 +104,30 @@ export default function Support() {
 
   function handleTabChange(key: TabPluginId, value: boolean) {
     setTabs((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function runHealthCheck() {
+    setHealthRunning(true);
+    setHealthError(null);
+    try {
+      const res = await checkPortfolioHealth();
+      setHealth(res.findings);
+    } catch {
+      setHealthError("Failed to run health check");
+      setHealth([]);
+    } finally {
+      setHealthRunning(false);
+    }
+  }
+
+  async function copyReport() {
+    try {
+      await navigator.clipboard.writeText(
+        JSON.stringify(health, null, 2),
+      );
+    } catch {
+      /* ignore */
+    }
   }
 
   async function saveConfig(e: React.FormEvent) {
@@ -285,6 +314,49 @@ export default function Support() {
             })}
           </tbody>
         </table>
+      </section>
+
+      <section className="rounded-lg border p-4 shadow-sm">
+        <h2 className="mb-2 text-xl font-semibold">Portfolio health</h2>
+        <button
+          type="button"
+          onClick={runHealthCheck}
+          disabled={healthRunning}
+          className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+        >
+          Run portfolio health check
+        </button>
+        {healthError && <p role="alert">{healthError}</p>}
+        {health.length > 0 && (
+          <div className="mt-2 space-y-2">
+            <ul>
+              {health.map((f, idx) => (
+                <li
+                  key={idx}
+                  className={
+                    f.level === "error"
+                      ? "text-red-600"
+                      : f.level === "warning"
+                      ? "text-orange-600"
+                      : ""
+                  }
+                >
+                  {f.message}
+                  {f.suggestion && (
+                    <div className="text-sm">{f.suggestion}</div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={copyReport}
+              className="rounded bg-gray-200 px-2 py-1"
+            >
+              Copy report
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="rounded-lg border p-4 shadow-sm">

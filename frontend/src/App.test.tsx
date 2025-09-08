@@ -25,6 +25,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
         getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
         getTimeseries: vi.fn(),
         saveTimeseries: vi.fn(),
@@ -56,6 +57,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
@@ -87,6 +89,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
@@ -121,6 +124,7 @@ describe("App", () => {
         getPortfolio: vi.fn(),
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
         getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
         getCompliance: vi
           .fn()
@@ -194,6 +198,7 @@ describe("App", () => {
         getPortfolio: vi.fn(),
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
         getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
         getCompliance: vi
           .fn()
@@ -269,6 +274,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getCompliance: vi
         .fn()
         .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
@@ -308,6 +314,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getCompliance: vi
         .fn()
         .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
@@ -357,6 +364,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
@@ -407,22 +415,23 @@ describe("App", () => {
   it("renders the user avatar when logged in", async () => {
     window.history.pushState({}, "", "/");
 
-    vi.doMock("./api", () => ({
-      getOwners: vi.fn().mockResolvedValue([]),
-      getGroups: vi.fn().mockResolvedValue([]),
-      getGroupInstruments: vi.fn().mockResolvedValue([]),
-      getPortfolio: vi.fn(),
-      refreshPrices: vi.fn(),
-      getAlerts: vi.fn().mockResolvedValue([]),
-      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
-      getCompliance: vi
-        .fn()
-        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
-      getTimeseries: vi.fn().mockResolvedValue([]),
-      saveTimeseries: vi.fn(),
-      refetchTimeseries: vi.fn(),
-      rebuildTimeseriesCache: vi.fn(),
-    }));
+  vi.doMock("./api", () => ({
+    getOwners: vi.fn().mockResolvedValue([]),
+    getGroups: vi.fn().mockResolvedValue([]),
+    getGroupInstruments: vi.fn().mockResolvedValue([]),
+    getPortfolio: vi.fn(),
+    refreshPrices: vi.fn(),
+    getAlerts: vi.fn().mockResolvedValue([]),
+    getNudges: vi.fn().mockResolvedValue([]),
+    getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+    getCompliance: vi
+      .fn()
+      .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+    getTimeseries: vi.fn().mockResolvedValue([]),
+    saveTimeseries: vi.fn(),
+    refetchTimeseries: vi.fn(),
+    rebuildTimeseriesCache: vi.fn(),
+  }));
 
     const { default: App } = await import("./App");
     const { AuthContext } = await import("./AuthContext");

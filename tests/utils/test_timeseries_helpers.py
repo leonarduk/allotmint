@@ -27,6 +27,7 @@ def test_get_scaling_override_requested():
 
 def test_get_scaling_override_from_json():
     assert th.get_scaling_override("GAMA", "L", None) == 0.01
+    assert th.get_scaling_override("ADM", "L", None) == 0.1
 
 
 def test_get_scaling_override_missing_file(monkeypatch):

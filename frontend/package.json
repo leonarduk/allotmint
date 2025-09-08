@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "prepare": "node -e \"if(require('fs').existsSync('.git')){require('husky').install();}\""
+    "prepare": "node -e \"if(require('fs').existsSync('.git')){require('husky').install();}\"",
+    "deploy:aws": "powershell -ExecutionPolicy Bypass -File scripts/deploy-to-aws.ps1 -BucketName $env:S3_BUCKET -DistributionId $env:CLOUDFRONT_DISTRIBUTION_ID"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.12",

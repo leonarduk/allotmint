@@ -3,24 +3,23 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
-import { getInstrumentDetail, getScreener, getNews, getQuotes } from "../api";
-import type { ScreenerResult, InstrumentDetail, NewsItem, QuoteRow } from "../types";
+import { getScreener, getNews, getQuotes } from "../api";
+import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
 import { largeNumber } from "../lib/money";
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
-  const [detail, setDetail] = useState<InstrumentDetail | null>(null);
   const [metrics, setMetrics] = useState<ScreenerResult | null>(null);
   const [days, setDays] = useState(30);
   const [showBollinger, setShowBollinger] = useState(false);
   const { t } = useTranslation();
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
   const {
-    data: history,
+    data: detail,
     loading: historyLoading,
     error: historyError,
   } = useInstrumentHistory(tkr, days);
-  const historyPrices = history?.[String(days)] ?? [];
+  const historyPrices = detail?.mini?.[String(days)] ?? [];
   const [quote, setQuote] = useState<QuoteRow | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -41,7 +40,6 @@ export default function InstrumentResearch() {
 
   useEffect(() => {
     if (!tkr) return;
-    const detailCtrl = new AbortController();
     const screenerCtrl = new AbortController();
     const newsCtrl = new AbortController();
     setDetailLoading(true);
@@ -90,7 +88,6 @@ export default function InstrumentResearch() {
       })
       .finally(() => setNewsLoading(false));
     return () => {
-      detailCtrl.abort();
       screenerCtrl.abort();
       newsCtrl.abort();
     };

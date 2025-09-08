@@ -46,6 +46,7 @@ export default function InstrumentResearch() {
     const detailCtrl = new AbortController();
     const screenerCtrl = new AbortController();
     const newsCtrl = new AbortController();
+    const quoteCtrl = new AbortController();
     setDetailLoading(true);
     setDetailError(null);
     getInstrumentDetail(tkr, 365, detailCtrl.signal)
@@ -72,11 +73,13 @@ export default function InstrumentResearch() {
 
     setQuoteLoading(true);
     setQuoteError(null);
-    getQuotes([tkr])
+    getQuotes([tkr], quoteCtrl.signal)
       .then((rows) => setQuote(rows[0] || null))
       .catch((err) => {
-        console.error(err);
-        setQuoteError(err.message ?? String(err));
+        if (err.name !== "AbortError") {
+          console.error(err);
+          setQuoteError(err.message ?? String(err));
+        }
       })
       .finally(() => setQuoteLoading(false));
 
@@ -95,6 +98,7 @@ export default function InstrumentResearch() {
       detailCtrl.abort();
       screenerCtrl.abort();
       newsCtrl.abort();
+      quoteCtrl.abort();
     };
   }, [tkr]);
 

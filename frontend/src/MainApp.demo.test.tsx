@@ -23,6 +23,7 @@ describe("MainApp demo view", () => {
       }),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()

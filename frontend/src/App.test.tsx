@@ -56,6 +56,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
@@ -87,6 +88,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
@@ -121,6 +123,7 @@ describe("App", () => {
         getPortfolio: vi.fn(),
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
         getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
         getCompliance: vi
           .fn()
@@ -194,6 +197,7 @@ describe("App", () => {
         getPortfolio: vi.fn(),
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
         getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
         getCompliance: vi
           .fn()
@@ -269,6 +273,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getCompliance: vi
         .fn()
         .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
@@ -308,6 +313,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getCompliance: vi
         .fn()
         .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
@@ -357,6 +363,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
@@ -387,6 +394,7 @@ describe("App", () => {
     const links = within(nav).getAllByRole("link");
     expect(links.map((l) => l.textContent)).toEqual([
       "Group",
+      "Market Overview",
       "Movers",
       "Instrument",
       "Member",
@@ -414,6 +422,7 @@ describe("App", () => {
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()

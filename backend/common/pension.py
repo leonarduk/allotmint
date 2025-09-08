@@ -19,6 +19,28 @@ from typing import Any, Dict, Optional
 DEFAULT_ANNUITY_MULTIPLE = 20  # crude capitalisation proxy
 
 
+def state_pension_age_uk(dob: str) -> int:
+    """Return UK state pension age in years for a given date of birth.
+
+    The schedule is based on currently legislated thresholds and ignores the
+    historic gender differences.  Dates are inclusive of the start and exclusive
+    of the next threshold.
+    """
+
+    try:
+        birth = dt.date.fromisoformat(dob)
+    except ValueError as exc:
+        raise ValueError("Invalid dob") from exc
+
+    if birth < dt.date(1954, 10, 6):
+        return 65
+    if birth < dt.date(1960, 4, 6):
+        return 66
+    if birth < dt.date(1977, 4, 6):
+        return 67
+    return 68
+
+
 def _age_from_dob(
     dob_str: Optional[str], today: Optional[dt.date] = None
 ) -> Optional[float]:

@@ -1,4 +1,5 @@
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from backend import config as config_module
@@ -92,3 +93,27 @@ def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
     cfg = config_module.load_config()
     assert cfg.google_auth_enabled is False
     config_module.config = cfg
+
+
+def test_update_config_merges_ui_section(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("tabs:\n  instrument: true\n")
+
+    monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    config_module.load_config.cache_clear()
+    config_module.config = config_module.load_config()
+
+    client = TestClient(create_app())
+
+    resp = client.put("/config", json={"ui": {"tabs": {"instrument": False}}})
+    assert resp.status_code == 200
+
+    data = yaml.safe_load(config_path.read_text())
+    assert "tabs" not in data
+    assert data["ui"]["tabs"]["instrument"] is False
+
+    config_module.load_config.cache_clear()
+    cfg = config_module.load_config()
+    assert cfg.tabs.instrument is False

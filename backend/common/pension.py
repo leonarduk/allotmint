@@ -33,6 +33,32 @@ def _age_from_dob(
     return (today - dob).days / 365.25
 
 
+def state_pension_age(dob_str: Optional[str]) -> Optional[int]:
+    """Return UK state pension age for a given date of birth.
+
+    The calculation uses current legislated thresholds:
+
+    - DOB before 6 April 1960  -> age 66
+    - DOB before 6 April 1977  -> age 67
+    - DOB on/after 6 April 1977 -> age 68
+
+    Invalid or missing inputs return ``None``.
+    """
+
+    if not dob_str:
+        return None
+    try:
+        dob = dt.date.fromisoformat(dob_str)
+    except ValueError:
+        return None
+
+    if dob < dt.date(1960, 4, 6):
+        return 66
+    if dob < dt.date(1977, 4, 6):
+        return 67
+    return 68
+
+
 def estimate_db_pension_value(
     *,
     annual_income_gbp: float,

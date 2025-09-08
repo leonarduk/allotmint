@@ -55,7 +55,7 @@ function renderPage(config?: Partial<ConfigContextValue>) {
     tabs: { ...defaultConfig.tabs, ...(config?.tabs ?? {}) },
     disabledTabs: config?.disabledTabs ?? defaultConfig.disabledTabs,
   };
-  render(
+  return render(
     <configContext.Provider value={value}>
       <MemoryRouter initialEntries={["/research/AAA"]}>
         <Routes>
@@ -184,6 +184,32 @@ describe("InstrumentResearch page", () => {
     expect(
       screen.queryByRole("link", { name: /Watchlist/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("skips state updates when unmounted", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: null,
+      positions: [],
+    } as InstrumentDetail);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+
+    let rejectQuotes: (err: unknown) => void;
+    const quotesPromise = new Promise<QuoteRow[]>((_, rej) => {
+      rejectQuotes = rej;
+    });
+    mockGetQuotes.mockImplementation((_symbols, signal) => {
+      signal.addEventListener("abort", () =>
+        rejectQuotes(new DOMException("Aborted", "AbortError")),
+      );
+      return quotesPromise;
+    });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { unmount } = renderPage();
+    unmount();
+    await quotesPromise.catch(() => {});
+    expect(errSpy).not.toHaveBeenCalled();
   });
 });
 

@@ -3,8 +3,13 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
-import { getScreener, getNews, getQuotes } from "../api";
-import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
+import { getScreener, getNews, getQuotes, getInstrumentDetail } from "../api";
+import type {
+  ScreenerResult,
+  NewsItem,
+  QuoteRow,
+  InstrumentDetail,
+} from "../types";
 import { largeNumber } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 
@@ -17,11 +22,12 @@ export default function InstrumentResearch() {
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
   const { tabs, disabledTabs } = useConfig();
   const {
-    data: detail,
+    data: historyDetail,
     loading: historyLoading,
     error: historyError,
   } = useInstrumentHistory(tkr, days);
-  const historyPrices = detail?.mini?.[String(days)] ?? [];
+  const historyPrices = historyDetail?.mini?.[String(days)] ?? [];
+  const [detail, setDetail] = useState<InstrumentDetail | null>(null);
   const [quote, setQuote] = useState<QuoteRow | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -42,7 +48,9 @@ export default function InstrumentResearch() {
 
   useEffect(() => {
     if (!tkr) return;
+    const detailCtrl = new AbortController();
     const screenerCtrl = new AbortController();
+    const quoteCtrl = new AbortController();
     const newsCtrl = new AbortController();
     setDetailLoading(true);
     setDetailError(null);
@@ -70,11 +78,13 @@ export default function InstrumentResearch() {
 
     setQuoteLoading(true);
     setQuoteError(null);
-    getQuotes([tkr])
+    getQuotes([tkr], quoteCtrl.signal)
       .then((rows) => setQuote(rows[0] || null))
       .catch((err) => {
-        console.error(err);
-        setQuoteError(err.message ?? String(err));
+        if (err.name !== "AbortError") {
+          console.error(err);
+          setQuoteError(err.message ?? String(err));
+        }
       })
       .finally(() => setQuoteLoading(false));
 
@@ -90,7 +100,9 @@ export default function InstrumentResearch() {
       })
       .finally(() => setNewsLoading(false));
     return () => {
+      detailCtrl.abort();
       screenerCtrl.abort();
+      quoteCtrl.abort();
       newsCtrl.abort();
     };
   }, [tkr]);

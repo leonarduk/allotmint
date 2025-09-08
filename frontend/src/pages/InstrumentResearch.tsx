@@ -3,8 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
-import { getScreener, getNews, getQuotes, getInstrumentDetail } from "../api";
-import type { ScreenerResult, NewsItem, QuoteRow, InstrumentDetail } from "../types";
+import { getScreener, getNews, getQuotes } from "../api";
+import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
 import { largeNumber } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 
@@ -17,16 +17,13 @@ export default function InstrumentResearch() {
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
   const { tabs, disabledTabs } = useConfig();
   const {
-    data: history,
-    loading: historyLoading,
-    error: historyError,
+    data: detail,
+    loading: detailLoading,
+    error: detailError,
   } = useInstrumentHistory(tkr, days);
-  const historyPrices = history?.mini?.[String(days)] ?? [];
+  const historyPrices = detail?.mini?.[String(days)] ?? [];
   const [quote, setQuote] = useState<QuoteRow | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [detail, setDetail] = useState<InstrumentDetail | null>(null);
   const [screenerLoading, setScreenerLoading] = useState(false);
   const [screenerError, setScreenerError] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -43,21 +40,9 @@ export default function InstrumentResearch() {
 
   useEffect(() => {
     if (!tkr) return;
-    const detailCtrl = new AbortController();
     const screenerCtrl = new AbortController();
     const newsCtrl = new AbortController();
     const quoteCtrl = new AbortController();
-    setDetailLoading(true);
-    setDetailError(null);
-    getInstrumentDetail(tkr, 365, detailCtrl.signal)
-      .then(setDetail)
-      .catch((err) => {
-        if (err.name !== "AbortError") {
-          console.error(err);
-          setDetailError(err.message ?? String(err));
-        }
-      })
-      .finally(() => setDetailLoading(false));
 
     setScreenerLoading(true);
     setScreenerError(null);
@@ -95,7 +80,6 @@ export default function InstrumentResearch() {
       })
       .finally(() => setNewsLoading(false));
     return () => {
-      detailCtrl.abort();
       screenerCtrl.abort();
       newsCtrl.abort();
       quoteCtrl.abort();
@@ -172,7 +156,7 @@ export default function InstrumentResearch() {
           {t("instrumentDetail.bollingerBands")}
         </label>
       </div>
-      {historyError && !historyLoading ? (
+      {detailError && !detailLoading ? (
         <div
           style={{
             height: 220,
@@ -186,7 +170,7 @@ export default function InstrumentResearch() {
       ) : (
         <InstrumentHistoryChart
           data={historyPrices}
-          loading={historyLoading}
+          loading={detailLoading}
           showBollinger={showBollinger}
         />
       )}
@@ -371,7 +355,7 @@ export default function InstrumentResearch() {
       {detailLoading ? (
         <div>Loading instrument details...</div>
       ) : detailError ? (
-        <div>{detailError}</div>
+        <div>{detailError.message}</div>
       ) : (
         detail && detail.positions && detail.positions.length > 0 && (
           <div>

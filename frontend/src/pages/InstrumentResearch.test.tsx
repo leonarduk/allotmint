@@ -6,12 +6,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "./InstrumentResearch";
-import type { InstrumentDetail, ScreenerResult, NewsItem, QuoteRow } from "../types";
+import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import * as api from "../api";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
 
-const mockGetInstrumentDetail = vi.spyOn(api, "getInstrumentDetail");
 const mockGetScreener = vi.spyOn(api, "getScreener");
 const mockGetQuotes = vi.spyOn(api, "getQuotes");
 const mockGetNews = vi.spyOn(api, "getNews");
@@ -71,24 +70,18 @@ function renderPage(config?: Partial<ConfigContextValue>) {
 
 describe("InstrumentResearch page", () => {
   beforeEach(() => {
+    mockUseInstrumentHistory.mockReset();
     mockUseInstrumentHistory.mockReturnValue({
-      data: { "30": [] },
+      data: { mini: { "30": [] }, positions: [] },
       loading: false,
       error: null,
     } as any);
   });
 
   it("shows loading indicators while fetching data", async () => {
-    let detailResolve: (v: InstrumentDetail) => void;
     let screenerResolve: (v: ScreenerResult[]) => void;
     let quotesResolve: (v: QuoteRow[]) => void;
     let newsResolve: (v: NewsItem[]) => void;
-
-    mockGetInstrumentDetail.mockReturnValueOnce(
-      new Promise((res) => {
-        detailResolve = res;
-      }) as Promise<InstrumentDetail>,
-    );
     mockGetScreener.mockReturnValueOnce(
       new Promise((res) => {
         screenerResolve = res;
@@ -107,12 +100,10 @@ describe("InstrumentResearch page", () => {
 
     renderPage();
 
-    expect(screen.getByText(/Loading instrument details/i)).toBeInTheDocument();
     expect(screen.getByText(/Loading metrics/i)).toBeInTheDocument();
     expect(screen.getByText(/Loading quote/i)).toBeInTheDocument();
     expect(screen.getByText(/Loading news/i)).toBeInTheDocument();
 
-    detailResolve!({ prices: null, positions: [] } as InstrumentDetail);
     screenerResolve!([
       { rank: 1, ticker: "AAA" } as unknown as ScreenerResult,
     ]);
@@ -138,7 +129,11 @@ describe("InstrumentResearch page", () => {
   });
 
   it("renders error messages when requests fail", async () => {
-    mockGetInstrumentDetail.mockRejectedValueOnce(new Error("detail fail"));
+    mockUseInstrumentHistory.mockReturnValue({
+      data: null,
+      loading: false,
+      error: new Error("detail fail"),
+    } as any);
     mockGetScreener.mockRejectedValueOnce(new Error("screener fail"));
     mockGetQuotes.mockRejectedValueOnce(new Error("quotes fail"));
     mockGetNews.mockRejectedValueOnce(new Error("news fail"));
@@ -152,7 +147,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("navigates to screener when link clicked", async () => {
-    mockGetInstrumentDetail.mockResolvedValue({ prices: null, positions: [] } as InstrumentDetail);
     mockGetScreener.mockResolvedValue([]);
     mockGetQuotes.mockResolvedValue([]);
     mockGetNews.mockResolvedValue([]);
@@ -163,7 +157,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("navigates to watchlist when link clicked", async () => {
-    mockGetInstrumentDetail.mockResolvedValue({ prices: null, positions: [] } as InstrumentDetail);
     mockGetScreener.mockResolvedValue([]);
     mockGetQuotes.mockResolvedValue([]);
     mockGetNews.mockResolvedValue([]);
@@ -187,9 +180,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("shows instrument name and additional metrics", async () => {
-    mockGetInstrumentDetail.mockResolvedValue(
-      { prices: null, positions: [] } as InstrumentDetail,
-    );
     mockGetScreener.mockResolvedValue([
       { rank: 1, ticker: "AAA", name: "Acme Corp" } as unknown as ScreenerResult,
     ]);
@@ -237,10 +227,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("skips state updates when unmounted", async () => {
-    mockGetInstrumentDetail.mockResolvedValue({
-      prices: null,
-      positions: [],
-    } as InstrumentDetail);
     mockGetScreener.mockResolvedValue([]);
     mockGetNews.mockResolvedValue([]);
 

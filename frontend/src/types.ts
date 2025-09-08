@@ -202,6 +202,17 @@ export interface NewsItem {
     url: string;
 }
 
+export interface SectorPerformance {
+    sector: string;
+    change: number;
+}
+
+export interface MarketOverview {
+    indexes: Record<string, number>;
+    sectors: SectorPerformance[];
+    headlines: NewsItem[];
+}
+
 export interface InstrumentPosition {
     owner: string;
     account: string;

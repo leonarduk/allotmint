@@ -183,8 +183,15 @@ def apply_historical_event(
     if baseline == 0.0:
         baseline = sum(float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", []))
 
-    proxy_tkr, proxy_ex = _parse_full_ticker(getattr(event, "proxy", ""))
-    proxy_returns = _forward_returns(proxy_tkr, proxy_ex, event.date)
+    proxy_val = getattr(event, "proxy", None)
+    if proxy_val is None and isinstance(event, dict):
+        proxy_val = event.get("proxy_index")
+    proxy_tkr, proxy_ex = _parse_full_ticker(proxy_val or "")
+
+    event_date = getattr(event, "date", None)
+    if event_date is None and isinstance(event, dict):
+        event_date = event.get("date")
+    proxy_returns = _forward_returns(proxy_tkr, proxy_ex, event_date)
 
     totals = {k: 0.0 for k in _HORIZONS}
     cache: Dict[str, Dict[str, float | None]] = {}
@@ -197,7 +204,7 @@ def apply_historical_event(
             tkr, ex = _parse_full_ticker(full)
             key = f"{tkr}.{ex}"
             if key not in cache:
-                cache[key] = _forward_returns(tkr, ex, event.date)
+                cache[key] = _forward_returns(tkr, ex, event_date)
             rets = cache[key]
             for label in _HORIZONS:
                 r = rets.get(label)
@@ -215,7 +222,6 @@ def apply_historical_event(
             "delta_gbp": round(total - baseline, 2),
         }
     return result
-
 
 
 def _parse_date(val: Any) -> dt.date:
@@ -275,7 +281,7 @@ def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int
         return None
 
 
-def apply_historical_event(
+def apply_historical_returns(
     portfolio: Dict[str, Any],
     event: Dict[str, Any] | None = None,
     *,

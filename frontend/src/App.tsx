@@ -32,6 +32,7 @@ import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { TimeseriesEdit } from "./pages/TimeseriesEdit";
 import Watchlist from "./pages/Watchlist";
 import TopMovers from "./pages/TopMovers";
+import MarketOverview from "./pages/MarketOverview";
 import Trading from "./pages/Trading";
 import { useConfig } from "./ConfigContext";
 import DataAdmin from "./pages/DataAdmin";
@@ -81,6 +82,8 @@ const initialMode: Mode =
     ? "allocation"
     : path[0] === "rebalance"
     ? "rebalance"
+    : path[0] === "market"
+    ? "market"
     : path[0] === "movers"
     ? "movers"
     : path[0] === "instrumentadmin"
@@ -184,6 +187,9 @@ export default function App({ onLogout }: AppProps) {
         break;
       case "rebalance":
         newMode = "rebalance";
+        break;
+      case "market":
+        newMode = "market";
         break;
       case "movers":
         newMode = "movers";
@@ -464,6 +470,7 @@ export default function App({ onLogout }: AppProps) {
       {mode === "watchlist" && <Watchlist />}
       {mode === "allocation" && <AllocationCharts />}
       {mode === "rebalance" && <Rebalance />}
+      {mode === "market" && <MarketOverview />}
       {mode === "movers" && <TopMovers />}
       {mode === "reports" && <Reports />}
       {mode === "support" && <Support />}

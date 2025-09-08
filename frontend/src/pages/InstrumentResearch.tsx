@@ -3,8 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
-import { getScreener, getNews, getQuotes } from "../api";
-import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
+import { getScreener, getNews, getQuotes, getInstrumentDetail } from "../api";
+import type { ScreenerResult, NewsItem, QuoteRow, InstrumentDetail } from "../types";
 import { largeNumber } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 
@@ -17,15 +17,16 @@ export default function InstrumentResearch() {
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
   const { tabs, disabledTabs } = useConfig();
   const {
-    data: detail,
+    data: history,
     loading: historyLoading,
     error: historyError,
   } = useInstrumentHistory(tkr, days);
-  const historyPrices = detail?.mini?.[String(days)] ?? [];
+  const historyPrices = history?.mini?.[String(days)] ?? [];
   const [quote, setQuote] = useState<QuoteRow | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<InstrumentDetail | null>(null);
   const [screenerLoading, setScreenerLoading] = useState(false);
   const [screenerError, setScreenerError] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -42,6 +43,7 @@ export default function InstrumentResearch() {
 
   useEffect(() => {
     if (!tkr) return;
+    const detailCtrl = new AbortController();
     const screenerCtrl = new AbortController();
     const newsCtrl = new AbortController();
     setDetailLoading(true);
@@ -90,6 +92,7 @@ export default function InstrumentResearch() {
       })
       .finally(() => setNewsLoading(false));
     return () => {
+      detailCtrl.abort();
       screenerCtrl.abort();
       newsCtrl.abort();
     };
@@ -124,7 +127,14 @@ export default function InstrumentResearch() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <h1 style={{ marginBottom: "1rem" }}>{tkr}</h1>
+      <h1 style={{ marginBottom: "1rem" }}>
+        {tkr}
+        {metrics?.name
+          ? ` - ${metrics.name}`
+          : quote?.name
+          ? ` - ${quote.name}`
+          : ""}
+      </h1>
       <div style={{ marginBottom: "1rem" }}>
         {tabs.screener && !disabledTabs.includes("screener") && (
           <Link to="/screener" style={{ marginRight: "1rem" }}>
@@ -273,6 +283,82 @@ export default function InstrumentResearch() {
                   Avg Volume
                 </th>
                 <td>{largeNumber(metrics.avg_volume)}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  Interest Coverage
+                </th>
+                <td>{metrics.interest_coverage ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  Current Ratio
+                </th>
+                <td>{metrics.current_ratio ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  Quick Ratio
+                </th>
+                <td>{metrics.quick_ratio ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>FCF</th>
+                <td>{largeNumber(metrics.fcf)}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  Gross Margin
+                </th>
+                <td>{metrics.gross_margin ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  Operating Margin
+                </th>
+                <td>{metrics.operating_margin ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  Net Margin
+                </th>
+                <td>{metrics.net_margin ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  EBITDA Margin
+                </th>
+                <td>{metrics.ebitda_margin ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>ROA</th>
+                <td>{metrics.roa ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>ROE</th>
+                <td>{metrics.roe ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>ROI</th>
+                <td>{metrics.roi ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  Dividend Payout Ratio
+                </th>
+                <td>{metrics.dividend_payout_ratio ?? "—"}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  Shares Outstanding
+                </th>
+                <td>{largeNumber(metrics.shares_outstanding)}</td>
+              </tr>
+              <tr>
+                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                  Float Shares
+                </th>
+                <td>{largeNumber(metrics.float_shares)}</td>
               </tr>
             </tbody>
           </table>

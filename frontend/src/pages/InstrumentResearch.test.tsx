@@ -185,5 +185,55 @@ describe("InstrumentResearch page", () => {
       screen.queryByRole("link", { name: /Watchlist/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("shows instrument name and additional metrics", async () => {
+    mockGetInstrumentDetail.mockResolvedValue(
+      { prices: null, positions: [] } as InstrumentDetail,
+    );
+    mockGetScreener.mockResolvedValue([
+      { rank: 1, ticker: "AAA", name: "Acme Corp" } as unknown as ScreenerResult,
+    ]);
+    mockGetQuotes.mockResolvedValue([
+      {
+        name: "Acme Corp",
+        symbol: "AAA",
+        last: 100,
+        open: null,
+        high: null,
+        low: null,
+        change: null,
+        changePct: null,
+        volume: null,
+        marketTime: null,
+        marketState: "REGULAR",
+      } as QuoteRow,
+    ]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+
+    expect(
+      await screen.findByRole("heading", { level: 1 })
+    ).toHaveTextContent("AAA - Acme Corp");
+
+    const expected = [
+      "Interest Coverage",
+      "Current Ratio",
+      "Quick Ratio",
+      "FCF",
+      "Gross Margin",
+      "Operating Margin",
+      "Net Margin",
+      "EBITDA Margin",
+      "ROA",
+      "ROE",
+      "ROI",
+      "Dividend Payout Ratio",
+      "Shares Outstanding",
+      "Float Shares",
+    ];
+    for (const heading of expected) {
+      expect(screen.getByText(heading)).toBeInTheDocument();
+    }
+  });
 });
 

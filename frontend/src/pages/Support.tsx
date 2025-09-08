@@ -115,21 +115,27 @@ export default function Support() {
     e.preventDefault();
     setConfigStatus("saving");
     const payload: Record<string, unknown> = {};
+    const ui: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(config)) {
       if (k === "tabs") continue; // rebuilt from toggle state
+      let parsed: unknown = v;
       if (typeof v === "string") {
-        let parsed: unknown = v;
         try {
           parsed = JSON.parse(v);
         } catch {
           /* keep as string */
         }
-        payload[k] = parsed;
+      }
+      if (k === "relative_view_enabled" || k === "theme") {
+        ui[k] = parsed;
       } else {
-        payload[k] = v;
+        payload[k] = parsed;
       }
     }
-    payload.tabs = { ...tabs };
+    ui.tabs = { ...tabs };
+    if (Object.keys(ui).length) {
+      payload.ui = ui;
+    }
     try {
       await updateConfig(payload);
       await refreshConfig();

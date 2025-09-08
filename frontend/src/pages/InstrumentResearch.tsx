@@ -88,9 +88,14 @@ export default function InstrumentResearch() {
 
   if (!tkr) return <div>Invalid ticker</div>;
 
+  const displayName = metrics?.name || detail?.name;
+
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <h1 style={{ marginBottom: "1rem" }}>{tkr}</h1>
+      <h1 style={{ marginBottom: "1rem" }}>
+        {tkr}
+        {displayName ? ` – ${displayName}` : ""}
+      </h1>
       <div style={{ marginBottom: "1rem" }}>
         <Link to="/screener" style={{ marginRight: "1rem" }}>
           View Screener
@@ -196,20 +201,76 @@ export default function InstrumentResearch() {
               <td>{metrics.lt_de_ratio ?? "—"}</td>
             </tr>
             <tr>
-              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Market Cap</th>
-              <td>{largeNumber(metrics.market_cap)}</td>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Interest Coverage</th>
+              <td>{metrics.interest_coverage ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Current Ratio</th>
+              <td>{metrics.current_ratio ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Quick Ratio</th>
+              <td>{metrics.quick_ratio ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Free Cash Flow</th>
+              <td>{largeNumber(metrics.fcf)}</td>
             </tr>
             <tr>
               <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>EPS</th>
               <td>{metrics.eps ?? "—"}</td>
             </tr>
             <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Gross Margin</th>
+              <td>{metrics.gross_margin ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Operating Margin</th>
+              <td>{metrics.operating_margin ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Net Margin</th>
+              <td>{metrics.net_margin ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>EBITDA Margin</th>
+              <td>{metrics.ebitda_margin ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>ROA</th>
+              <td>{metrics.roa ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>ROE</th>
+              <td>{metrics.roe ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>ROI</th>
+              <td>{metrics.roi ?? "—"}</td>
+            </tr>
+            <tr>
               <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Dividend Yield</th>
               <td>{metrics.dividend_yield ?? "—"}</td>
             </tr>
             <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Dividend Payout Ratio</th>
+              <td>{metrics.dividend_payout_ratio ?? "—"}</td>
+            </tr>
+            <tr>
               <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Beta</th>
               <td>{metrics.beta ?? "—"}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Shares Outstanding</th>
+              <td>{largeNumber(metrics.shares_outstanding)}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Float Shares</th>
+              <td>{largeNumber(metrics.float_shares)}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Market Cap</th>
+              <td>{largeNumber(metrics.market_cap)}</td>
             </tr>
             <tr>
               <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Avg Volume</th>

@@ -30,6 +30,7 @@ describe("App", () => {
         saveTimeseries: vi.fn(),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
+        getNudges: vi.fn().mockResolvedValue([]),
       }));
 
     const { default: App } = await import("./App");
@@ -64,6 +65,7 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      getNudges: vi.fn().mockResolvedValue([]),
     }));
 
     const { default: App } = await import("./App");
@@ -96,6 +98,7 @@ describe("App", () => {
       listTimeseries: vi.fn().mockResolvedValue([]),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      getNudges: vi.fn().mockResolvedValue([]),
     }));
 
     const { default: App } = await import("./App");
@@ -134,6 +137,7 @@ describe("App", () => {
         listTimeseries: vi.fn().mockResolvedValue([]),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
+        getNudges: vi.fn().mockResolvedValue([]),
       }));
 
     const { default: App } = await import("./App");
@@ -208,6 +212,7 @@ describe("App", () => {
         listTimeseries: vi.fn().mockResolvedValue([]),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
+        getNudges: vi.fn().mockResolvedValue([]),
       }));
 
     const { default: App } = await import("./App");
@@ -282,6 +287,7 @@ describe("App", () => {
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       getTradingSignals: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getNudges: vi.fn().mockResolvedValue([]),
     }));
 
     const { default: App } = await import("./App");
@@ -321,6 +327,7 @@ describe("App", () => {
       getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
       getTradingSignals: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getNudges: vi.fn().mockResolvedValue([]),
     }));
 
     const { default: App } = await import("./App");
@@ -369,6 +376,7 @@ describe("App", () => {
       listTimeseries: vi.fn().mockResolvedValue([]),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      getNudges: vi.fn().mockResolvedValue([]),
     }));
 
     const { default: App } = await import("./App");
@@ -422,6 +430,7 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      getNudges: vi.fn().mockResolvedValue([]),
     }));
 
     const { default: App } = await import("./App");

@@ -33,6 +33,7 @@ describe("MainApp demo view", () => {
       saveTimeseries: vi.fn(),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      getNudges: vi.fn().mockResolvedValue([]),
     }));
 
     const { default: MainApp } = await import("./MainApp");

@@ -26,6 +26,7 @@ vi.mock("../api", () => ({
   getTradingSignals: vi.fn().mockResolvedValue([]),
   getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
   listTimeseries: vi.fn().mockResolvedValue([]),
+  getNudges: vi.fn().mockResolvedValue([]),
 }));
 
 describe("Reports page", () => {

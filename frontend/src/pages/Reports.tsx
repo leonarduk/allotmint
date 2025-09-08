@@ -7,12 +7,16 @@ import { OwnerSelector } from "../components/OwnerSelector";
 export default function Reports() {
   const { t } = useTranslation();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const [ownersLoaded, setOwnersLoaded] = useState(false);
   const [owner, setOwner] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
 
   useEffect(() => {
-    getOwners().then(setOwners).catch(() => setOwners([]));
+    getOwners()
+      .then(setOwners)
+      .catch(() => setOwners([]))
+      .finally(() => setOwnersLoaded(true));
   }, []);
 
   const baseUrl = owner ? `${API_BASE}/reports/${owner}` : null;
@@ -24,7 +28,11 @@ export default function Reports() {
   return (
     <div className="container mx-auto p-4 max-w-3xl">
       <h1 className="mb-4 text-2xl md:text-4xl">{t("reports.title")}</h1>
-      <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
+      {ownersLoaded && owners.length === 0 ? (
+        <p>{t("reports.noOwners")}</p>
+      ) : (
+        <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
+      )}
       <div className="my-4">
         <label className="mr-2">
           {t("query.start")}:{" "}

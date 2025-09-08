@@ -196,7 +196,8 @@
   "reports": {
     "title": "Informes",
     "csv": "Descargar CSV",
-    "pdf": "Descargar PDF"
+    "pdf": "Descargar PDF",
+    "noOwners": "No owners available—check backend connection"
   },
   "loadingPortfolio": "Cargando portafolio…",
   "portfolio": "Portafolio",

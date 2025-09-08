@@ -196,7 +196,8 @@
   "reports": {
     "title": "Berichte",
     "csv": "CSV herunterladen",
-    "pdf": "PDF herunterladen"
+    "pdf": "PDF herunterladen",
+    "noOwners": "No owners available—check backend connection"
   },
   "loadingPortfolio": "Portfolio wird geladen…",
   "portfolio": "Portfolio",

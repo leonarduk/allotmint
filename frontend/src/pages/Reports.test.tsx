@@ -28,6 +28,29 @@ vi.mock("../api", () => ({
   listTimeseries: vi.fn().mockResolvedValue([]),
 }));
 
+const allTabs = {
+  group: true,
+  owner: true,
+  instrument: true,
+  performance: true,
+  transactions: true,
+  trading: true,
+  screener: true,
+  timeseries: true,
+  watchlist: true,
+  allocation: true,
+  movers: true,
+  instrumentadmin: true,
+  dataadmin: true,
+  virtual: true,
+  support: true,
+  settings: true,
+  profile: true,
+  reports: true,
+  scenario: true,
+  logs: true,
+};
+
 describe("Reports page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,29 +62,6 @@ describe("Reports page", () => {
 
     window.history.pushState({}, "", "/reports");
     const { default: Reports } = await import("./Reports");
-
-    const allTabs = {
-      group: true,
-      owner: true,
-      instrument: true,
-      performance: true,
-      transactions: true,
-      trading: true,
-      screener: true,
-      timeseries: true,
-      watchlist: true,
-      allocation: true,
-      movers: true,
-      instrumentadmin: true,
-      dataadmin: true,
-      virtual: true,
-      support: true,
-      settings: true,
-      profile: true,
-      reports: true,
-      scenario: true,
-      logs: true,
-    };
 
     render(
       <configContext.Provider
@@ -90,6 +90,39 @@ describe("Reports page", () => {
       "href",
       expect.stringContaining("/reports/alex")
     );
+  });
+
+  it("shows message when no owners", async () => {
+    mockGetOwners.mockResolvedValue([]);
+    mockGetGroups.mockResolvedValue([]);
+
+    window.history.pushState({}, "", "/reports");
+    const { default: Reports } = await import("./Reports");
+
+    render(
+      <configContext.Provider
+        value={{
+          theme: "system",
+          relativeViewEnabled: false,
+          tabs: allTabs,
+          disabledTabs: [],
+          refreshConfig: vi.fn(),
+          setRelativeViewEnabled: () => {},
+          baseCurrency: "GBP",
+          setBaseCurrency: () => {},
+        }}
+      >
+        <MemoryRouter initialEntries={["/reports"]}>
+          <Reports />
+        </MemoryRouter>
+      </configContext.Provider>
+    );
+
+    const message = await screen.findByText(
+      /No owners available—check backend connection/i
+    );
+    expect(message).toBeInTheDocument();
+    expect(screen.queryByLabelText(/owner/i)).not.toBeInTheDocument();
   });
 });
 

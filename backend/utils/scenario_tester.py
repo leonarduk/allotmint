@@ -98,10 +98,19 @@ _HORIZONS: Dict[str, int] = {
 
 
 def _parse_full_ticker(full: str | Dict[str, str]) -> tuple[str, str]:
+    """Split a ticker/exchange combination into its components.
+
+    ``full`` can either be a mapping containing ``ticker`` and ``exchange``
+    keys or a string in the format ``"SYMBOL.EXCH"``.  The return value is a
+    2-tuple of ``(ticker, exchange)`` with the exchange defaulting to ``"L"``
+    (London) when not provided.
+    """
+
     if isinstance(full, dict):
         ticker = (full.get("ticker") or "").upper()
         exch = (full.get("exchange") or "L").upper()
         return ticker, exch
+
     parts = (full or "").upper().split(".", 1)
     if len(parts) == 2:
         return parts[0], parts[1]
@@ -257,9 +266,17 @@ def apply_historical_returns(
 
     start = _parse_date(event.get("date"))
     horizons = list(horizons or event.get("horizons") or [5])
-    proxy = event.get("proxy_index") or {}
-    proxy_ticker = proxy.get("ticker")
-    proxy_exchange = proxy.get("exchange")
+
+    # ``proxy_index`` may be provided either as a dict with ``ticker`` and
+    # ``exchange`` keys or as a single string like ``"SPY.N"``.  The previous
+    # implementation assumed a mapping which caused an ``AttributeError`` when a
+    # string was supplied.  By funnelling the value through
+    # ``_parse_full_ticker`` we transparently support both forms and keep the
+    # rest of the code agnostic to the input type.
+    proxy_val = event.get("proxy_index")
+    proxy_ticker, proxy_exchange = (None, None)
+    if proxy_val:
+        proxy_ticker, proxy_exchange = _parse_full_ticker(proxy_val)
 
     results: Dict[str, Dict[int, float | None]] = {}
 

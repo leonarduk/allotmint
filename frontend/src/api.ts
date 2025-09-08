@@ -94,7 +94,10 @@ export async function fetchJson<T>(
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
   const res = await fetch(url, { ...init, headers });
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
+    const err = new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
+    (err as any).status = res.status;
+    (err as any).headers = res.headers;
+    throw err;
   }
   return res.json() as Promise<T>;
 }
@@ -452,6 +455,66 @@ export const getInstrumentDetail = (
     )}&days=${days}&format=json`,
     { signal },
   );
+
+/**
+ * Wrapper around {@link getInstrumentDetail} with basic retry logic for rate limits.
+ * Retries up to `maxAttempts` times on HTTP 429 responses using exponential
+ * backoff. If the server provides a `Retry-After` header it takes precedence.
+ */
+export async function fetchInstrumentDetailWithRetry(
+  ticker: string,
+  days = 365,
+  signal?: AbortSignal,
+  maxAttempts = 3,
+): Promise<InstrumentDetail> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await getInstrumentDetail(ticker, days, signal);
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      const status = (err as any).status;
+      if (status !== 429 && !err.message.includes("HTTP 429")) {
+        throw err;
+      }
+      if (attempt === maxAttempts - 1) {
+        throw err;
+      }
+
+      // Prefer server-provided Retry-After header over exponential backoff
+      let delay: number | undefined;
+      const retryAfter =
+        (err as any).headers?.get?.("Retry-After") ??
+        (err as any).response?.headers?.get?.("Retry-After");
+      if (retryAfter) {
+        const seconds = Number(retryAfter);
+        if (!Number.isNaN(seconds)) {
+          delay = seconds * 1000;
+        } else {
+          const dateMs = Date.parse(retryAfter);
+          if (!Number.isNaN(dateMs)) delay = dateMs - Date.now();
+        }
+      }
+      if (delay == null || delay <= 0) {
+        delay = 500 * 2 ** attempt;
+      }
+      delay += Math.random() * 100;
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(resolve, delay);
+        signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timeout);
+            reject(new DOMException("Aborted", "AbortError"));
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+  // If all retries exhausted without success
+  throw new Error("HTTP 429 – Too Many Requests");
+}
 
 
 export const getTimeseries = (ticker: string, exchange = "L") =>

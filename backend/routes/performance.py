@@ -120,3 +120,15 @@ async def performance(owner: str, days: int = 365, exclude_cash: bool = False):
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
     return {"owner": owner, **result}
+
+
+@router.get("/returns/compare")
+@handle_owner_not_found
+async def compare_returns(owner: str, days: int = 365):
+    """Return portfolio CAGR and cash APY for ``owner``."""
+    try:
+        cagr = portfolio_utils.compute_cagr(owner, days)
+        cash_apy = portfolio_utils.compute_cash_apy(owner, days)
+        return {"owner": owner, "cagr": cagr, "cash_apy": cash_apy}
+    except FileNotFoundError:
+        raise_owner_not_found()

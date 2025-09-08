@@ -183,6 +183,12 @@ export interface MaxDrawdownResponse {
     max_drawdown: number | null;
 };
 
+export interface ReturnComparisonResponse {
+    owner: string;
+    cagr: number | null;
+    cash_apy: number | null;
+}
+
 export interface InstrumentDetailMini {
     [range: string]: {
         date: string;
@@ -194,6 +200,17 @@ export interface InstrumentDetailMini {
 export interface NewsItem {
     headline: string;
     url: string;
+}
+
+export interface SectorPerformance {
+    sector: string;
+    change: number;
+}
+
+export interface MarketOverview {
+    indexes: Record<string, number>;
+    sectors: SectorPerformance[];
+    headlines: NewsItem[];
 }
 
 export interface InstrumentPosition {
@@ -298,6 +315,12 @@ export type Alert = {
     timestamp: string;
 };
 
+export type Nudge = {
+    id: string;
+    message: string;
+    timestamp: string;
+};
+
 export interface ScenarioEvent {
     id: string;
     name: string;
@@ -323,6 +346,7 @@ export type ComplianceResult = {
 };
 
 export interface ScreenerResult {
+    rank: number;
     ticker: string;
     name?: string | null;
     peg_ratio: number | null;
@@ -371,6 +395,8 @@ export interface TradingSignal {
     name: string;
     action: "buy" | "sell";
     reason: string;
+    confidence?: number;
+    rationale?: string;
     currency?: string | null;
     instrument_type?: string | null;
 }

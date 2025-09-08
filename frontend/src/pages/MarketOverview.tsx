@@ -1,0 +1,97 @@
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { getMarketOverview } from "../api";
+import type { MarketOverview as MarketOverviewData } from "../types";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from "recharts";
+
+export default function MarketOverview() {
+  const { t } = useTranslation();
+  const [data, setData] = useState<MarketOverviewData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getMarketOverview()
+      .then(setData)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p>{t("common.loading")}</p>;
+  if (error) return <p className="text-red-500">{error}</p>;
+  if (!data) return null;
+
+  const indexData = Object.entries(data.indexes).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="mb-4 text-2xl">
+        {t("app.modes.market", { defaultValue: "Market Overview" })}
+      </h1>
+
+      <div className="mb-8">
+        <h2 className="mb-2 text-xl">
+          {t("market.indexLevels", { defaultValue: "Index Levels" })}
+        </h2>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={indexData}>
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip />
+            <Bar dataKey="value" fill="#8884d8" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mb-8">
+        <h2 className="mb-2 text-xl">
+          {t("market.sectorPerformance", { defaultValue: "Sector Performance" })}
+        </h2>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.sectors}>
+            <XAxis
+              dataKey="sector"
+              interval={0}
+              angle={-45}
+              textAnchor="end"
+              height={100}
+            />
+            <YAxis />
+            <Tooltip />
+            <Bar dataKey="change" fill="#82ca9d" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-xl">
+          {t("market.latestHeadlines", { defaultValue: "Latest Headlines" })}
+        </h2>
+        <ul className="list-disc pl-4">
+          {data.headlines.map((h, idx) => (
+            <li key={idx}>
+              <a
+                href={h.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
+              >
+                {h.headline}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}

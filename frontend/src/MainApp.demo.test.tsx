@@ -28,6 +28,7 @@ describe("MainApp demo view", () => {
         .fn()
         .mockResolvedValue({ owner: "demo", warnings: [], trade_counts: {} }),
       getTradingSignals: vi.fn().mockResolvedValue([]),
+      getQuests: vi.fn().mockResolvedValue({ quests: [] }),
       getTimeseries: vi.fn(),
       saveTimeseries: vi.fn(),
       refetchTimeseries: vi.fn(),

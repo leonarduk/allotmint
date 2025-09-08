@@ -14,7 +14,11 @@ export default function PensionForecast() {
   const [retirementAge, setRetirementAge] = useState(65);
   const [deathAge, setDeathAge] = useState(90);
   const [statePension, setStatePension] = useState<string>("");
+  const [contribution, setContribution] = useState<string>("");
+  const [desiredIncome, setDesiredIncome] = useState<string>("");
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
+  const [projectedPot, setProjectedPot] = useState<number | null>(null);
+  const [earliestAge, setEarliestAge] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,8 +29,12 @@ export default function PensionForecast() {
         retirementAge,
         deathAge,
         statePension ? parseFloat(statePension) : undefined,
+        contribution ? parseFloat(contribution) : undefined,
+        desiredIncome ? parseFloat(desiredIncome) : undefined,
       );
       setData(res.forecast);
+      setProjectedPot(res.projected_pot_gbp);
+      setEarliestAge(res.earliest_retirement_age);
       setErr(null);
     } catch (ex: any) {
       setErr(String(ex));
@@ -73,11 +81,33 @@ export default function PensionForecast() {
             onChange={(e) => setStatePension(e.target.value)}
           />
         </div>
+        <div>
+          <label className="mr-2">Annual Contribution (£):</label>
+          <input
+            type="number"
+            value={contribution}
+            onChange={(e) => setContribution(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mr-2">Desired Income (£/yr):</label>
+          <input
+            type="number"
+            value={desiredIncome}
+            onChange={(e) => setDesiredIncome(e.target.value)}
+          />
+        </div>
         <button type="submit" className="mt-2 rounded bg-blue-500 px-4 py-2 text-white">
           Forecast
         </button>
       </form>
       {err && <p className="text-red-500">{err}</p>}
+      {projectedPot !== null && (
+        <p className="mb-2">Projected pot at {retirementAge}: £{projectedPot.toFixed(2)}</p>
+      )}
+      {earliestAge !== null && (
+        <p className="mb-2">Earliest feasible retirement age: {earliestAge}</p>
+      )}
       {data.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={data}>

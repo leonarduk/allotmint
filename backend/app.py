@@ -47,7 +47,9 @@ from backend.routes.instrument_admin import router as instrument_admin_router
 from backend.routes.logs import router as logs_router
 from backend.routes.metrics import router as metrics_router
 from backend.routes.movers import router as movers_router
+from backend.routes.nudges import router as nudges_router
 from backend.routes.news import router as news_router
+from backend.routes.market import router as market_router
 from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
 from backend.routes.portfolio import public_router as public_portfolio_router
@@ -203,6 +205,7 @@ def create_app() -> FastAPI:
     app.include_router(transactions_router, dependencies=protected)
     app.include_router(alert_settings_router, dependencies=protected)
     app.include_router(alerts_router, dependencies=protected)
+    app.include_router(nudges_router, dependencies=protected)
     app.include_router(quest_router, dependencies=protected)
     app.include_router(compliance_router)
     app.include_router(screener_router)
@@ -215,6 +218,7 @@ def create_app() -> FastAPI:
     app.include_router(config_router)
     app.include_router(quotes_router)
     app.include_router(news_router)
+    app.include_router(market_router)
     app.include_router(movers_router)
     app.include_router(user_config_router, dependencies=protected)
     app.include_router(approvals_router, dependencies=protected)

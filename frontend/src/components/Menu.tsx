@@ -76,8 +76,10 @@ export default function Menu({
                               ? 'profile'
                               : path[0] === 'virtual'
                                 ? 'virtual'
-                                : path[0] === 'reports'
+                              : path[0] === 'reports'
                                   ? 'reports'
+                                  : path[0] === 'pension'
+                                    ? 'pension'
                                   : path[0] === 'support'
                                     ? 'support'
                                     : path[0] === 'settings'
@@ -124,6 +126,8 @@ export default function Menu({
         return '/instrumentadmin';
       case 'profile':
         return '/profile';
+      case 'pension':
+        return '/pension/forecast';
       default:
         return `/${m}`;
     }

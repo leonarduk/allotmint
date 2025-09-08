@@ -57,7 +57,7 @@ interface AppProps {
   onLogout?: () => void;
 }
 
-type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile" | "pension";
+type Mode = (typeof orderedTabPlugins)[number]["id"] | "profile";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);

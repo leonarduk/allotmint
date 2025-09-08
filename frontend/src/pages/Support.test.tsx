@@ -8,6 +8,7 @@ const mockUpdateConfig = vi.hoisted(() => vi.fn());
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockSavePushSubscription = vi.hoisted(() => vi.fn());
 const mockDeletePushSubscription = vi.hoisted(() => vi.fn());
+const mockCheckPortfolioHealth = vi.hoisted(() => vi.fn());
 
 vi.mock("../api", async () => {
   const actual = await vi.importActual<typeof import("../api")>("../api");
@@ -19,6 +20,7 @@ vi.mock("../api", async () => {
     getOwners: mockGetOwners,
     savePushSubscription: mockSavePushSubscription,
     deletePushSubscription: mockDeletePushSubscription,
+    checkPortfolioHealth: mockCheckPortfolioHealth,
   };
 });
 
@@ -245,6 +247,36 @@ describe("Support page", () => {
       await userEvent.click(dark);
     });
     expect(dark).toBeChecked();
+  });
+
+  it("runs portfolio health check and shows findings", async () => {
+    mockCheckPortfolioHealth.mockResolvedValue({
+      findings: [
+        { level: "warning", message: "foo", suggestion: "bar" },
+      ],
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    const btn = await screen.findByRole("button", {
+      name: /run portfolio health check/i,
+    });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+    expect(await screen.findByText("foo")).toBeInTheDocument();
+    expect(screen.getByText("bar")).toBeInTheDocument();
+  });
+
+  it("shows error when health check fails", async () => {
+    mockCheckPortfolioHealth.mockRejectedValueOnce(new Error("fail"));
+    render(<Support />, { wrapper: MemoryRouter });
+    const btn = await screen.findByRole("button", {
+      name: /run portfolio health check/i,
+    });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/failed to run health check/i);
   });
 });
 

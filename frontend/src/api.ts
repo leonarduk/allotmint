@@ -37,6 +37,7 @@ import type {
   ApprovalsResponse,
   NewsItem,
   HoldingValue,
+  MarketOverview,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -174,6 +175,10 @@ export const getNews = (ticker: string, signal?: AbortSignal) => {
     signal,
   });
 };
+
+/** Aggregate market overview data. */
+export const getMarketOverview = () =>
+  fetchJson<MarketOverview>(`${API_BASE}/market/overview`);
 
 /** Retrieve top movers across tickers for a period. */
 export const getTopMovers = (

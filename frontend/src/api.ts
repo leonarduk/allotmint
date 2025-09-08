@@ -127,7 +127,7 @@ export const refreshPrices = () =>
   );
 
 /** Fetch quote snapshots for a list of symbols. */
-export const getQuotes = (symbols: string[]) => {
+export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });
   return fetchJson<{
     symbol: string;
@@ -140,7 +140,7 @@ export const getQuotes = (symbols: string[]) => {
     timestamp?: number | null;
     timezone?: string | null;
     market_state?: string | null;
-  }[]>(`${API_BASE}/api/quotes?${params.toString()}`)
+  }[]>(`${API_BASE}/api/quotes?${params.toString()}`, { signal })
     .then((rows) =>
       rows.map((r) => {
         const change =

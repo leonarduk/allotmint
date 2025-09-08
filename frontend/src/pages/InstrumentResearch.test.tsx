@@ -55,7 +55,7 @@ function renderPage(config?: Partial<ConfigContextValue>) {
     tabs: { ...defaultConfig.tabs, ...(config?.tabs ?? {}) },
     disabledTabs: config?.disabledTabs ?? defaultConfig.disabledTabs,
   };
-  render(
+  return render(
     <configContext.Provider value={value}>
       <MemoryRouter initialEntries={["/research/AAA"]}>
         <Routes>
@@ -234,6 +234,54 @@ describe("InstrumentResearch page", () => {
     for (const heading of expected) {
       expect(screen.getByText(heading)).toBeInTheDocument();
     }
+  });
+
+  it("skips state updates when unmounted", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      prices: null,
+      positions: [],
+    } as InstrumentDetail);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+
+    let resolveQuotes: (rows: QuoteRow[]) => void = () => {};
+    let rejectQuotes: (err: unknown) => void = () => {};
+    const quotePromise = new Promise<QuoteRow[]>((resolve, reject) => {
+      resolveQuotes = resolve;
+      rejectQuotes = reject;
+    });
+
+    mockGetQuotes.mockImplementationOnce((_, signal) => {
+      signal?.addEventListener("abort", () =>
+        rejectQuotes(Object.assign(new Error("aborted"), { name: "AbortError" })),
+      );
+      return quotePromise;
+    });
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { unmount } = renderPage();
+    unmount();
+    await Promise.resolve();
+    resolveQuotes!([
+      {
+        name: null,
+        symbol: "AAA",
+        last: 1,
+        open: null,
+        high: null,
+        low: null,
+        change: null,
+        changePct: null,
+        volume: null,
+        marketTime: null,
+        marketState: "REGULAR",
+      } as QuoteRow,
+    ]);
+    await quotePromise.catch(() => {});
+    expect(errSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining("Can't perform a React state update on an unmounted component"),
+    );
+    errSpy.mockRestore();
   });
 });
 

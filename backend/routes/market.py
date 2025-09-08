@@ -46,7 +46,7 @@ def _fetch_sectors() -> List[Dict[str, float]]:
 
 
 def _fetch_headlines() -> List[Dict[str, str]]:
-    return _fetch_news("SPY")
+    return _fetch_news("UKX")
 
 
 def _safe(func, default):

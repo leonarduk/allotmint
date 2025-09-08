@@ -11,7 +11,10 @@ import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import * as api from "../api";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
 
-const mockGetInstrumentDetail = vi.spyOn(api, "getInstrumentDetail");
+const mockFetchInstrumentDetailWithRetry = vi.spyOn(
+  api,
+  "fetchInstrumentDetailWithRetry",
+);
 const mockGetScreener = vi.spyOn(api, "getScreener");
 const mockGetQuotes = vi.spyOn(api, "getQuotes");
 const mockGetNews = vi.spyOn(api, "getNews");
@@ -84,7 +87,7 @@ describe("InstrumentResearch page", () => {
     let quotesResolve: (v: QuoteRow[]) => void;
     let newsResolve: (v: NewsItem[]) => void;
 
-    mockGetInstrumentDetail.mockReturnValueOnce(
+    mockFetchInstrumentDetailWithRetry.mockReturnValueOnce(
       new Promise((res) => {
         detailResolve = res;
       }) as Promise<InstrumentDetail>,
@@ -138,7 +141,9 @@ describe("InstrumentResearch page", () => {
   });
 
   it("renders error messages when requests fail", async () => {
-    mockGetInstrumentDetail.mockRejectedValueOnce(new Error("detail fail"));
+    mockFetchInstrumentDetailWithRetry.mockRejectedValueOnce(
+      new Error("detail fail"),
+    );
     mockGetScreener.mockRejectedValueOnce(new Error("screener fail"));
     mockGetQuotes.mockRejectedValueOnce(new Error("quotes fail"));
     mockGetNews.mockRejectedValueOnce(new Error("news fail"));
@@ -152,7 +157,10 @@ describe("InstrumentResearch page", () => {
   });
 
   it("navigates to screener when link clicked", async () => {
-    mockGetInstrumentDetail.mockResolvedValue({ prices: null, positions: [] } as InstrumentDetail);
+    mockFetchInstrumentDetailWithRetry.mockResolvedValue({
+      prices: null,
+      positions: [],
+    } as InstrumentDetail);
     mockGetScreener.mockResolvedValue([]);
     mockGetQuotes.mockResolvedValue([]);
     mockGetNews.mockResolvedValue([]);
@@ -163,7 +171,10 @@ describe("InstrumentResearch page", () => {
   });
 
   it("navigates to watchlist when link clicked", async () => {
-    mockGetInstrumentDetail.mockResolvedValue({ prices: null, positions: [] } as InstrumentDetail);
+    mockFetchInstrumentDetailWithRetry.mockResolvedValue({
+      prices: null,
+      positions: [],
+    } as InstrumentDetail);
     mockGetScreener.mockResolvedValue([]);
     mockGetQuotes.mockResolvedValue([]);
     mockGetNews.mockResolvedValue([]);
@@ -187,7 +198,7 @@ describe("InstrumentResearch page", () => {
   });
 
   it("shows instrument name and additional metrics", async () => {
-    mockGetInstrumentDetail.mockResolvedValue(
+    mockFetchInstrumentDetailWithRetry.mockResolvedValue(
       { prices: null, positions: [] } as InstrumentDetail,
     );
     mockGetScreener.mockResolvedValue([
@@ -237,7 +248,7 @@ describe("InstrumentResearch page", () => {
   });
 
   it("skips state updates when unmounted", async () => {
-    mockGetInstrumentDetail.mockResolvedValue({
+    mockFetchInstrumentDetailWithRetry.mockResolvedValue({
       prices: null,
       positions: [],
     } as InstrumentDetail);

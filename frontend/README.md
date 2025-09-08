@@ -1,6 +1,7 @@
 # AllotMint Frontend
 
 The AllotMint frontend is a React + TypeScript single-page app that visualises family investment data fetched from the backend API.
+The backend API must be running and the `VITE_ALLOTMINT_API_BASE` environment variable configured to its base URL.
 
 ## Interface
 
@@ -28,6 +29,7 @@ future navigation features ahead of the final release.
 - `/screener` – build and run custom screeners
 - `/watchlist` – manage personal watchlists
 - `/transactions` – view transaction history
+- `/reports` – after selecting an owner, provides CSV/PDF exports
 
 ## Installation
 

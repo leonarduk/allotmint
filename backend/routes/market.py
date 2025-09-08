@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Market overview endpoint aggregating indexes, sectors and headlines."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import requests
 import yfinance as yf
@@ -20,14 +20,18 @@ INDEX_SYMBOLS = {
 }
 
 
-def _fetch_indexes() -> Dict[str, float]:
+def _fetch_indexes() -> Dict[str, Dict[str, Optional[float]]]:
     tickers = yf.Tickers(" ".join(INDEX_SYMBOLS.values())).tickers
-    out: Dict[str, float] = {}
+    out: Dict[str, Dict[str, Optional[float]]] = {}
     for name, sym in INDEX_SYMBOLS.items():
         info = getattr(tickers.get(sym), "info", {})
         price = info.get("regularMarketPrice")
+        change = info.get("regularMarketChangePercent")
         if price is not None:
-            out[name] = float(price)
+            out[name] = {
+                "value": float(price),
+                "change": float(change) if change is not None else None,
+            }
     return out
 
 

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { getMarketOverview } from "../api";
-import type { MarketOverview as MarketOverviewData } from "../types";
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { getMarketOverview } from '../api';
+import type { MarketOverview as MarketOverviewData } from '../types';
 import {
   ResponsiveContainer,
   BarChart,
@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-} from "recharts";
+} from 'recharts';
 
 export default function MarketOverview() {
   const { t } = useTranslation();
@@ -24,24 +24,27 @@ export default function MarketOverview() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p>{t("common.loading")}</p>;
+  if (loading) return <p>{t('common.loading')}</p>;
   if (error) return <p className="text-red-500">{error}</p>;
   if (!data) return null;
 
-  const indexData = Object.entries(data.indexes).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  const indexData = Object.entries(data.indexes).map(
+    ([name, { value, change }]) => ({
+      name,
+      value,
+      change,
+    })
+  );
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl">
-        {t("app.modes.market", { defaultValue: "Market Overview" })}
+        {t('app.modes.market', { defaultValue: 'Market Overview' })}
       </h1>
 
       <div className="mb-8">
         <h2 className="mb-2 text-xl">
-          {t("market.indexLevels", { defaultValue: "Index Levels" })}
+          {t('market.indexLevels', { defaultValue: 'Index Levels' })}
         </h2>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={indexData}>
@@ -51,11 +54,43 @@ export default function MarketOverview() {
             <Bar dataKey="value" fill="#8884d8" />
           </BarChart>
         </ResponsiveContainer>
+        <table className="mt-4 w-full text-left">
+          <thead>
+            <tr>
+              <th>{t('market.index', { defaultValue: 'Index' })}</th>
+              <th>{t('market.level', { defaultValue: 'Level' })}</th>
+              <th>{t('market.changePct', { defaultValue: '% Change' })}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {indexData.map((row) => (
+              <tr key={row.name}>
+                <td>{row.name}</td>
+                <td>{row.value.toLocaleString()}</td>
+                <td
+                  className={
+                    row.change !== undefined && row.change !== null
+                      ? row.change >= 0
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                      : undefined
+                  }
+                >
+                  {row.change !== undefined && row.change !== null
+                    ? `${row.change.toFixed(2)}%`
+                    : '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <div className="mb-8">
         <h2 className="mb-2 text-xl">
-          {t("market.sectorPerformance", { defaultValue: "Sector Performance" })}
+          {t('market.sectorPerformance', {
+            defaultValue: 'Sector Performance',
+          })}
         </h2>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data.sectors}>
@@ -75,7 +110,7 @@ export default function MarketOverview() {
 
       <div>
         <h2 className="mb-2 text-xl">
-          {t("market.latestHeadlines", { defaultValue: "Latest Headlines" })}
+          {t('market.latestHeadlines', { defaultValue: 'Latest Headlines' })}
         </h2>
         <ul className="list-disc pl-4">
           {data.headlines.map((h, idx) => (

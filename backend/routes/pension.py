@@ -1,14 +1,18 @@
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.common.pension import forecast_pension
+from backend.common.data_loader import load_person_meta
+from backend.common.pension import (
+    _age_from_dob,
+    forecast_pension,
+    state_pension_age_uk,
+)
 
 router = APIRouter(tags=["pension"])
 
 
 @router.get("/pension/forecast")
 def pension_forecast(
-    dob: str = Query(..., description="Date of birth YYYY-MM-DD"),
-    retirement_age: int = Query(..., ge=0),
+    owner: str = Query(..., description="Portfolio owner"),
     death_age: int = Query(..., ge=0),
     state_pension_annual: float | None = Query(None, ge=0),
     db_income_annual: float | None = Query(None, ge=0),
@@ -17,6 +21,13 @@ def pension_forecast(
     investment_growth_pct: float = Query(5.0),
     desired_income_annual: float | None = Query(None, ge=0),
 ):
+    meta = load_person_meta(owner)
+    dob = meta.get("dob")
+    current_age = _age_from_dob(dob)
+    if current_age is None:
+        raise HTTPException(status_code=400, detail="missing or invalid dob")
+
+    retirement_age = state_pension_age_uk(dob)
     if death_age <= retirement_age:
         raise HTTPException(
             status_code=400, detail="death_age must exceed retirement_age"
@@ -45,4 +56,5 @@ def pension_forecast(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    result.update({"retirement_age": retirement_age, "current_age": current_age})
     return result

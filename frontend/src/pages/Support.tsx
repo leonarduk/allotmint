@@ -19,6 +19,8 @@ const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record
   boolean
 >;
 
+const UI_KEYS = new Set(["theme", "relative_view_enabled"]);
+
 type ConfigValue = string | boolean | Record<string, unknown>;
 type ConfigState = Record<string, ConfigValue>;
 
@@ -105,7 +107,20 @@ export default function Support() {
     const ui: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(config)) {
       if (k === "tabs") continue; // rebuilt from toggle state
-      let parsed: unknown = v;
+      if (UI_KEYS.has(k)) {
+        if (typeof v === "string") {
+          let parsed: unknown = v;
+          try {
+            parsed = JSON.parse(v);
+          } catch {
+            /* keep as string */
+          }
+          ui[k] = parsed;
+        } else {
+          ui[k] = v;
+        }
+        continue;
+      }
       if (typeof v === "string") {
         try {
           parsed = JSON.parse(v);

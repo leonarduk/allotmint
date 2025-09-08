@@ -154,6 +154,54 @@ describe("Support page", () => {
     expect(support).not.toBeChecked();
   });
 
+  it("persists tab selections after save", async () => {
+    mockGetConfig.mockResolvedValueOnce({
+      flag: true,
+      theme: "system",
+      tabs: {
+        group: true,
+        owner: true,
+        instrument: true,
+        trading: true,
+        support: true,
+        reports: true,
+        logs: true,
+        profile: true,
+      },
+    });
+    mockGetConfig.mockResolvedValueOnce({
+      flag: true,
+      theme: "system",
+      tabs: {
+        group: true,
+        owner: true,
+        instrument: false,
+        trading: true,
+        support: true,
+        reports: true,
+        logs: true,
+        profile: true,
+      },
+    });
+    mockUpdateConfig.mockResolvedValue(undefined);
+
+    render(<Support />, { wrapper: MemoryRouter });
+
+    const instrument = await screen.findByRole("checkbox", { name: /instrument/i });
+    expect(instrument).toBeChecked();
+
+    await act(async () => {
+      await userEvent.click(instrument);
+    });
+
+    const saveButton = await screen.findByRole("button", { name: "Save" });
+    await act(async () => {
+      await userEvent.click(saveButton);
+    });
+
+    expect(await screen.findByRole("checkbox", { name: /instrument/i })).not.toBeChecked();
+  });
+
   it("separates switches from other parameters", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     const switchesHeading = await screen.findByRole("heading", {

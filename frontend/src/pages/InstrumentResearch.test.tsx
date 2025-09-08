@@ -6,7 +6,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "./InstrumentResearch";
-import type { InstrumentDetail, ScreenerResult, NewsItem, QuoteRow } from "../types";
+import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import * as api from "../api";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
@@ -74,15 +74,15 @@ function renderPage(config?: Partial<ConfigContextValue>) {
 
 describe("InstrumentResearch page", () => {
   beforeEach(() => {
+    mockUseInstrumentHistory.mockReset();
     mockUseInstrumentHistory.mockReturnValue({
-      data: { "30": [] },
+      data: { mini: { "30": [] }, positions: [] },
       loading: false,
       error: null,
     } as any);
   });
 
   it("shows loading indicators while fetching data", async () => {
-    let detailResolve: (v: InstrumentDetail) => void;
     let screenerResolve: (v: ScreenerResult[]) => void;
     let quotesResolve: (v: QuoteRow[]) => void;
     let newsResolve: (v: NewsItem[]) => void;
@@ -110,12 +110,10 @@ describe("InstrumentResearch page", () => {
 
     renderPage();
 
-    expect(screen.getByText(/Loading instrument details/i)).toBeInTheDocument();
     expect(screen.getByText(/Loading metrics/i)).toBeInTheDocument();
     expect(screen.getByText(/Loading quote/i)).toBeInTheDocument();
     expect(screen.getByText(/Loading news/i)).toBeInTheDocument();
 
-    detailResolve!({ prices: null, positions: [] } as InstrumentDetail);
     screenerResolve!([
       { rank: 1, ticker: "AAA" } as unknown as ScreenerResult,
     ]);
@@ -141,9 +139,16 @@ describe("InstrumentResearch page", () => {
   });
 
   it("renders error messages when requests fail", async () => {
+    mockUseInstrumentHistory.mockReturnValue({
+      data: null,
+      loading: false,
+      error: new Error("detail fail"),
+    } as any);
+
     mockFetchInstrumentDetailWithRetry.mockRejectedValueOnce(
       new Error("detail fail"),
     );
+
     mockGetScreener.mockRejectedValueOnce(new Error("screener fail"));
     mockGetQuotes.mockRejectedValueOnce(new Error("quotes fail"));
     mockGetNews.mockRejectedValueOnce(new Error("news fail"));

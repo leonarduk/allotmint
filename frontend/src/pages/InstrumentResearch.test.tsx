@@ -3,11 +3,13 @@ vi.mock("../hooks/useInstrumentHistory", () => ({
   useInstrumentHistory: vi.fn(),
 }));
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "./InstrumentResearch";
 import type { InstrumentDetail, ScreenerResult, NewsItem, QuoteRow } from "../types";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import * as api from "../api";
+import { configContext, type ConfigContextValue } from "../ConfigContext";
 
 const mockGetInstrumentDetail = vi.spyOn(api, "getInstrumentDetail");
 const mockGetScreener = vi.spyOn(api, "getScreener");
@@ -15,13 +17,55 @@ const mockGetQuotes = vi.spyOn(api, "getQuotes");
 const mockGetNews = vi.spyOn(api, "getNews");
 const mockUseInstrumentHistory = vi.mocked(useInstrumentHistory);
 
-function renderPage() {
+const defaultConfig: ConfigContextValue = {
+  relativeViewEnabled: false,
+  disabledTabs: [],
+  tabs: {
+    group: true,
+    owner: true,
+    instrument: true,
+    performance: true,
+    transactions: true,
+    screener: true,
+    trading: true,
+    timeseries: true,
+    watchlist: true,
+    movers: true,
+    instrumentadmin: true,
+    dataadmin: true,
+    virtual: true,
+    support: true,
+    settings: true,
+    profile: true,
+    reports: true,
+    scenario: true,
+    logs: true,
+  },
+  theme: "system",
+  baseCurrency: "GBP",
+  refreshConfig: async () => {},
+  setRelativeViewEnabled: () => {},
+  setBaseCurrency: () => {},
+};
+
+function renderPage(config?: Partial<ConfigContextValue>) {
+  const value: ConfigContextValue = {
+    ...defaultConfig,
+    ...config,
+    tabs: { ...defaultConfig.tabs, ...(config?.tabs ?? {}) },
+    disabledTabs: config?.disabledTabs ?? defaultConfig.disabledTabs,
+  };
   render(
-    <MemoryRouter initialEntries={["/research/AAA"]}>
-      <Routes>
-        <Route path="/research/:ticker" element={<InstrumentResearch />} />
-      </Routes>
-    </MemoryRouter>,
+    <configContext.Provider value={value}>
+      <MemoryRouter initialEntries={["/research/AAA"]}>
+        <Routes>
+          <Route path="/" element={<div>Home</div>} />
+          <Route path="/screener" element={<div>Screener Page</div>} />
+          <Route path="/watchlist" element={<div>Watchlist Page</div>} />
+          <Route path="/research/:ticker" element={<InstrumentResearch />} />
+        </Routes>
+      </MemoryRouter>
+    </configContext.Provider>,
   );
 }
 
@@ -105,6 +149,41 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("screener fail")).toBeInTheDocument();
     expect(await screen.findByText("quotes fail")).toBeInTheDocument();
     expect(await screen.findByText("news fail")).toBeInTheDocument();
+  });
+
+  it("navigates to screener when link clicked", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({ prices: null, positions: [] } as InstrumentDetail);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+    const screener = screen.getByRole("link", { name: /View Screener/i });
+    await userEvent.click(screener);
+    expect(await screen.findByText("Screener Page")).toBeInTheDocument();
+  });
+
+  it("navigates to watchlist when link clicked", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({ prices: null, positions: [] } as InstrumentDetail);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+    const watchlist = screen.getByRole("link", { name: /Watchlist/i });
+    await userEvent.click(watchlist);
+    expect(await screen.findByText("Watchlist Page")).toBeInTheDocument();
+  });
+
+  it("hides navigation links when corresponding tab is disabled", () => {
+    renderPage({
+      tabs: { screener: false, watchlist: false },
+      disabledTabs: ["screener", "watchlist"],
+    });
+    expect(
+      screen.queryByRole("link", { name: /View Screener/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Watchlist/i }),
+    ).not.toBeInTheDocument();
   });
 });
 

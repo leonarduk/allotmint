@@ -6,6 +6,7 @@ import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
 import { getInstrumentDetail, getScreener, getNews, getQuotes } from "../api";
 import type { ScreenerResult, InstrumentDetail, NewsItem, QuoteRow } from "../types";
 import { largeNumber } from "../lib/money";
+import { useConfig } from "../ConfigContext";
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
@@ -15,6 +16,7 @@ export default function InstrumentResearch() {
   const [showBollinger, setShowBollinger] = useState(false);
   const { t } = useTranslation();
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
+  const { tabs, disabledTabs } = useConfig();
   const {
     data: history,
     loading: historyLoading,
@@ -127,10 +129,14 @@ export default function InstrumentResearch() {
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <h1 style={{ marginBottom: "1rem" }}>{tkr}</h1>
       <div style={{ marginBottom: "1rem" }}>
-        <Link to="/screener" style={{ marginRight: "1rem" }}>
-          View Screener
-        </Link>
-        <Link to="/watchlist">Watchlist</Link>
+        {tabs.screener && !disabledTabs.includes("screener") && (
+          <Link to="/screener" style={{ marginRight: "1rem" }}>
+            View Screener
+          </Link>
+        )}
+        {tabs.watchlist && !disabledTabs.includes("watchlist") && (
+          <Link to="/watchlist">Watchlist</Link>
+        )}
         <button onClick={toggleWatchlist} style={{ marginLeft: "1rem" }}>
           {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
         </button>

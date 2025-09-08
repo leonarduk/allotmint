@@ -92,11 +92,11 @@ export default function Menu({
                                             ? 'group'
                                             : 'movers';
 
-  const isSupportMode = SUPPORT_TABS.includes(mode);
+  const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
   const inSupport = mode === 'support';
   const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
 
-  function pathFor(m: string) {
+  function pathFor(m: any) {
     switch (m) {
       case 'group':
         return selectedGroup ? `/?group=${selectedGroup}` : '/';

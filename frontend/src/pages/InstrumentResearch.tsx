@@ -3,12 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
-import {
-  getScreener,
-  getNews,
-  getQuotes,
-  fetchInstrumentDetailWithRetry,
-} from "../api";
+import { getScreener, getNews, getQuotes } from "../api";
 import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
 import { largeNumber } from "../lib/money";
 import { useConfig } from "../ConfigContext";
@@ -48,17 +43,6 @@ export default function InstrumentResearch() {
     const screenerCtrl = new AbortController();
     const newsCtrl = new AbortController();
     const quoteCtrl = new AbortController();
-    setDetailLoading(true);
-    setDetailError(null);
-    fetchInstrumentDetailWithRetry(tkr, 365, detailCtrl.signal)
-      .then(setDetail)
-      .catch((err) => {
-        if (err.name !== "AbortError") {
-          console.error(err);
-          setDetailError(err.message ?? String(err));
-        }
-      })
-      .finally(() => setDetailLoading(false));
 
     setScreenerLoading(true);
     setScreenerError(null);

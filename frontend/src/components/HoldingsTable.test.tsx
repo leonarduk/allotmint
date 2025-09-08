@@ -2,6 +2,7 @@ import { render, screen, within, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import i18n from "../i18n";
+import { formatDateISO } from "../lib/date";
 import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 vi.mock("../api", () => ({
@@ -159,7 +160,7 @@ describe("HoldingsTable", () => {
         const row = (await screen.findByText("Test Holding")).closest("tr");
         const cell = within(row!).getByText("✗ 10");
         expect(cell).toBeInTheDocument();
-        const expected = new Intl.DateTimeFormat('en').format(new Date('2024-07-20'));
+        const expected = formatDateISO(new Date('2024-07-20'));
         expect(cell).toHaveAttribute('title', expected);
     });
 

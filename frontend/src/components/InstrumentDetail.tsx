@@ -6,6 +6,7 @@ import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
+import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
 import type { TradingSignal } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
@@ -536,9 +537,7 @@ export function InstrumentDetail({
                 return (
                   <tr key={p.date}>
                     <td className={tableStyles.cell}>
-                      {new Intl.DateTimeFormat(i18n.language).format(
-                        new Date(p.date),
-                      )}
+                      {formatDateISO(new Date(p.date))}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                       {money(p.close_gbp, baseCurrency)}

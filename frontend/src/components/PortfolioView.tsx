@@ -4,8 +4,8 @@ import type { Portfolio, Account } from "../types";
 import { AccountBlock } from "./AccountBlock";
 import { ValueAtRisk } from "./ValueAtRisk";
 import { money } from "../lib/money";
+import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
-import i18n from "../i18n";
 import { complianceForOwner } from "../api";
 import { getGrowthStage } from "../utils/growthStage";
 
@@ -78,7 +78,7 @@ export function PortfolioView({ data, loading, error }: Props) {
         Portfolio: <span data-testid="owner-name">{data.owner}</span>
       </h1>
       <div className="mb-4">
-        As of {new Intl.DateTimeFormat(i18n.language).format(new Date(data.as_of))}
+        As of {formatDateISO(new Date(data.as_of))}
       </div>
       <div className="mb-8">
         Approx Total: {money(totalValue, baseCurrency)}

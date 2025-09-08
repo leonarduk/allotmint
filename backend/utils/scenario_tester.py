@@ -97,7 +97,11 @@ _HORIZONS: Dict[str, int] = {
 }
 
 
-def _parse_full_ticker(full: str) -> tuple[str, str]:
+def _parse_full_ticker(full: str | Dict[str, str]) -> tuple[str, str]:
+    if isinstance(full, dict):
+        ticker = (full.get("ticker") or "").upper()
+        exch = (full.get("exchange") or "L").upper()
+        return ticker, exch
     parts = (full or "").upper().split(".", 1)
     if len(parts) == 2:
         return parts[0], parts[1]
@@ -127,14 +131,13 @@ def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> Dict[st
 
     scale = get_scaling_override(ticker, exchange, None)
     df = apply_scaling(df, scale)
+    df = df.copy().reset_index()
 
     nm = {c.lower(): c for c in df.columns}
-    date_col = nm.get("date") or df.columns[0]
+    date_col = nm.get("date") or nm.get("index") or df.columns[0]
     price_col = _close_column(df)
     if not price_col:
         return {k: None for k in _HORIZONS}
-
-    df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce").dt.date
     df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
     df = df.sort_values(date_col)
@@ -166,11 +169,9 @@ def apply_historical_event(
 ) -> Dict[Any, Any]:
     """Apply a historical event to a portfolio.
 
-    When ``event`` is supplied, forward returns are calculated for each holding
-    from the event date with an optional proxy index. The portfolio totals are
-    returned for each of the standard horizons. If ``event`` is omitted but an
-    ``event_id``/``date`` is provided, a simple placeholder scaling is applied
-    instead.
+    When ``event`` is supplied, per-holding returns are calculated for the
+    requested ``horizons``. If ``event`` is omitted but an ``event_id``/``date``
+    is provided, a simple placeholder scaling is applied instead.
     """
 
     if event is None and (event_id or date):
@@ -179,49 +180,7 @@ def apply_historical_event(
     if event is None:
         raise ValueError("event must be provided")
 
-    baseline = float(portfolio.get("total_value_estimate_gbp") or 0.0)
-    if baseline == 0.0:
-        baseline = sum(float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", []))
-
-    proxy_val = getattr(event, "proxy", None)
-    if proxy_val is None and isinstance(event, dict):
-        proxy_val = event.get("proxy_index")
-    proxy_tkr, proxy_ex = _parse_full_ticker(proxy_val or "")
-
-    event_date = getattr(event, "date", None)
-    if event_date is None and isinstance(event, dict):
-        event_date = event.get("date")
-    proxy_returns = _forward_returns(proxy_tkr, proxy_ex, event_date)
-
-    totals = {k: 0.0 for k in _HORIZONS}
-    cache: Dict[str, Dict[str, float | None]] = {}
-    for acct in portfolio.get("accounts", []):
-        for h in acct.get("holdings", []):
-            mv = float(h.get("market_value_gbp") or 0.0)
-            if mv == 0.0:
-                continue
-            full = (h.get("ticker") or "").upper()
-            tkr, ex = _parse_full_ticker(full)
-            key = f"{tkr}.{ex}"
-            if key not in cache:
-                cache[key] = _forward_returns(tkr, ex, event_date)
-            rets = cache[key]
-            for label in _HORIZONS:
-                r = rets.get(label)
-                if r is None:
-                    r = proxy_returns.get(label)
-                if r is None:
-                    r = 0.0
-                totals[label] += mv * (1 + r)
-
-    result: Dict[str, Dict[str, float]] = {}
-    for label in _HORIZONS:
-        total = round(totals[label], 2)
-        result[label] = {
-            "total_value_gbp": total,
-            "delta_gbp": round(total - baseline, 2),
-        }
-    return result
+    return apply_historical_returns(portfolio, event, horizons=horizons)
 
 
 def _parse_date(val: Any) -> dt.date:
@@ -279,32 +238,6 @@ def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int
         return (end_price - start_price) / start_price
     except ZeroDivisionError:
         return None
-
-
-def apply_historical_returns(
-    portfolio: Dict[str, Any],
-    event: Dict[str, Any] | None = None,
-    *,
-    event_id: str | None = None,
-    date: str | None = None,
-    horizons: Iterable[int] | None = None,
-) -> Dict[Any, Any]:
-    """Apply a historical event to ``portfolio``.
-
-    When ``event`` is provided, per-holding returns are calculated for the
-    requested ``horizons`` (or those defined within ``event``) and returned as
-    ``{ticker: {horizon: return}}``.  If ``event`` is omitted but an
-    ``event_id`` or ``date`` is supplied, a simple placeholder scaling is
-    applied instead.
-    """
-
-    if event is None and (event_id or date):
-        return _scale_portfolio(portfolio, horizons)
-
-    if event is None:
-        raise ValueError("event must be provided")
-
-    return apply_historical_returns(portfolio, event, horizons=horizons)
 
 
 def apply_historical_returns(

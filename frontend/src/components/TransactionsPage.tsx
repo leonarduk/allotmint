@@ -6,8 +6,8 @@ import { Selector } from "./Selector";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { money } from "../lib/money";
+import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
-import i18n from "../i18n";
 import { useTranslation } from "react-i18next";
 
 type Props = {
@@ -103,11 +103,7 @@ export function TransactionsPage({ owners }: Props) {
             {(transactions ?? []).map((t, i) => (
               <tr key={i}>
                 <td className={tableStyles.cell}>
-                  {t.date
-                    ? new Intl.DateTimeFormat(i18n.language).format(
-                        new Date(t.date),
-                      )
-                    : ""}
+                {t.date ? formatDateISO(new Date(t.date)) : ""}
                 </td>
                 <td className={tableStyles.cell}>{t.owner}</td>
                 <td className={tableStyles.cell}>{t.account}</td>

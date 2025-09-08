@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   API_BASE,
@@ -240,6 +241,12 @@ export default function Support() {
   return (
     <div className="container mx-auto max-w-3xl space-y-8 p-4">
       <header>
+        <Link
+          to="/"
+          className="mb-2 inline-block text-blue-500 hover:underline"
+        >
+          {t("app.userLink")}
+        </Link>
         <h1 className="mb-1 text-2xl font-bold md:text-4xl">
           {t("support.title")}
         </h1>

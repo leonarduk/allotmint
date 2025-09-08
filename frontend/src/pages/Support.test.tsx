@@ -47,6 +47,12 @@ beforeEach(() => {
 });
 
 describe("Support page", () => {
+  it("renders app link", async () => {
+    render(<Support />, { wrapper: MemoryRouter });
+    const link = await screen.findByRole("link", { name: /App/i });
+    expect(link).toHaveAttribute("href", "/");
+  });
+
   it("renders environment heading", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     expect(await screen.findByText(/Environment/)).toBeInTheDocument();

@@ -17,6 +17,8 @@ INDEX_SYMBOLS = {
     "S&P 500": "^GSPC",
     "Dow Jones": "^DJI",
     "NASDAQ": "^IXIC",
+    "FTSE 100": "^FTSE",
+    "FTSE 250": "^FTMC",
 }
 
 

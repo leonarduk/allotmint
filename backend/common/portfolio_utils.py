@@ -763,6 +763,7 @@ def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) 
 
     from backend.common import instrument_api
 
+    flagged = {k.upper() for k, v in _PRICE_SNAPSHOT.items() if v.get("flagged")}
     holdings: List[tuple[str, str, float]] = []
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
@@ -780,6 +781,10 @@ def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) 
                 if not h.get("exchange"):
                     logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
             exch = (h.get("exchange") or inferred or "L").upper()
+            full = f"{sym}.{exch}".upper()
+            if full in flagged:
+                logger.debug("Skipping flagged instrument %s", full)
+                continue
             holdings.append((sym, exch, units))
 
     total = pd.Series(dtype=float)

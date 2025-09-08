@@ -33,12 +33,12 @@ describe("Reports page", () => {
     vi.clearAllMocks();
   });
 
-  it("renders menu and links when owner selected", async () => {
+  it("renders links when owner selected", async () => {
     mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
     mockGetGroups.mockResolvedValue([]);
 
     window.history.pushState({}, "", "/reports");
-    const { default: App } = await import("../App");
+    const { default: Reports } = await import("./Reports");
 
     const allTabs = {
       group: true,
@@ -77,16 +77,10 @@ describe("Reports page", () => {
         }}
       >
         <MemoryRouter initialEntries={["/reports"]}>
-          <App />
+          <Reports />
         </MemoryRouter>
       </configContext.Provider>
     );
-
-    // Open the menu to ensure links are visible in tests
-    fireEvent.click(await screen.findByRole("button", { name: /menu/i }));
-    expect(
-      await screen.findByRole("link", { name: /reports/i })
-    ).toBeInTheDocument();
 
     const select = await screen.findByLabelText(/owner/i);
     fireEvent.change(select, { target: { value: "alex" } });

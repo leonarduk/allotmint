@@ -9,7 +9,6 @@ import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import type { TradingSignal } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
-import { InstrumentHistoryChart } from "./InstrumentHistoryChart";
 import {
   ResponsiveContainer,
   LineChart,
@@ -325,11 +324,6 @@ export function InstrumentDetail({
           {t("instrumentDetail.rsi")}
         </label>
       </div>
-      <InstrumentHistoryChart
-        data={prices}
-        loading={loading}
-        showBollinger={showBollinger}
-      />
       {loading ? (
         <div
           style={{

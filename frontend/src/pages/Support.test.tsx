@@ -9,14 +9,18 @@ const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockSavePushSubscription = vi.hoisted(() => vi.fn());
 const mockDeletePushSubscription = vi.hoisted(() => vi.fn());
 
-vi.mock("../api", () => ({
-  API_BASE: "",
-  getConfig: mockGetConfig,
-  updateConfig: mockUpdateConfig,
-  getOwners: mockGetOwners,
-  savePushSubscription: mockSavePushSubscription,
-  deletePushSubscription: mockDeletePushSubscription,
-}));
+vi.mock("../api", async () => {
+  const actual = await vi.importActual<typeof import("../api")>("../api");
+  return {
+    ...actual,
+    API_BASE: "",
+    getConfig: mockGetConfig,
+    updateConfig: mockUpdateConfig,
+    getOwners: mockGetOwners,
+    savePushSubscription: mockSavePushSubscription,
+    deletePushSubscription: mockDeletePushSubscription,
+  };
+});
 
 import Support from "./Support";
 
@@ -35,6 +39,8 @@ beforeEach(() => {
       reports: true,
       logs: true,
       profile: true,
+      allocation: false,
+      scenario: false,
     },
   });
   mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
@@ -84,6 +90,8 @@ describe("Support page", () => {
       reports: true,
       logs: true,
       profile: true,
+      allocation: false,
+      scenario: false,
     },
   });
   mockGetConfig.mockResolvedValueOnce({
@@ -99,6 +107,8 @@ describe("Support page", () => {
       reports: true,
       logs: true,
       profile: true,
+      allocation: false,
+      scenario: false,
     },
   });
     mockUpdateConfig.mockResolvedValue(undefined);
@@ -121,11 +131,19 @@ describe("Support page", () => {
     render(<Support />, { wrapper: MemoryRouter });
     await screen.findByText(/Tabs Enabled/i);
     const instrument = await screen.findByRole("checkbox", {
-      name: /instrument/i,
+      name: /^instrument$/i,
     });
-    const support = screen.getByRole("checkbox", { name: /support/i });
+    const support = screen.getByRole("checkbox", { name: /^support$/i });
+    const group = screen.getByRole("checkbox", { name: /^group$/i });
+    const owner = screen.getByRole("checkbox", { name: /^owner$/i });
+    const allocation = screen.getByRole("checkbox", { name: /^allocation$/i });
+    const scenario = screen.getByRole("checkbox", { name: /^scenario$/i });
     expect(instrument).toBeChecked();
     expect(support).toBeChecked();
+    expect(group).toBeChecked();
+    expect(owner).toBeChecked();
+    expect(allocation).not.toBeChecked();
+    expect(scenario).not.toBeChecked();
     await act(async () => {
       await userEvent.click(instrument);
     });

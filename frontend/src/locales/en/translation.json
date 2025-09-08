@@ -20,6 +20,7 @@
       "watchlist": "Watchlist",
       "allocation": "Allocation",
       "rebalance": "Rebalance",
+      "market": "Market Overview",
       "movers": "Movers",
       "instrumentadmin": "Instrument Admin",
       "dataadmin": "Data Admin",
@@ -316,5 +317,10 @@
     "title": "Value at Risk",
     "details": "Historical simulation details",
     "noData": "No VaR data available."
+  },
+  "market": {
+    "indexLevels": "Index Levels",
+    "sectorPerformance": "Sector Performance",
+    "latestHeadlines": "Latest Headlines"
   }
 }

@@ -267,20 +267,21 @@ cors:
 
 The list matching `app_env` is applied to the backend's CORS middleware.
 
-Optional frontend tabs can be toggled in `config.yaml`:
+Optional frontend tabs can be toggled in `config.yaml` under `ui.tabs`:
 
 ```yaml
-tabs:
-  instrument: true
-  performance: true
-  transactions: true
-  screener: true
-  trading: true
-  timeseries: true
-  watchlist: true
-  virtual: true
-  reports: true
-  support: true
+ui:
+  tabs:
+    instrument: true
+    performance: true
+    transactions: true
+    screener: true
+    trading: true
+    timeseries: true
+    watchlist: true
+    virtual: true
+    reports: true
+    support: true
 ```
 
 Setting a tab to `false` removes its menu entry and related links from the UI.

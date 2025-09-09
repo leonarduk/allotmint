@@ -55,16 +55,20 @@ describe("useRouteMode", () => {
       timeseries: false,
       watchlist: false,
       movers: false,
+      market: false,
+      allocation: false,
+      rebalance: false,
       instrumentadmin: false,
       dataadmin: false,
       virtual: false,
         support: false,
         settings: false,
         profile: true,
+        pension: false,
         scenario: false,
         reports: false,
         logs: false,
-      };
+    };
 
     const config: ConfigContextValue = {
       relativeViewEnabled: false,

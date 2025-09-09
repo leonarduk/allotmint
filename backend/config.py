@@ -44,6 +44,9 @@ class TabsConfig:
     timeseries: bool = True
     watchlist: bool = True
     movers: bool = True
+    market: bool = True
+    allocation: bool = True
+    rebalance: bool = True
     instrumentadmin: bool = True
     group: bool = True
     owner: bool = True
@@ -52,6 +55,7 @@ class TabsConfig:
     support: bool = True
     settings: bool = True
     profile: bool = False
+    pension: bool = True
     reports: bool = True
     scenario: bool = True
     logs: bool = True

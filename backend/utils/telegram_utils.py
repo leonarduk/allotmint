@@ -56,18 +56,6 @@ _NEXT_ALLOWED_TIME = 0.0
 
 
 def send_message(text: str) -> None:
-    if app_config.offline_mode:
-        logger.info(f"Offline-alert: {text}")
-        return
-
-    now = time.time()
-    expired = [m for m, ts in RECENT_MESSAGES.items() if now - ts > MESSAGE_TTL_SECONDS]
-    for m in expired:
-        del RECENT_MESSAGES[m]
-
-    if text in RECENT_MESSAGES:
-        return
-
     token = app_config.telegram_bot_token
     chat_id = app_config.telegram_chat_id
 
@@ -82,6 +70,18 @@ def send_message(text: str) -> None:
             ", ".join(missing),
             extra={"skip_telegram": True},
         )
+        return
+
+    if app_config.offline_mode:
+        logger.info(f"Offline-alert: {text}")
+        return
+
+    now = time.time()
+    expired = [m for m, ts in RECENT_MESSAGES.items() if now - ts > MESSAGE_TTL_SECONDS]
+    for m in expired:
+        del RECENT_MESSAGES[m]
+
+    if text in RECENT_MESSAGES:
         return
 
     global _NEXT_ALLOWED_TIME

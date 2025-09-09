@@ -197,7 +197,30 @@
     "status": {
       "sent": "Gesendet",
       "error": "Fehler",
-      "sending": "Wird gesendet..."
+      "sending": "Wird gesendet...",
+      "saved": "Gespeichert",
+      "saving": "Speichern..."
+    },
+    "health": {
+      "title": "Portfoliozustand",
+      "run": "Portfolio-Gesundheitsprüfung ausführen",
+      "copyReport": "Bericht kopieren",
+      "error": "Fehler beim Ausführen der Gesundheitsprüfung"
+    },
+    "notifications": {
+      "title": "Benachrichtigungen",
+      "notSupported": "Push wird nicht unterstützt",
+      "disable": "Push-Benachrichtigungen deaktivieren",
+      "enable": "Push-Benachrichtigungen aktivieren",
+      "denied": "Push-Berechtigung verweigert.",
+      "error": "Fehler bei der Verarbeitung der Push-Anmeldung."
+    },
+    "config": {
+      "title": "Konfiguration",
+      "tabsEnabled": "Tabs aktiviert",
+      "otherSwitches": "Andere Schalter",
+      "otherParams": "Weitere Parameter",
+      "save": "Speichern"
     }
   },
   "reports": {

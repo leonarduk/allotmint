@@ -197,7 +197,30 @@
     "status": {
       "sent": "Enviado",
       "error": "Error",
-      "sending": "Enviando..."
+      "sending": "Enviando...",
+      "saved": "Guardado",
+      "saving": "Guardando..."
+    },
+    "health": {
+      "title": "Salud del portafolio",
+      "run": "Ejecutar verificación de salud del portafolio",
+      "copyReport": "Copiar informe",
+      "error": "No se pudo ejecutar la verificación de salud"
+    },
+    "notifications": {
+      "title": "Notificaciones",
+      "notSupported": "Push no compatible",
+      "disable": "Desactivar alertas push",
+      "enable": "Activar alertas push",
+      "denied": "Permiso de push denegado.",
+      "error": "Error al manejar la suscripción push."
+    },
+    "config": {
+      "title": "Configuración",
+      "tabsEnabled": "Pestañas habilitadas",
+      "otherSwitches": "Otros interruptores",
+      "otherParams": "Otros parámetros",
+      "save": "Guardar"
     }
   },
   "reports": {

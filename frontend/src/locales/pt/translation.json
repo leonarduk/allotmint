@@ -31,6 +31,7 @@
       "profile": "Perfil",
       "pension": "Previsão de pensão",
       "reports": "Relatórios",
+      "alertsettings": "Alert Settings",
       "support": "Suporte",
       "scenario": "Testador de Cenários",
       "logs": "Registros"
@@ -221,6 +222,15 @@
       "otherSwitches": "Outros interruptores",
       "otherParams": "Outros parâmetros",
       "save": "Salvar"
+    }
+  },
+  "alertSettings": {
+    "title": "Alert Settings",
+    "threshold": "Threshold %:",
+    "save": "Save",
+    "status": {
+      "saved": "Saved",
+      "error": "Error"
     }
   },
   "reports": {

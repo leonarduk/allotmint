@@ -25,6 +25,7 @@
       "dataadmin": "Data Admin",
       "settings": "User Settings",
       "profile": "Profile",
+      "alertsettings": "Alert Settings",
       "reports": "Reports",
       "support": "Support",
       "scenario": "Scenario Tester",
@@ -307,11 +308,17 @@
   "saveSuccess": "Saved",
   "saveError": "Error saving",
   "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required"
-  }
-},
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required"
+    }
+  },
+  "alertSettings": {
+    "title": "Alert Settings",
+    "threshold": "Threshold %:",
+    "save": "Save",
+    "saved": "Saved"
+  },
   "var": {
     "title": "Value at Risk",
     "details": "Historical simulation details",

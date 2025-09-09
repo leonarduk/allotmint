@@ -156,6 +156,7 @@ describe("App", () => {
       support: true,
       settings: true,
       profile: true,
+      alertsettings: true,
       reports: true,
       scenario: true,
       logs: true,
@@ -399,6 +400,7 @@ describe("App", () => {
       "Allocation",
       "Reports",
       "User Settings",
+      "Alert Settings",
       "Scenario Tester",
       "Support",
     ]);

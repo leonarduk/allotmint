@@ -30,6 +30,7 @@ describe("MainApp demo view", () => {
       getTradingSignals: vi.fn().mockResolvedValue([]),
       getTimeseries: vi.fn(),
       saveTimeseries: vi.fn(),
+      getQuests: vi.fn().mockResolvedValue({ quests: [] }),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
     }));

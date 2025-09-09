@@ -27,6 +27,7 @@ export interface TabsConfig {
   support: boolean;
   settings: boolean;
   profile: boolean;
+  alertsettings: boolean;
   reports: boolean;
   scenario: boolean;
   logs: boolean;
@@ -69,6 +70,7 @@ const defaultTabs: TabsConfig = {
   support: true,
   settings: true,
   profile: false,
+  alertsettings: true,
   reports: true,
   scenario: true,
   logs: true,

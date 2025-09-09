@@ -60,6 +60,7 @@ describe("Menu", () => {
         support: false,
         settings: true,
         profile: false,
+        alertsettings: true,
         reports: true,
         scenario: true,
         logs: true,

@@ -26,6 +26,7 @@ const Profile = lazy(() => import('./pages/Profile'))
 const Alerts = lazy(() => import('./pages/Alerts'))
 const Goals = lazy(() => import('./pages/Goals'))
 const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'))
+const AlertSettings = lazy(() => import('./pages/AlertSettings'))
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -71,6 +72,7 @@ export function Root() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/goals" element={<Goals />} />
+        <Route path="/alert-settings" element={<AlertSettings />} />
         <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
         <Route path="/*" element={<App onLogout={logout} />} />
       </Routes>

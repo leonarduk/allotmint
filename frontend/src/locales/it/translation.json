@@ -21,15 +21,16 @@
       "allocation": "Allocazione",
       "rebalance": "Rebalance",
       "movers": "Movers",
-      "instrumentadmin": "Amministratore dello strumento",
-      "dataadmin": "Data Admin",
-      "settings": "Impostazioni utente",
-      "profile": "Profilo",
-      "reports": "Segnalazioni",
-      "support": "Supporto",
-      "scenario": "Tester di scenario",
-      "logs": "Tronchi"
-    }
+        "instrumentadmin": "Amministratore dello strumento",
+        "dataadmin": "Data Admin",
+        "settings": "Impostazioni utente",
+        "profile": "Profilo",
+        "alertsettings": "Impostazioni di avviso",
+        "reports": "Segnalazioni",
+        "support": "Supporto",
+        "scenario": "Tester di scenario",
+        "logs": "Tronchi"
+      }
   },
   "common": {
     "error": "Errore",
@@ -310,6 +311,12 @@
       "ticker": "È richiesto il ticker",
       "name": "È richiesto il nome"
     }
+  },
+  "alertSettings": {
+    "title": "Impostazioni di avviso",
+    "threshold": "Soglia %:",
+    "save": "Salva",
+    "saved": "Salvato"
   },
   "var": {
     "title": "Valore a rischio",

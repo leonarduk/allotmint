@@ -21,15 +21,16 @@
       "allocation": "Asignación",
       "rebalance": "Rebalance",
       "movers": "Movers",
-      "instrumentadmin": "Administración de Instrumentos",
-      "dataadmin": "Administración de datos",
-      "settings": "Configuración del usuario",
-      "profile": "Perfil",
-      "reports": "Informes",
-      "support": "Soporte",
-      "scenario": "Probador de Escenarios",
-      "logs": "Registros"
-    }
+        "instrumentadmin": "Administración de Instrumentos",
+        "dataadmin": "Administración de datos",
+        "settings": "Configuración del usuario",
+        "profile": "Perfil",
+        "alertsettings": "Configuración de alertas",
+        "reports": "Informes",
+        "support": "Soporte",
+        "scenario": "Probador de Escenarios",
+        "logs": "Registros"
+      }
   },
   "common": {
     "error": "Error",
@@ -305,11 +306,17 @@
   "saveSuccess": "Saved",
   "saveError": "Error saving",
   "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required"
-  }
-},
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required"
+    }
+  },
+  "alertSettings": {
+    "title": "Configuración de alertas",
+    "threshold": "Umbral %:",
+    "save": "Guardar",
+    "saved": "Guardado"
+  },
   "var": {
     "title": "Valor en Riesgo",
     "details": "Detalles de la simulación histórica",

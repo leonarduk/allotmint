@@ -68,9 +68,11 @@ export default function Menu({
                             ? 'dataadmin'
                             : path[0] === 'profile'
                               ? 'profile'
-                              : path[0] === 'virtual'
-                                ? 'virtual'
-                                : path[0] === 'reports'
+                              : path[0] === 'alert-settings'
+                                ? 'alertsettings'
+                                : path[0] === 'virtual'
+                                  ? 'virtual'
+                                  : path[0] === 'reports'
                                   ? 'reports'
                                   : path[0] === 'support'
                                     ? 'support'
@@ -118,6 +120,8 @@ export default function Menu({
         return '/instrumentadmin';
       case 'profile':
         return '/profile';
+      case 'alertsettings':
+        return '/alert-settings';
       default:
         return `/${m}`;
     }

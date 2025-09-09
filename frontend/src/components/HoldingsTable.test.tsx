@@ -42,6 +42,7 @@ const defaultConfig: AppConfig = {
         support: true,
         settings: true,
         profile: true,
+        alertsettings: true,
         reports: true,
         scenario: true,
         logs: true,

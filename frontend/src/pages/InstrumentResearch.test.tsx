@@ -25,6 +25,7 @@ const defaultConfig: ConfigContextValue = {
   disabledTabs: [],
   tabs: {
     group: true,
+    market: true,
     owner: true,
     instrument: true,
     performance: true,
@@ -33,6 +34,8 @@ const defaultConfig: ConfigContextValue = {
     trading: true,
     timeseries: true,
     watchlist: true,
+    allocation: true,
+    rebalance: true,
     movers: true,
     instrumentadmin: true,
     dataadmin: true,
@@ -40,6 +43,7 @@ const defaultConfig: ConfigContextValue = {
     support: true,
     settings: true,
     profile: true,
+    pension: true,
     reports: true,
     scenario: true,
     logs: true,
@@ -83,6 +87,7 @@ describe("InstrumentResearch page", () => {
   });
 
   it("shows loading indicators while fetching data", async () => {
+    let detailResolve: (v: InstrumentDetail) => void;
     let screenerResolve: (v: ScreenerResult[]) => void;
     let quotesResolve: (v: QuoteRow[]) => void;
     let newsResolve: (v: NewsItem[]) => void;

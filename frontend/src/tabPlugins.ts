@@ -37,6 +37,7 @@ export const orderedTabPlugins = [
   { id: "timeseries", priority: 70, section: "user" },
   { id: "watchlist", priority: 80, section: "user" },
   { id: "allocation", priority: 85, section: "user" },
+  { id: "rebalance", priority: 86, section: "user" },
   { id: "instrumentadmin", priority: 85, section: "support" },
   { id: "dataadmin", priority: 90, section: "support" },
   { id: "reports", priority: 100, section: "user" },

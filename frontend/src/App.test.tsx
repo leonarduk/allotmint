@@ -144,6 +144,7 @@ describe("App", () => {
 
     const allTabs = {
       group: true,
+      market: true,
       owner: true,
       instrument: true,
       performance: true,
@@ -152,6 +153,8 @@ describe("App", () => {
       screener: true,
       timeseries: true,
       watchlist: true,
+      allocation: true,
+      rebalance: true,
       movers: true,
       instrumentadmin: true,
       dataadmin: true,
@@ -159,6 +162,7 @@ describe("App", () => {
       support: true,
       settings: true,
       profile: true,
+      pension: true,
       reports: true,
       scenario: true,
       logs: true,
@@ -219,6 +223,7 @@ describe("App", () => {
 
     const allTabs = {
       group: true,
+      market: true,
       owner: true,
       instrument: true,
       performance: true,
@@ -227,6 +232,8 @@ describe("App", () => {
       screener: true,
       timeseries: true,
       watchlist: true,
+      allocation: true,
+      rebalance: true,
       movers: true,
       instrumentadmin: true,
       dataadmin: true,
@@ -234,6 +241,7 @@ describe("App", () => {
       support: true,
       settings: true,
       profile: true,
+      pension: true,
       reports: true,
       scenario: true,
       logs: true,
@@ -405,6 +413,7 @@ describe("App", () => {
       "Timeseries",
       "Watchlist",
       "Allocation",
+      "Rebalance",
       "Reports",
       "User Settings",
       "Pension Forecast",

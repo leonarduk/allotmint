@@ -43,6 +43,9 @@ beforeEach(() => {
       profile: true,
       allocation: false,
       scenario: false,
+      market: true,
+      rebalance: false,
+      pension: true,
     },
   });
   mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
@@ -100,6 +103,9 @@ describe("Support page", () => {
       profile: true,
       allocation: false,
       scenario: false,
+      market: true,
+      rebalance: false,
+      pension: true,
     },
   });
   mockGetConfig.mockResolvedValueOnce({
@@ -117,6 +123,9 @@ describe("Support page", () => {
       profile: true,
       allocation: false,
       scenario: false,
+      market: true,
+      rebalance: false,
+      pension: true,
     },
   });
     mockUpdateConfig.mockResolvedValue(undefined);
@@ -145,12 +154,18 @@ describe("Support page", () => {
     const group = screen.getByRole("checkbox", { name: /^group$/i });
     const owner = screen.getByRole("checkbox", { name: /^owner$/i });
     const allocation = screen.getByRole("checkbox", { name: /^allocation$/i });
+    const market = screen.getByRole("checkbox", { name: /^market$/i });
+    const rebalance = screen.getByRole("checkbox", { name: /^rebalance$/i });
+    const pension = screen.getByRole("checkbox", { name: /^pension$/i });
     const scenario = screen.getByRole("checkbox", { name: /^scenario$/i });
     expect(instrument).toBeChecked();
     expect(support).toBeChecked();
     expect(group).toBeChecked();
     expect(owner).toBeChecked();
     expect(allocation).not.toBeChecked();
+    expect(market).toBeChecked();
+    expect(rebalance).not.toBeChecked();
+    expect(pension).toBeChecked();
     expect(scenario).not.toBeChecked();
     await act(async () => {
       await userEvent.click(instrument);
@@ -175,6 +190,10 @@ describe("Support page", () => {
         reports: true,
         logs: true,
         profile: true,
+        market: true,
+        allocation: true,
+        rebalance: true,
+        pension: true,
       },
     });
     mockGetConfig.mockResolvedValueOnce({
@@ -189,13 +208,17 @@ describe("Support page", () => {
         reports: true,
         logs: true,
         profile: true,
+        market: true,
+        allocation: true,
+        rebalance: true,
+        pension: true,
       },
     });
     mockUpdateConfig.mockResolvedValue(undefined);
 
     render(<Support />, { wrapper: MemoryRouter });
 
-    const instrument = await screen.findByRole("checkbox", { name: /instrument/i });
+    const instrument = await screen.findByRole("checkbox", { name: /^instrument$/i });
     expect(instrument).toBeChecked();
 
     await act(async () => {
@@ -207,7 +230,9 @@ describe("Support page", () => {
       await userEvent.click(saveButton);
     });
 
-    expect(await screen.findByRole("checkbox", { name: /instrument/i })).not.toBeChecked();
+    expect(
+      await screen.findByRole("checkbox", { name: /^instrument$/i })
+    ).not.toBeChecked();
   });
 
   it("separates switches from other parameters", async () => {

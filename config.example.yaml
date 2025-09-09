@@ -68,6 +68,7 @@ ui:
   tabs:                               # Toggle availability of frontend tabs
     movers: true
     group: true
+    market: true
     instrument: true
     owner: true
     performance: false
@@ -76,9 +77,14 @@ ui:
     trading: false
     timeseries: true
     watchlist: false
+    allocation: true
+    rebalance: true
     instrumentadmin: true
     dataadmin: true
     virtual: false
     support: true
+    settings: true
+    profile: false
+    pension: true
     reports: true
     scenario: true

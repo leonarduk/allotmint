@@ -16,7 +16,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from backend.agent.trading_agent import generate_signals
 from backend.common.alerts import publish_alert
+from backend.common.portfolio_loader import list_portfolios
+from backend.common.portfolio_utils import aggregate_by_ticker
 from backend.common.storage import get_storage
 from backend.config import config
 
@@ -124,11 +127,41 @@ def iter_due_users(now: Optional[datetime] = None) -> Iterable[str]:
             yield user
 
 
+def _build_nudge_message(user: str) -> str:
+    """Construct a reminder message for ``user`` with optional signals."""
+    default = f"Reminder for {user}"
+    try:
+        pf = next(
+            (p for p in list_portfolios() if p.get("owner", "").lower() == user.lower()),
+            None,
+        )
+        if not pf:
+            return default
+        rows = aggregate_by_ticker(pf)
+        snapshot = {row.get("ticker"): row for row in rows if row.get("ticker")}
+        if not snapshot:
+            return default
+        signals = generate_signals(snapshot)
+        if signals:
+            sig = signals[0]
+            action = sig.get("action")
+            ticker = sig.get("ticker")
+            reason = sig.get("reason")
+            if action and ticker:
+                details = f"{action} {ticker}"
+                if reason:
+                    details += f" - {reason}"
+                return f"{default}: {details}"
+    except Exception as exc:  # pragma: no cover - best effort
+        logger.debug("Failed to build nudge message for %s: %s", user, exc)
+    return default
+
+
 def send_due_nudges() -> None:
     """Generate reminder alerts for all due users."""
     now = datetime.now(UTC)
     for user in list(iter_due_users(now)):
-        message = f"Reminder for {user}"
+        message = _build_nudge_message(user)
         publish_alert({"ticker": "NUDGE", "user": user, "message": message})
         _RECENT_NUDGES.append({"id": user, "message": message, "timestamp": now.isoformat()})
         _SUBSCRIPTIONS[user]["last_sent"] = now.isoformat()

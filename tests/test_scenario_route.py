@@ -12,18 +12,36 @@ def _auth_client():
     return client
 
 
-def test_scenario_route():
+def test_scenario_route(monkeypatch):
+    monkeypatch.setattr(
+        scenario_route,
+        "list_plots",
+        lambda: [{"owner": "alice", "accounts": [{}]}],
+    )
+    monkeypatch.setattr(
+        scenario_route,
+        "build_owner_portfolio",
+        lambda owner: {"total_value_estimate_gbp": 100.0, "accounts": []},
+    )
+
+    def fake_apply_price_shock(pf, ticker, pct):
+        pf["total_value_estimate_gbp"] = 105.0
+        return pf
+
+    monkeypatch.setattr(scenario_route, "apply_price_shock", fake_apply_price_shock)
+
     client = _auth_client()
     resp = client.get("/scenario?ticker=VWRL.L&pct=5")
     assert resp.status_code == 200
     data = resp.json()
-    assert isinstance(data, list)
-    if data:
-        first = data[0]
-        assert "owner" in first
-        assert "baseline_total_value_gbp" in first
-        assert "shocked_total_value_gbp" in first
-        assert "delta_gbp" in first
+    assert data == [
+        {
+            "owner": "alice",
+            "baseline_total_value_gbp": 100.0,
+            "shocked_total_value_gbp": 105.0,
+            "delta_gbp": 5.0,
+        }
+    ]
 
 
 def test_historical_scenario_route(monkeypatch):
@@ -35,17 +53,29 @@ def test_historical_scenario_route(monkeypatch):
     monkeypatch.setattr(
         scenario_route, "apply_historical_event", fake_apply_historical_event
     )
+    monkeypatch.setattr(
+        scenario_route,
+        "list_plots",
+        lambda: [{"owner": "alice", "accounts": [{}]}],
+    )
+    monkeypatch.setattr(
+        scenario_route,
+        "build_owner_portfolio",
+        lambda owner: {"total_value_estimate_gbp": 100.0, "accounts": []},
+    )
 
     client = _auth_client()
     resp = client.get("/scenario/historical?event_id=test&horizons=1&horizons=5")
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
-    if data:
-        first = data[0]
-        assert "owner" in first
-        assert "baseline_total_value_gbp" in first
-        assert "horizons" in first
-        first_horizon = next(iter(first["horizons"].values()))
-        assert "shocked_total_value_gbp" in first_horizon
-        assert "pct_change" in first_horizon
+    assert data == [
+        {
+            "owner": "alice",
+            "baseline_total_value_gbp": 100.0,
+            "horizons": {
+                "1": {"baseline": 100.0, "shocked": 100.0},
+                "5": {"baseline": 100.0, "shocked": 100.0},
+            },
+        }
+    ]

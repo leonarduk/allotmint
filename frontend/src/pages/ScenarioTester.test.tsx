@@ -24,9 +24,6 @@ describe("ScenarioTester page", () => {
           "1d": { baseline: 100, shocked: 110 },
           "1w": { baseline: 200, shocked: 180 },
         },
-        baseline_total_value_gbp: 100,
-        shocked_total_value_gbp: 110,
-        delta_gbp: 10,
       } as ScenarioResult,
     ]);
 
@@ -69,9 +66,6 @@ describe("ScenarioTester page", () => {
       {
         owner: "Test Owner",
         horizons: { "1d": { baseline: 100, shocked: 110 } },
-        baseline_total_value_gbp: 100,
-        shocked_total_value_gbp: 110,
-        delta_gbp: 10,
       } as ScenarioResult,
     ]);
     render(<ScenarioTester />);

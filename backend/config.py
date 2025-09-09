@@ -91,7 +91,7 @@ class Config:
     transactions_output_root: Optional[Path] = None
     uvicorn_port: Optional[int] = None
     reload: Optional[bool] = None
-    rate_limit_per_minute: int = 60
+    rate_limit_per_minute: int = 6000
     log_config: Optional[str] = None
     skip_snapshot_warm: Optional[bool] = None
     snapshot_warm_days: Optional[int] = None

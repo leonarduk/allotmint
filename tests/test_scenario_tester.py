@@ -3,7 +3,7 @@ import datetime as dt
 import pandas as pd
 import pytest
 import backend.utils.scenario_tester as sc_tester
-from backend.utils.scenario_tester import apply_historical_event, apply_price_shock, apply_historical_returns
+from backend.utils.scenario_tester import apply_price_shock, apply_historical_returns
 from backend.utils import scenario_tester as sc
 import backend.common.prices as prices
 from datetime import date
@@ -83,7 +83,7 @@ def test_apply_historical_event_uses_proxy_for_missing(monkeypatch):
     monkeypatch.setattr(sc_tester, "get_scaling_override", lambda *a, **k: 1.0)
     monkeypatch.setattr(sc_tester, "apply_scaling", lambda df, scale, scale_volume=False: df)
 
-    result = apply_historical_event(portfolio, event, horizons=[1, 365])
+    result = apply_historical_returns(portfolio, event, horizons=[1, 365])
 
     assert result["ABC.L"][1] == pytest.approx(0.1)
     assert result["MISSING.L"][1] == pytest.approx(0.1)
@@ -107,7 +107,7 @@ def test_apply_historical_event_scales_portfolio(monkeypatch):
         "proxy_index": {"ticker": "SPY", "exchange": "N"},
     }
 
-    returns = apply_historical_event(portfolio, event, horizons=[1, 5])
+    returns = apply_historical_returns(portfolio, event, horizons=[1, 5])
 
     assert returns["AAA.L"][1] == pytest.approx(-0.1)
     assert returns["AAA.L"][5] == pytest.approx(-0.2)

@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
+import Menu from "../components/Menu";
 import { getInstrumentDetail, getScreener, getNews, getQuotes } from "../api";
 import type { ScreenerResult, InstrumentDetail, NewsItem, QuoteRow } from "../types";
 import { largeNumber } from "../lib/money";
@@ -90,6 +91,7 @@ export default function InstrumentResearch() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+      <Menu />
       <h1 style={{ marginBottom: "1rem" }}>{tkr}</h1>
       <div style={{ marginBottom: "1rem" }}>
         <Link to="/screener" style={{ marginRight: "1rem" }}>

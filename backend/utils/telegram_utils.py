@@ -71,7 +71,17 @@ def send_message(text: str) -> None:
     token = app_config.telegram_bot_token
     chat_id = app_config.telegram_chat_id
 
-    if not token or not chat_id:
+    missing = []
+    if not token:
+        missing.append("token")
+    if not chat_id:
+        missing.append("chat_id")
+    if missing:
+        logger.debug(
+            "Missing Telegram configuration: %s",
+            ", ".join(missing),
+            extra={"skip_telegram": True},
+        )
         return
 
     global _NEXT_ALLOWED_TIME

@@ -7,14 +7,16 @@ import requests
 import backend.utils.telegram_utils as telegram_utils
 
 
-def test_send_message_requires_config(monkeypatch):
+def test_send_message_requires_config(monkeypatch, caplog):
     telegram_utils.RECENT_MESSAGES.clear()
     monkeypatch.setattr(
         telegram_utils.config, "telegram_bot_token", None, raising=False
     )
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", None, raising=False)
-    # should silently return when config missing
-    telegram_utils.send_message("hi")
+    # should log missing config and return
+    with caplog.at_level(logging.DEBUG):
+        telegram_utils.send_message("hi")
+    assert "Missing Telegram configuration: token, chat_id" in caplog.text
 
 
 def test_log_handler_without_config(monkeypatch):

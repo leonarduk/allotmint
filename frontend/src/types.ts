@@ -228,6 +228,8 @@ export interface InstrumentDetail {
   prices: unknown;
   positions: InstrumentPosition[];
   mini?: InstrumentDetailMini;
+  name?: string | null;
+  sector?: string | null;
   currency?: string | null;
 }
 

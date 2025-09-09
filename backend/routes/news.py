@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import List, Dict
 
+import logging
 import json
 from datetime import date
 from pathlib import Path
 
 import requests
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Query
 
 from backend.config import config
 from backend.utils import page_cache
@@ -79,9 +80,8 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
             {"headline": item.get("title"), "url": item.get("url")} for item in feed
         ]
     except Exception as exc:  # pragma: no cover - defensive
-        raise HTTPException(
-            status_code=502, detail=f"Failed to fetch news: {exc}"
-        ) from exc
+        logging.getLogger(__name__).error("Failed to fetch news for %s: %s", ticker, exc)
+        return []
 
 
 @router.get("/news")

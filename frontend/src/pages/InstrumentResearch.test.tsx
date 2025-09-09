@@ -169,6 +169,20 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("news fail")).toBeInTheDocument();
   });
 
+  it("shows a message when no news is available", async () => {
+    mockFetchInstrumentDetailWithRetry.mockResolvedValue({
+      prices: null,
+      positions: [],
+    } as InstrumentDetail);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+
+    renderPage();
+
+    expect(await screen.findByText("No news available")).toBeInTheDocument();
+  });
+
   it("navigates to screener when link clicked", async () => {
     mockFetchInstrumentDetailWithRetry.mockResolvedValue({
       prices: null,

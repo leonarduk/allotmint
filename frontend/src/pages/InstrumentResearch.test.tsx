@@ -124,7 +124,7 @@ describe("InstrumentResearch page", () => {
     ]);
     quotesResolve!([
       {
-        name: null,
+        name: "Acme Corp",
         symbol: "AAA",
         last: 100,
         open: null,
@@ -140,6 +140,9 @@ describe("InstrumentResearch page", () => {
     newsResolve!([{ headline: "headline", url: "http://example.com" }]);
 
     expect(await screen.findByText("Price")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      "AAA - Acme Corp",
+    );
     expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
   });
 
@@ -313,7 +316,7 @@ describe("InstrumentResearch page", () => {
     await Promise.resolve();
     resolveQuotes!([
       {
-        name: null,
+        name: "Acme Corp",
         symbol: "AAA",
         last: 1,
         open: null,

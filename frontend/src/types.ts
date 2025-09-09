@@ -244,6 +244,10 @@ export interface Transaction {
   shares?: number | null;
 }
 
+export interface TransactionWithCompliance extends Transaction {
+  warnings: string[];
+}
+
 export interface PriceEntry {
   Date: string;
   Open?: number | null;

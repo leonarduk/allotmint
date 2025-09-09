@@ -26,6 +26,9 @@ from backend.config import config
 logger = logging.getLogger("nudges")
 
 _DEFAULT_FREQ_DAYS = 7
+# Allowed reminder frequency range (in days)
+_MIN_FREQ_DAYS = 1
+_MAX_FREQ_DAYS = 30
 
 # S3 object key for persisted subscriptions
 _SUBSCRIPTIONS_KEY = "nudges/subscriptions.json"
@@ -85,8 +88,10 @@ def _save_state() -> None:
 def set_user_nudge(user: str, frequency: int, snooze_until: Optional[str] = None) -> None:
     """Create or update nudge settings for ``user``."""
     _load_state()
+    freq = int(frequency) if frequency is not None else _DEFAULT_FREQ_DAYS
+    freq = min(max(freq, _MIN_FREQ_DAYS), _MAX_FREQ_DAYS)
     _SUBSCRIPTIONS[user] = {
-        "frequency": int(frequency) if frequency else _DEFAULT_FREQ_DAYS,
+        "frequency": freq,
         "snoozed_until": snooze_until,
         "last_sent": _SUBSCRIPTIONS.get(user, {}).get("last_sent"),
     }

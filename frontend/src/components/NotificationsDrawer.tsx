@@ -115,9 +115,11 @@ export function NotificationsDrawer({ open, onClose }: Props) {
                   <button onClick={() => api.snoozeNudges(n.id, 1)}>Snooze</button>
                   <select
                     defaultValue={7}
-                    onChange={(e) =>
-                      api.subscribeNudges(n.id, Number(e.target.value))
-                    }
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      const freq = Math.min(Math.max(val, 1), 30);
+                      api.subscribeNudges(n.id, freq);
+                    }}
                     style={{ marginLeft: "0.5rem" }}
                   >
                     <option value={1}>Daily</option>

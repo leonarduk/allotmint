@@ -8,6 +8,9 @@
     "supportLink": "Support",
     "userLink": "App",
     "logout": "Abmelden",
+    "menu": "Menü",
+    "focusMode": "Fokusmodus",
+    "exitFocusMode": "Fokusmodus verlassen",
     "modes": {
       "group": "Gruppe",
       "instrument": "Instrument",

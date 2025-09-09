@@ -195,7 +195,7 @@ describe("Support page", () => {
 
     render(<Support />, { wrapper: MemoryRouter });
 
-    const instrument = await screen.findByRole("checkbox", { name: /instrument/i });
+    const instrument = await screen.findByRole("checkbox", { name: /^Instrument$/i });
     expect(instrument).toBeChecked();
 
     await act(async () => {
@@ -207,7 +207,9 @@ describe("Support page", () => {
       await userEvent.click(saveButton);
     });
 
-    expect(await screen.findByRole("checkbox", { name: /instrument/i })).not.toBeChecked();
+    expect(
+      await screen.findByRole("checkbox", { name: /^Instrument$/i }),
+    ).not.toBeChecked();
   });
 
   it("separates switches from other parameters", async () => {

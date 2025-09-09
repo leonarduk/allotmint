@@ -56,6 +56,7 @@ from backend.routes.portfolio import public_router as public_portfolio_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.query import router as query_router
 from backend.routes.quotes import router as quotes_router
+from backend.routes.events import router as events_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
 from backend.routes.support import router as support_router
@@ -222,6 +223,7 @@ def create_app() -> FastAPI:
     app.include_router(movers_router)
     app.include_router(user_config_router, dependencies=protected)
     app.include_router(approvals_router, dependencies=protected)
+    app.include_router(events_router)
     app.include_router(scenario_router)
     app.include_router(logs_router)
     app.include_router(goals_router, dependencies=protected)

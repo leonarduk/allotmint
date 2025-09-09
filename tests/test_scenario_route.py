@@ -1,4 +1,6 @@
 from fastapi.testclient import TestClient
+from pathlib import Path
+import json
 
 from backend.app import create_app
 from backend.routes import scenario as scenario_route
@@ -49,3 +51,15 @@ def test_historical_scenario_route(monkeypatch):
         first_horizon = next(iter(first["horizons"].values()))
         assert "shocked_total_value_gbp" in first_horizon
         assert "pct_change" in first_horizon
+
+
+def test_events_route():
+    client = _auth_client()
+    resp = client.get("/events")
+    assert resp.status_code == 200
+    data = resp.json()
+    events_path = Path(__file__).resolve().parents[1] / "data" / "events.json"
+    with events_path.open() as fh:
+        expected = [{"id": e["id"], "name": e["name"]} for e in json.load(fh)]
+    assert data == expected
+

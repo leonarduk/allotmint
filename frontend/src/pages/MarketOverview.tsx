@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Cell,
 } from 'recharts';
 
 export default function MarketOverview() {
@@ -36,6 +37,20 @@ export default function MarketOverview() {
     })
   );
 
+  const renderIndexTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const { value, change } = payload[0].payload;
+      return (
+        <div className="rounded border bg-white p-2 text-sm shadow">
+          <p className="font-semibold">{label}</p>
+          <p>Level: {value.toLocaleString()}</p>
+          <p>Change: {change.toFixed(2)}%</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl">
@@ -50,8 +65,15 @@ export default function MarketOverview() {
           <BarChart data={indexData}>
             <XAxis dataKey="name" />
             <YAxis />
-            <Tooltip />
-            <Bar dataKey="value" fill="#8884d8" />
+            <Tooltip content={renderIndexTooltip} />
+            <Bar dataKey="change">
+              {indexData.map((entry) => (
+                <Cell
+                  key={entry.name}
+                  fill={entry.change >= 0 ? '#16a34a' : '#dc2626'}
+                />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
         <table className="mt-4 w-full text-left">

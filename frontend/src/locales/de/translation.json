@@ -31,6 +31,7 @@
       "profile": "Profil",
       "pension": "Rentenprognose",
       "reports": "Berichte",
+      "alertsettings": "Alert Settings",
       "support": "Support",
       "scenario": "Szenario-Tester",
       "logs": "Protokolle"
@@ -221,6 +222,15 @@
       "otherSwitches": "Andere Schalter",
       "otherParams": "Weitere Parameter",
       "save": "Speichern"
+    }
+  },
+  "alertSettings": {
+    "title": "Alert Settings",
+    "threshold": "Threshold %:",
+    "save": "Save",
+    "status": {
+      "saved": "Saved",
+      "error": "Error"
     }
   },
   "reports": {

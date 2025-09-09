@@ -33,6 +33,7 @@
       "taxharvest": "Tax Harvest",
       "taxallowances": "Tax Allowances",
       "reports": "Reports",
+      "alertsettings": "Alert Settings",
       "support": "Support",
       "scenario": "Scenario Tester",
       "logs": "Logs"
@@ -223,6 +224,15 @@
       "otherSwitches": "Other Switches",
       "otherParams": "Other parameters",
       "save": "Save"
+    }
+  },
+  "alertSettings": {
+    "title": "Alert Settings",
+    "threshold": "Threshold %:",
+    "save": "Save",
+    "status": {
+      "saved": "Saved",
+      "error": "Error"
     }
   },
   "reports": {

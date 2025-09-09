@@ -31,6 +31,7 @@
       "profile": "Profilo",
       "pension": "Previsione pensionistica",
       "reports": "Segnalazioni",
+      "alertsettings": "Alert Settings",
       "support": "Supporto",
       "scenario": "Tester di scenario",
       "logs": "Tronchi"
@@ -221,6 +222,15 @@
       "otherSwitches": "Altri interruttori",
       "otherParams": "Altri parametri",
       "save": "Salva"
+    }
+  },
+  "alertSettings": {
+    "title": "Alert Settings",
+    "threshold": "Threshold %:",
+    "save": "Save",
+    "status": {
+      "saved": "Saved",
+      "error": "Error"
     }
   },
   "reports": {

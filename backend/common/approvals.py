@@ -42,7 +42,18 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
         logger.error("approvals directory not found for %s: %s", owner, exc)
         raise
     if not path.exists():
-        logger.error("approvals file for '%s' not found at %s", owner, path)
+        try:
+            path.write_text(json.dumps({"approvals": []}, indent=2, sort_keys=True))
+            logger.info(
+                "approvals file for '%s' not found at %s; created default",
+                owner,
+                path,
+            )
+        except OSError as exc:
+            logger.error(
+                "failed to create approvals file for %s at %s: %s", owner, path, exc
+            )
+            return {}
         return {}
     try:
         data = json.loads(path.read_text())

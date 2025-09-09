@@ -78,23 +78,25 @@ export default function Menu({
           ? 'virtual'
           : path[0] === 'reports'
             ? 'reports'
-            : path[0] === 'pension'
-              ? 'pension'
-              : path[0] === 'tax-harvest'
-                ? 'taxharvest'
-                : path[0] === 'tax-allowances'
-                  ? 'taxallowances'
-                  : path[0] === 'support'
-                    ? 'support'
-                    : path[0] === 'settings'
-                      ? 'settings'
-                      : path[0] === 'scenario'
-                        ? 'scenario'
-                        : path[0] === 'logs'
-                          ? 'logs'
-                          : path.length === 0
-                            ? 'group'
-                            : 'movers';
+            : path[0] === 'alert-settings'
+              ? 'alertsettings'
+              : path[0] === 'pension'
+                ? 'pension'
+                : path[0] === 'tax-harvest'
+                  ? 'taxharvest'
+                  : path[0] === 'tax-allowances'
+                    ? 'taxallowances'
+                    : path[0] === 'support'
+                      ? 'support'
+                      : path[0] === 'settings'
+                        ? 'settings'
+                        : path[0] === 'scenario'
+                          ? 'scenario'
+                          : path[0] === 'logs'
+                            ? 'logs'
+                            : path.length === 0
+                              ? 'group'
+                              : 'movers';
 
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
   const inSupport = mode === 'support';
@@ -118,6 +120,8 @@ export default function Menu({
         return '/scenario';
       case 'reports':
         return '/reports';
+      case 'alertsettings':
+        return '/alert-settings';
       case 'settings':
         return '/settings';
       case 'logs':

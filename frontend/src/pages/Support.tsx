@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   API_BASE,
@@ -7,30 +8,21 @@ import {
   updateConfig,
   savePushSubscription,
   deletePushSubscription,
+  checkPortfolioHealth,
+  type Finding,
 } from "../api";
 import { useConfig } from "../ConfigContext";
 import { OwnerSelector } from "../components/OwnerSelector";
 import type { OwnerSummary } from "../types";
+import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 
-const TAB_KEYS = [
-  "instrument",
-  "performance",
-  "transactions",
-  "screener",
-  "trading",
-  "timeseries",
-  "watchlist",
-  "virtual",
-  "support",
-  "logs",
-  "settings",
-  "profile",
-  "reports",
-] as const;
+const TAB_KEYS = orderedTabPlugins.map((p) => p.id) as TabPluginId[];
 const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record<
-  (typeof TAB_KEYS)[number],
+  TabPluginId,
   boolean
 >;
+
+const UI_KEYS = new Set(["theme", "relative_view_enabled"]);
 
 type ConfigValue = string | boolean | Record<string, unknown>;
 type ConfigState = Record<string, ConfigValue>;
@@ -41,12 +33,15 @@ export default function Support() {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigState>({});
-  const [tabs, setTabs] = useState<Record<string, boolean>>(EMPTY_TABS);
+  const [tabs, setTabs] = useState<Record<TabPluginId, boolean>>(EMPTY_TABS);
   const [configStatus, setConfigStatus] = useState<string | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [owner, setOwner] = useState("");
   const [pushStatus, setPushStatus] = useState<string | null>(null);
+  const [health, setHealth] = useState<Finding[]>([]);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [healthRunning, setHealthRunning] = useState(false);
 
   const envEntries = Object.entries(import.meta.env).sort();
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
@@ -107,29 +102,75 @@ export default function Support() {
     setConfig((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleTabChange(key: string, value: boolean) {
+  function handleTabChange(key: TabPluginId, value: boolean) {
     setTabs((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function runHealthCheck() {
+    setHealthRunning(true);
+    setHealthError(null);
+    try {
+      const res = await checkPortfolioHealth();
+      setHealth(res.findings);
+    } catch {
+      setHealthError(t("support.health.error"));
+      setHealth([]);
+    } finally {
+      setHealthRunning(false);
+    }
+  }
+
+  async function copyReport() {
+    try {
+      await navigator.clipboard.writeText(
+        JSON.stringify(health, null, 2),
+      );
+    } catch {
+      /* ignore */
+    }
   }
 
   async function saveConfig(e: React.FormEvent) {
     e.preventDefault();
     setConfigStatus("saving");
     const payload: Record<string, unknown> = {};
+    const ui: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(config)) {
       if (k === "tabs") continue; // rebuilt from toggle state
-      if (typeof v === "string") {
-        let parsed: unknown = v;
-        try {
-          parsed = JSON.parse(v);
-        } catch {
-          /* keep as string */
+      if (UI_KEYS.has(k)) {
+        const parsedVal = (() => {
+          if (typeof v === "string") {
+            try {
+              return JSON.parse(v);
+            } catch {
+              return v;
+            }
+          }
+          return v;
+        })();
+        ui[k] = parsedVal;
+        continue;
+      }
+      const parsedVal = (() => {
+        if (typeof v === "string") {
+          try {
+            return JSON.parse(v);
+          } catch {
+            return v;
+          }
         }
-        payload[k] = parsed;
+        return v;
+      })();
+      if (k === "relative_view_enabled" || k === "theme") {
+        ui[k] = parsedVal;
       } else {
-        payload[k] = v;
+        payload[k] = parsedVal;
       }
     }
-    payload.tabs = { ...tabs };
+    ui.tabs = { ...tabs };
+    if (Object.keys(ui).length) {
+      payload.ui = ui;
+    }
     try {
       await updateConfig(payload);
       await refreshConfig();
@@ -229,6 +270,12 @@ export default function Support() {
   return (
     <div className="container mx-auto max-w-3xl space-y-8 p-4">
       <header>
+        <Link
+          to="/"
+          className="mb-2 inline-block text-blue-500 hover:underline"
+        >
+          {t("app.userLink")}
+        </Link>
         <h1 className="mb-1 text-2xl font-bold md:text-4xl">
           {t("support.title")}
         </h1>
@@ -270,12 +317,55 @@ export default function Support() {
       </section>
 
       <section className="rounded-lg border p-4 shadow-sm">
-        <h2 className="mb-2 text-xl font-semibold">Notifications</h2>
+        <h2 className="mb-2 text-xl font-semibold">{t("support.health.title")}</h2>
+        <button
+          type="button"
+          onClick={runHealthCheck}
+          disabled={healthRunning}
+          className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+        >
+          {t("support.health.run")}
+        </button>
+        {healthError && <p role="alert">{healthError}</p>}
+        {health.length > 0 && (
+          <div className="mt-2 space-y-2">
+            <ul>
+              {health.map((f, idx) => (
+                <li
+                  key={idx}
+                  className={
+                    f.level === "error"
+                      ? "text-red-600"
+                      : f.level === "warning"
+                      ? "text-orange-600"
+                      : ""
+                  }
+                >
+                  {f.message}
+                  {f.suggestion && (
+                    <div className="text-sm">{f.suggestion}</div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={copyReport}
+              className="rounded bg-gray-200 px-2 py-1"
+            >
+              {t("support.health.copyReport")}
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border p-4 shadow-sm">
+        <h2 className="mb-2 text-xl font-semibold">{t("support.notifications.title")}</h2>
         <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
         {typeof Notification === "undefined" ||
         typeof navigator === "undefined" ||
         !("serviceWorker" in navigator) ? (
-          <p className="mt-2">Push not supported</p>
+          <p className="mt-2">{t("support.notifications.notSupported")}</p>
         ) : (
           <div className="mt-2 space-x-2">
             <button
@@ -284,23 +374,29 @@ export default function Support() {
               disabled={!owner}
               className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
             >
-              {pushEnabled ? "Disable Push Alerts" : "Enable Push Alerts"}
+              {pushEnabled
+                ? t("support.notifications.disable")
+                : t("support.notifications.enable")}
             </button>
-            {pushStatus === "denied" && <p>Push permission denied.</p>}
-            {pushStatus === "error" && <p>Error handling push subscription.</p>}
+            {pushStatus === "denied" && (
+              <p>{t("support.notifications.denied")}</p>
+            )}
+            {pushStatus === "error" && (
+              <p>{t("support.notifications.error")}</p>
+            )}
           </div>
         )}
       </section>
 
       <section className="rounded-lg border p-4 shadow-sm">
-        <h2 className="mb-2 text-xl font-semibold">Configuration</h2>
+        <h2 className="mb-2 text-xl font-semibold">{t("support.config.title")}</h2>
         {!Object.keys(config).length ? (
-          <p>Loading…</p>
+          <p>{t("common.loading")}</p>
         ) : (
           <form onSubmit={saveConfig} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <h3 className="mb-1 font-semibold">Tabs Enabled</h3>
+                <h3 className="mb-1 font-semibold">{t("support.config.tabsEnabled")}</h3>
                 {TAB_KEYS.map((tab) => (
                   <label key={tab} className="mb-1 block font-medium">
                     <input
@@ -314,7 +410,7 @@ export default function Support() {
                 ))}
               </div>
               <div>
-                <h3 className="mb-1 font-semibold">Other Switches</h3>
+                <h3 className="mb-1 font-semibold">{t("support.config.otherSwitches")}</h3>
                 {Object.entries(config)
                   .filter(([k, v]) => k !== "tabs" && typeof v === "boolean")
                   .map(([key, value]) => (
@@ -331,7 +427,7 @@ export default function Support() {
               </div>
             </div>
             <div>
-              <h3 className="mb-1 font-semibold">Other parameters</h3>
+              <h3 className="mb-1 font-semibold">{t("support.config.otherParams")}</h3>
               {Object.entries(config)
                 .filter(([k, v]) => k !== "tabs" && typeof v !== "boolean")
                 .map(([key, value]) => (
@@ -369,16 +465,20 @@ export default function Support() {
                 type="submit"
                 className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
               >
-                Save
+                {t("support.config.save")}
               </button>
               {configStatus === "saved" && (
-                <span className="ml-2 text-green-600">Saved</span>
+                <span className="ml-2 text-green-600">
+                  {t("support.status.saved")}
+                </span>
               )}
               {configStatus === "error" && (
-                <span className="ml-2 text-red-600">Error</span>
+                <span className="ml-2 text-red-600">
+                  {t("support.status.error")}
+                </span>
               )}
               {configStatus === "saving" && (
-                <span className="ml-2">Saving…</span>
+                <span className="ml-2">{t("support.status.saving")}</span>
               )}
             </div>
           </form>

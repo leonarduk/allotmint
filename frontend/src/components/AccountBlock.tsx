@@ -7,7 +7,7 @@ import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { money } from "../lib/money";
-import i18n from "../i18n";
+import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
 
 /* ──────────────────────────────────────────────────────────────
@@ -58,9 +58,7 @@ export function AccountBlock({
           {account.last_updated && (
             <div className="text-muted">
               Last updated:&nbsp;
-              {new Intl.DateTimeFormat(i18n.language).format(
-                new Date(account.last_updated),
-              )}
+              {formatDateISO(new Date(account.last_updated))}
             </div>
           )}
 

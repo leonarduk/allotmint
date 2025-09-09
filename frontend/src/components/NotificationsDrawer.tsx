@@ -1,6 +1,6 @@
 import { useFetch } from "../hooks/useFetch";
 import * as api from "../api";
-import type { Alert } from "../types";
+import type { Alert, Nudge } from "../types";
 
 interface Props {
   open: boolean;
@@ -8,12 +8,18 @@ interface Props {
 }
 
 export function NotificationsDrawer({ open, onClose }: Props) {
-  const { data: alerts, loading, error } = useFetch<Alert[]>(
-    api.getAlerts,
-    [],
-    open,
-  );
+  const {
+    data: alerts,
+    loading: alertLoading,
+    error: alertError,
+  } = useFetch<Alert[]>(api.getAlerts, [], open);
+  const {
+    data: nudges,
+    loading: nudgeLoading,
+    error: nudgeError,
+  } = useFetch<Nudge[]>(api.getNudges, [], open);
   const alertList = alerts ?? [];
+  const nudgeList = nudges ?? [];
 
   if (!open) return null;
 
@@ -69,10 +75,10 @@ export function NotificationsDrawer({ open, onClose }: Props) {
             ×
           </button>
         </div>
-        {loading && <div>Loading...</div>}
-        {error && <div>Cannot reach server</div>}
-        {!loading && !error && alertList.length === 0 && <div>No alerts</div>}
-        {!loading && !error && alertList.length > 0 && (
+        {alertLoading && <div>Loading...</div>}
+        {alertError && <div>Cannot reach server</div>}
+        {!alertLoading && !alertError && alertList.length === 0 && <div>No alerts</div>}
+        {!alertLoading && !alertError && alertList.length > 0 && (
           <ul style={{ listStyle: "none", padding: 0 }}>
             {alertList.map((a, i) => (
               <li key={i} style={{ marginBottom: "0.5rem" }}>
@@ -86,6 +92,40 @@ export function NotificationsDrawer({ open, onClose }: Props) {
                   }}
                 >
                   {new Date(a.timestamp).toLocaleString()}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div style={{ marginTop: "1rem" }}>
+          <strong>Nudges</strong>
+        </div>
+        {nudgeLoading && <div>Loading...</div>}
+        {nudgeError && <div>Cannot reach server</div>}
+        {!nudgeLoading && !nudgeError && nudgeList.length === 0 && <div>No nudges</div>}
+        {!nudgeLoading && !nudgeError && nudgeList.length > 0 && (
+          <ul style={{ listStyle: "none", padding: 0 }}>
+            {nudgeList.map((n) => (
+              <li key={n.id} style={{ marginBottom: "0.5rem" }}>
+                <div>{n.message}</div>
+                <div style={{ fontSize: "0.8rem", color: "#666" }}>
+                  {new Date(n.timestamp).toLocaleString()}
+                </div>
+                <div style={{ marginTop: "0.25rem" }}>
+                  <button onClick={() => api.snoozeNudges(n.id, 1)}>Snooze</button>
+                  <select
+                    defaultValue={7}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      const freq = Math.min(Math.max(val, 1), 30);
+                      api.subscribeNudges(n.id, freq);
+                    }}
+                    style={{ marginLeft: "0.5rem" }}
+                  >
+                    <option value={1}>Daily</option>
+                    <option value={3}>Every 3 days</option>
+                    <option value={7}>Weekly</option>
+                  </select>
                 </div>
               </li>
             ))}

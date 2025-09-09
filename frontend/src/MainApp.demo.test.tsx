@@ -23,11 +23,13 @@ describe("MainApp demo view", () => {
       }),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
       getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
       getCompliance: vi
         .fn()
         .mockResolvedValue({ owner: "demo", warnings: [], trade_counts: {} }),
       getTradingSignals: vi.fn().mockResolvedValue([]),
+      getQuests: vi.fn().mockResolvedValue({ quests: [] }),
       getTimeseries: vi.fn(),
       saveTimeseries: vi.fn(),
       refetchTimeseries: vi.fn(),

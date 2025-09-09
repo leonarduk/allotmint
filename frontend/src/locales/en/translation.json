@@ -8,6 +8,9 @@
     "supportLink": "Support",
     "userLink": "App",
     "logout": "Logout",
+    "menu": "Menu",
+    "focusMode": "Focus Mode",
+    "exitFocusMode": "Exit Focus Mode",
     "modes": {
       "group": "Group",
       "instrument": "Instrument",
@@ -20,12 +23,17 @@
       "watchlist": "Watchlist",
       "allocation": "Allocation",
       "rebalance": "Rebalance",
+      "market": "Market Overview",
       "movers": "Movers",
       "instrumentadmin": "Instrument Admin",
       "dataadmin": "Data Admin",
       "settings": "User Settings",
       "profile": "Profile",
+      "pension": "Pension Forecast",
+      "taxharvest": "Tax Harvest",
+      "taxallowances": "Tax Allowances",
       "reports": "Reports",
+      "alertsettings": "Alert Settings",
       "support": "Support",
       "scenario": "Scenario Tester",
       "logs": "Logs"
@@ -155,6 +163,10 @@
     "label": "Owner",
     "select": "Select an owner."
   },
+  "pensionForecast": {
+    "currentAge": "Current age: {{age}}",
+    "retirementAge": "Retirement age: {{age}}"
+  },
   "group": {
     "select": "Select a group."
   },
@@ -188,20 +200,55 @@
     "status": {
       "sent": "Sent",
       "error": "Error",
-      "sending": "Sending..."
+      "sending": "Sending...",
+      "saved": "Saved",
+      "saving": "Saving..."
+    },
+    "health": {
+      "title": "Portfolio health",
+      "run": "Run portfolio health check",
+      "copyReport": "Copy report",
+      "error": "Failed to run health check"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "notSupported": "Push not supported",
+      "disable": "Disable Push Alerts",
+      "enable": "Enable Push Alerts",
+      "denied": "Push permission denied.",
+      "error": "Error handling push subscription."
+    },
+    "config": {
+      "title": "Configuration",
+      "tabsEnabled": "Tabs Enabled",
+      "otherSwitches": "Other Switches",
+      "otherParams": "Other parameters",
+      "save": "Save"
+    }
+  },
+  "alertSettings": {
+    "title": "Alert Settings",
+    "threshold": "Threshold %:",
+    "save": "Save",
+    "status": {
+      "saved": "Saved",
+      "error": "Error"
     }
   },
   "reports": {
     "title": "Reports",
     "csv": "Download CSV",
-    "pdf": "Download PDF"
+    "pdf": "Download PDF",
+    "noOwners": "No owners available—check backend connection"
   },
   "loadingPortfolio": "Loading portfolio…",
   "portfolio": "Portfolio",
   "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",
   "approxTotal": "Approx Total: £{{value}}",
   "allocation": {
-    "instrumentTypes": "Instrument Types"
+    "instrumentTypes": "Instrument Types",
+    "sector": "Industries",
+    "region": "Regions"
   },
   "watchlist": {
     "refresh": "Refresh"
@@ -316,5 +363,22 @@
     "title": "Value at Risk",
     "details": "Historical simulation details",
     "noData": "No VaR data available."
+  },
+  "market": {
+    "indexLevels": "Index Levels",
+    "sectorPerformance": "Sector Performance",
+    "latestHeadlines": "Latest Headlines"
+  },
+  "goals": {
+    "title": "Goals",
+    "targetAmount": "Target Amount",
+    "add": "Add Goal",
+    "currentAmount": "Current Amount:",
+    "goalLine": "{{name}} – target {{amount}} by {{date}}",
+    "view": "View",
+    "progress": "Progress: {{progress}}%",
+    "suggestedTrades": "Suggested Trades",
+    "trade": "{{action}} {{amount}} of {{ticker}}",
+    "back": "Back to Portfolio"
   }
 }

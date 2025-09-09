@@ -1,5 +1,7 @@
 import datetime as dt
 
+import datetime as dt
+
 from backend.common.pension import forecast_pension
 
 
@@ -12,11 +14,12 @@ def test_forecast_pre_retirement_without_state():
         db_pensions=[{"annual_income_gbp": 10000, "normal_retirement_age": 65}],
         today=today,
     )
-    assert res[0]["age"] == 40
-    assert res[0]["income"] == 0
-    assert res[25]["age"] == 65
-    assert res[25]["income"] == 10000
-    assert len(res) == 30
+    forecast = res["forecast"]
+    assert forecast[0]["age"] == 40
+    assert forecast[0]["income"] == 0
+    assert forecast[25]["age"] == 65
+    assert forecast[25]["income"] == 10000
+    assert len(forecast) == 30
 
 
 def test_forecast_pre_retirement_with_state():
@@ -29,7 +32,7 @@ def test_forecast_pre_retirement_with_state():
         state_pension_annual=9000,
         today=today,
     )
-    assert res[25]["income"] == 19000
+    assert res["forecast"][25]["income"] == 19000
 
 
 def test_forecast_post_retirement_life_expectancy():
@@ -42,6 +45,7 @@ def test_forecast_post_retirement_life_expectancy():
         state_pension_annual=9000,
         today=today,
     )
-    assert res[0]["age"] == 73
-    assert len(res) == 17
-    assert all(r["income"] == 19000 for r in res)
+    forecast = res["forecast"]
+    assert forecast[0]["age"] == 73
+    assert len(forecast) == 17
+    assert all(r["income"] == 19000 for r in forecast)

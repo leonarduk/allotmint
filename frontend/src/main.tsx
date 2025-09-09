@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from './AuthContext'
 import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import { UserProvider } from './UserContext'
+import { FocusModeProvider } from './FocusModeContext'
 
 const storedToken = getStoredAuthToken()
 if (storedToken) setAuthToken(storedToken)
@@ -21,11 +22,14 @@ const App = lazy(() => import('./App.tsx'))
 const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))
 const Support = lazy(() => import('./pages/Support'))
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
+const TradeCompliance = lazy(() => import('./pages/TradeCompliance'))
 const InstrumentResearch = lazy(() => import('./pages/InstrumentResearch'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Alerts = lazy(() => import('./pages/Alerts'))
 const Goals = lazy(() => import('./pages/Goals'))
 const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'))
+const ReturnComparison = lazy(() => import('./pages/ReturnComparison'))
+const AlertSettings = lazy(() => import('./pages/AlertSettings'))
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -67,11 +71,15 @@ export function Root() {
         <Route path="/virtual" element={<VirtualPortfolio />} />
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+        <Route path="/trade-compliance" element={<TradeCompliance />} />
+        <Route path="/trade-compliance/:owner" element={<TradeCompliance />} />
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/alerts" element={<Alerts />} />
+        <Route path="/alert-settings" element={<AlertSettings />} />
         <Route path="/goals" element={<Goals />} />
         <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
+        <Route path="/returns/compare" element={<ReturnComparison />} />
         <Route path="/*" element={<App onLogout={logout} />} />
       </Routes>
     </Suspense>
@@ -87,10 +95,12 @@ createRoot(rootEl).render(
         <PriceRefreshProvider>
           <AuthProvider>
             <UserProvider>
-              <BrowserRouter>
-                <Root />
-              </BrowserRouter>
-              <ToastContainer autoClose={5000} />
+              <FocusModeProvider>
+                <BrowserRouter>
+                  <Root />
+                </BrowserRouter>
+                <ToastContainer autoClose={5000} />
+              </FocusModeProvider>
             </UserProvider>
           </AuthProvider>
         </PriceRefreshProvider>

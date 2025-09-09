@@ -46,6 +46,9 @@ class TabsConfig:
     timeseries: bool = True
     watchlist: bool = True
     movers: bool = True
+    market: bool = True
+    allocation: bool = True
+    rebalance: bool = True
     instrumentadmin: bool = True
     group: bool = True
     owner: bool = True
@@ -54,6 +57,7 @@ class TabsConfig:
     support: bool = True
     settings: bool = True
     profile: bool = False
+    pension: bool = True
     reports: bool = True
     scenario: bool = True
     logs: bool = True
@@ -191,6 +195,14 @@ def load_config() -> Config:
     if disable_auth_env is not None:
         data["disable_auth"] = disable_auth_env
 
+    telegram_token_env = os.getenv("TELEGRAM_BOT_TOKEN")
+    if telegram_token_env is not None:
+        data["telegram_bot_token"] = telegram_token_env
+
+    telegram_chat_id_env = os.getenv("TELEGRAM_CHAT_ID")
+    if telegram_chat_id_env is not None:
+        data["telegram_chat_id"] = telegram_chat_id_env
+
     repo_root_raw = data.get("repo_root")
     repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
 
@@ -269,6 +281,11 @@ def load_config() -> Config:
         google_client_id = google_client_id.strip() or None
 
     validate_google_auth(google_auth_enabled, google_client_id)
+
+    # Optional env override for Alpha Vantage API key to avoid committing secrets
+    alpha_key_env = os.getenv("ALPHA_VANTAGE_KEY")
+    if alpha_key_env:
+        data["alpha_vantage_key"] = alpha_key_env
 
     return Config(
         app_env=data.get("app_env"),

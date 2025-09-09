@@ -12,6 +12,7 @@ import { getConfig } from "./api";
 export interface TabsConfig {
   [key: string]: boolean;
   group: boolean;
+  market: boolean;
   owner: boolean;
   instrument: boolean;
   performance: boolean;
@@ -20,6 +21,8 @@ export interface TabsConfig {
   trading: boolean;
   timeseries: boolean;
   watchlist: boolean;
+  allocation: boolean;
+  rebalance: boolean;
   movers: boolean;
   instrumentadmin: boolean;
   dataadmin: boolean;
@@ -27,6 +30,7 @@ export interface TabsConfig {
   support: boolean;
   settings: boolean;
   profile: boolean;
+  pension: boolean;
   reports: boolean;
   scenario: boolean;
   logs: boolean;
@@ -54,6 +58,7 @@ export interface RawConfig {
 
 const defaultTabs: TabsConfig = {
   group: true,
+  market: true,
   owner: true,
   instrument: true,
   performance: true,
@@ -62,6 +67,8 @@ const defaultTabs: TabsConfig = {
   trading: true,
   timeseries: true,
   watchlist: true,
+  allocation: true,
+  rebalance: true,
   movers: true,
   instrumentadmin: true,
   dataadmin: true,
@@ -69,6 +76,7 @@ const defaultTabs: TabsConfig = {
   support: true,
   settings: true,
   profile: false,
+  pension: true,
   reports: true,
   scenario: true,
   logs: true,

@@ -2,6 +2,7 @@ import { render, screen, within, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import i18n from "../i18n";
+import { formatDateISO } from "../lib/date";
 import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 vi.mock("../api", () => ({
@@ -27,6 +28,7 @@ const defaultConfig: AppConfig = {
     baseCurrency: "GBP",
     tabs: {
         group: true,
+        market: true,
         owner: true,
         instrument: true,
         performance: true,
@@ -35,6 +37,8 @@ const defaultConfig: AppConfig = {
         screener: true,
         timeseries: true,
         watchlist: true,
+        allocation: true,
+        rebalance: true,
         movers: true,
         instrumentadmin: true,
         dataadmin: true,
@@ -42,6 +46,7 @@ const defaultConfig: AppConfig = {
         support: true,
         settings: true,
         profile: true,
+        pension: true,
         reports: true,
         scenario: true,
         logs: true,
@@ -159,7 +164,7 @@ describe("HoldingsTable", () => {
         const row = (await screen.findByText("Test Holding")).closest("tr");
         const cell = within(row!).getByText("✗ 10");
         expect(cell).toBeInTheDocument();
-        const expected = new Intl.DateTimeFormat('en').format(new Date('2024-07-20'));
+        const expected = formatDateISO(new Date('2024-07-20'));
         expect(cell).toHaveAttribute('title', expected);
     });
 
@@ -358,5 +363,22 @@ describe("HoldingsTable", () => {
           await act(async () => {
               await i18n.changeLanguage('en');
           });
+      });
+
+      it("renders rows and keeps header on scroll", async () => {
+          const manyHoldings = Array.from({ length: 50 }, (_, i) => ({
+              ...holdings[0],
+              ticker: `T${i}`,
+              name: `Name${i}`,
+          }));
+          render(<HoldingsTable holdings={manyHoldings} />);
+          await screen.findByText('T0');
+          const container = screen.getByRole('table').parentElement as HTMLElement;
+          act(() => {
+              container.scrollTop = 500;
+              container.dispatchEvent(new Event('scroll'));
+          });
+          expect(screen.getByRole('columnheader', { name: 'Ticker' })).toBeInTheDocument();
+          expect(screen.getByText('T49')).toBeInTheDocument();
       });
   });

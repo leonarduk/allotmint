@@ -30,7 +30,15 @@ def mock_user_config(monkeypatch):
     def fake_load(owner: str, accounts_root=None):
         if owner not in store:
             raise FileNotFoundError(owner)
-        return UserConfig.from_dict(store[owner])
+        data = store[owner]
+        if not data:
+            return UserConfig(
+                hold_days_min=config.hold_days_min,
+                max_trades_per_month=config.max_trades_per_month,
+                approval_exempt_types=config.approval_exempt_types,
+                approval_exempt_tickers=config.approval_exempt_tickers,
+            )
+        return UserConfig.from_dict(data)
 
     def fake_save(owner: str, cfg, accounts_root=None):
         if owner not in store:
@@ -73,7 +81,7 @@ def test_missing_owner_returns_error(client, mock_user_config):
     assert resp.json()["detail"] == "Owner not found"
 
 
-def test_defaults_from_config_return_lists(client):
+def test_defaults_from_config_return_lists(client, mock_user_config):
     resp = client.get("/user-config/alex")
     assert resp.status_code == 200
     data = resp.json()

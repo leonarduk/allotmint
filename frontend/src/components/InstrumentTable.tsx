@@ -5,6 +5,7 @@ import { InstrumentDetail } from './InstrumentDetail';
 import { useFilterableTable } from '../hooks/useFilterableTable';
 import { money, percent } from '../lib/money';
 import { translateInstrumentType } from '../lib/instrumentType';
+import { formatDateISO } from '../lib/date';
 import tableStyles from '../styles/table.module.css';
 import statusStyles from '../styles/status.module.css';
 import i18n from '../i18n';
@@ -273,9 +274,7 @@ export function InstrumentTable({ rows }: Props) {
                 )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {r.last_price_date
-                    ? new Intl.DateTimeFormat(i18n.language).format(
-                        new Date(r.last_price_date)
-                      )
+                    ? formatDateISO(new Date(r.last_price_date))
                     : '—'}
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>

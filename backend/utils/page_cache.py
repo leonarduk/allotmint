@@ -82,7 +82,7 @@ def schedule_refresh(
     async def _call_builder() -> Any:
         if inspect.iscoroutinefunction(builder):
             return await builder()
-        result = await asyncio.to_thread(builder)
+        result = builder()
         if inspect.isawaitable(result):
             return await result
         return result

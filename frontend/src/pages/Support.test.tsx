@@ -8,17 +8,24 @@ const mockUpdateConfig = vi.hoisted(() => vi.fn());
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockSavePushSubscription = vi.hoisted(() => vi.fn());
 const mockDeletePushSubscription = vi.hoisted(() => vi.fn());
+const mockCheckPortfolioHealth = vi.hoisted(() => vi.fn());
 
-vi.mock("../api", () => ({
-  API_BASE: "",
-  getConfig: mockGetConfig,
-  updateConfig: mockUpdateConfig,
-  getOwners: mockGetOwners,
-  savePushSubscription: mockSavePushSubscription,
-  deletePushSubscription: mockDeletePushSubscription,
-}));
+vi.mock("../api", async () => {
+  const actual = await vi.importActual<typeof import("../api")>("../api");
+  return {
+    ...actual,
+    API_BASE: "",
+    getConfig: mockGetConfig,
+    updateConfig: mockUpdateConfig,
+    getOwners: mockGetOwners,
+    savePushSubscription: mockSavePushSubscription,
+    deletePushSubscription: mockDeletePushSubscription,
+    checkPortfolioHealth: mockCheckPortfolioHealth,
+  };
+});
 
 import Support from "./Support";
+import en from "../locales/en/translation.json";
 
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -35,26 +42,39 @@ beforeEach(() => {
       reports: true,
       logs: true,
       profile: true,
+      allocation: false,
+      scenario: false,
+      market: true,
+      rebalance: false,
+      pension: true,
     },
   });
   mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
 });
 
 describe("Support page", () => {
+  it("renders app link", async () => {
+    render(<Support />, { wrapper: MemoryRouter });
+    const link = await screen.findByRole("link", { name: en.app.userLink });
+    expect(link).toHaveAttribute("href", "/");
+  });
+
   it("renders environment heading", async () => {
     render(<Support />, { wrapper: MemoryRouter });
-    expect(await screen.findByText(/Environment/)).toBeInTheDocument();
+    expect(await screen.findByText(en.support.environment)).toBeInTheDocument();
   });
 
   it("shows owner selector", async () => {
     render(<Support />, { wrapper: MemoryRouter });
-    expect(await screen.findByLabelText(/Owner/i)).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText(new RegExp(en.owner.label))
+    ).toBeInTheDocument();
   });
 
   it("handles owner fetch failure gracefully", async () => {
     mockGetOwners.mockRejectedValueOnce(new Error("fail"));
     render(<Support />, { wrapper: MemoryRouter });
-    const select = await screen.findByLabelText(/Owner/i);
+    const select = await screen.findByLabelText(new RegExp(en.owner.label));
     expect((select as HTMLSelectElement).options.length).toBe(0);
   });
 
@@ -84,6 +104,11 @@ describe("Support page", () => {
       reports: true,
       logs: true,
       profile: true,
+      allocation: false,
+      scenario: false,
+      market: true,
+      rebalance: false,
+      pension: true,
     },
   });
   mockGetConfig.mockResolvedValueOnce({
@@ -99,13 +124,18 @@ describe("Support page", () => {
       reports: true,
       logs: true,
       profile: true,
+      allocation: false,
+      scenario: false,
+      market: true,
+      rebalance: false,
+      pension: true,
     },
   });
     mockUpdateConfig.mockResolvedValue(undefined);
 
     render(<Support />, { wrapper: MemoryRouter });
 
-    const saveButton = await screen.findByRole("button", { name: "Save" });
+    const saveButton = await screen.findByRole("button", { name: en.support.config.save });
     await act(async () => {
       await userEvent.click(saveButton);
     });
@@ -119,13 +149,27 @@ describe("Support page", () => {
 
   it("renders tab toggles and allows toggling", async () => {
     render(<Support />, { wrapper: MemoryRouter });
-    await screen.findByText(/Tabs Enabled/i);
+    await screen.findByText(en.support.config.tabsEnabled);
     const instrument = await screen.findByRole("checkbox", {
-      name: /instrument/i,
+      name: /^instrument$/i,
     });
-    const support = screen.getByRole("checkbox", { name: /support/i });
+    const support = screen.getByRole("checkbox", { name: /^support$/i });
+    const group = screen.getByRole("checkbox", { name: /^group$/i });
+    const owner = screen.getByRole("checkbox", { name: /^owner$/i });
+    const allocation = screen.getByRole("checkbox", { name: /^allocation$/i });
+    const market = screen.getByRole("checkbox", { name: /^market$/i });
+    const rebalance = screen.getByRole("checkbox", { name: /^rebalance$/i });
+    const pension = screen.getByRole("checkbox", { name: /^pension$/i });
+    const scenario = screen.getByRole("checkbox", { name: /^scenario$/i });
     expect(instrument).toBeChecked();
     expect(support).toBeChecked();
+    expect(group).toBeChecked();
+    expect(owner).toBeChecked();
+    expect(allocation).not.toBeChecked();
+    expect(market).toBeChecked();
+    expect(rebalance).not.toBeChecked();
+    expect(pension).toBeChecked();
+    expect(scenario).not.toBeChecked();
     await act(async () => {
       await userEvent.click(instrument);
     });
@@ -136,10 +180,70 @@ describe("Support page", () => {
     expect(support).not.toBeChecked();
   });
 
+  it("persists tab selections after save", async () => {
+    mockGetConfig.mockResolvedValueOnce({
+      flag: true,
+      theme: "system",
+      tabs: {
+        group: true,
+        owner: true,
+        instrument: true,
+        trading: true,
+        support: true,
+        reports: true,
+        logs: true,
+        profile: true,
+        market: true,
+        allocation: true,
+        rebalance: true,
+        pension: true,
+      },
+    });
+    mockGetConfig.mockResolvedValueOnce({
+      flag: true,
+      theme: "system",
+      tabs: {
+        group: true,
+        owner: true,
+        instrument: false,
+        trading: true,
+        support: true,
+        reports: true,
+        logs: true,
+        profile: true,
+        market: true,
+        allocation: true,
+        rebalance: true,
+        pension: true,
+      },
+    });
+    mockUpdateConfig.mockResolvedValue(undefined);
+
+    render(<Support />, { wrapper: MemoryRouter });
+
+    const instrument = await screen.findByRole("checkbox", {
+      name: /^instrument$/i,
+    });
+    expect(instrument).toBeChecked();
+
+    await act(async () => {
+      await userEvent.click(instrument);
+    });
+
+    const saveButton = await screen.findByRole("button", { name: en.support.config.save });
+    await act(async () => {
+      await userEvent.click(saveButton);
+    });
+
+    expect(
+      await screen.findByRole("checkbox", { name: /^instrument$/i })
+    ).not.toBeChecked();
+  });
+
   it("separates switches from other parameters", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     const switchesHeading = await screen.findByRole("heading", {
-      name: /Other Switches/i,
+      name: en.support.config.otherSwitches,
     });
     const switchesSection = switchesHeading.parentElement as HTMLElement;
     expect(
@@ -150,7 +254,7 @@ describe("Support page", () => {
     ).toBeNull();
 
     const paramsHeading = screen.getByRole("heading", {
-      name: /Other parameters/i,
+      name: en.support.config.otherParams,
     });
     const paramsSection = paramsHeading.parentElement as HTMLElement;
     expect(
@@ -173,6 +277,36 @@ describe("Support page", () => {
       await userEvent.click(dark);
     });
     expect(dark).toBeChecked();
+  });
+
+  it("runs portfolio health check and shows findings", async () => {
+    mockCheckPortfolioHealth.mockResolvedValue({
+      findings: [
+        { level: "warning", message: "foo", suggestion: "bar" },
+      ],
+    });
+    render(<Support />, { wrapper: MemoryRouter });
+    const btn = await screen.findByRole("button", {
+      name: en.support.health.run,
+    });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+    expect(await screen.findByText("foo")).toBeInTheDocument();
+    expect(screen.getByText("bar")).toBeInTheDocument();
+  });
+
+  it("shows error when health check fails", async () => {
+    mockCheckPortfolioHealth.mockRejectedValueOnce(new Error("fail"));
+    render(<Support />, { wrapper: MemoryRouter });
+    const btn = await screen.findByRole("button", {
+      name: en.support.health.run,
+    });
+    await act(async () => {
+      await userEvent.click(btn);
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(en.support.health.error);
   });
 });
 

@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
 import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
+import PomodoroTimer from './PomodoroTimer';
+import { useFocusMode } from '../FocusModeContext';
 
 const SUPPORT_ONLY_TABS: TabPluginId[] = ['logs'];
 
@@ -25,6 +27,8 @@ export default function Menu({
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const path = location.pathname.split('/').filter(Boolean);
+
+  const { focusMode, setFocusMode } = useFocusMode();
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,35 +64,45 @@ export default function Menu({
                     ? 'watchlist'
                     : path[0] === 'allocation'
                       ? 'allocation'
-                      : path[0] === 'movers'
-                        ? 'movers'
+                      : path[0] === 'market'
+                        ? 'market'
+                        : path[0] === 'movers'
+                          ? 'movers'
                         : path[0] === 'instrumentadmin'
                           ? 'instrumentadmin'
                           : path[0] === 'dataadmin'
                             ? 'dataadmin'
-                            : path[0] === 'profile'
-                              ? 'profile'
-                              : path[0] === 'virtual'
-                                ? 'virtual'
-                                : path[0] === 'reports'
-                                  ? 'reports'
-                                  : path[0] === 'support'
-                                    ? 'support'
-                                    : path[0] === 'settings'
-                                      ? 'settings'
-                                      : path[0] === 'scenario'
-                                        ? 'scenario'
-                                        : path[0] === 'logs'
-                                          ? 'logs'
-                                          : path.length === 0
-                                            ? 'group'
-                                            : 'movers';
+      : path[0] === 'profile'
+        ? 'profile'
+        : path[0] === 'virtual'
+          ? 'virtual'
+          : path[0] === 'reports'
+            ? 'reports'
+            : path[0] === 'alert-settings'
+              ? 'alertsettings'
+              : path[0] === 'pension'
+                ? 'pension'
+                : path[0] === 'tax-harvest'
+                  ? 'taxharvest'
+                  : path[0] === 'tax-allowances'
+                    ? 'taxallowances'
+                    : path[0] === 'support'
+                      ? 'support'
+                      : path[0] === 'settings'
+                        ? 'settings'
+                        : path[0] === 'scenario'
+                          ? 'scenario'
+                          : path[0] === 'logs'
+                            ? 'logs'
+                            : path.length === 0
+                              ? 'group'
+                              : 'movers';
 
-  const isSupportMode = SUPPORT_TABS.includes(mode);
+  const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
   const inSupport = mode === 'support';
   const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
 
-  function pathFor(m: TabPluginId) {
+  function pathFor(m: any) {
     switch (m) {
       case 'group':
         return selectedGroup ? `/?group=${selectedGroup}` : '/';
@@ -106,6 +120,8 @@ export default function Menu({
         return '/scenario';
       case 'reports':
         return '/reports';
+      case 'alertsettings':
+        return '/alert-settings';
       case 'settings':
         return '/settings';
       case 'logs':
@@ -118,6 +134,12 @@ export default function Menu({
         return '/instrumentadmin';
       case 'profile':
         return '/profile';
+      case 'pension':
+        return '/pension/forecast';
+      case 'taxharvest':
+        return '/tax-harvest';
+      case 'taxallowances':
+        return '/tax-allowances';
       default:
         return `/${m}`;
     }
@@ -126,58 +148,78 @@ export default function Menu({
   return (
     <nav className="mb-4" ref={containerRef}>
       <button
-        aria-label="menu"
+        aria-label={t('app.menu')}
         className="md:hidden mb-2 p-2 border rounded"
         onClick={() => setOpen((o) => !o)}
       >
         ☰
       </button>
-      <div
-        className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
-        style={style}
-      >
-        {orderedTabPlugins
-          .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
-          .slice()
-          .sort((a, b) => a.priority - b.priority)
-          .filter((p) => {
-            if (p.id === 'support') return false;
-            if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
-            return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
-          })
-          .map((p) => (
-            <Link
-              key={p.id}
-              to={pathFor(p.id)}
-              className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
-              style={{ fontWeight: mode === p.id ? 'bold' as const : undefined }}
-              onClick={() => setOpen(false)}
-            >
-              {t(`app.modes.${p.id}`)}
-            </Link>
-          ))}
-        {supportEnabled && (
-          <Link
-            to={inSupport ? '/' : '/support'}
-            className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
-            onClick={() => setOpen(false)}
-          >
-            {t('app.supportLink')}
-          </Link>
-        )}
-        {onLogout && (
+      {focusMode ? (
+        <div className="flex flex-col" style={style}>
+          <PomodoroTimer />
           <button
             type="button"
-            onClick={() => {
-              onLogout();
-              setOpen(false);
-            }}
+            onClick={() => setFocusMode(false)}
+            className="mt-2 mr-4 bg-transparent border-0 p-0 cursor-pointer self-start"
+          >
+            {t('app.exitFocusMode')}
+          </button>
+        </div>
+      ) : (
+        <div
+          className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
+          style={style}
+        >
+          {orderedTabPlugins
+            .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
+            .slice()
+            .sort((a, b) => a.priority - b.priority)
+            .filter((p) => {
+              if (p.id === 'support') return false;
+              if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
+              return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
+            })
+            .map((p) => (
+              <Link
+                key={p.id}
+                to={pathFor(p.id as string)}
+                className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
+                style={{ fontWeight: mode === p.id ? 'bold' as const : undefined }}
+                onClick={() => setOpen(false)}
+              >
+                {t(`app.modes.${p.id}`)}
+              </Link>
+            ))}
+          {supportEnabled && (
+            <Link
+              to={inSupport ? '/' : '/support'}
+              className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
+              onClick={() => setOpen(false)}
+            >
+              {t('app.supportLink')}
+            </Link>
+          )}
+          {onLogout && (
+            <button
+              type="button"
+              onClick={() => {
+                onLogout();
+                setOpen(false);
+              }}
+              className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
+            >
+              {t('app.logout')}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setFocusMode(true)}
             className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
           >
-            {t('app.logout')}
+            {t('app.focusMode')}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </nav>
   );
 }

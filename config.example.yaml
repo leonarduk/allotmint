@@ -21,7 +21,7 @@ server:
   uvicorn_host: 0.0.0.0               # Host interface for the FastAPI server
   uvicorn_port: 8000                  # Port for the FastAPI server
   reload: true                        # Auto-reload during development
-  rate_limit_per_minute: 60           # Max API requests per client per minute
+  rate_limit_per_minute: 6000           # Max API requests per client per minute
   sns_topic_arn: ''                   # AWS SNS topic for alerts
   telegram_bot_token: ""              # Telegram bot token (TELEGRAM_BOT_TOKEN)
   telegram_chat_id: ""               # Telegram chat id (TELEGRAM_CHAT_ID)

@@ -319,7 +319,11 @@ export function HoldingsTable({
             </th>
           </tr>
           <tr>
-            <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("ticker")}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort("ticker")}
+              aria-label={t("holdingsTable.columns.ticker")}
+            >
               {t("holdingsTable.columns.ticker")}{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
             </th>
             <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("name")}>

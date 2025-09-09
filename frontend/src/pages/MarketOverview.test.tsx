@@ -7,21 +7,28 @@ vi.mock("../api");
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_k: string, opts?: any) => opts?.defaultValue ?? _k }),
 }));
-vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
-  BarChart: ({ data, children }: any) => (
-    <div>
-      {data.map((d: any) => (
-        <div key={d.name}>{d.name}</div>
-      ))}
-      {children}
-    </div>
-  ),
-  Bar: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  Tooltip: () => null,
-}));
+
+var mockBar: any;
+
+vi.mock("recharts", () => {
+  mockBar = vi.fn(() => null);
+  return {
+    ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
+    BarChart: ({ data, children }: any) => (
+      <div>
+        {data.map((d: any) => (
+          <div key={d.name}>{d.name}</div>
+        ))}
+        {children}
+      </div>
+    ),
+    Bar: mockBar,
+    XAxis: () => null,
+    YAxis: () => null,
+    Tooltip: () => null,
+    Cell: () => null,
+  };
+});
 
 const mockGetMarketOverview = vi.mocked(api.getMarketOverview);
 
@@ -40,5 +47,7 @@ describe("MarketOverview", () => {
     const ftse = await screen.findAllByText("FTSE 100");
     expect(ftse.length).toBeGreaterThan(0);
     expect(screen.getAllByText("FTSE 250")).toHaveLength(2);
+    expect(mockBar).toHaveBeenCalled();
+    expect(mockBar.mock.calls[0][0].dataKey).toBe("change");
   });
 });

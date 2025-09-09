@@ -20,6 +20,7 @@ export const tabPluginMap = {
   profile: {},
   pension: {},
   reports: {},
+  alertsettings: {},
   scenario: {},
   logs: {},
 };
@@ -43,6 +44,7 @@ export const orderedTabPlugins = [
   { id: "settings", priority: 105, section: "user" },
   { id: "profile", priority: 106, section: "user" },
   { id: "pension", priority: 107, section: "user" },
+  { id: "alertsettings", priority: 108, section: "user" },
   { id: "support", priority: 110, section: "support" },
   { id: "logs", priority: 115, section: "support" },
   { id: "scenario", priority: 120, section: "user" },

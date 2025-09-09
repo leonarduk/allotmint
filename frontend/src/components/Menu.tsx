@@ -84,6 +84,8 @@ export default function Menu({
                                     ? 'support'
                                     : path[0] === 'settings'
                                       ? 'settings'
+                                      : path[0] === 'alert-settings'
+                                        ? 'alertsettings'
                                       : path[0] === 'scenario'
                                         ? 'scenario'
                                         : path[0] === 'logs'
@@ -128,6 +130,8 @@ export default function Menu({
         return '/profile';
       case 'pension':
         return '/pension/forecast';
+      case 'alertsettings':
+        return '/alert-settings';
       default:
         return `/${m}`;
     }

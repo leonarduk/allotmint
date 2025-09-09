@@ -27,6 +27,7 @@
       "settings": "Benutzereinstellungen",
       "profile": "Profil",
       "pension": "Rentenprognose",
+      "alertsettings": "Alarm-Einstellungen",
       "reports": "Berichte",
       "support": "Support",
       "scenario": "Szenario-Tester",
@@ -321,6 +322,12 @@
     "title": "Value at Risk",
     "details": "Details zur historischen Simulation",
     "noData": "Keine VaR-Daten verfügbar."
+  },
+  "alertSettings": {
+    "title": "Alarm-Einstellungen",
+    "threshold": "Schwelle %:",
+    "save": "Speichern",
+    "saved": "Gespeichert"
   },
   "market": {
     "indexLevels": "Indexstände",

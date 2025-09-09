@@ -27,6 +27,7 @@
       "settings": "Configuración del usuario",
       "profile": "Perfil",
       "pension": "Pronóstico de pensión",
+      "alertsettings": "Configuración de Alertas",
       "reports": "Informes",
       "support": "Soporte",
       "scenario": "Probador de Escenarios",
@@ -321,6 +322,12 @@
     "title": "Valor en Riesgo",
     "details": "Detalles de la simulación histórica",
     "noData": "No hay datos de VaR disponibles."
+  },
+  "alertSettings": {
+    "title": "Configuración de Alertas",
+    "threshold": "Umbral %:",
+    "save": "Guardar",
+    "saved": "Guardado"
   },
   "market": {
     "indexLevels": "Niveles de índices",

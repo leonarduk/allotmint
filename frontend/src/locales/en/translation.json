@@ -27,6 +27,7 @@
       "settings": "User Settings",
       "profile": "Profile",
       "pension": "Pension Forecast",
+      "alertsettings": "Alert Settings",
       "reports": "Reports",
       "support": "Support",
       "scenario": "Scenario Tester",
@@ -323,6 +324,12 @@
     "title": "Value at Risk",
     "details": "Historical simulation details",
     "noData": "No VaR data available."
+  },
+  "alertSettings": {
+    "title": "Alert Settings",
+    "threshold": "Threshold %:",
+    "save": "Save",
+    "saved": "Saved"
   },
   "market": {
     "indexLevels": "Index Levels",

@@ -27,6 +27,7 @@
       "settings": "Impostazioni utente",
       "profile": "Profilo",
       "pension": "Previsione pensionistica",
+      "alertsettings": "Impostazioni di avviso",
       "reports": "Segnalazioni",
       "support": "Supporto",
       "scenario": "Tester di scenario",
@@ -322,6 +323,12 @@
     "title": "Valore a rischio",
     "details": "Dettagli di simulazione storica",
     "noData": "Nessun dati VAR disponibile."
+  },
+  "alertSettings": {
+    "title": "Impostazioni di avviso",
+    "threshold": "Soglia %:",
+    "save": "Salva",
+    "saved": "Salvato"
   },
   "market": {
     "indexLevels": "Livelli degli indici",

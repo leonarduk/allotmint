@@ -133,6 +133,7 @@ export const refreshPrices = () =>
 export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });
   return fetchJson<{
+    name?: string | null;
     symbol: string;
     price: number | null;
     open?: number | null;
@@ -155,7 +156,7 @@ export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
             ? (change / r.previous_close) * 100
             : null;
         return {
-          name: null,
+          name: r.name ?? null,
           symbol: r.symbol,
           last: r.price ?? null,
           open: r.open ?? null,

@@ -318,10 +318,10 @@ def apply_historical_returns(
     if event is None:
         raise ValueError("event must be provided")
 
-    return apply_historical_returns(portfolio, event, horizons=horizons)
+    return _apply_historical_returns(portfolio, event, horizons=horizons)
 
 
-def apply_historical_returns(
+def _apply_historical_returns(
     portfolio: Dict[str, Any],
     event: Dict[str, Any],
     horizons: Iterable[int] | None = None,

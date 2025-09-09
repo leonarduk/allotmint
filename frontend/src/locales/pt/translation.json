@@ -8,6 +8,9 @@
     "supportLink": "Suporte",
     "userLink": "App",
     "logout": "Sair",
+    "menu": "Menu",
+    "focusMode": "Modo de foco",
+    "exitFocusMode": "Sair do modo de foco",
     "modes": {
       "group": "Grupo",
       "instrument": "Instrumento",
@@ -194,7 +197,30 @@
     "status": {
       "sent": "Enviado",
       "error": "Erro",
-      "sending": "Enviando..."
+      "sending": "Enviando...",
+      "saved": "Salvo",
+      "saving": "Salvando..."
+    },
+    "health": {
+      "title": "Saúde do portfólio",
+      "run": "Executar verificação de saúde do portfólio",
+      "copyReport": "Copiar relatório",
+      "error": "Falha ao executar verificação de saúde"
+    },
+    "notifications": {
+      "title": "Notificações",
+      "notSupported": "Push não suportado",
+      "disable": "Desativar alertas Push",
+      "enable": "Ativar alertas Push",
+      "denied": "Permissão de push negada.",
+      "error": "Erro ao lidar com a assinatura de push."
+    },
+    "config": {
+      "title": "Configuração",
+      "tabsEnabled": "Abas ativadas",
+      "otherSwitches": "Outros interruptores",
+      "otherParams": "Outros parâmetros",
+      "save": "Salvar"
     }
   },
   "reports": {
@@ -326,5 +352,17 @@
     "indexLevels": "Níveis dos índices",
     "sectorPerformance": "Desempenho por setor",
     "latestHeadlines": "Últimas manchetes"
+  },
+  "goals": {
+    "title": "Metas",
+    "targetAmount": "Valor alvo",
+    "add": "Adicionar meta",
+    "currentAmount": "Valor atual:",
+    "goalLine": "{{name}} – alvo {{amount}} até {{date}}",
+    "view": "Ver",
+    "progress": "Progresso: {{progress}}%",
+    "suggestedTrades": "Negociações sugeridas",
+    "trade": "{{action}} {{amount}} de {{ticker}}",
+    "back": "Voltar ao portfólio"
   }
 }

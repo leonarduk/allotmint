@@ -8,6 +8,9 @@
     "supportLink": "Support",
     "userLink": "App",
     "logout": "Logout",
+    "menu": "Menu",
+    "focusMode": "Focus Mode",
+    "exitFocusMode": "Exit Focus Mode",
     "modes": {
       "group": "Group",
       "instrument": "Instrument",
@@ -27,6 +30,8 @@
       "settings": "User Settings",
       "profile": "Profile",
       "pension": "Pension Forecast",
+      "taxharvest": "Tax Harvest",
+      "taxallowances": "Tax Allowances",
       "reports": "Reports",
       "support": "Support",
       "scenario": "Scenario Tester",
@@ -194,7 +199,30 @@
     "status": {
       "sent": "Sent",
       "error": "Error",
-      "sending": "Sending..."
+      "sending": "Sending...",
+      "saved": "Saved",
+      "saving": "Saving..."
+    },
+    "health": {
+      "title": "Portfolio health",
+      "run": "Run portfolio health check",
+      "copyReport": "Copy report",
+      "error": "Failed to run health check"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "notSupported": "Push not supported",
+      "disable": "Disable Push Alerts",
+      "enable": "Enable Push Alerts",
+      "denied": "Push permission denied.",
+      "error": "Error handling push subscription."
+    },
+    "config": {
+      "title": "Configuration",
+      "tabsEnabled": "Tabs Enabled",
+      "otherSwitches": "Other Switches",
+      "otherParams": "Other parameters",
+      "save": "Save"
     }
   },
   "reports": {
@@ -328,5 +356,17 @@
     "indexLevels": "Index Levels",
     "sectorPerformance": "Sector Performance",
     "latestHeadlines": "Latest Headlines"
+  },
+  "goals": {
+    "title": "Goals",
+    "targetAmount": "Target Amount",
+    "add": "Add Goal",
+    "currentAmount": "Current Amount:",
+    "goalLine": "{{name}} – target {{amount}} by {{date}}",
+    "view": "View",
+    "progress": "Progress: {{progress}}%",
+    "suggestedTrades": "Suggested Trades",
+    "trade": "{{action}} {{amount}} of {{ticker}}",
+    "back": "Back to Portfolio"
   }
 }

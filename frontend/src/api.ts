@@ -653,12 +653,14 @@ export const deletePushSubscription = (owner: string) =>
   });
 
 /** Subscribe a user to reminder nudges or update frequency. */
-export const subscribeNudges = (user: string, frequency: number) =>
-  fetchJson(`${API_BASE}/nudges/subscribe`, {
+export const subscribeNudges = (user: string, frequency: number) => {
+  const freq = Math.min(Math.max(Math.round(frequency), 1), 30);
+  return fetchJson(`${API_BASE}/nudges/subscribe`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user, frequency }),
+    body: JSON.stringify({ user, frequency: freq }),
   });
+};
 
 /** Snooze nudges for a user for ``days`` days. */
 export const snoozeNudges = (user: string, days: number) =>

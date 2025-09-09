@@ -13,14 +13,14 @@ describe("Menu", () => {
       </MemoryRouter>,
     );
     expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
-    const toggle = screen.getByRole("button", { name: /menu/i });
+    const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
     fireEvent.click(toggle);
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
       "/support",
     );
     expect(screen.queryByRole("link", { name: "Logs" })).toBeNull();
-    fireEvent.click(screen.getByLabelText("menu"));
+    fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute("href", "/support");
     expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
   });
@@ -31,7 +31,7 @@ describe("Menu", () => {
         <Menu />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByLabelText("menu"));
+    fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
     expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
@@ -92,9 +92,9 @@ describe("Menu", () => {
         <Menu onLogout={onLogout} />
       </MemoryRouter>,
     );
-    const toggle = screen.getByRole("button", { name: /menu/i });
+    const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
     fireEvent.click(toggle);
-    fireEvent.click(screen.getByLabelText("menu"));
+    fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
     const btn = screen.getByRole("button", { name: "Déconnexion" });
     fireEvent.click(btn);
     expect(onLogout).toHaveBeenCalled();

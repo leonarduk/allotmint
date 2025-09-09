@@ -8,6 +8,9 @@
     "supportLink": "Supporto",
     "userLink": "App",
     "logout": "Logout",
+    "menu": "Menu",
+    "focusMode": "Modalità concentrazione",
+    "exitFocusMode": "Esci dalla modalità concentrazione",
     "modes": {
       "group": "Gruppo",
       "instrument": "Strumento",
@@ -194,7 +197,30 @@
     "status": {
       "sent": "Inviato",
       "error": "Errore",
-      "sending": "Invio ..."
+      "sending": "Invio ...",
+      "saved": "Salvato",
+      "saving": "Salvataggio..."
+    },
+    "health": {
+      "title": "Salute del portafoglio",
+      "run": "Esegui controllo salute portafoglio",
+      "copyReport": "Copia rapporto",
+      "error": "Impossibile eseguire il controllo della salute"
+    },
+    "notifications": {
+      "title": "Notifiche",
+      "notSupported": "Push non supportato",
+      "disable": "Disattiva avvisi Push",
+      "enable": "Abilita avvisi Push",
+      "denied": "Permesso push negato.",
+      "error": "Errore nella gestione dell'iscrizione push."
+    },
+    "config": {
+      "title": "Configurazione",
+      "tabsEnabled": "Schede abilitate",
+      "otherSwitches": "Altri interruttori",
+      "otherParams": "Altri parametri",
+      "save": "Salva"
     }
   },
   "reports": {
@@ -327,5 +353,17 @@
     "indexLevels": "Livelli degli indici",
     "sectorPerformance": "Rendimento dei settori",
     "latestHeadlines": "Ultime notizie"
+  },
+  "goals": {
+    "title": "Obiettivi",
+    "targetAmount": "Importo obiettivo",
+    "add": "Aggiungi obiettivo",
+    "currentAmount": "Importo attuale:",
+    "goalLine": "{{name}} – obiettivo {{amount}} entro {{date}}",
+    "view": "Visualizza",
+    "progress": "Progresso: {{progress}}%",
+    "suggestedTrades": "Operazioni suggerite",
+    "trade": "{{action}} {{amount}} di {{ticker}}",
+    "back": "Torna al portafoglio"
   }
 }

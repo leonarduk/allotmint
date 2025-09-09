@@ -8,6 +8,9 @@
     "supportLink": "Soporte",
     "userLink": "App",
     "logout": "Cerrar sesión",
+    "menu": "Menú",
+    "focusMode": "Modo de enfoque",
+    "exitFocusMode": "Salir del modo de enfoque",
     "modes": {
       "group": "Grupo",
       "instrument": "Instrumento",
@@ -194,7 +197,30 @@
     "status": {
       "sent": "Enviado",
       "error": "Error",
-      "sending": "Enviando..."
+      "sending": "Enviando...",
+      "saved": "Guardado",
+      "saving": "Guardando..."
+    },
+    "health": {
+      "title": "Salud del portafolio",
+      "run": "Ejecutar verificación de salud del portafolio",
+      "copyReport": "Copiar informe",
+      "error": "No se pudo ejecutar la verificación de salud"
+    },
+    "notifications": {
+      "title": "Notificaciones",
+      "notSupported": "Push no compatible",
+      "disable": "Desactivar alertas push",
+      "enable": "Activar alertas push",
+      "denied": "Permiso de push denegado.",
+      "error": "Error al manejar la suscripción push."
+    },
+    "config": {
+      "title": "Configuración",
+      "tabsEnabled": "Pestañas habilitadas",
+      "otherSwitches": "Otros interruptores",
+      "otherParams": "Otros parámetros",
+      "save": "Guardar"
     }
   },
   "reports": {
@@ -326,5 +352,17 @@
     "indexLevels": "Niveles de índices",
     "sectorPerformance": "Rendimiento por sector",
     "latestHeadlines": "Últimos titulares"
+  },
+  "goals": {
+    "title": "Objetivos",
+    "targetAmount": "Monto objetivo",
+    "add": "Agregar objetivo",
+    "currentAmount": "Monto actual:",
+    "goalLine": "{{name}} – objetivo {{amount}} para {{date}}",
+    "view": "Ver",
+    "progress": "Progreso: {{progress}}%",
+    "suggestedTrades": "Operaciones sugeridas",
+    "trade": "{{action}} {{amount}} de {{ticker}}",
+    "back": "Volver al portafolio"
   }
 }

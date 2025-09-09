@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+import logging
 import requests
 import yfinance as yf
 from fastapi import APIRouter
@@ -52,7 +53,36 @@ def _fetch_sectors() -> List[Dict[str, float]]:
 
 
 def _fetch_headlines() -> List[Dict[str, str]]:
-    return _fetch_news("UKX")
+    """Fetch latest headlines for all known index symbols.
+
+    Each index symbol is queried individually; results are aggregated and
+    de-duplicated by URL or headline.  If all requests fail, an error is logged
+    so callers have some visibility into the failure.
+    """
+
+    logger = logging.getLogger(__name__)
+    headlines: List[Dict[str, str]] = []
+    seen: set[str] = set()
+    success = False
+
+    for sym in INDEX_SYMBOLS.values():
+        try:
+            items = _fetch_news(sym)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Failed to fetch news for %s: %s", sym, exc)
+            continue
+
+        success = True
+        for item in items:
+            key = item.get("url") or item.get("headline")
+            if key and key not in seen:
+                seen.add(key)
+                headlines.append(item)
+
+    if not success:
+        logger.error("Failed to fetch news for all index symbols")
+
+    return headlines
 
 
 def _safe(func, default):

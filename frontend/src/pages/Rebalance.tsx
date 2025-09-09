@@ -1,22 +1,53 @@
-import { useState } from "react";
-import { getRebalance } from "../api";
-import type { TradeSuggestion } from "../types";
+import { useState } from 'react';
+import { getRebalance } from '../api';
+import type { TradeSuggestion } from '../types';
+
+type Row = { ticker: string; current: string; target: string };
 
 export default function Rebalance() {
-  const [actualInput, setActualInput] = useState(
-    '{\n  "AAPL": 4000,\n  "MSFT": 3000,\n  "CASH": 3000\n}'
-  );
-  const [targetInput, setTargetInput] = useState(
-    '{\n  "AAPL": 0.4,\n  "MSFT": 0.4,\n  "GOOG": 0.2\n}'
-  );
+  const [rows, setRows] = useState<Row[]>([
+    { ticker: 'AAPL', current: '4000', target: '0.4' },
+    { ticker: 'MSFT', current: '3000', target: '0.4' },
+    { ticker: 'CASH', current: '3000', target: '0' },
+    { ticker: 'GOOG', current: '0', target: '0.2' },
+  ]);
   const [trades, setTrades] = useState<TradeSuggestion[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  const addRow = () =>
+    setRows([...rows, { ticker: '', current: '', target: '' }]);
+
+  const removeRow = (index: number) =>
+    setRows(rows.filter((_, i) => i !== index));
+
+  const updateRow = (index: number, field: keyof Row, value: string) =>
+    setRows((r) =>
+      r.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    );
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const actual: Record<string, number> = {};
+    const target: Record<string, number> = {};
+
+    for (const row of rows) {
+      if (!row.ticker) {
+        continue;
+      }
+      const current = parseFloat(row.current);
+      const weight = parseFloat(row.target);
+      if (Number.isNaN(current) || Number.isNaN(weight)) {
+        setErr(
+          'Please enter valid numbers for current value and target weight.'
+        );
+        setTrades(null);
+        return;
+      }
+      actual[row.ticker] = current;
+      target[row.ticker] = weight;
+    }
+
     try {
-      const actual = JSON.parse(actualInput) as Record<string, number>;
-      const target = JSON.parse(targetInput) as Record<string, number>;
       const res = await getRebalance(actual, target);
       setTrades(res);
       setErr(null);
@@ -29,30 +60,70 @@ export default function Rebalance() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl md:text-4xl">Rebalance Portfolio</h1>
-      <form
-        onSubmit={handleSubmit}
-        className="mb-4 flex flex-col gap-4 md:flex-row"
-      >
-        <div className="flex-1">
-          <label className="mb-1 block font-bold">Actual holdings (JSON)</label>
-          <textarea
-            className="w-full border p-2 font-mono"
-            rows={8}
-            value={actualInput}
-            onChange={(e) => setActualInput(e.target.value)}
-          />
-        </div>
-        <div className="flex-1">
-          <label className="mb-1 block font-bold">Target allocation (JSON)</label>
-          <textarea
-            className="w-full border p-2 font-mono"
-            rows={8}
-            value={targetInput}
-            onChange={(e) => setTargetInput(e.target.value)}
-          />
-        </div>
-        <div className="self-end">
-          <button type="submit" className="mt-2 rounded bg-blue-500 px-4 py-2 text-white">
+      <form onSubmit={handleSubmit} className="mb-4 flex flex-col gap-2">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Current value</th>
+              <th>Target weight</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr key={idx}>
+                <td>
+                  <input
+                    type="text"
+                    className="w-full border p-1"
+                    value={row.ticker}
+                    onChange={(e) => updateRow(idx, 'ticker', e.target.value)}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    step="any"
+                    className="w-full border p-1"
+                    value={row.current}
+                    onChange={(e) => updateRow(idx, 'current', e.target.value)}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    step="any"
+                    className="w-full border p-1"
+                    value={row.target}
+                    onChange={(e) => updateRow(idx, 'target', e.target.value)}
+                  />
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="text-red-600"
+                    onClick={() => removeRow(idx)}
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            onClick={addRow}
+            className="rounded bg-gray-200 px-2 py-1"
+          >
+            Add ticker
+          </button>
+          <button
+            type="submit"
+            className="rounded bg-blue-500 px-4 py-2 text-white"
+          >
             Rebalance
           </button>
         </div>
@@ -73,7 +144,7 @@ export default function Rebalance() {
                 <td>{t.ticker}</td>
                 <td
                   className={
-                    t.action === "buy" ? "text-green-600" : "text-red-600"
+                    t.action === 'buy' ? 'text-green-600' : 'text-red-600'
                   }
                 >
                   {t.action.toUpperCase()}

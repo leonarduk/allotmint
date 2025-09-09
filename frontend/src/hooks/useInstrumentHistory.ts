@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { getInstrumentDetail } from "../api";
 import type { InstrumentDetail } from "../types";
 
-// Cache full instrument detail per ticker to reuse for history and positions
+// Cache full instrument detail (including metadata like name, sector and
+// currency) per ticker to reuse for history and positions
 const cache = new Map<string, InstrumentDetail>();
 
 export function getCachedInstrumentHistory(ticker: string) {

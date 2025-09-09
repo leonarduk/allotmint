@@ -191,3 +191,27 @@ def check_trade(trade: Dict[str, Any], accounts_root: Optional[Path] = None) -> 
     txs = load_transactions(owner, accounts_root)
     txs.append(trade)
     return _check_transactions(owner, txs, accounts_root)
+
+
+def evaluate_trades(
+    owner: str,
+    txs: List[Dict[str, Any]],
+    accounts_root: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """Attach compliance warnings to each trade in ``txs``.
+
+    Transactions should be ordered chronologically.  The function evaluates
+    the growing history of trades and records only the warnings triggered by
+    the current transaction.
+    """
+
+    evaluated: List[Dict[str, Any]] = []
+    history: List[Dict[str, Any]] = []
+    seen: List[str] = []
+    for tx in txs:
+        check = _check_transactions(owner, history + [tx], accounts_root)
+        new_warnings = [w for w in check["warnings"] if w not in seen]
+        evaluated.append({**tx, "warnings": new_warnings})
+        history.append(tx)
+        seen.extend(new_warnings)
+    return evaluated

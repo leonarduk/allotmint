@@ -55,6 +55,7 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
                 "timestamp": info.get("regularMarketTime"),
                 "timezone": info.get("exchangeTimezoneName"),
                 "market_state": info.get("marketState"),
+                "name": info.get("shortName") or info.get("longName"),
             }
         )
 

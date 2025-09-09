@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
+from backend.common import compliance
 from backend.config import config
 from backend import importers
 
@@ -114,6 +115,25 @@ def _load_all_transactions() -> List[Transaction]:
             t.pop("account", None)
             results.append(Transaction(owner=owner, account=account, **t))
     return results
+
+
+@router.get("/transactions/compliance")
+async def transactions_with_compliance(
+    owner: str,
+    request: Request,
+    account: Optional[str] = None,
+    ticker: Optional[str] = None,
+):
+    """Return transactions for ``owner`` annotated with compliance warnings."""
+
+    txs = [t.model_dump() for t in _load_all_transactions() if t.owner == owner]
+    if account:
+        txs = [t for t in txs if t.get("account") == account]
+    if ticker:
+        txs = [t for t in txs if (t.get("ticker") or "").upper() == ticker.upper()]
+    txs.sort(key=lambda t: _parse_date(t.get("date")) or date.min)
+    evaluated = compliance.evaluate_trades(owner, txs, request.app.state.accounts_root)
+    return {"transactions": evaluated}
 
 
 def _parse_date(d: Optional[str]) -> Optional[datetime.date]:

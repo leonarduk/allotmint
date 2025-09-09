@@ -25,6 +25,7 @@ vi.mock("../api", async () => {
 });
 
 import Support from "./Support";
+import en from "../locales/en/translation.json";
 
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -51,24 +52,26 @@ beforeEach(() => {
 describe("Support page", () => {
   it("renders app link", async () => {
     render(<Support />, { wrapper: MemoryRouter });
-    const link = await screen.findByRole("link", { name: /App/i });
+    const link = await screen.findByRole("link", { name: en.app.userLink });
     expect(link).toHaveAttribute("href", "/");
   });
 
   it("renders environment heading", async () => {
     render(<Support />, { wrapper: MemoryRouter });
-    expect(await screen.findByText(/Environment/)).toBeInTheDocument();
+    expect(await screen.findByText(en.support.environment)).toBeInTheDocument();
   });
 
   it("shows owner selector", async () => {
     render(<Support />, { wrapper: MemoryRouter });
-    expect(await screen.findByLabelText(/Owner/i)).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText(new RegExp(en.owner.label))
+    ).toBeInTheDocument();
   });
 
   it("handles owner fetch failure gracefully", async () => {
     mockGetOwners.mockRejectedValueOnce(new Error("fail"));
     render(<Support />, { wrapper: MemoryRouter });
-    const select = await screen.findByLabelText(/Owner/i);
+    const select = await screen.findByLabelText(new RegExp(en.owner.label));
     expect((select as HTMLSelectElement).options.length).toBe(0);
   });
 
@@ -123,7 +126,7 @@ describe("Support page", () => {
 
     render(<Support />, { wrapper: MemoryRouter });
 
-    const saveButton = await screen.findByRole("button", { name: "Save" });
+    const saveButton = await screen.findByRole("button", { name: en.support.config.save });
     await act(async () => {
       await userEvent.click(saveButton);
     });
@@ -137,7 +140,7 @@ describe("Support page", () => {
 
   it("renders tab toggles and allows toggling", async () => {
     render(<Support />, { wrapper: MemoryRouter });
-    await screen.findByText(/Tabs Enabled/i);
+    await screen.findByText(en.support.config.tabsEnabled);
     const instrument = await screen.findByRole("checkbox", {
       name: /^instrument$/i,
     });
@@ -195,25 +198,29 @@ describe("Support page", () => {
 
     render(<Support />, { wrapper: MemoryRouter });
 
-    const instrument = await screen.findByRole("checkbox", { name: /instrument/i });
+    const instrument = await screen.findByRole("checkbox", {
+      name: /^instrument$/i,
+    });
     expect(instrument).toBeChecked();
 
     await act(async () => {
       await userEvent.click(instrument);
     });
 
-    const saveButton = await screen.findByRole("button", { name: "Save" });
+    const saveButton = await screen.findByRole("button", { name: en.support.config.save });
     await act(async () => {
       await userEvent.click(saveButton);
     });
 
-    expect(await screen.findByRole("checkbox", { name: /instrument/i })).not.toBeChecked();
+    expect(
+      await screen.findByRole("checkbox", { name: /^instrument$/i })
+    ).not.toBeChecked();
   });
 
   it("separates switches from other parameters", async () => {
     render(<Support />, { wrapper: MemoryRouter });
     const switchesHeading = await screen.findByRole("heading", {
-      name: /Other Switches/i,
+      name: en.support.config.otherSwitches,
     });
     const switchesSection = switchesHeading.parentElement as HTMLElement;
     expect(
@@ -224,7 +231,7 @@ describe("Support page", () => {
     ).toBeNull();
 
     const paramsHeading = screen.getByRole("heading", {
-      name: /Other parameters/i,
+      name: en.support.config.otherParams,
     });
     const paramsSection = paramsHeading.parentElement as HTMLElement;
     expect(
@@ -257,7 +264,7 @@ describe("Support page", () => {
     });
     render(<Support />, { wrapper: MemoryRouter });
     const btn = await screen.findByRole("button", {
-      name: /run portfolio health check/i,
+      name: en.support.health.run,
     });
     await act(async () => {
       await userEvent.click(btn);
@@ -270,13 +277,13 @@ describe("Support page", () => {
     mockCheckPortfolioHealth.mockRejectedValueOnce(new Error("fail"));
     render(<Support />, { wrapper: MemoryRouter });
     const btn = await screen.findByRole("button", {
-      name: /run portfolio health check/i,
+      name: en.support.health.run,
     });
     await act(async () => {
       await userEvent.click(btn);
     });
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/failed to run health check/i);
+    expect(alert).toHaveTextContent(en.support.health.error);
   });
 });
 

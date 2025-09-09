@@ -194,7 +194,30 @@
     "status": {
       "sent": "Sent",
       "error": "Error",
-      "sending": "Sending..."
+      "sending": "Sending...",
+      "saved": "Saved",
+      "saving": "Saving..."
+    },
+    "health": {
+      "title": "Portfolio health",
+      "run": "Run portfolio health check",
+      "copyReport": "Copy report",
+      "error": "Failed to run health check"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "notSupported": "Push not supported",
+      "disable": "Disable Push Alerts",
+      "enable": "Enable Push Alerts",
+      "denied": "Push permission denied.",
+      "error": "Error handling push subscription."
+    },
+    "config": {
+      "title": "Configuration",
+      "tabsEnabled": "Tabs Enabled",
+      "otherSwitches": "Other Switches",
+      "otherParams": "Other parameters",
+      "save": "Save"
     }
   },
   "reports": {

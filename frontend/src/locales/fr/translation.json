@@ -194,7 +194,30 @@
     "status": {
       "sent": "Envoyé",
       "error": "Erreur",
-      "sending": "Envoi..."
+      "sending": "Envoi...",
+      "saved": "Enregistré",
+      "saving": "Enregistrement..."
+    },
+    "health": {
+      "title": "Santé du portefeuille",
+      "run": "Exécuter la vérification de santé du portefeuille",
+      "copyReport": "Copier le rapport",
+      "error": "Échec de la vérification de santé"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "notSupported": "Push non supporté",
+      "disable": "Désactiver les alertes Push",
+      "enable": "Activer les alertes Push",
+      "denied": "Permission de push refusée.",
+      "error": "Erreur lors de la gestion de l'abonnement push."
+    },
+    "config": {
+      "title": "Configuration",
+      "tabsEnabled": "Onglets activés",
+      "otherSwitches": "Autres commutateurs",
+      "otherParams": "Autres paramètres",
+      "save": "Enregistrer"
     }
   },
   "reports": {

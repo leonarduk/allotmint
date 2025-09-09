@@ -52,6 +52,7 @@ describe("login", () => {
     expect(mockFetch).toHaveBeenCalledWith(`${API_BASE}/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ id_token: "good-id-token" }),
     });
   });

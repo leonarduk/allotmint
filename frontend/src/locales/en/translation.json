@@ -246,7 +246,9 @@
   "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",
   "approxTotal": "Approx Total: £{{value}}",
   "allocation": {
-    "instrumentTypes": "Instrument Types"
+    "instrumentTypes": "Instrument Types",
+    "sector": "Industries",
+    "region": "Regions"
   },
   "watchlist": {
     "refresh": "Refresh"

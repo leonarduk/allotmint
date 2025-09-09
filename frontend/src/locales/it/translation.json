@@ -244,7 +244,9 @@
   "asOf": "A partire da {{date}} • scambia questo mese: {{scambi}} / 20 (rimanente: {{rimanente}})",
   "approxTotal": "Circa totale: £ {{value}}",
   "allocation": {
-    "instrumentTypes": "Tipi di strumenti"
+    "instrumentTypes": "Tipi di strumenti",
+    "sector": "Industrie",
+    "region": "Regioni"
   },
   "watchlist": {
     "refresh": "Rinfrescare"

@@ -124,6 +124,8 @@ export default function Menu({
         return '/alert-settings';
       case 'settings':
         return '/settings';
+      case 'alertsettings':
+        return '/alert-settings';
       case 'logs':
         return '/logs';
       case 'allocation':

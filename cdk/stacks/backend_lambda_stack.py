@@ -89,3 +89,32 @@ class BackendLambdaStack(Stack):
             schedule=events.Schedule.cron(minute="0", hour="0"),
             targets=[targets.LambdaFunction(refresh_fn)],
         )
+
+        # Scheduled function to execute the trading agent
+        agent_code = _lambda.DockerImageCode.from_image_asset(
+            str(project_root),
+            file="backend/Dockerfile.lambda",
+            cmd=["backend.lambda_api.trading_agent.lambda_handler"],
+            build_args=build_args,
+        )
+        agent_env = {
+            "APP_ENV": env,
+            "DATA_BUCKET": bucket_name,
+            "DATA_BRANCH": data_branch,
+        }
+        if data_repo:
+            agent_env["DATA_REPO"] = data_repo
+
+        agent_fn = _lambda.DockerImageFunction(
+            self,
+            "TradingAgentLambda",
+            code=agent_code,
+            environment=agent_env,
+        )
+
+        events.Rule(
+            self,
+            "DailyTradingAgentRun",
+            schedule=events.Schedule.cron(minute="0", hour="1"),
+            targets=[targets.LambdaFunction(agent_fn)],
+        )

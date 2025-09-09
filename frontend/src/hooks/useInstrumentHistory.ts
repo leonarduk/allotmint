@@ -1,20 +1,17 @@
 import { useEffect, useState } from "react";
 import { getInstrumentDetail } from "../api";
-import type { InstrumentDetailMini } from "../types";
+import type { InstrumentDetail } from "../types";
 
-// Simple in-memory cache keyed by ticker+days
-const cache = new Map<string, InstrumentDetailMini>();
+// Cache full instrument detail per ticker to reuse for history and positions
+const cache = new Map<string, InstrumentDetail>();
 
-export function getCachedInstrumentHistory(
-  ticker: string,
-  days: number,
-) {
-  return cache.get(`${ticker}:${days}`) ?? null;
+export function getCachedInstrumentHistory(ticker: string) {
+  return cache.get(ticker) ?? null;
 }
 
 export async function preloadInstrumentHistory(
   tickers: string[],
-  days: number,
+  _days: number,
   concurrency = 5,
 ) {
   const unique = Array.from(new Set(tickers));
@@ -26,13 +23,10 @@ export async function preloadInstrumentHistory(
         while (queue.length) {
           const ticker = queue.shift();
           if (!ticker) break;
-          const key = `${ticker}:${days}`;
-          if (cache.has(key)) continue;
+          if (cache.has(ticker)) continue;
           try {
-            const res = await getInstrumentDetail(ticker, days);
-            if (res.mini) {
-              cache.set(key, res.mini);
-            }
+            const res = await getInstrumentDetail(ticker, 365);
+            cache.set(ticker, res);
           } catch {
             // ignore errors during preloading
           }
@@ -43,21 +37,22 @@ export async function preloadInstrumentHistory(
 }
 
 /**
- * Retrieve mini history for an instrument and cache responses to avoid
- * refetching on re-renders. Subsequent calls with the same ticker and days
- * return the cached result immediately.
+ * Retrieve instrument detail (including mini price history and positions) and
+ * cache responses per ticker to avoid duplicate fetches. The `days` parameter
+ * is kept for API compatibility but only affects which slice of the cached
+ * history consumers might read; the underlying fetch always requests 365 days
+ * to cover all use cases.
  */
-export function useInstrumentHistory(ticker: string, days: number) {
-  const key = `${ticker}:${days}`;
-  const [data, setData] = useState<InstrumentDetailMini | null>(
-    () => cache.get(key) ?? null,
+export function useInstrumentHistory(ticker: string, _days: number) {
+  const [data, setData] = useState<InstrumentDetail | null>(
+    () => cache.get(ticker) ?? null,
   );
-  const [loading, setLoading] = useState(!cache.has(key));
+  const [loading, setLoading] = useState(!cache.has(ticker));
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let active = true;
-    const cached = cache.get(key);
+    const cached = cache.get(ticker);
     if (cached) {
       setData(cached);
       setLoading(false);
@@ -70,12 +65,10 @@ export function useInstrumentHistory(ticker: string, days: number) {
       const maxAttempts = 3;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-          const res = await getInstrumentDetail(ticker, days);
+          const res = await getInstrumentDetail(ticker, 365);
           if (!active) return;
-          if (res.mini) {
-            cache.set(key, res.mini);
-            setData(res.mini);
-          }
+          cache.set(ticker, res);
+          setData(res);
           return;
         } catch (e) {
           const err = e instanceof Error ? e : new Error(String(e));
@@ -111,8 +104,7 @@ export function useInstrumentHistory(ticker: string, days: number) {
         }
       }
       // All retries failed with 429
-      if (active)
-        setError(new Error("HTTP 429 – Too Many Requests"));
+      if (active) setError(new Error("HTTP 429 – Too Many Requests"));
     }
 
     fetchWithRetry().finally(() => {
@@ -122,7 +114,12 @@ export function useInstrumentHistory(ticker: string, days: number) {
     return () => {
       active = false;
     };
-  }, [ticker, days, key]);
+  }, [ticker]);
 
   return { data, loading, error };
+}
+
+// Test helper
+export function __clearInstrumentHistoryCache() {
+  cache.clear();
 }

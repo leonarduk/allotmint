@@ -3,10 +3,6 @@ import { useTranslation } from "react-i18next";
 import { getQuotes } from "../api";
 import type { QuoteRow } from "../types";
 
-interface QuoteWithState extends QuoteRow {
-  marketState?: string;
-}
-
 const DEFAULT_SYMBOLS =
   "^FTSE,^NDX,^GSPC,^RUT,^NYA,^VIX,^GDAXI,^N225,USDGBP=X,EURGBP=X,BTC-USD,GC=F,SI=F,VUSA.L,IWDA.AS";
 
@@ -47,7 +43,7 @@ export function Watchlist() {
     localStorage.getItem("watchlistSymbols") || DEFAULT_SYMBOLS,
   );
   const [intervalMs, setIntervalMs] = useState(60000);
-  const [rows, setRows] = useState<QuoteWithState[]>([]);
+  const [rows, setRows] = useState<QuoteRow[]>([]);
   const [auto, setAuto] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allClosed, setAllClosed] = useState(false);
@@ -65,7 +61,7 @@ export function Watchlist() {
       return;
     }
     try {
-      const data = (await getQuotes(symbolList)) as QuoteWithState[];
+      const data = (await getQuotes(symbolList)) as QuoteRow[];
       setRows(data);
       setError(null);
 

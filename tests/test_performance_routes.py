@@ -147,3 +147,32 @@ def test_performance_summary_not_found(client, monkeypatch):
     resp = client.get("/performance/missing")
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Owner not found"
+
+
+def test_returns_compare_success(client, monkeypatch):
+    def fake_cagr(owner, days):
+        assert owner == "alice"
+        assert days == 365
+        return 0.05
+
+    def fake_cash(owner, days):
+        assert owner == "alice"
+        assert days == 365
+        return 0.02
+
+    monkeypatch.setattr(portfolio_utils, "compute_cagr", fake_cagr)
+    monkeypatch.setattr(portfolio_utils, "compute_cash_apy", fake_cash)
+    resp = client.get("/returns/compare", params={"owner": "alice", "days": 365})
+    assert resp.status_code == 200
+    assert resp.json() == {"owner": "alice", "cagr": 0.05, "cash_apy": 0.02}
+
+
+def test_returns_compare_not_found(client, monkeypatch):
+    def fake(*args, **kwargs):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(portfolio_utils, "compute_cagr", fake)
+    monkeypatch.setattr(portfolio_utils, "compute_cash_apy", fake)
+    resp = client.get("/returns/compare", params={"owner": "bob"})
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Owner not found"

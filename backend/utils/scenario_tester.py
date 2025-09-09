@@ -97,7 +97,20 @@ _HORIZONS: Dict[str, int] = {
 }
 
 
-def _parse_full_ticker(full: str) -> tuple[str, str]:
+def _parse_full_ticker(full: str | Dict[str, str]) -> tuple[str, str]:
+    """Split a ticker/exchange combination into its components.
+
+    ``full`` can either be a mapping containing ``ticker`` and ``exchange``
+    keys or a string in the format ``"SYMBOL.EXCH"``.  The return value is a
+    2-tuple of ``(ticker, exchange)`` with the exchange defaulting to ``"L"``
+    (London) when not provided.
+    """
+
+    if isinstance(full, dict):
+        ticker = (full.get("ticker") or "").upper()
+        exch = (full.get("exchange") or "L").upper()
+        return ticker, exch
+
     parts = (full or "").upper().split(".", 1)
     if len(parts) == 2:
         return parts[0], parts[1]
@@ -127,14 +140,13 @@ def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> Dict[st
 
     scale = get_scaling_override(ticker, exchange, None)
     df = apply_scaling(df, scale)
+    df = df.copy().reset_index()
 
     nm = {c.lower(): c for c in df.columns}
-    date_col = nm.get("date") or df.columns[0]
+    date_col = nm.get("date") or nm.get("index") or df.columns[0]
     price_col = _close_column(df)
     if not price_col:
         return {k: None for k in _HORIZONS}
-
-    df = df.copy()
     df[date_col] = pd.to_datetime(df[date_col], errors="coerce").dt.date
     df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
     df = df.sort_values(date_col)
@@ -166,11 +178,9 @@ def apply_historical_event(
 ) -> Dict[Any, Any]:
     """Apply a historical event to a portfolio.
 
-    When ``event`` is supplied, forward returns are calculated for each holding
-    from the event date with an optional proxy index. The portfolio totals are
-    returned for each of the standard horizons. If ``event`` is omitted but an
-    ``event_id``/``date`` is provided, a simple placeholder scaling is applied
-    instead.
+    When ``event`` is supplied, per-holding returns are calculated for the
+    requested ``horizons``. If ``event`` is omitted but an ``event_id``/``date``
+    is provided, a simple placeholder scaling is applied instead.
     """
 
     if event is None and (event_id or date):
@@ -324,9 +334,17 @@ def apply_historical_returns(
 
     start = _parse_date(event.get("date"))
     horizons = list(horizons or event.get("horizons") or [5])
-    proxy = event.get("proxy_index") or {}
-    proxy_ticker = proxy.get("ticker")
-    proxy_exchange = proxy.get("exchange")
+
+    # ``proxy_index`` may be provided either as a dict with ``ticker`` and
+    # ``exchange`` keys or as a single string like ``"SPY.N"``.  The previous
+    # implementation assumed a mapping which caused an ``AttributeError`` when a
+    # string was supplied.  By funnelling the value through
+    # ``_parse_full_ticker`` we transparently support both forms and keep the
+    # rest of the code agnostic to the input type.
+    proxy_val = event.get("proxy_index")
+    proxy_ticker, proxy_exchange = (None, None)
+    if proxy_val:
+        proxy_ticker, proxy_exchange = _parse_full_ticker(proxy_val)
 
     results: Dict[str, Dict[int, float | None]] = {}
 

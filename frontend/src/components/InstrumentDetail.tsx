@@ -6,10 +6,10 @@ import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
+import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
 import type { TradingSignal } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
-import { InstrumentHistoryChart } from "./InstrumentHistoryChart";
 import {
   ResponsiveContainer,
   LineChart,
@@ -218,6 +218,10 @@ export function InstrumentDetail({
       {signal && (
         <div style={{ marginBottom: "0.5rem" }}>
           <strong>{signal.action.toUpperCase()}</strong> – {signal.reason}
+          {signal.confidence != null && (
+            <div>Confidence: {(signal.confidence * 100).toFixed(0)}%</div>
+          )}
+          {signal.rationale && <div>{signal.rationale}</div>}
         </div>
       )}
       <div
@@ -321,11 +325,6 @@ export function InstrumentDetail({
           {t("instrumentDetail.rsi")}
         </label>
       </div>
-      <InstrumentHistoryChart
-        data={prices}
-        loading={loading}
-        showBollinger={showBollinger}
-      />
       {loading ? (
         <div
           style={{
@@ -538,9 +537,7 @@ export function InstrumentDetail({
                 return (
                   <tr key={p.date}>
                     <td className={tableStyles.cell}>
-                      {new Intl.DateTimeFormat(i18n.language).format(
-                        new Date(p.date),
-                      )}
+                      {formatDateISO(new Date(p.date))}
                     </td>
                     <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                       {money(p.close_gbp, baseCurrency)}

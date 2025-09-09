@@ -9,14 +9,6 @@ paths:
   transactions_output_root: accounts  # Where generated transactions are written
   log_config: backend/logging.ini     # Logging configuration file
 
-tabs:
-  instrument: true
-  support: true
-  timeseries: true
-  instrumentadmin: true
-  reports: true
-  profile: true
-
 auth:
   google_auth_enabled: false          # Enable Google sign-in (GOOGLE_AUTH_ENABLED)
   disable_auth: true                  # Disable all authentication checks (DISABLE_AUTH) - use only for development
@@ -76,6 +68,7 @@ ui:
   tabs:                               # Toggle availability of frontend tabs
     movers: true
     group: true
+    market: true
     instrument: true
     owner: true
     performance: false
@@ -84,9 +77,14 @@ ui:
     trading: false
     timeseries: true
     watchlist: false
+    allocation: true
+    rebalance: true
     instrumentadmin: true
     dataadmin: true
     virtual: false
     support: true
+    settings: true
+    profile: false
+    pension: true
     reports: true
     scenario: true

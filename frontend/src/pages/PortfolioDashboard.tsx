@@ -7,7 +7,7 @@ import {
   YAxis,
 } from "recharts";
 import { percent, percentOrNa } from "../lib/money";
-import metricStyles from "../styles/metrics.module.css";
+// import metricStyles from "../styles/metrics.module.css";
 import { Link } from "react-router-dom";
 
 type Props = {
@@ -37,7 +37,6 @@ function PortfolioDashboard({
   data,
   owner,
 }: Props) {
-  void owner;
   return (
     <>
       <div className="grid grid-cols-2 gap-4 p-4 mb-4 bg-gray-900 border border-gray-700 rounded sm:grid-cols-3 md:grid-cols-5">
@@ -125,7 +124,16 @@ function PortfolioDashboard({
         </LineChart>
       </ResponsiveContainer>
       <p className="mt-8">
-        <Link to="/goals">View Goals</Link> |{" "}
+        <Link
+          to={
+            owner
+              ? `/returns/compare?owner=${encodeURIComponent(owner)}`
+              : "/returns/compare"
+          }
+        >
+          Return Comparison
+        </Link>{" "}
+        | <Link to="/goals">View Goals</Link> |{" "}
         <Link to="/pension/forecast">Pension Forecast</Link>
       </p>
     </>

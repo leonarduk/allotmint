@@ -20,8 +20,9 @@ vi.mock("../data/watchlists", () => ({
 const mockGetScreener = vi.fn((tickers: string[]) =>
   Promise.resolve(
     tickers.map(
-      (t) =>
+      (t, i) =>
         ({
+          rank: i + 1,
           ticker: t,
           peg_ratio: null,
           pe_ratio: null,

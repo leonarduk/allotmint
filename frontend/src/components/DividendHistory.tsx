@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import i18n from "../i18n";
 import { getDividends } from "../api";
 import type { Transaction } from "../types";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { money } from "../lib/money";
+import { formatDateISO } from "../lib/date";
 import { Sparkline } from "./Sparkline";
 
 export function DividendHistory() {
@@ -59,11 +59,7 @@ export function DividendHistory() {
               {(data ?? []).map((d, i) => (
                 <tr key={i}>
                   <td className={tableStyles.cell}>
-                    {d.date
-                      ? new Intl.DateTimeFormat(i18n.language).format(
-                          new Date(d.date),
-                        )
-                      : ""}
+                    {d.date ? formatDateISO(new Date(d.date)) : ""}
                   </td>
                   <td className={tableStyles.cell}>{d.owner}</td>
                   <td className={tableStyles.cell}>{d.ticker}</td>

@@ -360,4 +360,21 @@ describe("HoldingsTable", () => {
               await i18n.changeLanguage('en');
           });
       });
+
+      it("renders rows and keeps header on scroll", async () => {
+          const manyHoldings = Array.from({ length: 50 }, (_, i) => ({
+              ...holdings[0],
+              ticker: `T${i}`,
+              name: `Name${i}`,
+          }));
+          render(<HoldingsTable holdings={manyHoldings} />);
+          await screen.findByText('T0');
+          const container = screen.getByRole('table').parentElement as HTMLElement;
+          act(() => {
+              container.scrollTop = 500;
+              container.dispatchEvent(new Event('scroll'));
+          });
+          expect(screen.getByRole('columnheader', { name: 'Ticker' })).toBeInTheDocument();
+          expect(screen.getByText('T49')).toBeInTheDocument();
+      });
   });

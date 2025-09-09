@@ -20,7 +20,6 @@ from backend.config import config as app_config
 
 # expose config for tests/backwards compat
 config = app_config
-OFFLINE_MODE = config.offline_mode
 logger = logging.getLogger(__name__)
 
 
@@ -57,7 +56,7 @@ _NEXT_ALLOWED_TIME = 0.0
 
 
 def send_message(text: str) -> None:
-    if OFFLINE_MODE:
+    if app_config.offline_mode:
         logger.info(f"Offline-alert: {text}")
         return
 
@@ -129,7 +128,7 @@ class TelegramLogHandler(logging.Handler):
             return
         try:
             message = self.format(record)
-            if not OFFLINE_MODE:
+            if not app_config.offline_mode:
                 send_message(message)
         except Exception:
             # Let logging's handleError respect logging.raiseExceptions.

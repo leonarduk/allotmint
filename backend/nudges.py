@@ -22,6 +22,7 @@ from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import aggregate_by_ticker
 from backend.common.storage import get_storage
 from backend.config import config
+from backend.utils.telegram_utils import redact_token, send_message
 
 logger = logging.getLogger("nudges")
 
@@ -38,9 +39,7 @@ _DEFAULT_SUBSCRIPTIONS_URI = (
 )
 
 try:
-    _SUBSCRIPTION_STORAGE = get_storage(
-        os.getenv("NUDGE_SUBSCRIPTIONS_URI", _DEFAULT_SUBSCRIPTIONS_URI)
-    )
+    _SUBSCRIPTION_STORAGE = get_storage(os.getenv("NUDGE_SUBSCRIPTIONS_URI", _DEFAULT_SUBSCRIPTIONS_URI))
 except Exception as exc:  # pragma: no cover - configuration errors
     logger.error("Failed to initialise nudge storage: %s", exc)
     _SUBSCRIPTION_STORAGE = get_storage(_DEFAULT_SUBSCRIPTIONS_URI)
@@ -168,6 +167,11 @@ def send_due_nudges() -> None:
     for user in list(iter_due_users(now)):
         message = _build_nudge_message(user)
         publish_alert({"ticker": "NUDGE", "user": user, "message": message})
+        if config.telegram_bot_token and config.telegram_chat_id and config.app_env != "aws":
+            try:
+                send_message(message)
+            except Exception as exc:  # pragma: no cover - network errors are rare
+                logger.warning("Telegram send failed: %s", redact_token(str(exc)))
         _RECENT_NUDGES.append({"id": user, "message": message, "timestamp": now.isoformat()})
         _SUBSCRIPTIONS[user]["last_sent"] = now.isoformat()
     if _RECENT_NUDGES:

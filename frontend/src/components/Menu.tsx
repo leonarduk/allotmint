@@ -177,7 +177,8 @@ export default function Menu({
             .filter((p) => {
               if (p.id === 'support') return false;
               if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
-              return tabs[p.id] !== false && !disabledTabs?.includes(p.id);
+              const enabled = (tabs as Record<string, boolean | undefined>)[p.id] === true;
+              return enabled && !disabledTabs?.includes(p.id);
             })
             .map((p) => (
               <Link

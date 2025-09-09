@@ -9,7 +9,9 @@ import backend.utils.telegram_utils as telegram_utils
 
 def test_send_message_requires_config(monkeypatch):
     telegram_utils.RECENT_MESSAGES.clear()
-    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", None, raising=False)
+    monkeypatch.setattr(
+        telegram_utils.config, "telegram_bot_token", None, raising=False
+    )
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", None, raising=False)
     # should silently return when config missing
     telegram_utils.send_message("hi")
@@ -37,7 +39,7 @@ def test_log_handler_without_config(monkeypatch):
 def test_send_message_success(monkeypatch):
     telegram_utils.RECENT_MESSAGES.clear()
     telegram_utils._NEXT_ALLOWED_TIME = 0
-    monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
     monkeypatch.setattr(telegram_utils.time, "sleep", lambda s: None)
@@ -55,7 +57,7 @@ def test_send_message_success(monkeypatch):
 def test_deduplicates_messages_within_ttl(monkeypatch):
     telegram_utils.RECENT_MESSAGES.clear()
     telegram_utils._NEXT_ALLOWED_TIME = 0
-    monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
     monkeypatch.setattr(telegram_utils.time, "time", lambda: 1000.0)
@@ -77,7 +79,7 @@ def test_deduplicates_messages_within_ttl(monkeypatch):
 def test_sends_messages_after_ttl(monkeypatch):
     telegram_utils.RECENT_MESSAGES.clear()
     telegram_utils._NEXT_ALLOWED_TIME = 0
-    monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
 
@@ -101,7 +103,7 @@ def test_sends_messages_after_ttl(monkeypatch):
 def test_handles_http_429(monkeypatch, caplog):
     telegram_utils.RECENT_MESSAGES.clear()
     telegram_utils._NEXT_ALLOWED_TIME = 0
-    monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
 
@@ -120,7 +122,9 @@ def test_handles_http_429(monkeypatch, caplog):
 
     monkeypatch.setattr(telegram_utils.time, "sleep", lambda s: None)
 
-    with patch("backend.utils.telegram_utils.requests.post", fake_post), caplog.at_level(logging.WARNING):
+    with patch(
+        "backend.utils.telegram_utils.requests.post", fake_post
+    ), caplog.at_level(logging.WARNING):
         telegram_utils.send_message("rate")
 
     assert len(calls) == 2
@@ -130,7 +134,7 @@ def test_handles_http_429(monkeypatch, caplog):
 def test_uses_retry_after_header(monkeypatch):
     telegram_utils.RECENT_MESSAGES.clear()
     telegram_utils._NEXT_ALLOWED_TIME = 0
-    monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
 
@@ -147,7 +151,11 @@ def test_uses_retry_after_header(monkeypatch):
 
     responses = iter(
         [
-            SimpleNamespace(status_code=429, headers={"Retry-After": "5"}, raise_for_status=lambda: None),
+            SimpleNamespace(
+                status_code=429,
+                headers={"Retry-After": "5"},
+                raise_for_status=lambda: None,
+            ),
             SimpleNamespace(status_code=200, headers={}, raise_for_status=lambda: None),
         ]
     )
@@ -162,20 +170,25 @@ def test_uses_retry_after_header(monkeypatch):
         telegram_utils.send_message("rate")
 
     assert sleeps == [5]
-    assert telegram_utils._NEXT_ALLOWED_TIME == start + 5 + telegram_utils.RATE_LIMIT_SECONDS
+    assert (
+        telegram_utils._NEXT_ALLOWED_TIME
+        == start + 5 + telegram_utils.RATE_LIMIT_SECONDS
+    )
 
 
 def test_handles_timeout(monkeypatch, caplog):
     telegram_utils.RECENT_MESSAGES.clear()
     telegram_utils._NEXT_ALLOWED_TIME = 0
-    monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
 
     def fake_post(url, data, timeout):
         raise telegram_utils.req_exc.Timeout()
 
-    with patch("backend.utils.telegram_utils.requests.post", fake_post), caplog.at_level(logging.WARNING):
+    with patch(
+        "backend.utils.telegram_utils.requests.post", fake_post
+    ), caplog.at_level(logging.WARNING):
         telegram_utils.send_message("timeout")
 
     assert any("timeout" in r.message.lower() for r in caplog.records)
@@ -183,7 +196,7 @@ def test_handles_timeout(monkeypatch, caplog):
 
 def test_redacts_token_from_errors(monkeypatch, caplog):
     telegram_utils.RECENT_MESSAGES.clear()
-    monkeypatch.setattr(telegram_utils, "OFFLINE_MODE", False)
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
     token = "SECRET"
     monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", token)
     monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")

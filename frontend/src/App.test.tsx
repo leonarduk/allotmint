@@ -415,6 +415,7 @@ describe("App", () => {
       "Allocation",
       "Rebalance",
       "Reports",
+      "Alert Settings",
       "User Settings",
       "Pension Forecast",
       "Tax Harvest",

@@ -65,10 +65,21 @@ export const setAuthToken = (token: string | null) => {
 
 export const getStoredAuthToken = () => localStorage.getItem(TOKEN_STORAGE_KEY);
 
+// Extract the CSRF token from cookies if present
+const getCsrfToken = () =>
+  document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("csrftoken="))
+    ?.split("=")[1] || null;
+
 export async function login(idToken: string): Promise<string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const csrf = getCsrfToken();
+  if (csrf) headers["X-CSRFToken"] = csrf;
   const res = await fetch(`${API_BASE}/token`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
+    credentials: "include",
     body: JSON.stringify({ id_token: idToken }),
   });
   if (!res.ok) {
@@ -93,7 +104,9 @@ export async function fetchJson<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const res = await fetch(url, { ...init, headers });
+  const csrf = getCsrfToken();
+  if (csrf) headers.set("X-CSRFToken", csrf);
+  const res = await fetch(url, { ...init, headers, credentials: "include" });
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
     (err as any).status = res.status;

@@ -5,6 +5,7 @@ import type { Account, GroupPortfolio } from "../types";
 import { translateInstrumentType } from "../lib/instrumentType";
 import { money } from "../lib/money";
 import { useConfig } from "../ConfigContext";
+import { RelativeViewToggle } from "../components/RelativeViewToggle";
 import {
   PieChart,
   Pie,
@@ -32,7 +33,7 @@ export type AllocationChartsProps = {
 
 export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const { t } = useTranslation();
-  const { baseCurrency } = useConfig();
+  const { baseCurrency, relativeViewEnabled } = useConfig();
   const [view, setView] = useState<"asset" | "sector" | "region">("asset");
   const [sectorData, setSectorData] = useState<{ name: string; value: number }[]>(
     [],
@@ -114,11 +115,16 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const chartData =
     view === "asset" ? assetData : view === "sector" ? sectorData : regionData;
 
+  const total = chartData.reduce((sum, d) => sum + d.value, 0);
+
   return (
     <div className="container mx-auto p-4">
-      <h1 className="mb-4 text-2xl md:text-4xl">
-        {t("app.modes.allocation", { defaultValue: "Allocation" })}
-      </h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl md:text-4xl">
+          {t("app.modes.allocation", { defaultValue: "Allocation" })}
+        </h1>
+        <RelativeViewToggle />
+      </div>
       <div className="mb-4 flex gap-2">
         <button onClick={() => setView("asset")} disabled={view === "asset"}>
           {t("allocation.instrumentTypes", { defaultValue: "Instrument Types" })}
@@ -160,7 +166,9 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
               outerRadius="80%"
               // "percent" may be undefined for empty datasets; default it to 0
               label={({ name, value, percent = 0 }) =>
-                `${name}: ${money(value, baseCurrency)} (${(percent * 100).toFixed(2)}%)`
+                relativeViewEnabled
+                  ? `${name}: ${(percent * 100).toFixed(2)}%`
+                  : `${name}: ${money(value, baseCurrency)} (${(percent * 100).toFixed(2)}%)`
               }
             >
               {chartData.map((_, index) => (
@@ -170,10 +178,26 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                 />
               ))}
             </Pie>
-            <Tooltip formatter={(v: number) => money(v, baseCurrency)} />
+            <Tooltip
+              formatter={(v: number, _n: string, item: any) =>
+                relativeViewEnabled
+                  ? `${
+                      total
+                        ? ((item?.payload?.value / total) * 100).toFixed(2)
+                        : "0.00"
+                    }%`
+                  : money(v, baseCurrency)
+              }
+            />
             <Legend
               formatter={(value: string, entry: any) =>
-                `${value}: ${money(entry?.payload?.value, baseCurrency)}`
+                relativeViewEnabled
+                  ? `${value}: ${
+                      total
+                        ? ((entry?.payload?.value / total) * 100).toFixed(2)
+                        : "0.00"
+                    }%`
+                  : `${value}: ${money(entry?.payload?.value, baseCurrency)}`
               }
             />
           </PieChart>

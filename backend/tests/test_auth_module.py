@@ -89,6 +89,7 @@ def test_missing_jwt_secret_raises_error(monkeypatch):
 
     monkeypatch.delenv("JWT_SECRET", raising=False)
     monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setattr(auth.config, "disable_auth", False)
     with pytest.raises(RuntimeError):
         importlib.reload(auth)

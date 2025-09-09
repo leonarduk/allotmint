@@ -6,7 +6,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "./InstrumentResearch";
-import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
+import type { ScreenerResult, NewsItem, QuoteRow, InstrumentDetail } from "../types";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import * as api from "../api";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
@@ -83,6 +83,7 @@ describe("InstrumentResearch page", () => {
   });
 
   it("shows loading indicators while fetching data", async () => {
+    let detailResolve: (v: InstrumentDetail) => void;
     let screenerResolve: (v: ScreenerResult[]) => void;
     let quotesResolve: (v: QuoteRow[]) => void;
     let newsResolve: (v: NewsItem[]) => void;

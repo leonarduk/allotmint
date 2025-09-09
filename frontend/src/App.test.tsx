@@ -408,6 +408,8 @@ describe("App", () => {
       "Reports",
       "User Settings",
       "Pension Forecast",
+      "Tax Harvest",
+      "Tax Allowances",
       "Scenario Tester",
       "Support",
     ]);

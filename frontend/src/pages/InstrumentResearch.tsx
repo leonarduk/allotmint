@@ -374,21 +374,21 @@ export default function InstrumentResearch() {
         <div>Loading news...</div>
       ) : newsError ? (
         <div>{newsError}</div>
+      ) : news.length === 0 ? (
+        <div>No news available</div>
       ) : (
-        news.length > 0 && (
-          <div>
-            <h2>News</h2>
-            <ul>
-              {news.map((n, i) => (
-                <li key={i}>
-                  <a href={n.url} target="_blank" rel="noopener noreferrer">
-                    {n.headline}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )
+        <div>
+          <h2>News</h2>
+          <ul>
+            {news.map((n, i) => (
+              <li key={i}>
+                <a href={n.url} target="_blank" rel="noopener noreferrer">
+                  {n.headline}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

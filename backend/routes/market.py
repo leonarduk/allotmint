@@ -66,10 +66,8 @@ def _fetch_headlines() -> List[Dict[str, str]]:
     success = False
 
     for sym in INDEX_SYMBOLS.values():
-        try:
-            items = _fetch_news(sym)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Failed to fetch news for %s: %s", sym, exc)
+        items = _fetch_news(sym)
+        if not items:
             continue
 
         success = True

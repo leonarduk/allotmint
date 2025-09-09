@@ -22,6 +22,7 @@ const App = lazy(() => import('./App.tsx'))
 const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))
 const Support = lazy(() => import('./pages/Support'))
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
+const TradeCompliance = lazy(() => import('./pages/TradeCompliance'))
 const InstrumentResearch = lazy(() => import('./pages/InstrumentResearch'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Alerts = lazy(() => import('./pages/Alerts'))
@@ -70,6 +71,8 @@ export function Root() {
         <Route path="/virtual" element={<VirtualPortfolio />} />
         <Route path="/compliance" element={<ComplianceWarnings />} />
         <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+        <Route path="/trade-compliance" element={<TradeCompliance />} />
+        <Route path="/trade-compliance/:owner" element={<TradeCompliance />} />
         <Route path="/research/:ticker" element={<InstrumentResearch />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/alerts" element={<Alerts />} />

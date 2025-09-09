@@ -269,6 +269,11 @@ def load_config() -> Config:
 
     validate_google_auth(google_auth_enabled, google_client_id)
 
+    # Optional env override for Alpha Vantage API key to avoid committing secrets
+    alpha_key_env = os.getenv("ALPHA_VANTAGE_KEY")
+    if alpha_key_env:
+        data["alpha_vantage_key"] = alpha_key_env
+
     return Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),

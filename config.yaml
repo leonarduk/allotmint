@@ -16,7 +16,7 @@ server:
   uvicorn_host: 0.0.0.0
   uvicorn_port: 8000
   reload: true
-  rate_limit_per_minute: 60
+  rate_limit_per_minute: 6000
   cors:
     local:
     - http://localhost:3000

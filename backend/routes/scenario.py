@@ -79,12 +79,9 @@ def run_historical_scenario(
         horizon_map = {}
         for h, shocked_pf in shocked.items():
             val = shocked_pf.get("total_value_estimate_gbp")
-            pct_change = None
-            if baseline not in (None, 0) and val is not None:
-                pct_change = (val - baseline) / baseline
             horizon_map[h] = {
-                "shocked_total_value_gbp": val,
-                "pct_change": pct_change,
+                "baseline": baseline,
+                "shocked": val,
             }
 
         results.append(

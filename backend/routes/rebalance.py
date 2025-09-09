@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.common.rebalance import suggest_trades
@@ -24,4 +24,7 @@ class TradeSuggestion(BaseModel):
 
 @router.post("/rebalance", response_model=List[TradeSuggestion])
 def rebalance(req: RebalanceRequest) -> List[TradeSuggestion]:
-    return suggest_trades(req.actual, req.target)
+    try:
+        return suggest_trades(req.actual, req.target)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

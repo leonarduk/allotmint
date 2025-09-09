@@ -21,7 +21,7 @@ server:
   uvicorn_host: 0.0.0.0               # Host interface for the FastAPI server
   uvicorn_port: 8000                  # Port for the FastAPI server
   reload: true                        # Auto-reload during development
-  rate_limit_per_minute: 60           # Max API requests per client per minute
+  rate_limit_per_minute: 6000           # Max API requests per client per minute
   sns_topic_arn: ''                   # AWS SNS topic for alerts
   telegram_bot_token: ""              # Telegram bot token (TELEGRAM_BOT_TOKEN)
   telegram_chat_id: ""               # Telegram chat id (TELEGRAM_CHAT_ID)
@@ -41,6 +41,7 @@ market_data:
   fundamentals_cache_ttl_seconds: 86400 # TTL for fundamentals cache (seconds)
   stooq_timeout: 10                   # Timeout for Stooq requests (seconds)
   stooq_requests_per_minute: 60       # Rate limit for Stooq requests
+  news_requests_per_day: 25           # Max AlphaVantage news requests per day
   ft_url_template: https://markets.ft.com/data/funds/tearsheet/historical?s={ticker} # FT scraping URL template
   selenium_user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 # Selenium user agent
   selenium_headless: true             # Run Selenium headless

@@ -39,9 +39,6 @@ describe("ScenarioTester page", () => {
             shocked_total_value_gbp: 180,
           },
         },
-        baseline_total_value_gbp: 100,
-        shocked_total_value_gbp: 110,
-        delta_gbp: 10,
       } as ScenarioResult,
     ]);
 

@@ -124,7 +124,7 @@ describe("InstrumentResearch page", () => {
     ]);
     quotesResolve!([
       {
-        name: null,
+        name: "Acme Corp",
         symbol: "AAA",
         last: 100,
         open: null,
@@ -140,6 +140,9 @@ describe("InstrumentResearch page", () => {
     newsResolve!([{ headline: "headline", url: "http://example.com" }]);
 
     expect(await screen.findByText("Price")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      "AAA - Acme Corp",
+    );
     expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
   });
 
@@ -164,6 +167,20 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("screener fail")).toBeInTheDocument();
     expect(await screen.findByText("quotes fail")).toBeInTheDocument();
     expect(await screen.findByText("news fail")).toBeInTheDocument();
+  });
+
+  it("shows a message when no news is available", async () => {
+    mockFetchInstrumentDetailWithRetry.mockResolvedValue({
+      prices: null,
+      positions: [],
+    } as InstrumentDetail);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+
+    renderPage();
+
+    expect(await screen.findByText("No news available")).toBeInTheDocument();
   });
 
   it("navigates to screener when link clicked", async () => {
@@ -257,6 +274,34 @@ describe("InstrumentResearch page", () => {
     }
   });
 
+  it("renders instrument metadata when available", async () => {
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "USD",
+      },
+      loading: false,
+      error: null,
+    } as any);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+
+    const heading = await screen.findByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("AAA - Acme Corp");
+    expect(heading).toHaveTextContent("Tech");
+    expect(heading).toHaveTextContent("USD");
+
+    expect(screen.getByText(/Instrument info/i)).toBeInTheDocument();
+    expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Corp");
+    expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Tech");
+    expect(screen.getByText(/Currency:/)).toHaveTextContent("Currency: USD");
+  });
+
   it("skips state updates when unmounted", async () => {
     mockFetchInstrumentDetailWithRetry.mockResolvedValue({
       prices: null,
@@ -285,7 +330,7 @@ describe("InstrumentResearch page", () => {
     await Promise.resolve();
     resolveQuotes!([
       {
-        name: null,
+        name: "Acme Corp",
         symbol: "AAA",
         last: 1,
         open: null,

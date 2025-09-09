@@ -16,6 +16,7 @@ import type {
   MaxDrawdownResponse,
   ReturnComparisonResponse,
   Transaction,
+  TransactionWithCompliance,
   Alert,
   PriceEntry,
   ScreenerResult,
@@ -133,6 +134,7 @@ export const refreshPrices = () =>
 export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });
   return fetchJson<{
+    name?: string | null;
     symbol: string;
     price: number | null;
     open?: number | null;
@@ -155,7 +157,7 @@ export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
             ? (change / r.previous_close) * 100
             : null;
         return {
-          name: null,
+          name: r.name ?? null,
           symbol: r.symbol,
           last: r.price ?? null,
           open: r.open ?? null,
@@ -699,6 +701,19 @@ export const validateTrade = (tx: Transaction) =>
 /** Alias for compatibility with newer API naming */
 export const complianceForOwner = getCompliance;
 
+/** Fetch transactions with compliance warnings */
+export const getTransactionsWithCompliance = (
+  owner: string,
+  opts: { ticker?: string; account?: string } = {},
+) => {
+  const params = new URLSearchParams({ owner });
+  if (opts.ticker) params.set("ticker", opts.ticker);
+  if (opts.account) params.set("account", opts.account);
+  return fetchJson<{ transactions: TransactionWithCompliance[] }>(
+    `${API_BASE}/transactions/compliance?${params.toString()}`,
+  );
+};
+
 /** Virtual portfolio endpoints */
 export const getVirtualPortfolios = () =>
   fetchJson<VirtualPortfolio[]>(`${API_BASE}/virtual-portfolios`);
@@ -795,6 +810,23 @@ export const removeApproval = async (owner: string, ticker: string) => {
     );
   } catch (err) {
     console.error("failed to remove approval for", owner, ticker, err);
+    throw err;
+  }
+};
+
+export const requestApproval = async (owner: string, ticker: string) => {
+  if (!ticker) throw new Error("ticker is required");
+  try {
+    return await fetchJson<{ requests: { ticker: string; requested_on: string }[] }>(
+      `${API_BASE}/accounts/${owner}/approval-requests`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker }),
+      },
+    );
+  } catch (err) {
+    console.error("failed to request approval for", owner, ticker, err);
     throw err;
   }
 };

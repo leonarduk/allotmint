@@ -228,6 +228,8 @@ export interface InstrumentDetail {
   prices: unknown;
   positions: InstrumentPosition[];
   mini?: InstrumentDetailMini;
+  name?: string | null;
+  sector?: string | null;
   currency?: string | null;
 }
 
@@ -242,6 +244,10 @@ export interface Transaction {
   security_ref?: string | null;
   ticker?: string | null;
   shares?: number | null;
+}
+
+export interface TransactionWithCompliance extends Transaction {
+  warnings: string[];
 }
 
 export interface PriceEntry {

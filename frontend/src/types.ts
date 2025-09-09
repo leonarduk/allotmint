@@ -332,8 +332,8 @@ export interface ScenarioEvent {
 }
 
 export interface ScenarioHorizonResult {
-  baseline: number | null;
-  shocked: number | null;
+  baseline_total_value_gbp: number | null;
+  shocked_total_value_gbp: number | null;
 }
 
 export interface ScenarioResult {

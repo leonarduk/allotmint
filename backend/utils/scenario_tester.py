@@ -296,7 +296,7 @@ def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int
         return None
 
 
-def apply_historical_event(
+def apply_historical_returns(
     portfolio: Dict[str, Any],
     event: Dict[str, Any] | None = None,
     *,

@@ -330,5 +330,17 @@
     "indexLevels": "Niveaux des indices",
     "sectorPerformance": "Performance des secteurs",
     "latestHeadlines": "Derniers titres"
+  },
+  "goals": {
+    "title": "Objectifs",
+    "targetAmount": "Montant cible",
+    "add": "Ajouter un objectif",
+    "currentAmount": "Montant actuel:",
+    "goalLine": "{{name}} – objectif {{amount}} d'ici {{date}}",
+    "view": "Voir",
+    "progress": "Progrès: {{progress}}%",
+    "suggestedTrades": "Transactions suggérées",
+    "trade": "{{action}} {{amount}} de {{ticker}}",
+    "back": "Retour au portefeuille"
   }
 }

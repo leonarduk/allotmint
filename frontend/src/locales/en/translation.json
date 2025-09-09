@@ -333,5 +333,17 @@
     "indexLevels": "Index Levels",
     "sectorPerformance": "Sector Performance",
     "latestHeadlines": "Latest Headlines"
+  },
+  "goals": {
+    "title": "Goals",
+    "targetAmount": "Target Amount",
+    "add": "Add Goal",
+    "currentAmount": "Current Amount:",
+    "goalLine": "{{name}} – target {{amount}} by {{date}}",
+    "view": "View",
+    "progress": "Progress: {{progress}}%",
+    "suggestedTrades": "Suggested Trades",
+    "trade": "{{action}} {{amount}} of {{ticker}}",
+    "back": "Back to Portfolio"
   }
 }

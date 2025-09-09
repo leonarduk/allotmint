@@ -414,6 +414,10 @@ async def get_account(owner: str, account: str):
         data = data_loader.load_account(owner, match)
         account = match
     data.setdefault("account_type", account)
+    # Ensure the owning person is always included in the response. Older
+    # account files omit this which previously caused a ``KeyError`` for
+    # consumers expecting the field to be present.
+    data.setdefault("owner", owner)
     return data
 
 

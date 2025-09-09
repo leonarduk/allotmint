@@ -6,7 +6,10 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.common.data_loader import list_plots
 from backend.common.portfolio import build_owner_portfolio
-from backend.utils.scenario_tester import apply_historical_event, apply_price_shock
+from backend.utils.scenario_tester import (
+    apply_historical_event_portfolio as apply_historical_event,
+    apply_price_shock,
+)
 
 router = APIRouter(tags=["scenario"])
 

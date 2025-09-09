@@ -168,7 +168,7 @@ def _forward_returns(ticker: str, exchange: str, event_date: dt.date) -> Dict[st
     return results
 
 
-def apply_historical_event(
+def apply_historical_event_portfolio(
     portfolio: Dict[str, Any],
     event: Any | None = None,
     *,
@@ -176,11 +176,13 @@ def apply_historical_event(
     date: str | None = None,
     horizons: Iterable[int] | None = None,
 ) -> Dict[Any, Any]:
-    """Apply a historical event to a portfolio.
+    """Return shocked portfolio valuations for a historical event.
 
-    When ``event`` is supplied, per-holding returns are calculated for the
-    requested ``horizons``. If ``event`` is omitted but an ``event_id``/``date``
-    is provided, a simple placeholder scaling is applied instead.
+    This helper aggregates holding-level returns into portfolio totals for a
+    number of preset horizons. It is primarily used by API endpoints that need
+    to display the portfolio value and change after an event.  When ``event`` is
+    omitted but an ``event_id`` or ``date`` is supplied a simple scaling
+    placeholder is returned instead.
     """
 
     if event is None and (event_id or date):
@@ -191,7 +193,10 @@ def apply_historical_event(
 
     baseline = float(portfolio.get("total_value_estimate_gbp") or 0.0)
     if baseline == 0.0:
-        baseline = sum(float(a.get("value_estimate_gbp") or 0.0) for a in portfolio.get("accounts", []))
+        baseline = sum(
+            float(a.get("value_estimate_gbp") or 0.0)
+            for a in portfolio.get("accounts", [])
+        )
 
     proxy_val = getattr(event, "proxy", None)
     if proxy_val is None and isinstance(event, dict):
@@ -291,7 +296,7 @@ def _calc_return(ticker: str, exchange: str | None, start: dt.date, horizon: int
         return None
 
 
-def apply_historical_returns(
+def apply_historical_event(
     portfolio: Dict[str, Any],
     event: Dict[str, Any] | None = None,
     *,
@@ -301,10 +306,9 @@ def apply_historical_returns(
 ) -> Dict[Any, Any]:
     """Apply a historical event to ``portfolio``.
 
-    When ``event`` is provided, per-holding returns are calculated for the
-    requested ``horizons`` (or those defined within ``event``) and returned as
-    ``{ticker: {horizon: return}}``.  If ``event`` is omitted but an
-    ``event_id`` or ``date`` is supplied, a simple placeholder scaling is
+    Returns per-holding forward returns for the requested ``horizons`` in the
+    shape ``{ticker: {horizon: return}}``. If ``event`` is omitted but an
+    ``event_id`` or ``date`` is supplied a simple placeholder scaling is
     applied instead.
     """
 

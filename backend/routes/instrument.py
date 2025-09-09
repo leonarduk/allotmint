@@ -224,6 +224,8 @@ async def instrument(
         df["Close"] = df["Close_gbp"]
 
     meta = get_security_meta(ticker) or {}
+    name = meta.get("name")
+    sector = meta.get("sector")
     currency = meta.get("currency")
 
     ts_is_gbp = currency == "GBP" or "Close_gbp" in df.columns
@@ -277,6 +279,8 @@ async def instrument(
             "prices": prices,
             "mini": mini,
             "currency": currency,
+            "name": name,
+            "sector": sector,
         }
         return JSONResponse(jsonable_encoder(payload))
 

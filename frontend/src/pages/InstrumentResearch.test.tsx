@@ -257,6 +257,34 @@ describe("InstrumentResearch page", () => {
     }
   });
 
+  it("renders instrument metadata when available", async () => {
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "USD",
+      },
+      loading: false,
+      error: null,
+    } as any);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+
+    const heading = await screen.findByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("AAA - Acme Corp");
+    expect(heading).toHaveTextContent("Tech");
+    expect(heading).toHaveTextContent("USD");
+
+    expect(screen.getByText(/Instrument info/i)).toBeInTheDocument();
+    expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Corp");
+    expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Tech");
+    expect(screen.getByText(/Currency:/)).toHaveTextContent("Currency: USD");
+  });
+
   it("skips state updates when unmounted", async () => {
     mockFetchInstrumentDetailWithRetry.mockResolvedValue({
       prices: null,

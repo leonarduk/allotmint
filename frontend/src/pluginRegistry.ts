@@ -1,5 +1,6 @@
 import AlertSettings from "./pages/AlertSettings";
 import ComplianceWarnings from "./pages/ComplianceWarnings";
+import TradeCompliance from "./pages/TradeCompliance";
 
 export interface TabPlugin {
   /** Unique identifier for the plugin */
@@ -53,4 +54,10 @@ registerTabPlugin({
   id: "compliance",
   Component: ComplianceWarnings,
   priority: 150,
+});
+
+registerTabPlugin({
+  id: "trade-compliance",
+  Component: TradeCompliance,
+  priority: 151,
 });

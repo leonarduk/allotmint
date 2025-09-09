@@ -117,11 +117,26 @@ export default function InstrumentResearch() {
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <h1 style={{ marginBottom: "1rem" }}>
         {tkr}
-        {metrics?.name
+        {detail?.name
+          ? ` - ${detail.name}`
+          : metrics?.name
           ? ` - ${metrics.name}`
           : quote?.name
           ? ` - ${quote.name}`
           : ""}
+        {detail?.sector || detail?.currency ? (
+          <span
+            style={{
+              display: "block",
+              fontSize: "0.8rem",
+              fontWeight: "normal",
+            }}
+          >
+            {detail?.sector ?? ""}
+            {detail?.sector && detail?.currency ? " · " : ""}
+            {detail?.currency ?? ""}
+          </span>
+        ) : null}
       </h1>
       <div style={{ marginBottom: "1rem" }}>
         {tabs.screener && !(disabledTabs ?? []).includes("screener") && (
@@ -136,6 +151,16 @@ export default function InstrumentResearch() {
           {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
         </button>
       </div>
+      {detail && (
+        <div style={{ marginBottom: "1rem" }}>
+          <h2>Instrument info</h2>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {detail.name && <li>Name: {detail.name}</li>}
+            {detail.sector && <li>Sector: {detail.sector}</li>}
+            {detail.currency && <li>Currency: {detail.currency}</li>}
+          </ul>
+        </div>
+      )}
       <div style={{ marginBottom: "0.5rem" }}>
         {[7, 30, 180, 365].map((d) => (
           <button

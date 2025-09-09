@@ -144,7 +144,7 @@ export default function Menu({
   return (
     <nav className="mb-4" ref={containerRef}>
       <button
-        aria-label="menu"
+        aria-label={t('app.menu')}
         className="md:hidden mb-2 p-2 border rounded"
         onClick={() => setOpen((o) => !o)}
       >
@@ -158,7 +158,7 @@ export default function Menu({
             onClick={() => setFocusMode(false)}
             className="mt-2 mr-4 bg-transparent border-0 p-0 cursor-pointer self-start"
           >
-            Exit Focus Mode
+            {t('app.exitFocusMode')}
           </button>
         </div>
       ) : (
@@ -212,7 +212,7 @@ export default function Menu({
             onClick={() => setFocusMode(true)}
             className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
           >
-            Focus Mode
+            {t('app.focusMode')}
           </button>
         </div>
       )}

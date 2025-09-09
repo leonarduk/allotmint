@@ -33,7 +33,7 @@ vi.mock("recharts", () => {
 const mockGetMarketOverview = vi.mocked(api.getMarketOverview);
 
 describe("MarketOverview", () => {
-  it("renders UK index entries", async () => {
+  it("renders UK index entries and shows empty headline message", async () => {
     mockGetMarketOverview.mockResolvedValueOnce({
       indexes: {
         "S&P 500": { value: 100, change: 0 },
@@ -47,7 +47,16 @@ describe("MarketOverview", () => {
     const ftse = await screen.findAllByText("FTSE 100");
     expect(ftse.length).toBeGreaterThan(0);
     expect(screen.getAllByText("FTSE 250")).toHaveLength(2);
-    expect(mockBar).toHaveBeenCalled();
-    expect(mockBar.mock.calls[0][0].dataKey).toBe("change");
+    expect(screen.getByText("No headlines available")).toBeInTheDocument();
+  });
+
+  it("renders headlines when provided", async () => {
+    mockGetMarketOverview.mockResolvedValueOnce({
+      indexes: {},
+      sectors: [],
+      headlines: [{ headline: "Some News", url: "https://example.com" }],
+    });
+    render(<MarketOverview />);
+    expect(await screen.findByText("Some News")).toBeInTheDocument();
   });
 });

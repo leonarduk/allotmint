@@ -134,20 +134,28 @@ export default function MarketOverview() {
         <h2 className="mb-2 text-xl">
           {t('market.latestHeadlines', { defaultValue: 'Latest Headlines' })}
         </h2>
-        <ul className="list-disc pl-4">
-          {data.headlines.map((h, idx) => (
-            <li key={idx}>
-              <a
-                href={h.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
-              >
-                {h.headline}
-              </a>
-            </li>
-          ))}
-        </ul>
+        {data.headlines.length === 0 ? (
+          <p>
+            {t('market.noHeadlines', {
+              defaultValue: 'No headlines available',
+            })}
+          </p>
+        ) : (
+          <ul className="list-disc pl-4">
+            {data.headlines.map((h, idx) => (
+              <li key={idx}>
+                <a
+                  href={h.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline"
+                >
+                  {h.headline}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

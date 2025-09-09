@@ -4,6 +4,7 @@ import { Header } from "./Header";
 import Menu from "./Menu";
 import { MemoryRouter } from "react-router-dom";
 import { fireEvent } from "@testing-library/react";
+import i18n from "../i18n";
 
 describe("Header", () => {
   it("shows trade meter when data present", () => {
@@ -24,7 +25,7 @@ describe("Header", () => {
         <Menu />
       </MemoryRouter>
     );
-    const toggle = screen.getByLabelText("menu");
+    const toggle = screen.getByLabelText(i18n.t("app.menu"));
     fireEvent.click(toggle);
     expect(screen.getByRole("link", { name: "Support" })).toBeInTheDocument();
   });

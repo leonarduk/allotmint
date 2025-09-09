@@ -8,6 +8,9 @@
     "supportLink": "Support",
     "userLink": "App",
     "logout": "Abmelden",
+    "menu": "Menü",
+    "focusMode": "Fokusmodus",
+    "exitFocusMode": "Fokusmodus verlassen",
     "modes": {
       "group": "Gruppe",
       "instrument": "Instrument",
@@ -349,5 +352,17 @@
     "indexLevels": "Indexstände",
     "sectorPerformance": "Sektorentwicklung",
     "latestHeadlines": "Neueste Schlagzeilen"
+  },
+  "goals": {
+    "title": "Ziele",
+    "targetAmount": "Zielbetrag",
+    "add": "Ziel hinzufügen",
+    "currentAmount": "Aktueller Betrag:",
+    "goalLine": "{{name}} – Ziel {{amount}} bis {{date}}",
+    "view": "Ansehen",
+    "progress": "Fortschritt: {{progress}}%",
+    "suggestedTrades": "Vorgeschlagene Trades",
+    "trade": "{{action}} {{amount}} von {{ticker}}",
+    "back": "Zurück zum Portfolio"
   }
 }

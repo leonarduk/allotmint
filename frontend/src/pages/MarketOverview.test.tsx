@@ -28,12 +28,17 @@ const mockGetMarketOverview = vi.mocked(api.getMarketOverview);
 describe("MarketOverview", () => {
   it("renders UK index entries", async () => {
     mockGetMarketOverview.mockResolvedValueOnce({
-      indexes: { "S&P 500": 100, "FTSE 100": 200, "FTSE 250": 300 },
+      indexes: {
+        "S&P 500": { value: 100, change: 0 },
+        "FTSE 100": { value: 200, change: 0 },
+        "FTSE 250": { value: 300, change: 0 },
+      },
       sectors: [],
       headlines: [],
     });
     render(<MarketOverview />);
-    expect(await screen.findByText("FTSE 100")).toBeInTheDocument();
-    expect(screen.getByText("FTSE 250")).toBeInTheDocument();
+    const ftse = await screen.findAllByText("FTSE 100");
+    expect(ftse.length).toBeGreaterThan(0);
+    expect(screen.getAllByText("FTSE 250")).toHaveLength(2);
   });
 });

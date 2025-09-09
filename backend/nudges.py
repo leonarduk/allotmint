@@ -16,13 +16,20 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from backend.agent.trading_agent import generate_signals
 from backend.common.alerts import publish_alert
+from backend.common.portfolio_loader import list_portfolios
+from backend.common.portfolio_utils import aggregate_by_ticker
 from backend.common.storage import get_storage
 from backend.config import config
+from backend.utils.telegram_utils import redact_token, send_message
 
 logger = logging.getLogger("nudges")
 
 _DEFAULT_FREQ_DAYS = 7
+# Allowed reminder frequency range (in days)
+_MIN_FREQ_DAYS = 1
+_MAX_FREQ_DAYS = 30
 
 # S3 object key for persisted subscriptions
 _SUBSCRIPTIONS_KEY = "nudges/subscriptions.json"
@@ -32,9 +39,7 @@ _DEFAULT_SUBSCRIPTIONS_URI = (
 )
 
 try:
-    _SUBSCRIPTION_STORAGE = get_storage(
-        os.getenv("NUDGE_SUBSCRIPTIONS_URI", _DEFAULT_SUBSCRIPTIONS_URI)
-    )
+    _SUBSCRIPTION_STORAGE = get_storage(os.getenv("NUDGE_SUBSCRIPTIONS_URI", _DEFAULT_SUBSCRIPTIONS_URI))
 except Exception as exc:  # pragma: no cover - configuration errors
     logger.error("Failed to initialise nudge storage: %s", exc)
     _SUBSCRIPTION_STORAGE = get_storage(_DEFAULT_SUBSCRIPTIONS_URI)
@@ -82,8 +87,10 @@ def _save_state() -> None:
 def set_user_nudge(user: str, frequency: int, snooze_until: Optional[str] = None) -> None:
     """Create or update nudge settings for ``user``."""
     _load_state()
+    freq = int(frequency) if frequency is not None else _DEFAULT_FREQ_DAYS
+    freq = min(max(freq, _MIN_FREQ_DAYS), _MAX_FREQ_DAYS)
     _SUBSCRIPTIONS[user] = {
-        "frequency": int(frequency) if frequency else _DEFAULT_FREQ_DAYS,
+        "frequency": freq,
         "snoozed_until": snooze_until,
         "last_sent": _SUBSCRIPTIONS.get(user, {}).get("last_sent"),
     }
@@ -124,12 +131,47 @@ def iter_due_users(now: Optional[datetime] = None) -> Iterable[str]:
             yield user
 
 
+def _build_nudge_message(user: str) -> str:
+    """Construct a reminder message for ``user`` with optional signals."""
+    default = f"Reminder for {user}"
+    try:
+        pf = next(
+            (p for p in list_portfolios() if p.get("owner", "").lower() == user.lower()),
+            None,
+        )
+        if not pf:
+            return default
+        rows = aggregate_by_ticker(pf)
+        snapshot = {row.get("ticker"): row for row in rows if row.get("ticker")}
+        if not snapshot:
+            return default
+        signals = generate_signals(snapshot)
+        if signals:
+            sig = signals[0]
+            action = sig.get("action")
+            ticker = sig.get("ticker")
+            reason = sig.get("reason")
+            if action and ticker:
+                details = f"{action} {ticker}"
+                if reason:
+                    details += f" - {reason}"
+                return f"{default}: {details}"
+    except Exception as exc:  # pragma: no cover - best effort
+        logger.debug("Failed to build nudge message for %s: %s", user, exc)
+    return default
+
+
 def send_due_nudges() -> None:
     """Generate reminder alerts for all due users."""
     now = datetime.now(UTC)
     for user in list(iter_due_users(now)):
-        message = f"Reminder for {user}"
+        message = _build_nudge_message(user)
         publish_alert({"ticker": "NUDGE", "user": user, "message": message})
+        if config.telegram_bot_token and config.telegram_chat_id and config.app_env != "aws":
+            try:
+                send_message(message)
+            except Exception as exc:  # pragma: no cover - network errors are rare
+                logger.warning("Telegram send failed: %s", redact_token(str(exc)))
         _RECENT_NUDGES.append({"id": user, "message": message, "timestamp": now.isoformat()})
         _SUBSCRIPTIONS[user]["last_sent"] = now.isoformat()
     if _RECENT_NUDGES:

@@ -17,7 +17,9 @@ def validate_google_auth(enabled: Optional[bool], client_id: Optional[str]) -> N
     """Ensure Google auth is configured correctly."""
     if enabled:
         if not client_id or not client_id.strip():
-            raise ConfigValidationError("google_auth_enabled is true but google_client_id is missing")
+            raise ConfigValidationError(
+                "google_auth_enabled is true but google_client_id is missing"
+            )
 
 
 def validate_tabs(tabs_raw: Any) -> TabsConfig:
@@ -110,6 +112,7 @@ class Config:
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
     stooq_timeout: Optional[int] = None
+    news_requests_per_day: int = 25
 
     # new vars
     max_trades_per_month: Optional[int] = None
@@ -196,22 +199,32 @@ def load_config() -> Config:
     if env_data_root:
         data_root_raw = env_data_root
     data_root_path = Path(data_root_raw)
-    data_root = (data_root_path if data_root_path.is_absolute() else (repo_root / data_root_path)).resolve()
+    data_root = (
+        data_root_path if data_root_path.is_absolute() else (repo_root / data_root_path)
+    ).resolve()
 
     accounts_root_raw = data.get("accounts_root")
-    accounts_root = (data_root / accounts_root_raw).resolve() if accounts_root_raw else None
+    accounts_root = (
+        (data_root / accounts_root_raw).resolve() if accounts_root_raw else None
+    )
 
     prices_json_raw = data.get("prices_json")
     prices_json = (data_root / prices_json_raw).resolve() if prices_json_raw else None
 
     ts_cache_raw = data.get("timeseries_cache_base")
-    timeseries_cache_base = str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
+    timeseries_cache_base = (
+        str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
+    )
 
     portfolio_xml_raw = data.get("portfolio_xml_path")
-    portfolio_xml_path = (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None
+    portfolio_xml_path = (
+        (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None
+    )
 
     tx_output_raw = data.get("transactions_output_root")
-    transactions_output_root = (data_root / tx_output_raw).resolve() if tx_output_raw else None
+    transactions_output_root = (
+        (data_root / tx_output_raw).resolve() if tx_output_raw else None
+    )
 
     tabs_raw = data.get("tabs")
     tabs = validate_tabs(tabs_raw)
@@ -285,6 +298,7 @@ def load_config() -> Config:
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
         stooq_timeout=data.get("stooq_timeout"),
+        news_requests_per_day=data.get("news_requests_per_day", 25),
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),
         repo_root=repo_root,

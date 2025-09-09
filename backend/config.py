@@ -188,6 +188,14 @@ def load_config() -> Config:
     if disable_auth_env is not None:
         data["disable_auth"] = disable_auth_env
 
+    telegram_token_env = os.getenv("TELEGRAM_BOT_TOKEN")
+    if telegram_token_env is not None:
+        data["telegram_bot_token"] = telegram_token_env
+
+    telegram_chat_id_env = os.getenv("TELEGRAM_CHAT_ID")
+    if telegram_chat_id_env is not None:
+        data["telegram_chat_id"] = telegram_chat_id_env
+
     repo_root_raw = data.get("repo_root")
     repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
 

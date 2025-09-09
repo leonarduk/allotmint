@@ -18,8 +18,8 @@ def test_send_message_requires_config(monkeypatch):
 def test_log_handler_without_config(monkeypatch):
     """Logging via ``TelegramLogHandler`` should not raise without credentials."""
     telegram_utils.RECENT_MESSAGES.clear()
-    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", None, raising=False)
+    monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", None, raising=False)
 
     handler = telegram_utils.TelegramLogHandler()
     logger = logging.getLogger("telegram-util-test")

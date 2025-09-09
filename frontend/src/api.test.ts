@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { API_BASE, fetchJson, setAuthToken, login, subscribeNudges } from "./api";
+import {
+  API_BASE,
+  fetchJson,
+  setAuthToken,
+  login,
+  subscribeNudges,
+  getEvents,
+  runScenario,
+} from "./api";
 
 describe("auth token handling", () => {
   beforeEach(() => {
@@ -75,5 +83,35 @@ describe("nudge subscriptions", () => {
     await subscribeNudges("bob", 40);
     args = mockFetch.mock.calls[1];
     expect(args[1].body).toBe(JSON.stringify({ user: "bob", frequency: 30 }));
+  });
+});
+
+describe("scenario APIs", () => {
+  it("fetches events", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+    // @ts-ignore
+    global.fetch = mockFetch;
+    await getEvents();
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${API_BASE}/events`,
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+  });
+
+  it("runs scenario with proper query params", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+    // @ts-ignore
+    global.fetch = mockFetch;
+    await runScenario({ event_id: "e1", horizons: ["1d", "1w"] });
+    const url =
+      `${API_BASE}/scenario/historical?event_id=e1&horizons=1d%2C1w`;
+    expect(mockFetch).toHaveBeenCalledWith(
+      url,
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
   });
 });

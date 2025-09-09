@@ -15,14 +15,29 @@ describe("ScenarioTester page", () => {
     mockRunScenario.mockReset();
   });
 
+  it("fetches events and populates dropdown", async () => {
+    mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
+    render(<ScenarioTester />);
+    await waitFor(() => expect(mockGetEvents).toHaveBeenCalled());
+    expect(
+      await screen.findByRole("option", { name: "Event 1" }),
+    ).toBeInTheDocument();
+  });
+
   it("runs scenario and displays results in table", async () => {
     mockGetEvents.mockResolvedValueOnce([{ id: "e1", name: "Event 1" }]);
     mockRunScenario.mockResolvedValueOnce([
       {
         owner: "Test Owner",
         horizons: {
-          "1d": { baseline: 100, shocked: 110 },
-          "1w": { baseline: 200, shocked: 180 },
+          "1d": {
+            baseline_total_value_gbp: 100,
+            shocked_total_value_gbp: 110,
+          },
+          "1w": {
+            baseline_total_value_gbp: 200,
+            shocked_total_value_gbp: 180,
+          },
         },
       } as ScenarioResult,
     ]);
@@ -43,7 +58,10 @@ describe("ScenarioTester page", () => {
     fireEvent.click(apply);
 
     await waitFor(() =>
-      expect(mockRunScenario).toHaveBeenCalledWith("e1", ["1d", "1w"]),
+      expect(mockRunScenario).toHaveBeenCalledWith({
+        event_id: "e1",
+        horizons: ["1d", "1w"],
+      }),
     );
 
     const fmt = new Intl.NumberFormat("en-GB", {
@@ -65,7 +83,15 @@ describe("ScenarioTester page", () => {
     mockRunScenario.mockResolvedValueOnce([
       {
         owner: "Test Owner",
-        horizons: { "1d": { baseline: 100, shocked: 110 } },
+        horizons: {
+          "1d": {
+            baseline_total_value_gbp: 100,
+            shocked_total_value_gbp: 110,
+          },
+        },
+        baseline_total_value_gbp: 100,
+        shocked_total_value_gbp: 110,
+        delta_gbp: 10,
       } as ScenarioResult,
     ]);
     render(<ScenarioTester />);

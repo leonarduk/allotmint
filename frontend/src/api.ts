@@ -222,13 +222,19 @@ export const getGroupMovers = (
 export const getEvents = () => fetchJson<ScenarioEvent[]>(`${API_BASE}/events`);
 
 /** Apply a predefined scenario to all portfolios. */
-export const runScenario = (eventId: string, horizons: string[]) => {
+export const runScenario = ({
+  event_id,
+  horizons,
+}: {
+  event_id: string;
+  horizons: string[];
+}) => {
   const params = new URLSearchParams({
-    event: eventId,
+    event_id,
     horizons: horizons.join(","),
   });
   return fetchJson<ScenarioResult[]>(
-    `${API_BASE}/scenario?${params.toString()}`,
+    `${API_BASE}/scenario/historical?${params.toString()}`,
   );
 };
 

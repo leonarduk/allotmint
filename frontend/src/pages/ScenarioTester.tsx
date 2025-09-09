@@ -33,7 +33,7 @@ export default function ScenarioTester() {
   async function handleRun() {
     setError(null);
     try {
-      const data = await runScenario(eventId, horizons);
+      const data = await runScenario({ event_id: eventId, horizons });
       setResults(data);
     } catch (e) {
       setResults(null);
@@ -98,8 +98,8 @@ export default function ScenarioTester() {
                   <td className="p-2">{r.owner}</td>
                   {horizons.map((h) => {
                     const data = r.horizons[h];
-                    const baseline = data?.baseline ?? null;
-                    const shocked = data?.shocked ?? null;
+                    const baseline = data?.baseline_total_value_gbp ?? null;
+                    const shocked = data?.shocked_total_value_gbp ?? null;
                     const pct =
                       baseline != null && shocked != null
                         ? ((shocked - baseline) / baseline) * 100.0

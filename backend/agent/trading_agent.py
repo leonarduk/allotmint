@@ -72,9 +72,9 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
 
     The message is forwarded to Telegram via
     :func:`backend.utils.telegram_utils.send_message` when both
-    ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` environment variables are
-    present and the application is not running on AWS (``config.app_env`` is
-    not ``"aws"``).
+    ``config.telegram_bot_token`` and ``config.telegram_chat_id`` are set and
+    the application is not running on AWS (``config.app_env`` is not
+    ``"aws"``).
     """
 
     if publish:
@@ -85,8 +85,8 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
         alert_utils.send_push_notification(message)
 
     if (
-        os.getenv("TELEGRAM_BOT_TOKEN")
-        and os.getenv("TELEGRAM_CHAT_ID")
+        config.telegram_bot_token
+        and config.telegram_chat_id
         and config.app_env != "aws"
     ):
         try:

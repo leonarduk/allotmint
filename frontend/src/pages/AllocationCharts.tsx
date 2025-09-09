@@ -124,10 +124,10 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
           {t("allocation.instrumentTypes", { defaultValue: "Instrument Types" })}
         </button>
         <button onClick={() => setView("sector")} disabled={view === "sector"}>
-          {t("Sector", { defaultValue: "Industries" })}
+          {t("allocation.sector")}
         </button>
         <button onClick={() => setView("region")} disabled={view === "region"}>
-          {t("Region", { defaultValue: "Regions" })}
+          {t("allocation.region")}
         </button>
       </div>
       {portfolio && (

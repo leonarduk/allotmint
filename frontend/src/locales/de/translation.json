@@ -166,7 +166,8 @@
     "birthDate": "Geburtsdatum: {{dob}}",
     "retirementAge": "Renteneintrittsalter: {{age}}",
     "pensionPot": "Pensionsvermögen",
-    "growthAssumption": "Wachstumsannahme (%):"
+    "growthAssumption": "Wachstumsannahme (%):",
+    "monthlyContribution": "Monatlicher Beitrag (£):"
   },
   "group": {
     "select": "Wählen Sie eine Gruppe."

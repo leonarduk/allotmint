@@ -65,3 +65,33 @@ def test_pension_route_invalid_dob(monkeypatch):
     with TestClient(app) as client:
         resp = client.get("/pension/forecast", params={"owner": "bob", "death_age": 90})
     assert resp.status_code == 400
+
+
+def test_pension_route_prefers_monthly_over_annual(monkeypatch):
+    called = {}
+
+    def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
+        return {"dob": "1980-01-01"}
+
+    def fake_forecast(**kwargs):
+        called.update(kwargs)
+        return {"forecast": []}
+
+    monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
+    monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio", lambda o, root=None: {"accounts": []}
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get(
+            "/pension/forecast",
+            params={
+                "owner": "alice",
+                "death_age": 90,
+                "contribution_annual": 1000,
+                "contribution_monthly": 100,
+            },
+        )
+    assert resp.status_code == 200
+    assert called.get("contribution_annual") == 1200

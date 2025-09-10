@@ -1027,6 +1027,7 @@ export const getPensionForecast = ({
   deathAge,
   statePensionAnnual,
   contributionAnnual,
+  contributionMonthly,
   desiredIncomeAnnual,
   investmentGrowthPct,
 }: {
@@ -1034,6 +1035,7 @@ export const getPensionForecast = ({
   deathAge: number;
   statePensionAnnual?: number;
   contributionAnnual?: number;
+  contributionMonthly?: number;
   desiredIncomeAnnual?: number;
   investmentGrowthPct?: number;
 }) => {
@@ -1046,6 +1048,9 @@ export const getPensionForecast = ({
   }
   if (contributionAnnual !== undefined) {
     params.set("contribution_annual", String(contributionAnnual));
+  }
+  if (contributionMonthly !== undefined) {
+    params.set("contribution_monthly", String(contributionMonthly));
   }
   if (desiredIncomeAnnual !== undefined) {
     params.set("desired_income_annual", String(desiredIncomeAnnual));

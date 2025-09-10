@@ -168,7 +168,8 @@
     "birthDate": "Birth date: {{dob}}",
     "retirementAge": "Retirement age: {{age}}",
     "pensionPot": "Pension pot",
-    "growthAssumption": "Growth assumption (%):"
+    "growthAssumption": "Growth assumption (%):",
+    "monthlyContribution": "Monthly Contribution (£):"
   },
   "group": {
     "select": "Select a group."

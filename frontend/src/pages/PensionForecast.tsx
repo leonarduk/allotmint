@@ -17,7 +17,8 @@ export default function PensionForecast() {
   const [owner, setOwner] = useState("");
   const [deathAge, setDeathAge] = useState(90);
   const [statePension, setStatePension] = useState<string>("");
-  const [contribution, setContribution] = useState<string>("");
+  const [contributionAnnual, setContributionAnnual] = useState<string>("");
+  const [contributionMonthly, setContributionMonthly] = useState<string>("");
   const [desiredIncome, setDesiredIncome] = useState<string>("");
   const [investmentGrowthPct, setInvestmentGrowthPct] = useState(5);
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
@@ -43,15 +44,21 @@ export default function PensionForecast() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const contributionMonthlyVal = contributionMonthly
+        ? parseFloat(contributionMonthly)
+        : undefined;
+      const contributionAnnualVal = contributionAnnual
+        ? parseFloat(contributionAnnual)
+        : undefined;
       const res = await getPensionForecast({
         owner,
         deathAge,
         statePensionAnnual: statePension
           ? parseFloat(statePension)
           : undefined,
-        contributionAnnual: contribution
-          ? parseFloat(contribution)
-          : undefined,
+        contributionMonthly: contributionMonthlyVal,
+        contributionAnnual:
+          contributionMonthlyVal !== undefined ? undefined : contributionAnnualVal,
         desiredIncomeAnnual: desiredIncome
           ? parseFloat(desiredIncome)
           : undefined,
@@ -93,11 +100,25 @@ export default function PensionForecast() {
           />
         </div>
         <div>
-          <label className="mr-2">Annual Contribution (£):</label>
+          <label className="mr-2" htmlFor="contribution-annual">
+            Annual Contribution (£):
+          </label>
           <input
+            id="contribution-annual"
             type="number"
-            value={contribution}
-            onChange={(e) => setContribution(e.target.value)}
+            value={contributionAnnual}
+            onChange={(e) => setContributionAnnual(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mr-2" htmlFor="contribution-monthly">
+            {t("pensionForecast.monthlyContribution")}
+          </label>
+          <input
+            id="contribution-monthly"
+            type="number"
+            value={contributionMonthly}
+            onChange={(e) => setContributionMonthly(e.target.value)}
           />
         </div>
         <div>

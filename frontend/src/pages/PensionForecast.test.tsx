@@ -57,12 +57,19 @@ describe("PensionForecast page", () => {
     const growth = screen.getByLabelText(/growth assumption/i);
     fireEvent.change(growth, { target: { value: "7" } });
 
+    const monthly = screen.getByLabelText(/monthly contribution/i);
+    fireEvent.change(monthly, { target: { value: "100" } });
+
     const btn = screen.getByRole("button", { name: /forecast/i });
     fireEvent.click(btn);
 
     await vi.waitFor(() =>
       expect(mockGetPensionForecast).toHaveBeenCalledWith(
-        expect.objectContaining({ owner: "beth", investmentGrowthPct: 7 }),
+        expect.objectContaining({
+          owner: "beth",
+          investmentGrowthPct: 7,
+          contributionMonthly: 100,
+        }),
       ),
     );
     await screen.findByText(/birth date: 1990-01-01/i);

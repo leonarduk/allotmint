@@ -225,7 +225,13 @@ def load_config() -> Config:
     prices_json = (data_root / prices_json_raw).resolve() if prices_json_raw else None
 
     ts_cache_raw = data.get("timeseries_cache_base")
-    timeseries_cache_base = str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
+    env_ts_cache = os.getenv("TIMESERIES_CACHE_BASE")
+    if env_ts_cache:
+        timeseries_cache_base = env_ts_cache
+    else:
+        timeseries_cache_base = (
+            str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
+        )
 
     portfolio_xml_raw = data.get("portfolio_xml_path")
     portfolio_xml_path = (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None

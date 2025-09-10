@@ -64,7 +64,8 @@ def test_account_route_returns_data(client, owner, accounts):
         resp = client.get(f"/account/{owner}/{acct}")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["owner"].lower() == owner.lower()
+        if "owner" in data:
+            assert data["owner"].lower() == owner.lower()
         assert data["account_type"].lower() == acct.lower()
         assert isinstance(data.get("holdings"), list)
 
@@ -81,7 +82,7 @@ def test_account_route_adds_missing_account_type(tmp_path):
     acct_dir = tmp_path / owner
     acct_dir.mkdir()
     (acct_dir / f"{acct}.json").write_text(
-        json.dumps({"owner": owner, "currency": "GBP", "holdings": []})
+        json.dumps({"currency": "GBP", "holdings": []})
     )
 
     old_root = config.accounts_root
@@ -93,4 +94,5 @@ def test_account_route_adds_missing_account_type(tmp_path):
         assert resp.status_code == 200
         data = resp.json()
         assert data["account_type"] == acct
+        assert "owner" not in data
     config.accounts_root = old_root

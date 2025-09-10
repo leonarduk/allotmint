@@ -1,4 +1,7 @@
+import io
 import json
+import sys
+import types
 from datetime import date
 
 import pytest
@@ -25,6 +28,59 @@ def test_load_transactions_handles_malformed_json(tmp_path, monkeypatch, caplog)
 
     assert records == [{"id": 1}]
     assert "failed to read" in caplog.text
+
+
+def test_load_transactions_s3(monkeypatch, caplog):
+    owner = "alice"
+    monkeypatch.setattr(reports.config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "bucket")
+
+    class FakeBotoCoreError(Exception):
+        pass
+
+    class FakeClientError(Exception):
+        pass
+
+    exceptions_mod = types.ModuleType("exceptions")
+    exceptions_mod.BotoCoreError = FakeBotoCoreError
+    exceptions_mod.ClientError = FakeClientError
+    botocore_mod = types.ModuleType("botocore")
+    botocore_mod.exceptions = exceptions_mod
+    monkeypatch.setitem(sys.modules, "botocore", botocore_mod)
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", exceptions_mod)
+
+    class FakePaginator:
+        def paginate(self, Bucket, Prefix):
+            return [
+                {
+                    "Contents": [
+                        {"Key": f"transactions/{owner}/good_transactions.json"},
+                        {"Key": f"transactions/{owner}/error_transactions.json"},
+                        {"Key": f"transactions/{owner}/ignore.txt"},
+                    ]
+                }
+            ]
+
+    class FakeS3Client:
+        def get_paginator(self, name):
+            assert name == "list_objects_v2"
+            return FakePaginator()
+
+        def get_object(self, Bucket, Key):
+            if Key.endswith("error_transactions.json"):
+                raise FakeBotoCoreError("boom")
+            data = b'{"transactions": [{"id": 1}]}'
+            return {"Body": io.BytesIO(data)}
+
+    boto3_mod = types.ModuleType("boto3")
+    boto3_mod.client = lambda name: FakeS3Client()
+    monkeypatch.setitem(sys.modules, "boto3", boto3_mod)
+
+    with caplog.at_level("WARNING"):
+        records = reports._load_transactions(owner)
+
+    assert records == [{"id": 1}]
+    assert "failed to load" in caplog.text
 
 
 def test_compile_report_filters_and_totals(monkeypatch):

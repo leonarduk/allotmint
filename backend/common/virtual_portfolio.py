@@ -77,7 +77,7 @@ def load_virtual_portfolio(vp_id: str) -> Optional[VirtualPortfolio]:
 
 def save_virtual_portfolio(vp: VirtualPortfolio) -> VirtualPortfolio:
     path = _vp_path(vp.id)
-    path.write_text(vp.json(indent=2))
+    path.write_text(vp.model_dump_json(indent=2))
     return vp
 
 

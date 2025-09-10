@@ -1,4 +1,4 @@
-import pytest
+import pytest  # needed for fixtures
 from fastapi.testclient import TestClient
 
 from backend.app import create_app

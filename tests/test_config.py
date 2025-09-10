@@ -43,6 +43,16 @@ def test_stooq_timeout_loaded():
     assert cfg.stooq_timeout == 10
 
 
+def test_timeseries_cache_base_env_override(monkeypatch, tmp_path):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    config_module.load_config.cache_clear()
+    cfg = config_module.load_config()
+    assert cfg.timeseries_cache_base == str(tmp_path)
+    monkeypatch.delenv("TIMESERIES_CACHE_BASE")
+    config_module.load_config.cache_clear()
+    config_module.config = config_module.load_config()
+
+
 def test_auth_flags(monkeypatch):
     cfg = config_module.load_config()
     assert cfg.google_auth_enabled is False

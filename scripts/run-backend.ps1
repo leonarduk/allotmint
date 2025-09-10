@@ -84,6 +84,7 @@ function Read-YamlSimple([string]$path) {
     if ($line -match '^\s*([A-Za-z0-9_]+)\s*:\s*(.*)\s*$') {
       $k = $matches[1]
       $v = $matches[2].Trim()
+      if ($v -notmatch '^["''].*["'']$') { $v = $v -replace '\s+#.*$', '' }
       if ($v -match '^["''](.*)["'']$') { $v = $matches[1] } # strip quotes
       switch -Regex ($v.ToLower()) {
         '^(true|yes)$'  { $v = $true;  break }

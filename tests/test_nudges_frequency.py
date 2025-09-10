@@ -1,4 +1,4 @@
-from backend import nudges as nudge_utils
+import backend.nudges as nudge_utils
 from backend.common.storage import get_storage
 
 

@@ -458,3 +458,19 @@ def test_run_applies_risk_filters(monkeypatch):
     assert signals == []
 
 
+def test_alert_on_drawdown_handles_value_error(monkeypatch):
+    """Ensure ValueError in performance computation doesn't leak."""
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+
+    def fake_perf(owner: str):
+        raise ValueError("cache gap")
+
+    monkeypatch.setattr(trading_agent, "compute_owner_performance", fake_perf)
+    alerts: list[str] = []
+    monkeypatch.setattr(trading_agent, "send_trade_alert", lambda msg: alerts.append(msg))
+
+    trading_agent._alert_on_drawdown()
+
+    assert alerts == []
+
+

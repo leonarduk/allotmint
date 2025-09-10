@@ -155,7 +155,18 @@ if (-not $offline) {
 $env:ALLOTMINT_ENV = Get-ConfigValue $cfg @('server','app_env') 'local'
 $env:DATA_ROOT = Coalesce $env:DATA_ROOT (Coalesce $cfg.paths.data_root 'data')
 $port      = Get-ConfigValue $cfg @('server','uvicorn_port') $Port
-$logConfig = Get-ConfigValue $cfg @('paths','log_config') 'logging.ini'
+$logConfig = Get-ConfigValue $cfg @('paths','log_config') 'backend/logging.ini'
+$resolvedLogConfig = $null
+if (Test-Path $logConfig) {
+  $content = Get-Content $logConfig -Raw
+  if ($content -match '\[loggers\]' -and $content -match '\[formatters\]') {
+    $resolvedLogConfig = $logConfig
+  } else {
+    Write-Host "Log config '$logConfig' missing [loggers] or [formatters]; using Uvicorn default" -ForegroundColor Yellow
+  }
+} else {
+  Write-Host "Log config '$logConfig' not found; using Uvicorn default" -ForegroundColor Yellow
+}
 $reloadRaw = Get-ConfigValue $cfg @('server','reload') $true
 $reload    = [bool]$reloadRaw
 
@@ -177,9 +188,9 @@ $arguments = @(
   'backend.local_api.main:app',
   '--reload-dir', 'backend',
   '--port', $port,
-  '--log-config', $logConfig,
   '--app-dir', '.'
 )
+if ($resolvedLogConfig) { $arguments += @('--log-config', $resolvedLogConfig) }
 if ($reload) { $arguments += '--reload' }
 
 & $PYTHON -m uvicorn @arguments

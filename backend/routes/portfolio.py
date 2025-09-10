@@ -413,7 +413,9 @@ async def get_account(owner: str, account: str):
             raise HTTPException(status_code=404, detail="Account not found")
         data = data_loader.load_account(owner, match)
         account = match
-    data["holdings"] = data.pop("holdings", data.pop("approvals", []))
+    holdings = data.pop("holdings", data.pop("approvals", None))
+    if holdings is not None:
+        data["holdings"] = holdings
     data.setdefault("account_type", account)
     return data
 

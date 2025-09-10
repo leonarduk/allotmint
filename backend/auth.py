@@ -170,9 +170,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
 
 
 def verify_google_token(token: str) -> str:
+    client_id = config.google_client_id
+    if not client_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google client ID not configured",
+        )
     try:
         info = id_token.verify_oauth2_token(
-            token, requests.Request(), config.google_client_id
+            token, requests.Request(), client_id
         )
     except Exception as exc:
         raise HTTPException(

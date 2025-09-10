@@ -22,6 +22,7 @@ export default function PensionForecast() {
   const [investmentGrowthPct, setInvestmentGrowthPct] = useState(5);
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
+  const [pensionPot, setPensionPot] = useState<number | null>(null);
   const [currentAge, setCurrentAge] = useState<number | null>(null);
   const [retirementAge, setRetirementAge] = useState<number | null>(null);
   const [dob, setDob] = useState<string | null>(null);
@@ -58,6 +59,7 @@ export default function PensionForecast() {
       });
       setData(res.forecast);
       setProjectedPot(res.projected_pot_gbp);
+      setPensionPot(res.pension_pot_gbp);
       setCurrentAge(res.current_age);
       setRetirementAge(res.retirement_age);
       setDob(res.dob || null);
@@ -135,6 +137,11 @@ export default function PensionForecast() {
       )}
       {retirementAge !== null && (
         <p className="mb-2">{t("pensionForecast.retirementAge", { age: retirementAge })}</p>
+      )}
+      {pensionPot !== null && (
+        <p className="mb-2">
+          {t("pensionForecast.pensionPot")}: £{pensionPot.toFixed(2)}
+        </p>
       )}
       {projectedPot !== null && retirementAge !== null && (
         <p className="mb-2">

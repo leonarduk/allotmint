@@ -165,6 +165,7 @@
     "currentAge": "Âge actuel : {{age}}",
     "birthDate": "Date de naissance : {{dob}}",
     "retirementAge": "Âge de retraite : {{age}}",
+    "pensionPot": "Pot de pension",
     "growthAssumption": "Hypothèse de croissance (%):"
   },
   "group": {

@@ -165,6 +165,7 @@
     "currentAge": "Età attuale: {{age}}",
     "birthDate": "Data di nascita: {{dob}}",
     "retirementAge": "Età pensionistica: {{age}}",
+    "pensionPot": "Fondo pensione",
     "growthAssumption": "Ipotesi di crescita (%):"
   },
   "group": {

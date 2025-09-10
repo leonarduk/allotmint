@@ -30,6 +30,9 @@ const Goals = lazy(() => import('./pages/Goals'))
 const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'))
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'))
 const AlertSettings = lazy(() => import('./pages/AlertSettings'))
+const SmokeTest = import.meta.env.VITE_SMOKE_TEST
+  ? lazy(() => import('./pages/SmokeTest'))
+  : null
 
 export function Root() {
   const [ready, setReady] = useState(false)
@@ -78,6 +81,9 @@ export function Root() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/alert-settings" element={<AlertSettings />} />
         <Route path="/goals" element={<Goals />} />
+        {import.meta.env.VITE_SMOKE_TEST && SmokeTest && (
+          <Route path="/smoke-test" element={<SmokeTest />} />
+        )}
         <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
         <Route path="/returns/compare" element={<ReturnComparison />} />
         <Route path="/*" element={<App onLogout={logout} />} />

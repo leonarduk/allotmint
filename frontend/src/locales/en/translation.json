@@ -167,7 +167,8 @@
     "currentAge": "Current age: {{age}}",
     "birthDate": "Birth date: {{dob}}",
     "retirementAge": "Retirement age: {{age}}",
-    "pensionPot": "Pension pot"
+    "pensionPot": "Pension pot",
+    "growthAssumption": "Growth assumption (%):"
   },
   "group": {
     "select": "Select a group."

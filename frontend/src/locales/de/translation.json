@@ -165,7 +165,8 @@
     "currentAge": "Aktuelles Alter: {{age}}",
     "birthDate": "Geburtsdatum: {{dob}}",
     "retirementAge": "Renteneintrittsalter: {{age}}",
-    "pensionPot": "Pensionsvermögen"
+    "pensionPot": "Pensionsvermögen",
+    "growthAssumption": "Wachstumsannahme (%):"
   },
   "group": {
     "select": "Wählen Sie eine Gruppe."

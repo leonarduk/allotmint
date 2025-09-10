@@ -10,6 +10,19 @@ npm run smoke:test
 
 Set `API_BASE` to target a different backend URL and `TEST_ID_TOKEN` if needed.
 
+## smoke-test.ps1
+
+Check a single endpoint for an HTTP 200 response.
+
+```powershell
+# Pass URL as a parameter
+./scripts/smoke-test.ps1 https://example.com
+
+# or rely on the environment variable
+$env:SMOKE_TEST_URL = "https://example.com"
+./scripts/smoke-test.ps1
+```
+
 ## site_snapshot.py
 
 Crawl a website, capture screenshots, run AI analysis on each page and build PDF/Markdown docs.

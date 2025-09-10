@@ -165,7 +165,8 @@
     "currentAge": "Edad actual: {{age}}",
     "birthDate": "Fecha de nacimiento: {{dob}}",
     "retirementAge": "Edad de jubilación: {{age}}",
-    "pensionPot": "Fondo de pensiones"
+    "pensionPot": "Fondo de pensiones",
+    "growthAssumption": "Suposición de crecimiento (%):"
   },
   "group": {
     "select": "Seleccione un grupo."

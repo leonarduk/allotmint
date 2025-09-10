@@ -1042,6 +1042,7 @@ export const getPensionForecast = ({
   return fetchJson<{
     forecast: { age: number; income: number }[];
     projected_pot_gbp: number;
+    pension_pot_gbp: number;
     current_age: number;
     retirement_age: number;
     dob: string;

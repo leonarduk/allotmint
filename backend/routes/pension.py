@@ -6,6 +6,7 @@ from backend.common.pension import (
     forecast_pension,
     state_pension_age_uk,
 )
+from backend.common.portfolio import build_owner_portfolio
 
 router = APIRouter(tags=["pension"])
 
@@ -33,6 +34,16 @@ def pension_forecast(
         raise HTTPException(
             status_code=400, detail="death_age must exceed retirement_age"
         )
+
+    try:
+        portfolio = build_owner_portfolio(owner, request.app.state.accounts_root)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    pension_pot = sum(
+        float(a.get("value_estimate_gbp") or 0.0)
+        for a in portfolio.get("accounts", [])
+        if str(a.get("account_type", "")).lower() == "sipp"
+    )
 
     db_pensions = []
     if db_income_annual is not None and db_normal_retirement_age is not None:
@@ -62,6 +73,7 @@ def pension_forecast(
             "retirement_age": retirement_age,
             "current_age": current_age,
             "dob": dob,
+            "pension_pot_gbp": pension_pot,
         }
     )
     return result

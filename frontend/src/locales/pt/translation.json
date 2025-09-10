@@ -164,7 +164,8 @@
   "pensionForecast": {
     "currentAge": "Idade atual: {{age}}",
     "birthDate": "Data de nascimento: {{dob}}",
-    "retirementAge": "Idade de aposentadoria: {{age}}"
+    "retirementAge": "Idade de aposentadoria: {{age}}",
+    "pensionPot": "Fundo de pensão"
   },
   "group": {
     "select": "Selecione um grupo."

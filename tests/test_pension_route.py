@@ -17,11 +17,25 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
         called.update(kwargs)
         return {"forecast": []}
 
+    def fake_portfolio(owner: str, root=None):  # pragma: no cover - signature match
+        return {
+            "accounts": [
+                {"account_type": "sipp", "value_estimate_gbp": 100},
+                {"account_type": "isa", "value_estimate_gbp": 200},
+                {"account_type": "SIPP", "value_estimate_gbp": 50},
+            ]
+        }
+
     monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
     monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio", fake_portfolio
+    )
     app = create_app()
     with TestClient(app) as client:
-        resp = client.get("/pension/forecast", params={"owner": "alice", "death_age": 90})
+        resp = client.get(
+            "/pension/forecast", params={"owner": "alice", "death_age": 90}
+        )
     assert resp.status_code == 200
     assert captured_owner == ["alice"]
     expected_age = state_pension_age_uk("1980-01-01")
@@ -30,6 +44,7 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
     assert body["retirement_age"] == expected_age
     assert isinstance(body["current_age"], float)
     assert body["dob"] == "1980-01-01"
+    assert body["pension_pot_gbp"] == 150
 
 
 def test_pension_route_missing_dob(monkeypatch):

@@ -23,6 +23,7 @@ export default function PensionForecast() {
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
   const [currentAge, setCurrentAge] = useState<number | null>(null);
   const [retirementAge, setRetirementAge] = useState<number | null>(null);
+  const [dob, setDob] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const { t } = useTranslation();
 
@@ -57,6 +58,7 @@ export default function PensionForecast() {
       setProjectedPot(res.projected_pot_gbp);
       setCurrentAge(res.current_age);
       setRetirementAge(res.retirement_age);
+      setDob(res.dob);
       setErr(null);
     } catch (ex: any) {
       setErr(String(ex));
@@ -107,6 +109,9 @@ export default function PensionForecast() {
         </button>
       </form>
       {err && <p className="text-red-500">{err}</p>}
+      {dob && (
+        <p className="mb-2">{t("pensionForecast.birthDate", { date: dob })}</p>
+      )}
       {currentAge !== null && (
         <p className="mb-2">{t("pensionForecast.currentAge", { age: currentAge })}</p>
       )}

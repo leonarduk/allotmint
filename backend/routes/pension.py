@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from backend.common.data_loader import load_person_meta
 from backend.common.pension import (
@@ -12,6 +12,7 @@ router = APIRouter(tags=["pension"])
 
 @router.get("/pension/forecast")
 def pension_forecast(
+    request: Request,
     owner: str = Query(..., description="Portfolio owner"),
     death_age: int = Query(..., ge=0),
     state_pension_annual: float | None = Query(None, ge=0),
@@ -21,7 +22,7 @@ def pension_forecast(
     investment_growth_pct: float = Query(5.0),
     desired_income_annual: float | None = Query(None, ge=0),
 ):
-    meta = load_person_meta(owner)
+    meta = load_person_meta(owner, request.app.state.accounts_root)
     dob = meta.get("dob")
     current_age = _age_from_dob(dob)
     if current_age is None:
@@ -56,5 +57,9 @@ def pension_forecast(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    result.update({"retirement_age": retirement_age, "current_age": current_age})
+    result.update({
+        "retirement_age": retirement_age,
+        "current_age": current_age,
+        "dob": dob,
+    })
     return result

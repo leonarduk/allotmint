@@ -15,6 +15,16 @@ The backend API must be running and the `VITE_ALLOTMINT_API_BASE` environment va
 - `npm test` – execute the test suite with Vitest and Testing Library.
   Test files should be named `*.test.ts`, `*.test.tsx`, or `*.test.js` to be picked up.
 
+### Smoke test page
+
+For manual diagnostics you can expose a smoke test route that pings key API
+endpoints. Start the dev server with the `VITE_SMOKE_TEST` flag to enable the
+page at `/smoke-test`:
+
+```bash
+VITE_SMOKE_TEST=1 npm run dev
+```
+
 ## Routing
 
 The app opts into upcoming React Router v7 behavior by enabling the

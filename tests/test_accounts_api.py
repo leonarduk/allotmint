@@ -1,12 +1,14 @@
 import json
+from importlib import reload
 from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.app import create_app
 from backend.config import config
 import backend.common.prices as prices
 from backend.common import portfolio_utils
+import backend.app as app_mod
 
 
 @pytest.fixture(scope="session")
@@ -14,9 +16,11 @@ def client():
     """Create a test client with network-heavy operations stubbed."""
     config.skip_snapshot_warm = True
     config.offline_mode = True
+    config.disable_auth = True
     prices.refresh_prices = lambda: {}
     portfolio_utils.list_all_unique_tickers = lambda *a, **k: []
-    app = create_app()
+    reload(app_mod)
+    app = app_mod.create_app()
     with TestClient(app) as c:
         yield c
 
@@ -67,6 +71,7 @@ def test_account_route_returns_data(client, owner, accounts):
 def test_account_route_adds_missing_account_type(tmp_path):
     config.skip_snapshot_warm = True
     config.offline_mode = True
+    config.disable_auth = True
     prices.refresh_prices = lambda: {}
     portfolio_utils.list_all_unique_tickers = lambda *a, **k: []
 
@@ -80,7 +85,8 @@ def test_account_route_adds_missing_account_type(tmp_path):
 
     old_root = config.accounts_root
     config.accounts_root = tmp_path
-    app = create_app()
+    reload(app_mod)
+    app = app_mod.create_app()
     with TestClient(app) as c:
         resp = c.get(f"/account/{owner}/{acct}")
         assert resp.status_code == 200

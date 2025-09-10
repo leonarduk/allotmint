@@ -4,7 +4,7 @@ paths:
   data_root: data                     # Base directory for application data
   accounts_root: accounts             # Directory containing account files
   prices_json: prices/latest_prices.json # Location for cached price data
-  timeseries_cache_base: timeseries   # Cache directory for time series data
+  timeseries_cache_base: timeseries   # Cache directory for time series data (TIMESERIES_CACHE_BASE overrides)
   portfolio_xml_path: portfolio/investments.xml # Portfolio XML input file
   transactions_output_root: accounts  # Where generated transactions are written
   log_config: backend/logging.ini     # Logging configuration file

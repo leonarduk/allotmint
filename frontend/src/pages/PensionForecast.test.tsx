@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
@@ -52,16 +53,16 @@ describe("PensionForecast page", () => {
     render(<PensionForecast />);
 
     const select = await screen.findByLabelText(/owner/i);
-    fireEvent.change(select, { target: { value: "beth" } });
+    await userEvent.selectOptions(select, "beth");
 
     const growth = screen.getByLabelText(/growth assumption/i);
-    fireEvent.change(growth, { target: { value: "7" } });
+    await userEvent.selectOptions(growth, "7");
 
     const monthly = screen.getByLabelText(/monthly contribution/i);
     fireEvent.change(monthly, { target: { value: "100" } });
 
     const btn = screen.getByRole("button", { name: /forecast/i });
-    fireEvent.click(btn);
+    await userEvent.click(btn);
 
     await vi.waitFor(() =>
       expect(mockGetPensionForecast).toHaveBeenCalledWith(

@@ -233,11 +233,10 @@ async function runEndpoints(apiBase: string, token: string | null) {
       throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
     }
     // Allow 401/403 for endpoints that require roles; they still prove the route exists
-    if (res.status >= 400 && res.status !== 401 && res.status !== 403 && res.status !== 404) {
+    if (res.status >= 400 && res.status !== 401 && res.status !== 403) {
       throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
     }
-    const tag =
-      res.ok ? "✓" : res.status === 404 ? "•" : (res.status === 401 || res.status === 403) ? "○" : "•";
+    const tag = res.ok ? "✓" : (res.status === 401 || res.status === 403) ? "○" : "•";
     console.log(`${tag} ${ep.method} ${ep.path} (${res.status})`);
   }
 }

@@ -183,6 +183,7 @@ def create_app() -> FastAPI:
         allow_origins=cors_origins,
         allow_methods=cors_methods,
         allow_headers=cors_headers,
+        allow_credentials=True,
     )
 
     # ──────────────────────────── Routers ────────────────────────────

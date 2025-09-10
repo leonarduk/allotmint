@@ -20,7 +20,6 @@ def test_parse_thresholds_discards_invalid_entries():
     data = {"good": "1.5", "bad": "x", "also_bad": None, "num": 2}
     assert alerts._parse_thresholds(data) == {"good": 1.5, "num": 2.0}
 
-
 def test_parse_thresholds_returns_empty_for_invalid_data():
     data = {"bad": "x", "also_bad": None}
     assert alerts._parse_thresholds(data) == {}

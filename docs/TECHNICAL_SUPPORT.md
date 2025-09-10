@@ -17,6 +17,7 @@
 ## Log Locations
 - Backend logs are written to `backend.log` as configured in `backend/logging.ini`.
 - The `run_with_error_summary.py` helper records errors in `error_summary.log`.
+- A root-level `logging.ini` exists only to tune third-party loggers like `yfinance`.
 
 ## Escalation Contacts
 - **Primary**: engineering@allotmint.example.com

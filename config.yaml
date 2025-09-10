@@ -46,6 +46,14 @@ market_data:
   selenium_user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36" # Selenium user agent
   selenium_headless: true             # Run Selenium headless
 
+# Max AlphaVantage news requests per day
+  news_requests_per_day: 25
+  
+# URL template for Financial Times scraping
+  ft_url_template: https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}
+  selenium_user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+  selenium_headless: true
+
 trading:
   max_trades_per_month: 20            # Max trades allowed per month
   hold_days_min: 30                   # Minimum holding period in days

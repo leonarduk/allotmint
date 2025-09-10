@@ -28,3 +28,18 @@ def test_logs_endpoint_missing_file(tmp_path, monkeypatch):
     with TestClient(app) as client:
         resp = client.get("/logs")
     assert resp.status_code == 404
+    assert resp.json()["detail"] == "Log file not found"
+
+
+def test_logs_endpoint_respects_lines_parameter(tmp_path, monkeypatch):
+    log_file = tmp_path / "backend.log"
+    log_file.write_text("""line1
+line2
+line3
+""", encoding="utf-8")
+    monkeypatch.setattr(config, "repo_root", tmp_path)
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/logs", params={"lines": 2})
+    assert resp.status_code == 200
+    assert resp.text.strip().splitlines() == ["line2", "line3"]

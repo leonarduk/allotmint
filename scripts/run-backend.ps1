@@ -76,14 +76,32 @@ function Coalesce([object]$value, [object]$fallback) {
 }
 
 function Read-YamlSimple([string]$path) {
-  # Minimal key:value YAML parser (scalars only; ignores lists/nesting)
+  # Minimal YAML parser supporting nested hashtables via indentation (scalars only; ignores lists)
   $result = @{}
   if (-not (Test-Path $path)) { return [pscustomobject]$result }
+
+  $stack = New-Object System.Collections.ArrayList
+  $null = $stack.Add([pscustomobject]@{Indent=-1; Node=$result})
+
   foreach ($line in Get-Content $path) {
     if ($line -match '^\s*#' -or $line -match '^\s*$') { continue }
-    if ($line -match '^\s*([A-Za-z0-9_]+)\s*:\s*(.*)\s*$') {
-      $k = $matches[1]
-      $v = $matches[2].Trim()
+    if ($line -match '^(\s*)([A-Za-z0-9_]+)\s*:\s*(.*)$') {
+      $indent = $matches[1].Length
+      $k = $matches[2]
+      $v = $matches[3].Trim()
+
+      while ($stack[$stack.Count-1].Indent -ge $indent) {
+        $stack.RemoveAt($stack.Count-1)
+      }
+      $parent = $stack[$stack.Count-1].Node
+
+      if ($v -eq '') {
+        $child = @{}
+        $parent[$k] = $child
+        $null = $stack.Add([pscustomobject]@{Indent=$indent; Node=$child})
+        continue
+      }
+
       if ($v -notmatch '^["''].*["'']$') { $v = $v -replace '\s+#.*$', '' }
       if ($v -match '^["''](.*)["'']$') { $v = $matches[1] } # strip quotes
       switch -Regex ($v.ToLower()) {
@@ -92,7 +110,7 @@ function Read-YamlSimple([string]$path) {
         '^\d+$'         { $v = [int]$v; break }
         default { }
       }
-      $result[$k] = $v
+      $parent[$k] = $v
     }
   }
   return [pscustomobject]$result

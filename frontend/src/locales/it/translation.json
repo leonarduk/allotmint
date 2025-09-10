@@ -166,7 +166,8 @@
     "birthDate": "Data di nascita: {{dob}}",
     "retirementAge": "Età pensionistica: {{age}}",
     "pensionPot": "Fondo pensione",
-    "growthAssumption": "Ipotesi di crescita (%):"
+    "growthAssumption": "Ipotesi di crescita (%):",
+    "monthlyContribution": "Contributo mensile (£):"
   },
   "group": {
     "select": "Seleziona un gruppo."

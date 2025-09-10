@@ -20,6 +20,7 @@ def pension_forecast(
     db_income_annual: float | None = Query(None, ge=0),
     db_normal_retirement_age: int | None = Query(None, ge=0),
     contribution_annual: float | None = Query(None, ge=0),
+    contribution_monthly: float | None = Query(None, ge=0),
     investment_growth_pct: float = Query(5.0),
     desired_income_annual: float | None = Query(None, ge=0),
 ):
@@ -54,6 +55,12 @@ def pension_forecast(
             }
         )
 
+    annual_contribution = (
+        (contribution_monthly or 0.0) * 12
+        if contribution_monthly is not None
+        else contribution_annual or 0.0
+    )
+
     try:
         result = forecast_pension(
             dob=dob,
@@ -61,7 +68,7 @@ def pension_forecast(
             death_age=death_age,
             db_pensions=db_pensions,
             state_pension_annual=state_pension_annual,
-            contribution_annual=contribution_annual or 0.0,
+            contribution_annual=annual_contribution,
             investment_growth_pct=investment_growth_pct,
             desired_income_annual=desired_income_annual,
         )

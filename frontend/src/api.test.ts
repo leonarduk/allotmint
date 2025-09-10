@@ -143,4 +143,30 @@ describe("pension forecast", () => {
     const url = mockFetch.mock.calls[0][0] as string;
     expect(url).toContain("investment_growth_pct=7");
   });
+
+  it("sets monthly contribution when provided", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            forecast: [],
+            projected_pot_gbp: 0,
+            current_age: 30,
+            retirement_age: 65,
+            dob: "1990-01-01",
+          }),
+      });
+    // @ts-ignore
+    global.fetch = mockFetch;
+    await getPensionForecast({
+      owner: "alex",
+      deathAge: 90,
+      contributionMonthly: 100,
+    });
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain("contribution_monthly=100");
+    expect(url).not.toContain("contribution_annual");
+  });
 });

@@ -6,15 +6,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "./InstrumentResearch";
-import type { ScreenerResult, NewsItem, QuoteRow, InstrumentDetail } from "../types";
+import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import * as api from "../api";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
-
-const mockFetchInstrumentDetailWithRetry = vi.spyOn(
-  api,
-  "fetchInstrumentDetailWithRetry",
-);
 const mockGetScreener = vi.spyOn(api, "getScreener");
 const mockGetQuotes = vi.spyOn(api, "getQuotes");
 const mockGetNews = vi.spyOn(api, "getNews");
@@ -87,16 +82,10 @@ describe("InstrumentResearch page", () => {
   });
 
   it("shows loading indicators while fetching data", async () => {
-    let detailResolve: (v: InstrumentDetail) => void;
     let screenerResolve: (v: ScreenerResult[]) => void;
     let quotesResolve: (v: QuoteRow[]) => void;
     let newsResolve: (v: NewsItem[]) => void;
 
-    mockFetchInstrumentDetailWithRetry.mockReturnValueOnce(
-      new Promise((res) => {
-        detailResolve = res;
-      }) as Promise<InstrumentDetail>,
-    );
     mockGetScreener.mockReturnValueOnce(
       new Promise((res) => {
         screenerResolve = res;
@@ -153,10 +142,6 @@ describe("InstrumentResearch page", () => {
       error: new Error("detail fail"),
     } as any);
 
-    mockFetchInstrumentDetailWithRetry.mockRejectedValueOnce(
-      new Error("detail fail"),
-    );
-
     mockGetScreener.mockRejectedValueOnce(new Error("screener fail"));
     mockGetQuotes.mockRejectedValueOnce(new Error("quotes fail"));
     mockGetNews.mockRejectedValueOnce(new Error("news fail"));
@@ -170,10 +155,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("shows a message when no news is available", async () => {
-    mockFetchInstrumentDetailWithRetry.mockResolvedValue({
-      prices: null,
-      positions: [],
-    } as InstrumentDetail);
     mockGetScreener.mockResolvedValue([]);
     mockGetQuotes.mockResolvedValue([]);
     mockGetNews.mockResolvedValue([]);
@@ -184,10 +165,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("navigates to screener when link clicked", async () => {
-    mockFetchInstrumentDetailWithRetry.mockResolvedValue({
-      prices: null,
-      positions: [],
-    } as InstrumentDetail);
     mockGetScreener.mockResolvedValue([]);
     mockGetQuotes.mockResolvedValue([]);
     mockGetNews.mockResolvedValue([]);
@@ -198,10 +175,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("navigates to watchlist when link clicked", async () => {
-    mockFetchInstrumentDetailWithRetry.mockResolvedValue({
-      prices: null,
-      positions: [],
-    } as InstrumentDetail);
     mockGetScreener.mockResolvedValue([]);
     mockGetQuotes.mockResolvedValue([]);
     mockGetNews.mockResolvedValue([]);
@@ -225,9 +198,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("shows instrument name and additional metrics", async () => {
-    mockFetchInstrumentDetailWithRetry.mockResolvedValue(
-      { prices: null, positions: [] } as InstrumentDetail,
-    );
     mockGetScreener.mockResolvedValue([
       { rank: 1, ticker: "AAA", name: "Acme Corp" } as unknown as ScreenerResult,
     ]);
@@ -303,10 +273,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("skips state updates when unmounted", async () => {
-    mockFetchInstrumentDetailWithRetry.mockResolvedValue({
-      prices: null,
-      positions: [],
-    } as InstrumentDetail);
     mockGetScreener.mockResolvedValue([]);
     mockGetNews.mockResolvedValue([]);
 

@@ -1,5 +1,15 @@
 # Scripts
 
+## frontend-backend-smoke.ts
+
+Run a quick smoke test against key backend endpoints. After running any `deploy:local:*` command to start the stack, execute:
+
+```
+npm run smoke:test
+```
+
+Set `API_BASE` to target a different backend URL and `TEST_ID_TOKEN` if needed.
+
 ## site_snapshot.py
 
 Crawl a website, capture screenshots, run AI analysis on each page and build PDF/Markdown docs.
@@ -28,7 +38,8 @@ Crawl a website, capture screenshots, run AI analysis on each page and build PDF
        --ai-model gpt-4o-mini \
        --ai-prompt "Describe this page."
    ```
-6. Output appears in `site_manual/` with screenshots, per-page Markdown files (including AI analysis) and a combined PDF manual embedding the analysis text under each screenshot.
+6. Output appears in `site_manual/` with screenshots, per-page Markdown files (including AI analysis) and a combined PDF manual
+embedding the analysis text under each screenshot.
 
 The script uses Playwright to render pages so that JavaScript-generated links are discovered correctly. Pillow enables image support in FPDF; without it, PDFs are generated without screenshots. If OpenAI analysis fails for a page, the rest of the snapshot continues with an empty analysis.
 

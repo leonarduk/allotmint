@@ -145,6 +145,10 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                     exc,
                 )
 
+    if config.prices_json is None:
+        logger.info("Price snapshot path not configured; skipping load")
+        return {}, None
+
     if not _PRICES_PATH or not _PRICES_PATH.exists():
         logger.warning("Price snapshot not found: %s", _PRICES_PATH)
         return {}, None

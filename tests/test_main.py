@@ -87,10 +87,12 @@ def test_portfolio_group(client, mock_group_portfolio):
 
 
 @patch("backend.common.data_loader.load_account", return_value={"account": "ISA"})
-def test_get_account(mock_load_account, client):
+def test_get_account_no_holdings(mock_load_account, client):
     response = client.get("/account/steve/ISA")
     assert response.status_code == 200
-    assert response.json() == {"account": "ISA", "account_type": "ISA"}
+    data = response.json()
+    assert data == {"account": "ISA", "account_type": "ISA"}
+    assert "holdings" not in data
 
 
 @patch(
@@ -100,7 +102,21 @@ def test_get_account(mock_load_account, client):
 def test_get_account_preserves_type(mock_load_account, client):
     response = client.get("/account/steve/ISA")
     assert response.status_code == 200
-    assert response.json() == {"account": "ISA", "account_type": "test"}
+    data = response.json()
+    assert data == {"account": "ISA", "account_type": "test"}
+    assert "holdings" not in data
+
+
+@patch(
+    "backend.common.data_loader.load_account",
+    return_value={"account": "ISA", "approvals": ["H"]},
+)
+def test_get_account_with_holdings(mock_load_account, client):
+    response = client.get("/account/steve/ISA")
+    assert response.status_code == 200
+    data = response.json()
+    assert data == {"account": "ISA", "account_type": "ISA", "holdings": ["H"]}
+    assert "approvals" not in data
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})

@@ -3,7 +3,6 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
-
 import Menu from "../components/Menu";
 import { getInstrumentDetail, getScreener, getNews, getQuotes } from "../api";
 import type { ScreenerResult, InstrumentDetail, NewsItem, QuoteRow } from "../types";

@@ -67,6 +67,17 @@ def test_save_approvals_persists(tmp_path):
     assert loaded == approvals
 
 
+def test_load_approvals_creates_default(tmp_path):
+    owner_dir = tmp_path / "charlie"
+    owner_dir.mkdir()
+    loaded = load_approvals("charlie", accounts_root=tmp_path)
+    assert loaded == {}
+    path = owner_dir / "approvals.json"
+    assert path.exists()
+    data = json.loads(path.read_text())
+    assert data == {"approvals": []}
+
+
 def test_approvals_endpoints(tmp_path):
     owner_dir = tmp_path / "bob"
     owner_dir.mkdir()

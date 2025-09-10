@@ -8,6 +8,9 @@
     "supportLink": "Support",
     "userLink": "App",
     "logout": "Abmelden",
+    "menu": "Menü",
+    "focusMode": "Fokusmodus",
+    "exitFocusMode": "Fokusmodus verlassen",
     "modes": {
       "group": "Gruppe",
       "instrument": "Instrument",
@@ -20,12 +23,15 @@
       "watchlist": "Beobachtungsliste",
       "allocation": "Allokation",
       "rebalance": "Rebalance",
+      "market": "Marktübersicht",
       "movers": "Movers",
       "instrumentadmin": "Instrumentverwaltung",
       "dataadmin": "Datenverwaltung",
       "settings": "Benutzereinstellungen",
       "profile": "Profil",
+      "pension": "Rentenprognose",
       "reports": "Berichte",
+      "alertsettings": "Alert Settings",
       "support": "Support",
       "scenario": "Szenario-Tester",
       "logs": "Protokolle"
@@ -155,6 +161,10 @@
     "label": "Besitzer",
     "select": "Wählen Sie einen Besitzer."
   },
+  "pensionForecast": {
+    "currentAge": "Aktuelles Alter: {{age}}",
+    "retirementAge": "Renteneintrittsalter: {{age}}"
+  },
   "group": {
     "select": "Wählen Sie eine Gruppe."
   },
@@ -188,20 +198,55 @@
     "status": {
       "sent": "Gesendet",
       "error": "Fehler",
-      "sending": "Wird gesendet..."
+      "sending": "Wird gesendet...",
+      "saved": "Gespeichert",
+      "saving": "Speichern..."
+    },
+    "health": {
+      "title": "Portfoliozustand",
+      "run": "Portfolio-Gesundheitsprüfung ausführen",
+      "copyReport": "Bericht kopieren",
+      "error": "Fehler beim Ausführen der Gesundheitsprüfung"
+    },
+    "notifications": {
+      "title": "Benachrichtigungen",
+      "notSupported": "Push wird nicht unterstützt",
+      "disable": "Push-Benachrichtigungen deaktivieren",
+      "enable": "Push-Benachrichtigungen aktivieren",
+      "denied": "Push-Berechtigung verweigert.",
+      "error": "Fehler bei der Verarbeitung der Push-Anmeldung."
+    },
+    "config": {
+      "title": "Konfiguration",
+      "tabsEnabled": "Tabs aktiviert",
+      "otherSwitches": "Andere Schalter",
+      "otherParams": "Weitere Parameter",
+      "save": "Speichern"
+    }
+  },
+  "alertSettings": {
+    "title": "Alert Settings",
+    "threshold": "Threshold %:",
+    "save": "Save",
+    "status": {
+      "saved": "Saved",
+      "error": "Error"
     }
   },
   "reports": {
     "title": "Berichte",
     "csv": "CSV herunterladen",
-    "pdf": "PDF herunterladen"
+    "pdf": "PDF herunterladen",
+    "noOwners": "No owners available—check backend connection"
   },
   "loadingPortfolio": "Portfolio wird geladen…",
   "portfolio": "Portfolio",
   "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",
   "approxTotal": "Ungefähre Summe: £{{value}}",
   "allocation": {
-    "instrumentTypes": "Instrumenttypen"
+    "instrumentTypes": "Instrumenttypen",
+    "sector": "Branchen",
+    "region": "Regionen"
   },
   "watchlist": {
     "refresh": "Aktualisieren"
@@ -314,5 +359,22 @@
     "title": "Value at Risk",
     "details": "Details zur historischen Simulation",
     "noData": "Keine VaR-Daten verfügbar."
+  },
+  "market": {
+    "indexLevels": "Indexstände",
+    "sectorPerformance": "Sektorentwicklung",
+    "latestHeadlines": "Neueste Schlagzeilen"
+  },
+  "goals": {
+    "title": "Ziele",
+    "targetAmount": "Zielbetrag",
+    "add": "Ziel hinzufügen",
+    "currentAmount": "Aktueller Betrag:",
+    "goalLine": "{{name}} – Ziel {{amount}} bis {{date}}",
+    "view": "Ansehen",
+    "progress": "Fortschritt: {{progress}}%",
+    "suggestedTrades": "Vorgeschlagene Trades",
+    "trade": "{{action}} {{amount}} von {{ticker}}",
+    "back": "Zurück zum Portfolio"
   }
 }

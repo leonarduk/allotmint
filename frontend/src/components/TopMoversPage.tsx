@@ -327,6 +327,8 @@ export function TopMoversPage() {
                       <SignalBadge
                         action={s.action}
                         reason={s.reason}
+                        confidence={s.confidence}
+                        rationale={s.rationale}
                         onClick={() => setSelected({ row: r, signal: s })}
                       />
                     ) : null;

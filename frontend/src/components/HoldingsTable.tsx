@@ -14,6 +14,7 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
+import { formatDateISO } from "../lib/date";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
@@ -246,7 +247,7 @@ export function HoldingsTable({
         ))}
       </div>
       {sortedRows.length ? (
-        <div className="overflow-x-auto md:overflow-visible">
+        <div ref={tableContainerRef} className="overflow-x-auto md:overflow-visible">
           <table className={`${tableStyles.table} mb-4 w-full`}>
         <thead ref={tableHeaderRef}>
           <tr>
@@ -318,7 +319,11 @@ export function HoldingsTable({
             </th>
           </tr>
           <tr>
-            <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("ticker")}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort("ticker")}
+              aria-label={t("holdingsTable.columns.ticker")}
+            >
               {t("holdingsTable.columns.ticker")}{sortKey === "ticker" ? (asc ? " ▲" : " ▼") : ""}
             </th>
             <th className={`${tableStyles.cell} ${tableStyles.clickable}`} onClick={() => handleSort("name")}>
@@ -461,9 +466,7 @@ export function HoldingsTable({
                       className={tableStyles.badge}
                       title={h.last_price_date}
                     >
-                      {new Intl.DateTimeFormat(i18n.language).format(
-                        new Date(h.last_price_date),
-                      )}
+                      {formatDateISO(new Date(h.last_price_date))}
                     </span>
                   )}
                   {h.latest_source && (
@@ -509,9 +512,7 @@ export function HoldingsTable({
                 </td>
                 <td className={tableStyles.cell}>
                   {h.acquired_date && !isNaN(Date.parse(h.acquired_date))
-                    ? new Intl.DateTimeFormat(i18n.language).format(
-                        new Date(h.acquired_date),
-                      )
+                    ? formatDateISO(new Date(h.acquired_date))
                     : "—"}
                 </td>
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
@@ -527,9 +528,7 @@ export function HoldingsTable({
                   className={`${tableStyles.cell} ${tableStyles.center} ${h.sell_eligible ? 'text-positive' : 'text-warning'}`}
                   title={
                     h.next_eligible_sell_date
-                      ? new Intl.DateTimeFormat(i18n.language).format(
-                          new Date(h.next_eligible_sell_date)
-                        )
+                      ? formatDateISO(new Date(h.next_eligible_sell_date))
                       : undefined
                   }
                 >

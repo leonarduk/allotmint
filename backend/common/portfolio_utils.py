@@ -103,7 +103,7 @@ def _fx_to_gbp(currency: str, cache: Dict[str, float]) -> float:
 # ──────────────────────────────────────────────────────────────
 # Snapshot loader (last_price / deltas)
 # ──────────────────────────────────────────────────────────────
-_PRICES_PATH = config.prices_json
+_PRICES_PATH = Path(config.prices_json) if config.prices_json else None
 _PRICES_S3_KEY = "prices/latest_prices.json"
 
 
@@ -145,7 +145,7 @@ def _load_snapshot() -> tuple[Dict[str, Dict], datetime | None]:
                     exc,
                 )
 
-    if not _PRICES_PATH.exists():
+    if not _PRICES_PATH or not _PRICES_PATH.exists():
         logger.warning("Price snapshot not found: %s", _PRICES_PATH)
         return {}, None
     try:
@@ -253,9 +253,7 @@ def _meta_from_file(ticker: str) -> Dict[str, str] | None:
             path_str = str(path)
             if path_str not in _MISSING_META:
                 _MISSING_META.add(path_str)
-                logger.warning(
-                    "Instrument metadata %s not found or invalid: %s", path_str, exc
-                )
+                logger.warning("Instrument metadata %s not found or invalid: %s", path_str, exc)
             return None
     return {
         "name": data.get("name", ticker.upper()),
@@ -274,9 +272,7 @@ def _currency_from_file(ticker: str) -> str | None:
 
 def _build_securities_from_portfolios() -> Dict[str, Dict]:
     securities: Dict[str, Dict] = {}
-    portfolios = list_portfolios() + [
-        vp.as_portfolio_dict() for vp in list_virtual_portfolios()
-    ]
+    portfolios = list_portfolios() + [vp.as_portfolio_dict() for vp in list_virtual_portfolios()]
     for pf in portfolios:
         for acct in pf.get("accounts", []):
             for h in acct.get("holdings", []):
@@ -323,9 +319,7 @@ ACCOUNTS_DIR = Path(__file__).resolve().parents[2] / "data" / "accounts"
 
 
 def list_all_unique_tickers() -> List[str]:
-    portfolios = list_portfolios() + [
-        vp.as_portfolio_dict() for vp in list_virtual_portfolios()
-    ]
+    portfolios = list_portfolios() + [vp.as_portfolio_dict() for vp in list_virtual_portfolios()]
     tickers: set[str] = set()
     total_accounts = 0
     total_holdings = 0
@@ -358,8 +352,7 @@ def list_all_unique_tickers() -> List[str]:
                     )
 
     logger.info(
-        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, "
-        "%d unique tickers, %d null tickers",
+        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, " "%d unique tickers, %d null tickers",
         len(portfolios),
         total_accounts,
         total_holdings,
@@ -372,9 +365,7 @@ def list_all_unique_tickers() -> List[str]:
 # ──────────────────────────────────────────────────────────────
 # Core aggregation
 # ──────────────────────────────────────────────────────────────
-def aggregate_by_ticker(
-    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
-) -> List[dict]:
+def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
     """Collapse a nested portfolio tree into one row per ticker,
     enriched with latest-price snapshot.
 
@@ -423,8 +414,7 @@ def aggregate_by_ticker(
                     "last_price_date": None,
                     "change_7d_pct": None,
                     "change_30d_pct": None,
-                    "instrument_type": meta.get("instrumentType")
-                    or meta.get("instrument_type"),
+                    "instrument_type": meta.get("instrumentType") or meta.get("instrument_type"),
                     "cost_currency": base_currency,
                     "market_value_currency": base_currency,
                     "gain_currency": base_currency,
@@ -435,11 +425,7 @@ def aggregate_by_ticker(
             # accumulate units & cost (allow for differing field names)
             row["units"] += _safe_num(h.get("units"))
 
-            if (
-                row.get("currency") is None
-                or row.get("sector") is None
-                or row.get("region") is None
-            ):
+            if row.get("currency") is None or row.get("sector") is None or row.get("region") is None:
                 meta = get_security_meta(full_tkr)
                 if meta:
                     if row.get("currency") is None and meta.get("currency"):
@@ -450,11 +436,7 @@ def aggregate_by_ticker(
                         row["region"] = meta["region"]
 
             # attach snapshot if present
-            cost = _safe_num(
-                h.get("cost_gbp")
-                or h.get("cost_basis_gbp")
-                or h.get("effective_cost_basis_gbp")
-            )
+            cost = _safe_num(h.get("cost_gbp") or h.get("cost_basis_gbp") or h.get("effective_cost_basis_gbp"))
             row["cost_gbp"] += cost
 
             # if holdings already carry market value / gain, include them so we
@@ -470,21 +452,25 @@ def aggregate_by_ticker(
                 row["last_price_date"] = snap.get("last_price_date")
                 row["market_value_gbp"] = round(row["units"] * price, 2)
                 row["gain_gbp"] = (
-                    round(row["market_value_gbp"] - row["cost_gbp"], 2)
-                    if row["cost_gbp"]
-                    else row["gain_gbp"]
+                    round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
                 )
 
             # ensure percentage change fields are populated
             if row.get("change_7d_pct") is None:
                 change_7d = snap.get("change_7d_pct") if isinstance(snap, dict) else None
                 if change_7d is None:
-                    change_7d = instrument_api.price_change_pct(full_tkr, 7)
+                    try:
+                        change_7d = instrument_api.price_change_pct(full_tkr, 7)
+                    except Exception:
+                        change_7d = None
                 row["change_7d_pct"] = change_7d
             if row.get("change_30d_pct") is None:
                 change_30d = snap.get("change_30d_pct") if isinstance(snap, dict) else None
                 if change_30d is None:
-                    change_30d = instrument_api.price_change_pct(full_tkr, 30)
+                    try:
+                        change_30d = instrument_api.price_change_pct(full_tkr, 30)
+                    except Exception:
+                        change_30d = None
                 row["change_30d_pct"] = change_30d
 
             # pass-through misc attributes (first non-null wins)
@@ -499,13 +485,9 @@ def aggregate_by_ticker(
             r["market_value_gbp"] = round(r["market_value_gbp"] / gbp_per_base, 2)
             r["gain_gbp"] = round(r["gain_gbp"] / gbp_per_base, 2)
             if r.get("last_price_gbp") is not None:
-                r["last_price_gbp"] = round(
-                    _safe_num(r["last_price_gbp"]) / gbp_per_base, 4
-                )
+                r["last_price_gbp"] = round(_safe_num(r["last_price_gbp"]) / gbp_per_base, 4)
             if r.get("day_change_gbp") is not None:
-                r["day_change_gbp"] = round(
-                    _safe_num(r["day_change_gbp"]) / gbp_per_base, 2
-                )
+                r["day_change_gbp"] = round(_safe_num(r["day_change_gbp"]) / gbp_per_base, 2)
         cost = r["cost_gbp"]
         r["gain_pct"] = (r["gain_gbp"] / cost * 100.0) if cost else None
         r["cost_currency"] = base_currency
@@ -519,9 +501,7 @@ def aggregate_by_ticker(
     return list(rows.values())
 
 
-def _aggregate_by_field(
-    portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP"
-) -> List[dict]:
+def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:
     """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
     rows = aggregate_by_ticker(portfolio, base_currency)
     groups: Dict[str, dict] = {}
@@ -545,22 +525,16 @@ def _aggregate_by_field(
     for g in groups.values():
         cost = g["cost_gbp"]
         g["gain_pct"] = (g["gain_gbp"] / cost * 100.0) if cost else None
-        g["contribution_pct"] = (
-            (g["gain_gbp"] / total_cost * 100.0) if total_cost else None
-        )
+        g["contribution_pct"] = (g["gain_gbp"] / total_cost * 100.0) if total_cost else None
     return list(groups.values())
 
 
-def aggregate_by_sector(
-    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
-) -> List[dict]:
+def aggregate_by_sector(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
     """Return aggregated holdings grouped by sector with return contribution."""
     return _aggregate_by_field(portfolio, "sector", base_currency)
 
 
-def aggregate_by_region(
-    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
-) -> List[dict]:
+def aggregate_by_region(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
     """Return aggregated holdings grouped by region with return contribution."""
     return _aggregate_by_field(portfolio, "region", base_currency)
 
@@ -670,17 +644,9 @@ def compute_owner_performance(
             {
                 "date": row.Date.isoformat(),
                 "value": round(float(row.value), 2),
-                "daily_return": (
-                    float(row.daily_return) if pd.notna(row.daily_return) else None
-                ),
-                "weekly_return": (
-                    float(row.weekly_return) if pd.notna(row.weekly_return) else None
-                ),
-                "cumulative_return": (
-                    float(row.cumulative_return)
-                    if pd.notna(row.cumulative_return)
-                    else None
-                ),
+                "daily_return": (float(row.daily_return) if pd.notna(row.daily_return) else None),
+                "weekly_return": (float(row.weekly_return) if pd.notna(row.weekly_return) else None),
+                "cumulative_return": (float(row.cumulative_return) if pd.notna(row.cumulative_return) else None),
                 "running_max": round(float(row.running_max), 2),
                 "drawdown": (float(row.drawdown) if pd.notna(row.drawdown) else None),
             }
@@ -757,6 +723,7 @@ def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) 
 
     from backend.common import instrument_api
 
+    flagged = {k.upper() for k, v in _PRICE_SNAPSHOT.items() if v.get("flagged")}
     holdings: List[tuple[str, str, float]] = []
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
@@ -774,6 +741,10 @@ def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) 
                 if not h.get("exchange"):
                     logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
             exch = (h.get("exchange") or inferred or "L").upper()
+            full = f"{sym}.{exch}".upper()
+            if full in flagged:
+                logger.debug("Skipping flagged instrument %s", full)
+                continue
             holdings.append((sym, exch, units))
 
     total = pd.Series(dtype=float)
@@ -960,9 +931,7 @@ def compute_xirr(owner: str, days: int = 365) -> float | None:
     start = flows[0][0]
 
     def xnpv(rate: float) -> float:
-        return sum(
-            amt / (1.0 + rate) ** ((d - start).days / 365.0) for d, amt in flows
-        )
+        return sum(amt / (1.0 + rate) ** ((d - start).days / 365.0) for d, amt in flows)
 
     rate = 0.1
     converged = False
@@ -977,8 +946,7 @@ def compute_xirr(owner: str, days: int = 365) -> float | None:
         try:
             df = float(
                 sum(
-                    -((d - start).days / 365.0) * amt /
-                    (1.0 + rate) ** ((d - start).days / 365.0 + 1)
+                    -((d - start).days / 365.0) * amt / (1.0 + rate) ** ((d - start).days / 365.0 + 1)
                     for d, amt in flows
                 )
             )
@@ -998,6 +966,72 @@ def compute_xirr(owner: str, days: int = 365) -> float | None:
     if not converged or not math.isfinite(rate):
         return None
     return float(rate)
+
+
+def compute_cagr(owner: str, days: int = 365) -> float | None:
+    """Compute the portfolio CAGR for ``owner`` over ``days``."""
+
+    total = _portfolio_value_series(owner, days)
+    if total.empty or len(total) < 2:
+        return None
+
+    start_val = float(total.iloc[0])
+    end_val = float(total.iloc[-1])
+    years = (total.index[-1] - total.index[0]).days / 365.0
+    if start_val <= 0 or years <= 0:
+        return None
+    return float((end_val / start_val) ** (1 / years) - 1)
+
+
+def _cash_value_series(owner: str, days: int = 365) -> pd.Series:
+    """Helper to compute daily cash values for an owner."""
+
+    pf = portfolio_mod.build_owner_portfolio(owner)
+    from backend.common import instrument_api
+
+    holdings: list[tuple[str, str, float]] = []
+    for acct in pf.get("accounts", []):
+        for h in acct.get("holdings", []):
+            tkr = (h.get("ticker") or "").upper()
+            if not tkr.startswith("CASH"):
+                continue
+            units = _safe_num(h.get("units"))
+            if not units:
+                continue
+            resolved = instrument_api._resolve_full_ticker(tkr, _PRICE_SNAPSHOT)
+            if resolved:
+                sym, inferred = resolved
+            else:
+                sym, inferred = (tkr.split(".", 1) + [None])[:2]
+            exch = (h.get("exchange") or inferred or "GBP").upper()
+            holdings.append((sym, exch, units))
+
+    total = pd.Series(dtype=float)
+    for ticker, exchange, units in holdings:
+        df = load_meta_timeseries(ticker, exchange, days)
+        if df.empty or "Date" not in df.columns or "Close" not in df.columns:
+            continue
+        df = df[["Date", "Close"]].copy()
+        df["Date"] = pd.to_datetime(df["Date"]).dt.date
+        values = df.set_index("Date")["Close"] * units
+        total = total.add(values, fill_value=0)
+
+    return total.sort_index()
+
+
+def compute_cash_apy(owner: str, days: int = 365) -> float | None:
+    """Compute the APY of cash holdings for ``owner`` over ``days``."""
+
+    total = _cash_value_series(owner, days)
+    if total.empty or len(total) < 2:
+        return None
+
+    start_val = float(total.iloc[0])
+    end_val = float(total.iloc[-1])
+    years = (total.index[-1] - total.index[0]).days / 365.0
+    if start_val <= 0 or years <= 0:
+        return None
+    return float((end_val / start_val) ** (1 / years) - 1)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -1037,9 +1071,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                 scale = get_scaling_override(ticker_only, exchange, None)
                 df = apply_scaling(df, scale)
                 if scale != 1 and "Close_gbp" in df.columns:
-                    df["Close_gbp"] = (
-                        pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
-                    )
+                    df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
 
                 # Map lowercase column names to their actual counterparts
                 name_map = {c.lower(): c for c in df.columns}
@@ -1054,9 +1086,7 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
                     latest_row = df.iloc[-1]
                     snapshot[t] = {
                         "last_price": float(latest_row[close_col]),
-                        "last_price_date": pd.to_datetime(latest_row["Date"]).strftime(
-                            "%Y-%m-%d"
-                        ),
+                        "last_price_date": pd.to_datetime(latest_row["Date"]).strftime("%Y-%m-%d"),
                     }
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("Could not get timeseries for %s: %s", t, e)
@@ -1066,9 +1096,12 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
 
     # write to disk
     try:
-        _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _PRICES_PATH.write_text(json.dumps(snapshot, indent=2))
-        logger.info("Wrote %d prices to %s", len(snapshot), _PRICES_PATH)
+        if _PRICES_PATH:
+            _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)
+            _PRICES_PATH.write_text(json.dumps(snapshot, indent=2))
+            logger.info("Wrote %d prices to %s", len(snapshot), _PRICES_PATH)
+        else:
+            logger.warning("Price snapshot path not configured; skipping write")
     except OSError as e:
         logger.warning("Failed to write latest_prices.json: %s", e)
 
@@ -1080,9 +1113,7 @@ def refresh_snapshot_async(days: int = 365) -> asyncio.Task:
 
     async def _runner() -> None:
         try:
-            await asyncio.to_thread(
-                refresh_snapshot_in_memory_from_timeseries, days=days
-            )
+            await asyncio.to_thread(refresh_snapshot_in_memory_from_timeseries, days=days)
         except asyncio.CancelledError:  # pragma: no cover - defensive
             logger.info("refresh_snapshot_async cancelled")
             raise

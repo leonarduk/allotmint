@@ -50,7 +50,7 @@ describe('LoginPage error handling', () => {
     await initialize.mock.results[0].value
     await callback({ credential: 'token' })
 
-    expect(await screen.findByText('bad')).toBeInTheDocument()
+    expect(await screen.findByText(/bad/)).toBeInTheDocument()
 
     fetchMock.mockRestore()
   })

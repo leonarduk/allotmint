@@ -16,7 +16,7 @@ Runtime options live in `config.yaml`:
 - `uvicorn_host`: host interface for the local FastAPI server.
 - `uvicorn_port`: port for the local FastAPI server.
 - `reload`: enables auto-reload for development.
-- `tabs`: enable or disable optional frontend tabs.
+- `ui.tabs`: enable or disable optional frontend tabs.
 - `offline_mode`: load FX data from local parquet files.
 - `alpha_vantage_enabled`: set to `false` to skip Alpha Vantage API calls.
 

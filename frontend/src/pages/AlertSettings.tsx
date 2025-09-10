@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Menu from "../components/Menu";
 import { getAlertThreshold, setAlertThreshold } from "../api";
 import { useUser } from "../UserContext";
 
 export default function AlertSettings() {
+  const { t } = useTranslation();
   const { profile } = useUser();
   // Owner is determined from the authenticated user's profile
   const owner = profile?.email;
@@ -36,10 +38,10 @@ export default function AlertSettings() {
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "1rem" }}>
       <Menu />
-      <h1>Alert Settings</h1>
+      <h1>{t("alertSettings.title")}</h1>
       <div>
         <label>
-          Threshold %:{" "}
+          {t("alertSettings.threshold")}{" "}
           <input
             type="number"
             value={threshold}
@@ -50,10 +52,18 @@ export default function AlertSettings() {
           />
         </label>
         <button onClick={save} style={{ marginLeft: "0.5rem" }}>
-          Save
+          {t("alertSettings.save")}
         </button>
-        {status === "saved" && <span style={{ marginLeft: "0.5rem" }}>Saved</span>}
-        {status === "error" && <span style={{ marginLeft: "0.5rem" }}>Error</span>}
+        {status === "saved" && (
+          <span style={{ marginLeft: "0.5rem" }}>
+            {t("alertSettings.status.saved")}
+          </span>
+        )}
+        {status === "error" && (
+          <span style={{ marginLeft: "0.5rem" }}>
+            {t("alertSettings.status.error")}
+          </span>
+        )}
       </div>
     </div>
   );

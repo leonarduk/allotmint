@@ -14,7 +14,9 @@ import type {
   AlphaResponse,
   TrackingErrorResponse,
   MaxDrawdownResponse,
+  ReturnComparisonResponse,
   Transaction,
+  TransactionWithCompliance,
   Alert,
   PriceEntry,
   ScreenerResult,
@@ -36,7 +38,9 @@ import type {
   InstrumentMetadata,
   ApprovalsResponse,
   NewsItem,
+  Nudge,
   HoldingValue,
+  MarketOverview,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -61,10 +65,21 @@ export const setAuthToken = (token: string | null) => {
 
 export const getStoredAuthToken = () => localStorage.getItem(TOKEN_STORAGE_KEY);
 
+// Extract the CSRF token from cookies if present
+const getCsrfToken = () =>
+  document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("csrftoken="))
+    ?.split("=")[1] || null;
+
 export async function login(idToken: string): Promise<string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const csrf = getCsrfToken();
+  if (csrf) headers["X-CSRFToken"] = csrf;
   const res = await fetch(`${API_BASE}/token`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
+    credentials: "include",
     body: JSON.stringify({ id_token: idToken }),
   });
   if (!res.ok) {
@@ -89,9 +104,14 @@ export async function fetchJson<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const res = await fetch(url, { ...init, headers });
+  const csrf = getCsrfToken();
+  if (csrf) headers.set("X-CSRFToken", csrf);
+  const res = await fetch(url, { ...init, headers, credentials: "include" });
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
+    const err = new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
+    (err as any).status = res.status;
+    (err as any).headers = res.headers;
+    throw err;
   }
   return res.json() as Promise<T>;
 }
@@ -124,9 +144,10 @@ export const refreshPrices = () =>
   );
 
 /** Fetch quote snapshots for a list of symbols. */
-export const getQuotes = (symbols: string[]) => {
+export const getQuotes = (symbols: string[], signal?: AbortSignal) => {
   const params = new URLSearchParams({ symbols: symbols.join(",") });
   return fetchJson<{
+    name?: string | null;
     symbol: string;
     price: number | null;
     open?: number | null;
@@ -137,7 +158,7 @@ export const getQuotes = (symbols: string[]) => {
     timestamp?: number | null;
     timezone?: string | null;
     market_state?: string | null;
-  }[]>(`${API_BASE}/api/quotes?${params.toString()}`)
+  }[]>(`${API_BASE}/api/quotes?${params.toString()}`, { signal })
     .then((rows) =>
       rows.map((r) => {
         const change =
@@ -149,7 +170,7 @@ export const getQuotes = (symbols: string[]) => {
             ? (change / r.previous_close) * 100
             : null;
         return {
-          name: null,
+          name: r.name ?? null,
           symbol: r.symbol,
           last: r.price ?? null,
           open: r.open ?? null,
@@ -174,6 +195,10 @@ export const getNews = (ticker: string, signal?: AbortSignal) => {
     signal,
   });
 };
+
+/** Aggregate market overview data. */
+export const getMarketOverview = () =>
+  fetchJson<MarketOverview>(`${API_BASE}/market/overview`);
 
 /** Retrieve top movers across tickers for a period. */
 export const getTopMovers = (
@@ -210,13 +235,19 @@ export const getGroupMovers = (
 export const getEvents = () => fetchJson<ScenarioEvent[]>(`${API_BASE}/events`);
 
 /** Apply a predefined scenario to all portfolios. */
-export const runScenario = (eventId: string, horizons: string[]) => {
+export const runScenario = ({
+  event_id,
+  horizons,
+}: {
+  event_id: string;
+  horizons: string[];
+}) => {
   const params = new URLSearchParams({
-    event: eventId,
+    event_id,
     horizons: horizons.join(","),
   });
   return fetchJson<ScenarioResult[]>(
-    `${API_BASE}/scenario?${params.toString()}`,
+    `${API_BASE}/scenario/historical?${params.toString()}`,
   );
 };
 
@@ -288,6 +319,11 @@ export const getTrackingError = (
 export const getMaxDrawdown = (owner: string, days = 365) =>
   fetchJson<MaxDrawdownResponse>(
     `${API_BASE}/performance/${owner}/max-drawdown?days=${days}`,
+  );
+
+export const getReturnComparison = (owner: string, days = 365) =>
+  fetchJson<ReturnComparisonResponse>(
+    `${API_BASE}/returns/compare?owner=${encodeURIComponent(owner)}&days=${days}`,
   );
 
 export const getGroupAlphaVsBenchmark = (
@@ -441,6 +477,66 @@ export const getInstrumentDetail = (
     { signal },
   );
 
+/**
+ * Wrapper around {@link getInstrumentDetail} with basic retry logic for rate limits.
+ * Retries up to `maxAttempts` times on HTTP 429 responses using exponential
+ * backoff. If the server provides a `Retry-After` header it takes precedence.
+ */
+export async function fetchInstrumentDetailWithRetry(
+  ticker: string,
+  days = 365,
+  signal?: AbortSignal,
+  maxAttempts = 3,
+): Promise<InstrumentDetail> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await getInstrumentDetail(ticker, days, signal);
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      const status = (err as any).status;
+      if (status !== 429 && !err.message.includes("HTTP 429")) {
+        throw err;
+      }
+      if (attempt === maxAttempts - 1) {
+        throw err;
+      }
+
+      // Prefer server-provided Retry-After header over exponential backoff
+      let delay: number | undefined;
+      const retryAfter =
+        (err as any).headers?.get?.("Retry-After") ??
+        (err as any).response?.headers?.get?.("Retry-After");
+      if (retryAfter) {
+        const seconds = Number(retryAfter);
+        if (!Number.isNaN(seconds)) {
+          delay = seconds * 1000;
+        } else {
+          const dateMs = Date.parse(retryAfter);
+          if (!Number.isNaN(dateMs)) delay = dateMs - Date.now();
+        }
+      }
+      if (delay == null || delay <= 0) {
+        delay = 500 * 2 ** attempt;
+      }
+      delay += Math.random() * 100;
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(resolve, delay);
+        signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timeout);
+            reject(new DOMException("Aborted", "AbortError"));
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+  // If all retries exhausted without success
+  throw new Error("HTTP 429 – Too Many Requests");
+}
+
 
 export const getTimeseries = (ticker: string, exchange = "L") =>
   fetchJson<PriceEntry[]>(`${API_BASE}/timeseries/edit?ticker=${encodeURIComponent(ticker)}&exchange=${encodeURIComponent(exchange)}`);
@@ -537,6 +633,9 @@ export const getDividends = (params?: {
 /** Retrieve recent alert messages from backend. */
 export const getAlerts = () => fetchJson<Alert[]>(`${API_BASE}/alerts/`);
 
+/** Retrieve reminder nudges generated by the backend. */
+export const getNudges = () => fetchJson<Nudge[]>(`${API_BASE}/nudges/`);
+
 /** Retrieve alert threshold for an owner. */
 export const getAlertThreshold = (owner: string) =>
   fetchJson<{ threshold: number }>(`${API_BASE}/alert-thresholds/${owner}`);
@@ -574,6 +673,24 @@ export const deletePushSubscription = (owner: string) =>
     method: "DELETE",
   });
 
+/** Subscribe a user to reminder nudges or update frequency. */
+export const subscribeNudges = (user: string, frequency: number) => {
+  const freq = Math.min(Math.max(Math.round(frequency), 1), 30);
+  return fetchJson(`${API_BASE}/nudges/subscribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user, frequency: freq }),
+  });
+};
+
+/** Snooze nudges for a user for ``days`` days. */
+export const snoozeNudges = (user: string, days: number) =>
+  fetchJson(`${API_BASE}/nudges/snooze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user, days }),
+  });
+
 // Backwards compatibility aliases
 export const getAlertSettings = getAlertThreshold;
 export const setAlertSettings = setAlertThreshold;
@@ -596,6 +713,19 @@ export const validateTrade = (tx: Transaction) =>
 
 /** Alias for compatibility with newer API naming */
 export const complianceForOwner = getCompliance;
+
+/** Fetch transactions with compliance warnings */
+export const getTransactionsWithCompliance = (
+  owner: string,
+  opts: { ticker?: string; account?: string } = {},
+) => {
+  const params = new URLSearchParams({ owner });
+  if (opts.ticker) params.set("ticker", opts.ticker);
+  if (opts.account) params.set("account", opts.account);
+  return fetchJson<{ transactions: TransactionWithCompliance[] }>(
+    `${API_BASE}/transactions/compliance?${params.toString()}`,
+  );
+};
 
 /** Virtual portfolio endpoints */
 export const getVirtualPortfolios = () =>
@@ -693,6 +823,23 @@ export const removeApproval = async (owner: string, ticker: string) => {
     );
   } catch (err) {
     console.error("failed to remove approval for", owner, ticker, err);
+    throw err;
+  }
+};
+
+export const requestApproval = async (owner: string, ticker: string) => {
+  if (!ticker) throw new Error("ticker is required");
+  try {
+    return await fetchJson<{ requests: { ticker: string; requested_on: string }[] }>(
+      `${API_BASE}/accounts/${owner}/approval-requests`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker }),
+      },
+    );
+  } catch (err) {
+    console.error("failed to request approval for", owner, ticker, err);
     throw err;
   }
 };
@@ -825,24 +972,54 @@ export const harvestTax = (
     body: JSON.stringify({ positions, threshold }),
   });
 
+// ───────────── Allowance Tracker ─────────────
+export const getAllowances = (owner?: string) => {
+  const suffix = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+  return fetchJson<{
+    owner: string;
+    tax_year: string;
+    allowances: Record<string, { used: number; limit: number; remaining: number }>;
+  }>(`${API_BASE}/tax/allowances${suffix}`);
+};
+
 // ───────────── Pension Forecast ─────────────
-export const getPensionForecast = (
-  dob: string,
-  retirementAge: number,
-  deathAge: number,
-  statePensionAnnual?: number,
-) => {
+export const getPensionForecast = ({
+  owner,
+  deathAge,
+  statePensionAnnual,
+  contributionAnnual,
+  desiredIncomeAnnual,
+  investmentGrowthPct,
+}: {
+  owner: string;
+  deathAge: number;
+  statePensionAnnual?: number;
+  contributionAnnual?: number;
+  desiredIncomeAnnual?: number;
+  investmentGrowthPct?: number;
+}) => {
   const params = new URLSearchParams({
-    dob,
-    retirement_age: String(retirementAge),
+    owner,
     death_age: String(deathAge),
   });
   if (statePensionAnnual !== undefined) {
     params.set("state_pension_annual", String(statePensionAnnual));
   }
-  return fetchJson<{ forecast: { age: number; income: number }[] }>(
-    `${API_BASE}/pension/forecast?${params.toString()}`,
-  );
+  if (contributionAnnual !== undefined) {
+    params.set("contribution_annual", String(contributionAnnual));
+  }
+  if (desiredIncomeAnnual !== undefined) {
+    params.set("desired_income_annual", String(desiredIncomeAnnual));
+  }
+  if (investmentGrowthPct !== undefined) {
+    params.set("investment_growth_pct", String(investmentGrowthPct));
+  }
+  return fetchJson<{
+    forecast: { age: number; income: number }[];
+    projected_pot_gbp: number;
+    current_age: number;
+    retirement_age: number;
+  }>(`${API_BASE}/pension/forecast?${params.toString()}`);
 };
 
 // ───────────── Quests API ─────────────
@@ -853,3 +1030,16 @@ export const completeQuest = (id: string) =>
   fetchJson<QuestResponse>(`${API_BASE}/quests/${encodeURIComponent(id)}/complete`, {
     method: "POST",
   });
+
+// ───────────── Support tools ─────────────
+export interface Finding {
+  level: "info" | "warning" | "error";
+  message: string;
+  suggestion?: string;
+}
+
+export const checkPortfolioHealth = () =>
+  fetchJson<{ findings: Finding[] }>(
+    `${API_BASE}/support/portfolio-health`,
+    { method: "POST" },
+  );

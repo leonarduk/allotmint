@@ -72,9 +72,9 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
 
     The message is forwarded to Telegram via
     :func:`backend.utils.telegram_utils.send_message` when both
-    ``TELEGRAM_BOT_TOKEN`` and ``TELEGRAM_CHAT_ID`` environment variables are
-    present and the application is not running on AWS (``config.app_env`` is
-    not ``"aws"``).
+    ``config.telegram_bot_token`` and ``config.telegram_chat_id`` are set and
+    the application is not running on AWS (``config.app_env`` is not
+    ``"aws"``).
     """
 
     if publish:
@@ -85,8 +85,8 @@ def send_trade_alert(message: str, publish: bool = True) -> None:
         alert_utils.send_push_notification(message)
 
     if (
-        os.getenv("TELEGRAM_BOT_TOKEN")
-        and os.getenv("TELEGRAM_CHAT_ID")
+        config.telegram_bot_token
+        and config.telegram_chat_id
         and config.app_env != "aws"
     ):
         try:
@@ -113,7 +113,8 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     Signals are generated using a mix of simple price momentum,
     relative-strength index (RSI) and moving average crossovers.
     The thresholds for RSI and moving averages are configurable via
-    :mod:`backend.config`.
+    :mod:`backend.config`. Each signal also carries a confidence score and
+    a more detailed rationale to aid downstream consumers.
     """
 
     signals: List[Dict] = []
@@ -137,20 +138,34 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
         change = info.get("change_7d_pct")
         if change is not None:
             if change <= PRICE_DROP_THRESHOLD:
+                confidence = min(1.0, abs(change) / abs(PRICE_DROP_THRESHOLD))
                 signals.append(
                     {
                         "ticker": ticker,
                         "action": "SELL",
                         "reason": f"Price dropped {change:.2f}% in last 7d",
+                        "confidence": confidence,
+                        "rationale": (
+                            f"7-day price change of {change:.2f}% is below the"
+                            f" threshold of {PRICE_DROP_THRESHOLD}%, indicating"
+                            " bearish momentum."
+                        ),
                     }
                 )
                 continue
             if change >= PRICE_GAIN_THRESHOLD:
+                confidence = min(1.0, abs(change) / PRICE_GAIN_THRESHOLD)
                 signals.append(
                     {
                         "ticker": ticker,
                         "action": "BUY",
                         "reason": f"Price gained {change:.2f}% in last 7d",
+                        "confidence": confidence,
+                        "rationale": (
+                            f"7-day price change of {change:.2f}% exceeds"
+                            f" the threshold of {PRICE_GAIN_THRESHOLD}% and"
+                            " suggests upward momentum."
+                        ),
                     }
                 )
                 continue
@@ -161,39 +176,67 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
 
         if rsi is not None:
             if cfg.rsi_buy is not None and rsi <= cfg.rsi_buy:
+                diff = cfg.rsi_buy - rsi
+                confidence = min(1.0, diff / 10)  # 10 point diff -> max confidence
                 signals.append(
                     {
                         "ticker": ticker,
                         "action": "BUY",
                         "reason": f"RSI {rsi:.2f} <= {cfg.rsi_buy}",
+                        "confidence": confidence,
+                        "rationale": (
+                            f"RSI of {rsi:.2f} is below the buy threshold"
+                            f" of {cfg.rsi_buy}, signalling potential"
+                            " oversold conditions."
+                        ),
                     }
                 )
                 continue
             if cfg.rsi_sell is not None and rsi >= cfg.rsi_sell:
+                diff = rsi - cfg.rsi_sell
+                confidence = min(1.0, diff / 10)
                 signals.append(
                     {
                         "ticker": ticker,
                         "action": "SELL",
                         "reason": f"RSI {rsi:.2f} >= {cfg.rsi_sell}",
+                        "confidence": confidence,
+                        "rationale": (
+                            f"RSI of {rsi:.2f} is above the sell threshold"
+                            f" of {cfg.rsi_sell}, suggesting overbought"
+                            " conditions."
+                        ),
                     }
                 )
                 continue
         if rsi is not None:
             if rsi > 70:
+                confidence = min(1.0, (rsi - 70) / 10)
                 signals.append(
                     {
                         "ticker": ticker,
                         "action": "SELL",
                         "reason": f"RSI {rsi:.2f} above 70",
+                        "confidence": confidence,
+                        "rationale": (
+                            f"RSI reading of {rsi:.2f} exceeds the typical"
+                            " overbought level of 70."
+                        ),
                     }
                 )
                 continue
             if rsi < 30:
+                confidence = min(1.0, (30 - rsi) / 10)
                 signals.append(
                     {
                         "ticker": ticker,
                         "action": "BUY",
                         "reason": f"RSI {rsi:.2f} below 30",
+                        "confidence": confidence,
+                        "rationale": (
+                            f"RSI reading of {rsi:.2f} is below the"
+                            " commonly used oversold level of 30."
+                        ),
                     }
                 )
                 continue
@@ -205,6 +248,12 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                         "ticker": ticker,
                         "action": "BUY",
                         "reason": f"MA{cfg.ma_short_window}>{cfg.ma_long_window}",
+                        "confidence": 0.6,
+                        "rationale": (
+                            f"Short moving average {ma_short:.2f} is above"
+                            f" long moving average {ma_long:.2f},"
+                            " indicating bullish momentum."
+                        ),
                     }
                 )
             elif ma_short < ma_long:
@@ -213,6 +262,12 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                         "ticker": ticker,
                         "action": "SELL",
                         "reason": f"MA{cfg.ma_short_window}<{cfg.ma_long_window}",
+                        "confidence": 0.6,
+                        "rationale": (
+                            f"Short moving average {ma_short:.2f} is below"
+                            f" long moving average {ma_long:.2f},"
+                            " signalling bearish momentum."
+                        ),
                     }
                 )
         short_ma = info.get("sma_50")
@@ -224,6 +279,12 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                         "ticker": ticker,
                         "action": "BUY",
                         "reason": f"50d MA {short_ma:.2f} above 200d MA {long_ma:.2f}",
+                        "confidence": 0.6,
+                        "rationale": (
+                            f"50-day moving average {short_ma:.2f} is above"
+                            f" the 200-day moving average {long_ma:.2f},"
+                            " a traditional bullish indicator."
+                        ),
                     }
                 )
             elif short_ma < long_ma:
@@ -232,6 +293,12 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
                         "ticker": ticker,
                         "action": "SELL",
                         "reason": f"50d MA {short_ma:.2f} below 200d MA {long_ma:.2f}",
+                        "confidence": 0.6,
+                        "rationale": (
+                            f"50-day moving average {short_ma:.2f} is below"
+                            f" the 200-day moving average {long_ma:.2f},"
+                            " suggesting a bearish trend."
+                        ),
                     }
                 )
     return signals
@@ -282,12 +349,13 @@ def _alert_on_drawdown(threshold: float = DRAWDOWN_ALERT_THRESHOLD) -> None:
             )
 
 
-def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
+def run(tickers: Optional[Iterable[str]] = None, *, notify: bool = True) -> List[Dict]:
     """Refresh prices, generate signals and publish alerts.
 
     Args:
         tickers: optional iterable of ticker symbols. If omitted, all
             known instruments from the current portfolios are analysed.
+        notify: When ``True`` send notifications for any generated signals.
 
     Returns:
         A list of generated signals.
@@ -404,7 +472,8 @@ def run(tickers: Optional[Iterable[str]] = None) -> List[Dict]:
             "reason": sig["reason"],
             "message": f"{sig['action']} {ticker}: {sig['reason']}",
         }
-        send_trade_alert(alert["message"])
+        if notify:
+            send_trade_alert(alert["message"])
         logger.info("Published alert: %s", alert)
         _log_trade(ticker, sig["action"], price)
         allowed_signals.append(sig)

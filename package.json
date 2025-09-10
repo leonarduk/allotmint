@@ -17,6 +17,12 @@
     "mobile:add": "npx cap add android --config mobile/capacitor.config.ts && npx cap add ios --config mobile/capacitor.config.ts",
     "mobile:sync": "npm run build:web && npx cap sync --config mobile/capacitor.config.ts",
     "mobile:android": "npm run mobile:sync && npx cap open android --config mobile/capacitor.config.ts",
-    "mobile:ios": "npm run mobile:sync && npx cap open ios --config mobile/capacitor.config.ts"
+    "mobile:ios": "npm run mobile:sync && npx cap open ios --config mobile/capacitor.config.ts",
+    "deploy:local:frontend": "bash scripts/deploy-local.sh -t frontend",
+    "deploy:local:backend": "bash scripts/deploy-local.sh -t backend",
+    "deploy:local:both": "bash scripts/deploy-local.sh -t both",
+    "deploy:local:frontend:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target frontend",
+    "deploy:local:backend:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target backend",
+    "deploy:local:both:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target both"
   }
 }

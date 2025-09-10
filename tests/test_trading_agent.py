@@ -99,8 +99,8 @@ def test_send_trade_alert_sns_only(monkeypatch):
 
     monkeypatch.setattr("backend.agent.trading_agent.publish_alert", fake_publish)
     monkeypatch.setattr("backend.agent.trading_agent.send_message", fake_send)
-    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    monkeypatch.setattr(trading_agent.config, "telegram_bot_token", None)
+    monkeypatch.setattr(trading_agent.config, "telegram_chat_id", None)
 
     send_trade_alert("hello")
 
@@ -118,8 +118,8 @@ def test_send_trade_alert_with_telegram(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg)
     )
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
+    monkeypatch.setattr(trading_agent.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(trading_agent.config, "telegram_chat_id", "C")
 
     send_trade_alert("hi")
 
@@ -140,8 +140,8 @@ def test_send_trade_alert_no_publish_with_telegram(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg)
     )
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
+    monkeypatch.setattr(trading_agent.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(trading_agent.config, "telegram_chat_id", "C")
 
     send_trade_alert("hi", publish=False)
 
@@ -218,10 +218,8 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.send_message", lambda msg: sent.append(msg)
     )
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
-    from backend.agent import trading_agent
-
+    monkeypatch.setattr(trading_agent.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(trading_agent.config, "telegram_chat_id", "C")
     monkeypatch.setattr(trading_agent.config, "app_env", "local")
 
     run()

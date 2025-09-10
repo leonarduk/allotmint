@@ -58,8 +58,8 @@ export default function MainApp() {
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
-  const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
+  const ownersReq = useFetchWithRetry(getOwners, 200, 5, [retryNonce]);
+  const groupsReq = useFetchWithRetry(getGroups, 200, 5, [retryNonce]);
   const demoOnly =
     ownersReq.data?.length === 1 && ownersReq.data[0].owner === "demo";
   const unauthorized = demoOnly
@@ -283,7 +283,19 @@ export default function MainApp() {
             selected={selectedOwner}
             onSelect={setSelectedOwner}
           />
-          <PortfolioDashboard owner={selectedOwner} />
+          <PortfolioDashboard
+            twr={null}
+            irr={null}
+            bestDay={null}
+            worstDay={null}
+            lastDay={null}
+            alpha={null}
+            trackingError={null}
+            maxDrawdown={null}
+            volatility={null}
+            data={[]}
+            owner={selectedOwner}
+          />
         </>
       )}
 

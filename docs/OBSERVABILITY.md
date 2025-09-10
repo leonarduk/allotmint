@@ -33,3 +33,19 @@ aws cloudwatch put-metric-alarm \
   --evaluation-periods 1 \
   --alarm-actions $SNS_TOPIC_ARN
 ```
+
+## Nightly portfolio health check
+
+- Schedule `python scripts/check_portfolio_health.py` to run nightly (cron or
+  AWS EventBridge).
+- Set `DRAWDOWN_THRESHOLD` to the absolute drawdown percentage that should
+  trigger an alert (defaults to 0.2 for 20%).
+- Provide `SLACK_WEBHOOK_URL` to forward alerts to Slack; otherwise alerts are
+  only logged and published via the existing alert pipeline.
+
+Example cron entry:
+
+```cron
+0 2 * * * cd /path/to/allotmint && DRAWDOWN_THRESHOLD=0.25 \
+    python scripts/check_portfolio_health.py >> /var/log/portfolio_health.log 2>&1
+```

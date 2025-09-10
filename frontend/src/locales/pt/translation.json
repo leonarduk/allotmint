@@ -8,6 +8,9 @@
     "supportLink": "Suporte",
     "userLink": "App",
     "logout": "Sair",
+    "menu": "Menu",
+    "focusMode": "Modo de foco",
+    "exitFocusMode": "Sair do modo de foco",
     "modes": {
       "group": "Grupo",
       "instrument": "Instrumento",
@@ -20,12 +23,15 @@
       "watchlist": "Lista de observação",
       "allocation": "Alocação",
       "rebalance": "Rebalance",
+      "market": "Visão geral do mercado",
       "movers": "Movers",
       "instrumentadmin": "Administração de instrumentos",
       "dataadmin": "Administração de dados",
       "settings": "Configurações do usuário",
       "profile": "Perfil",
+      "pension": "Previsão de pensão",
       "reports": "Relatórios",
+      "alertsettings": "Alert Settings",
       "support": "Suporte",
       "scenario": "Testador de Cenários",
       "logs": "Registros"
@@ -155,6 +161,10 @@
     "label": "Proprietário",
     "select": "Selecione um proprietário."
   },
+  "pensionForecast": {
+    "currentAge": "Idade atual: {{age}}",
+    "retirementAge": "Idade de aposentadoria: {{age}}"
+  },
   "group": {
     "select": "Selecione um grupo."
   },
@@ -188,20 +198,55 @@
     "status": {
       "sent": "Enviado",
       "error": "Erro",
-      "sending": "Enviando..."
+      "sending": "Enviando...",
+      "saved": "Salvo",
+      "saving": "Salvando..."
+    },
+    "health": {
+      "title": "Saúde do portfólio",
+      "run": "Executar verificação de saúde do portfólio",
+      "copyReport": "Copiar relatório",
+      "error": "Falha ao executar verificação de saúde"
+    },
+    "notifications": {
+      "title": "Notificações",
+      "notSupported": "Push não suportado",
+      "disable": "Desativar alertas Push",
+      "enable": "Ativar alertas Push",
+      "denied": "Permissão de push negada.",
+      "error": "Erro ao lidar com a assinatura de push."
+    },
+    "config": {
+      "title": "Configuração",
+      "tabsEnabled": "Abas ativadas",
+      "otherSwitches": "Outros interruptores",
+      "otherParams": "Outros parâmetros",
+      "save": "Salvar"
+    }
+  },
+  "alertSettings": {
+    "title": "Alert Settings",
+    "threshold": "Threshold %:",
+    "save": "Save",
+    "status": {
+      "saved": "Saved",
+      "error": "Error"
     }
   },
   "reports": {
     "title": "Relatórios",
     "csv": "Baixar CSV",
-    "pdf": "Baixar PDF"
+    "pdf": "Baixar PDF",
+    "noOwners": "No owners available—check backend connection"
   },
   "loadingPortfolio": "Carregando portfólio…",
   "portfolio": "Portfólio",
   "asOf": "Em {{date}} • Negociações este mês: {{trades}} / 20 (Restantes: {{remaining}})",
   "approxTotal": "Total aproximado: £{{value}}",
   "allocation": {
-    "instrumentTypes": "Tipos de instrumentos"
+    "instrumentTypes": "Tipos de instrumentos",
+    "sector": "Indústrias",
+    "region": "Regiões"
   },
   "watchlist": {
     "refresh": "Atualizar"
@@ -314,5 +359,22 @@
     "title": "Valor em Risco",
     "details": "Detalhes da simulação histórica",
     "noData": "Nenhum dado de VaR disponível."
+  },
+  "market": {
+    "indexLevels": "Níveis dos índices",
+    "sectorPerformance": "Desempenho por setor",
+    "latestHeadlines": "Últimas manchetes"
+  },
+  "goals": {
+    "title": "Metas",
+    "targetAmount": "Valor alvo",
+    "add": "Adicionar meta",
+    "currentAmount": "Valor atual:",
+    "goalLine": "{{name}} – alvo {{amount}} até {{date}}",
+    "view": "Ver",
+    "progress": "Progresso: {{progress}}%",
+    "suggestedTrades": "Negociações sugeridas",
+    "trade": "{{action}} {{amount}} de {{ticker}}",
+    "back": "Voltar ao portfólio"
   }
 }

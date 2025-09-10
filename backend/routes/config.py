@@ -48,6 +48,18 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     deep_merge(data, payload)
 
+    ui_section = data.get("ui", {}) if isinstance(data, dict) else {}
+    if "tabs" in data:
+        if isinstance(ui_section.get("tabs"), dict) and isinstance(data["tabs"], dict):
+            deep_merge(data["tabs"], ui_section["tabs"])
+            ui_section["tabs"] = data.pop("tabs")
+        else:
+            ui_section["tabs"] = data.pop("tabs")
+    for key in ["theme", "relative_view_enabled"]:
+        if key in data:
+            ui_section[key] = data.pop(key)
+    data["ui"] = ui_section
+
     auth_section = data.get("auth", {}) if isinstance(data, dict) else {}
 
     for key in [

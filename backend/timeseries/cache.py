@@ -86,7 +86,13 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
 # ──────────────────────────────────────────────────────────────
 # Cache base (local path, EFS, or S3)
 # ──────────────────────────────────────────────────────────────
-_CACHE_BASE: str = config.timeseries_cache_base
+# ``config.timeseries_cache_base`` may be ``None`` if configuration failed to
+# load or the setting is omitted.  In that case default to a "timeseries"
+# folder under ``config.data_root`` (which itself has a sensible default).
+_CACHE_BASE: str = (
+    config.timeseries_cache_base
+    or str((config.data_root or Path("data")) / "timeseries")
+)
 
 
 def _cache_path(*parts: str) -> str:

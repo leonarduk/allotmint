@@ -22,7 +22,13 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
-from backend import auth
+from backend.auth import (
+    authenticate_user,
+    create_access_token,
+    get_current_user,
+)
+import backend.auth as auth
+
 from backend.common.data_loader import resolve_paths
 from backend.common.portfolio_utils import (
     _load_snapshot,

@@ -28,6 +28,7 @@ from backend.auth import (
     get_current_user,
 )
 import backend.auth as auth
+
 from backend.common.data_loader import resolve_paths
 from backend.common.portfolio_utils import (
     _load_snapshot,
@@ -192,7 +193,7 @@ def create_app() -> FastAPI:
     if config.disable_auth:
         protected = []
     else:
-        protected = [Depends(get_current_user)]
+        protected = [Depends(auth.get_current_user)]
     # Public endpoints (e.g., demo access) are registered without authentication
     app.include_router(public_portfolio_router)
     app.include_router(portfolio_router, dependencies=protected)
@@ -245,7 +246,7 @@ def create_app() -> FastAPI:
     @app.post("/token")
     async def login(body: TokenIn):
         try:
-            email = authenticate_user(body.id_token)
+            email = auth.authenticate_user(body.id_token)
         except HTTPException as exc:
             logger.warning("User authentication failed: %s", exc.detail)
             raise
@@ -254,7 +255,7 @@ def create_app() -> FastAPI:
             logger.warning("authenticate_user returned no email")
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        token = create_access_token(email)
+        token = auth.create_access_token(email)
         return {"access_token": token, "token_type": "bearer"}
 
     @app.post("/token/google")
@@ -267,7 +268,7 @@ def create_app() -> FastAPI:
         except HTTPException as exc:
             logger.warning("Google token verification failed: %s", exc.detail)
             raise
-        jwt_token = create_access_token(email)
+        jwt_token = auth.create_access_token(email)
         return {"access_token": jwt_token, "token_type": "bearer"}
 
     # ────────────────────── Health-check endpoint ─────────────────────

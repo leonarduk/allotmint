@@ -437,8 +437,33 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   }
 ] as const;
 
+// Provide sample values for path parameters so requests avoid 422/400 errors.
+// Values are chosen based on common parameter names. Unknown names default to
+// ``1`` which parses as an integer or string.
+const SAMPLE_PATH_VALUES: Record<string, string> = {
+  owner: 'demo-owner',
+  account: 'demo-account',
+  user: 'user@example.com',
+  email: 'user@example.com',
+  id: '1',
+  vp_id: '1',
+  quest_id: 'check-in',
+  slug: 'demo-slug',
+  name: 'demo',
+  exchange: 'NASDAQ',
+  ticker: 'AAPL',
+};
+
 export function fillPath(path: string): string {
-  return path.replace(/\{[^}]+\}/g, 'test');
+  return path.replace(/\{([^}]+)\}/g, (_, key: string) => {
+    const k = key.toLowerCase();
+    if (SAMPLE_PATH_VALUES[k]) return SAMPLE_PATH_VALUES[k];
+    if (k.includes('email')) return 'user@example.com';
+    if (k.includes('id')) return '1';
+    if (k.includes('user')) return 'user@example.com';
+    if (k.includes('date')) return '1970-01-01';
+    return '1';
+  });
 }
 
 export async function runSmoke(base: string) {

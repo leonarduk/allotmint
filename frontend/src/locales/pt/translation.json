@@ -163,6 +163,7 @@
   },
   "pensionForecast": {
     "currentAge": "Idade atual: {{age}}",
+    "birthDate": "Data de nascimento: {{dob}}",
     "retirementAge": "Idade de aposentadoria: {{age}}"
   },
   "group": {

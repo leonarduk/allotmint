@@ -21,6 +21,7 @@ describe("PensionForecast page", () => {
       projected_pot_gbp: 0,
       current_age: 30,
       retirement_age: 65,
+      dob: "1990-01-01",
     });
 
     const { default: PensionForecast } = await import("./PensionForecast");
@@ -41,6 +42,7 @@ describe("PensionForecast page", () => {
       projected_pot_gbp: 0,
       current_age: 30,
       retirement_age: 65,
+      dob: "1990-01-01",
     });
 
     const { default: PensionForecast } = await import("./PensionForecast");
@@ -58,6 +60,7 @@ describe("PensionForecast page", () => {
         expect.objectContaining({ owner: "beth" }),
       ),
     );
+    await screen.findByText(/birth date: 1990-01-01/i);
   });
 });
 

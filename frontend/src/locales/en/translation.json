@@ -166,7 +166,8 @@
   "pensionForecast": {
     "currentAge": "Current age: {{age}}",
     "birthDate": "Birth date: {{dob}}",
-    "retirementAge": "Retirement age: {{age}}"
+    "retirementAge": "Retirement age: {{age}}",
+    "growthAssumption": "Growth assumption (%):"
   },
   "group": {
     "select": "Select a group."

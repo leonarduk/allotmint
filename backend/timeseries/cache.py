@@ -1,7 +1,8 @@
 """
 Timeseries parquet-cache layer (local path, EFS, or S3).
 
-Set TIMESERIES_CACHE_BASE to control where the parquet files live, e.g.
+Set ``TIMESERIES_CACHE_BASE`` or ``config.timeseries_cache_base`` to control
+where the parquet files live, e.g.
 
     export TIMESERIES_CACHE_BASE=data/timeseries          # local dev
     export TIMESERIES_CACHE_BASE=/mnt/efs/timeseries     # ECS / Lambda
@@ -11,6 +12,7 @@ Set TIMESERIES_CACHE_BASE to control where the parquet files live, e.g.
 from __future__ import annotations
 
 import logging
+import os
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
@@ -86,6 +88,7 @@ def _ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
 # ──────────────────────────────────────────────────────────────
 # Cache base (local path, EFS, or S3)
 # ──────────────────────────────────────────────────────────────
+
 # ``config.timeseries_cache_base`` may be ``None`` if configuration failed to
 # load or the setting is omitted.  In that case default to a "timeseries"
 # folder under ``config.data_root`` (which itself has a sensible default).
@@ -97,12 +100,20 @@ _CACHE_BASE: str = (
 
 def _cache_path(*parts: str) -> str:
     """Build a full path / S3 key under the configured base."""
+    if _CACHE_BASE is None:
+        raise ValueError(
+            "Timeseries cache base is not configured; set TIMESERIES_CACHE_BASE or config.timeseries_cache_base."
+        )
     if _CACHE_BASE.startswith("s3://"):
         return "/".join([_CACHE_BASE, *parts])
     return str(Path(_CACHE_BASE, *parts))
 
 
 def _ensure_local_dir(path: str) -> None:
+    if _CACHE_BASE is None:
+        raise ValueError(
+            "Timeseries cache base is not configured; set TIMESERIES_CACHE_BASE or config.timeseries_cache_base."
+        )
     if not _CACHE_BASE.startswith("s3://"):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
 

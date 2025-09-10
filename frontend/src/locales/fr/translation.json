@@ -163,7 +163,8 @@
   },
   "pensionForecast": {
     "currentAge": "Âge actuel : {{age}}",
-    "retirementAge": "Âge de retraite : {{age}}"
+    "retirementAge": "Âge de retraite : {{age}}",
+    "pensionPot": "Épargne retraite"
   },
   "group": {
     "select": "Sélectionnez un groupe."

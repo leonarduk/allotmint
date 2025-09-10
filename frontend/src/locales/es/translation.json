@@ -163,7 +163,8 @@
   },
   "pensionForecast": {
     "currentAge": "Edad actual: {{age}}",
-    "retirementAge": "Edad de jubilación: {{age}}"
+    "retirementAge": "Edad de jubilación: {{age}}",
+    "pensionPot": "Fondo de pensión"
   },
   "group": {
     "select": "Seleccione un grupo."

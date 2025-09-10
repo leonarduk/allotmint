@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.common.data_loader import load_person_meta
+from backend.common.portfolio import build_owner_portfolio
 from backend.common.pension import (
     _age_from_dob,
     forecast_pension,
@@ -56,5 +57,18 @@ def pension_forecast(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    result.update({"retirement_age": retirement_age, "current_age": current_age})
+    portfolio = build_owner_portfolio(owner)
+    pension_pot = sum(
+        a.get("value_estimate_gbp", 0.0)
+        for a in portfolio.get("accounts", [])
+        if str(a.get("account_type", "")).lower() == "sipp"
+    )
+
+    result.update(
+        {
+            "retirement_age": retirement_age,
+            "current_age": current_age,
+            "pension_pot_gbp": pension_pot,
+        }
+    )
     return result

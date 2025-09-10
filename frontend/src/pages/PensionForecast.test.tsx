@@ -19,6 +19,7 @@ describe("PensionForecast page", () => {
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
       projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
       current_age: 30,
       retirement_age: 65,
     });
@@ -39,6 +40,7 @@ describe("PensionForecast page", () => {
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
       projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
       current_age: 30,
       retirement_age: 65,
     });
@@ -58,6 +60,27 @@ describe("PensionForecast page", () => {
         expect.objectContaining({ owner: "beth" }),
       ),
     );
+  });
+
+  it("shows aggregated SIPP pot", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 1000,
+      pension_pot_gbp: 500,
+      current_age: 30,
+      retirement_age: 65,
+    });
+
+    const { default: PensionForecast } = await import("./PensionForecast");
+
+    render(<PensionForecast />);
+
+    const btn = await screen.findByRole("button", { name: /forecast/i });
+    fireEvent.click(btn);
+
+    const pot = await screen.findByText(/pension pot/i);
+    expect(pot).toHaveTextContent("£500");
   });
 });
 

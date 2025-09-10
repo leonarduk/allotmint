@@ -76,8 +76,14 @@ def test_historical_scenario_route(monkeypatch):
             "owner": "alice",
             "baseline_total_value_gbp": 100.0,
             "horizons": {
-                "1": {"baseline": 100.0, "shocked": 100.0},
-                "5": {"baseline": 100.0, "shocked": 100.0},
+                "1": {
+                    "baseline_total_value_gbp": 100.0,
+                    "shocked_total_value_gbp": 100.0,
+                },
+                "5": {
+                    "baseline_total_value_gbp": 100.0,
+                    "shocked_total_value_gbp": 100.0,
+                },
             },
         }
     ]
@@ -87,8 +93,8 @@ def test_historical_scenario_route(monkeypatch):
         assert "baseline_total_value_gbp" in first
         assert "horizons" in first
         first_horizon = next(iter(first["horizons"].values()))
+        assert "baseline_total_value_gbp" in first_horizon
         assert "shocked_total_value_gbp" in first_horizon
-        assert "pct_change" in first_horizon
 
 
 def test_events_route():

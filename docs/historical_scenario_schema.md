@@ -10,16 +10,22 @@ value after applying the historical event.
   "owner": "string",
   "baseline_total_value_gbp": 12345.67,
   "horizons": {
-    "1d": { "baseline": 12345.67, "shocked": 12000.00 },
-    "1w": { "baseline": 12345.67, "shocked": 11900.00 }
+    "1d": {
+      "baseline_total_value_gbp": 12345.67,
+      "shocked_total_value_gbp": 12000.0
+    },
+    "1w": {
+      "baseline_total_value_gbp": 12345.67,
+      "shocked_total_value_gbp": 11900.0
+    }
   }
 }
 ```
 
 Each horizon entry uses a consistent schema:
 
-- `baseline` – the portfolio's value before the event.
-- `shocked` – the portfolio's value after applying the event to that
+- `baseline_total_value_gbp` – the portfolio's value before the event.
+- `shocked_total_value_gbp` – the portfolio's value after applying the event to that
   horizon.
 
 The baseline is repeated for each horizon to simplify downstream

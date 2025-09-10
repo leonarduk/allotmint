@@ -24,8 +24,8 @@ def client(tmp_path, monkeypatch):
 
 def test_push_subscription_owner_validation(client):
     owners = client.get("/owners").json()
-    assert owners, "No owners returned"
-    owner = owners[0]["owner"]
+    assert any(o["owner"] == "demo" for o in owners)
+    owner = "demo"
     payload = {"endpoint": "https://ex", "keys": {"p256dh": "a", "auth": "b"}}
 
     resp = client.post(f"/alerts/push-subscription/{owner}", json=payload)

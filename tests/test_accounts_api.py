@@ -52,6 +52,7 @@ def test_owners_endpoint_matches_sample_data(client):
     resp = client.get("/owners")
     assert resp.status_code == 200
     owners = {o["owner"]: set(o["accounts"]) for o in resp.json()}
+    assert "demo" in owners
     for owner, accounts in sample_accounts():
         assert owner in owners
         assert set(accounts).issubset(owners[owner])

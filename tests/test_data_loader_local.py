@@ -52,4 +52,5 @@ def test_list_local_plots_authenticated(tmp_path, monkeypatch):
     assert owners == [
         {"owner": "alice", "accounts": ["isa"]},
         {"owner": "bob", "accounts": ["gia"]},
+        {"owner": "demo", "accounts": ["demo"]},
     ]

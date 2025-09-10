@@ -51,70 +51,95 @@ export const API_BASE =
   import.meta.env.VITE_API_URL ??
   "http://localhost:8000";
 
-let authToken: string | null = null;
-const TOKEN_STORAGE_KEY = "authToken";
-
-export const setAuthToken = (token: string | null) => {
-  authToken = token;
-  if (token) {
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  } else {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-  }
+export type StorageLike = {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
 };
 
-export const getStoredAuthToken = () => localStorage.getItem(TOKEN_STORAGE_KEY);
+const defaultGetCsrfToken = () =>
+  typeof document === "undefined"
+    ? null
+    : document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("csrftoken="))
+        ?.split("=")[1] || null;
 
-// Extract the CSRF token from cookies if present
-const getCsrfToken = () =>
-  document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("csrftoken="))
-    ?.split("=")[1] || null;
+export function createClient(
+  base: string,
+  token: string | null = null,
+  fetchImpl: typeof fetch = fetch,
+  opts: { getCsrfToken?: () => string | null; storage?: StorageLike } = {},
+) {
+  let authToken = token;
+  const getCsrfToken = opts.getCsrfToken ?? defaultGetCsrfToken;
+  const storage = opts.storage;
+  const TOKEN_STORAGE_KEY = "authToken";
 
-export async function login(idToken: string): Promise<string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const csrf = getCsrfToken();
-  if (csrf) headers["X-CSRFToken"] = csrf;
-  const res = await fetch(`${API_BASE}/token`, {
-    method: "POST",
-    headers,
-    credentials: "include",
-    body: JSON.stringify({ id_token: idToken }),
-  });
-  if (!res.ok) {
-    throw new Error("Login failed");
+  const setAuthToken = (t: string | null) => {
+    authToken = t;
+    if (!storage) return;
+    if (t) storage.setItem(TOKEN_STORAGE_KEY, t);
+    else storage.removeItem(TOKEN_STORAGE_KEY);
+  };
+
+  const getStoredAuthToken = () => storage?.getItem(TOKEN_STORAGE_KEY) ?? null;
+
+  async function login(idToken: string): Promise<string> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const csrf = getCsrfToken();
+    if (csrf) headers["X-CSRFToken"] = csrf;
+    const res = await fetchImpl(`${base}/token`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({ id_token: idToken }),
+    });
+    if (!res.ok) {
+      throw new Error("Login failed");
+    }
+    const data = (await res.json()) as { access_token: string };
+    setAuthToken(data.access_token);
+    return data.access_token;
   }
-  const data = (await res.json()) as { access_token: string };
-  setAuthToken(data.access_token);
-  return data.access_token;
-}
 
-export function logout() {
-  setAuthToken(null);
-  (window as any).google?.accounts.id.disableAutoSelect();
-}
-
-/* ------------------------------------------------------------------ */
-/* Generic fetch helper                                                */
-/* ------------------------------------------------------------------ */
-export async function fetchJson<T>(
-  url: string,
-  init: RequestInit = {},
-): Promise<T> {
-  const headers = new Headers(init.headers);
-  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
-  const csrf = getCsrfToken();
-  if (csrf) headers.set("X-CSRFToken", csrf);
-  const res = await fetch(url, { ...init, headers, credentials: "include" });
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
-    (err as any).status = res.status;
-    (err as any).headers = res.headers;
-    throw err;
+  function logout() {
+    setAuthToken(null);
+    (globalThis as any).google?.accounts?.id?.disableAutoSelect?.();
   }
-  return res.json() as Promise<T>;
+
+  async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+    const headers = new Headers(init.headers);
+    if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+    const csrf = getCsrfToken();
+    if (csrf) headers.set("X-CSRFToken", csrf);
+    const res = await fetchImpl(url, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
+      (err as any).status = res.status;
+      (err as any).headers = res.headers;
+      throw err;
+    }
+    return res.json() as Promise<T>;
+  }
+
+  return { setAuthToken, getStoredAuthToken, login, logout, fetchJson };
 }
+
+const defaultClient = createClient(API_BASE, null, fetch, {
+  getCsrfToken: defaultGetCsrfToken,
+  storage: typeof localStorage === "undefined" ? undefined : localStorage,
+});
+
+export const setAuthToken = defaultClient.setAuthToken;
+export const getStoredAuthToken = defaultClient.getStoredAuthToken;
+export const login = defaultClient.login;
+export const logout = defaultClient.logout;
+export const fetchJson = defaultClient.fetchJson;
 
 /* ------------------------------------------------------------------ */
 /* API wrappers                                                        */

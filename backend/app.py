@@ -26,8 +26,8 @@ from backend.auth import (
     authenticate_user,
     create_access_token,
     get_current_user,
-    verify_google_token,
 )
+import backend.auth as auth
 from backend.common.data_loader import resolve_paths
 from backend.common.portfolio_utils import (
     _load_snapshot,
@@ -263,7 +263,7 @@ def create_app() -> FastAPI:
         if not token:
             raise HTTPException(status_code=400, detail="Missing token")
         try:
-            email = verify_google_token(token)
+            email = auth.verify_google_token(token)
         except HTTPException as exc:
             logger.warning("Google token verification failed: %s", exc.detail)
             raise

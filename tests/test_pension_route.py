@@ -7,7 +7,7 @@ from backend.common.pension import state_pension_age_uk
 def test_pension_route_uses_owner_metadata(monkeypatch):
     captured_owner = []
 
-    def fake_meta(owner: str):
+    def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
         captured_owner.append(owner)
         return {"dob": "1980-01-01"}
 
@@ -29,11 +29,12 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
     body = resp.json()
     assert body["retirement_age"] == expected_age
     assert isinstance(body["current_age"], float)
+    assert body["dob"] == "1980-01-01"
 
 
 def test_pension_route_missing_dob(monkeypatch):
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta", lambda owner: {}
+        "backend.routes.pension.load_person_meta", lambda owner, root=None: {}
     )
     app = create_app()
     with TestClient(app) as client:
@@ -43,7 +44,7 @@ def test_pension_route_missing_dob(monkeypatch):
 
 def test_pension_route_invalid_dob(monkeypatch):
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta", lambda owner: {"dob": "bad"}
+        "backend.routes.pension.load_person_meta", lambda owner, root=None: {"dob": "bad"}
     )
     app = create_app()
     with TestClient(app) as client:

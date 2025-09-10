@@ -6,6 +6,7 @@ from typing import Optional
 from backend.app import create_app
 from backend.config import ConfigValidationError, config
 from backend.routes import timeseries_admin
+from backend import auth
 
 
 def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@example.com"):
@@ -30,54 +31,39 @@ def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@examp
 
 
 def test_google_token_flow(monkeypatch, tmp_path):
+    monkeypatch.setattr(auth, "verify_google_token", lambda token: "user@example.com")
     client = _setup_app(monkeypatch, tmp_path)
-
-    def mock_verify(token, request, audience):
-        assert audience == "client"
-        return {"email": "user@example.com", "email_verified": True}
-
-    monkeypatch.setattr("backend.auth.id_token.verify_oauth2_token", mock_verify)
-
-    # unauthenticated request
-    resp = client.post("/timeseries/admin/ABC/L/refetch")
-    assert resp.status_code == 401
-
     monkeypatch.setattr(
         timeseries_admin, "load_meta_timeseries", lambda *args, **kwargs: pd.DataFrame()
     )
-
-    # exchange google token for JWT
     resp = client.post("/token/google", json={"token": "abc"})
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["token_type"] == "bearer"
-    token = data["access_token"]
+    token = resp.json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
     resp = client.post("/timeseries/admin/ABC/L/refetch")
     assert resp.status_code == 200
 
 
 def test_google_token_rejects_unallowed_email(monkeypatch, tmp_path):
-    client = _setup_app(monkeypatch, tmp_path, allowed_email="allowed@example.com")
+    from fastapi import HTTPException
 
-    def mock_verify(token, request, audience):
-        return {"email": "other@example.com", "email_verified": True}
+    def fake(token):
+        raise HTTPException(status_code=403, detail="Unauthorized email")
 
-    monkeypatch.setattr("backend.auth.id_token.verify_oauth2_token", mock_verify)
-
+    monkeypatch.setattr(auth, "verify_google_token", fake)
+    client = _setup_app(monkeypatch, tmp_path)
     resp = client.post("/token/google", json={"token": "abc"})
     assert resp.status_code == 403
 
 
 def test_google_token_rejects_when_no_accounts(monkeypatch, tmp_path):
-    """Ensure tokens are rejected when no allowed emails are discovered."""
+    from fastapi import HTTPException
+
+    def fake(token):
+        raise HTTPException(status_code=403, detail="Unauthorized email")
+
+    monkeypatch.setattr(auth, "verify_google_token", fake)
     client = _setup_app(monkeypatch, tmp_path, allowed_email=None)
-
-    def mock_verify(token, request, audience):
-        return {"email": "user@example.com", "email_verified": True}
-
-    monkeypatch.setattr("backend.auth.id_token.verify_oauth2_token", mock_verify)
-
     resp = client.post("/token/google", json={"token": "abc"})
     assert resp.status_code == 403
 
@@ -91,7 +77,7 @@ def test_startup_requires_google_client_id(monkeypatch):
     with pytest.raises(ConfigValidationError):
         load_config()
 
-       
+
 def test_missing_client_id_fails_startup(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)

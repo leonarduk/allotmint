@@ -90,9 +90,11 @@ def test_portfolio_group(client, mock_group_portfolio):
 def test_get_account_no_holdings(mock_load_account, client):
     response = client.get("/account/steve/ISA")
     assert response.status_code == 200
-    data = response.json()
-    assert data == {"account": "ISA", "account_type": "ISA"}
-    assert "holdings" not in data
+    assert response.json() == {
+        "account": "ISA",
+        "account_type": "ISA",
+        "holdings": [],
+    }
 
 
 @patch(
@@ -102,9 +104,11 @@ def test_get_account_no_holdings(mock_load_account, client):
 def test_get_account_preserves_type(mock_load_account, client):
     response = client.get("/account/steve/ISA")
     assert response.status_code == 200
-    data = response.json()
-    assert data == {"account": "ISA", "account_type": "test"}
-    assert "holdings" not in data
+    assert response.json() == {
+        "account": "ISA",
+        "account_type": "test",
+        "holdings": [],
+    }
 
 
 @patch(

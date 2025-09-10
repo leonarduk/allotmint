@@ -1,6 +1,0 @@
-<component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="run frontend" type="PowerShellRunType" factoryName="PowerShell" scriptUrl="$PROJECT_DIR$/scripts/run-frontend.ps1" executablePath="powershell.exe">
-    <envs />
-    <method v="2" />
-  </configuration>
-</component>

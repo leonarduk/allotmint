@@ -1021,11 +1021,12 @@ export const getPensionForecast = ({
   statePensionAnnual?: number;
   contributionAnnual?: number;
   desiredIncomeAnnual?: number;
-  investmentGrowthPct?: number;
+  investmentGrowthPct: number;
 }) => {
   const params = new URLSearchParams({
     owner,
     death_age: String(deathAge),
+    investment_growth_pct: String(investmentGrowthPct),
   });
   if (statePensionAnnual !== undefined) {
     params.set("state_pension_annual", String(statePensionAnnual));
@@ -1035,9 +1036,6 @@ export const getPensionForecast = ({
   }
   if (desiredIncomeAnnual !== undefined) {
     params.set("desired_income_annual", String(desiredIncomeAnnual));
-  }
-  if (investmentGrowthPct !== undefined) {
-    params.set("investment_growth_pct", String(investmentGrowthPct));
   }
   return fetchJson<{
     forecast: { age: number; income: number }[];

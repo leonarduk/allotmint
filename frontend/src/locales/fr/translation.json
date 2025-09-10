@@ -163,7 +163,8 @@
   },
   "pensionForecast": {
     "currentAge": "Âge actuel : {{age}}",
-    "retirementAge": "Âge de retraite : {{age}}"
+    "retirementAge": "Âge de retraite : {{age}}",
+    "growthAssumption": "Croissance de l'investissement (%/an):"
   },
   "group": {
     "select": "Sélectionnez un groupe."

@@ -19,6 +19,7 @@ export default function PensionForecast() {
   const [statePension, setStatePension] = useState<string>("");
   const [contribution, setContribution] = useState<string>("");
   const [desiredIncome, setDesiredIncome] = useState<string>("");
+  const [investmentGrowthPct, setInvestmentGrowthPct] = useState(5);
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
   const [currentAge, setCurrentAge] = useState<number | null>(null);
@@ -52,6 +53,7 @@ export default function PensionForecast() {
         desiredIncomeAnnual: desiredIncome
           ? parseFloat(desiredIncome)
           : undefined,
+        investmentGrowthPct,
       });
       setData(res.forecast);
       setProjectedPot(res.projected_pot_gbp);
@@ -101,6 +103,20 @@ export default function PensionForecast() {
             value={desiredIncome}
             onChange={(e) => setDesiredIncome(e.target.value)}
           />
+        </div>
+        <div>
+          <label className="mr-2" htmlFor="growthPct">
+            {t("pensionForecast.growthAssumption")}
+          </label>
+          <select
+            id="growthPct"
+            value={investmentGrowthPct}
+            onChange={(e) => setInvestmentGrowthPct(Number(e.target.value))}
+          >
+            <option value={3}>3%</option>
+            <option value={5}>5%</option>
+            <option value={7}>7%</option>
+          </select>
         </div>
         <button type="submit" className="mt-2 rounded bg-blue-500 px-4 py-2 text-white">
           Forecast

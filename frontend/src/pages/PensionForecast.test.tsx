@@ -55,7 +55,34 @@ describe("PensionForecast page", () => {
 
     await vi.waitFor(() =>
       expect(mockGetPensionForecast).toHaveBeenCalledWith(
-        expect.objectContaining({ owner: "beth" }),
+        expect.objectContaining({ owner: "beth", investmentGrowthPct: 5 }),
+      ),
+    );
+  });
+
+  it("submits chosen growth assumption", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      current_age: 30,
+      retirement_age: 65,
+    });
+
+    const { default: PensionForecast } = await import("./PensionForecast");
+
+    render(<PensionForecast />);
+
+    await screen.findByLabelText(/owner/i);
+    const growth = screen.getByLabelText(/growth/i);
+    fireEvent.change(growth, { target: { value: "7" } });
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    fireEvent.click(btn);
+
+    await vi.waitFor(() =>
+      expect(mockGetPensionForecast).toHaveBeenCalledWith(
+        expect.objectContaining({ investmentGrowthPct: 7 }),
       ),
     );
   });

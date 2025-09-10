@@ -1,3 +1,9 @@
+[project]
+dependencies = [
+    "reportlab>=4.4.3,<4.5",
+]
+
 [tool.pytest.ini_options]
 addopts = "--cov=backend --cov-fail-under=80"
 testpaths = ["tests"]
+

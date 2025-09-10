@@ -1105,7 +1105,9 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             _PRICES_PATH.write_text(json.dumps(snapshot, indent=2))
             logger.info("Wrote %d prices to %s", len(snapshot), _PRICES_PATH)
         else:
-            logger.warning("Price snapshot path not configured; skipping write")
+            logger.info(
+                "Price snapshot path not configured; skipping write (expected when config.prices_json is unset)"
+            )
     except OSError as e:
         logger.warning("Failed to write latest_prices.json: %s", e)
 

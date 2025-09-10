@@ -3,9 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
-import Menu from "../components/Menu";
-import { getInstrumentDetail, getScreener, getNews, getQuotes } from "../api";
-import type { ScreenerResult, InstrumentDetail, NewsItem, QuoteRow } from "../types";
+import { getScreener, getNews, getQuotes } from "../api";
+import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
 import { largeNumber } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 

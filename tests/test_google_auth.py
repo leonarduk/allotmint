@@ -48,7 +48,10 @@ def test_google_token_flow(monkeypatch, tmp_path):
 
     # exchange google token for JWT
     resp = client.post("/token/google", json={"token": "abc"})
-    token = resp.json()["access_token"]
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["token_type"] == "bearer"
+    token = data["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
     resp = client.post("/timeseries/admin/ABC/L/refetch")
     assert resp.status_code == 200

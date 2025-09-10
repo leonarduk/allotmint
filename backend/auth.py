@@ -6,6 +6,7 @@ import logging
 import os
 import secrets
 from contextvars import ContextVar
+from pathlib import Path
 from typing import Optional, Set
 
 import jwt
@@ -106,16 +107,32 @@ def _allowed_emails() -> Set[str]:
                 emails.add(email.lower())
         return emails
 
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    root = paths.accounts_root
-    if root.exists():
-        for owner_dir in root.iterdir():
-            if not owner_dir.is_dir():
-                continue
+    # Determine the accounts root from configuration. Prefer the explicitly
+    # configured path and fall back to the default resolution logic. Relative
+    # paths are resolved against the repository root so ``config.accounts_root``
+    # can be specified as a simple "data/accounts" style path.
+    if config.accounts_root:
+        root = Path(config.accounts_root).expanduser()
+        if not root.is_absolute():
+            paths = resolve_paths(config.repo_root, None)
+            root = (paths.repo_root / root).resolve()
+    else:
+        root = resolve_paths(config.repo_root, None).accounts_root
+
+    if not root.exists():
+        logger.warning("Accounts root %s does not exist", root)
+        return set()
+
+    for owner_dir in root.iterdir():
+        if not owner_dir.is_dir():
+            continue
+        try:
             meta = load_person_meta(owner_dir.name, data_root=root)
-            email = meta.get("email")
-            if email:
-                emails.add(email.lower())
+        except Exception:
+            meta = {}
+        email = meta.get("email")
+        if email:
+            emails.add(email.lower())
     return emails
 
 
@@ -154,27 +171,41 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
 
 def verify_google_token(token: str) -> str:
     try:
-        info = id_token.verify_oauth2_token(token, requests.Request(), config.google_client_id)
+        info = id_token.verify_oauth2_token(
+            token, requests.Request(), config.google_client_id
+        )
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google token") from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google token",
+        ) from exc
 
     if not info.get("email_verified"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not verified")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Email not verified"
+        )
 
     email = info.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Email missing"
+        )
+
     allowed = _allowed_emails()
     if not allowed:
         logger.error("No allowed emails configured; rejecting login attempt")
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email")
-    # Reject tokens whenever the email is missing or not explicitly allowed.
-    if not email or email.lower() not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email"
+        )
+
+    if email.lower() not in allowed:
         logger.warning(
             "Unauthorized login attempt for %s (token %.8s)",
-            email or "unknown",
+            email,
             token[:8],
         )
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Unauthorized email",
+            status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized email"
         )
+
     return email

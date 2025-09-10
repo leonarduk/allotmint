@@ -1,5 +1,6 @@
 import asyncio
 from types import SimpleNamespace
+from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
@@ -67,19 +68,38 @@ def test_verify_google_token_no_allowed(monkeypatch):
     assert exc.value.status_code == 403
 
 
+def test_verify_google_token_missing_email(monkeypatch):
+    monkeypatch.setattr(
+        auth.id_token,
+        "verify_oauth2_token",
+        lambda token, request, client_id: {"email_verified": True},
+    )
+    with pytest.raises(HTTPException) as exc:
+        auth.verify_google_token("token")
+    assert exc.value.status_code == 401
+
+
 def test_allowed_emails_local(monkeypatch, tmp_path):
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir()
+    (accounts_root / "alice").mkdir()
     monkeypatch.setattr(
         auth,
         "resolve_paths",
-        lambda repo_root, accounts_root: SimpleNamespace(accounts_root=tmp_path),
+        lambda repo_root, accounts_root_param: SimpleNamespace(
+            repo_root=tmp_path, accounts_root=accounts_root, virtual_pf_root=None
+        ),
     )
     monkeypatch.setattr(
         auth,
         "config",
-        SimpleNamespace(app_env="local", repo_root=tmp_path, accounts_root=tmp_path),
+        SimpleNamespace(app_env="local", repo_root=tmp_path, accounts_root=Path("accounts")),
     )
-    (tmp_path / "alice").mkdir()
-    monkeypatch.setattr(auth, "load_person_meta", lambda owner, data_root=None: {"email": f"{owner}@example.com"})
+    monkeypatch.setattr(
+        auth,
+        "load_person_meta",
+        lambda owner, data_root=None: {"email": f"{owner}@example.com"},
+    )
     emails = auth._allowed_emails()
     assert "alice@example.com" in emails
 

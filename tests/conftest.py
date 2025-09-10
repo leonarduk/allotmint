@@ -47,7 +47,7 @@ def mock_google_verify(monkeypatch, request):
     if fspath and fspath.basename == "test_google_auth.py":
         # Ensure the real function is restored even if a previous test patched it
         monkeypatch.setattr(auth_module, "verify_google_token", _real_verify_google_token)
-        monkeypatch.setattr(app_module, "verify_google_token", _real_verify_google_token)
+        monkeypatch.setattr(app_module.auth, "verify_google_token", _real_verify_google_token)
         return
 
     from fastapi import HTTPException
@@ -60,7 +60,7 @@ def mock_google_verify(monkeypatch, request):
         raise HTTPException(status_code=401, detail="Invalid token")
 
     monkeypatch.setattr(auth_module, "verify_google_token", fake_verify)
-    monkeypatch.setattr(app_module, "verify_google_token", fake_verify)
+    monkeypatch.setattr(app_module.auth, "verify_google_token", fake_verify)
 
 
 @pytest.fixture

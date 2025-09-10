@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -121,6 +122,27 @@ def test_get_account_with_holdings(mock_load_account, client):
     data = response.json()
     assert data == {"account": "ISA", "account_type": "ISA", "holdings": ["H"]}
     assert "approvals" not in data
+
+
+@patch("backend.common.data_loader.resolve_paths")
+@patch("backend.common.data_loader.load_account")
+def test_get_account_case_insensitive(mock_load_account, mock_resolve, client, tmp_path):
+    (tmp_path / "steve").mkdir()
+    (tmp_path / "steve" / "isa.json").write_text("{}", encoding="utf-8")
+
+    def loader(owner, account):
+        if loader.calls == 0:
+            loader.calls += 1
+            raise FileNotFoundError
+        return {"account": account}
+
+    loader.calls = 0
+    mock_load_account.side_effect = loader
+    mock_resolve.return_value = SimpleNamespace(accounts_root=tmp_path)
+
+    resp = client.get("/account/steve/ISA")
+    assert resp.status_code == 200
+    assert resp.json() == {"account": "isa", "account_type": "isa", "holdings": []}
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})

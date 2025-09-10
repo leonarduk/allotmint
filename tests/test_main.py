@@ -90,7 +90,11 @@ def test_portfolio_group(client, mock_group_portfolio):
 def test_get_account(mock_load_account, client):
     response = client.get("/account/steve/ISA")
     assert response.status_code == 200
-    assert response.json() == {"account": "ISA", "account_type": "ISA"}
+    assert response.json() == {
+        "account": "ISA",
+        "account_type": "ISA",
+        "holdings": [],
+    }
 
 
 @patch(
@@ -100,7 +104,11 @@ def test_get_account(mock_load_account, client):
 def test_get_account_preserves_type(mock_load_account, client):
     response = client.get("/account/steve/ISA")
     assert response.status_code == 200
-    assert response.json() == {"account": "ISA", "account_type": "test"}
+    assert response.json() == {
+        "account": "ISA",
+        "account_type": "test",
+        "holdings": [],
+    }
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})

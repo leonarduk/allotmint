@@ -448,6 +448,7 @@ def test_run_applies_risk_filters(monkeypatch):
     monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
     monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
     monkeypatch.setattr(trading_agent.compliance, "check_trade", lambda trade: {"warnings": []})
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
 
     cfg = trading_agent.config.trading_agent
     monkeypatch.setattr(cfg, "min_sharpe", 1.0)

@@ -109,17 +109,26 @@ export function createClient(
   }
 
   async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+    // Support relative paths by resolving against the provided base URL.
+    let fullUrl = url;
+    try {
+      // Throws for relative paths in Node/undici; succeeds for absolute URLs.
+      // eslint-disable-next-line no-new
+      new URL(url);
+    } catch {
+      fullUrl = url.startsWith("/") ? `${base}${url}` : `${base}/${url}`;
+    }
     const headers = new Headers(init.headers);
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
     const csrf = getCsrfToken();
     if (csrf) headers.set("X-CSRFToken", csrf);
-    const res = await fetchImpl(url, {
+    const res = await fetchImpl(fullUrl, {
       ...init,
       headers,
       credentials: "include",
     });
     if (!res.ok) {
-      const err = new Error(`HTTP ${res.status} – ${res.statusText} (${url})`);
+      const err = new Error(`HTTP ${res.status} - ${res.statusText} (${fullUrl})`);
       (err as any).status = res.status;
       (err as any).headers = res.headers;
       throw err;
@@ -130,7 +139,12 @@ export function createClient(
   return { setAuthToken, getStoredAuthToken, login, logout, fetchJson };
 }
 
-const defaultClient = createClient(API_BASE, null, fetch, {
+// Use a dynamic fetch that resolves to the current global fetch implementation
+// so tests can stub/mutate globalThis.fetch after import time.
+const dynamicFetch: typeof fetch = ((...args: Parameters<typeof fetch>) =>
+  (globalThis.fetch as any)(...args)) as typeof fetch;
+
+const defaultClient = createClient(API_BASE, null, dynamicFetch, {
   getCsrfToken: defaultGetCsrfToken,
   storage: typeof localStorage === "undefined" ? undefined : localStorage,
 });

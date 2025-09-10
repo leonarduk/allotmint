@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,6 +16,7 @@ def client():
 
 # Shared mock data
 mock_owners = [
+    {"owner": "demo", "accounts": ["isa"]},
     {"owner": "alex", "accounts": ["isa", "sipp"]},
     {"owner": "joe", "accounts": ["isa", "sipp"]},
     {"owner": "lucy", "accounts": ["isa", "pension-forecast"]},
@@ -24,7 +26,7 @@ mock_owners = [
 mock_groups = [
     {"slug": "children", "name": "Children", "members": ["alex", "joe"]},
     {"slug": "adults", "name": "Adults", "members": ["lucy", "steve"]},
-    {"slug": "all", "name": "All", "members": ["alex", "joe", "lucy", "steve"]},
+    {"slug": "all", "name": "All", "members": ["alex", "joe", "lucy", "steve", "demo"]},
     {"slug": "testslug", "name": "Test Group", "members": ["testuser"]},
 ]
 
@@ -86,10 +88,14 @@ def test_portfolio_group(client, mock_group_portfolio):
 
 
 @patch("backend.common.data_loader.load_account", return_value={"account": "ISA"})
-def test_get_account(mock_load_account, client):
+def test_get_account_no_holdings(mock_load_account, client):
     response = client.get("/account/steve/ISA")
     assert response.status_code == 200
-    assert response.json() == {"account": "ISA", "account_type": "ISA"}
+    assert response.json() == {
+        "account": "ISA",
+        "account_type": "ISA",
+        "holdings": [],
+    }
 
 
 @patch(
@@ -99,7 +105,44 @@ def test_get_account(mock_load_account, client):
 def test_get_account_preserves_type(mock_load_account, client):
     response = client.get("/account/steve/ISA")
     assert response.status_code == 200
-    assert response.json() == {"account": "ISA", "account_type": "test"}
+    assert response.json() == {
+        "account": "ISA",
+        "account_type": "test",
+        "holdings": [],
+    }
+
+
+@patch(
+    "backend.common.data_loader.load_account",
+    return_value={"account": "ISA", "approvals": ["H"]},
+)
+def test_get_account_with_holdings(mock_load_account, client):
+    response = client.get("/account/steve/ISA")
+    assert response.status_code == 200
+    data = response.json()
+    assert data == {"account": "ISA", "account_type": "ISA", "holdings": ["H"]}
+    assert "approvals" not in data
+
+
+@patch("backend.common.data_loader.resolve_paths")
+@patch("backend.common.data_loader.load_account")
+def test_get_account_case_insensitive(mock_load_account, mock_resolve, client, tmp_path):
+    (tmp_path / "steve").mkdir()
+    (tmp_path / "steve" / "isa.json").write_text("{}", encoding="utf-8")
+
+    def loader(owner, account):
+        if loader.calls == 0:
+            loader.calls += 1
+            raise FileNotFoundError
+        return {"account": account}
+
+    loader.calls = 0
+    mock_load_account.side_effect = loader
+    mock_resolve.return_value = SimpleNamespace(accounts_root=tmp_path)
+
+    resp = client.get("/account/steve/ISA")
+    assert resp.status_code == 200
+    assert resp.json() == {"account": "isa", "account_type": "isa", "holdings": []}
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})

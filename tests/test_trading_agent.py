@@ -99,8 +99,8 @@ def test_send_trade_alert_sns_only(monkeypatch):
 
     monkeypatch.setattr("backend.agent.trading_agent.publish_alert", fake_publish)
     monkeypatch.setattr("backend.agent.trading_agent.send_message", fake_send)
-    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
-    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    monkeypatch.setattr(trading_agent.config, "telegram_bot_token", None)
+    monkeypatch.setattr(trading_agent.config, "telegram_chat_id", None)
 
     send_trade_alert("hello")
 
@@ -118,8 +118,8 @@ def test_send_trade_alert_with_telegram(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg)
     )
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
+    monkeypatch.setattr(trading_agent.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(trading_agent.config, "telegram_chat_id", "C")
 
     send_trade_alert("hi")
 
@@ -140,8 +140,8 @@ def test_send_trade_alert_no_publish_with_telegram(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.send_message", lambda msg: telegram_msgs.append(msg)
     )
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
+    monkeypatch.setattr(trading_agent.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(trading_agent.config, "telegram_chat_id", "C")
 
     send_trade_alert("hi", publish=False)
 
@@ -218,10 +218,8 @@ def test_run_sends_telegram_when_not_aws(monkeypatch):
     monkeypatch.setattr(
         "backend.agent.trading_agent.send_message", lambda msg: sent.append(msg)
     )
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "T")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "C")
-    from backend.agent import trading_agent
-
+    monkeypatch.setattr(trading_agent.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(trading_agent.config, "telegram_chat_id", "C")
     monkeypatch.setattr(trading_agent.config, "app_env", "local")
 
     run()
@@ -450,6 +448,7 @@ def test_run_applies_risk_filters(monkeypatch):
     monkeypatch.setattr(trading_agent, "send_message", lambda msg: None)
     monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
     monkeypatch.setattr(trading_agent.compliance, "check_trade", lambda trade: {"warnings": []})
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
 
     cfg = trading_agent.config.trading_agent
     monkeypatch.setattr(cfg, "min_sharpe", 1.0)
@@ -457,5 +456,21 @@ def test_run_applies_risk_filters(monkeypatch):
 
     signals = trading_agent.run()
     assert signals == []
+
+
+def test_alert_on_drawdown_handles_value_error(monkeypatch):
+    """Ensure ValueError in performance computation doesn't leak."""
+    monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
+
+    def fake_perf(owner: str):
+        raise ValueError("cache gap")
+
+    monkeypatch.setattr(trading_agent, "compute_owner_performance", fake_perf)
+    alerts: list[str] = []
+    monkeypatch.setattr(trading_agent, "send_trade_alert", lambda msg: alerts.append(msg))
+
+    trading_agent._alert_on_drawdown()
+
+    assert alerts == []
 
 

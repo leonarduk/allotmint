@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+import datetime as dt
 
 from backend.common import holding_utils
 
@@ -44,3 +45,16 @@ def test_load_latest_prices_handles_errors(monkeypatch, caplog):
 
     assert prices == {}
     assert "latest price fetch failed" in caplog.text
+
+
+def test_enrich_holding_uses_scaling_override(monkeypatch):
+    def fake_load_meta_timeseries_range(ticker, exchange, start_date, end_date):
+        return pd.DataFrame({"Date": [start_date], "Close": [2000.0]})
+
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load_meta_timeseries_range)
+
+    holding = {"ticker": "ADM.L", "units": 1, "cost_basis_gbp": 100}
+    enriched = holding_utils.enrich_holding(holding, dt.date(2024, 1, 3), {})
+
+    assert enriched["current_price_gbp"] == 200.0
+    assert enriched["gain_pct"] == pytest.approx(100.0)

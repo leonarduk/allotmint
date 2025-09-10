@@ -1,6 +1,17 @@
-import pytest
+import pytest  # needed for fixtures
+from fastapi.testclient import TestClient
 
+from backend.app import create_app
 from backend.common import group_portfolio, instrument_api, portfolio_utils
+
+
+@pytest.fixture
+def client():
+    app = create_app()
+    client = TestClient(app)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
 def test_group_instruments_populates_change_fields(monkeypatch, client):

@@ -65,16 +65,24 @@ def is_stale(page_name: str, ttl: int) -> bool:
     return age > ttl
 
 
-def schedule_refresh(page_name: str, ttl: int, builder: Callable[[], Any]) -> None:
+def schedule_refresh(
+    page_name: str,
+    ttl: int,
+    builder: Callable[[], Any],
+    can_refresh: Callable[[], bool] | None = None,
+) -> None:
     """Ensure a background task keeps ``page_name`` cached every ``ttl`` seconds."""
 
     if page_name in _refresh_tasks:
         return
 
+    if can_refresh is not None and not can_refresh():
+        return
+
     async def _call_builder() -> Any:
         if inspect.iscoroutinefunction(builder):
             return await builder()
-        result = await asyncio.to_thread(builder)
+        result = builder()
         if inspect.isawaitable(result):
             return await result
         return result
@@ -82,10 +90,15 @@ def schedule_refresh(page_name: str, ttl: int, builder: Callable[[], Any]) -> No
     async def _loop() -> None:
         try:
             while True:
+                if can_refresh is not None and not can_refresh():
+                    await asyncio.sleep(ttl)
+                    continue
                 try:
                     data = await _call_builder()
                 except Exception as exc:
-                    if isinstance(exc, asyncio.CancelledError):  # pragma: no cover - defensive
+                    if isinstance(
+                        exc, asyncio.CancelledError
+                    ):  # pragma: no cover - defensive
                         raise
                     logger.exception("Cache refresh failed for %s", page_name)
                     # Immediately retry on failure so the cache can still be

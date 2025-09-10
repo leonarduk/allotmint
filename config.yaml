@@ -1,110 +1,65 @@
-# Application configuration
-
-tabs:
-  movers: true
-  group: true
-  instrument: true
-  owner: true
-  performance: false
-  transactions: false
-  screener: false
-  trading: false
-  timeseries: true
-  watchlist: false
-  instrumentadmin: true
-  dataadmin: true
-  virtual: false
-  support: true
-  reports: true
-  scenario: true
-  profile: true
-
 # File and directory paths
 paths:
-  # Base path for the repository. Default '.'
-  repo_root: .
-  # Base directory containing application data (relative to repo_root by default)
-  data_root: data
-  # Directory containing account files (relative to data_root)
-  accounts_root: accounts
-  # Location for cached price data (relative to data_root)
-  prices_json: prices/latest_prices.json
-  # Cache directory for time series data (relative to data_root)
-  timeseries_cache_base: timeseries
-  # Portfolio XML input file (relative to data_root)
-  portfolio_xml_path: portfolio/investments.xml
-  # Where generated transactions are written (relative to data_root)
-  transactions_output_root: accounts
-  # Logging configuration file
-  log_config: backend/logging.ini
+  repo_root: .                        # Base path for the repository
+  data_root: ../allotmint-data
+  accounts_root: accounts             # Directory containing account files
+  prices_json: prices/latest_prices.json # Location for cached price data
+  timeseries_cache_base: timeseries   # Cache directory for time series data
+  portfolio_xml_path: portfolio/investments.xml # Portfolio XML input file
+  transactions_output_root: accounts  # Where generated transactions are written
+  log_config: backend/logging.ini     # Logging configuration file
 
 auth:
-  # Enable Google sign-in (GOOGLE_AUTH_ENABLED)
-  google_auth_enabled: false
-  # Disable all authentication checks (DISABLE_AUTH) - use only for development
-  disable_auth: true
-  # OAuth client id for Google auth (GOOGLE_CLIENT_ID)
-  google_client_id: ""
+  google_auth_enabled: false          # Enable Google sign-in (GOOGLE_AUTH_ENABLED)
+  disable_auth: true                  # Disable all authentication checks (DISABLE_AUTH) - use only for development
+  google_client_id: ""                # OAuth client id for Google auth (GOOGLE_CLIENT_ID)
+  allowed_emails:                     # Whitelisted emails (ALLOWED_EMAILS)
+    - user@example.com
 
 server:
-  # Runtime environment (APP_ENV)
-  app_env: local
-  # Host interface for the FastAPI server
-  uvicorn_host: 0.0.0.0
-  # Port for the FastAPI server
-  uvicorn_port: 8000
-  # Auto-reload during development
-  reload: true
-  # API request rate limit per client (per minute)
-  rate_limit_per_minute: 60
-  # Cross-origin settings by environment
-  cors:
+  app_env: local                      # Runtime environment (APP_ENV)
+  uvicorn_host: "0.0.0.0"             # Host interface for the FastAPI server
+  uvicorn_port: 8000                  # Port for the FastAPI server
+  reload: true                        # Auto-reload during development
+  rate_limit_per_minute: 6000         # Max API requests per client per minute
+  sns_topic_arn: ''                   # AWS SNS topic for alerts
+  telegram_bot_token: ""              # Telegram bot token (TELEGRAM_BOT_TOKEN)
+  telegram_chat_id: ""               # Telegram chat id (TELEGRAM_CHAT_ID)
+  error_summary: '[object Object]'    # Settings for error summary script
+  cors:                               # Cross-origin settings by environment
     local:
-      # Limit local origins to only the development server ports to reduce exposure
       - http://localhost:3000
       - http://localhost:5173
     production:
       - https://app.allotmint.io
 
 market_data:
-  # Run without external data fetches
-  offline_mode: false
-  # Optional proxy for FX rates
-  fx_proxy_url: ''
-  # Use AlphaVantage for quotes
-  alpha_vantage_enabled: false
-  # Time-to-live for fundamentals cache (seconds)
-  fundamentals_cache_ttl_seconds: 86400
-  # Timeout for Stooq requests (seconds)
-  stooq_timeout: 10
-  # Rate limit for Stooq requests (per minute)
-  stooq_requests_per_minute: 60
+  offline_mode: false                 # Run without external data fetches
+  fx_proxy_url: ''                    # Optional proxy for FX rates
+  alpha_vantage_enabled: false        # Use AlphaVantage for quotes
+  alpha_vantage_key: ""              # AlphaVantage API key (ALPHA_VANTAGE_KEY)
+  fundamentals_cache_ttl_seconds: 86400 # TTL for fundamentals cache (seconds)
+  stooq_timeout: 10                   # Timeout for Stooq requests (seconds)
+  stooq_requests_per_minute: 60       # Rate limit for Stooq requests
+  # Max AlphaVantage news requests per day
+  news_requests_per_day: 25
   # URL template for Financial Times scraping
-  ft_url_template: https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}
-  # User agent string for Selenium requests
-  selenium_user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36
+  ft_url_template: "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
+  # Selenium user agent
+  selenium_user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
   # Run Selenium headless
   selenium_headless: true
 
 trading:
-  # Max trades allowed per month
-  max_trades_per_month: 20
-  # Minimum holding period in days
-  hold_days_min: 30
-  # Risk-free rate used for analytics
-  risk_free_rate: 0.01
-  # Skip warming trading snapshots on startup
-  skip_snapshot_warm: false
-  # Number of days to warm snapshots when enabled
-  snapshot_warm_days: 30
-  # Approval validity period in days
-  approval_valid_days: 2
-  # Exempt security types from approvals
-  approval_exempt_types: ETF
-  # Comma separated tickers exempt from approvals
-  approval_exempt_tickers: ''
-  # Parameters for automated trading agent
-  trading_agent:
+  max_trades_per_month: 20            # Max trades allowed per month
+  hold_days_min: 30                   # Minimum holding period in days
+  risk_free_rate: 0.01                # Risk-free rate used for analytics
+  skip_snapshot_warm: false           # Skip warming trading snapshots on startup
+  snapshot_warm_days: 30              # Number of days to warm snapshots when enabled
+  approval_valid_days: 2              # Approval validity period in days
+  approval_exempt_types: ETF          # Exempt security types from approvals
+  approval_exempt_tickers: ''         # Comma separated tickers exempt from approvals
+  trading_agent:                      # Parameters for automated trading agent
     rsi_buy: 30
     rsi_sell: 70
     ma_short_window: 20
@@ -113,14 +68,12 @@ trading:
     max_volatility: null
 
 ui:
-  # Enable relative performance views
-  relative_view_enabled: false
-  # Default theme: light, dark, or system
-  theme: system
-  # Toggle availability of frontend tabs
-  tabs:
+  relative_view_enabled: false        # Enable relative performance views
+  theme: system                       # Default theme: light, dark, or system
+  tabs:                               # Toggle availability of frontend tabs
     movers: true
     group: true
+    market: true
     instrument: true
     owner: true
     performance: false
@@ -129,9 +82,14 @@ ui:
     trading: false
     timeseries: true
     watchlist: false
+    allocation: true
+    rebalance: true
     instrumentadmin: true
     dataadmin: true
     virtual: false
     support: true
+    settings: true
+    profile: false
+    pension: true
     reports: true
     scenario: true

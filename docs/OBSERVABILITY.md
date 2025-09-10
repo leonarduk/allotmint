@@ -2,7 +2,8 @@
 
 ## Logs
 
-- Backend uses Python's `logging` module. Configuration lives in `logging.ini`.
+- Backend uses Python's `logging` module. The main configuration lives in `backend/logging.ini`.
+- A minimal top-level `logging.ini` only overrides noisy third-party loggers such as `yfinance`.
 - When deployed on AWS Lambda, logs are available in CloudWatch log groups named `/aws/lambda/<FunctionName>`.
 - Local runs print logs to the console.
 
@@ -32,4 +33,20 @@ aws cloudwatch put-metric-alarm \
   --dimensions Name=FunctionName,Value=BackendLambda \
   --evaluation-periods 1 \
   --alarm-actions $SNS_TOPIC_ARN
+```
+
+## Nightly portfolio health check
+
+- Schedule `python scripts/check_portfolio_health.py` to run nightly (cron or
+  AWS EventBridge).
+- Set `DRAWDOWN_THRESHOLD` to the absolute drawdown percentage that should
+  trigger an alert (defaults to 0.2 for 20%).
+- Provide `SLACK_WEBHOOK_URL` to forward alerts to Slack; otherwise alerts are
+  only logged and published via the existing alert pipeline.
+
+Example cron entry:
+
+```cron
+0 2 * * * cd /path/to/allotmint && DRAWDOWN_THRESHOLD=0.25 \
+    python scripts/check_portfolio_health.py >> /var/log/portfolio_health.log 2>&1
 ```

@@ -50,12 +50,29 @@ def test_trading_agent_route(monkeypatch):
 
     monkeypatch.setattr(
         "backend.agent.trading_agent.run",
-        lambda: [{"ticker": "AAA", "action": "BUY", "reason": "x", "extra": 1}],
+        lambda **_: [
+            {
+                "ticker": "AAA",
+                "action": "BUY",
+                "reason": "x",
+                "confidence": 0.8,
+                "rationale": "details",
+                "extra": 1,
+            }
+        ],
     )
     with TestClient(app) as client:
         resp = client.get("/trading-agent/signals")
     assert resp.status_code == 200
-    assert resp.json() == [{"ticker": "AAA", "action": "BUY", "reason": "x"}]
+    assert resp.json() == [
+        {
+            "ticker": "AAA",
+            "action": "BUY",
+            "reason": "x",
+            "confidence": 0.8,
+            "rationale": "details",
+        }
+    ]
 
 
 def test_rebalance_route(monkeypatch):

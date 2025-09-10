@@ -1,6 +1,7 @@
 # AllotMint Frontend
 
 The AllotMint frontend is a React + TypeScript single-page app that visualises family investment data fetched from the backend API.
+The backend API must be running and the `VITE_ALLOTMINT_API_BASE` environment variable configured to its base URL.
 
 ## Interface
 
@@ -13,6 +14,16 @@ The AllotMint frontend is a React + TypeScript single-page app that visualises f
 - `npm run dev` – start the Vite development server.
 - `npm test` – execute the test suite with Vitest and Testing Library.
   Test files should be named `*.test.ts`, `*.test.tsx`, or `*.test.js` to be picked up.
+
+### Smoke test page
+
+For manual diagnostics you can expose a smoke test route that pings key API
+endpoints. Start the dev server with the `VITE_SMOKE_TEST` flag to enable the
+page at `/smoke-test`:
+
+```bash
+VITE_SMOKE_TEST=1 npm run dev
+```
 
 ## Routing
 
@@ -28,6 +39,7 @@ future navigation features ahead of the final release.
 - `/screener` – build and run custom screeners
 - `/watchlist` – manage personal watchlists
 - `/transactions` – view transaction history
+- `/reports` – after selecting an owner, provides CSV/PDF exports
 
 ## Installation
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
@@ -7,6 +8,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, overload
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigValidationError(ValueError):
@@ -44,6 +47,9 @@ class TabsConfig:
     timeseries: bool = True
     watchlist: bool = True
     movers: bool = True
+    market: bool = True
+    allocation: bool = True
+    rebalance: bool = True
     instrumentadmin: bool = True
     group: bool = True
     owner: bool = True
@@ -52,6 +58,7 @@ class TabsConfig:
     support: bool = True
     settings: bool = True
     profile: bool = False
+    pension: bool = True
     reports: bool = True
     scenario: bool = True
     logs: bool = True
@@ -85,7 +92,7 @@ class Config:
     transactions_output_root: Optional[Path] = None
     uvicorn_port: Optional[int] = None
     reload: Optional[bool] = None
-    rate_limit_per_minute: int = 60
+    rate_limit_per_minute: int = 6000
     log_config: Optional[str] = None
     skip_snapshot_warm: Optional[bool] = None
     snapshot_warm_days: Optional[int] = None
@@ -110,6 +117,7 @@ class Config:
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
     stooq_timeout: Optional[int] = None
+    news_requests_per_day: int = 25
 
     # new vars
     max_trades_per_month: Optional[int] = None
@@ -172,8 +180,12 @@ def load_config() -> Config:
                 file_data = yaml.safe_load(f) or {}
                 if isinstance(file_data, dict):
                     _flatten_dict(file_data, data)
-        except Exception:
-            pass
+        except yaml.YAMLError as exc:
+            logger.exception("Failed to parse config file %s", path)
+            raise ConfigValidationError(f"Error parsing config file '{path}': {exc}") from exc
+        except OSError as exc:
+            logger.exception("Failed to read config file %s", path)
+            raise ConfigValidationError(f"Error reading config file '{path}': {exc}") from exc
 
     base_dir = path.parent
 
@@ -187,6 +199,14 @@ def load_config() -> Config:
     disable_auth_env = _env_flag("DISABLE_AUTH")
     if disable_auth_env is not None:
         data["disable_auth"] = disable_auth_env
+
+    telegram_token_env = os.getenv("TELEGRAM_BOT_TOKEN")
+    if telegram_token_env is not None:
+        data["telegram_bot_token"] = telegram_token_env
+
+    telegram_chat_id_env = os.getenv("TELEGRAM_CHAT_ID")
+    if telegram_chat_id_env is not None:
+        data["telegram_chat_id"] = telegram_chat_id_env
 
     repo_root_raw = data.get("repo_root")
     repo_root = (base_dir / repo_root_raw).resolve() if repo_root_raw else base_dir
@@ -205,7 +225,13 @@ def load_config() -> Config:
     prices_json = (data_root / prices_json_raw).resolve() if prices_json_raw else None
 
     ts_cache_raw = data.get("timeseries_cache_base")
-    timeseries_cache_base = str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
+    env_ts_cache = os.getenv("TIMESERIES_CACHE_BASE")
+    if env_ts_cache:
+        timeseries_cache_base = env_ts_cache
+    else:
+        timeseries_cache_base = (
+            str((data_root / ts_cache_raw).resolve()) if ts_cache_raw else None
+        )
 
     portfolio_xml_raw = data.get("portfolio_xml_path")
     portfolio_xml_path = (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None
@@ -257,6 +283,11 @@ def load_config() -> Config:
 
     validate_google_auth(google_auth_enabled, google_client_id)
 
+    # Optional env override for Alpha Vantage API key to avoid committing secrets
+    alpha_key_env = os.getenv("ALPHA_VANTAGE_KEY")
+    if alpha_key_env:
+        data["alpha_vantage_key"] = alpha_key_env
+
     return Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
@@ -285,6 +316,7 @@ def load_config() -> Config:
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
         stooq_timeout=data.get("stooq_timeout"),
+        news_requests_per_day=data.get("news_requests_per_day", 25),
         max_trades_per_month=data.get("max_trades_per_month"),
         hold_days_min=data.get("hold_days_min"),
         repo_root=repo_root,

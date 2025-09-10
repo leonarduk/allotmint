@@ -1,17 +1,21 @@
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
+import * as api from "../api";
+import {
+  useInstrumentHistory,
+  __clearInstrumentHistoryCache,
+} from "./useInstrumentHistory";
 
-vi.mock("../api", () => ({
-  getInstrumentDetail: vi.fn(),
-}));
-import { getInstrumentDetail } from "../api";
-import { useInstrumentHistory } from "./useInstrumentHistory";
+const mockGetInstrumentDetail = vi.spyOn(api, "getInstrumentDetail");
 
-const mockGetInstrumentDetail = getInstrumentDetail as unknown as vi.Mock;
+afterAll(() => {
+  mockGetInstrumentDetail.mockRestore();
+});
 
 describe("useInstrumentHistory", () => {
   beforeEach(() => {
     mockGetInstrumentDetail.mockReset();
+    __clearInstrumentHistoryCache();
   });
 
   it("retries on HTTP 429 responses", async () => {
@@ -37,7 +41,7 @@ describe("useInstrumentHistory", () => {
 
     mockGetInstrumentDetail
       .mockRejectedValueOnce(err)
-      .mockResolvedValueOnce({ mini: { 7: [], 30: [], 180: [] } });
+      .mockResolvedValueOnce({ mini: { 7: [], 30: [], 180: [] }, positions: [] });
 
     const { result } = renderHook(() => useInstrumentHistory("ABC", 7));
 
@@ -56,5 +60,24 @@ describe("useInstrumentHistory", () => {
 
     randSpy.mockRestore();
     vi.useRealTimers();
+  });
+
+  it("caches detail per ticker regardless of day range", async () => {
+    mockGetInstrumentDetail.mockResolvedValue({
+      mini: { 7: [], 30: [], 180: [], 365: [] },
+      positions: [],
+    });
+
+    const { result, rerender } = renderHook(
+      ({ days }) => useInstrumentHistory("ABC", days),
+      { initialProps: { days: 7 } },
+    );
+
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+
+    rerender({ days: 30 });
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
   });
 });

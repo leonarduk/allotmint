@@ -6,7 +6,10 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.common.data_loader import list_plots
 from backend.common.portfolio import build_owner_portfolio
-from backend.utils.scenario_tester import apply_historical_event, apply_price_shock
+from backend.utils.scenario_tester import (
+    apply_historical_event_portfolio as apply_historical_event,
+    apply_price_shock,
+)
 
 router = APIRouter(tags=["scenario"])
 
@@ -76,12 +79,9 @@ def run_historical_scenario(
         horizon_map = {}
         for h, shocked_pf in shocked.items():
             val = shocked_pf.get("total_value_estimate_gbp")
-            pct_change = None
-            if baseline not in (None, 0) and val is not None:
-                pct_change = (val - baseline) / baseline
             horizon_map[h] = {
+                "baseline_total_value_gbp": baseline,
                 "shocked_total_value_gbp": val,
-                "pct_change": pct_change,
             }
 
         results.append(

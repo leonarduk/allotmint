@@ -27,6 +27,6 @@ jobs:
         working-directory: frontend
         run: pnpm install --no-frozen-lockfile
 
-      - name: Run tests
+      - name: Run tests with coverage
         working-directory: frontend
-        run: pnpm test -- --run
+        run: pnpm test -- --run --coverage

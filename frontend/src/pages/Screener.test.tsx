@@ -11,6 +11,7 @@ describe("Screener", () => {
   it("renders new ratio columns", async () => {
     mockGetScreener.mockResolvedValueOnce([
       {
+        rank: 1,
         ticker: "AAA",
         name: "AAA Corp",
         peg_ratio: 1,

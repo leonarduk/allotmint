@@ -85,15 +85,25 @@ def _list_local_plots(
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
             continue
-        # When authentication is enabled and no user is authenticated,
-        # expose only the "demo" account.
-        if not config.disable_auth and current_user is None and owner_dir.name != "demo":
+        # When authentication is enabled (``disable_auth`` is explicitly
+        # ``False``) and no user is authenticated, expose only the "demo"
+        # account.  ``config.disable_auth`` defaults to ``None`` when the
+        # configuration file cannot be loaded, which previously triggered this
+        # condition unintentionally.  Be explicit about the check so that a
+        # missing config behaves the same as auth being disabled.
+        if (
+            config.disable_auth is False
+            and current_user is None
+            and owner_dir.name != "demo"
+        ):
             continue
 
         owner = owner_dir.name
         meta = load_person_meta(owner, root)
         viewers = meta.get("viewers", [])
-        if user and user != owner and user not in viewers:
+        # Always expose the "demo" owner, even if ``current_user`` is not a
+        # listed viewer. For all other owners, enforce viewer permissions.
+        if owner != "demo" and user and user != owner and user not in viewers:
             continue
 
         acct_names: List[str] = []
@@ -184,9 +194,15 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     user = current_user.get(None) if hasattr(current_user, "get") else current_user
     results: List[Dict[str, Any]] = []
     for owner, accounts in sorted(owners.items()):
-        # When authentication is enabled and no user is authenticated,
-        # expose only the "demo" account.
-        if not config.disable_auth and current_user is None and owner != "demo":
+        # When authentication is enabled (``disable_auth`` explicitly ``False``)
+        # and no user is authenticated, expose only the "demo" account.  If the
+        # configuration failed to load ``disable_auth`` will be ``None``;
+        # treating that as "auth disabled" avoids filtering everything.
+        if (
+            config.disable_auth is False
+            and current_user is None
+            and owner != "demo"
+        ):
             continue
         if current_user and current_user != owner:
             meta = load_person_meta(owner)

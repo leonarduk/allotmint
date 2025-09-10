@@ -1,4 +1,5 @@
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from backend import config as config_module
@@ -22,9 +23,13 @@ def test_tabs_defaults_true():
     assert cfg.tabs.support is True
     assert cfg.tabs.movers is True
     assert cfg.tabs.group is True
+    assert cfg.tabs.market is True
     assert cfg.tabs.owner is True
+    assert cfg.tabs.allocation is True
+    assert cfg.tabs.rebalance is True
     assert cfg.tabs.dataadmin is True
     assert cfg.tabs.instrumentadmin is True
+    assert cfg.tabs.pension is True
     assert cfg.tabs.scenario is True
 
 
@@ -36,6 +41,16 @@ def test_theme_loaded():
 def test_stooq_timeout_loaded():
     cfg = config_module.load_config()
     assert cfg.stooq_timeout == 10
+
+
+def test_timeseries_cache_base_env_override(monkeypatch, tmp_path):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    config_module.load_config.cache_clear()
+    cfg = config_module.load_config()
+    assert cfg.timeseries_cache_base == str(tmp_path)
+    monkeypatch.delenv("TIMESERIES_CACHE_BASE")
+    config_module.load_config.cache_clear()
+    config_module.config = config_module.load_config()
 
 
 def test_auth_flags(monkeypatch):
@@ -70,6 +85,18 @@ def test_google_auth_requires_client_id(monkeypatch):
     config_module.config = config_module.load_config()
 
 
+def test_invalid_yaml_raises_config_error(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("invalid: [unclosed\n")
+    monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
+    config_module.load_config.cache_clear()
+    with pytest.raises(ConfigValidationError):
+        config_module.load_config()
+    monkeypatch.undo()
+    config_module.load_config.cache_clear()
+    config_module.config = config_module.load_config()
+
+
 def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("auth:\n  google_auth_enabled: false\n")
@@ -92,3 +119,27 @@ def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
     cfg = config_module.load_config()
     assert cfg.google_auth_enabled is False
     config_module.config = cfg
+
+
+def test_update_config_merges_ui_section(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("tabs:\n  instrument: true\n")
+
+    monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    config_module.load_config.cache_clear()
+    config_module.config = config_module.load_config()
+
+    client = TestClient(create_app())
+
+    resp = client.put("/config", json={"ui": {"tabs": {"instrument": False}}})
+    assert resp.status_code == 200
+
+    data = yaml.safe_load(config_path.read_text())
+    assert "tabs" not in data
+    assert data["ui"]["tabs"]["instrument"] is False
+
+    config_module.load_config.cache_clear()
+    cfg = config_module.load_config()
+    assert cfg.tabs.instrument is False

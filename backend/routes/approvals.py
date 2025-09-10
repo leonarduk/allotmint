@@ -1,5 +1,6 @@
 from datetime import date
 from pathlib import Path
+import json
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -26,6 +27,36 @@ async def get_approvals(owner: str, request: Request):
         {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
     ]
     return {"approvals": entries}
+
+
+@router.post("/{owner}/approval-requests")
+@handle_owner_not_found
+async def post_approval_request(owner: str, request: Request):
+    data = await request.json()
+    ticker = (data.get("ticker") or "").upper()
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker is required")
+    root = Path(request.app.state.accounts_root).resolve()
+    try:
+        owner_dir = (root / owner).resolve()
+        owner_dir.relative_to(root)
+    except Exception:
+        raise_owner_not_found()
+    path = owner_dir / "approval_requests.json"
+    try:
+        raw = json.loads(path.read_text())
+        entries = raw.get("requests") if isinstance(raw, dict) else raw
+        if not isinstance(entries, list):
+            entries = []
+    except Exception:
+        entries = []
+    entry = {"ticker": ticker, "requested_on": date.today().isoformat()}
+    entries.append(entry)
+    try:
+        path.write_text(json.dumps({"requests": entries}, indent=2, sort_keys=True))
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"requests": entries}
 
 
 @router.post("/{owner}/approvals")

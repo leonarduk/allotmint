@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { API_BASE, fetchJson, setAuthToken, login } from "./api";
+import {
+  API_BASE,
+  fetchJson,
+  setAuthToken,
+  login,
+  subscribeNudges,
+  getEvents,
+  runScenario,
+} from "./api";
 
 describe("auth token handling", () => {
   beforeEach(() => {
@@ -44,6 +52,7 @@ describe("login", () => {
     expect(mockFetch).toHaveBeenCalledWith(`${API_BASE}/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ id_token: "good-id-token" }),
     });
   });
@@ -55,5 +64,55 @@ describe("login", () => {
     // @ts-ignore
     global.fetch = mockFetch;
     await expect(login("bad-id-token")).rejects.toThrow("Login failed");
+  });
+});
+
+describe("nudge subscriptions", () => {
+  it("clamps frequency within bounds", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    // @ts-ignore
+    global.fetch = mockFetch;
+    await subscribeNudges("bob", 0);
+    let args = mockFetch.mock.calls[0];
+    expect(args[0]).toBe(`${API_BASE}/nudges/subscribe`);
+    expect(args[1].body).toBe(JSON.stringify({ user: "bob", frequency: 1 }));
+    expect((args[1].headers as Headers).get("Content-Type")).toBe(
+      "application/json",
+    );
+    await subscribeNudges("bob", 40);
+    args = mockFetch.mock.calls[1];
+    expect(args[1].body).toBe(JSON.stringify({ user: "bob", frequency: 30 }));
+  });
+});
+
+describe("scenario APIs", () => {
+  it("fetches events", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+    // @ts-ignore
+    global.fetch = mockFetch;
+    await getEvents();
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${API_BASE}/events`,
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+  });
+
+  it("runs scenario with proper query params", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+    // @ts-ignore
+    global.fetch = mockFetch;
+    await runScenario({ event_id: "e1", horizons: ["1d", "1w"] });
+    const url =
+      `${API_BASE}/scenario/historical?event_id=e1&horizons=1d%2C1w`;
+    expect(mockFetch).toHaveBeenCalledWith(
+      url,
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
   });
 });

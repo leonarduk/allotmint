@@ -80,8 +80,8 @@ def run_historical_scenario(
         for h, shocked_pf in shocked.items():
             val = shocked_pf.get("total_value_estimate_gbp")
             horizon_map[h] = {
-                "baseline": baseline,
-                "shocked": val,
+                "baseline_total_value_gbp": baseline,
+                "shocked_total_value_gbp": val,
             }
 
         results.append(

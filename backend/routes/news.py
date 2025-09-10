@@ -10,7 +10,7 @@ from datetime import date
 from pathlib import Path
 
 import requests
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, Query, HTTPException
 
 from backend.config import config
 from backend.utils import page_cache

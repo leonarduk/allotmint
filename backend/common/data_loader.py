@@ -93,7 +93,9 @@ def _list_local_plots(
         owner = owner_dir.name
         meta = load_person_meta(owner, root)
         viewers = meta.get("viewers", [])
-        if user and user != owner and user not in viewers:
+        # Always expose the "demo" owner, even if ``current_user`` is not a
+        # listed viewer. For all other owners, enforce viewer permissions.
+        if owner != "demo" and user and user != owner and user not in viewers:
             continue
 
         acct_names: List[str] = []

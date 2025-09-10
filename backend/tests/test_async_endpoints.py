@@ -12,7 +12,10 @@ async def test_auth_alerts_portfolio(monkeypatch):
     )
     monkeypatch.setattr(
         "backend.common.data_loader.list_plots",
-        lambda root, current_user=None: [{"owner": "alice", "accounts": ["brokerage"]}],
+        lambda root, current_user=None: [
+            {"owner": "alice", "accounts": ["brokerage"]},
+            {"owner": "demo", "accounts": ["demo"]},
+        ],
     )
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -26,4 +29,5 @@ async def test_auth_alerts_portfolio(monkeypatch):
     assert token
     assert alerts_resp.status_code == 200
     assert owners_resp.status_code == 200
-    assert owners_resp.json()[0]["owner"] == "alice"
+    owners = owners_resp.json()
+    assert any(o["owner"] == "demo" for o in owners)

@@ -114,6 +114,24 @@ def validate_timeseries(prices):
     assert dates == sorted(dates), "Dates are not in ascending order"
 
 
+def _get_owners(client):
+    """Fetch owners and ensure the demo account is present."""
+    resp = client.get("/owners")
+    assert resp.status_code == 200
+    owners = resp.json()
+    assert any(o["owner"] == "demo" for o in owners)
+    return owners
+
+
+def _get_groups(client):
+    """Fetch groups and ensure the demo account is included as a member."""
+    resp = client.get("/groups")
+    assert resp.status_code == 200
+    groups = resp.json()
+    assert any("demo" in g.get("members", []) for g in groups)
+    return groups
+
+
 def test_health(client):
     resp = client.get("/health")
     assert resp.status_code == 200
@@ -123,19 +141,17 @@ def test_health(client):
 
 
 def test_owners(client):
-    resp = client.get("/owners")
-    assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    owners = _get_owners(client)
+    assert isinstance(owners, list)
 
 
 def test_groups(client):
-    resp = client.get("/groups")
-    assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    groups = _get_groups(client)
+    assert isinstance(groups, list)
 
 
 def test_valid_group_portfolio(client):
-    groups = client.get("/groups").json()
+    groups = _get_groups(client)
     assert groups, "No groups found"
     group_slug = groups[0]["slug"]
     resp = client.get(f"/portfolio-group/{group_slug}")
@@ -158,7 +174,7 @@ def test_invalid_group_portfolio(client):
 
 
 def test_valid_portfolio(client):
-    groups = client.get("/groups").json()
+    groups = _get_groups(client)
     assert groups, "No groups found"
     first_name = groups[0]["members"][0]
     resp = client.get(f"/portfolio/{first_name}")
@@ -171,7 +187,7 @@ def test_invalid_portfolio(client):
 
 
 def test_valid_account(client):
-    groups = client.get("/groups").json()
+    groups = _get_groups(client)
     assert groups, "No groups found"
     owner = groups[0]["members"][0]
     portfolio = client.get(f"/portfolio/{owner}").json()
@@ -194,7 +210,7 @@ def test_prices_refresh(client):
 
 
 def test_group_instruments(client):
-    groups = client.get("/groups").json()
+    groups = _get_groups(client)
     slug = groups[0]["slug"]
     resp = client.get(f"/portfolio-group/{slug}/instruments")
     assert resp.status_code == 200
@@ -235,7 +251,7 @@ def _post_sample_tx(client, owner: str, account: str, **overrides):
 
 
 def test_post_transaction_persists_and_updates_portfolio(client):
-    owners = client.get("/owners").json()
+    owners = _get_owners(client)
     assert owners, "No owners returned"
     owner = owners[0]["owner"]
 
@@ -261,7 +277,7 @@ def test_post_transaction_persists_and_updates_portfolio(client):
     ],
 )
 def test_post_transaction_invalid_fields(client, field, value):
-    owners = client.get("/owners").json()
+    owners = _get_owners(client)
     owner = owners[0]["owner"]
     account = client.get(f"/portfolio/{owner}").json()["accounts"][0]["account_type"]
     resp = _post_sample_tx(client, owner, account, **{field: value})
@@ -269,7 +285,7 @@ def test_post_transaction_invalid_fields(client, field, value):
 
 
 def test_post_transaction_missing_reason(client):
-    owners = client.get("/owners").json()
+    owners = _get_owners(client)
     owner = owners[0]["owner"]
     account = client.get(f"/portfolio/{owner}").json()["accounts"][0]["account_type"]
     payload = {
@@ -287,7 +303,7 @@ def test_post_transaction_missing_reason(client):
 
 
 def test_compliance_endpoint(client):
-    owners = client.get("/owners").json()
+    owners = _get_owners(client)
     assert owners, "No owners returned"
     owner = owners[0]["owner"]
     resp = client.get(f"/compliance/{owner}")
@@ -303,7 +319,7 @@ def test_compliance_invalid_owner(client):
 
 
 def test_instrument_detail_valid(client):
-    groups = client.get("/groups").json()
+    groups = _get_groups(client)
     slug = groups[0]["slug"]
     instruments = client.get(f"/portfolio-group/{slug}/instruments").json()
     if not instruments:
@@ -324,7 +340,7 @@ def test_instrument_detail_valid(client):
 
 
 def test_instrument_detail_not_found(client):
-    groups = client.get("/groups").json()
+    groups = _get_groups(client)
     slug = groups[0]["slug"]
     resp = client.get(f"/portfolio-group/{slug}/instrument/FAKETICK")
     assert resp.status_code == 404
@@ -406,7 +422,7 @@ def test_hash_params_helper(monkeypatch):
 def test_var_endpoint_default(client):
     if backend_config.config.offline_mode:
         pytest.skip("VaR endpoint requires data unavailable in offline mode")
-    owners = client.get("/owners").json()
+    owners = _get_owners(client)
     assert owners, "No owners returned"
     owner = owners[0]["owner"]
     resp = client.get(f"/var/{owner}")
@@ -419,7 +435,7 @@ def test_var_endpoint_default(client):
 def test_var_endpoint_params(client, days, confidence):
     if backend_config.config.offline_mode:
         pytest.skip("VaR endpoint requires data unavailable in offline mode")
-    owners = client.get("/owners").json()
+    owners = _get_owners(client)
     assert owners, "No owners returned"
     owner = owners[0]["owner"]
     resp = client.get(f"/var/{owner}?days={days}&confidence={confidence}")

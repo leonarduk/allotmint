@@ -11,8 +11,9 @@ def main() -> None:
     endpoints = []
     for route in app.routes:
         if isinstance(route, APIRoute):
-            for method in route.methods:
+            for method in sorted(route.methods):
                 endpoints.append({"method": method, "path": route.path})
+    endpoints.sort(key=lambda ep: (ep["path"], ep["method"]))
     smoke_ts = pathlib.Path(__file__).resolve().parent / "frontend-backend-smoke.ts"
     content = "// Auto-generated via backend route metadata\n"
     content += "export interface SmokeEndpoint { method: string; path: string; body?: any }\n"

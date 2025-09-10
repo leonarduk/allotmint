@@ -10,11 +10,9 @@ def clear_caches(monkeypatch):
     monkeypatch.setattr(alerts, "_USER_THRESHOLDS", {})
     monkeypatch.setattr(alerts, "_PUSH_SUBSCRIPTIONS", {})
 
-
 def test_parse_thresholds_parses_valid_entries():
     data = {"a": "1.5", "b": 2, "c": 3.0}
     assert alerts._parse_thresholds(data) == {"a": 1.5, "b": 2.0, "c": 3.0}
-
 
 def test_parse_thresholds_discards_invalid_entries():
     data = {"good": "1.5", "bad": "x", "also_bad": None, "num": 2}

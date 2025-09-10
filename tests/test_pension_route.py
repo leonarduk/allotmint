@@ -17,8 +17,18 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
         called.update(kwargs)
         return {"forecast": []}
 
+    def fake_build(owner: str):
+        return {
+            "accounts": [
+                {"account_type": "sipp", "value_estimate_gbp": 100},
+                {"account_type": "isa", "value_estimate_gbp": 50},
+                {"account_type": "sipp", "value_estimate_gbp": 200},
+            ]
+        }
+
     monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
     monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
+    monkeypatch.setattr("backend.routes.pension.build_owner_portfolio", fake_build)
     app = create_app()
     with TestClient(app) as client:
         resp = client.get("/pension/forecast", params={"owner": "alice", "death_age": 90})
@@ -29,6 +39,7 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
     body = resp.json()
     assert body["retirement_age"] == expected_age
     assert isinstance(body["current_age"], float)
+    assert body["pension_pot_gbp"] == 300
 
 
 def test_pension_route_missing_dob(monkeypatch):

@@ -163,7 +163,8 @@
   },
   "pensionForecast": {
     "currentAge": "Âge actuel : {{age}}",
-    "retirementAge": "Âge de retraite : {{age}}"
+    "retirementAge": "Âge de retraite : {{age}}",
+    "pensionPot": "Pot de pension actuel : £{{value}}"
   },
   "group": {
     "select": "Sélectionnez un groupe."

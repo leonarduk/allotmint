@@ -165,7 +165,8 @@
   },
   "pensionForecast": {
     "currentAge": "Current age: {{age}}",
-    "retirementAge": "Retirement age: {{age}}"
+    "retirementAge": "Retirement age: {{age}}",
+    "pensionPot": "Current pension pot: £{{value}}"
   },
   "group": {
     "select": "Select a group."

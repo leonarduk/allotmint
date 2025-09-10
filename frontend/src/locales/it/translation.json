@@ -163,7 +163,8 @@
   },
   "pensionForecast": {
     "currentAge": "Età attuale: {{age}}",
-    "retirementAge": "Età pensionistica: {{age}}"
+    "retirementAge": "Età pensionistica: {{age}}",
+    "pensionPot": "Fondo pensione attuale: £{{value}}"
   },
   "group": {
     "select": "Seleziona un gruppo."

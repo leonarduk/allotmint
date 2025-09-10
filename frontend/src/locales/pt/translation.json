@@ -163,7 +163,8 @@
   },
   "pensionForecast": {
     "currentAge": "Idade atual: {{age}}",
-    "retirementAge": "Idade de aposentadoria: {{age}}"
+    "retirementAge": "Idade de aposentadoria: {{age}}",
+    "pensionPot": "Montante atual da pensão: £{{value}}"
   },
   "group": {
     "select": "Selecione um grupo."

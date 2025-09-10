@@ -19,6 +19,7 @@ describe("PensionForecast page", () => {
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
       projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
       current_age: 30,
       retirement_age: 65,
     });
@@ -39,6 +40,7 @@ describe("PensionForecast page", () => {
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
       projected_pot_gbp: 0,
+      pension_pot_gbp: 5000,
       current_age: 30,
       retirement_age: 65,
     });
@@ -58,6 +60,8 @@ describe("PensionForecast page", () => {
         expect.objectContaining({ owner: "beth" }),
       ),
     );
+
+    await screen.findByText(/Current pension pot: £5000.00/);
   });
 });
 

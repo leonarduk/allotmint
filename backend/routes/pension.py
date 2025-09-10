@@ -6,6 +6,7 @@ from backend.common.pension import (
     forecast_pension,
     state_pension_age_uk,
 )
+from backend.common.portfolio import build_owner_portfolio
 
 router = APIRouter(tags=["pension"])
 
@@ -56,5 +57,21 @@ def pension_forecast(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    result.update({"retirement_age": retirement_age, "current_age": current_age})
+    try:
+        portfolio = build_owner_portfolio(owner)
+        pension_pot = sum(
+            a.get("value_estimate_gbp", 0.0)
+            for a in portfolio.get("accounts", [])
+            if a.get("account_type") == "sipp"
+        )
+    except FileNotFoundError:
+        pension_pot = 0.0
+
+    result.update(
+        {
+            "retirement_age": retirement_age,
+            "current_age": current_age,
+            "pension_pot_gbp": pension_pot,
+        }
+    )
     return result

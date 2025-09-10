@@ -24,32 +24,38 @@ def test_get_current_user_valid():
 
 
 def test_verify_google_token_success(monkeypatch):
-    monkeypatch.setattr(
-        auth.id_token,
-        "verify_oauth2_token",
-        lambda token, request, client_id: {"email": "a@b.com", "email_verified": True},
-    )
+    monkeypatch.setattr(auth.config, "google_client_id", "client")
+
+    def fake_verify(token, request, client_id):
+        assert client_id == "client"
+        return {"email": "a@b.com", "email_verified": True}
+
+    monkeypatch.setattr(auth.id_token, "verify_oauth2_token", fake_verify)
     monkeypatch.setattr(auth, "_allowed_emails", lambda: {"a@b.com"})
     assert auth.verify_google_token("token") == "a@b.com"
 
 
 def test_verify_google_token_unverified(monkeypatch):
-    monkeypatch.setattr(
-        auth.id_token,
-        "verify_oauth2_token",
-        lambda token, request, client_id: {"email": "a@b.com", "email_verified": False},
-    )
+    monkeypatch.setattr(auth.config, "google_client_id", "client")
+
+    def fake_verify(token, request, client_id):
+        assert client_id == "client"
+        return {"email": "a@b.com", "email_verified": False}
+
+    monkeypatch.setattr(auth.id_token, "verify_oauth2_token", fake_verify)
     with pytest.raises(HTTPException) as exc:
         auth.verify_google_token("token")
     assert exc.value.status_code == 401
 
 
 def test_verify_google_token_unauthorized(monkeypatch):
-    monkeypatch.setattr(
-        auth.id_token,
-        "verify_oauth2_token",
-        lambda token, request, client_id: {"email": "c@d.com", "email_verified": True},
-    )
+    monkeypatch.setattr(auth.config, "google_client_id", "client")
+
+    def fake_verify(token, request, client_id):
+        assert client_id == "client"
+        return {"email": "c@d.com", "email_verified": True}
+
+    monkeypatch.setattr(auth.id_token, "verify_oauth2_token", fake_verify)
     monkeypatch.setattr(auth, "_allowed_emails", lambda: {"a@b.com"})
     with pytest.raises(HTTPException) as exc:
         auth.verify_google_token("token")
@@ -57,11 +63,13 @@ def test_verify_google_token_unauthorized(monkeypatch):
 
 
 def test_verify_google_token_no_allowed(monkeypatch):
-    monkeypatch.setattr(
-        auth.id_token,
-        "verify_oauth2_token",
-        lambda token, request, client_id: {"email": "a@b.com", "email_verified": True},
-    )
+    monkeypatch.setattr(auth.config, "google_client_id", "client")
+
+    def fake_verify(token, request, client_id):
+        assert client_id == "client"
+        return {"email": "a@b.com", "email_verified": True}
+
+    monkeypatch.setattr(auth.id_token, "verify_oauth2_token", fake_verify)
     monkeypatch.setattr(auth, "_allowed_emails", lambda: set())
     with pytest.raises(HTTPException) as exc:
         auth.verify_google_token("token")
@@ -69,14 +77,41 @@ def test_verify_google_token_no_allowed(monkeypatch):
 
 
 def test_verify_google_token_missing_email(monkeypatch):
-    monkeypatch.setattr(
-        auth.id_token,
-        "verify_oauth2_token",
-        lambda token, request, client_id: {"email_verified": True},
-    )
+    monkeypatch.setattr(auth.config, "google_client_id", "client")
+
+    def fake_verify(token, request, client_id):
+        assert client_id == "client"
+        return {"email_verified": True}
+
+    monkeypatch.setattr(auth.id_token, "verify_oauth2_token", fake_verify)
     with pytest.raises(HTTPException) as exc:
         auth.verify_google_token("token")
     assert exc.value.status_code == 401
+
+
+def test_verify_google_token_invalid_token(monkeypatch):
+    monkeypatch.setattr(auth.config, "google_client_id", "client")
+
+    def fake_verify(token, request, client_id):
+        assert client_id == "client"
+        raise ValueError("bad token")
+
+    monkeypatch.setattr(auth.id_token, "verify_oauth2_token", fake_verify)
+    with pytest.raises(HTTPException) as exc:
+        auth.verify_google_token("token")
+    assert exc.value.status_code == 401
+
+
+def test_verify_google_token_missing_client_id(monkeypatch):
+    monkeypatch.setattr(auth.config, "google_client_id", None)
+
+    def fake_verify(*args, **kwargs):  # should not be called
+        raise AssertionError("verify_oauth2_token should not be called")
+
+    monkeypatch.setattr(auth.id_token, "verify_oauth2_token", fake_verify)
+    with pytest.raises(HTTPException) as exc:
+        auth.verify_google_token("token")
+    assert exc.value.status_code == 400
 
 
 def test_allowed_emails_local(monkeypatch, tmp_path):

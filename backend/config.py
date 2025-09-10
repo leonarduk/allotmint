@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
@@ -7,6 +8,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, overload
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigValidationError(ValueError):
@@ -17,9 +20,7 @@ def validate_google_auth(enabled: Optional[bool], client_id: Optional[str]) -> N
     """Ensure Google auth is configured correctly."""
     if enabled:
         if not client_id or not client_id.strip():
-            raise ConfigValidationError(
-                "google_auth_enabled is true but google_client_id is missing"
-            )
+            raise ConfigValidationError("google_auth_enabled is true but google_client_id is missing")
 
 
 def validate_tabs(tabs_raw: Any) -> TabsConfig:
@@ -179,8 +180,12 @@ def load_config() -> Config:
                 file_data = yaml.safe_load(f) or {}
                 if isinstance(file_data, dict):
                     _flatten_dict(file_data, data)
-        except Exception:
-            pass
+        except yaml.YAMLError as exc:
+            logger.exception("Failed to parse config file %s", path)
+            raise ConfigValidationError(f"Error parsing config file '{path}': {exc}") from exc
+        except OSError as exc:
+            logger.exception("Failed to read config file %s", path)
+            raise ConfigValidationError(f"Error reading config file '{path}': {exc}") from exc
 
     base_dir = path.parent
 
@@ -211,14 +216,10 @@ def load_config() -> Config:
     if env_data_root:
         data_root_raw = env_data_root
     data_root_path = Path(data_root_raw)
-    data_root = (
-        data_root_path if data_root_path.is_absolute() else (repo_root / data_root_path)
-    ).resolve()
+    data_root = (data_root_path if data_root_path.is_absolute() else (repo_root / data_root_path)).resolve()
 
     accounts_root_raw = data.get("accounts_root")
-    accounts_root = (
-        (data_root / accounts_root_raw).resolve() if accounts_root_raw else None
-    )
+    accounts_root = (data_root / accounts_root_raw).resolve() if accounts_root_raw else None
 
     prices_json_raw = data.get("prices_json")
     prices_json = (data_root / prices_json_raw).resolve() if prices_json_raw else None
@@ -233,14 +234,10 @@ def load_config() -> Config:
         )
 
     portfolio_xml_raw = data.get("portfolio_xml_path")
-    portfolio_xml_path = (
-        (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None
-    )
+    portfolio_xml_path = (data_root / portfolio_xml_raw).resolve() if portfolio_xml_raw else None
 
     tx_output_raw = data.get("transactions_output_root")
-    transactions_output_root = (
-        (data_root / tx_output_raw).resolve() if tx_output_raw else None
-    )
+    transactions_output_root = (data_root / tx_output_raw).resolve() if tx_output_raw else None
 
     tabs_raw = data.get("tabs")
     tabs = validate_tabs(tabs_raw)

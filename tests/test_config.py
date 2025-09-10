@@ -85,6 +85,18 @@ def test_google_auth_requires_client_id(monkeypatch):
     config_module.config = config_module.load_config()
 
 
+def test_invalid_yaml_raises_config_error(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("invalid: [unclosed\n")
+    monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
+    config_module.load_config.cache_clear()
+    with pytest.raises(ConfigValidationError):
+        config_module.load_config()
+    monkeypatch.undo()
+    config_module.load_config.cache_clear()
+    config_module.config = config_module.load_config()
+
+
 def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("auth:\n  google_auth_enabled: false\n")

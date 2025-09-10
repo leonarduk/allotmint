@@ -4,7 +4,8 @@
   "devDependencies": {
     "@capacitor/cli": "^5.7.0",
     "concurrently": "^9.2.0",
-    "postcss": "^8.5.6"
+    "postcss": "^8.5.6",
+    "tsx": "^4.20.5"
   },
   "dependencies": {
     "@capacitor/android": "^5.7.0",
@@ -23,6 +24,7 @@
     "deploy:local:both": "bash scripts/deploy-local.sh -t both",
     "deploy:local:frontend:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target frontend",
     "deploy:local:backend:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target backend",
-    "deploy:local:both:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target both"
+    "deploy:local:both:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target both",
+    "smoke:test": "tsx scripts/frontend-backend-smoke.ts"
   }
 }

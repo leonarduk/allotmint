@@ -76,6 +76,8 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
     ): {"__form__": {"provider": "test", "file": "__file__"}},
 }
 
+MANUAL_QUERIES: dict[tuple[str, str], dict[str, str]] = {}
+
 
 def main() -> None:
     app = create_app()
@@ -91,12 +93,27 @@ def main() -> None:
                     body_field = getattr(route, "body_field", None)
                     if body_field and body_field.required:
                         ep["body"] = _example_for_type(body_field.type_)
+                query_override = MANUAL_QUERIES.get((method, route.path))
+                if query_override is not None:
+                    ep["query"] = query_override
+                else:
+                    params: dict[str, str] = {}
+                    for param in route.dependant.query_params:
+                        if param.required:
+                            ann = getattr(param, "annotation", None) or getattr(
+                                param, "outer_type_", None
+                            ) or param.type_
+                            params[param.name] = str(_example_for_type(ann))
+                    if params:
+                        ep["query"] = params
                 endpoints.append(ep)
     endpoints.sort(key=lambda ep: (ep["path"], ep["method"]))
 
     smoke_ts = pathlib.Path(__file__).resolve().parent / "frontend-backend-smoke.ts"
     content = "// Auto-generated via backend route metadata\n"
-    content += "export interface SmokeEndpoint { method: string; path: string; body?: any }\n"
+    content += (
+        "export interface SmokeEndpoint { method: string; path: string; query?: Record<string, string>; body?: any }\n"
+    )
     content += (
         "export const smokeEndpoints: SmokeEndpoint[] = "
         + json.dumps(endpoints, indent=2)
@@ -132,7 +149,8 @@ def main() -> None:
         "}\n"
         "\nexport async function runSmoke(base: string) {\n"
         "  for (const ep of smokeEndpoints) {\n"
-        "    const url = base + fillPath(ep.path);\n"
+        "    let url = base + fillPath(ep.path);\n"
+        "    if (ep.query) url += '?' + new URLSearchParams(ep.query).toString();\n"
         "    let body: any = undefined;\n"
         "    let headers: any = undefined;\n"
         "    if (ep.body !== undefined) {\n"

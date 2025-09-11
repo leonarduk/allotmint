@@ -61,6 +61,22 @@ def _example_for_type(typ: Any) -> Any:
     return {}
 
 
+MANUAL_BODIES: dict[tuple[str, str], Any] = {
+    ("POST", "/accounts/{owner}/approval-requests"): {"ticker": "AAPL"},
+    ("POST", "/accounts/{owner}/approvals"): {
+        "ticker": "AAPL",
+        "approved_on": "1970-01-01",
+    },
+    ("DELETE", "/accounts/{owner}/approvals"): {"ticker": "AAPL"},
+    ("POST", "/compliance/validate"): {"owner": "demo-owner"},
+    ("POST", "/user-config/{owner}"): {},
+    (
+        "POST",
+        "/transactions/import",
+    ): {"__form__": {"provider": "test", "file": "__file__"}},
+}
+
+
 def main() -> None:
     app = create_app()
     endpoints = []
@@ -68,15 +84,31 @@ def main() -> None:
         if isinstance(route, APIRoute):
             for method in sorted(route.methods):
                 ep: dict[str, Any] = {"method": method, "path": route.path}
-                body_field = getattr(route, "body_field", None)
-                if body_field and body_field.required:
-                    ep["body"] = _example_for_type(body_field.type_)
+                override = MANUAL_BODIES.get((method, route.path))
+                if override is not None:
+                    ep["body"] = override
+                else:
+                    body_field = getattr(route, "body_field", None)
+                    if body_field and body_field.required:
+                        ep["body"] = _example_for_type(body_field.type_)
+
+                query_params: dict[str, str] = {}
+                for param in route.dependant.query_params:
+                    if param.required:
+                        query_params[param.name] = str(
+                            _example_for_type(param.type_)
+                        )
+                if query_params:
+                    ep["query"] = query_params
+
                 endpoints.append(ep)
     endpoints.sort(key=lambda ep: (ep["path"], ep["method"]))
 
     smoke_ts = pathlib.Path(__file__).resolve().parent / "frontend-backend-smoke.ts"
     content = "// Auto-generated via backend route metadata\n"
-    content += "export interface SmokeEndpoint { method: string; path: string; body?: any }\n"
+    content += (
+        "export interface SmokeEndpoint { method: string; path: string; body?: any; query?: Record<string, string> }\n"
+    )
     content += (
         "export const smokeEndpoints: SmokeEndpoint[] = "
         + json.dumps(endpoints, indent=2)
@@ -112,11 +144,18 @@ def main() -> None:
         "}\n"
         "\nexport async function runSmoke(base: string) {\n"
         "  for (const ep of smokeEndpoints) {\n"
-        "    const url = base + fillPath(ep.path);\n"
+        "    const qs = ep.query ? '?' + new URLSearchParams(ep.query).toString() : '';\n"
+        "    const url = base + fillPath(ep.path) + qs;\n"
         "    let body: any = undefined;\n"
         "    let headers: any = undefined;\n"
         "    if (ep.body !== undefined) {\n"
-        "      if (ep.body instanceof FormData) {\n"
+        "      if ((ep.body as any).__form__) {\n"
+        "        const fd = new FormData();\n"
+        "        for (const [k, v] of Object.entries((ep.body as any).__form__)) {\n"
+        "          fd.set(k, v === '__file__' ? new Blob(['test']) : (v as any));\n"
+        "        }\n"
+        "        body = fd;\n"
+        "      } else if (ep.body instanceof FormData) {\n"
         "        body = ep.body;\n"
         "      } else {\n"
         "        body = JSON.stringify(ep.body);\n"

@@ -78,7 +78,7 @@ function renderWithI18n(ui: ReactElement) {
 describe("Screener & Query page", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/");
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     runCustomQuery.mockResolvedValue([]);
     getScreener.mockResolvedValue([]);
   });

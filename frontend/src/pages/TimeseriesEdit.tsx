@@ -98,9 +98,10 @@ export function TimeseriesEdit() {
   async function handleLoad() {
     setError(null);
     try {
-      const data = (await getTimeseries(ticker, exchange)) || [];
-      setRows(data);
-      setStatus(t("timeseriesEdit.status.loaded", { count: data.length }));
+      const data = (await getTimeseries(ticker, exchange)) ?? [];
+      const arr = Array.isArray(data) ? data : [];
+      setRows(arr);
+      setStatus(t("timeseriesEdit.status.loaded", { count: arr.length }));
     } catch (e) {
       setError(String(e));
     }
@@ -195,7 +196,7 @@ export function TimeseriesEdit() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {(Array.isArray(rows) ? rows : []).map((row, i) => (
               <tr key={i}>
                 <td>
                   <input

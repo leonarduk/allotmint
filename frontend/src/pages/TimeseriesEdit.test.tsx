@@ -9,7 +9,7 @@ import { TimeseriesEdit } from "./TimeseriesEdit";
 import { getTimeseries, saveTimeseries, searchInstruments } from "../api";
 
 vi.mock("../api", () => ({
-  getTimeseries: vi.fn(),
+  getTimeseries: vi.fn().mockResolvedValue([]),
   saveTimeseries: vi.fn().mockResolvedValue({ status: "ok", rows: 1 }),
   searchInstruments: vi.fn().mockResolvedValue([]),
 }));

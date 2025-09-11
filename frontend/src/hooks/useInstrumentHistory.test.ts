@@ -30,11 +30,14 @@ describe('useInstrumentHistory', () => {
     vi.useRealTimers();
   });
 
-  it('retries on HTTP 429 responses', async () => {
+  it('retries on HTTP 429 responses and succeeds', async () => {
     vi.useFakeTimers();
-    mockGetInstrumentDetail.mockRejectedValue(
-      new Error('HTTP 429 – Too Many Requests')
-    );
+    mockGetInstrumentDetail
+      .mockRejectedValueOnce(new Error('HTTP 429 – Too Many Requests'))
+      .mockResolvedValueOnce({
+        mini: { 7: [], 30: [], 180: [] },
+        positions: [],
+      });
 
     const { result } = renderHook(() => useInstrumentHistory('ABC', 7));
 
@@ -44,10 +47,9 @@ describe('useInstrumentHistory', () => {
       await vi.runAllTimersAsync();
     });
 
-    await waitFor(() =>
-      expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(3)
-    );
-    expect(result.current.error).toBeTruthy();
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBeNull();
+    expect(result.current.data).not.toBeNull();
   });
 
   it('uses Retry-After header for backoff', async () => {

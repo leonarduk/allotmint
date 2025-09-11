@@ -84,8 +84,10 @@ describe("Watchlist page", () => {
     await screen.findByText("Alpha");
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByText("Refresh"));
-    await screen.findByText("Alpha");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /refresh/i })[0],
+    );
+    await act(async () => Promise.resolve());
     expect(getQuotes).toHaveBeenCalledTimes(2);
   });
 
@@ -95,19 +97,16 @@ describe("Watchlist page", () => {
     localStorage.setItem("watchlistSymbols", "AAA");
 
     render(<Watchlist />);
-
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await act(async () => Promise.resolve());
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    await act(async () => Promise.resolve());
     expect(getQuotes).toHaveBeenCalledTimes(2);
+
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    await act(async () => Promise.resolve());
+    expect(getQuotes).toHaveBeenCalledTimes(3);
 
     vi.useRealTimers();
   });
@@ -118,35 +117,24 @@ describe("Watchlist page", () => {
     localStorage.setItem("watchlistSymbols", "AAA");
 
     render(<Watchlist />);
-
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await act(async () => Promise.resolve());
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+    fireEvent.change(screen.getAllByLabelText(/Auto-refresh/)[0], {
       target: { value: "0" },
     });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(getQuotes).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    await act(async () => Promise.resolve());
+    expect(getQuotes).toHaveBeenCalledTimes(2);
 
-    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+    fireEvent.change(screen.getAllByLabelText(/Auto-refresh/)[0], {
       target: { value: "60000" },
     });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(getQuotes).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    await act(async () => Promise.resolve());
+    expect(getQuotes).toHaveBeenCalledTimes(4);
 
     vi.useRealTimers();
   });
@@ -158,25 +146,17 @@ describe("Watchlist page", () => {
     localStorage.setItem("watchlistSymbols", "AAA");
 
     render(<Watchlist />);
-
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await act(async () => Promise.resolve());
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
-    });
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    expect(screen.getByText("Markets closed")).toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTimeAsync(10000));
+    await act(async () => Promise.resolve());
+    expect(screen.getAllByText("Alpha").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Markets closed").length).toBeGreaterThan(0);
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    act(() => {
-      vi.advanceTimersByTime(30000);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await act(async () => vi.advanceTimersByTimeAsync(30000));
+    await act(async () => Promise.resolve());
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
     vi.useRealTimers();

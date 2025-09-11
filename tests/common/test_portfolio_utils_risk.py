@@ -21,18 +21,18 @@ def test_compute_var_missing_or_empty_close(df):
     assert pu.compute_var(df) is None
 
 
-def test_fx_to_gbp_fetch_exception(monkeypatch):
+def test_fx_to_base_fetch_exception(monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError("fail")
 
     monkeypatch.setattr(pu, "fetch_fx_rate_range", boom)
     cache: dict[str, float] = {}
-    rate = pu._fx_to_gbp("USD", cache)
+    rate = pu._fx_to_base("USD", "GBP", cache)
     assert rate == 1.0
     assert cache["USD"] == 1.0
 
 
-def test_fx_to_gbp_rate_cached(monkeypatch):
+def test_fx_to_base_rate_cached(monkeypatch):
     calls = {"n": 0}
 
     def fake_fetch(currency, start, end):
@@ -41,8 +41,8 @@ def test_fx_to_gbp_rate_cached(monkeypatch):
 
     cache: dict[str, float] = {}
     monkeypatch.setattr(pu, "fetch_fx_rate_range", fake_fetch)
-    first = pu._fx_to_gbp("USD", cache)
-    second = pu._fx_to_gbp("usd", cache)
+    first = pu._fx_to_base("USD", "GBP", cache)
+    second = pu._fx_to_base("usd", "GBP", cache)
     assert first == second == 1.2
     assert calls["n"] == 1
     assert cache["USD"] == 1.2

@@ -1,11 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { axe } from 'jest-axe';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import Alerts from './Alerts';
 import * as api from '../api';
 
 vi.mock('../api');
 const mockGetAlerts = vi.mocked(api.getAlerts);
+expect.extend(toHaveNoViolations);
 
 describe('Alerts page', () => {
   it('renders alerts and has no accessibility violations', async () => {

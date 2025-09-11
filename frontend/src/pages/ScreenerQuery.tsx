@@ -58,9 +58,12 @@ function QuerySection() {
     }
   }, []);
 
-  const columns = rows.length ? (Object.keys(rows[0]) as (keyof ResultRow)[]) : [];
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const columns = safeRows.length
+    ? (Object.keys(safeRows[0]) as (keyof ResultRow)[])
+    : [];
   const { sorted, handleSort } = useSortableTable<ResultRow>(
-    rows,
+    safeRows,
     (columns[0] as keyof ResultRow) || ("owner" as keyof ResultRow),
   );
 
@@ -227,7 +230,7 @@ function QuerySection() {
         <button type="button" onClick={handleCopyLink} className="mr-2">
           {t("query.copyLink")}
         </button>
-        {rows.length > 0 && (
+        {safeRows.length > 0 && (
           <span>
             <a href={buildExportUrl("csv")}>{t("query.exportCsv")}</a>{" | "}
             <a href={buildExportUrl("xlsx")}>{t("query.exportXlsx")}</a>
@@ -235,7 +238,7 @@ function QuerySection() {
         )}
       </form>
       {error && <p className="text-red-500">{error}</p>}
-      {rows.length > 0 && (
+      {safeRows.length > 0 && (
         <table className="w-full border-collapse">
           <thead>
             <tr>

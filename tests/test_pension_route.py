@@ -7,7 +7,7 @@ from backend.common.pension import state_pension_age_uk
 def test_pension_route_uses_owner_metadata(monkeypatch):
     captured_owner = []
 
-    def fake_meta(owner: str):
+    def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
         captured_owner.append(owner)
         return {"dob": "1980-01-01"}
 
@@ -17,11 +17,25 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
         called.update(kwargs)
         return {"forecast": []}
 
+    def fake_portfolio(owner: str, root=None):  # pragma: no cover - signature match
+        return {
+            "accounts": [
+                {"account_type": "sipp", "value_estimate_gbp": 100},
+                {"account_type": "isa", "value_estimate_gbp": 200},
+                {"account_type": "SIPP", "value_estimate_gbp": 50},
+            ]
+        }
+
     monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
     monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio", fake_portfolio
+    )
     app = create_app()
     with TestClient(app) as client:
-        resp = client.get("/pension/forecast", params={"owner": "alice", "death_age": 90})
+        resp = client.get(
+            "/pension/forecast", params={"owner": "alice", "death_age": 90}
+        )
     assert resp.status_code == 200
     assert captured_owner == ["alice"]
     expected_age = state_pension_age_uk("1980-01-01")
@@ -29,11 +43,13 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
     body = resp.json()
     assert body["retirement_age"] == expected_age
     assert isinstance(body["current_age"], float)
+    assert body["dob"] == "1980-01-01"
+    assert body["pension_pot_gbp"] == 150
 
 
 def test_pension_route_missing_dob(monkeypatch):
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta", lambda owner: {}
+        "backend.routes.pension.load_person_meta", lambda owner, root=None: {}
     )
     app = create_app()
     with TestClient(app) as client:
@@ -43,9 +59,39 @@ def test_pension_route_missing_dob(monkeypatch):
 
 def test_pension_route_invalid_dob(monkeypatch):
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta", lambda owner: {"dob": "bad"}
+        "backend.routes.pension.load_person_meta", lambda owner, root=None: {"dob": "bad"}
     )
     app = create_app()
     with TestClient(app) as client:
         resp = client.get("/pension/forecast", params={"owner": "bob", "death_age": 90})
     assert resp.status_code == 400
+
+
+def test_pension_route_prefers_monthly_over_annual(monkeypatch):
+    called = {}
+
+    def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
+        return {"dob": "1980-01-01"}
+
+    def fake_forecast(**kwargs):
+        called.update(kwargs)
+        return {"forecast": []}
+
+    monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
+    monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio", lambda o, root=None: {"accounts": []}
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get(
+            "/pension/forecast",
+            params={
+                "owner": "alice",
+                "death_age": 90,
+                "contribution_annual": 1000,
+                "contribution_monthly": 100,
+            },
+        )
+    assert resp.status_code == 200
+    assert called.get("contribution_annual") == 1200

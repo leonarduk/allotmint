@@ -57,20 +57,23 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
 
 def _transaction_roots() -> Iterable[str]:
     if config.app_env == "aws":
-        yield "transactions"
+        yield Path("transactions").as_posix()
         return
+
     roots: List[str] = []
     if config.transactions_output_root:
-        roots.append(str(config.transactions_output_root))
+        roots.append(Path(config.transactions_output_root).as_posix())
     if config.accounts_root:
-        roots.append(str(config.accounts_root))
-    roots.append(str(config.data_root / "transactions"))
-    seen = set()
+        roots.append(Path(config.accounts_root).as_posix())
+    roots.append((config.data_root / "transactions").as_posix())
+
+    seen: set[str] = set()
     for r in roots:
         path = Path(r)
-        if r not in seen and path.exists():
-            seen.add(r)
-            yield r
+        posix = path.as_posix()
+        if posix not in seen and path.exists():
+            seen.add(posix)
+            yield posix
 
 
 def _load_transactions(owner: str) -> List[dict]:

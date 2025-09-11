@@ -163,7 +163,11 @@
   },
   "pensionForecast": {
     "currentAge": "Aktuelles Alter: {{age}}",
-    "retirementAge": "Renteneintrittsalter: {{age}}"
+    "birthDate": "Geburtsdatum: {{dob}}",
+    "retirementAge": "Renteneintrittsalter: {{age}}",
+    "pensionPot": "Pensionsvermögen",
+    "growthAssumption": "Wachstumsannahme (%):",
+    "monthlyContribution": "Monatlicher Beitrag (£):"
   },
   "group": {
     "select": "Wählen Sie eine Gruppe."

@@ -7,7 +7,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/accounts/{owner}/approval-requests"
+    "path": "/accounts/{owner}/approval-requests",
+    "body": { "ticker": "TEST" }
   },
   {
     "method": "DELETE",
@@ -19,7 +20,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/accounts/{owner}/approvals"
+    "path": "/accounts/{owner}/approvals",
+    "body": { "ticker": "TEST", "approved_on": "2020-01-01" }
   },
   {
     "method": "GET",
@@ -31,7 +33,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/alert-thresholds/{user}"
+    "path": "/alert-thresholds/{user}",
+    "body": { "threshold": 1 }
   },
   {
     "method": "GET",
@@ -43,7 +46,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/alerts/push-subscription/{user}"
+    "path": "/alerts/push-subscription/{user}",
+    "body": { "endpoint": "test", "keys": {} }
   },
   {
     "method": "GET",
@@ -51,7 +55,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/alerts/settings/{user}"
+    "path": "/alerts/settings/{user}",
+    "body": { "threshold": 1 }
   },
   {
     "method": "GET",
@@ -59,7 +64,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/compliance/validate"
+    "path": "/compliance/validate",
+    "body": { "owner": "test" }
   },
   {
     "method": "GET",
@@ -71,11 +77,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "PUT",
-    "path": "/config"
+    "path": "/config",
+    "body": {}
   },
   {
     "method": "POST",
-    "path": "/custom-query/run"
+    "path": "/custom-query/run",
+    "body": { "start": "2020-01-01", "end": "2020-01-02", "tickers": ["VOD.L"] }
   },
   {
     "method": "GET",
@@ -87,7 +95,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/custom-query/{slug}"
+    "path": "/custom-query/{slug}",
+    "body": { "start": "2020-01-01", "end": "2020-01-02", "tickers": ["VOD.L"] }
   },
   {
     "method": "GET",
@@ -103,7 +112,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/goals/"
+    "path": "/goals/",
+    "body": { "name": "test", "target_amount": 0, "target_date": "2020-01-01" }
   },
   {
     "method": "DELETE",
@@ -115,7 +125,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "PUT",
-    "path": "/goals/{name}"
+    "path": "/goals/{name}",
+    "body": { "name": "test", "target_amount": 0, "target_date": "2020-01-01" }
   },
   {
     "method": "GET",
@@ -143,11 +154,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/instrument/admin/{exchange}/{ticker}"
+    "path": "/instrument/admin/{exchange}/{ticker}",
+    "body": {}
   },
   {
     "method": "PUT",
-    "path": "/instrument/admin/{exchange}/{ticker}"
+    "path": "/instrument/admin/{exchange}/{ticker}",
+    "body": {}
   },
   {
     "method": "GET",
@@ -179,11 +192,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/nudges/snooze"
+    "path": "/nudges/snooze",
+    "body": { "user": "test" }
   },
   {
     "method": "POST",
-    "path": "/nudges/subscribe"
+    "path": "/nudges/subscribe",
+    "body": { "user": "test", "frequency": 1 }
   },
   {
     "method": "GET",
@@ -267,7 +282,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/prices/refresh"
+    "path": "/prices/refresh",
+    "body": {}
   },
   {
     "method": "GET",
@@ -275,7 +291,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/quests/{quest_id}/complete"
+    "path": "/quests/{quest_id}/complete",
+    "body": {}
   },
   {
     "method": "GET",
@@ -295,11 +312,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/support/portfolio-health"
+    "path": "/support/portfolio-health",
+    "body": {}
   },
   {
     "method": "POST",
-    "path": "/support/telegram"
+    "path": "/support/telegram",
+    "body": { "text": "test" }
   },
   {
     "method": "GET",
@@ -307,7 +326,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/tax/harvest"
+    "path": "/tax/harvest",
+    "body": { "positions": [{ "ticker": "TEST", "basis": 0, "price": 0 }] }
   },
   {
     "method": "GET",
@@ -315,11 +335,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/timeseries/admin/{ticker}/{exchange}/rebuild_cache"
+    "path": "/timeseries/admin/{ticker}/{exchange}/rebuild_cache",
+    "body": {}
   },
   {
     "method": "POST",
-    "path": "/timeseries/admin/{ticker}/{exchange}/refetch"
+    "path": "/timeseries/admin/{ticker}/{exchange}/refetch",
+    "body": {}
   },
   {
     "method": "GET",
@@ -327,7 +349,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/timeseries/edit"
+    "path": "/timeseries/edit?ticker=VOD.L",
+    "body": []
   },
   {
     "method": "GET",
@@ -339,11 +362,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/token"
+    "path": "/token",
+    "body": { "id_token": "test" }
   },
   {
     "method": "POST",
-    "path": "/token/google"
+    "path": "/token/google",
+    "body": { "token": "test" }
   },
   {
     "method": "GET",
@@ -355,7 +380,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/transactions"
+    "path": "/transactions",
+    "body": { "owner": "test", "account": "test", "ticker": "TEST", "date": "2020-01-01", "price_gbp": 1, "units": 1, "reason": "test" }
   },
   {
     "method": "GET",
@@ -363,7 +389,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/transactions/import"
+    "path": "/transactions/import",
+    "body": (() => { const f = new FormData(); f.append('provider','degiro'); f.append('file', new Blob(['owner,account,date,ticker,type,amount_minor,price,units,fees,comments,reason_to_buy\n'], { type: 'text/csv' }), 'data.csv'); return f; })()
   },
   {
     "method": "GET",
@@ -371,7 +398,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/user-config/{owner}"
+    "path": "/user-config/{owner}",
+    "body": {}
   },
   {
     "method": "GET",
@@ -387,7 +415,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/var/{owner}/recompute"
+    "path": "/var/{owner}/recompute",
+    "body": {}
   },
   {
     "method": "GET",
@@ -395,7 +424,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/virtual-portfolios"
+    "path": "/virtual-portfolios",
+    "body": { "id": "test", "name": "test", "holdings": [] }
   },
   {
     "method": "DELETE",
@@ -407,14 +437,49 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   }
 ] as const;
 
+// Provide sample values for path parameters so requests avoid 422/400 errors.
+// Values are chosen based on common parameter names. Unknown names default to
+// ``1`` which parses as an integer or string.
+const SAMPLE_PATH_VALUES: Record<string, string> = {
+  owner: 'demo-owner',
+  account: 'demo-account',
+  user: 'user@example.com',
+  email: 'user@example.com',
+  id: '1',
+  vp_id: '1',
+  quest_id: 'check-in',
+  slug: 'demo-slug',
+  name: 'demo',
+  exchange: 'NASDAQ',
+  ticker: 'AAPL',
+};
+
 export function fillPath(path: string): string {
-  return path.replace(/\{[^}]+\}/g, 'test');
+  return path.replace(/\{([^}]+)\}/g, (_, key: string) => {
+    const k = key.toLowerCase();
+    if (SAMPLE_PATH_VALUES[k]) return SAMPLE_PATH_VALUES[k];
+    if (k.includes('email')) return 'user@example.com';
+    if (k.includes('id')) return '1';
+    if (k.includes('user')) return 'user@example.com';
+    if (k.includes('date')) return '1970-01-01';
+    return '1';
+  });
 }
 
 export async function runSmoke(base: string) {
   for (const ep of smokeEndpoints) {
     const url = base + fillPath(ep.path);
-    const res = await fetch(url, { method: ep.method, body: ep.body ? JSON.stringify(ep.body) : undefined, headers: ep.body ? { 'Content-Type': 'application/json' } : undefined });
+    let body: any = undefined;
+    let headers: any = undefined;
+    if (ep.body !== undefined) {
+      if (ep.body instanceof FormData) {
+        body = ep.body;
+      } else {
+        body = JSON.stringify(ep.body);
+        headers = { 'Content-Type': 'application/json' };
+      }
+    }
+    const res = await fetch(url, { method: ep.method, body, headers });
     if (res.status >= 500) {
       throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
     }

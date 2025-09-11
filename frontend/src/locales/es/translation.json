@@ -163,7 +163,11 @@
   },
   "pensionForecast": {
     "currentAge": "Edad actual: {{age}}",
-    "retirementAge": "Edad de jubilación: {{age}}"
+    "birthDate": "Fecha de nacimiento: {{dob}}",
+    "retirementAge": "Edad de jubilación: {{age}}",
+    "pensionPot": "Fondo de pensiones",
+    "growthAssumption": "Suposición de crecimiento (%):",
+    "monthlyContribution": "Contribución mensual (£):"
   },
   "group": {
     "select": "Seleccione un grupo."

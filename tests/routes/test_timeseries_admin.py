@@ -1,4 +1,6 @@
 import asyncio
+import builtins
+import sys
 import pandas as pd
 
 from backend.routes import timeseries_admin
@@ -48,6 +50,12 @@ def test_timeseries_admin_local(monkeypatch, tmp_path):
     meta_dir = tmp_path / "timeseries" / "meta"
     meta_dir.mkdir(parents=True)
     df.to_parquet(meta_dir / "ABC_L.parquet")
+    # file without underscore should be skipped
+    df.to_parquet(meta_dir / "INVALID.parquet")
+    # empty dataframe should be skipped
+    pd.DataFrame({"Date": pd.Series([], dtype="datetime64[ns]")}).to_parquet(
+        meta_dir / "EMPTY_L.parquet"
+    )
 
     monkeypatch.setattr(timeseries_admin, "get_instrument_meta", lambda *_: {"name": "Test"})
     monkeypatch.setattr(config, "app_env", "local")
@@ -70,6 +78,51 @@ def test_timeseries_admin_local(monkeypatch, tmp_path):
 
     asyncio.run(run())
 
+
+
+def test_timeseries_admin_no_meta(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "app_env", "local")
+    monkeypatch.setattr(config, "data_root", tmp_path)
+
+    async def run():
+        assert await timeseries_admin.timeseries_admin() == []
+
+    asyncio.run(run())
+
+
+def test_timeseries_admin_aws_no_bucket(monkeypatch):
+    monkeypatch.setattr(config, "app_env", "aws")
+    monkeypatch.delenv("DATA_BUCKET", raising=False)
+
+    async def run():
+        assert await timeseries_admin.timeseries_admin() == []
+
+    asyncio.run(run())
+
+
+def test_timeseries_admin_aws_s3_empty(monkeypatch):
+    monkeypatch.setattr(config, "app_env", "aws")
+    monkeypatch.setenv("DATA_BUCKET", "bucket")
+
+    class DummyS3:
+        def list_objects_v2(self, **_):
+            return {"Contents": [], "IsTruncated": False}
+
+    class DummyBoto3:
+        def client(self, name):
+            assert name == "s3"
+            return DummyS3()
+
+    class DummyExc(Exception):
+        pass
+
+    monkeypatch.setitem(sys.modules, "boto3", DummyBoto3())
+    monkeypatch.setitem(sys.modules, "botocore.exceptions", type("e", (), {"ClientError": DummyExc}))
+
+    async def run():
+        assert await timeseries_admin.timeseries_admin() == []
+
+    asyncio.run(run())
 
 
 def test_refetch_and_rebuild(monkeypatch, tmp_path):

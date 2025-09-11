@@ -17,12 +17,16 @@ export default function PensionForecast() {
   const [owner, setOwner] = useState("");
   const [deathAge, setDeathAge] = useState(90);
   const [statePension, setStatePension] = useState<string>("");
-  const [contribution, setContribution] = useState<string>("");
+  const [contributionAnnual, setContributionAnnual] = useState<string>("");
+  const [contributionMonthly, setContributionMonthly] = useState<string>("");
   const [desiredIncome, setDesiredIncome] = useState<string>("");
+  const [investmentGrowthPct, setInvestmentGrowthPct] = useState(5);
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
+  const [pensionPot, setPensionPot] = useState<number | null>(null);
   const [currentAge, setCurrentAge] = useState<number | null>(null);
   const [retirementAge, setRetirementAge] = useState<number | null>(null);
+  const [dob, setDob] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const { t } = useTranslation();
 
@@ -40,23 +44,32 @@ export default function PensionForecast() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const contributionMonthlyVal = contributionMonthly
+        ? parseFloat(contributionMonthly)
+        : undefined;
+      const contributionAnnualVal = contributionAnnual
+        ? parseFloat(contributionAnnual)
+        : undefined;
       const res = await getPensionForecast({
         owner,
         deathAge,
         statePensionAnnual: statePension
           ? parseFloat(statePension)
           : undefined,
-        contributionAnnual: contribution
-          ? parseFloat(contribution)
-          : undefined,
+        contributionMonthly: contributionMonthlyVal,
+        contributionAnnual:
+          contributionMonthlyVal !== undefined ? undefined : contributionAnnualVal,
         desiredIncomeAnnual: desiredIncome
           ? parseFloat(desiredIncome)
           : undefined,
+        investmentGrowthPct,
       });
       setData(res.forecast);
       setProjectedPot(res.projected_pot_gbp);
+      setPensionPot(res.pension_pot_gbp);
       setCurrentAge(res.current_age);
       setRetirementAge(res.retirement_age);
+      setDob(res.dob || null);
       setErr(null);
     } catch (ex: any) {
       setErr(String(ex));
@@ -87,11 +100,25 @@ export default function PensionForecast() {
           />
         </div>
         <div>
-          <label className="mr-2">Annual Contribution (£):</label>
+          <label className="mr-2" htmlFor="contribution-annual">
+            Annual Contribution (£):
+          </label>
           <input
+            id="contribution-annual"
             type="number"
-            value={contribution}
-            onChange={(e) => setContribution(e.target.value)}
+            value={contributionAnnual}
+            onChange={(e) => setContributionAnnual(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mr-2" htmlFor="contribution-monthly">
+            {t("pensionForecast.monthlyContribution")}
+          </label>
+          <input
+            id="contribution-monthly"
+            type="number"
+            value={contributionMonthly}
+            onChange={(e) => setContributionMonthly(e.target.value)}
           />
         </div>
         <div>
@@ -102,16 +129,40 @@ export default function PensionForecast() {
             onChange={(e) => setDesiredIncome(e.target.value)}
           />
         </div>
+        <div>
+          <label className="mr-2" htmlFor="investment-growth">
+            {t("pensionForecast.growthAssumption")}
+          </label>
+          <select
+            id="investment-growth"
+            value={investmentGrowthPct}
+            onChange={(e) => setInvestmentGrowthPct(Number(e.target.value))}
+          >
+            {[3, 5, 7].map((g) => (
+              <option key={g} value={g}>
+                {g}%
+              </option>
+            ))}
+          </select>
+        </div>
         <button type="submit" className="mt-2 rounded bg-blue-500 px-4 py-2 text-white">
           Forecast
         </button>
       </form>
       {err && <p className="text-red-500">{err}</p>}
-      {currentAge !== null && (
-        <p className="mb-2">{t("pensionForecast.currentAge", { age: currentAge })}</p>
+      {currentAge !== null && dob && (
+        <p className="mb-2">
+          {t("pensionForecast.currentAge", { age: currentAge })} (
+          {t("pensionForecast.birthDate", { dob })})
+        </p>
       )}
       {retirementAge !== null && (
         <p className="mb-2">{t("pensionForecast.retirementAge", { age: retirementAge })}</p>
+      )}
+      {pensionPot !== null && (
+        <p className="mb-2">
+          {t("pensionForecast.pensionPot")}: £{pensionPot.toFixed(2)}
+        </p>
       )}
       {projectedPot !== null && retirementAge !== null && (
         <p className="mb-2">

@@ -479,6 +479,9 @@ export function fillPath(path: string): string {
 }
 
 export async function runSmoke(base: string) {
+  const authHeaders = process.env.TEST_ID_TOKEN
+    ? { Authorization: `Bearer ${process.env.TEST_ID_TOKEN}` }
+    : {};
   for (const ep of smokeEndpoints) {
     let url = base + fillPath(ep.path);
     if (ep.query) {
@@ -486,13 +489,13 @@ export async function runSmoke(base: string) {
       if (qs) url += (url.includes('?') ? '&' : '?') + qs;
     }
     let body: any = undefined;
-    let headers: any = undefined;
+    const headers: Record<string, string> = { ...authHeaders };
     if (ep.body !== undefined) {
       if (ep.body instanceof FormData) {
         body = ep.body;
       } else {
         body = JSON.stringify(ep.body);
-        headers = { 'Content-Type': 'application/json' };
+        headers['Content-Type'] = 'application/json';
       }
     }
     const res = await fetch(url, { method: ep.method, body, headers });

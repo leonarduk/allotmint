@@ -13,6 +13,7 @@ describe("MainApp demo view", () => {
       accounts: [],
     };
 
+    // Provide demo-mode responses from the API layer
     vi.doMock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([
         { owner: "demo", accounts: ["isa", "sipp"] },

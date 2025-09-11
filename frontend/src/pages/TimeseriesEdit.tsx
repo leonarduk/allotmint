@@ -98,7 +98,7 @@ export function TimeseriesEdit() {
   async function handleLoad() {
     setError(null);
     try {
-      const data = await getTimeseries(ticker, exchange);
+      const data = (await getTimeseries(ticker, exchange)) || [];
       setRows(data);
       setStatus(t("timeseriesEdit.status.loaded", { count: data.length }));
     } catch (e) {

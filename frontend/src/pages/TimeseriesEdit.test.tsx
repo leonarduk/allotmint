@@ -1,20 +1,26 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import "../setupTests";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { TimeseriesEdit } from "./TimeseriesEdit";
+import { getTimeseries, saveTimeseries, searchInstruments } from "../api";
 
 vi.mock("../api", () => ({
-  getTimeseries: vi.fn().mockResolvedValue([
-    { Date: "2024-01-01", Open: 1, High: 1, Low: 1, Close: 1, Volume: 1 },
-  ]),
+  getTimeseries: vi.fn(),
   saveTimeseries: vi.fn().mockResolvedValue({ status: "ok", rows: 1 }),
   searchInstruments: vi.fn().mockResolvedValue([]),
 }));
 
-import { TimeseriesEdit } from "./TimeseriesEdit";
-import { getTimeseries, saveTimeseries, searchInstruments } from "../api";
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("TimeseriesEdit page", () => {
   it("loads, edits, adds and deletes rows, then saves", async () => {
-    vi.clearAllMocks();
+    const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
+    getTimeseriesMock.mockResolvedValue([
+      { Date: "2024-01-01", Open: 1, High: 1, Low: 1, Close: 1, Volume: 1 },
+    ]);
     render(<TimeseriesEdit />);
 
     expect(
@@ -55,6 +61,8 @@ describe("TimeseriesEdit page", () => {
   });
 
   it("prefills ticker and exchange from URL", async () => {
+    const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
+    getTimeseriesMock.mockResolvedValue([]);
     window.history.pushState({}, "", "/timeseries?ticker=XYZ&exchange=DE");
     render(<TimeseriesEdit />);
     expect(await screen.findByDisplayValue("XYZ")).toBeInTheDocument();
@@ -63,6 +71,8 @@ describe("TimeseriesEdit page", () => {
   });
 
   it("suggests tickers and updates value when one is selected", async () => {
+    const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
+    getTimeseriesMock.mockResolvedValue([]);
     const searchMock = searchInstruments as unknown as vi.Mock;
     searchMock.mockResolvedValue([{ ticker: "AAA", name: "AAA Corp" }]);
     render(<TimeseriesEdit />);

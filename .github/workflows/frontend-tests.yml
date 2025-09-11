@@ -30,3 +30,8 @@ jobs:
       - name: Run tests with coverage
         working-directory: frontend
         run: pnpm test -- --run --coverage
+
+      - name: Sitemap health check
+        run: |
+          pip install requests
+          python scripts/site_healthcheck.py

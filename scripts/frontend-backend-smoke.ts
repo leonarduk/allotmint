@@ -454,10 +454,30 @@ const SAMPLE_PATH_VALUES: Record<string, string> = {
   ticker: 'AAPL',
 };
 
-export function fillPath(path: string): string {
+// Fallback values based on OpenAPI parameter ``schema.type`` when ``SAMPLE_PATH_VALUES``
+// does not contain the key.
+const TYPE_DEFAULTS: Record<string, string> = {
+  string: 'demo',
+  integer: '1',
+  number: '1',
+  boolean: 'true',
+};
+
+function getParamType(openapi: any, path: string, method: string, key: string): string | undefined {
+  const p = openapi?.paths?.[path];
+  if (!p) return undefined;
+  const m = p[method.toLowerCase()];
+  const params = [...(p.parameters || []), ...(m?.parameters || [])];
+  const found = params.find((x: any) => x?.in === 'path' && x.name === key);
+  return found?.schema?.type;
+}
+
+export function fillPath(path: string, method: string, openapi: any): string {
   return path.replace(/\{([^}]+)\}/g, (_, key: string) => {
     const k = key.toLowerCase();
     if (SAMPLE_PATH_VALUES[k]) return SAMPLE_PATH_VALUES[k];
+    const t = getParamType(openapi, path, method, key);
+    if (t && TYPE_DEFAULTS[t]) return TYPE_DEFAULTS[t];
     if (k.includes('email')) return 'user@example.com';
     if (k.includes('id')) return '1';
     if (k.includes('user')) return 'user@example.com';
@@ -467,8 +487,9 @@ export function fillPath(path: string): string {
 }
 
 export async function runSmoke(base: string) {
+  const openapi = await fetch(base + '/openapi.json').then(r => r.json()).catch(() => ({}));
   for (const ep of smokeEndpoints) {
-    const url = base + fillPath(ep.path);
+    const url = base + fillPath(ep.path, ep.method, openapi);
     let body: any = undefined;
     let headers: any = undefined;
     if (ep.body !== undefined) {

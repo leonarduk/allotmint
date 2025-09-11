@@ -50,6 +50,30 @@ def test_prices_converted_to_gbp(monkeypatch, exchange, rate):
         assert list(df[col].astype(float)) == [1.0, 2.0]
 
 
+def test_prices_converted_to_arbitrary_base_currency(monkeypatch):
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 2)
+
+    def fake_memoized_range(ticker, exch, s_iso, e_iso):
+        return _sample_df(start, end)
+
+    def fake_fx(base, s, e):
+        dates = pd.bdate_range(s, e).date
+        rates = {"USD": 0.8, "EUR": 0.9}
+        return pd.DataFrame({"Date": dates, "Rate": [rates[base]] * len(dates)})
+
+    monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
+    monkeypatch.setattr(cache, "fetch_fx_rate_range", fake_fx)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+
+    df = cache.load_meta_timeseries_range("T", "N", start, end, base_currency="EUR")
+    conv = 0.8 / 0.9
+    expected = [1 * conv, 2 * conv]
+    for col in ["Open_eur", "High_eur", "Low_eur", "Close_eur"]:
+        assert col in df.columns
+        assert list(df[col].astype(float)) == pytest.approx(expected)
+
+
 def test_missing_fx_rates_are_filled(monkeypatch):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 3)

@@ -212,7 +212,7 @@ df.to_parquet("data/timeseries/fx/USD.parquet", index=False)
 PY
 ```
 
-If a currency file is missing, `_convert_to_gbp` falls back to requesting
+If a currency file is missing, `_convert_to_base_currency` falls back to requesting
 rates from `fx_proxy_url` configured in `config.yaml`.
 
 ## Risk reporting

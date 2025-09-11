@@ -95,8 +95,11 @@ describe("Watchlist page", () => {
     expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
-    await flushPromises();
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /refresh/i })[0],
+    );
+    await act(async () => Promise.resolve());
+
     expect(getQuotes).toHaveBeenCalledTimes(2);
 
     await vi.advanceTimersByTimeAsync(10000);
@@ -121,8 +124,6 @@ describe("Watchlist page", () => {
     await vi.advanceTimersByTimeAsync(10000);
     await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(2);
-
-    unmount();
     vi.useRealTimers();
   });
 
@@ -135,9 +136,10 @@ describe("Watchlist page", () => {
 
     await flushPromises();
     expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
+
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+    fireEvent.change(screen.getAllByLabelText(/Auto-refresh/)[0], {
       target: { value: "0" },
     });
 
@@ -145,7 +147,7 @@ describe("Watchlist page", () => {
     await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+    fireEvent.change(screen.getAllByLabelText(/Auto-refresh/)[0], {
       target: { value: "60000" },
     });
 

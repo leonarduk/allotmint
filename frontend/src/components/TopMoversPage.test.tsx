@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TopMoversPage } from "./TopMoversPage";
@@ -114,15 +115,11 @@ describe("TopMoversPage", () => {
 
     const selects = screen.getAllByRole("combobox");
     const periodSelect = selects[1];
-    fireEvent.change(periodSelect, { target: { value: "1w" } });
-      await waitFor(() =>
-        expect(mockGetGroupMovers).toHaveBeenLastCalledWith(
-          "all",
-          7,
-          10,
-          0,
-        ),
-      );
+    await userEvent.selectOptions(periodSelect, "1w");
+    await waitFor(() => expect(periodSelect).toHaveValue("1w"));
+    await waitFor(() =>
+      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7, 10, 0),
+    );
   });
 
   it("fetches watchlist instruments when selecting FTSE 100", async () => {
@@ -137,12 +134,12 @@ describe("TopMoversPage", () => {
     );
 
     const selects = await screen.findAllByRole("combobox");
-    const watchlistSelect = selects[0];
-    fireEvent.change(watchlistSelect, { target: { value: "FTSE 100" } });
-
-    await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 1),
-    );
+    const watchlistSelect = selects[0] as HTMLSelectElement;
+    await userEvent.selectOptions(watchlistSelect, "FTSE 100");
+    await waitFor(() => {
+      expect(watchlistSelect).toHaveValue("FTSE 100");
+      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 1);
+    });
   });
 
   it("mounts InstrumentDetail with signal when ticker clicked", async () => {

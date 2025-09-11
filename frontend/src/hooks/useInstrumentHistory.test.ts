@@ -34,7 +34,9 @@ describe("useInstrumentHistory", () => {
       await vi.runAllTimersAsync();
     });
 
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(3);
+    await waitFor(() =>
+      expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(3),
+    );
     expect(result.current.error).toBeTruthy();
 
     vi.useRealTimers();

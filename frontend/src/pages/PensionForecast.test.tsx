@@ -1,5 +1,10 @@
 import "../setupTests";
 import { render, screen, within, fireEvent, cleanup } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import { createInstance } from "i18next";
+import en from "../locales/en/translation.json";
+
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
@@ -10,6 +15,15 @@ vi.mock("../api", () => ({
   getOwners: mockGetOwners,
   getPensionForecast: mockGetPensionForecast,
 }));
+
+function renderWithI18n(ui: ReactElement) {
+  const i18n = createInstance();
+  i18n.use(initReactI18next).init({
+    lng: "en",
+    resources: { en: { translation: en } },
+  });
+  return render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
+}
 
 describe("PensionForecast page", () => {
   afterEach(() => {
@@ -30,11 +44,15 @@ describe("PensionForecast page", () => {
 
     const { default: PensionForecast } = await import("./PensionForecast");
 
-    render(<PensionForecast />);
+    renderWithI18n(<PensionForecast />);
 
     const form = document.querySelector("form")!;
     const ownerSelect = await within(form).findByLabelText(/owner/i);
     expect(ownerSelect).toBeInTheDocument();
+    const selects = await screen.findAllByLabelText(/owner/i, {
+      selector: 'select',
+    });
+    expect(selects[0]).toBeInTheDocument();
   });
 
   it("submits with selected owner", async () => {
@@ -53,7 +71,7 @@ describe("PensionForecast page", () => {
 
     const { default: PensionForecast } = await import("./PensionForecast");
 
-    render(<PensionForecast />);
+    renderWithI18n(<PensionForecast />);
 
     await screen.findByText("beth");
     const ownerSelects = await screen.findAllByLabelText(/owner/i);
@@ -63,6 +81,8 @@ describe("PensionForecast page", () => {
     const growth = screen.getByLabelText(/growth assumption/i);
     await userEvent.selectOptions(growth, "7");
 
+    const [ownerSelect] = await screen.findAllByLabelText(/owner/i);
+    fireEvent.change(ownerSelect, { target: { value: "beth" } });
     const monthly = screen.getByLabelText(/monthly contribution/i);
     fireEvent.change(monthly, { target: { value: "100" } });
 

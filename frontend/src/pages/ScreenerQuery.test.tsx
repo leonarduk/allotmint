@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { createInstance } from "i18next";
@@ -76,7 +76,7 @@ function renderWithI18n(ui: ReactElement) {
 }
 
 describe("Screener & Query page", () => {
-  afterEach(() => {
+  beforeEach(() => {
     window.history.pushState({}, "", "/");
     vi.clearAllMocks();
     runCustomQuery.mockResolvedValue([]);

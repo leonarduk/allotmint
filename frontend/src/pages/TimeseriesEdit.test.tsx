@@ -1,5 +1,9 @@
 import "../setupTests";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import { createInstance } from "i18next";
+import type { ReactElement } from "react";
+import en from "../locales/en/translation.json";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { TimeseriesEdit } from "./TimeseriesEdit";
 import { getTimeseries, saveTimeseries, searchInstruments } from "../api";
@@ -9,6 +13,15 @@ vi.mock("../api", () => ({
   saveTimeseries: vi.fn().mockResolvedValue({ status: "ok", rows: 1 }),
   searchInstruments: vi.fn().mockResolvedValue([]),
 }));
+
+function renderWithI18n(ui: ReactElement) {
+  const i18n = createInstance();
+  i18n.use(initReactI18next).init({
+    lng: "en",
+    resources: { en: { translation: en } },
+  });
+  return render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
+}
 
 afterEach(() => {
   cleanup();
@@ -21,7 +34,7 @@ describe("TimeseriesEdit page", () => {
     getTimeseriesMock.mockResolvedValue([
       { Date: "2024-01-01", Open: 1, High: 1, Low: 1, Close: 1, Volume: 1 },
     ]);
-    render(<TimeseriesEdit />);
+    renderWithI18n(<TimeseriesEdit />);
 
     expect(
       (screen.getByLabelText(/Exchange/i) as HTMLSelectElement).value,
@@ -64,7 +77,7 @@ describe("TimeseriesEdit page", () => {
     const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
     getTimeseriesMock.mockResolvedValue([]);
     window.history.pushState({}, "", "/timeseries?ticker=XYZ&exchange=DE");
-    render(<TimeseriesEdit />);
+    renderWithI18n(<TimeseriesEdit />);
     expect(await screen.findByDisplayValue("XYZ")).toBeInTheDocument();
     expect(await screen.findByDisplayValue("DE")).toBeInTheDocument();
     window.history.pushState({}, "", "/");
@@ -75,7 +88,7 @@ describe("TimeseriesEdit page", () => {
     getTimeseriesMock.mockResolvedValue([]);
     const searchMock = searchInstruments as unknown as vi.Mock;
     searchMock.mockResolvedValue([{ ticker: "AAA", name: "AAA Corp" }]);
-    render(<TimeseriesEdit />);
+    renderWithI18n(<TimeseriesEdit />);
     const input = screen.getByLabelText(/Ticker/i);
     fireEvent.change(input, { target: { value: "AA" } });
     await new Promise((r) => setTimeout(r, 350));

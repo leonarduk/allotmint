@@ -1,10 +1,12 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import "../setupTests";
+import { render, screen, within, fireEvent, cleanup } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { createInstance } from "i18next";
 import en from "../locales/en/translation.json";
+
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetPensionForecast = vi.hoisted(() => vi.fn());
@@ -24,7 +26,8 @@ function renderWithI18n(ui: ReactElement) {
 }
 
 describe("PensionForecast page", () => {
-  beforeEach(() => {
+  afterEach(() => {
+    cleanup();
     vi.clearAllMocks();
   });
 
@@ -43,7 +46,8 @@ describe("PensionForecast page", () => {
 
     renderWithI18n(<PensionForecast />);
 
-    const [ownerSelect] = await screen.findAllByLabelText(/owner/i);
+    const form = document.querySelector("form")!;
+    const ownerSelect = await within(form).findByLabelText(/owner/i);
     expect(ownerSelect).toBeInTheDocument();
     const selects = await screen.findAllByLabelText(/owner/i, {
       selector: 'select',
@@ -69,10 +73,10 @@ describe("PensionForecast page", () => {
 
     renderWithI18n(<PensionForecast />);
 
-    const [select] = await screen.findAllByLabelText(/owner/i, {
-      selector: 'select',
-    });
-    await userEvent.selectOptions(select, "beth");
+    await screen.findByText("beth");
+    const ownerSelects = await screen.findAllByLabelText(/owner/i);
+    const ownerSelect = ownerSelects[ownerSelects.length - 1];
+    await userEvent.selectOptions(ownerSelect, "beth");
 
     const growth = screen.getByLabelText(/growth assumption/i);
     await userEvent.selectOptions(growth, "7");

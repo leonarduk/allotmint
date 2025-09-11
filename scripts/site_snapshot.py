@@ -305,9 +305,25 @@ async def snapshot_pages(
             async with sem:
                 page = await context.new_page()
                 try:
-                    await page.goto(
-                        url, wait_until=wait_until, timeout=page_timeout_ms
-                    )
+                    try:
+                        await page.goto(
+                            url, wait_until=wait_until, timeout=page_timeout_ms
+                        )
+                    except PWTimeout:
+                        logging.warning(
+                            "Timeout navigating to %s; retrying with wait_until='load'",
+                            url,
+                        )
+                        try:
+                            await page.goto(
+                                url, wait_until="load", timeout=page_timeout_ms
+                            )
+                        except PWTimeout:
+                            logging.warning(
+                                "Retry timeout navigating to %s; skipping page", url
+                            )
+                            return
+
                     await _hide_selectors(page, hide_selectors)
                     await page.wait_for_timeout(300)
                     title = (await page.title()) or url

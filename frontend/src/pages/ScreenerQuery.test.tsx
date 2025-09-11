@@ -79,6 +79,7 @@ describe("Screener & Query page", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/");
     vi.resetAllMocks();
+    // default API mocks to resolve to empty arrays
     runCustomQuery.mockResolvedValue([]);
     getScreener.mockResolvedValue([]);
   });

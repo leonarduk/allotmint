@@ -17,7 +17,8 @@ export function useSortableTable<T>(
   }
 
   const sorted = useMemo(() => {
-    return [...rows].sort((a, b) => {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    return [...safeRows].sort((a, b) => {
       const va = a[sortKey];
       const vb = b[sortKey];
       if (typeof va === "string" && typeof vb === "string") {

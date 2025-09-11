@@ -134,12 +134,12 @@ describe("TopMoversPage", () => {
     );
 
     const selects = await screen.findAllByRole("combobox");
-    const watchlistSelect = selects[0];
+    const watchlistSelect = selects[0] as HTMLSelectElement;
     await userEvent.selectOptions(watchlistSelect, "FTSE 100");
-    await waitFor(() => expect(watchlistSelect).toHaveValue("FTSE 100"));
-    await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 1),
-    );
+    await waitFor(() => {
+      expect(watchlistSelect).toHaveValue("FTSE 100");
+      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 1);
+    });
   });
 
   it("mounts InstrumentDetail with signal when ticker clicked", async () => {

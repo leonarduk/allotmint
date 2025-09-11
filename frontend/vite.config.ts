@@ -1,4 +1,5 @@
-import { defineConfig, type PluginOption, type UserConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
+import type { PluginOption } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
@@ -44,7 +45,7 @@ export default defineConfig(async ({ command }) => {
     plugins.push(...(Array.isArray(prerenderPlugin) ? prerenderPlugin : [prerenderPlugin]))
   }
 
-  const config: UserConfig = {
+  const config = {
     plugins,
     build: {
       cssCodeSplit: false,
@@ -59,6 +60,10 @@ export default defineConfig(async ({ command }) => {
           }
         }
       }
+    },
+    test: {
+      environment: 'jsdom',
+      setupFiles: './src/setupTests.ts'
     }
   }
   return config

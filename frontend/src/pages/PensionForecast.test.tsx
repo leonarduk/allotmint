@@ -1,4 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import { createInstance } from "i18next";
+import en from "../locales/en/translation.json";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -9,6 +13,15 @@ vi.mock("../api", () => ({
   getOwners: mockGetOwners,
   getPensionForecast: mockGetPensionForecast,
 }));
+
+function renderWithI18n(ui: ReactElement) {
+  const i18n = createInstance();
+  i18n.use(initReactI18next).init({
+    lng: "en",
+    resources: { en: { translation: en } },
+  });
+  return render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
+}
 
 describe("PensionForecast page", () => {
   beforeEach(() => {
@@ -28,10 +41,12 @@ describe("PensionForecast page", () => {
 
     const { default: PensionForecast } = await import("./PensionForecast");
 
-    render(<PensionForecast />);
+    renderWithI18n(<PensionForecast />);
 
-    const select = await screen.findByLabelText(/owner/i);
-    expect(select).toBeInTheDocument();
+    const selects = await screen.findAllByLabelText(/owner/i, {
+      selector: 'select',
+    });
+    expect(selects[0]).toBeInTheDocument();
   });
 
   it("submits with selected owner", async () => {
@@ -50,9 +65,11 @@ describe("PensionForecast page", () => {
 
     const { default: PensionForecast } = await import("./PensionForecast");
 
-    render(<PensionForecast />);
+    renderWithI18n(<PensionForecast />);
 
-    const select = await screen.findByLabelText(/owner/i);
+    const [select] = await screen.findAllByLabelText(/owner/i, {
+      selector: 'select',
+    });
     await userEvent.selectOptions(select, "beth");
 
     const growth = screen.getByLabelText(/growth assumption/i);

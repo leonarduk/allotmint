@@ -156,3 +156,99 @@ def test_load_subscriptions_falls_back_to_local_on_s3_error(monkeypatch):
 
     alerts._load_subscriptions()
     assert alerts._PUSH_SUBSCRIPTIONS == {"u1": {"a": 1}}
+
+
+def test_load_subscriptions_uses_s3_when_available(monkeypatch):
+    s3 = types.SimpleNamespace()
+
+    def get_object(Bucket, Key):
+        assert Bucket == "bucket"
+        assert Key == alerts._SUBSCRIPTIONS_KEY
+        data = json.dumps({"u1": {"x": 1}}).encode()
+        return {"Body": types.SimpleNamespace(read=lambda: data)}
+
+    s3.get_object = get_object
+
+    def boom():
+        raise AssertionError("local load should not be used")
+
+    monkeypatch.setattr(alerts, "_data_bucket", lambda: "bucket")
+    monkeypatch.setattr(alerts, "_s3_client", lambda: s3)
+    monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_STORAGE", types.SimpleNamespace(load=boom))
+
+    alerts._load_subscriptions()
+    assert alerts._PUSH_SUBSCRIPTIONS == {"u1": {"x": 1}}
+
+
+def test_save_subscriptions_uses_local_when_no_bucket(monkeypatch):
+    saved = {}
+
+    def save(data):
+        saved.update(data)
+
+    def boom():
+        raise AssertionError("S3 should not be used")
+
+    monkeypatch.setattr(alerts, "_data_bucket", lambda: None)
+    monkeypatch.setattr(alerts, "_s3_client", boom)
+    monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_STORAGE", types.SimpleNamespace(save=save))
+
+    alerts._PUSH_SUBSCRIPTIONS = {"u1": {"x": 1}}
+    alerts._save_subscriptions()
+
+    assert saved == {"u1": {"x": 1}}
+
+
+def test_save_subscriptions_writes_to_s3_when_configured(monkeypatch):
+    puts = []
+
+    class FakeS3:
+        def get_object(self, Bucket, Key):
+            data = json.dumps({"u0": {"y": 0}}).encode()
+            return {"Body": types.SimpleNamespace(read=lambda: data)}
+
+        def put_object(self, Bucket, Key, Body):
+            puts.append({"Bucket": Bucket, "Key": Key, "Body": Body})
+
+    def boom(*args, **kwargs):
+        raise AssertionError("local save should not be used")
+
+    monkeypatch.setattr(alerts, "_data_bucket", lambda: "bucket")
+    monkeypatch.setattr(alerts, "_s3_client", lambda: FakeS3())
+    monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_STORAGE", types.SimpleNamespace(save=boom))
+
+    alerts._PUSH_SUBSCRIPTIONS = {"u1": {"x": 1}}
+    alerts._save_subscriptions()
+
+    assert puts, "put_object was not called"
+    saved = json.loads(puts[0]["Body"])
+    assert saved == {"u0": {"y": 0}, "u1": {"x": 1}}
+    assert alerts._PUSH_SUBSCRIPTIONS == {"u0": {"y": 0}, "u1": {"x": 1}}
+
+
+def test_threshold_and_subscription_persistence(monkeypatch):
+    # Local storage simulating persistence
+    store_thresh = {}
+    store_subs = {}
+
+    monkeypatch.setattr(alerts, "_data_bucket", lambda: None)
+    monkeypatch.setattr(
+        alerts,
+        "_SETTINGS_STORAGE",
+        types.SimpleNamespace(load=lambda: store_thresh, save=lambda d: store_thresh.update(d)),
+    )
+    monkeypatch.setattr(
+        alerts,
+        "_SUBSCRIPTIONS_STORAGE",
+        types.SimpleNamespace(load=lambda: store_subs, save=lambda d: store_subs.update(d)),
+    )
+
+    alerts.set_user_threshold("u1", 0.9)
+    alerts.set_user_push_subscription("u1", {"x": 1})
+
+    # Clear caches and reload to verify persistence
+    alerts._USER_THRESHOLDS = {}
+    alerts._PUSH_SUBSCRIPTIONS = {}
+
+    assert alerts.get_user_threshold("u1") == 0.9
+    assert alerts.get_user_push_subscription("u1") == {"x": 1}

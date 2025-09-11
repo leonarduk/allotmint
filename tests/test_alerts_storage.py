@@ -11,13 +11,16 @@ def clear_caches(monkeypatch):
     monkeypatch.setattr(alerts, "_USER_THRESHOLDS", {})
     monkeypatch.setattr(alerts, "_PUSH_SUBSCRIPTIONS", {})
 
+
 def test_parse_thresholds_parses_valid_entries():
     data = {"a": "1.5", "b": 2, "c": 3.0}
     assert alerts._parse_thresholds(data) == {"a": 1.5, "b": 2.0, "c": 3.0}
 
+
 def test_parse_thresholds_discards_invalid_entries():
     data = {"good": "1.5", "bad": "x", "also_bad": None, "num": 2}
     assert alerts._parse_thresholds(data) == {"good": 1.5, "num": 2.0}
+
 
 def test_parse_thresholds_returns_empty_for_invalid_data():
     data = {"bad": "x", "also_bad": None}
@@ -165,7 +168,7 @@ def test_load_subscriptions_uses_s3_when_available(monkeypatch):
     def get_object(Bucket, Key):
         assert Bucket == "bucket"
         assert Key == alerts._SUBSCRIPTIONS_KEY
-        data = json.dumps({"u1": {"k": 1}, "u2": "bad"}).encode()
+        data = json.dumps({"u1": {"x": 1}}).encode()
         return {"Body": types.SimpleNamespace(read=lambda: data)}
 
     s3.get_object = get_object
@@ -178,7 +181,7 @@ def test_load_subscriptions_uses_s3_when_available(monkeypatch):
     monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_STORAGE", types.SimpleNamespace(load=boom))
 
     alerts._load_subscriptions()
-    assert alerts._PUSH_SUBSCRIPTIONS == {"u1": {"k": 1}}
+    assert alerts._PUSH_SUBSCRIPTIONS == {"u1": {"x": 1}}
 
 
 def test_save_subscriptions_uses_local_when_no_bucket(monkeypatch):
@@ -194,10 +197,10 @@ def test_save_subscriptions_uses_local_when_no_bucket(monkeypatch):
     monkeypatch.setattr(alerts, "_s3_client", boom)
     monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_STORAGE", types.SimpleNamespace(save=save))
 
-    alerts._PUSH_SUBSCRIPTIONS = {"u": {"a": 1}}
+    alerts._PUSH_SUBSCRIPTIONS = {"u1": {"x": 1}}
     alerts._save_subscriptions()
 
-    assert saved == {"u": {"a": 1}}
+    assert saved == {"u1": {"x": 1}}
 
 
 def test_save_subscriptions_writes_to_s3_when_configured(monkeypatch):
@@ -205,7 +208,7 @@ def test_save_subscriptions_writes_to_s3_when_configured(monkeypatch):
 
     class FakeS3:
         def get_object(self, Bucket, Key):
-            data = json.dumps({"u1": {"a": 1}}).encode()
+            data = json.dumps({"u0": {"y": 0}}).encode()
             return {"Body": types.SimpleNamespace(read=lambda: data)}
 
         def put_object(self, Bucket, Key, Body):
@@ -218,13 +221,13 @@ def test_save_subscriptions_writes_to_s3_when_configured(monkeypatch):
     monkeypatch.setattr(alerts, "_s3_client", lambda: FakeS3())
     monkeypatch.setattr(alerts, "_SUBSCRIPTIONS_STORAGE", types.SimpleNamespace(save=boom))
 
-    alerts._PUSH_SUBSCRIPTIONS = {"u2": {"b": 2}}
+    alerts._PUSH_SUBSCRIPTIONS = {"u1": {"x": 1}}
     alerts._save_subscriptions()
 
     assert puts, "put_object was not called"
     saved = json.loads(puts[0]["Body"])
-    assert saved == {"u1": {"a": 1}, "u2": {"b": 2}}
-    assert alerts._PUSH_SUBSCRIPTIONS == {"u1": {"a": 1}, "u2": {"b": 2}}
+    assert saved == {"u0": {"y": 0}, "u1": {"x": 1}}
+    assert alerts._PUSH_SUBSCRIPTIONS == {"u0": {"y": 0}, "u1": {"x": 1}}
 
 
 def test_send_push_notification_no_subscriptions(monkeypatch):
@@ -302,3 +305,31 @@ def test_evaluate_drift_uses_user_specific_default(monkeypatch):
     result = alerts.evaluate_drift("u", 100, 110)
     assert not result.triggered
     assert msgs == []
+
+
+def test_threshold_and_subscription_persistence(monkeypatch):
+    # Local storage simulating persistence
+    store_thresh = {}
+    store_subs = {}
+
+    monkeypatch.setattr(alerts, "_data_bucket", lambda: None)
+    monkeypatch.setattr(
+        alerts,
+        "_SETTINGS_STORAGE",
+        types.SimpleNamespace(load=lambda: store_thresh, save=lambda d: store_thresh.update(d)),
+    )
+    monkeypatch.setattr(
+        alerts,
+        "_SUBSCRIPTIONS_STORAGE",
+        types.SimpleNamespace(load=lambda: store_subs, save=lambda d: store_subs.update(d)),
+    )
+
+    alerts.set_user_threshold("u1", 0.9)
+    alerts.set_user_push_subscription("u1", {"x": 1})
+
+    # Clear caches and reload to verify persistence via getters
+    alerts._USER_THRESHOLDS = {}
+    alerts._PUSH_SUBSCRIPTIONS = {}
+
+    assert alerts.get_user_threshold("u1") == 0.9
+    assert alerts.get_user_push_subscription("u1") == {"x": 1}

@@ -84,6 +84,23 @@ def test_load_snapshot_aws_failure_uses_local(tmp_path, monkeypatch, caplog):
     assert "Failed to fetch price snapshot" in caplog.text
 
 
+def test_load_snapshot_aws_missing_env_uses_local(tmp_path, monkeypatch, caplog):
+    payload = {"FOO": {"price": 5}}
+    path = tmp_path / "latest_prices.json"
+    path.write_text(json.dumps(payload))
+
+    monkeypatch.setattr(pu.config, "app_env", "aws")
+    monkeypatch.delenv(pu.DATA_BUCKET_ENV, raising=False)
+    monkeypatch.setattr(pu.config, "prices_json", path)
+    monkeypatch.setattr(pu, "_PRICES_PATH", path)
+
+    with caplog.at_level("ERROR"):
+        data, ts = pu._load_snapshot()
+    assert data == payload
+    assert ts == datetime.fromtimestamp(path.stat().st_mtime)
+    assert "Missing" in caplog.text
+
+
 def test_load_snapshot_missing_local_file(tmp_path, monkeypatch, caplog):
     path = tmp_path / "missing.json"
 

@@ -78,6 +78,45 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
 
 MANUAL_QUERIES: dict[tuple[str, str], dict[str, str]] = {}
 
+SAMPLE_QUERY_VALUES: dict[str, str] = {
+    "owner": "demo-owner",
+    "account": "demo-account",
+    "user": "user@example.com",
+    "email": "user@example.com",
+    "exchange": "NASDAQ",
+    "ticker": "AAPL",
+    "tickers": "AAPL",
+    "id": "1",
+    "vp_id": "1",
+    "quest_id": "check-in",
+    "slug": "demo-slug",
+    "name": "demo",
+}
+
+
+def _example_for_query_param(name: str, ann: Any) -> str:
+    """Return a representative example value for a query parameter.
+
+    A curated value map similar to ``fillPath`` is used so that generated
+    smoke requests reference existing data rather than placeholders like
+    ``ticker=test`` which can trigger 404 errors.
+    """
+
+    k = name.lower()
+    if k in SAMPLE_QUERY_VALUES:
+        return SAMPLE_QUERY_VALUES[k]
+    if "email" in k:
+        return "user@example.com"
+    if "id" in k:
+        return "1"
+    if "user" in k:
+        return "user@example.com"
+    if "date" in k:
+        return "1970-01-01"
+    if "ticker" in k:
+        return "AAPL"
+    return str(_example_for_type(ann))
+
 
 def main() -> None:
     app = create_app()
@@ -103,7 +142,9 @@ def main() -> None:
                             ann = getattr(param, "annotation", None) or getattr(
                                 param, "outer_type_", None
                             ) or param.type_
-                            params[param.name] = str(_example_for_type(ann))
+                            params[param.name] = _example_for_query_param(
+                                param.name, ann
+                            )
                     if params:
                         ep["query"] = params
                 endpoints.append(ep)

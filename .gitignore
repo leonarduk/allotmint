@@ -44,3 +44,5 @@ data/*
 # Logs
 backend.log
 /tests/.coverage
+/.coverage
+/.coveragerc

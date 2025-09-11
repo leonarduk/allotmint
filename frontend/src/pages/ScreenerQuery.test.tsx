@@ -1,10 +1,42 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { createInstance } from "i18next";
 import type { ReactElement } from "react";
 import en from "../locales/en/translation.json";
 import fr from "../locales/fr/translation.json";
+
+const mockQueryData = [
+  { owner: "Alice", ticker: "AAA", market_value_gbp: 100 },
+];
+const mockScreenerData = [
+  {
+    ticker: "AAA",
+    name: "Alpha",
+    peg_ratio: 1,
+    pe_ratio: 10,
+    de_ratio: 0.5,
+    fcf: 1000,
+    eps: 2,
+    gross_margin: 0.4,
+    operating_margin: 0.2,
+    net_margin: 0.1,
+    ebitda_margin: 0.3,
+    roa: 0.1,
+    roe: 0.2,
+    roi: 0.15,
+    dividend_yield: 2,
+    dividend_payout_ratio: 40,
+    beta: 1.2,
+    shares_outstanding: 1000,
+    float_shares: 800,
+    market_cap: 5000,
+    high_52w: 150,
+    low_52w: 90,
+    avg_volume: 2000,
+  },
+];
 
 vi.mock("../api", () => ({
   API_BASE: "http://api",
@@ -12,9 +44,7 @@ vi.mock("../api", () => ({
     { owner: "Alice", accounts: [] },
     { owner: "Bob", accounts: [] },
   ]),
-  runCustomQuery: vi.fn().mockResolvedValue([
-    { owner: "Alice", ticker: "AAA", market_value_gbp: 100 },
-  ]),
+  runCustomQuery: vi.fn(),
   saveCustomQuery: vi.fn().mockResolvedValue({}),
   listSavedQueries: vi.fn().mockResolvedValue([
     {
@@ -29,33 +59,7 @@ vi.mock("../api", () => ({
       },
     },
   ]),
-  getScreener: vi.fn().mockResolvedValue([
-    {
-      ticker: "AAA",
-      name: "Alpha",
-      peg_ratio: 1,
-      pe_ratio: 10,
-      de_ratio: 0.5,
-      fcf: 1000,
-      eps: 2,
-      gross_margin: 0.4,
-      operating_margin: 0.2,
-      net_margin: 0.1,
-      ebitda_margin: 0.3,
-      roa: 0.1,
-      roe: 0.2,
-      roi: 0.15,
-      dividend_yield: 2,
-      dividend_payout_ratio: 40,
-      beta: 1.2,
-      shares_outstanding: 1000,
-      float_shares: 800,
-      market_cap: 5000,
-      high_52w: 150,
-      low_52w: 90,
-      avg_volume: 2000,
-    },
-  ]),
+  getScreener: vi.fn(),
 }));
 
 import { getScreener, runCustomQuery } from "../api";
@@ -72,11 +76,15 @@ function renderWithI18n(ui: ReactElement) {
 }
 
 describe("Screener & Query page", () => {
-  afterEach(() => {
+  beforeEach(() => {
     window.history.pushState({}, "", "/");
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    // default API mocks to resolve to empty arrays
+    runCustomQuery.mockResolvedValue([]);
+    getScreener.mockResolvedValue([]);
   });
   it("runs screener and displays results", async () => {
+    getScreener.mockResolvedValue(mockScreenerData);
     renderWithI18n(<ScreenerQuery />);
 
     fireEvent.change(screen.getByLabelText(en.screener.tickers), {
@@ -114,6 +122,7 @@ describe("Screener & Query page", () => {
   });
 
   it("submits query form and renders results with export links", async () => {
+    runCustomQuery.mockResolvedValue(mockQueryData);
     const { i18n } = renderWithI18n(<ScreenerQuery />);
 
     await screen.findByLabelText("Alice");
@@ -151,6 +160,7 @@ describe("Screener & Query page", () => {
   });
 
   it("persists selected parameters in export URLs", async () => {
+    runCustomQuery.mockResolvedValue(mockQueryData);
     const { i18n } = renderWithI18n(<ScreenerQuery />);
 
     await screen.findByLabelText("Alice");

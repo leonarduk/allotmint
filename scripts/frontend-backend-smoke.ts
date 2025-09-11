@@ -1,5 +1,5 @@
 // Auto-generated via backend route metadata
-export interface SmokeEndpoint { method: string; path: string; body?: any }
+export interface SmokeEndpoint { method: string; path: string; query?: Record<string, string>; body?: any }
 export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "GET",
@@ -7,11 +7,17 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/accounts/{owner}/approval-requests"
+    "path": "/accounts/{owner}/approval-requests",
+    "body": {
+      "ticker": "AAPL"
+    }
   },
   {
     "method": "DELETE",
-    "path": "/accounts/{owner}/approvals"
+    "path": "/accounts/{owner}/approvals",
+    "body": {
+      "ticker": "AAPL"
+    }
   },
   {
     "method": "GET",
@@ -19,7 +25,11 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/accounts/{owner}/approvals"
+    "path": "/accounts/{owner}/approvals",
+    "body": {
+      "ticker": "AAPL",
+      "approved_on": "1970-01-01"
+    }
   },
   {
     "method": "GET",
@@ -31,7 +41,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/alert-thresholds/{user}"
+    "path": "/alert-thresholds/{user}",
+    "body": {
+      "threshold": 0
+    }
   },
   {
     "method": "GET",
@@ -43,7 +56,11 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/alerts/push-subscription/{user}"
+    "path": "/alerts/push-subscription/{user}",
+    "body": {
+      "endpoint": "test",
+      "keys": {}
+    }
   },
   {
     "method": "GET",
@@ -51,7 +68,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/alerts/settings/{user}"
+    "path": "/alerts/settings/{user}",
+    "body": {
+      "threshold": 0
+    }
   },
   {
     "method": "GET",
@@ -59,7 +79,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/compliance/validate"
+    "path": "/compliance/validate",
+    "body": {
+      "owner": "demo-owner"
+    }
   },
   {
     "method": "GET",
@@ -71,11 +94,16 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "PUT",
-    "path": "/config"
+    "path": "/config",
+    "body": {}
   },
   {
     "method": "POST",
-    "path": "/custom-query/run"
+    "path": "/custom-query/run",
+    "body": {
+      "start": "1970-01-01",
+      "end": "1970-01-01"
+    }
   },
   {
     "method": "GET",
@@ -87,7 +115,11 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/custom-query/{slug}"
+    "path": "/custom-query/{slug}",
+    "body": {
+      "start": "1970-01-01",
+      "end": "1970-01-01"
+    }
   },
   {
     "method": "GET",
@@ -103,7 +135,12 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/goals/"
+    "path": "/goals/",
+    "body": {
+      "name": "test",
+      "target_amount": 0,
+      "target_date": "1970-01-01"
+    }
   },
   {
     "method": "DELETE",
@@ -111,11 +148,19 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/goals/{name}"
+    "path": "/goals/{name}",
+    "query": {
+      "current_amount": "0"
+    }
   },
   {
     "method": "PUT",
-    "path": "/goals/{name}"
+    "path": "/goals/{name}",
+    "body": {
+      "name": "test",
+      "target_amount": 0,
+      "target_date": "1970-01-01"
+    }
   },
   {
     "method": "GET",
@@ -127,7 +172,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/instrument/"
+    "path": "/instrument/",
+    "query": {
+      "ticker": "AAPL"
+    }
   },
   {
     "method": "GET",
@@ -143,11 +191,13 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/instrument/admin/{exchange}/{ticker}"
+    "path": "/instrument/admin/{exchange}/{ticker}",
+    "body": {}
   },
   {
     "method": "PUT",
-    "path": "/instrument/admin/{exchange}/{ticker}"
+    "path": "/instrument/admin/{exchange}/{ticker}",
+    "body": {}
   },
   {
     "method": "GET",
@@ -167,11 +217,17 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/movers"
+    "path": "/movers",
+    "query": {
+      "tickers": "AAPL"
+    }
   },
   {
     "method": "GET",
-    "path": "/news"
+    "path": "/news",
+    "query": {
+      "ticker": "AAPL"
+    }
   },
   {
     "method": "GET",
@@ -179,11 +235,18 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/nudges/snooze"
+    "path": "/nudges/snooze",
+    "body": {
+      "user": "test"
+    }
   },
   {
     "method": "POST",
-    "path": "/nudges/subscribe"
+    "path": "/nudges/subscribe",
+    "body": {
+      "user": "test",
+      "frequency": 0
+    }
   },
   {
     "method": "GET",
@@ -191,7 +254,11 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/pension/forecast"
+    "path": "/pension/forecast",
+    "query": {
+      "owner": "demo-owner",
+      "death_age": "0"
+    }
   },
   {
     "method": "GET",
@@ -215,7 +282,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/performance/{owner}/holdings"
+    "path": "/performance/{owner}/holdings",
+    "query": {
+      "date": "1970-01-01"
+    }
   },
   {
     "method": "GET",
@@ -279,19 +349,32 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/returns/compare"
+    "path": "/returns/compare",
+    "query": {
+      "owner": "demo-owner"
+    }
   },
   {
     "method": "GET",
-    "path": "/scenario"
+    "path": "/scenario",
+    "query": {
+      "ticker": "AAPL",
+      "pct": "0"
+    }
   },
   {
     "method": "GET",
-    "path": "/scenario/historical"
+    "path": "/scenario/historical",
+    "query": {
+      "horizons": "[0]"
+    }
   },
   {
     "method": "GET",
-    "path": "/screener/"
+    "path": "/screener/",
+    "query": {
+      "tickers": "AAPL"
+    }
   },
   {
     "method": "POST",
@@ -299,7 +382,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/support/telegram"
+    "path": "/support/telegram",
+    "body": {
+      "text": "test"
+    }
   },
   {
     "method": "GET",
@@ -307,7 +393,16 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/tax/harvest"
+    "path": "/tax/harvest",
+    "body": {
+      "positions": [
+        {
+          "ticker": "test",
+          "basis": 0,
+          "price": 0
+        }
+      ]
+    }
   },
   {
     "method": "GET",
@@ -323,27 +418,43 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/timeseries/edit"
+    "path": "/timeseries/edit",
+    "query": {
+      "ticker": "AAPL"
+    }
   },
   {
     "method": "POST",
-    "path": "/timeseries/edit"
+    "path": "/timeseries/edit",
+    "query": {
+      "ticker": "AAPL"
+    }
   },
   {
     "method": "GET",
-    "path": "/timeseries/html"
+    "path": "/timeseries/html",
+    "query": {
+      "ticker": "AAPL"
+    }
   },
   {
     "method": "GET",
-    "path": "/timeseries/meta"
+    "path": "/timeseries/meta",
+    "query": {
+      "ticker": "AAPL"
+    }
   },
   {
     "method": "POST",
-    "path": "/token"
+    "path": "/token",
+    "body": {
+      "id_token": "test"
+    }
   },
   {
     "method": "POST",
-    "path": "/token/google"
+    "path": "/token/google",
+    "body": {}
   },
   {
     "method": "GET",
@@ -355,15 +466,32 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/transactions"
+    "path": "/transactions",
+    "body": {
+      "owner": "test",
+      "account": "test",
+      "ticker": "test",
+      "date": "1970-01-01",
+      "price_gbp": 0,
+      "units": 0
+    }
   },
   {
     "method": "GET",
-    "path": "/transactions/compliance"
+    "path": "/transactions/compliance",
+    "query": {
+      "owner": "demo-owner"
+    }
   },
   {
     "method": "POST",
-    "path": "/transactions/import"
+    "path": "/transactions/import",
+    "body": {
+      "__form__": {
+        "provider": "test",
+        "file": "__file__"
+      }
+    }
   },
   {
     "method": "GET",
@@ -371,7 +499,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/user-config/{owner}"
+    "path": "/user-config/{owner}",
+    "body": {}
   },
   {
     "method": "GET",
@@ -395,7 +524,11 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "POST",
-    "path": "/virtual-portfolios"
+    "path": "/virtual-portfolios",
+    "body": {
+      "id": "test",
+      "name": "test"
+    }
   },
   {
     "method": "DELETE",
@@ -407,14 +540,56 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   }
 ] as const;
 
+// Provide sample values for path parameters so requests avoid 422/400 errors.
+// Values are chosen based on common parameter names. Unknown names default to
+// `1` which parses as an integer or string.
+const SAMPLE_PATH_VALUES: Record<string, string> = {
+  owner: 'demo-owner',
+  account: 'demo-account',
+  user: 'user@example.com',
+  email: 'user@example.com',
+  id: '1',
+  vp_id: '1',
+  quest_id: 'check-in',
+  slug: 'demo-slug',
+  name: 'demo',
+  exchange: 'NASDAQ',
+  ticker: 'AAPL',
+};
+
 export function fillPath(path: string): string {
-  return path.replace(/\{[^}]+\}/g, 'test');
+  return path.replace(/\{([^}]+)\}/g, (_, key: string) => {
+    const k = key.toLowerCase();
+    if (SAMPLE_PATH_VALUES[k]) return SAMPLE_PATH_VALUES[k];
+    if (k.includes('email')) return 'user@example.com';
+    if (k.includes('id')) return '1';
+    if (k.includes('user')) return 'user@example.com';
+    if (k.includes('date')) return '1970-01-01';
+    return '1';
+  });
 }
 
 export async function runSmoke(base: string) {
   for (const ep of smokeEndpoints) {
-    const url = base + fillPath(ep.path);
-    const res = await fetch(url, { method: ep.method, body: ep.body ? JSON.stringify(ep.body) : undefined, headers: ep.body ? { 'Content-Type': 'application/json' } : undefined });
+    let url = base + fillPath(ep.path);
+    if (ep.query) url += '?' + new URLSearchParams(ep.query).toString();
+    let body: any = undefined;
+    let headers: any = undefined;
+    if (ep.body !== undefined) {
+      if ((ep.body as any).__form__) {
+        const fd = new FormData();
+        for (const [k, v] of Object.entries((ep.body as any).__form__)) {
+          fd.set(k, v === '__file__' ? new Blob(['test']) : (v as any));
+        }
+        body = fd;
+      } else if (ep.body instanceof FormData) {
+        body = ep.body;
+      } else {
+        body = JSON.stringify(ep.body);
+        headers = { 'Content-Type': 'application/json' };
+      }
+    }
+    const res = await fetch(url, { method: ep.method, body, headers });
     if (res.status >= 500) {
       throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
     }

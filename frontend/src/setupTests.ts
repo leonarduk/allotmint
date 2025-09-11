@@ -1,29 +1,26 @@
-import './i18n';
-import '@testing-library/jest-dom';
-import { expect } from 'vitest';
-import { toHaveNoViolations } from 'jest-axe';
+import '@testing-library/jest-dom/vitest';
 
-expect.extend(toHaveNoViolations);
-
-// Polyfill for libraries relying on ResizeObserver
-class ResizeObserver {
-  private readonly cb: ResizeObserverCallback;
-  constructor(cb: ResizeObserverCallback) {
-    this.cb = cb;
-  }
-  observe() {
-    this.cb(
-      [{ contentRect: { width: 400, height: 400 } } as ResizeObserverEntry],
-      this
-    );
-  }
-  unobserve() {}
-  disconnect() {}
-}
-declare global {
-  interface GlobalThis {
-    ResizeObserver: typeof ResizeObserver;
-  }
+// Polyfill matchMedia
+if (!('matchMedia' in window)) {
+  Object.defineProperty(window, 'matchMedia', {
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+    writable: true,
+  });
 }
 
-globalThis.ResizeObserver = ResizeObserver;
+// Polyfill ResizeObserver
+if (typeof window.ResizeObserver === 'undefined') {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any;
+}

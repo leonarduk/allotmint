@@ -165,7 +165,11 @@
   },
   "pensionForecast": {
     "currentAge": "Current age: {{age}}",
-    "retirementAge": "Retirement age: {{age}}"
+    "birthDate": "Birth date: {{dob}}",
+    "retirementAge": "Retirement age: {{age}}",
+    "pensionPot": "Pension pot",
+    "growthAssumption": "Growth assumption (%):",
+    "monthlyContribution": "Monthly Contribution (£):"
   },
   "group": {
     "select": "Select a group."

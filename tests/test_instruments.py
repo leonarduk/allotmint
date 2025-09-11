@@ -98,3 +98,19 @@ def test_save_instrument_meta_uploads_s3(monkeypatch, tmp_path):
     assert uploaded["Bucket"] == "bucket"
     assert uploaded["Key"] == "meta/L/ABC.json"
     assert json.loads(uploaded["Body"].decode()) == {"bar": 2}
+
+def test_get_instrument_meta_known_records(caplog):
+    tickers = {
+        "CASH.GBP": "GBP Cash",
+        "VWRL.L": "Vanguard FTSE All-World UCITS ETF",
+        "ERNS.L": "iShares GBP Ultrashort Bond UCITS ETF",
+        "PFE.N": "Pfizer Inc.",
+    }
+    for tkr, name in tickers.items():
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            meta = instruments.get_instrument_meta(tkr)
+        assert meta.get("name") == name
+        assert meta.get("exchange") == tkr.split(".")[-1]
+        assert "ticker" in meta
+        assert caplog.text == ""

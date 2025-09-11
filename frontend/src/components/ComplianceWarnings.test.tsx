@@ -39,7 +39,9 @@ describe("ComplianceWarnings", () => {
         render(<ComplianceWarnings owners={["alice", "bob"]} />);
 
         await screen.findByText("Issue");
-        expect(screen.queryByText("alice")).not.toBeInTheDocument();
+        await waitFor(() =>
+            expect(screen.queryByText("alice")).not.toBeInTheDocument(),
+        );
         expect(screen.getByText("bob")).toBeInTheDocument();
     });
 

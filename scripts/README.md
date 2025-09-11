@@ -10,6 +10,29 @@ npm run smoke:test
 
 Set `API_BASE` to target a different backend URL and `TEST_ID_TOKEN` if needed.
 
+## smoke-test.ps1
+
+Check a single endpoint for an HTTP 200 response.
+
+```powershell
+# Pass URL as a parameter
+./scripts/smoke-test.ps1 https://example.com
+
+# or rely on the environment variable
+$env:SMOKE_TEST_URL = "https://example.com"
+./scripts/smoke-test.ps1
+```
+
+
+## site_healthcheck.py
+
+Parse the sitemap and verify that each URL responds with HTTP 200.
+
+```bash
+python scripts/site_healthcheck.py
+# or on Windows PowerShell
+./scripts/site-healthcheck.ps1
+```
 ## site_snapshot.py
 
 Crawl a website, capture screenshots, run AI analysis on each page and build PDF/Markdown docs.
@@ -42,6 +65,27 @@ Crawl a website, capture screenshots, run AI analysis on each page and build PDF
 embedding the analysis text under each screenshot.
 
 The script uses Playwright to render pages so that JavaScript-generated links are discovered correctly. Pillow enables image support in FPDF; without it, PDFs are generated without screenshots. If OpenAI analysis fails for a page, the rest of the snapshot continues with an empty analysis.
+
+## generate_sitemap.py
+
+Crawl a running frontend and build `frontend/public/sitemap.xml` with all internal links.
+
+```bash
+python scripts/generate_sitemap.py --base-url https://app.allotmint.io
+```
+
+Use the PowerShell wrapper for convenience:
+
+```powershell
+# Deployed site
+./scripts/generate-sitemap.ps1
+
+# Local dev server
+./scripts/generate-sitemap.ps1 -Local
+
+# Explicit URL
+./scripts/generate-sitemap.ps1 -BaseUrl http://localhost:5173
+```
 
 ## import_transactions.py
 

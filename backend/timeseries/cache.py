@@ -23,6 +23,7 @@ import requests
 
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
+
 # ──────────────────────────────────────────────────────────────
 # Remote fetchers
 # ──────────────────────────────────────────────────────────────
@@ -207,12 +208,14 @@ def _rolling_cache(
         ex["Date"] = ex["Date"].dt.date
         return _ensure_schema(ex[ex["Date"] >= cutoff].reset_index(drop=True))
 
-    # Merge and dedupe by Date
+    # Merge and dedupe by Date, skipping empty/all-NA frames to avoid
+    # pandas concat dtype warnings and object coercion
+    frames = [df for df in (existing, new) if not df.empty and df.notna().any().any()]
+    if not frames:
+        logger.warning("No timeseries data for %s.%s", ticker, exchange)
+        return _empty_ts()
     combined = (
-        pd.concat([existing, new], ignore_index=True)
-        .drop_duplicates(subset="Date")
-        .sort_values("Date")
-        .reset_index(drop=True)
+        pd.concat(frames, ignore_index=True).drop_duplicates(subset="Date").sort_values("Date").reset_index(drop=True)
     )
     _save_parquet(combined, cache_path)
     return _ensure_schema(combined[combined["Date"].dt.date >= cutoff].reset_index(drop=True))
@@ -379,7 +382,7 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
 
         if fx.empty and getattr(config, "fx_proxy_url", None):
             try:
-                url = f"{config.fx_proxy_url.rstrip('/')}/{currency}"
+                url = f"{config.fx_proxy_url.rstrip('/')}/{currency}/GBP"
                 params = {"start": start.isoformat(), "end": end.isoformat()}
                 resp = requests.get(url, params=params, timeout=5)
                 if resp.ok:
@@ -392,23 +395,19 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
         # monkeypatch this function so no real network calls occur.
         if fx.empty:
             try:
-                fx = fetch_fx_rate_range(currency, start, end).copy()
+                fx = fetch_fx_rate_range(currency, "GBP", start, end).copy()
                 if fx.empty:
-                    raise ValueError(
-                        f"Offline mode: no FX rates for {currency}"
-                    )
+                    raise ValueError(f"Offline mode: no FX rates for {currency}")
                 fx["Date"] = pd.to_datetime(fx["Date"])
             except Exception as exc:
-                raise ValueError(
-                    f"Offline mode: no FX rates for {currency}"
-                ) from exc
+                raise ValueError(f"Offline mode: no FX rates for {currency}") from exc
 
         mask = (fx["Date"].dt.date >= start) & (fx["Date"].dt.date <= end)
         fx = fx.loc[mask]
         if fx.empty:
             raise ValueError(f"Offline mode: FX cache lacks range for {currency}")
     else:
-        fx = fetch_fx_rate_range(currency, start, end).copy()
+        fx = fetch_fx_rate_range(currency, "GBP", start, end).copy()
         if fx.empty:
             return df
         fx["Date"] = pd.to_datetime(fx["Date"])
@@ -453,9 +452,7 @@ def load_meta_timeseries_range(
             config.offline_mode = False
             OFFLINE_MODE = False
             _memoized_range_cached.cache_clear()
-            return load_meta_timeseries_range(
-                ticker, exchange, start_date, end_date, _allow_fallback=False
-            )
+            return load_meta_timeseries_range(ticker, exchange, start_date, end_date, _allow_fallback=False)
         finally:
             config.offline_mode = prev_offline_mode
             OFFLINE_MODE = prev_global

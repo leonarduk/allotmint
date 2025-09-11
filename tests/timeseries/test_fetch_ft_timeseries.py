@@ -1,12 +1,11 @@
 from datetime import date
-from unittest.mock import patch
-from bs4 import BeautifulSoup as RealBeautifulSoup
 
 from backend.timeseries.fetch_ft_timeseries import (
     _build_ft_ticker,
     fetch_ft_timeseries,
     fetch_ft_timeseries_range,
 )
+from backend.utils.timeseries_helpers import STANDARD_COLUMNS
 
 
 def test_build_ft_ticker_valid_isin():
@@ -17,7 +16,7 @@ def test_build_ft_ticker_non_isin_returns_none():
     assert _build_ft_ticker("AAPL") is None
 
 
-def test_fetch_ft_timeseries_range_success():
+def test_fetch_ft_timeseries_range_no_cookie_banner(monkeypatch):
     html = """
     <table class="mod-ui-table">
     <thead>
@@ -31,10 +30,10 @@ def test_fetch_ft_timeseries_range_success():
     """
 
     class FakeElement:
-        def __init__(self, html):
+        def __init__(self, html: str):
             self.html = html
 
-        def get_attribute(self, name):
+        def get_attribute(self, name: str) -> str:
             assert name == "outerHTML"
             return self.html
 
@@ -42,47 +41,71 @@ def test_fetch_ft_timeseries_range_success():
             pass
 
     class FakeDriver:
-        def __init__(self, html):
-            self.html = html
+        def __init__(self):
+            self.quit_called = False
 
-        def get(self, url):
+        def get(self, url: str):
             self.url = url
 
         def find_element(self, by, selector):
-            if selector == "table.mod-ui-table":
-                return FakeElement(self.html)
             if selector == "button.js-accept-all-cookies":
                 raise Exception("no cookie banner")
+            if selector == "table.mod-ui-table":
+                return FakeElement(html)
             raise Exception("unexpected selector")
 
         def quit(self):
+            self.quit_called = True
+
+    driver = FakeDriver()
+
+    class FakeWait:
+        def __init__(self, driver, timeout):
             pass
 
-    with patch("backend.timeseries.fetch_ft_timeseries.init_driver", return_value=FakeDriver(html)), \
-        patch("backend.timeseries.fetch_ft_timeseries.WebDriverWait") as MockWait, \
-        patch("backend.timeseries.fetch_ft_timeseries.BeautifulSoup", wraps=RealBeautifulSoup):
-        MockWait.return_value.until.return_value = True
-        df = fetch_ft_timeseries_range("TEST:GBP", date(2024, 1, 1), date(2024, 1, 2))
+        def until(self, condition):
+            return True
+
+    monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.init_driver", lambda *a, **k: driver)
+    monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.WebDriverWait", FakeWait)
+
+    df = fetch_ft_timeseries_range("TEST:GBP", date(2024, 1, 1), date(2024, 1, 2))
 
     assert not df.empty
-    assert list(df["Ticker"]) == ["TEST:GBP", "TEST:GBP"]
-    assert (df["Source"] == "FT").all()
+    assert list(df.columns) == STANDARD_COLUMNS
+    assert driver.quit_called
 
 
-def test_fetch_ft_timeseries_range_failure():
+def test_fetch_ft_timeseries_range_find_element_failure(monkeypatch):
     class FailingDriver:
-        def get(self, url):
+        def __init__(self):
+            self.quit_called = False
+
+        def get(self, url: str):
+            self.url = url
+
+        def find_element(self, by, selector):
             raise Exception("boom")
 
         def quit(self):
+            self.quit_called = True
+
+    driver = FailingDriver()
+
+    class FakeWait:
+        def __init__(self, driver, timeout):
             pass
 
-    with patch("backend.timeseries.fetch_ft_timeseries.init_driver", return_value=FailingDriver()), \
-        patch("backend.timeseries.fetch_ft_timeseries.WebDriverWait"), \
-        patch("backend.timeseries.fetch_ft_timeseries.BeautifulSoup"):
-        df = fetch_ft_timeseries_range("TEST:GBP", date(2024, 1, 1), date(2024, 1, 2))
+        def until(self, condition):
+            return True
+
+    monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.init_driver", lambda *a, **k: driver)
+    monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.WebDriverWait", FakeWait)
+
+    df = fetch_ft_timeseries_range("TEST:GBP", date(2024, 1, 1), date(2024, 1, 2))
 
     assert df.empty
+    assert driver.quit_called
 
 
 def test_fetch_ft_timeseries_non_isin_returns_empty_df():

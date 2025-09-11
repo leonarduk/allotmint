@@ -1,5 +1,5 @@
 // Auto-generated via backend route metadata
-export interface SmokeEndpoint { method: string; path: string; body?: any }
+export interface SmokeEndpoint { method: string; path: string; body?: any; query?: Record<string, string> }
 export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "GET",
@@ -148,7 +148,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/goals/{name}"
+    "path": "/goals/{name}",
+    "query": {
+      "current_amount": "0"
+    }
   },
   {
     "method": "PUT",
@@ -169,7 +172,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/instrument/"
+    "path": "/instrument/",
+    "query": {
+      "ticker": "test"
+    }
   },
   {
     "method": "GET",
@@ -211,11 +217,17 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/movers"
+    "path": "/movers",
+    "query": {
+      "tickers": "test"
+    }
   },
   {
     "method": "GET",
-    "path": "/news"
+    "path": "/news",
+    "query": {
+      "ticker": "test"
+    }
   },
   {
     "method": "GET",
@@ -242,7 +254,11 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/pension/forecast"
+    "path": "/pension/forecast",
+    "query": {
+      "owner": "test",
+      "death_age": "0"
+    }
   },
   {
     "method": "GET",
@@ -266,7 +282,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/performance/{owner}/holdings"
+    "path": "/performance/{owner}/holdings",
+    "query": {
+      "date": "test"
+    }
   },
   {
     "method": "GET",
@@ -330,19 +349,32 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/returns/compare"
+    "path": "/returns/compare",
+    "query": {
+      "owner": "test"
+    }
   },
   {
     "method": "GET",
-    "path": "/scenario"
+    "path": "/scenario",
+    "query": {
+      "ticker": "test",
+      "pct": "0"
+    }
   },
   {
     "method": "GET",
-    "path": "/scenario/historical"
+    "path": "/scenario/historical",
+    "query": {
+      "horizons": "[0]"
+    }
   },
   {
     "method": "GET",
-    "path": "/screener/"
+    "path": "/screener/",
+    "query": {
+      "tickers": "test"
+    }
   },
   {
     "method": "POST",
@@ -386,19 +418,31 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/timeseries/edit"
+    "path": "/timeseries/edit",
+    "query": {
+      "ticker": "test"
+    }
   },
   {
     "method": "POST",
-    "path": "/timeseries/edit"
+    "path": "/timeseries/edit",
+    "query": {
+      "ticker": "test"
+    }
   },
   {
     "method": "GET",
-    "path": "/timeseries/html"
+    "path": "/timeseries/html",
+    "query": {
+      "ticker": "test"
+    }
   },
   {
     "method": "GET",
-    "path": "/timeseries/meta"
+    "path": "/timeseries/meta",
+    "query": {
+      "ticker": "test"
+    }
   },
   {
     "method": "POST",
@@ -434,7 +478,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/transactions/compliance"
+    "path": "/transactions/compliance",
+    "query": {
+      "owner": "test"
+    }
   },
   {
     "method": "POST",
@@ -524,7 +571,8 @@ export function fillPath(path: string): string {
 
 export async function runSmoke(base: string) {
   for (const ep of smokeEndpoints) {
-    const url = base + fillPath(ep.path);
+    const qs = ep.query ? '?' + new URLSearchParams(ep.query).toString() : '';
+    const url = base + fillPath(ep.path) + qs;
     let body: any = undefined;
     let headers: any = undefined;
     if (ep.body !== undefined) {

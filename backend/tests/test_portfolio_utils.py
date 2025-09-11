@@ -2,7 +2,6 @@ import pandas as pd
 
 import backend.common.portfolio_utils as pu
 
-
 def test_fx_to_base_logs_warning_on_failure(monkeypatch, caplog):
     def fake_fetch(currency, start, end):
         raise RuntimeError("boom")
@@ -20,7 +19,7 @@ def test_fx_to_base_logs_warning_on_failure(monkeypatch, caplog):
 def test_fx_to_base_uses_cache(monkeypatch):
     calls = {"n": 0}
 
-    def fake_fetch(currency, start, end):
+    def fake_fetch(base, quote, start, end):
         calls["n"] += 1
         return pd.DataFrame({"Rate": [0.5]})
 

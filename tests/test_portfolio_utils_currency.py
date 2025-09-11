@@ -30,7 +30,7 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
         lambda t: {"currency": "USD"},
     )
 
-    def fake_fetch(base: str, start, end):
+    def fake_fetch(base: str, quote: str, start, end):
         import pandas as pd
 
         rates = {"USD": 0.8, "EUR": 0.9}

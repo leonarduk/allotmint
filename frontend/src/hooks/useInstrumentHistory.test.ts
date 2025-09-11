@@ -19,17 +19,25 @@ describe("useInstrumentHistory", () => {
   });
 
   it("retries on HTTP 429 responses", async () => {
+    vi.useFakeTimers();
     mockGetInstrumentDetail.mockRejectedValue(
       new Error("HTTP 429 – Too Many Requests"),
     );
 
     const { result } = renderHook(() => useInstrumentHistory("ABC", 7));
 
-    await waitFor(() => expect(result.current.error).toBeTruthy(), {
-      timeout: 10000,
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
     });
 
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(3);
+    expect(result.current.error).toBeTruthy();
+
+    vi.useRealTimers();
   });
 
   it("uses Retry-After header for backoff", async () => {

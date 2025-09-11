@@ -7,7 +7,9 @@ Price utilities driven entirely by the live portfolio universe
         "last_price":      ...,
         "change_7d_pct":   ...,
         "change_30d_pct":  ...,
-        "last_price_date": "YYYY-MM-DD"
+        "last_price_date": "YYYY-MM-DD",
+        "last_price_time": "YYYY-MM-DDTHH:MM:SSZ",
+        "is_stale":        true
       },
       ...
     }
@@ -24,7 +26,10 @@ from typing import Iterable, Dict, List, Optional
 import pandas as pd
 
 from backend.common import instrument_api
-from backend.common.holding_utils import load_latest_prices as _load_latest_prices
+from backend.common.holding_utils import (
+    load_latest_prices as _load_latest_prices,
+    load_live_prices,
+)
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import (
     list_all_unique_tickers,
@@ -70,18 +75,35 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
 
     yday = date.today() - timedelta(days=1)
     latest = _load_latest_prices(list(tickers))
+    live = load_live_prices(list(tickers))
+    now = datetime.now(UTC)
 
     snapshot: Dict[str, Dict] = {}
     for full in tickers:
-        last = latest.get(full)
+        live_info = live.get(full.upper())
+        last_close = latest.get(full)
+        price = None
+        ts: Optional[datetime] = None
+        is_stale = True
+        if live_info:
+            price = float(live_info.get("price")) if live_info.get("price") is not None else None
+            ts = live_info.get("timestamp")
+            if ts:
+                is_stale = (now - ts) > timedelta(minutes=15)
+        elif last_close is not None:
+            price = float(last_close)
+            # no timestamp -> treat as stale
+
         info = {
-            "last_price": float(last) if last is not None else None,
+            "last_price": price,
             "change_7d_pct": None,
             "change_30d_pct": None,
             "last_price_date": yday.isoformat(),
+            "last_price_time": ts.isoformat().replace("+00:00", "Z") if ts else None,
+            "is_stale": is_stale,
         }
 
-        if last is not None:
+        if price is not None:
             resolved = instrument_api._resolve_full_ticker(full, latest)
             if resolved:
                 sym, exch = resolved
@@ -94,9 +116,9 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
             px_30 = _close_on(sym, exch, yday - timedelta(days=30))
 
             if px_7 not in (None, 0):
-                info["change_7d_pct"] = (float(last) / px_7 - 1.0) * 100.0
+                info["change_7d_pct"] = (float(price) / px_7 - 1.0) * 100.0
             if px_30 not in (None, 0):
-                info["change_30d_pct"] = (float(last) / px_30 - 1.0) * 100.0
+                info["change_30d_pct"] = (float(price) / px_30 - 1.0) * 100.0
 
         snapshot[full] = info
 

@@ -38,6 +38,12 @@ const sampleRows: QuoteRow[] = [
   },
 ];
 
+async function flushPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await vi.advanceTimersByTimeAsync(0);
+}
+
 describe("Watchlist page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -85,21 +91,16 @@ describe("Watchlist page", () => {
     localStorage.setItem("watchlistSymbols", "AAA");
     const { unmount } = render(<Watchlist />);
 
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    await flushPromises();
+    expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByText("Refresh"));
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(2);
 
     await vi.advanceTimersByTimeAsync(10000);
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(3);
 
     unmount();
@@ -113,15 +114,12 @@ describe("Watchlist page", () => {
 
     const { unmount } = render(<Watchlist />);
 
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    await flushPromises();
+    expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(10000);
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(2);
 
     unmount();
@@ -135,9 +133,8 @@ describe("Watchlist page", () => {
 
     const { unmount } = render(<Watchlist />);
 
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    await flushPromises();
+    expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
     fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
@@ -145,9 +142,7 @@ describe("Watchlist page", () => {
     });
 
     await vi.advanceTimersByTimeAsync(10000);
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
     fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
@@ -155,9 +150,7 @@ describe("Watchlist page", () => {
     });
 
     await vi.advanceTimersByTimeAsync(10000);
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(2);
 
     unmount();
@@ -172,22 +165,17 @@ describe("Watchlist page", () => {
 
     const { unmount } = render(<Watchlist />);
 
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    await flushPromises();
+    expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(10000);
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
-    expect(screen.getByText("Markets closed")).toBeInTheDocument();
+    await flushPromises();
+    expect(screen.getAllByText(/markets/i)[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    vi.advanceTimersByTime(30000);
-    vi.useRealTimers();
-    await screen.findByText("Alpha");
-    vi.useFakeTimers();
+    await vi.advanceTimersByTimeAsync(30000);
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
     unmount();

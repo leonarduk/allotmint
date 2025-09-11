@@ -127,6 +127,7 @@ class Config:
     accounts_root: Optional[Path] = None
     prices_json: Optional[Path] = None
     risk_free_rate: Optional[float] = None
+    base_currency: Optional[str] = "GBP"
 
     approval_valid_days: Optional[int] = None
     approval_exempt_types: Optional[List[str]] = None

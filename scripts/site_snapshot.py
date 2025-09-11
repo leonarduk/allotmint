@@ -301,7 +301,7 @@ async def snapshot_pages(
             user_agent=USER_AGENT,
         )
 
-        async def _work(idx: int, url: str):
+        async def _work(idx: int, url: str) -> PageDoc:
             async with sem:
                 page = await context.new_page()
                 try:
@@ -357,20 +357,26 @@ async def snapshot_pages(
                     if analysis:
                         md_text += f"\n\n## Analysis\n\n{analysis}"
                     md_path.write_text(md_text, encoding="utf-8")
-                    results.append(
-                        PageDoc(
-                            idx=idx,
-                            url=url,
-                            title=title,
-                            screenshot=png_path,
-                            markdown=md_path,
-                            analysis=analysis,
-                        )
+                    return PageDoc(
+                        idx=idx,
+                        url=url,
+                        title=title,
+                        screenshot=png_path,
+                        markdown=md_path,
+                        analysis=analysis,
                     )
                 finally:
                     await page.close()
 
-        await asyncio.gather(*(_work(i + 1, u) for i, u in enumerate(urls)))
+        gather_results = await asyncio.gather(
+            *(_work(i + 1, u) for i, u in enumerate(urls)),
+            return_exceptions=True,
+        )
+        for r in gather_results:
+            if isinstance(r, Exception):
+                logging.error("Snapshot failed: %s", r)
+            else:
+                results.append(r)
         await context.close()
         await browser.close()
 

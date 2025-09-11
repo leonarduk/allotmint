@@ -316,14 +316,29 @@ async def snapshot_pages(
         current_wait_until = wait_until
         wait_lock = asyncio.Lock()
 
-        async def _work(idx: int, url: str):
-            nonlocal current_wait_until
+        async def _work(idx: int, url: str) -> PageDoc:
             async with sem:
                 page = await context.new_page()
                 try:
-                    await page.goto(
-                        url, wait_until=current_wait_until, timeout=page_timeout_ms
-                    )
+                    try:
+                        await page.goto(
+                            url, wait_until=wait_until, timeout=page_timeout_ms
+                        )
+                    except PWTimeout:
+                        logging.warning(
+                            "Timeout navigating to %s; retrying with wait_until='load'",
+                            url,
+                        )
+                        try:
+                            await page.goto(
+                                url, wait_until="load", timeout=page_timeout_ms
+                            )
+                        except PWTimeout:
+                            logging.warning(
+                                "Retry timeout navigating to %s; skipping page", url
+                            )
+                            return
+
                     await _hide_selectors(page, hide_selectors)
                     await page.wait_for_timeout(300)
                     title = (await page.title()) or url
@@ -373,15 +388,13 @@ async def snapshot_pages(
                     if analysis:
                         md_text += f"\n\n## Analysis\n\n{analysis}"
                     md_path.write_text(md_text, encoding="utf-8")
-                    results.append(
-                        PageDoc(
-                            idx=idx,
-                            url=url,
-                            title=title,
-                            screenshot=png_path,
-                            markdown=md_path,
-                            analysis=analysis,
-                        )
+                    return PageDoc(
+                        idx=idx,
+                        url=url,
+                        title=title,
+                        screenshot=png_path,
+                        markdown=md_path,
+                        analysis=analysis,
                     )
                 except PWTimeout:
                     logging.warning("Timeout loading %s", url)
@@ -400,7 +413,15 @@ async def snapshot_pages(
                 finally:
                     await page.close()
 
-        await asyncio.gather(*(_work(i + 1, u) for i, u in enumerate(urls)))
+        gather_results = await asyncio.gather(
+            *(_work(i + 1, u) for i, u in enumerate(urls)),
+            return_exceptions=True,
+        )
+        for r in gather_results:
+            if isinstance(r, Exception):
+                logging.error("Snapshot failed: %s", r)
+            else:
+                results.append(r)
         await context.close()
         await browser.close()
 

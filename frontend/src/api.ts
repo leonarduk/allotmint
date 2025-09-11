@@ -516,6 +516,15 @@ export const getInstrumentDetail = (
     { signal },
   );
 
+export const getInstrumentIntraday = (
+  ticker: string,
+  signal?: AbortSignal,
+) =>
+  fetchJson<{ ticker: string; prices: { timestamp: string; close: number }[] }>(
+    `${API_BASE}/instrument/intraday?ticker=${encodeURIComponent(ticker)}`,
+    { signal },
+  );
+
 /**
  * Wrapper around {@link getInstrumentDetail} with basic retry logic for rate limits.
  * Retries up to `maxAttempts` times on HTTP 429 responses using exponential

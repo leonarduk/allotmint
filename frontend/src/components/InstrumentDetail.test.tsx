@@ -37,8 +37,8 @@ const defaultConfig: AppConfig = {
   },
 };
 
-vi.mock("../api", () => ({ getInstrumentDetail: vi.fn() }));
-import { getInstrumentDetail } from "../api";
+vi.mock("../api", () => ({ getInstrumentDetail: vi.fn(), getInstrumentIntraday: vi.fn() }));
+import { getInstrumentDetail, getInstrumentIntraday } from "../api";
 
 class ResizeObserver {
   observe() {}
@@ -59,6 +59,7 @@ import { InstrumentDetail } from "./InstrumentDetail";
 
 describe("InstrumentDetail", () => {
   const mockGetInstrumentDetail = getInstrumentDetail as unknown as Mock;
+  const mockGetInstrumentIntraday = getInstrumentIntraday as unknown as Mock;
 
   const TestProvider = ({ children }: { children: React.ReactNode }) => {
     const [relativeViewEnabled, setRelativeViewEnabled] = useState(false);
@@ -81,6 +82,7 @@ describe("InstrumentDetail", () => {
 
   beforeEach(() => {
     mockGetInstrumentDetail.mockReset();
+    mockGetInstrumentIntraday.mockReset();
   });
 
   it("shows signal action and reason when provided", async () => {

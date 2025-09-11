@@ -155,7 +155,9 @@
       "delta": "Δ £",
       "deltaPct": "Δ %"
     },
-    "noPriceData": "Sem dados de preços"
+    "noPriceData": "Sem dados de preços",
+    "intraday": "Intraday",
+    "intradayUnavailable": "Dados intraday indisponíveis"
   },
   "owner": {
     "label": "Proprietário",

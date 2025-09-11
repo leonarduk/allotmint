@@ -23,6 +23,16 @@ $env:SMOKE_TEST_URL = "https://example.com"
 ./scripts/smoke-test.ps1
 ```
 
+
+## site_healthcheck.py
+
+Parse the sitemap and verify that each URL responds with HTTP 200.
+
+```bash
+python scripts/site_healthcheck.py
+# or on Windows PowerShell
+./scripts/site-healthcheck.ps1
+```
 ## site_snapshot.py
 
 Crawl a website, capture screenshots, run AI analysis on each page and build PDF/Markdown docs.

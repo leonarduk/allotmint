@@ -7,6 +7,7 @@ import {
   subscribeNudges,
   getEvents,
   runScenario,
+  getPortfolio,
   getPensionForecast,
 } from "./api";
 
@@ -85,6 +86,48 @@ describe("nudge subscriptions", () => {
     await subscribeNudges("bob", 40);
     args = mockFetch.mock.calls[1];
     expect(args[1].body).toBe(JSON.stringify({ user: "bob", frequency: 30 }));
+  });
+});
+
+describe("portfolio holdings", () => {
+  it("passes through stale price metadata", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          owner: "alice",
+          as_of: "2024-01-01",
+          trades_this_month: 0,
+          trades_remaining: 0,
+          total_value_estimate_gbp: 0,
+          accounts: [
+            {
+              account_type: "general",
+              currency: "GBP",
+              value_estimate_gbp: 0,
+              holdings: [
+                {
+                  ticker: "AAA",
+                  name: "Alpha",
+                  units: 1,
+                  acquired_date: "2024-01-01",
+                  current_price_gbp: 100,
+                  current_price_currency: "GBP",
+                  last_price_date: "2024-01-01",
+                  last_price_time: "2024-01-01T10:00:00Z",
+                  is_stale: true,
+                },
+              ],
+            },
+          ],
+        }),
+    });
+    // @ts-ignore
+    global.fetch = mockFetch;
+    const data = await getPortfolio("alice");
+    const holding = data.accounts[0].holdings[0];
+    expect(holding.last_price_time).toBe("2024-01-01T10:00:00Z");
+    expect(holding.is_stale).toBe(true);
   });
 });
 

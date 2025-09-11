@@ -457,9 +457,19 @@ export function HoldingsTable({
                   </td>
                 )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {money(
-                    h.current_price_gbp,
-                    h.current_price_currency || baseCurrency,
+                  <span className={h.is_stale ? "text-gray" : undefined}>
+                    {money(
+                      h.current_price_gbp,
+                      h.current_price_currency || baseCurrency,
+                    )}
+                  </span>
+                  {h.is_stale && (
+                    <span
+                      className="ml-1 text-warning"
+                      title={h.last_price_time ?? undefined}
+                    >
+                      *
+                    </span>
                   )}
                   {h.last_price_date && (
                     <span

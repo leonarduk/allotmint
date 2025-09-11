@@ -382,7 +382,7 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
 
         if fx.empty and getattr(config, "fx_proxy_url", None):
             try:
-                url = f"{config.fx_proxy_url.rstrip('/')}/{currency}"
+                url = f"{config.fx_proxy_url.rstrip('/')}/{currency}/GBP"
                 params = {"start": start.isoformat(), "end": end.isoformat()}
                 resp = requests.get(url, params=params, timeout=5)
                 if resp.ok:
@@ -395,7 +395,7 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
         # monkeypatch this function so no real network calls occur.
         if fx.empty:
             try:
-                fx = fetch_fx_rate_range(currency, start, end).copy()
+                fx = fetch_fx_rate_range(currency, "GBP", start, end).copy()
                 if fx.empty:
                     raise ValueError(f"Offline mode: no FX rates for {currency}")
                 fx["Date"] = pd.to_datetime(fx["Date"])
@@ -407,7 +407,7 @@ def _convert_to_gbp(df: pd.DataFrame, ticker: str, exchange: str, start: date, e
         if fx.empty:
             raise ValueError(f"Offline mode: FX cache lacks range for {currency}")
     else:
-        fx = fetch_fx_rate_range(currency, start, end).copy()
+        fx = fetch_fx_rate_range(currency, "GBP", start, end).copy()
         if fx.empty:
             return df
         fx["Date"] = pd.to_datetime(fx["Date"])

@@ -207,7 +207,7 @@ from datetime import date
 import pandas as pd
 from backend.utils.fx_rates import fetch_fx_rate_range
 
-df = fetch_fx_rate_range("USD", date(2024,1,1), date.today())
+df = fetch_fx_rate_range("USD", "GBP", date(2024,1,1), date.today())
 df.to_parquet("data/timeseries/fx/USD.parquet", index=False)
 PY
 ```

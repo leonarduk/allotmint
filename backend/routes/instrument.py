@@ -27,6 +27,8 @@ from backend.common.portfolio_utils import get_security_meta
 from backend.common.instrument_api import intraday_timeseries_for_ticker
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
+from backend.utils.fx_rates import fetch_fx_rate_range
+from backend.config import config
 
 templates_dir = Path(__file__).resolve().parent.parent / "templates"
 env = Environment(
@@ -194,6 +196,9 @@ async def instrument(
     ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),
     days: int = Query(365, ge=0, le=36500),
     format: str = Query("html", pattern="^(html|json)$"),
+    base_currency: str | None = Query(
+        None, description="Reporting currency for prices"
+    ),
 ):
     """Return price history and portfolio positions for a ticker.
 
@@ -229,6 +234,10 @@ async def instrument(
     sector = meta.get("sector")
     currency = meta.get("currency")
 
+    base_currency = (
+        base_currency or getattr(config, "base_currency", None) or "GBP"
+    ).upper()
+
     ts_is_gbp = currency == "GBP" or "Close_gbp" in df.columns
     if ts_is_gbp and "Close_gbp" not in df.columns and "Close" in df.columns:
         df["Close_gbp"] = df["Close"]
@@ -258,18 +267,54 @@ async def instrument(
             "date": lambda d: d["date"].dt.strftime("%Y-%m-%d"),
             "close": lambda d: d["close"].astype(float),
         }
+        fx_links: Dict[str, str] = {}
+
         is_gbp_ticker = ticker.upper().endswith(".L") or ticker.upper().endswith(".UK")
         if currency == "GBX" or (currency is None and is_gbp_ticker):
             currency = "GBP"
         if "Close_gbp" not in df.columns and "Close" in df.columns and (currency == "GBP" or is_gbp_ticker):
             df["Close_gbp"] = df["Close"]
+
+        if currency not in {"GBP", "GBX"}:
+            pair = f"{currency}GBP"
+            fx_links[pair] = f"/timeseries/meta?ticker={pair}"
+
         if "Close_gbp" in df.columns:
             cols.append("Close_gbp")
             rename["Close_gbp"] = "close_gbp"
             assigns["close_gbp"] = lambda d: d["close_gbp"].astype(float)
             currency = "GBP"
 
-        prices = df[cols].rename(columns=rename).assign(**assigns).to_dict(orient="records")
+        base_lower = base_currency.lower()
+        if base_currency != currency:
+            if "Close_gbp" not in df.columns:
+                df["Close_gbp"] = df["Close"]
+            start_fx = df["Date"].dt.date.min()
+            end_fx = df["Date"].dt.date.max()
+            try:
+                fx = fetch_fx_rate_range(base_currency, start_fx, end_fx)
+                if not fx.empty:
+                    fx["Date"] = pd.to_datetime(fx["Date"])
+                    df = df.merge(fx, on="Date", how="left")
+                    col_name = f"Close_{base_lower}"
+                    df[col_name] = df["Close_gbp"] / pd.to_numeric(df["Rate"], errors="coerce")
+                    df.drop(columns=["Rate"], inplace=True)
+                    cols.append(col_name)
+                    rename[col_name] = f"close_{base_lower}"
+                    assigns[f"close_{base_lower}"] = (
+                        lambda d, c=f"close_{base_lower}": d[c].astype(float)
+                    )
+                    pair = f"{base_currency}GBP"
+                    fx_links[pair] = f"/timeseries/meta?ticker={pair}"
+            except Exception:
+                pass
+
+        prices = (
+            df[cols]
+            .rename(columns=rename)
+            .assign(**assigns)
+            .to_dict(orient="records")
+        )
         mini = {"7": prices[-7:], "30": prices[-30:], "180": prices[-180:]}
         payload = {
             "ticker": ticker,
@@ -282,7 +327,10 @@ async def instrument(
             "currency": currency,
             "name": name,
             "sector": sector,
+            "base_currency": base_currency,
         }
+        if fx_links:
+            payload["fx"] = fx_links
         return JSONResponse(jsonable_encoder(payload))
 
     # ── HTML ───────────────────────────────────────────────────

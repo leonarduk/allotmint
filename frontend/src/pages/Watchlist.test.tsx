@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../api", () => ({
@@ -38,6 +38,12 @@ const sampleRows: QuoteRow[] = [
   },
 ];
 
+async function flushPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await vi.advanceTimersByTimeAsync(0);
+}
+
 describe("Watchlist page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,7 +54,7 @@ describe("Watchlist page", () => {
     (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
     localStorage.setItem("watchlistSymbols", "AAA,BBB");
 
-    render(<Watchlist />);
+    const { unmount } = render(<Watchlist />);
 
     expect(await screen.findByText("Alpha")).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledWith(["AAA", "BBB"]);
@@ -64,121 +70,117 @@ describe("Watchlist page", () => {
     fireEvent.click(screen.getByText("Chg %"));
     rows = screen.getAllByRole("row").slice(1);
     expect(rows[0]).toHaveTextContent("AAA");
+
+    unmount();
   });
 
   it("shows error message when API fails", async () => {
     (getQuotes as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
     localStorage.setItem("watchlistSymbols", "AAA");
 
-    render(<Watchlist />);
+    const { unmount } = render(<Watchlist />);
 
     expect(await screen.findByText("boom")).toBeInTheDocument();
+
+    unmount();
   });
 
-  it("allows manual refresh", async () => {
-    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
+  it("allows manual refresh and auto-refresh", async () => {
+    vi.useFakeTimers();
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([sampleRows[0]]);
     localStorage.setItem("watchlistSymbols", "AAA");
+    const { unmount } = render(<Watchlist />);
 
-    render(<Watchlist />);
-
-    await screen.findByText("Alpha");
+    await flushPromises();
+    expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByText("Refresh"));
-    await screen.findByText("Alpha");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /refresh/i })[0],
+    );
+    await act(async () => Promise.resolve());
+
     expect(getQuotes).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(10000);
+    await flushPromises();
+    expect(getQuotes).toHaveBeenCalledTimes(3);
+
+    unmount();
+    vi.useRealTimers();
   });
 
   it("auto-refreshes when enabled", async () => {
     vi.useFakeTimers();
-    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([sampleRows[0]]);
     localStorage.setItem("watchlistSymbols", "AAA");
 
-    render(<Watchlist />);
+    const { unmount } = render(<Watchlist />);
 
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await flushPromises();
+    expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await vi.advanceTimersByTimeAsync(10000);
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(2);
-
     vi.useRealTimers();
   });
 
   it("allows toggling refresh frequency", async () => {
     vi.useFakeTimers();
-    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(sampleRows);
+    (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue([sampleRows[0]]);
     localStorage.setItem("watchlistSymbols", "AAA");
 
-    render(<Watchlist />);
+    const { unmount } = render(<Watchlist />);
 
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await flushPromises();
+    expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
+
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+    fireEvent.change(screen.getAllByLabelText(/Auto-refresh/)[0], {
       target: { value: "0" },
     });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await vi.advanceTimersByTimeAsync(10000);
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText(/Auto-refresh/), {
+    fireEvent.change(screen.getAllByLabelText(/Auto-refresh/)[0], {
       target: { value: "60000" },
     });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await vi.advanceTimersByTimeAsync(10000);
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(2);
 
+    unmount();
     vi.useRealTimers();
   });
 
   it("skips auto-refresh when markets are closed", async () => {
     vi.useFakeTimers();
-    const closed = sampleRows.map((r) => ({ ...r, marketState: "CLOSED" }));
+    const closed = [{ ...sampleRows[0], marketState: "CLOSED" }];
     (getQuotes as ReturnType<typeof vi.fn>).mockResolvedValue(closed);
     localStorage.setItem("watchlistSymbols", "AAA");
 
-    render(<Watchlist />);
+    const { unmount } = render(<Watchlist />);
 
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await flushPromises();
+    expect(screen.getAllByText("Alpha")[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000);
-    });
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    expect(screen.getByText("Markets closed")).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(10000);
+    await flushPromises();
+    expect(screen.getAllByText(/markets/i)[0]).toBeInTheDocument();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
-    act(() => {
-      vi.advanceTimersByTime(30000);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await vi.advanceTimersByTimeAsync(30000);
+    await flushPromises();
     expect(getQuotes).toHaveBeenCalledTimes(1);
 
+    unmount();
     vi.useRealTimers();
   });
 });

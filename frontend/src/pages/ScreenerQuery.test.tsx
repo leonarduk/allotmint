@@ -78,7 +78,8 @@ function renderWithI18n(ui: ReactElement) {
 describe("Screener & Query page", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/");
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    // default API mocks to resolve to empty arrays
     runCustomQuery.mockResolvedValue([]);
     getScreener.mockResolvedValue([]);
   });

@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 
-export function useSortableTable<T>(rows: T[], initialSortKey: keyof T) {
+export function useSortableTable<T>(
+  rows: T[] = [],
+  initialSortKey: keyof T,
+) {
   const [sortKey, setSortKey] = useState<keyof T>(initialSortKey);
   const [asc, setAsc] = useState(true);
 
@@ -14,7 +17,8 @@ export function useSortableTable<T>(rows: T[], initialSortKey: keyof T) {
   }
 
   const sorted = useMemo(() => {
-    return [...rows].sort((a, b) => {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    return [...safeRows].sort((a, b) => {
       const va = a[sortKey];
       const vb = b[sortKey];
       if (typeof va === "string" && typeof vb === "string") {

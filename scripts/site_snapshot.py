@@ -9,6 +9,8 @@ Fixes:
 - No fpdf2 deprecation warnings (uses XPos/YPos, no 'uni' arg).
 - Works with deep routes (e.g., http://localhost:5173/movers).
 - Embeds screenshots only if Pillow is installed; otherwise skips cleanly.
+- Automatically falls back to `wait_until="load"` after a `networkidle` timeout
+  (disable with `--strict-networkidle`).
 
 Install:
   pip install beautifulsoup4 fpdf markdownify playwright tldextract python-dotenv
@@ -190,6 +192,7 @@ async def crawl(
     keep_params: Optional[List[str]],
     network_idle_ms: int,
     wait_until: str,
+    allow_networkidle_fallback: bool,
 ) -> List[str]:
     """
     Returns a list of canonical URLs to snapshot.
@@ -210,6 +213,7 @@ async def crawl(
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(user_agent=USER_AGENT)
+        current_wait_until = wait_until
 
         while queue and len(out) < max_pages:
             raw_url, d = queue.popleft()
@@ -221,12 +225,20 @@ async def crawl(
             cur_url = raw_url
             try:
                 await page.goto(
-                    raw_url, wait_until=wait_until, timeout=network_idle_ms
+                    raw_url, wait_until=current_wait_until, timeout=network_idle_ms
                 )
                 html = await page.content()
                 cur_url = page.url or raw_url
             except PWTimeout:
                 logging.warning("Timeout loading %s", raw_url)
+                if (
+                    current_wait_until == "networkidle"
+                    and allow_networkidle_fallback
+                ):
+                    logging.warning(
+                        "Falling back to wait_until='load' after networkidle timeout; pass --strict-networkidle to disable."
+                    )
+                    current_wait_until = "load"
             except Exception as e:
                 logging.warning("Error loading %s: %s", raw_url, e)
             finally:
@@ -284,6 +296,7 @@ async def snapshot_pages(
     page_timeout_ms: int,
     ai_model: str,
     ai_prompt: str,
+    allow_networkidle_fallback: bool,
 ) -> List[PageDoc]:
     out_dir.mkdir(parents=True, exist_ok=True)
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
@@ -300,13 +313,16 @@ async def snapshot_pages(
             viewport={"width": viewport[0], "height": viewport[1]},
             user_agent=USER_AGENT,
         )
+        current_wait_until = wait_until
+        wait_lock = asyncio.Lock()
 
         async def _work(idx: int, url: str):
+            nonlocal current_wait_until
             async with sem:
                 page = await context.new_page()
                 try:
                     await page.goto(
-                        url, wait_until=wait_until, timeout=page_timeout_ms
+                        url, wait_until=current_wait_until, timeout=page_timeout_ms
                     )
                     await _hide_selectors(page, hide_selectors)
                     await page.wait_for_timeout(300)
@@ -367,6 +383,20 @@ async def snapshot_pages(
                             analysis=analysis,
                         )
                     )
+                except PWTimeout:
+                    logging.warning("Timeout loading %s", url)
+                    if (
+                        current_wait_until == "networkidle"
+                        and allow_networkidle_fallback
+                    ):
+                        async with wait_lock:
+                            if current_wait_until == "networkidle":
+                                logging.warning(
+                                    "Falling back to wait_until='load' after networkidle timeout; pass --strict-networkidle to disable."
+                                )
+                                current_wait_until = "load"
+                except Exception as e:
+                    logging.warning("Error loading %s: %s", url, e)
                 finally:
                     await page.close()
 
@@ -540,6 +570,11 @@ def parse_args() -> argparse.Namespace:
         " Switch to 'load' for dev servers that maintain open connections.",
     )
     ap.add_argument(
+        "--strict-networkidle",
+        action="store_true",
+        help="Disable automatic fallback to wait_until='load' after a networkidle timeout.",
+    )
+    ap.add_argument(
         "--network-idle-ms",
         type=int,
         default=15000,
@@ -599,6 +634,7 @@ async def main_async(ns: argparse.Namespace):
         keep_params=keep_params,
         network_idle_ms=ns.network_idle_ms,
         wait_until=ns.wait_until,
+        allow_networkidle_fallback=not ns.strict_networkidle,
     )
     if not urls:
         logging.error(
@@ -617,6 +653,7 @@ async def main_async(ns: argparse.Namespace):
         page_timeout_ms=ns.page_timeout_ms,
         ai_model=ns.ai_model,
         ai_prompt=ns.ai_prompt,
+        allow_networkidle_fallback=not ns.strict_networkidle,
     )
     analyses = [d.analysis for d in pages if d.analysis]
     summary_text = ""

@@ -1,4 +1,5 @@
 import json
+import sys
 import types
 import pytest
 
@@ -10,13 +11,16 @@ def clear_caches(monkeypatch):
     monkeypatch.setattr(alerts, "_USER_THRESHOLDS", {})
     monkeypatch.setattr(alerts, "_PUSH_SUBSCRIPTIONS", {})
 
+
 def test_parse_thresholds_parses_valid_entries():
     data = {"a": "1.5", "b": 2, "c": 3.0}
     assert alerts._parse_thresholds(data) == {"a": 1.5, "b": 2.0, "c": 3.0}
 
+
 def test_parse_thresholds_discards_invalid_entries():
     data = {"good": "1.5", "bad": "x", "also_bad": None, "num": 2}
     assert alerts._parse_thresholds(data) == {"good": 1.5, "num": 2.0}
+
 
 def test_parse_thresholds_returns_empty_for_invalid_data():
     data = {"bad": "x", "also_bad": None}
@@ -186,7 +190,7 @@ def test_save_subscriptions_uses_local_when_no_bucket(monkeypatch):
     def save(data):
         saved.update(data)
 
-    def boom():
+    def boom(*args, **kwargs):
         raise AssertionError("S3 should not be used")
 
     monkeypatch.setattr(alerts, "_data_bucket", lambda: None)
@@ -226,6 +230,83 @@ def test_save_subscriptions_writes_to_s3_when_configured(monkeypatch):
     assert alerts._PUSH_SUBSCRIPTIONS == {"u0": {"y": 0}, "u1": {"x": 1}}
 
 
+def test_send_push_notification_no_subscriptions(monkeypatch):
+    msgs = []
+
+    monkeypatch.setattr(alerts, "iter_push_subscriptions", lambda: [])
+    monkeypatch.setattr(alerts, "publish_alert", lambda m: msgs.append(m))
+
+    alerts.send_push_notification("hi")
+    assert msgs == [{"message": "hi"}]
+
+
+def test_send_push_notification_missing_vapid(monkeypatch):
+    msgs = []
+
+    monkeypatch.setattr(alerts, "iter_push_subscriptions", lambda: [{}])
+    monkeypatch.setattr(alerts, "publish_alert", lambda m: msgs.append(m))
+    monkeypatch.delenv("VAPID_PRIVATE_KEY", raising=False)
+    monkeypatch.delenv("VAPID_EMAIL", raising=False)
+
+    alerts.send_push_notification("hello")
+    assert msgs == [{"message": "hello"}]
+
+
+def test_send_push_notification_webpush_success(monkeypatch):
+    called = []
+
+    monkeypatch.setattr(alerts, "iter_push_subscriptions", lambda: [{"endpoint": "e"}])
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "key")
+    monkeypatch.setenv("VAPID_EMAIL", "x@example.com")
+    monkeypatch.setattr(alerts, "publish_alert", lambda m: called.append(("sns", m)))
+
+    def webpush(**kwargs):
+        called.append(("push", kwargs["data"]))
+
+    monkeypatch.setitem(sys.modules, "pywebpush", types.SimpleNamespace(webpush=webpush))
+
+    alerts.send_push_notification("hi")
+
+    assert ("push", "hi") in called
+    assert all(kind != "sns" for kind, _ in called)
+
+
+def test_send_push_notification_webpush_failure_falls_back(monkeypatch):
+    msgs = []
+
+    monkeypatch.setattr(alerts, "iter_push_subscriptions", lambda: [{"endpoint": "e"}])
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "key")
+    monkeypatch.setenv("VAPID_EMAIL", "x@example.com")
+    monkeypatch.setattr(alerts, "publish_alert", lambda m: msgs.append(m))
+
+    def webpush(**kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(sys.modules, "pywebpush", types.SimpleNamespace(webpush=webpush))
+
+    alerts.send_push_notification("hi")
+    assert msgs == [{"message": "hi"}]
+
+
+def test_evaluate_drift_publishes_alert(monkeypatch):
+    msgs = []
+    monkeypatch.setattr(alerts, "publish_alert", lambda m: msgs.append(m))
+
+    result = alerts.evaluate_drift("u", 100, 110, threshold=0.05, metric="price")
+    assert result.triggered and round(result.drift_pct, 4) == 0.1
+    assert msgs and msgs[0]["user"] == "u"
+
+
+def test_evaluate_drift_uses_user_specific_default(monkeypatch):
+    msgs = []
+    monkeypatch.setattr(alerts, "publish_alert", lambda m: msgs.append(m))
+    alerts._USER_THRESHOLDS = {"u": 0.2}
+
+    result = alerts.evaluate_drift("u", 100, 110)
+    assert not result.triggered
+    assert msgs == []
+
+
 def test_threshold_and_subscription_persistence(monkeypatch):
     # Local storage simulating persistence
     store_thresh = {}
@@ -246,7 +327,7 @@ def test_threshold_and_subscription_persistence(monkeypatch):
     alerts.set_user_threshold("u1", 0.9)
     alerts.set_user_push_subscription("u1", {"x": 1})
 
-    # Clear caches and reload to verify persistence
+    # Clear caches and reload to verify persistence via getters
     alerts._USER_THRESHOLDS = {}
     alerts._PUSH_SUBSCRIPTIONS = {}
 

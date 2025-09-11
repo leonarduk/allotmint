@@ -43,6 +43,8 @@ describe("PensionForecast page", () => {
 
     renderWithI18n(<PensionForecast />);
 
+    const [ownerSelect] = await screen.findAllByLabelText(/owner/i);
+    expect(ownerSelect).toBeInTheDocument();
     const selects = await screen.findAllByLabelText(/owner/i, {
       selector: 'select',
     });
@@ -75,6 +77,8 @@ describe("PensionForecast page", () => {
     const growth = screen.getByLabelText(/growth assumption/i);
     await userEvent.selectOptions(growth, "7");
 
+    const [ownerSelect] = await screen.findAllByLabelText(/owner/i);
+    fireEvent.change(ownerSelect, { target: { value: "beth" } });
     const monthly = screen.getByLabelText(/monthly contribution/i);
     fireEvent.change(monthly, { target: { value: "100" } });
 

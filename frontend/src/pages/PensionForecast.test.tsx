@@ -27,8 +27,8 @@ describe("PensionForecast page", () => {
 
     render(<PensionForecast />);
 
-    const select = await screen.findByLabelText(/owner/i);
-    expect(select).toBeInTheDocument();
+    const [ownerSelect] = await screen.findAllByLabelText(/owner/i);
+    expect(ownerSelect).toBeInTheDocument();
   });
 
   it("submits with selected owner", async () => {
@@ -47,8 +47,8 @@ describe("PensionForecast page", () => {
 
     render(<PensionForecast />);
 
-    const select = await screen.findByLabelText(/owner/i);
-    fireEvent.change(select, { target: { value: "beth" } });
+    const [ownerSelect] = await screen.findAllByLabelText(/owner/i);
+    fireEvent.change(ownerSelect, { target: { value: "beth" } });
 
     const btn = screen.getByRole("button", { name: /forecast/i });
     fireEvent.click(btn);

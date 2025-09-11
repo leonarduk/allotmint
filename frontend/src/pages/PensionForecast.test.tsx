@@ -75,7 +75,7 @@ describe("PensionForecast page", () => {
 
     await screen.findByText("beth");
     const form = document.querySelector("form")!;
-    const ownerSelect = within(form).getByLabelText(/owner/i);
+    const ownerSelect = await within(form).findByLabelText(/owner/i);
     await userEvent.selectOptions(ownerSelect, "beth");
 
     const growth = within(form).getByLabelText(/growth assumption/i);

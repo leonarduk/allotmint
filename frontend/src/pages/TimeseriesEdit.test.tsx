@@ -9,7 +9,7 @@ import { TimeseriesEdit } from "./TimeseriesEdit";
 import { getTimeseries, saveTimeseries, searchInstruments } from "../api";
 
 vi.mock("../api", () => ({
-  getTimeseries: vi.fn().mockResolvedValue([]),
+  getTimeseries: vi.fn(),
   saveTimeseries: vi.fn().mockResolvedValue({ status: "ok", rows: 1 }),
   searchInstruments: vi.fn().mockResolvedValue([]),
 }));
@@ -30,10 +30,11 @@ afterEach(() => {
 
 describe("TimeseriesEdit page", () => {
   it("loads, edits, adds and deletes rows, then saves", async () => {
-    const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
-    getTimeseriesMock.mockResolvedValue([
+    const rows = [
       { Date: "2024-01-01", Open: 1, High: 1, Low: 1, Close: 1, Volume: 1 },
-    ]);
+    ];
+    const getTimeseriesMock = getTimeseries as unknown as vi.Mock;
+    getTimeseriesMock.mockResolvedValue(rows);
     renderWithI18n(<TimeseriesEdit />);
 
     expect(
@@ -51,6 +52,7 @@ describe("TimeseriesEdit page", () => {
     fireEvent.change(screen.getByLabelText("Open"), {
       target: { value: "2" },
     });
+    rows[0].Open = 2;
 
     fireEvent.click(screen.getByRole("button", { name: /add row/i }));
     expect(screen.getAllByLabelText("Date")).toHaveLength(2);
@@ -61,16 +63,7 @@ describe("TimeseriesEdit page", () => {
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
     expect(getTimeseries).toHaveBeenCalledWith("ABC", "L");
-    expect(saveTimeseries).toHaveBeenCalledWith("ABC", "L", [
-      {
-        Date: "2024-01-01",
-        Open: 2,
-        High: 1,
-        Low: 1,
-        Close: 1,
-        Volume: 1,
-      },
-    ]);
+    expect(saveTimeseries).toHaveBeenCalledWith("ABC", "L", rows);
   });
 
   it("prefills ticker and exchange from URL", async () => {

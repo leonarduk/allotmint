@@ -91,12 +91,24 @@ def main() -> None:
                     body_field = getattr(route, "body_field", None)
                     if body_field and body_field.required:
                         ep["body"] = _example_for_type(body_field.type_)
+
+                query_params: dict[str, str] = {}
+                for param in route.dependant.query_params:
+                    if param.required:
+                        query_params[param.name] = str(
+                            _example_for_type(param.type_)
+                        )
+                if query_params:
+                    ep["query"] = query_params
+
                 endpoints.append(ep)
     endpoints.sort(key=lambda ep: (ep["path"], ep["method"]))
 
     smoke_ts = pathlib.Path(__file__).resolve().parent / "frontend-backend-smoke.ts"
     content = "// Auto-generated via backend route metadata\n"
-    content += "export interface SmokeEndpoint { method: string; path: string; body?: any }\n"
+    content += (
+        "export interface SmokeEndpoint { method: string; path: string; body?: any; query?: Record<string, string> }\n"
+    )
     content += (
         "export const smokeEndpoints: SmokeEndpoint[] = "
         + json.dumps(endpoints, indent=2)
@@ -132,7 +144,8 @@ def main() -> None:
         "}\n"
         "\nexport async function runSmoke(base: string) {\n"
         "  for (const ep of smokeEndpoints) {\n"
-        "    const url = base + fillPath(ep.path);\n"
+        "    const qs = ep.query ? '?' + new URLSearchParams(ep.query).toString() : '';\n"
+        "    const url = base + fillPath(ep.path) + qs;\n"
         "    let body: any = undefined;\n"
         "    let headers: any = undefined;\n"
         "    if (ep.body !== undefined) {\n"

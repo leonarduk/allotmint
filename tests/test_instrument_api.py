@@ -1,6 +1,7 @@
 import datetime as dt
 import logging
 
+import pandas as pd
 import pytest
 
 from backend.common import instrument_api as ia
@@ -89,3 +90,54 @@ def test_top_movers_filter_and_anomalies(monkeypatch):
     assert [r["ticker"] for r in res["losers"]] == ["BBB.L"]
     assert res["anomalies"] == ["CCC"]
     assert all("AAA" not in v for v in (res["gainers"], res["losers"], res["anomalies"]))
+
+
+def test_intraday_timeseries_success(monkeypatch):
+    fixed_now = dt.datetime(2024, 1, 2, 12, 0)
+
+    class FixedDateTime(dt.datetime):
+        @classmethod
+        def utcnow(cls):
+            return fixed_now
+
+    monkeypatch.setattr(ia.dt, "datetime", FixedDateTime)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: ("AAA", "L"))
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {})
+
+    df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime([
+                "2024-01-02 10:00:00",
+                "2024-01-02 11:45:00",
+            ]),
+            "Close": [10.0, 11.0],
+        }
+    )
+    monkeypatch.setattr(
+        ia,
+        "fetch_yahoo_timeseries_period",
+        lambda sym, ex, period, interval: df,
+    )
+
+    res = ia.intraday_timeseries_for_ticker("AAA.L")
+    assert res["last_price_time"] == "2024-01-02T11:45:00"
+    assert res["prices"][0]["price"] == pytest.approx(10.0)
+
+
+def test_intraday_timeseries_fallback(monkeypatch):
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {"instrument_type": "pension"})
+    monkeypatch.setattr(
+        ia,
+        "timeseries_for_ticker",
+        lambda t, days=365: {
+            "prices": [
+                {"date": "2024-01-01", "close": 10.0},
+                {"date": "2024-01-02", "close": 11.0},
+            ],
+            "mini": {},
+        },
+    )
+
+    res = ia.intraday_timeseries_for_ticker("AAA.L")
+    assert res["last_price_time"] == "2024-01-02T00:00:00"
+    assert len(res["prices"]) == 2

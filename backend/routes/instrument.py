@@ -24,6 +24,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from backend.common.instruments import list_instruments
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import get_security_meta
+from backend.common.instrument_api import intraday_timeseries_for_ticker
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 
@@ -291,6 +292,17 @@ async def instrument(
             ticker=ticker,
             df=df,
             positions=positions,
-            window_days=window_days,
+    window_days=window_days,
         )
     )
+
+
+@router.get("/intraday")
+async def intraday(
+    ticker: str = Query(..., description="Full ticker, e.g. VWRL.L")
+):
+    """Return ~48 hours of intraday prices for ``ticker``."""
+
+    _validate_ticker(ticker)
+    payload = intraday_timeseries_for_ticker(ticker)
+    return JSONResponse(jsonable_encoder(payload))

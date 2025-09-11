@@ -177,3 +177,20 @@ def test_non_gbp_instrument_has_distinct_close(monkeypatch):
     assert resp.status_code == 200
     prices = resp.json()["prices"]
     assert prices[-1]["close"] != prices[-1]["close_gbp"]
+
+
+def test_intraday_route(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    with patch(
+        "backend.routes.instrument.intraday_timeseries_for_ticker",
+        return_value={
+            "prices": [{"timestamp": "2024-01-02T10:00:00", "price": 10.0}],
+            "last_price_time": "2024-01-02T10:00:00",
+        },
+    ):
+        client = _auth_client(app)
+        resp = client.get("/instrument/intraday?ticker=ABC.L")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["prices"][0]["price"] == pytest.approx(10.0)

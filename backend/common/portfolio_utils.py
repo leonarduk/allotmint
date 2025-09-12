@@ -498,8 +498,8 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
 
+    rate = _fx_to_base("GBP", base_currency, fx_cache)
     for r in rows.values():
-        rate = _fx_to_base(r.get("currency"), base_currency, fx_cache)
         if rate and rate != 1:
             r["cost_gbp"] = round(_safe_num(r["cost_gbp"]) * rate, 2)
             r["market_value_gbp"] = round(_safe_num(r["market_value_gbp"]) * rate, 2)

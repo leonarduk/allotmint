@@ -35,7 +35,7 @@ def test_fx_to_gbp_fetch_exception(monkeypatch):
 def test_fx_to_gbp_rate_cached(monkeypatch):
     calls = {"n": 0}
 
-    def fake_fetch(currency, start, end):
+    def fake_fetch(base, quote, start, end):
         calls["n"] += 1
         return pd.DataFrame({"Rate": [1.1, 1.2]})
 

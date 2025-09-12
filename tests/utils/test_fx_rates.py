@@ -1,4 +1,5 @@
 import datetime as dt
+import datetime as dt
 
 import pandas as pd
 import pytest
@@ -12,8 +13,10 @@ def _fake_df(start, end):
     return pd.DataFrame({"Date": dates, "Close": [1.0 + i * 0.1 for i in range(len(dates))]})
 
 
-@pytest.mark.parametrize("currency", ["USD", "CHF", "JPY", "CAD"])
-def test_fetch_fx_rate_range_success(monkeypatch, currency):
+@pytest.mark.parametrize(
+    "base,quote", [("USD", "GBP"), ("CHF", "GBP"), ("JPY", "GBP"), ("CAD", "GBP")]
+)
+def test_fetch_fx_rate_range_success(monkeypatch, base, quote):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 3)
 
@@ -24,7 +27,7 @@ def test_fetch_fx_rate_range_success(monkeypatch, currency):
     monkeypatch.setattr(yf, "Ticker", lambda pair: FakeTicker())
     fetch_fx_rate_range.cache_clear()
 
-    df = fetch_fx_rate_range(currency, start, end)
+    df = fetch_fx_rate_range(base, quote, start, end)
     assert list(df["Date"]) == [dt.date(2024, 1, 1), dt.date(2024, 1, 2), dt.date(2024, 1, 3)]
     assert list(df["Rate"]) == [1.0, 1.1, 1.2]
 
@@ -40,7 +43,7 @@ def test_fetch_fx_rate_range_empty(monkeypatch):
     monkeypatch.setattr(yf, "Ticker", lambda pair: FakeTicker())
     fetch_fx_rate_range.cache_clear()
 
-    df = fetch_fx_rate_range("USD", start, end)
+    df = fetch_fx_rate_range("USD", "GBP", start, end)
     assert list(df["Rate"]) == [0.8, 0.8]
 
 
@@ -55,12 +58,20 @@ def test_fetch_fx_rate_range_exception(monkeypatch):
     monkeypatch.setattr(yf, "Ticker", lambda pair: FakeTicker())
     fetch_fx_rate_range.cache_clear()
 
-    df = fetch_fx_rate_range("EUR", start, end)
+    df = fetch_fx_rate_range("EUR", "GBP", start, end)
     assert list(df["Rate"]) == [0.9]
 
 
-def test_fetch_fx_rate_range_unsupported():
+def test_fetch_fx_rate_range_unsupported(monkeypatch):
     start = dt.date(2024, 1, 1)
     end = dt.date(2024, 1, 1)
-    with pytest.raises(ValueError):
-        fetch_fx_rate_range("AUD", start, end)
+
+    class FakeTicker:
+        def history(self, start, end, interval):
+            return pd.DataFrame()
+
+    monkeypatch.setattr(yf, "Ticker", lambda pair: FakeTicker())
+    fetch_fx_rate_range.cache_clear()
+
+    df = fetch_fx_rate_range("AUD", "GBP", start, end)
+    assert list(df["Rate"]) == [1.0]

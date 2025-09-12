@@ -32,7 +32,7 @@ def test_prices_converted_to_gbp(monkeypatch, exchange, rate):
     def fake_memoized_range(ticker, exch, s_iso, e_iso):
         return _sample_df(start, end)
 
-    def fake_fx(base, s, e):
+    def fake_fx(base, quote, s, e):
         dates = pd.bdate_range(s, e).date
         return pd.DataFrame({"Date": dates, "Rate": [rate] * len(dates)})
 
@@ -81,7 +81,7 @@ def test_missing_fx_rates_are_filled(monkeypatch):
     def fake_memoized_range(ticker, exch, s_iso, e_iso):
         return _sample_df(start, end)
 
-    def fake_fx(base, s, e):
+    def fake_fx(base, quote, s, e):
         dates = pd.bdate_range(s, e).date
         return pd.DataFrame({"Date": dates, "Rate": ["0.8", None, "0.81"]})
 
@@ -106,7 +106,7 @@ def test_string_fx_rates_are_converted(monkeypatch):
     def fake_memoized_range(ticker, exch, s_iso, e_iso):
         return _sample_df(start, end)
 
-    def fake_fx(base, s, e):
+    def fake_fx(base, quote, s, e):
         dates = pd.bdate_range(s, e).date
         return pd.DataFrame({"Date": dates, "Rate": ["0.8", "0.81"]})
 
@@ -131,7 +131,7 @@ def test_non_gbp_instrument_on_gbp_exchange(monkeypatch):
     def fake_memoized_range(ticker, exch, s_iso, e_iso):
         return _sample_df(start, end)
 
-    def fake_fx(base, s, e):
+    def fake_fx(base, quote, s, e):
         dates = pd.bdate_range(s, e).date
         return pd.DataFrame({"Date": dates, "Rate": [1.25] * len(dates)})
 
@@ -152,7 +152,7 @@ def test_unsupported_currency_skips_conversion(monkeypatch):
     def fake_memoized_range(ticker, exch, s_iso, e_iso):
         return _sample_df(start, end)
 
-    def fake_fx(base, s, e):
+    def fake_fx(base, quote, s, e):
         raise ValueError("Unsupported currency")
 
     monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
@@ -263,7 +263,7 @@ def test_offline_mode_fetch_fallback(monkeypatch, tmp_path):
     def fake_memoized_range(ticker, exch, s_iso, e_iso):
         return _sample_df(start, end)
 
-    def fake_fx(base, s, e):
+    def fake_fx(base, quote, s, e):
         dates = pd.bdate_range(s, e).date
         return pd.DataFrame({"Date": dates, "Rate": [0.8] * len(dates)})
 

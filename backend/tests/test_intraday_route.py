@@ -12,15 +12,21 @@ def test_intraday_route(monkeypatch):
             assert period == "2d"
             assert interval == "5m"
             idx = pd.date_range(datetime(2024, 1, 1), periods=3, freq="5min")
+            idx.name = "Datetime"
             return pd.DataFrame({"Close": [1.0, 2.0, 3.0]}, index=idx)
 
-    monkeypatch.setattr(instrument, "yf", type("YF", (), {"Ticker": lambda _: FakeTicker()}))
+    captured = {}
+    def fake_ticker(t):
+        captured["ticker"] = t
+        return FakeTicker()
+    monkeypatch.setattr(instrument, "yf", type("YF", (), {"Ticker": fake_ticker}))
 
     app = FastAPI()
     app.include_router(instrument.router)
     client = TestClient(app)
     resp = client.get("/instrument/intraday?ticker=AAPL")
     assert resp.status_code == 200
+    assert captured["ticker"] == "AAPL"
     data = resp.json()
     assert data["ticker"] == "AAPL"
     assert len(data["prices"]) == 3

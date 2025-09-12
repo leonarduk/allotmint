@@ -309,8 +309,8 @@ async def intraday(
 
     _validate_ticker(ticker)
 
-    tkr, exch = (ticker.split(".", 1) + ["US"])[:2]
-    full = f"{tkr}.{exch}" if exch else tkr
+    tkr, *exch = ticker.split(".", 1)
+    full = f"{tkr}.{exch[0]}" if exch else tkr
     try:
         stock = yf.Ticker(full)
         df = stock.history(period="2d", interval="5m")

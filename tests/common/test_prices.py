@@ -1,5 +1,5 @@
 import json
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 
 import pandas as pd
 import pytest
@@ -51,6 +51,7 @@ def test_get_price_snapshot_calculates_changes(monkeypatch):
     d30 = prices._nearest_weekday(yday - timedelta(days=30), forward=False)
 
     monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: last_price})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
     monkeypatch.setattr(
         prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None
     )
@@ -79,6 +80,7 @@ def test_refresh_prices_writes_json_and_updates_cache(tmp_path, monkeypatch):
 
     monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [ticker])
     monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: last_price})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
     monkeypatch.setattr(
         prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None
     )
@@ -115,6 +117,7 @@ def test_get_price_snapshot_resolved(monkeypatch):
     d7 = prices._nearest_weekday(yday - timedelta(days=7), forward=False)
     d30 = prices._nearest_weekday(yday - timedelta(days=30), forward=False)
     monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: last_price})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
     monkeypatch.setattr(
         prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("ABC", "L")
     )
@@ -132,6 +135,27 @@ def test_get_price_snapshot_resolved(monkeypatch):
     assert info["last_price_date"] == yday.isoformat()
     assert info["change_7d_pct"] == pytest.approx((last_price / 40.0 - 1) * 100)
     assert info["change_30d_pct"] == pytest.approx((last_price / 30.0 - 1) * 100)
+
+
+def test_get_price_snapshot_live_data(monkeypatch):
+    ticker = "ABC.L"
+    now = datetime.now(timezone.utc)
+    last_price = 110.0
+
+    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {ticker: {"price": last_price, "timestamp": now}})
+    monkeypatch.setattr(
+        prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None
+    )
+    monkeypatch.setattr(
+        prices, "load_meta_timeseries_range", lambda *a, **k: pd.DataFrame({"close": [100.0]})
+    )
+
+    snap = prices.get_price_snapshot([ticker])
+    info = snap[ticker]
+    assert info["last_price"] == last_price
+    assert info["last_price_time"] == now.isoformat().replace("+00:00", "Z")
+    assert info["is_stale"] is False
 
 
 def test_refresh_prices_requires_config(monkeypatch):

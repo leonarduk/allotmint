@@ -14,6 +14,7 @@ def test_get_price_snapshot(monkeypatch):
 
     # Patch load_latest_prices to return a last price of 100
     monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 100.0})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
 
     # Map requested dates to fake close prices
     price_map = {d7: 90.0, d30: 80.0}

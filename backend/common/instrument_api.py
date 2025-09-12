@@ -379,15 +379,30 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
         return {
             "last_price_gbp": None,
             "last_price_date": None,
+            "last_price_time": None,
+            "is_stale": True,
             "change_7d_pct": None,
             "change_30d_pct": None,
         }
     sym, ex = resolved
-    last_px = _close_on(sym, ex, yday)
+
+    from backend.common import portfolio_utils as pu  # local import
+
+    snap = pu._PRICE_SNAPSHOT.get(ticker.upper()) or pu._PRICE_SNAPSHOT.get(sym)
+    if isinstance(snap, dict) and snap.get("last_price") is not None:
+        last_px = snap.get("last_price")
+        last_time = snap.get("last_price_time")
+        is_stale = bool(snap.get("is_stale", False))
+    else:
+        last_px = _close_on(sym, ex, yday)
+        last_time = None
+        is_stale = True
 
     return {
         "last_price_gbp": last_px,
         "last_price_date": yday.isoformat(),
+        "last_price_time": last_time,
+        "is_stale": is_stale,
         "change_7d_pct": price_change_pct(ticker, 7),
         "change_30d_pct": price_change_pct(ticker, 30),
     }

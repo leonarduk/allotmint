@@ -428,6 +428,8 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     "last_price_gbp": None,
                     "last_price_currency": base_currency,
                     "last_price_date": None,
+                    "last_price_time": None,
+                    "is_stale": None,
                     "change_7d_pct": None,
                     "change_30d_pct": None,
                     "instrument_type": meta.get("instrumentType") or meta.get("instrument_type"),
@@ -466,6 +468,8 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             if price and price == price:  # guard against None/NaN/0
                 row["last_price_gbp"] = price
                 row["last_price_date"] = snap.get("last_price_date")
+                row["last_price_time"] = snap.get("last_price_time")
+                row["is_stale"] = snap.get("is_stale")
                 row["market_value_gbp"] = round(row["units"] * price, 2)
                 row["gain_gbp"] = (
                     round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]

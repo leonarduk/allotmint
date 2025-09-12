@@ -137,6 +137,9 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
 
     try:
+        from backend.common.portfolio_utils import _fx_to_gbp  # type: ignore
+
+        fx_cache: Dict[str, float] = {}
         resp = requests.get(url, timeout=5)
         payload = resp.json().get("quoteResponse", {}).get("result", [])
         for row in payload:
@@ -144,8 +147,21 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
             price = row.get("regularMarketPrice")
             ts = row.get("regularMarketTime")
             if sym and price is not None and ts:
+                price = float(price)
+
+                # Apply scaling override (e.g., GBX -> GBP)
+                tkr, exch = (sym.split(".", 1) + [""])[:2]
+                scale = get_scaling_override(tkr, exch, None)
+                price *= scale
+
+                # Convert to GBP using latest FX rates if necessary
+                meta = get_instrument_meta(sym)
+                ccy = (meta.get("currency") or "GBP").upper()
+                if ccy != "GBP":
+                    price *= _fx_to_gbp(ccy, fx_cache)
+
                 out[sym.upper()] = {
-                    "price": float(price),
+                    "price": price,
                     "timestamp": dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc),
                 }
     except Exception as exc:

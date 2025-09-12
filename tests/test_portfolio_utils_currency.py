@@ -40,16 +40,17 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 100}})
 
     rows_usd = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="USD")
-    assert rows_usd[0]["market_value_gbp"] == 100.0
-    assert rows_usd[0]["gain_gbp"] == 10.0
-    assert rows_usd[0]["cost_gbp"] == 90.0
-    assert rows_usd[0]["last_price_gbp"] == 100.0
+    rate_usd = 1 / 0.8
+    assert rows_usd[0]["market_value_gbp"] == round(100 * rate_usd, 2)
+    assert rows_usd[0]["gain_gbp"] == round(10 * rate_usd, 2)
+    assert rows_usd[0]["cost_gbp"] == round(90 * rate_usd, 2)
+    assert rows_usd[0]["last_price_gbp"] == pytest.approx(100 * rate_usd, rel=1e-4)
     assert rows_usd[0]["market_value_currency"] == "USD"
 
     rows_eur = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="EUR")
-    rate = 0.8 / 0.9
-    assert rows_eur[0]["market_value_gbp"] == round(100 * rate, 2)
-    assert rows_eur[0]["gain_gbp"] == round(10 * rate, 2)
-    assert rows_eur[0]["cost_gbp"] == round(90 * rate, 2)
-    assert rows_eur[0]["last_price_gbp"] == pytest.approx(100 * rate, rel=1e-4)
+    rate_eur = 1 / 0.9
+    assert rows_eur[0]["market_value_gbp"] == round(100 * rate_eur, 2)
+    assert rows_eur[0]["gain_gbp"] == round(10 * rate_eur, 2)
+    assert rows_eur[0]["cost_gbp"] == round(90 * rate_eur, 2)
+    assert rows_eur[0]["last_price_gbp"] == pytest.approx(100 * rate_eur, rel=1e-4)
     assert rows_eur[0]["market_value_currency"] == "EUR"

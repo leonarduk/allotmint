@@ -244,7 +244,9 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
         return {"prices": prices, "last_price_time": last_time}
 
     df = df.copy()
-    df["Date"] = pd.to_datetime(df["Date"])
+    # Ensure datetime comparison uses a consistent timezone by converting to UTC
+    # and dropping tzinfo so we can compare against a naive UTC cutoff.
+    df["Date"] = pd.to_datetime(df["Date"], utc=True).dt.tz_localize(None)
     cutoff = dt.datetime.utcnow() - dt.timedelta(hours=48)
     df = df[df["Date"] >= cutoff]
     col = "Close_gbp" if "Close_gbp" in df.columns else "Close"

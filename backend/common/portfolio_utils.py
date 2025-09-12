@@ -77,27 +77,39 @@ def _safe_num(val, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
 
+def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float]) -> float:
+    """Return ``base_currency`` per unit of ``currency`` using recent FX rates."""
 
-def _fx_to_gbp(currency: str, cache: Dict[str, float]) -> float:
-    """Return GBP per unit of ``currency`` using recent FX rates."""
-    currency = currency.upper()
-    if currency in cache:
-        return cache[currency]
-    if currency == "GBP":
-        cache["GBP"] = 1.0
+    def _rate_to_gbp(ccy: str) -> float:
+        ccy = ccy.upper()
+        if ccy in cache:
+            return cache[ccy]
+        if ccy == "GBP":
+            cache["GBP"] = 1.0
+            return 1.0
+        end = date.today()
+        start = end - timedelta(days=7)
+        try:
+            df = fetch_fx_rate_range(ccy, start, end)
+            if not df.empty:
+                rate = float(df["Rate"].iloc[-1])
+                cache[ccy] = rate
+                return rate
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to fetch FX rate for %s: %s", ccy, exc)
+        cache[ccy] = 1.0
         return 1.0
-    end = date.today()
-    start = end - timedelta(days=7)
-    try:
-        df = fetch_fx_rate_range(currency, "GBP", start, end)
-        if not df.empty:
-            rate = float(df["Rate"].iloc[-1])
-            cache[currency] = rate
-            return rate
-    except Exception as exc:
-        logger.warning("Failed to fetch FX rate for %s: %s", currency, exc)
-    cache[currency] = 1.0
-    return 1.0
+
+    currency = (currency or "").upper()
+    base_currency = base_currency.upper()
+    if not currency or currency == base_currency:
+        return 1.0
+
+    cur_rate = _rate_to_gbp(currency)
+    base_rate = _rate_to_gbp(base_currency)
+    if base_rate == 0:
+        return 1.0
+    return cur_rate / base_rate
 
 
 # ──────────────────────────────────────────────────────────────
@@ -482,16 +494,16 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
 
-    gbp_per_base = _fx_to_gbp(base_currency, fx_cache)
     for r in rows.values():
-        if gbp_per_base and gbp_per_base != 1:
-            r["cost_gbp"] = round(r["cost_gbp"] / gbp_per_base, 2)
-            r["market_value_gbp"] = round(r["market_value_gbp"] / gbp_per_base, 2)
-            r["gain_gbp"] = round(r["gain_gbp"] / gbp_per_base, 2)
+        rate = _fx_to_base(r.get("currency"), base_currency, fx_cache)
+        if rate and rate != 1:
+            r["cost_gbp"] = round(_safe_num(r["cost_gbp"]) * rate, 2)
+            r["market_value_gbp"] = round(_safe_num(r["market_value_gbp"]) * rate, 2)
+            r["gain_gbp"] = round(_safe_num(r["gain_gbp"]) * rate, 2)
             if r.get("last_price_gbp") is not None:
-                r["last_price_gbp"] = round(_safe_num(r["last_price_gbp"]) / gbp_per_base, 4)
+                r["last_price_gbp"] = round(_safe_num(r["last_price_gbp"]) * rate, 4)
             if r.get("day_change_gbp") is not None:
-                r["day_change_gbp"] = round(_safe_num(r["day_change_gbp"]) / gbp_per_base, 2)
+                r["day_change_gbp"] = round(_safe_num(r["day_change_gbp"]) * rate, 2)
         cost = r["cost_gbp"]
         r["gain_pct"] = (r["gain_gbp"] / cost * 100.0) if cost else None
         r["cost_currency"] = base_currency

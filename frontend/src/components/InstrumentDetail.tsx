@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { getInstrumentDetail } from "../api";
+import { getInstrumentDetail, getInstrumentIntraday } from "../api";
 import { money, percent } from "../lib/money";
 import { translateInstrumentType } from "../lib/instrumentType";
 import tableStyles from "../styles/table.module.css";
@@ -82,6 +82,11 @@ export function InstrumentDetail({
   const [showMA200, setShowMA200] = useState(false);
   const [showRSI, setShowRSI] = useState(false);
   const [days, setDays] = useState<number>(365);
+  const [priceMode, setPriceMode] = useState<"close" | "intraday">("close");
+  const [intradayPrices, setIntradayPrices] = useState<{ timestamp: string; close: number }[]>([]);
+  const [intradayLoading, setIntradayLoading] = useState(false);
+  const [intradayError, setIntradayError] = useState<string | null>(null);
+  const [intradaySupported, setIntradaySupported] = useState(true);
 
   useEffect(() => {
     setLoading(true);
@@ -101,6 +106,40 @@ export function InstrumentDetail({
       .catch((e: Error) => setErr(e.message))
       .finally(() => setLoading(false));
   }, [ticker, days]);
+
+  useEffect(() => {
+    setPriceMode("close");
+    setIntradayPrices([]);
+    setIntradaySupported(true);
+    setIntradayError(null);
+  }, [ticker]);
+
+  useEffect(() => {
+    if (priceMode !== "intraday") return;
+    let active = true;
+    setIntradayLoading(true);
+    setIntradayError(null);
+    getInstrumentIntraday(ticker)
+      .then((res) => {
+        if (!active) return;
+        if (!res.prices?.length) {
+          throw new Error("no data");
+        }
+        setIntradayPrices(res.prices);
+      })
+      .catch((e: Error) => {
+        if (!active) return;
+        setIntradayError(e.message);
+        setIntradaySupported(false);
+        setPriceMode("close");
+      })
+      .finally(() => {
+        if (active) setIntradayLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [ticker, priceMode]);
 
   const displayCurrency = currencyFromData ?? currencyProp ?? "?";
 
@@ -276,6 +315,7 @@ export function InstrumentDetail({
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
             style={{ marginLeft: "0.25rem" }}
+            disabled={priceMode === "intraday"}
           >
             <option value={7}>{t("instrumentDetail.rangeOptions.1w")}</option>
             <option value={30}>{t("instrumentDetail.rangeOptions.1m")}</option>
@@ -284,48 +324,93 @@ export function InstrumentDetail({
             <option value={0}>{t("instrumentDetail.rangeOptions.max")}</option>
           </select>
         </label>
-        <label style={{ fontSize: "0.85rem" }}>
-          <input
-            type="checkbox"
-            checked={showBollinger}
-            onChange={(e) => setShowBollinger(e.target.checked)}
-          />{" "}
-          {t("instrumentDetail.bollingerBands")}
-        </label>
+        {priceMode === "close" && (
+          <>
+            <label style={{ fontSize: "0.85rem" }}>
+              <input
+                type="checkbox"
+                checked={showBollinger}
+                onChange={(e) => setShowBollinger(e.target.checked)}
+              />{" "}
+              {t("instrumentDetail.bollingerBands")}
+            </label>
+            <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+              <input
+                type="checkbox"
+                checked={showMA20}
+                onChange={(e) => setShowMA20(e.target.checked)}
+              />{" "}
+              {t("instrumentDetail.ma20")}
+            </label>
+            <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+              <input
+                type="checkbox"
+                checked={showMA50}
+                onChange={(e) => setShowMA50(e.target.checked)}
+              />{" "}
+              {t("instrumentDetail.ma50")}
+            </label>
+            <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+              <input
+                type="checkbox"
+                checked={showMA200}
+                onChange={(e) => setShowMA200(e.target.checked)}
+              />{" "}
+              {t("instrumentDetail.ma200")}
+            </label>
+            <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
+              <input
+                type="checkbox"
+                checked={showRSI}
+                onChange={(e) => setShowRSI(e.target.checked)}
+              />{" "}
+              {t("instrumentDetail.rsi")}
+            </label>
+          </>
+        )}
         <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
           <input
             type="checkbox"
-            checked={showMA20}
-            onChange={(e) => setShowMA20(e.target.checked)}
+            checked={priceMode === "intraday"}
+            onChange={(e) =>
+              setPriceMode(e.target.checked ? "intraday" : "close")
+            }
+            disabled={!intradaySupported}
           />{" "}
-          {t("instrumentDetail.ma20")}
-        </label>
-        <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
-          <input
-            type="checkbox"
-            checked={showMA50}
-            onChange={(e) => setShowMA50(e.target.checked)}
-          />{" "}
-          {t("instrumentDetail.ma50")}
-        </label>
-        <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
-          <input
-            type="checkbox"
-            checked={showMA200}
-            onChange={(e) => setShowMA200(e.target.checked)}
-          />{" "}
-          {t("instrumentDetail.ma200")}
-        </label>
-        <label style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>
-          <input
-            type="checkbox"
-            checked={showRSI}
-            onChange={(e) => setShowRSI(e.target.checked)}
-          />{" "}
-          {t("instrumentDetail.rsi")}
+          {t("instrumentDetail.intraday")}
         </label>
       </div>
-      {loading ? (
+      {intradayError && (
+        <div style={{ color: "red", marginBottom: "0.5rem" }}>
+          {t("instrumentDetail.intradayUnavailable")}
+        </div>
+      )}
+      {priceMode === "intraday" ? (
+        intradayLoading ? (
+          <div
+            style={{
+              height: 220,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {t("app.loading")}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={intradayPrices}>
+              <XAxis dataKey="timestamp" hide />
+              <YAxis domain={["auto", "auto"]} />
+              <Tooltip
+                wrapperStyle={{ color: "#000" }}
+                labelStyle={{ color: "#000" }}
+              />
+              <Line type="monotone" dataKey="close" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        )
+      ) : loading ? (
         <div
           style={{
             height: 220,
@@ -341,8 +426,13 @@ export function InstrumentDetail({
           <LineChart data={prices}>
             <XAxis dataKey="date" hide />
             <YAxis yAxisId="price" domain={["auto", "auto"]} />
-            {showRSI && <YAxis yAxisId="rsi" domain={[0, 100]} orientation="right" />}
-            <Tooltip wrapperStyle={{ color: "#000" }} labelStyle={{ color: "#000" }} />
+            {showRSI && (
+              <YAxis yAxisId="rsi" domain={[0, 100]} orientation="right" />
+            )}
+            <Tooltip
+              wrapperStyle={{ color: "#000" }}
+              labelStyle={{ color: "#000" }}
+            />
             {showBollinger && (
               <>
                 <Line

@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
+import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -347,10 +348,33 @@ async def instrument(
 
 @router.get("/intraday")
 async def intraday(
-    ticker: str = Query(..., description="Full ticker, e.g. VWRL.L")
+    ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),
 ):
-    """Return ~48 hours of intraday prices for ``ticker``."""
+    """Return ~48h of intraday prices for ``ticker``.
+
+    Data is sourced from Yahoo Finance with a 5 minute interval. If no data is
+    available the endpoint responds with HTTP 404.
+    """
 
     _validate_ticker(ticker)
-    payload = intraday_timeseries_for_ticker(ticker)
-    return JSONResponse(jsonable_encoder(payload))
+
+    tkr, *exch = ticker.split(".", 1)
+    full = f"{tkr}.{exch[0]}" if exch else tkr
+    try:
+        stock = yf.Ticker(full)
+        df = stock.history(period="2d", interval="5m")
+    except Exception as exc:  # pragma: no cover - network/IO errors
+        raise HTTPException(502, str(exc))
+    if df.empty:
+        raise HTTPException(404, f"No intraday data for {ticker}")
+
+    df = df.reset_index()
+    prices = [
+        {
+            "timestamp": row["Datetime"].to_pydatetime().isoformat(),
+            "close": float(row["Close"]),
+        }
+        for _, row in df.iterrows()
+    ]
+
+    return {"ticker": ticker, "prices": prices}

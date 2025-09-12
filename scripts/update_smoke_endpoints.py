@@ -76,6 +76,47 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
     ): {"__form__": {"provider": "test", "file": "__file__"}},
 }
 
+MANUAL_QUERIES: dict[tuple[str, str], dict[str, str]] = {}
+
+SAMPLE_QUERY_VALUES: dict[str, str] = {
+    "owner": "demo-owner",
+    "account": "demo-account",
+    "user": "user@example.com",
+    "email": "user@example.com",
+    "exchange": "NASDAQ",
+    "ticker": "AAPL",
+    "tickers": "AAPL",
+    "id": "1",
+    "vp_id": "1",
+    "quest_id": "check-in",
+    "slug": "demo-slug",
+    "name": "demo",
+}
+
+
+def _example_for_query_param(name: str, ann: Any) -> str:
+    """Return a representative example value for a query parameter.
+
+    A curated value map similar to ``fillPath`` is used so that generated
+    smoke requests reference existing data rather than placeholders like
+    ``ticker=test`` which can trigger 404 errors.
+    """
+
+    k = name.lower()
+    if k in SAMPLE_QUERY_VALUES:
+        return SAMPLE_QUERY_VALUES[k]
+    if "email" in k:
+        return "user@example.com"
+    if "id" in k:
+        return "1"
+    if "user" in k:
+        return "user@example.com"
+    if "date" in k:
+        return "1970-01-01"
+    if "ticker" in k:
+        return "AAPL"
+    return str(_example_for_type(ann))
+
 
 def main() -> None:
     app = create_app()
@@ -91,23 +132,28 @@ def main() -> None:
                     body_field = getattr(route, "body_field", None)
                     if body_field and body_field.required:
                         ep["body"] = _example_for_type(body_field.type_)
-
-                query_params: dict[str, str] = {}
-                for param in route.dependant.query_params:
-                    if param.required:
-                        query_params[param.name] = str(
-                            _example_for_type(param.type_)
-                        )
-                if query_params:
-                    ep["query"] = query_params
-
+                query_override = MANUAL_QUERIES.get((method, route.path))
+                if query_override is not None:
+                    ep["query"] = query_override
+                else:
+                    params: dict[str, str] = {}
+                    for param in route.dependant.query_params:
+                        if param.required:
+                            ann = getattr(param, "annotation", None) or getattr(
+                                param, "outer_type_", None
+                            ) or param.type_
+                            params[param.name] = _example_for_query_param(
+                                param.name, ann
+                            )
+                    if params:
+                        ep["query"] = params
                 endpoints.append(ep)
     endpoints.sort(key=lambda ep: (ep["path"], ep["method"]))
 
     smoke_ts = pathlib.Path(__file__).resolve().parent / "frontend-backend-smoke.ts"
     content = "// Auto-generated via backend route metadata\n"
     content += (
-        "export interface SmokeEndpoint { method: string; path: string; body?: any; query?: Record<string, string> }\n"
+        "export interface SmokeEndpoint { method: string; path: string; query?: Record<string, string>; body?: any }\n"
     )
     content += (
         "export const smokeEndpoints: SmokeEndpoint[] = "
@@ -144,8 +190,8 @@ def main() -> None:
         "}\n"
         "\nexport async function runSmoke(base: string) {\n"
         "  for (const ep of smokeEndpoints) {\n"
-        "    const qs = ep.query ? '?' + new URLSearchParams(ep.query).toString() : '';\n"
-        "    const url = base + fillPath(ep.path) + qs;\n"
+        "    let url = base + fillPath(ep.path);\n"
+        "    if (ep.query) url += '?' + new URLSearchParams(ep.query).toString();\n"
         "    let body: any = undefined;\n"
         "    let headers: any = undefined;\n"
         "    if (ep.body !== undefined) {\n"

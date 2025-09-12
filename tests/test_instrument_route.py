@@ -177,3 +177,109 @@ def test_non_gbp_instrument_has_distinct_close(monkeypatch):
     assert resp.status_code == 200
     prices = resp.json()["prices"]
     assert prices[-1]["close"] != prices[-1]["close_gbp"]
+
+
+def test_intraday_route(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    with patch(
+        "backend.routes.instrument.intraday_timeseries_for_ticker",
+        return_value={
+            "prices": [{"timestamp": "2024-01-02T10:00:00", "price": 10.0}],
+            "last_price_time": "2024-01-02T10:00:00",
+        },
+    ):
+        client = _auth_client(app)
+        resp = client.get("/instrument/intraday?ticker=ABC.L")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["prices"][0]["price"] == pytest.approx(10.0)
+
+def test_base_currency_param_gbp_to_usd(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = _make_df()
+    fx_df = pd.DataFrame(
+        {
+            "Date": pd.date_range("2020-01-01", periods=2, freq="D"),
+            "Rate": [0.8, 0.8],
+        }
+    )
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch("backend.routes.instrument.list_portfolios", return_value=[]), patch(
+        "backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}
+    ), patch(
+        "backend.routes.instrument.fetch_fx_rate_range", return_value=fx_df
+    ):
+        client = _auth_client(app)
+        resp = client.get(
+            "/instrument?ticker=ABC.L&days=1&format=json&base_currency=USD"
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    prices = data["prices"]
+    assert prices[-1]["close_usd"] == pytest.approx(11.0 / 0.8)
+    assert "USDGBP" in data["fx"]
+
+
+def test_base_currency_param_usd_to_eur(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = pd.DataFrame(
+        {
+            "Date": pd.date_range("2020-01-01", periods=2, freq="D"),
+            "Close": [10.0, 11.0],
+            "Close_gbp": [8.0, 8.8],
+        }
+    )
+    fx_df = pd.DataFrame(
+        {
+            "Date": pd.date_range("2020-01-01", periods=2, freq="D"),
+            "Rate": [0.9, 0.9],
+        }
+    )
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch("backend.routes.instrument.list_portfolios", return_value=[]), patch(
+        "backend.routes.instrument.get_security_meta", return_value={"currency": "USD"}
+    ), patch(
+        "backend.routes.instrument.fetch_fx_rate_range", return_value=fx_df
+    ):
+        client = _auth_client(app)
+        resp = client.get(
+            "/instrument?ticker=ABC.N&days=1&format=json&base_currency=EUR"
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    prices = data["prices"]
+    assert prices[-1]["close_eur"] == pytest.approx(8.8 / 0.9)
+    assert "EURGBP" in data["fx"]
+    assert "USDGBP" in data["fx"]
+
+
+def test_base_currency_from_config(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "base_currency", "USD")
+    app = create_app()
+    df = _make_df()
+    fx_df = pd.DataFrame(
+        {
+            "Date": pd.date_range("2020-01-01", periods=2, freq="D"),
+            "Rate": [0.8, 0.8],
+        }
+    )
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch("backend.routes.instrument.list_portfolios", return_value=[]), patch(
+        "backend.routes.instrument.get_security_meta", return_value={"currency": "GBP"}
+    ), patch(
+        "backend.routes.instrument.fetch_fx_rate_range", return_value=fx_df
+    ):
+        client = _auth_client(app)
+        resp = client.get("/instrument?ticker=ABC.L&days=1&format=json")
+    assert resp.status_code == 200
+    data = resp.json()
+    prices = data["prices"]
+    assert prices[-1]["close_usd"] == pytest.approx(11.0 / 0.8)
+    assert data["base_currency"] == "USD"

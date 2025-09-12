@@ -168,6 +168,33 @@ describe("HoldingsTable", () => {
         expect(cell).toHaveAttribute('title', expected);
     });
 
+    it("marks stale prices with an asterisk", async () => {
+        const stale: Holding = {
+            ticker: "STALE",
+            name: "Stale Co",
+            currency: "GBP",
+            instrument_type: "Equity",
+            units: 1,
+            price: 0,
+            cost_basis_gbp: 100,
+            market_value_gbp: 100,
+            gain_gbp: 0,
+            current_price_gbp: 100,
+            acquired_date: "2024-01-01",
+            days_held: 10,
+            sell_eligible: true,
+            days_until_eligible: 0,
+            last_price_date: "2024-01-01",
+            last_price_time: "2024-01-01T09:00:00Z",
+            is_stale: true,
+        };
+        render(<HoldingsTable holdings={[stale]} />);
+        const star = await screen.findByTitle("2024-01-01T09:00:00Z");
+        expect(star).toHaveTextContent("*");
+        const price = screen.getByText("£100.00");
+        expect(price).toHaveClass("text-gray");
+    });
+
     it("creates FX pair buttons for currency and skips GBX", async () => {
         const onSelect = vi.fn();
         render(<HoldingsTable holdings={holdings} onSelectInstrument={onSelect}/>);

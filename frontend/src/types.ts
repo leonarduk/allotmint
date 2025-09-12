@@ -444,3 +444,15 @@ export interface QuestResponse {
   xp: number;
   streak: number;
 }
+
+export interface TrailTask {
+  id: string;
+  title: string;
+  type: "daily" | "once";
+  commentary: string;
+  completed: boolean;
+}
+
+export interface TrailResponse {
+  tasks: TrailTask[];
+}

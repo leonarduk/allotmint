@@ -32,6 +32,7 @@ import type {
   ScenarioEvent,
   TradeSuggestion,
   QuestResponse,
+  TrailResponse,
   SectorContribution,
   RegionContribution,
   UserConfig,
@@ -1074,6 +1075,15 @@ export const getQuests = () =>
 
 export const completeQuest = (id: string) =>
   fetchJson<QuestResponse>(`${API_BASE}/quests/${encodeURIComponent(id)}/complete`, {
+    method: "POST",
+  });
+
+// ───────────── Trail tasks API ─────────────
+export const getTrailTasks = () =>
+  fetchJson<TrailResponse>(`${API_BASE}/trail`);
+
+export const completeTrailTask = (id: string) =>
+  fetchJson<TrailResponse>(`${API_BASE}/trail/${encodeURIComponent(id)}/complete`, {
     method: "POST",
   });
 

@@ -116,7 +116,7 @@ def test_intraday_timeseries_success(monkeypatch):
     monkeypatch.setattr(
         ia,
         "fetch_yahoo_timeseries_period",
-        lambda sym, ex, period, interval: df,
+        lambda sym, ex, period, interval, normalize=True: df,
     )
 
     res = ia.intraday_timeseries_for_ticker("AAA.L")

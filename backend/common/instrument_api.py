@@ -227,7 +227,9 @@ def intraday_timeseries_for_ticker(ticker: str) -> Dict[str, Any]:
     df = None
     for interval in ("5m", "15m"):
         try:
-            df = fetch_yahoo_timeseries_period(sym, ex, period="5d", interval=interval)
+            df = fetch_yahoo_timeseries_period(
+                sym, ex, period="5d", interval=interval, normalize=False
+            )
             if not df.empty:
                 break
         except Exception:

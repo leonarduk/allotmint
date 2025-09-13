@@ -3,7 +3,7 @@ import pandas as pd
 import backend.common.portfolio_utils as pu
 
 def test_fx_to_base_logs_warning_on_failure(monkeypatch, caplog):
-    def fake_fetch(currency, start, end):
+    def fake_fetch(currency, quote, start, end):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(pu, "fetch_fx_rate_range", fake_fetch)

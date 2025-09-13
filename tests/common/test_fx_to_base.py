@@ -38,9 +38,9 @@ def test_fx_to_base_fetch_failure(monkeypatch, caplog):
 def test_fx_to_base_cross_rate(monkeypatch):
     cache: dict[str, float] = {}
 
-    def fake_fetch(curr, start, end):
+    def fake_fetch(base, quote, start, end):
         rates = {"USD": 0.8, "EUR": 0.9}
-        return pd.DataFrame({"Rate": [rates[curr]]})
+        return pd.DataFrame({"Rate": [rates[base]]})
 
     monkeypatch.setattr(pu, "fetch_fx_rate_range", fake_fetch)
     rate = pu._fx_to_base("USD", "EUR", cache)

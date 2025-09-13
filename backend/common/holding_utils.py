@@ -137,7 +137,7 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
 
     try:
-        from backend.common.portfolio_utils import _fx_to_gbp  # type: ignore
+        from backend.common.portfolio_utils import _fx_to_base  # type: ignore
 
         fx_cache: Dict[str, float] = {}
         resp = requests.get(url, timeout=5)
@@ -158,7 +158,7 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
                 meta = get_instrument_meta(sym)
                 ccy = (meta.get("currency") or "GBP").upper()
                 if ccy != "GBP":
-                    price *= _fx_to_gbp(ccy, fx_cache)
+                    price *= _fx_to_base(ccy, "GBP", fx_cache)
 
                 out[sym.upper()] = {
                     "price": price,

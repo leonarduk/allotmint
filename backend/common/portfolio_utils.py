@@ -90,7 +90,7 @@ def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float
         end = date.today()
         start = end - timedelta(days=7)
         try:
-            df = fetch_fx_rate_range(ccy, start, end)
+            df = fetch_fx_rate_range(ccy, "GBP", start, end)
             if not df.empty:
                 rate = float(df["Rate"].iloc[-1])
                 cache[ccy] = rate

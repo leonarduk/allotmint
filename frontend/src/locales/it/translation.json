@@ -30,12 +30,17 @@
       "settings": "Impostazioni utente",
       "profile": "Profilo",
       "pension": "Previsione pensionistica",
+      "trail": "Trail",
       "reports": "Segnalazioni",
       "alertsettings": "Alert Settings",
       "support": "Supporto",
       "scenario": "Tester di scenario",
-      "logs": "Tronchi"
+    "logs": "Tronchi"
     }
+  },
+  "trail": {
+    "daily": "Daily",
+    "once": "Once"
   },
   "common": {
     "error": "Errore",

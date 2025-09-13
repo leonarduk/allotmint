@@ -30,12 +30,17 @@
       "settings": "Paramètres utilisateur",
       "profile": "Profil",
       "pension": "Prévision de pension",
+      "trail": "Trail",
       "reports": "Rapports",
       "alertsettings": "Alert Settings",
       "support": "Support",
       "scenario": "Testeur de Scénario",
-      "logs": "Journaux"
+    "logs": "Journaux"
     }
+  },
+  "trail": {
+    "daily": "Daily",
+    "once": "Once"
   },
   "common": {
     "error": "Erreur",

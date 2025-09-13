@@ -32,12 +32,17 @@
       "pension": "Pension Forecast",
       "taxharvest": "Tax Harvest",
       "taxallowances": "Tax Allowances",
+      "trail": "Trail",
       "reports": "Reports",
       "alertsettings": "Alert Settings",
       "support": "Support",
       "scenario": "Scenario Tester",
       "logs": "Logs"
     }
+  },
+  "trail": {
+    "daily": "Daily",
+    "once": "Once"
   },
   "common": {
     "error": "Error",

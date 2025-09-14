@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+import os
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict
 
-import os
 import yaml
-from dataclasses import asdict
 from fastapi import APIRouter, HTTPException
 
+from backend import config_module
 from backend.config import (
     ConfigValidationError,
     _project_config_path,
-    reload_config,
+    config,
     validate_google_auth,
 )
-from backend import config_module
 
 router = APIRouter(prefix="/config", tags=["config"])
 
@@ -113,7 +113,8 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(500, f"Failed to write config: {exc}")
 
     try:
-        new_config = reload_config()
-        return asdict(new_config)
+        config_module.load_config.cache_clear()
+        cfg = config_module.load_config()
+        return asdict(cfg)
     except ConfigValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

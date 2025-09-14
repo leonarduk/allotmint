@@ -35,7 +35,7 @@ from backend.common.portfolio_utils import (
     refresh_snapshot_async,
     refresh_snapshot_in_memory,
 )
-from backend.config import config
+from backend.config import load_config
 from backend.routes.agent import router as agent_router
 from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.alerts import router as alerts_router
@@ -86,6 +86,8 @@ def create_app() -> FastAPI:
     in-memory price snapshot so the first request is quick. Returning the app
     instance instead of creating it at module import time keeps things
     test-friendly and avoids accidental state sharing between invocations.
+    The configuration object is fetched lazily to ensure the latest values are
+    used, even if other tests reload or replace it.
     """
 
     # The FastAPI constructor accepts a few descriptive fields that end up in
@@ -93,11 +95,10 @@ def create_app() -> FastAPI:
     # Startup and shutdown logic is handled via a lifespan context manager to
     # ensure all background tasks are registered and later cleaned up.
 
-    skip_warm = bool(config.skip_snapshot_warm)
-
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        if not skip_warm:
+        cfg = load_config()
+        if not bool(cfg.skip_snapshot_warm):
             # Pre-fetch recent price data so the first request is fast.
             try:
                 result = _load_snapshot()
@@ -120,7 +121,7 @@ def create_app() -> FastAPI:
             price_task = asyncio.create_task(asyncio.to_thread(instrument_api.prime_latest_prices))
             app.state.background_tasks.append(price_task)
 
-            task = refresh_snapshot_async(days=config.snapshot_warm_days or 30)
+            task = refresh_snapshot_async(days=cfg.snapshot_warm_days or 30)
             if isinstance(task, (asyncio.Task, asyncio.Future)):
                 app.state.background_tasks.append(task)
         yield
@@ -146,21 +147,22 @@ def create_app() -> FastAPI:
     )
     app.state.background_tasks = []
 
+    cfg = load_config()
     storage_uri = "memory://"
-    if config.app_env in {"production", "aws"}:
+    if cfg.app_env in {"production", "aws"}:
         redis_url = os.getenv("REDIS_URL")
         if redis_url:
             storage_uri = redis_url
 
     limiter = Limiter(
         key_func=get_remote_address,
-        default_limits=[f"{config.rate_limit_per_minute}/minute"],
+        default_limits=[f"{cfg.rate_limit_per_minute}/minute"],
         storage_uri=storage_uri,
     )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    paths = resolve_paths(config.repo_root, config.accounts_root)
+    paths = resolve_paths(cfg.repo_root, cfg.accounts_root)
     app.state.repo_root = paths.repo_root
     app.state.accounts_root = paths.accounts_root
     app.state.virtual_pf_root = paths.virtual_pf_root
@@ -187,7 +189,7 @@ def create_app() -> FastAPI:
         "http://localhost:3000",
         "http://localhost:5173",
     ]
-    cors_origins = _validate_cors_origins(config.cors_origins or default_cors)
+    cors_origins = _validate_cors_origins(cfg.cors_origins or default_cors)
     cors_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     cors_headers = ["Authorization", "Content-Type"]
     app.add_middleware(
@@ -204,7 +206,7 @@ def create_app() -> FastAPI:
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.
     # Sensitive routes are guarded by a JWT-based dependency.
-    if config.disable_auth:
+    if cfg.disable_auth:
         protected = []
     else:
         protected = [Depends(auth.get_current_user)]
@@ -291,7 +293,8 @@ def create_app() -> FastAPI:
     async def health():
         """Return a small payload used by tests and uptime monitors."""
 
-        return {"status": "ok", "env": config.app_env or "test"}
+        cfg = load_config()
+        return {"status": "ok", "env": cfg.app_env or "test"}
 
     return app
 
@@ -300,4 +303,4 @@ def create_app() -> FastAPI:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(create_app(), host="0.0.0.0", port=config.uvicorn_port or 8000)
+    uvicorn.run(create_app(), host="0.0.0.0", port=load_config().uvicorn_port or 8000)

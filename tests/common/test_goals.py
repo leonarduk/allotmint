@@ -1,3 +1,5 @@
+"""Tests for goal helpers."""
+
 from datetime import date
 
 import pytest
@@ -12,6 +14,27 @@ def goal_storage(tmp_path, monkeypatch):
     storage.save({})
     monkeypatch.setattr(goals_mod, "_STORAGE", storage)
     return storage
+
+
+def test_goal_to_from_dict_roundtrip():
+    goal = goals_mod.Goal("Car", 5000.0, date(2025, 1, 1))
+    data = goal.to_dict()
+    assert data == {
+        "name": "Car",
+        "target_amount": 5000.0,
+        "target_date": "2025-01-01",
+    }
+    assert goals_mod.Goal.from_dict(data) == goal
+
+
+def test_goal_progress():
+    goal = goals_mod.Goal("Holiday", 1000.0, date(2024, 1, 1))
+    assert goal.progress(0) == 0.0
+    assert goal.progress(500) == 0.5
+    assert goal.progress(1200) == 1.0  # over target
+
+    zero_goal = goals_mod.Goal("Zero", 0.0, date(2024, 1, 1))
+    assert zero_goal.progress(100) == 0.0
 
 
 def test_save_and_load_goals(goal_storage):
@@ -47,3 +70,19 @@ def test_load_goals_ignores_malformed_entries(goal_storage):
     result = goals_mod.load_goals("alice")
     assert len(result) == 1
     assert result[0].name == "House"
+
+
+def test_load_all_goals_ignores_malformed_entries(goal_storage):
+    g1 = goals_mod.Goal("House", 3000.0, date(2025, 1, 1))
+    g2 = goals_mod.Goal("Trip", 2000.0, date(2024, 6, 1))
+    goal_storage.save(
+        {
+            "alice": [
+                g1.to_dict(),
+                {"name": "Bad", "target_amount": "oops", "target_date": "not"},
+            ],
+            "bob": ["not a dict", g2.to_dict()],
+        }
+    )
+    result = goals_mod.load_all_goals()
+    assert result == {"alice": [g1], "bob": [g2]}

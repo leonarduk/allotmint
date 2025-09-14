@@ -135,27 +135,7 @@ def create_app() -> FastAPI:
     )
     app.state.background_tasks = []
 
-    storage_uri = "memory://"
-    if config.app_env in {"production", "aws"}:
-        redis_url = os.getenv("REDIS_URL")
-        if redis_url:
-            storage_uri = redis_url
-
-    limiter = Limiter(
-        key_func=get_remote_address,
-        default_limits=[f"{config.rate_limit_per_minute}/minute"],
-        storage_uri=storage_uri,
-    )
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    app.add_middleware(SlowAPIMiddleware)
-
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    app.state.repo_root = paths.repo_root
-    app.state.accounts_root = paths.accounts_root
-    app.state.virtual_pf_root = paths.virtual_pf_root
-
-    # ───────────────────────────── CORS ─────────────────────────────
+    # ────────────────────────── CORS ──────────────────────────
     # The frontend origin varies by environment. Read the whitelist from
     # configuration and fall back to the production site plus the local
     # development servers if none are provided to avoid blocking dev requests.
@@ -177,16 +157,35 @@ def create_app() -> FastAPI:
         "http://localhost:3000",
         "http://localhost:5173",
     ]
-    cors_origins = _validate_cors_origins(config.cors_origins or default_cors)
-    cors_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-    cors_headers = ["Authorization", "Content-Type"]
+    config.cors_origins = _validate_cors_origins(config.cors_origins or default_cors)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_methods=cors_methods,
-        allow_headers=cors_headers,
+        allow_origins=config.cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
         allow_credentials=True,
     )
+
+    storage_uri = "memory://"
+    if config.app_env in {"production", "aws"}:
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            storage_uri = redis_url
+
+    limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=[f"{config.rate_limit_per_minute}/minute"],
+        storage_uri=storage_uri,
+    )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    app.state.repo_root = paths.repo_root
+    app.state.accounts_root = paths.accounts_root
+    app.state.virtual_pf_root = paths.virtual_pf_root
+
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.

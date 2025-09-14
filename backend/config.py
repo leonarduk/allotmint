@@ -287,7 +287,7 @@ def _load_config() -> Config:
     if alpha_key_env:
         data["alpha_vantage_key"] = alpha_key_env
 
-    return Config(
+    cfg = Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
         telegram_bot_token=data.get("telegram_bot_token"),
@@ -330,6 +330,11 @@ def _load_config() -> Config:
         trading_agent=trading_agent,
         cors_origins=cors_origins,
     )
+
+    globals()["config"] = cfg
+    globals()["settings"] = cfg
+
+    return cfg
 
 
 config = _load_config()

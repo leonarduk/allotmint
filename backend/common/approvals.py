@@ -8,7 +8,6 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional
 
-from backend.common.data_loader import resolve_paths
 from backend.config import config
 
 logger = logging.getLogger(__name__)
@@ -17,14 +16,8 @@ logger = logging.getLogger(__name__)
 def _approvals_path(owner: str, accounts_root: Path | None = None) -> Path:
     """Return the path to ``owner``'s approvals file."""
 
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    root = Path(accounts_root) if accounts_root else paths.accounts_root
-    owner_dir = root / owner
-    if not owner_dir.exists():
-        raise FileNotFoundError(
-            f"approvals directory for '{owner}' not found at {owner_dir}"
-        )
-    return owner_dir / "approvals.json"
+    root = Path(accounts_root) if accounts_root else Path(config.accounts_root)
+    return root / owner / "approvals.json"
 
 
 def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, date]:
@@ -36,13 +29,10 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
     uppercase.
     """
 
-    try:
-        path = _approvals_path(owner, accounts_root)
-    except FileNotFoundError as exc:
-        logger.error("approvals directory not found for %s: %s", owner, exc)
-        raise
+    path = _approvals_path(owner, accounts_root)
     if not path.exists():
         try:
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps({"approvals": []}, indent=2, sort_keys=True))
             logger.info(
                 "approvals file for '%s' not found at %s; created default",
@@ -103,6 +93,7 @@ def save_approvals(
         {"ticker": t.upper(), "approved_on": d.isoformat()} for t, d in approvals.items()
     ]
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"approvals": entries}, indent=2, sort_keys=True))
     except OSError as exc:
         logger.error("failed to write approvals for %s to %s: %s", owner, path, exc)
@@ -117,10 +108,7 @@ def upsert_approval(
 ) -> Dict[str, date]:
     """Add or update a single ticker approval and return the updated mapping."""
 
-    try:
-        approvals = load_approvals(owner, accounts_root)
-    except FileNotFoundError:
-        approvals = {}
+    approvals = load_approvals(owner, accounts_root)
     approvals[ticker.upper()] = approved_on
     try:
         save_approvals(owner, approvals, accounts_root)
@@ -135,13 +123,7 @@ def delete_approval(
 ) -> Dict[str, date]:
     """Remove ``ticker`` from approvals and return the updated mapping."""
 
-    try:
-        approvals = load_approvals(owner, accounts_root)
-    except FileNotFoundError:
-        logger.error(
-            "approvals file for %s missing; cannot delete %s", owner, ticker
-        )
-        raise
+    approvals = load_approvals(owner, accounts_root)
     approvals.pop(ticker.upper(), None)
     try:
         save_approvals(owner, approvals, accounts_root)

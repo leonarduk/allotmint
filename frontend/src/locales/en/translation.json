@@ -244,6 +244,7 @@
     "description": "Configure when you'll receive alerts. Alerts appear on the Alerts page and in push notifications.",
     "threshold": "Threshold %:",
     "save": "Save",
+    "signInNotice": "Sign in to configure alerts",
     "push": {
       "title": "Push Notifications",
       "notSupported": "Push not supported",

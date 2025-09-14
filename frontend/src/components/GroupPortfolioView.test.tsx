@@ -381,7 +381,11 @@ describe("GroupPortfolioView", () => {
     within(teLabel.parentElement!).getByText("N/A");
     const mdLabel = await screen.findByText("Max Drawdown");
     within(mdLabel.parentElement!).getByText("N/A");
-
-    expect(warnSpy.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(warnSpy).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith("Metric value out of range:", 2);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Metric value out of range:",
+      Infinity,
+    );
   });
 });

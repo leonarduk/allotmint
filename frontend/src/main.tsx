@@ -117,7 +117,10 @@ createRoot(rootEl).render(
   </StrictMode>,
 )
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+if (
+  'serviceWorker' in navigator &&
+  (import.meta.env.PROD || import.meta.env.VITE_ENABLE_SW)
+) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/service-worker.js')

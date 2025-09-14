@@ -47,7 +47,7 @@ def test_run_check_drawdown_and_missing(monkeypatch, tmp_path):
             return tmp_path / owner / "approvals.json"
         raise FileNotFoundError
 
-    monkeypatch.setattr(cph.approvals, "_approvals_path", fake_approvals_path)
+    monkeypatch.setattr(cph.approvals, "approvals_path", fake_approvals_path)
     monkeypatch.setattr(cph.portfolio_utils, "_MISSING_META", {"missing/meta.json"}, raising=False)
 
     findings = cph.run_check(0.2)

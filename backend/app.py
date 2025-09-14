@@ -90,7 +90,29 @@ def create_app() -> FastAPI:
     used, even if other tests reload or replace it.
     """
 
+    # Reload configuration but preserve any values that have been explicitly
+    # overridden on the existing ``config`` object. Tests often monkeypatch
+    # attributes like ``accounts_root`` or ``disable_auth`` before invoking
+    # ``create_app`` and those should take precedence over values loaded from
+    # disk or environment variables.
+    prev_cfg = config_module.config
+    overrides = {}
+    if isinstance(prev_cfg, type(config_module.config)):
+        for attr in (
+            "accounts_root",
+            "offline_mode",
+            "disable_auth",
+            "skip_snapshot_warm",
+            "snapshot_warm_days",
+            "app_env",
+            "base_currency",
+        ):
+            overrides[attr] = getattr(prev_cfg, attr, None)
+
     cfg = reload_config()
+    for attr, val in overrides.items():
+        if val is not None:
+            setattr(cfg, attr, val)
 
     if cfg.google_auth_enabled and not cfg.google_client_id:
         raise RuntimeError("google_client_id required when google_auth_enabled is true")

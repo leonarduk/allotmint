@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -22,7 +22,9 @@ import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
-import PortfolioDashboard from "./pages/PortfolioDashboard";
+import lazyWithDelay from "./utils/lazyWithDelay";
+import PortfolioDashboardSkeleton from "./components/skeletons/PortfolioDashboardSkeleton";
+import Defer from "./components/Defer";
 
 import { NotificationsDrawer } from "./components/NotificationsDrawer";
 import { ComplianceWarnings } from "./components/ComplianceWarnings";
@@ -55,6 +57,7 @@ import PensionForecast from "./pages/PensionForecast";
 import TaxHarvest from "./pages/TaxHarvest";
 import TaxAllowances from "./pages/TaxAllowances";
 import RightRail from "./components/RightRail";
+const PortfolioDashboard = lazyWithDelay(() => import("./pages/PortfolioDashboard"));
 
 interface AppProps {
   onLogout?: () => void;
@@ -474,19 +477,21 @@ export default function App({ onLogout }: AppProps) {
             selected={selectedOwner}
             onSelect={setSelectedOwner}
           />
-          <PortfolioDashboard
-            twr={null}
-            irr={null}
-            bestDay={null}
-            worstDay={null}
-            lastDay={null}
-            alpha={null}
-            trackingError={null}
-            maxDrawdown={null}
-            volatility={null}
-            data={[]}
-            owner={selectedOwner}
-          />
+          <Suspense fallback={<PortfolioDashboardSkeleton />}>
+            <PortfolioDashboard
+              twr={null}
+              irr={null}
+              bestDay={null}
+              worstDay={null}
+              lastDay={null}
+              alpha={null}
+              trackingError={null}
+              maxDrawdown={null}
+              volatility={null}
+              data={[]}
+              owner={selectedOwner}
+            />
+          </Suspense>
         </>
       )}
 
@@ -513,7 +518,9 @@ export default function App({ onLogout }: AppProps) {
       {mode === "scenario" && <ScenarioTester />}
       {mode === "pension" && <PensionForecast />}
       </main>
-      <RightRail owner={selectedOwner} />
+      <Defer>
+        <RightRail owner={selectedOwner} />
+      </Defer>
     </div>
   );
 }

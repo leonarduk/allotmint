@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from typing import List, Dict
-
-import logging
 import json
+import logging
 from datetime import date
 from pathlib import Path
+from typing import Dict, List
 
 import requests
-from fastapi import APIRouter, BackgroundTasks, Query, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-from backend.config import config
+from backend import config_module
 from backend.utils import page_cache
+
+cfg = getattr(config_module, "settings", config_module.config)
+config = cfg
 
 router = APIRouter(tags=["news"])
 
@@ -43,12 +45,12 @@ def _save_counter(data: Dict[str, int]) -> None:
 
 def _can_request_news() -> bool:
     data = _load_counter()
-    return data["count"] < config.news_requests_per_day
+    return data["count"] < cfg.news_requests_per_day
 
 
 def _try_consume_quota() -> bool:
     data = _load_counter()
-    if data["count"] >= config.news_requests_per_day:
+    if data["count"] >= cfg.news_requests_per_day:
         return False
     data["count"] += 1
     _save_counter(data)
@@ -60,7 +62,7 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
         "function": "NEWS_SENTIMENT",
         "tickers": ticker,
         "sort": "LATEST",
-        "apikey": config.alpha_vantage_key or "demo",
+        "apikey": cfg.alpha_vantage_key or "demo",
     }
     try:
         resp = requests.get(BASE_URL, params=params, timeout=10)
@@ -76,9 +78,7 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
                 or "Unexpected response"
             )
             raise RuntimeError(message)
-        return [
-            {"headline": item.get("title"), "url": item.get("url")} for item in feed
-        ]
+        return [{"headline": item.get("title"), "url": item.get("url")} for item in feed]
     except Exception as exc:  # pragma: no cover - defensive
         logging.getLogger(__name__).error("Failed to fetch news for %s: %s", ticker, exc)
         return []

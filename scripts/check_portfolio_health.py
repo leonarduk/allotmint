@@ -114,7 +114,7 @@ def run_check(threshold: float) -> list[dict]:
 
     for owner in owners:
         try:
-            path = approvals._approvals_path(owner)
+            path = approvals.approvals_path(owner)
         except FileNotFoundError:
             continue
         if not path.exists():

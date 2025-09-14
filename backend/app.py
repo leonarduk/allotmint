@@ -97,8 +97,9 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        cfg = load_config()
-        if not bool(cfg.skip_snapshot_warm):
+
+      skip_warm = bool(config.skip_snapshot_warm)
+        if not skip_warm:
             # Pre-fetch recent price data so the first request is fast.
             try:
                 result = _load_snapshot()
@@ -118,12 +119,14 @@ def create_app() -> FastAPI:
             from backend.common import instrument_api
 
             instrument_api.update_latest_prices_from_snapshot(snapshot)
-            price_task = asyncio.create_task(asyncio.to_thread(instrument_api.prime_latest_prices))
+            price_task = asyncio.create_task(
+                asyncio.to_thread(instrument_api.prime_latest_prices)
+            )
             app.state.background_tasks.append(price_task)
 
-            task = refresh_snapshot_async(days=cfg.snapshot_warm_days or 30)
-            if isinstance(task, (asyncio.Task, asyncio.Future)):
-                app.state.background_tasks.append(task)
+        task = refresh_snapshot_async(days=config.snapshot_warm_days or 30)
+        if isinstance(task, (asyncio.Task, asyncio.Future)):
+            app.state.background_tasks.append(task)
         yield
         # cancel any running background tasks
         tasks = list(app.state.background_tasks)

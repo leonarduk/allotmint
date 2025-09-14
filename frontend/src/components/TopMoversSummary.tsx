@@ -86,6 +86,7 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
                     font: "inherit",
                     cursor: "pointer",
                   }}
+                  className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                 >
                   {r.ticker}
                 </button>

@@ -4,6 +4,7 @@ import logging
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 import yaml
@@ -331,19 +332,31 @@ def _load_config() -> Config:
         cors_origins=cors_origins,
     )
 
-    globals()["config"] = cfg
-    globals()["settings"] = cfg
 
     return cfg
 
 
-config = _load_config()
-settings = config
+@lru_cache()
+def load_config() -> Config:
+    """Load configuration and cache the result."""
+    return _load_config()
+
+settings = load_config()
+config = settings
 
 
 def reload_config() -> Config:
     """Reload configuration and update module-level ``config``."""
     global config, settings
-    new_config = _load_config()
+    load_config.cache_clear()
+    new_config = load_config()
     config = settings = new_config
     return new_config
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        return getattr(load_config(), name)
+    except AttributeError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+

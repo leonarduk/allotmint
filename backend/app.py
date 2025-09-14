@@ -106,11 +106,7 @@ def create_app() -> FastAPI:
             # Pre-fetch recent price data so the first request is fast.
             try:
                 result = _load_snapshot()
-                if (
-                    not isinstance(result, tuple)
-                    or len(result) != 2
-                    or not isinstance(result[0], dict)
-                ):
+                if not isinstance(result, tuple) or len(result) != 2 or not isinstance(result[0], dict):
                     raise ValueError("Malformed snapshot")
                 snapshot, ts = result
             except Exception as exc:
@@ -122,9 +118,7 @@ def create_app() -> FastAPI:
             from backend.common import instrument_api
 
             instrument_api.update_latest_prices_from_snapshot(snapshot)
-            price_task = asyncio.create_task(
-                asyncio.to_thread(instrument_api.prime_latest_prices)
-            )
+            price_task = asyncio.create_task(asyncio.to_thread(instrument_api.prime_latest_prices))
             app.state.background_tasks.append(price_task)
 
         task = refresh_snapshot_async(days=cfg.snapshot_warm_days)
@@ -195,9 +189,7 @@ def create_app() -> FastAPI:
         "http://localhost:3000",
         "http://localhost:5173",
     ]
-    cors_origins = _validate_cors_origins(
-        list(dict.fromkeys((cfg.cors_origins or []) + default_cors))
-    )
+    cors_origins = _validate_cors_origins(list(dict.fromkeys((cfg.cors_origins or []) + default_cors)))
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
@@ -208,7 +200,6 @@ def create_app() -> FastAPI:
     # Register SlowAPIMiddleware after CORSMiddleware so CORS preflight requests
     # are handled before rate limiting or other middleware runs.
     app.add_middleware(SlowAPIMiddleware)
-
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.
@@ -255,7 +246,7 @@ def create_app() -> FastAPI:
     app.include_router(scenario_router)
     app.include_router(logs_router)
     app.include_router(goals_router, dependencies=protected)
-    app.include_router(tax_router, dependencies=protected)
+    app.include_router(tax_router)
     app.include_router(pension_router)
 
     @app.exception_handler(RequestValidationError)

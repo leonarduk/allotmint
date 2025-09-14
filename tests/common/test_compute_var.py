@@ -16,3 +16,8 @@ def test_compute_var_insufficient_data_returns_none():
     df = pd.DataFrame({"Close": [100]})
     assert pu.compute_var(df) is None
 
+
+def test_compute_var_empty_dataframe_returns_none():
+    df = pd.DataFrame()
+    assert pu.compute_var(df) is None
+

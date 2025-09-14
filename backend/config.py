@@ -350,6 +350,10 @@ def reload_config() -> Config:
     global config, settings
     load_config.cache_clear()
     new_config = load_config()
+    if isinstance(config, Config):
+        config.__dict__.update(new_config.__dict__)
+        settings = config
+        return config
     config = settings = new_config
     return new_config
 

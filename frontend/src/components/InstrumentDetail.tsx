@@ -10,6 +10,7 @@ import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
 import type { TradingSignal } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -642,7 +643,26 @@ export function InstrumentDetail({
                       className={`${tableStyles.cell} ${tableStyles.right}`}
                       style={{ color: colour }}
                     >
-                      {percent(p.change_pct, 2)}
+                      {Number.isFinite(p.change_pct) ? (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            gap: "0.25rem",
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {p.change_pct >= 0 ? (
+                            <ArrowUpRight size={12} />
+                          ) : (
+                            <ArrowDownRight size={12} />
+                          )}
+                          {percent(p.change_pct, 2)}
+                        </span>
+                      ) : (
+                        percent(p.change_pct, 2)
+                      )}
                     </td>
                   </tr>
                 );

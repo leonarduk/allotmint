@@ -40,3 +40,41 @@ describe("AlertSettings navigation", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("AlertSettings when not signed in", () => {
+  it("shows notice and disables buttons without a profile", async () => {
+    // Mock Push API support so the push button renders
+    Object.defineProperty(window, "PushManager", {
+      value: {},
+      configurable: true,
+    });
+    Object.defineProperty(navigator, "serviceWorker", {
+      value: {
+        ready: Promise.resolve({
+          pushManager: { getSubscription: () => Promise.resolve(null) },
+        }),
+      },
+      configurable: true,
+    });
+
+    render(
+      <MemoryRouter>
+        <AlertSettings />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByText(en.alertSettings.signInNotice),
+    ).toBeInTheDocument();
+
+    const saveButton = screen.getByRole("button", {
+      name: en.alertSettings.save,
+    });
+    expect(saveButton).toBeDisabled();
+
+    const pushButton = await screen.findByRole("button", {
+      name: en.alertSettings.push.enable,
+    });
+    expect(pushButton).toBeDisabled();
+  });
+});

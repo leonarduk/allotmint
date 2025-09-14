@@ -13,6 +13,20 @@ import {
   Cell,
 } from 'recharts';
 
+const IndexTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const { value, change } = payload[0].payload;
+    return (
+      <div className="rounded border bg-white p-2 text-sm shadow text-gray-900">
+        <p className="font-semibold">{label}</p>
+        <p>Level: {value.toLocaleString()}</p>
+        <p>Change: {change.toFixed(2)}%</p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function MarketOverview() {
   const { t } = useTranslation();
   const [data, setData] = useState<MarketOverviewData | null>(null);
@@ -38,20 +52,6 @@ export default function MarketOverview() {
     })
   );
 
-  const renderIndexTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const { value, change } = payload[0].payload;
-      return (
-        <div className="rounded border bg-white p-2 text-sm shadow text-gray-900">
-          <p className="font-semibold">{label}</p>
-          <p>Level: {value.toLocaleString()}</p>
-          <p>Change: {change.toFixed(2)}%</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl">
@@ -66,7 +66,7 @@ export default function MarketOverview() {
           <BarChart data={indexData}>
             <XAxis dataKey="name" />
             <YAxis />
-            <Tooltip content={renderIndexTooltip} />
+            <Tooltip content={<IndexTooltip />} />
             <Bar dataKey="change">
               {indexData.map((entry) => (
                 <Cell

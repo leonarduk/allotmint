@@ -8,7 +8,7 @@ import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
 import PomodoroTimer from './PomodoroTimer';
 import { useFocusMode } from '../FocusModeContext';
 
-const SUPPORT_ONLY_TABS: TabPluginId[] = ['logs'];
+const SUPPORT_ONLY_TABS: TabPluginId[] = [];
 
 interface MenuProps {
   selectedOwner?: string;
@@ -171,7 +171,11 @@ export default function Menu({
           style={style}
         >
           {orderedTabPlugins
-            .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
+            .filter(
+              (p) =>
+                p.section === (isSupportMode ? 'support' : 'user') ||
+                (supportEnabled && p.id === 'logs'),
+            )
             .slice()
             .sort((a, b) => a.priority - b.priority)
             .filter((p) => {

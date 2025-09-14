@@ -12,17 +12,14 @@ describe("Menu", () => {
         <Menu />
       </MemoryRouter>,
     );
-    expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Support" })).not.toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
     fireEvent.click(toggle);
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
       "/support",
     );
-    expect(screen.queryByRole("link", { name: "Logs" })).toBeNull();
-    fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
-    expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute("href", "/support");
-    expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Logs" })).toHaveAttribute("href", "/logs");
   });
 
   it("shows support tabs on support route", () => {

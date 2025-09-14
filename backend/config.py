@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import asdict, dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -331,19 +332,22 @@ def _load_config() -> Config:
         cors_origins=cors_origins,
     )
 
-    globals()["config"] = cfg
-    globals()["settings"] = cfg
-
     return cfg
 
 
-config = _load_config()
+@lru_cache()
+def load_config() -> Config:
+    """Cached configuration loader used by the application."""
+    return _load_config()
+
+
+config = load_config()
 settings = config
 
 
 def reload_config() -> Config:
     """Reload configuration and update module-level ``config``."""
     global config, settings
-    new_config = _load_config()
-    config = settings = new_config
-    return new_config
+    load_config.cache_clear()
+    config = settings = load_config()
+    return config

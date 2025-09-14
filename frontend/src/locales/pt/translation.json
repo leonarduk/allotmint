@@ -237,8 +237,17 @@
   },
   "alertSettings": {
     "title": "Alert Settings",
+    "description": "Configure quando receber alertas. Os alertas aparecem na página de alertas e nas notificações push.",
     "threshold": "Threshold %:",
     "save": "Save",
+    "push": {
+      "title": "Notificações push",
+      "notSupported": "Push não suportado",
+      "enable": "Ativar alertas push",
+      "disable": "Desativar alertas push",
+      "denied": "Permissão de push negada.",
+      "error": "Erro ao lidar com a assinatura de push."
+    },
     "status": {
       "saved": "Saved",
       "error": "Error"

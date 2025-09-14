@@ -237,8 +237,17 @@
   },
   "alertSettings": {
     "title": "Alert Settings",
+    "description": "Configura quando riceverai avvisi. Gli avvisi compaiono nella pagina degli avvisi e nelle notifiche push.",
     "threshold": "Threshold %:",
     "save": "Save",
+    "push": {
+      "title": "Notifiche push",
+      "notSupported": "Push non supportato",
+      "enable": "Attiva avvisi push",
+      "disable": "Disattiva avvisi push",
+      "denied": "Autorizzazione push negata.",
+      "error": "Errore nella gestione dell'iscrizione push."
+    },
     "status": {
       "saved": "Saved",
       "error": "Error"

@@ -239,8 +239,17 @@
   },
   "alertSettings": {
     "title": "Alert Settings",
+    "description": "Configure when you'll receive alerts. Alerts appear on the Alerts page and in push notifications.",
     "threshold": "Threshold %:",
     "save": "Save",
+    "push": {
+      "title": "Push Notifications",
+      "notSupported": "Push not supported",
+      "enable": "Enable Push Alerts",
+      "disable": "Disable Push Alerts",
+      "denied": "Push permission denied.",
+      "error": "Error handling push subscription."
+    },
     "status": {
       "saved": "Saved",
       "error": "Error"

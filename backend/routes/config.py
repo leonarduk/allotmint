@@ -15,6 +15,7 @@ from backend.config import (
     reload_config,
     validate_google_auth,
 )
+from backend import config_module
 
 router = APIRouter(prefix="/config", tags=["config"])
 

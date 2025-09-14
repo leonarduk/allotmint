@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.config import ConfigValidationError, reload_config
+from backend import config_module
 from backend.routes import timeseries_admin
 from backend import auth
 

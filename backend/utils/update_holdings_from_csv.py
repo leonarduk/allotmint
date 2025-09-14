@@ -29,10 +29,13 @@ def update_from_csv(
     account: str,
     provider: str,
     data: bytes,
-) -> str:
+) -> dict[str, str]:
     """Parse ``data`` from ``provider`` and update ``owner``/``account`` holdings.
 
-    Returns the path to the written holdings file.
+    Returns a mapping containing the path to the written holdings file. A
+    dictionary is returned instead of a plain string so callers (and tests)
+    can easily extend the response with additional metadata in the future
+    without changing the return type again.
     """
 
     transactions: List[Any] = importers.parse(provider, data)
@@ -57,4 +60,4 @@ def update_from_csv(
     except Exception:  # pragma: no cover - rebuild errors are non-fatal
         pass
 
-    return str(acct_path)
+    return {"path": str(acct_path)}

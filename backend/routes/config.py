@@ -11,7 +11,6 @@ from fastapi import APIRouter, HTTPException
 from backend.config import (
     ConfigValidationError,
     _project_config_path,
-    config,
     reload_config,
     validate_google_auth,
 )
@@ -31,7 +30,7 @@ def deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
 @router.get("")
 async def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
-    return asdict(config)
+    return asdict(config_module.config)
 
 
 @router.put("")
@@ -114,7 +113,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(500, f"Failed to write config: {exc}")
 
     try:
-        reload_config()
-        return asdict(config)
+        new_config = reload_config()
+        return asdict(new_config)
     except ConfigValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

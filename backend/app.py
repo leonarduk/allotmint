@@ -90,7 +90,7 @@ def create_app() -> FastAPI:
     used, even if other tests reload or replace it.
     """
 
-    cfg = reload_config()
+    cfg = config_module.config
     app_env = cfg.app_env or "test"
 
     if cfg.google_auth_enabled and not cfg.google_client_id:

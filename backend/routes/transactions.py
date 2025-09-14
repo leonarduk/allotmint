@@ -30,6 +30,7 @@ from backend.common import portfolio_loader
 from backend.common import compliance
 from backend.config import config
 from backend import importers
+from backend.utils import update_holdings_from_csv
 
 router = APIRouter(tags=["transactions"])
 log = logging.getLogger("transactions")
@@ -227,6 +228,32 @@ async def import_transactions(
         raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")
     except Exception as exc:  # pragma: no cover - parsing errors
         raise HTTPException(status_code=400, detail=f"Failed to parse file: {exc}")
+
+
+@router.post("/holdings/import")
+async def import_holdings(
+    request: Request,
+    owner: str = Form(...),
+    account: str = Form(...),
+    provider: str = Form(...),
+    file: UploadFile = File(...),
+) -> dict:
+    """Parse a holdings export and persist it to the accounts store."""
+
+    data = await file.read()
+    try:
+        root = request.app.state.accounts_root
+        return update_holdings_from_csv.update_from_csv(
+            owner,
+            account,
+            provider,
+            data,
+            accounts_root=root,
+        )
+    except importers.UnknownProvider as exc:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")
+    except Exception as exc:  # pragma: no cover - parsing errors
+        raise HTTPException(status_code=400, detail=f"Failed to import file: {exc}")
 
 
 @router.get("/transactions", response_model=List[Transaction])

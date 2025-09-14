@@ -10,8 +10,8 @@ from backend import config as backend_config
 @pytest.fixture
 def client(mock_google_verify):
     """Return a TestClient with offline mode enabled."""
-    previous = backend_config.config.offline_mode
-    backend_config.config.offline_mode = True
+    previous = backend_config.offline_mode
+    backend_config.offline_mode = True
     from backend.local_api.main import app
 
     client = TestClient(app)
@@ -23,7 +23,7 @@ def client(mock_google_verify):
     try:
         yield client
     finally:
-        backend_config.config.offline_mode = previous
+        backend_config.offline_mode = previous
 
 
 @pytest.fixture(autouse=True)
@@ -420,7 +420,7 @@ def test_hash_params_helper(monkeypatch):
 
 
 def test_var_endpoint_default(client):
-    if backend_config.config.offline_mode:
+    if backend_config.offline_mode:
         pytest.skip("VaR endpoint requires data unavailable in offline mode")
     owners = _get_owners(client)
     assert owners, "No owners returned"
@@ -433,7 +433,7 @@ def test_var_endpoint_default(client):
 
 @pytest.mark.parametrize("days,confidence", [(10, 0.9), (30, 0.99)])
 def test_var_endpoint_params(client, days, confidence):
-    if backend_config.config.offline_mode:
+    if backend_config.offline_mode:
         pytest.skip("VaR endpoint requires data unavailable in offline mode")
     owners = _get_owners(client)
     assert owners, "No owners returned"

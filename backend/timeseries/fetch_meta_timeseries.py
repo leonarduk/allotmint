@@ -20,9 +20,8 @@ from typing import List, Optional, Dict, Tuple
 
 import pandas as pd
 
-from backend.config import config as app_config
+from backend import config
 
-config = app_config
 OFFLINE_MODE = config.offline_mode
 
 # ──────────────────────────────────────────────────────────────

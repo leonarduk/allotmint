@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-import backend.config as cfg
+from backend import config as cfg
 import backend.timeseries.fetch_alphavantage_timeseries as av
 from backend.timeseries.fetch_alphavantage_timeseries import (
     fetch_alphavantage_timeseries_range,
@@ -42,7 +42,7 @@ def test_information_field_propagated_when_disabled(monkeypatch):
         return FakeResponse({"Information": "disabled"})
 
     monkeypatch.setattr(av, "is_valid_ticker", lambda *a, **k: True)
-    monkeypatch.setattr(cfg.config, "alpha_vantage_enabled", False)
+    monkeypatch.setattr(cfg, "alpha_vantage_enabled", False)
     import requests
 
     monkeypatch.setattr(requests, "get", fake_get)

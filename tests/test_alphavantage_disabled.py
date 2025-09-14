@@ -8,7 +8,7 @@ import requests
 
 
 def test_alphavantage_timeseries_disabled(monkeypatch):
-    monkeypatch.setattr(cfg.config, "alpha_vantage_enabled", False)
+    monkeypatch.setattr(cfg, "alpha_vantage_enabled", False)
 
     def fail_get(*args, **kwargs):
         raise AssertionError("network call should not be made")
@@ -19,6 +19,6 @@ def test_alphavantage_timeseries_disabled(monkeypatch):
 
 
 def test_fetch_quote_raises_when_disabled(monkeypatch):
-    monkeypatch.setattr(cfg.config, "alpha_vantage_enabled", False)
+    monkeypatch.setattr(cfg, "alpha_vantage_enabled", False)
     with pytest.raises(RuntimeError):
         fetch_quote("IBM")

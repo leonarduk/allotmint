@@ -81,7 +81,8 @@ def test_startup_requires_google_client_id(monkeypatch):
 def test_missing_client_id_fails_startup(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
-    from backend import config as cfg
+    import importlib
+    cfg = importlib.import_module("backend.config")
     cfg.load_config.cache_clear()
     with pytest.raises(ConfigValidationError):
         cfg.load_config()

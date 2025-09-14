@@ -27,6 +27,14 @@ vi.mock("../api", async () => {
 import Support from "./Support";
 import en from "../locales/en/translation.json";
 
+async function expandSection(title: string) {
+  const heading = await screen.findByRole("heading", { name: title });
+  const trigger = within(heading.parentElement as HTMLElement).getByLabelText("Expand");
+  await act(async () => {
+    await userEvent.click(trigger);
+  });
+}
+
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
@@ -66,6 +74,7 @@ describe("Support page", () => {
 
   it("shows owner selector", async () => {
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.notifications.title);
     expect(
       await screen.findByLabelText(new RegExp(en.owner.label))
     ).toBeInTheDocument();
@@ -74,6 +83,7 @@ describe("Support page", () => {
   it("handles owner fetch failure gracefully", async () => {
     mockGetOwners.mockRejectedValueOnce(new Error("fail"));
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.notifications.title);
     const select = await screen.findByLabelText(new RegExp(en.owner.label));
     expect((select as HTMLSelectElement).options.length).toBe(0);
   });
@@ -81,6 +91,7 @@ describe("Support page", () => {
   it("shows swagger link for VITE_API_URL", async () => {
     vi.stubEnv("VITE_API_URL", "http://localhost:8000");
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.environment);
     expect(
       await screen.findByRole("link", { name: "http://localhost:8000" })
     ).toHaveAttribute("href", "http://localhost:8000");
@@ -134,6 +145,7 @@ describe("Support page", () => {
     mockUpdateConfig.mockResolvedValue(undefined);
 
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
 
     const saveButton = await screen.findByRole("button", { name: en.support.config.save });
     await act(async () => {
@@ -149,6 +161,7 @@ describe("Support page", () => {
 
   it("renders tab toggles and allows toggling", async () => {
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
     await screen.findByText(en.support.config.tabsEnabled);
     const instrument = await screen.findByRole("checkbox", {
       name: /^instrument$/i,
@@ -220,6 +233,7 @@ describe("Support page", () => {
     mockUpdateConfig.mockResolvedValue(undefined);
 
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
 
     const instrument = await screen.findByRole("checkbox", {
       name: /^instrument$/i,
@@ -242,6 +256,7 @@ describe("Support page", () => {
 
   it("separates switches from other parameters", async () => {
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
     const switchesHeading = await screen.findByRole("heading", {
       name: en.support.config.otherSwitches,
     });
@@ -267,6 +282,7 @@ describe("Support page", () => {
 
   it("allows selecting theme via radio buttons", async () => {
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.config.title);
     const dark = await screen.findByRole("radio", { name: "dark" });
     const light = screen.getByRole("radio", { name: "light" });
     await act(async () => {
@@ -286,6 +302,7 @@ describe("Support page", () => {
       ],
     });
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.health.title);
     const btn = await screen.findByRole("button", {
       name: en.support.health.run,
     });
@@ -299,6 +316,7 @@ describe("Support page", () => {
   it("shows error when health check fails", async () => {
     mockCheckPortfolioHealth.mockRejectedValueOnce(new Error("fail"));
     render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.health.title);
     const btn = await screen.findByRole("button", {
       name: en.support.health.run,
     });

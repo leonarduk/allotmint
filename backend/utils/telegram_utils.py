@@ -16,16 +16,13 @@ from typing import Any
 import requests
 from requests import exceptions as req_exc
 
-from backend.config import config as app_config
-
-# expose config for tests/backwards compat
-config = app_config
+from backend import config
 logger = logging.getLogger(__name__)
 
 
 def redact_token(text: str) -> str:
     """Replace any occurrence of the Telegram token in ``text`` with ***."""
-    token = app_config.telegram_bot_token
+    token = config.telegram_bot_token
     if not token:
         return text
     return text.replace(token, "***")
@@ -35,7 +32,7 @@ class RedactTokenFilter(logging.Filter):
     """Filter that redacts the Telegram token from log records."""
 
     def filter(self, record: logging.LogRecord) -> bool:  # pragma: no cover - logging internals
-        token = app_config.telegram_bot_token
+        token = config.telegram_bot_token
         if token:
             if isinstance(record.msg, str):
                 record.msg = record.msg.replace(token, "***")
@@ -56,8 +53,8 @@ _NEXT_ALLOWED_TIME = 0.0
 
 
 def send_message(text: str) -> None:
-    token = app_config.telegram_bot_token
-    chat_id = app_config.telegram_chat_id
+    token = config.telegram_bot_token
+    chat_id = config.telegram_chat_id
 
     missing = []
     if not token:
@@ -72,7 +69,7 @@ def send_message(text: str) -> None:
         )
         return
 
-    if app_config.offline_mode:
+    if config.offline_mode:
         logger.info(f"Offline-alert: {text}")
         return
 
@@ -138,7 +135,7 @@ class TelegramLogHandler(logging.Handler):
             return
         try:
             message = self.format(record)
-            if not app_config.offline_mode:
+            if not config.offline_mode:
                 send_message(message)
         except Exception:
             # Let logging's handleError respect logging.raiseExceptions.

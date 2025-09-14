@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-import backend.config as config_module
+config_module = importlib.import_module("backend.config")
 
 
 def import_cache():

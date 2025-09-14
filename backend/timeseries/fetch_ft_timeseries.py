@@ -14,7 +14,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from backend.config import config
+from backend import config
 from backend.utils.currency_utils import currency_from_isin
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS, _is_isin
 
@@ -28,11 +28,10 @@ def init_driver(headless: Optional[bool] = None, user_agent: Optional[str] = Non
     *user_agent* are ``None`` the corresponding values are looked up in
     ``config.yaml`` (with environment overrides).
     """
-    cfg = config
     if headless is None:
-        headless = cfg.selenium_headless if cfg.selenium_headless is not None else True
+        headless = config.selenium_headless if config.selenium_headless is not None else True
     if user_agent is None:
-        user_agent = cfg.selenium_user_agent
+        user_agent = config.selenium_user_agent
 
     options = Options()
     if headless:
@@ -62,10 +61,9 @@ def fetch_ft_timeseries_range(
     headless: Optional[bool] = None,
     user_agent: Optional[str] = None,
 ) -> pd.DataFrame:
-    cfg = config
     template = (
         url_template
-        or cfg.ft_url_template
+        or config.ft_url_template
         or "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
     )
     url = template.format(ticker=ticker)

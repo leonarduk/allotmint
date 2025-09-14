@@ -2,7 +2,9 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from backend import config as config_module
+import importlib
+
+config_module = importlib.import_module("backend.config")
 from backend.app import create_app
 from backend.config import ConfigValidationError
 

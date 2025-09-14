@@ -232,7 +232,6 @@ async def import_transactions(
 
 @router.post("/holdings/import")
 async def import_holdings(
-    request: Request,
     owner: str = Form(...),
     account: str = Form(...),
     provider: str = Form(...),
@@ -242,13 +241,11 @@ async def import_holdings(
 
     data = await file.read()
     try:
-        root = request.app.state.accounts_root
         return update_holdings_from_csv.update_from_csv(
             owner,
             account,
             provider,
             data,
-            accounts_root=root,
         )
     except importers.UnknownProvider as exc:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")

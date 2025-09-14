@@ -27,11 +27,8 @@ class HarvestRequest(BaseModel):
 
 
 @router.post("/harvest")
-async def harvest(req: HarvestRequest, current_user: str = Depends(get_current_user)) -> dict:
-    del current_user
-    trades = harvest_losses(
-        [p.model_dump() for p in req.positions], req.threshold or 0.0
-    )
+async def harvest(req: HarvestRequest) -> dict:
+    trades = harvest_losses([p.model_dump() for p in req.positions], req.threshold or 0.0)
     return {"trades": trades}
 
 

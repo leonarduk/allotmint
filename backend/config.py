@@ -5,6 +5,7 @@ import os
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 import yaml
@@ -343,17 +344,25 @@ def load_config() -> Config:
 
 @lru_cache()
 def load_config() -> Config:
-    """Cached configuration loader used by the application."""
+    """Load configuration and cache the result."""
     return _load_config()
 
-
-config = load_config()
-settings = config
+settings = load_config()
+config = settings
 
 
 def reload_config() -> Config:
     """Reload configuration and update module-level ``config``."""
     global config, settings
     load_config.cache_clear()
-    config = settings = load_config()
-    return config
+    new_config = load_config()
+    config = settings = new_config
+    return new_config
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        return getattr(load_config(), name)
+    except AttributeError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+

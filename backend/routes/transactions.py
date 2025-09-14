@@ -243,8 +243,11 @@ async def import_holdings(
     account: str = Form(...),
     provider: str = Form(...),
     file: UploadFile = File(...),
-) -> dict:
-    """Parse a holdings export and persist it to the accounts store."""
+) -> str:
+    """Parse a holdings export and persist it to the accounts store.
+
+    Returns the path of the written holdings file.
+    """
 
     data = await file.read()
     try:

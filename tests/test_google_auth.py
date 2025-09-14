@@ -1,5 +1,7 @@
 from typing import Optional
 import sys
+from dataclasses import replace
+import functools
 
 import pandas as pd
 import pytest
@@ -86,3 +88,16 @@ def test_missing_client_id_fails_startup(monkeypatch):
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
     with pytest.raises(ConfigValidationError):
         reload_config()
+
+
+def test_create_app_guard_raises(monkeypatch):
+    base = config_module.reload_config()
+
+    def fake_load_config():
+        return replace(base, google_auth_enabled=True, google_client_id=None)
+
+    monkeypatch.setattr(config_module, "load_config", functools.lru_cache()(fake_load_config))
+    config_module.load_config.cache_clear()
+
+    with pytest.raises(RuntimeError):
+        create_app()

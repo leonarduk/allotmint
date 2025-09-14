@@ -13,11 +13,18 @@ from backend.config import config
 logger = logging.getLogger(__name__)
 
 
-def _approvals_path(owner: str, accounts_root: Path | None = None) -> Path:
-    """Return the path to ``owner``'s approvals file."""
+def approvals_path(owner: str, accounts_root: Path | None = None) -> Path:
+    """Return the path to ``owner``'s approvals file.
 
-    root = Path(accounts_root) if accounts_root else Path(config.accounts_root)
-    return root / owner / "approvals.json"
+    ``FileNotFoundError`` is raised when the owner's accounts directory does not
+    exist.  Callers are expected to handle or propagate this exception.
+    """
+
+    root = Path(accounts_root or config.accounts_root)
+    owner_dir = root / owner
+    if not owner_dir.exists():
+        raise FileNotFoundError(owner_dir)
+    return owner_dir / "approvals.json"
 
 
 def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, date]:
@@ -29,21 +36,9 @@ def load_approvals(owner: str, accounts_root: Optional[Path] = None) -> Dict[str
     uppercase.
     """
 
-    path = _approvals_path(owner, accounts_root)
+    path = approvals_path(owner, accounts_root)
     if not path.exists():
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"approvals": []}, indent=2, sort_keys=True))
-            logger.info(
-                "approvals file for '%s' not found at %s; created default",
-                owner,
-                path,
-            )
-        except OSError as exc:
-            logger.error(
-                "failed to create approvals file for %s at %s: %s", owner, path, exc
-            )
-            return {}
+        logger.info("approvals file for '%s' not found at %s", owner, path)
         return {}
     try:
         data = json.loads(path.read_text())
@@ -88,12 +83,11 @@ def save_approvals(
 ) -> None:
     """Persist ``approvals`` for ``owner`` to ``approvals.json``."""
 
-    path = _approvals_path(owner, accounts_root)
+    path = approvals_path(owner, accounts_root)
     entries = [
         {"ticker": t.upper(), "approved_on": d.isoformat()} for t, d in approvals.items()
     ]
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"approvals": entries}, indent=2, sort_keys=True))
     except OSError as exc:
         logger.error("failed to write approvals for %s to %s: %s", owner, path, exc)

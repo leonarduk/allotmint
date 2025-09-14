@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from backend.common.approvals import (
-    _approvals_path,
+    approvals_path,
     delete_approval,
     is_approval_valid,
     load_approvals,
@@ -16,12 +16,12 @@ from backend.common.approvals import (
 def test_approvals_path(tmp_path: Path) -> None:
     """Check path resolution and missing owner handling."""
     with pytest.raises(FileNotFoundError):
-        _approvals_path("alice", accounts_root=tmp_path)
+        approvals_path("alice", accounts_root=tmp_path)
 
     owner_dir = tmp_path / "bob"
     owner_dir.mkdir()
     expect = owner_dir / "approvals.json"
-    assert _approvals_path("bob", accounts_root=tmp_path) == expect
+    assert approvals_path("bob", accounts_root=tmp_path) == expect
 
 
 def test_load_upsert_delete(tmp_path: Path) -> None:

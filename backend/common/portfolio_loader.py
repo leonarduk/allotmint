@@ -117,9 +117,20 @@ def rebuild_account_holdings(
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owner_dir = root / owner
-    tx_path = owner_dir / f"{account.lower()}_transactions.json"
-    if not tx_path.exists():
-        log.error("Transaction file missing: %s", tx_path)
+
+    account_lc = account.lower()
+    tx_path = None
+    for candidate in owner_dir.glob("*_transactions.json"):
+        stem = candidate.stem.replace("_transactions", "")
+        if stem.lower() == account_lc:
+            tx_path = candidate
+            break
+
+    if not tx_path:
+        log.error(
+            "Transaction file missing: %s",
+            owner_dir / f"{account}_transactions.json",
+        )
         return {}
 
     try:

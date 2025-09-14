@@ -43,7 +43,7 @@ def test_update_holdings_from_csv(tmp_path: Path, monkeypatch):
     assert h["AAA"]["units"] == 10
     assert h["AAA"]["cost_basis_gbp"] == 15
     assert h["AAA"]["current_price_gbp"] == pytest.approx(1.5)
-    assert result["account_type"].lower() == "isa"
+    assert Path(result["path"]).resolve() == acct_file.resolve()
 
 
 @pytest.fixture()
@@ -62,5 +62,6 @@ def test_holdings_import_endpoint(client: TestClient, tmp_path: Path):
     resp = client.post("/holdings/import", data=data, files=files)
     assert resp.status_code == 200
     body = resp.json()
-    assert body["account_type"].lower() == "isa"
-    assert (tmp_path / "alice" / "isa.json").exists()
+    acct_file = tmp_path / "alice" / "isa.json"
+    assert Path(body["path"]).resolve() == acct_file.resolve()
+    assert acct_file.exists()

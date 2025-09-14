@@ -175,12 +175,6 @@ def create_app() -> FastAPI:
     app.state.virtual_pf_root = paths.virtual_pf_root
 
     # ───────────────────────────── CORS ─────────────────────────────
-    # Add permissive CORS settings as configured.
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cfg.cors_origins or [],
-        allow_methods=["*"],
-        allow_headers=["*"],
     # The frontend origin varies by environment. Read the whitelist from
     # configuration and fall back to the production site plus the local
     # development servers if none are provided to avoid blocking dev requests.

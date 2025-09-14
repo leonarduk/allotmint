@@ -341,12 +341,6 @@ def load_config() -> Config:
 
     return cfg
 
-
-@lru_cache()
-def load_config() -> Config:
-    """Load configuration and cache the result."""
-    return _load_config()
-
 settings = load_config()
 config = settings
 

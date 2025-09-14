@@ -1,22 +1,26 @@
 from typing import Optional
+import sys
 
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-import backend.config as config_module
-from backend.config import ConfigValidationError
+from backend.config import ConfigValidationError, reload_config
 from backend.routes import timeseries_admin
 from backend import auth
 
 
 def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@example.com"):
-    monkeypatch.setattr(config_module.config, "skip_snapshot_warm", True)
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
-    monkeypatch.setattr(config_module.config, "disable_auth", False)
-    monkeypatch.setattr(config_module.config, "google_auth_enabled", True)
-    monkeypatch.setattr(config_module.config, "google_client_id", "client")
+
+    app = create_app()
+
+    cfg_module = sys.modules["backend.config"]
+    monkeypatch.setattr(cfg_module.config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(cfg_module.config, "disable_auth", False)
+    monkeypatch.setattr(cfg_module.config, "google_auth_enabled", True)
+    monkeypatch.setattr(cfg_module.config, "google_client_id", "client")
 
     accounts_root = tmp_path / "accounts"
     accounts_root.mkdir(parents=True)
@@ -26,9 +30,8 @@ def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@examp
         (owner_dir / "person.json").write_text(
             f'{{"email": "{allowed_email}"}}', encoding="utf-8"
         )
-    monkeypatch.setattr(config_module.config, "accounts_root", accounts_root)
+    monkeypatch.setattr(cfg_module.config, "accounts_root", accounts_root)
 
-    app = create_app()
     return TestClient(app)
 
 
@@ -74,14 +77,11 @@ def test_startup_requires_google_client_id(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "")
     with pytest.raises(ConfigValidationError):
-        config_module.reload_config()
+        reload_config()
 
 
 def test_missing_client_id_fails_startup(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
-    import importlib
-    cfg = importlib.import_module("backend.config")
-    cfg.load_config.cache_clear()
     with pytest.raises(ConfigValidationError):
-        cfg.reload_config()
+        reload_config()

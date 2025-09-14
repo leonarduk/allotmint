@@ -1,9 +1,11 @@
 import pytest
+import sys
+
 import yaml
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-from backend import config as config_module
+from backend.config import reload_config
 from backend.routes import config as routes_config
 
 
@@ -12,10 +14,9 @@ def _setup_config(monkeypatch, tmp_path, content: str = "auth:\n  google_auth_en
     """Write ``content`` to a temporary config file and patch paths."""
     config_path = tmp_path / "config.yaml"
     config_path.write_text(content)
-    monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
     monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
-    config_module.load_config.cache_clear()
-    config_module.config = config_module.load_config()
+    reload_config()
     return config_path
 
 
@@ -41,8 +42,7 @@ def test_update_config_writes_and_merges(monkeypatch, tmp_path):
     assert data["ui"]["tabs"]["support"] is False
 
     monkeypatch.undo()
-    config_module.load_config.cache_clear()
-    config_module.config = config_module.load_config()
+    reload_config()
 
 
 
@@ -56,8 +56,7 @@ def test_update_config_env_invalid_google_auth(monkeypatch, tmp_path):
     assert "GOOGLE_AUTH_ENABLED" in resp.json()["detail"]
 
     monkeypatch.undo()
-    config_module.load_config.cache_clear()
-    config_module.config = config_module.load_config()
+    reload_config()
 
 
 
@@ -72,8 +71,7 @@ def test_update_config_env_requires_client_id(monkeypatch, tmp_path):
     assert resp.json()["detail"] == "GOOGLE_CLIENT_ID is empty"
 
     monkeypatch.undo()
-    config_module.load_config.cache_clear()
-    config_module.config = config_module.load_config()
+    reload_config()
 
 
 
@@ -90,5 +88,4 @@ def test_update_config_env_valid(monkeypatch, tmp_path):
     assert data["google_client_id"] == "client-id"
 
     monkeypatch.undo()
-    config_module.load_config.cache_clear()
-    config_module.config = config_module.load_config()
+    reload_config()

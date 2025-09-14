@@ -1,25 +1,25 @@
+import sys
+
 import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-import importlib
-
-config_module = importlib.import_module("backend.config")
 from backend.app import create_app
-from backend.config import ConfigValidationError
+from backend.config import ConfigValidationError, config, reload_config, settings
+from backend.routes import config as routes_config
 
 
 def test_config_alias_settings():
-    assert config_module.settings is config_module.config
+    assert settings is config
 
 
 def test_config_loads_fundamentals_ttl():
-    cfg = config_module.reload_config()
+    cfg = reload_config()
     assert cfg.fundamentals_cache_ttl_seconds == 86400
 
 
 def test_tabs_defaults_true():
-    cfg = config_module.reload_config()
+    cfg = reload_config()
     assert cfg.tabs.instrument is True
     assert cfg.tabs.support is True
     assert cfg.tabs.movers is True
@@ -35,25 +35,25 @@ def test_tabs_defaults_true():
 
 
 def test_theme_loaded():
-    cfg = config_module.reload_config()
+    cfg = reload_config()
     assert cfg.theme == "system"
 
 
 def test_stooq_timeout_loaded():
-    cfg = config_module.reload_config()
+    cfg = reload_config()
     assert cfg.stooq_timeout == 10
 
 
 def test_timeseries_cache_base_env_override(monkeypatch, tmp_path):
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
-    cfg = config_module.reload_config()
+    cfg = reload_config()
     assert cfg.timeseries_cache_base == str(tmp_path)
     monkeypatch.delenv("TIMESERIES_CACHE_BASE")
-    config_module.reload_config()
+    reload_config()
 
 
 def test_auth_flags(monkeypatch):
-    cfg = config_module.reload_config()
+    cfg = reload_config()
     assert cfg.google_auth_enabled is False
     assert cfg.disable_auth is True
 
@@ -61,42 +61,44 @@ def test_auth_flags(monkeypatch):
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "client")
     monkeypatch.setenv("DISABLE_AUTH", "false")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "client")
-    cfg = config_module.reload_config()
+    cfg = reload_config()
     assert cfg.google_auth_enabled is True
     assert cfg.disable_auth is False
 
     monkeypatch.delenv("GOOGLE_AUTH_ENABLED")
     monkeypatch.delenv("DISABLE_AUTH")
     monkeypatch.delenv("GOOGLE_CLIENT_ID")
-    config_module.reload_config()
+    reload_config()
 
 
 def test_google_auth_requires_client_id(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "")
     with pytest.raises(ConfigValidationError):
-        config_module.reload_config()
+        reload_config()
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "false")
-    config_module.reload_config()
+    reload_config()
 
 
 def test_invalid_yaml_raises_config_error(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("invalid: [unclosed\n")
-    monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
     with pytest.raises(ConfigValidationError):
-        config_module.reload_config()
+        reload_config()
     monkeypatch.undo()
-    config_module.reload_config()
+    reload_config()
 
 
 def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("auth:\n  google_auth_enabled: false\n")
 
-    monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
 
-    config_module.reload_config()
+    reload_config()
 
     client = TestClient(create_app())
 
@@ -106,7 +108,7 @@ def test_update_config_rejects_invalid_google_auth(monkeypatch, tmp_path):
     resp = client.put("/config", json={"google_auth_enabled": True})
     assert resp.status_code == 400
 
-    cfg = config_module.reload_config()
+    cfg = reload_config()
     assert cfg.google_auth_enabled is False
 
 
@@ -114,9 +116,10 @@ def test_update_config_merges_ui_section(monkeypatch, tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("tabs:\n  instrument: true\n")
 
-    monkeypatch.setattr(config_module, "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
 
-    config_module.reload_config()
+    reload_config()
 
     client = TestClient(create_app())
 
@@ -127,6 +130,6 @@ def test_update_config_merges_ui_section(monkeypatch, tmp_path):
     assert "tabs" not in data
     assert data["ui"]["tabs"]["instrument"] is False
 
-    cfg = config_module.reload_config()
+    cfg = reload_config()
     assert cfg.tabs.instrument is False
 

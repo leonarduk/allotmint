@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useMemo,
+  useReducer,
   type MouseEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,6 +17,9 @@ import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
 import { formatDateISO } from "../lib/date";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import FilterBar, { useFilterReducer, type FilterState } from "./FilterBar";
+import EmptyState from "./EmptyState";
+import { useNavigate } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
 import Sparkline from "./Sparkline";
@@ -38,6 +42,12 @@ export function HoldingsTable({
 }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency } = useConfig();
+  let navigate: (path: string) => void = () => {};
+  try {
+    navigate = useNavigate();
+  } catch {
+    // no router context
+  }
 
   const viewPresets = useMemo(
     () => [
@@ -49,14 +59,7 @@ export function HoldingsTable({
     [t],
   );
 
-  const [filters, setFilters] = useState({
-    ticker: "",
-    name: "",
-    instrument_type: "",
-    units: "",
-    gain_pct: "",
-    sell_eligible: "",
-  });
+  const [filters, dispatchFilters] = useFilterReducer();
 
   const [viewPreset, setViewPreset] = useState(() =>
     typeof window === "undefined"
@@ -85,8 +88,13 @@ export function HoldingsTable({
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleFilterChange = (key: keyof typeof filters, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+  const handleFilterChange = (key: keyof FilterState, value: string) => {
+    dispatchFilters({ type: "set", key, value });
+  };
+
+  const clearFilters = () => {
+    setFilters(initialFilters);
+    setViewPreset("");
   };
 
 
@@ -94,7 +102,7 @@ export function HoldingsTable({
     if (typeof window !== "undefined") {
       localStorage.setItem(VIEW_PRESET_STORAGE_KEY, viewPreset);
     }
-    setFilters((prev) => ({ ...prev, instrument_type: viewPreset }));
+    dispatchFilters({ type: "set", key: "instrument_type", value: viewPreset });
   }, [viewPreset]);
 
   // derive cost/market/gain/gain_pct
@@ -186,6 +194,7 @@ export function HoldingsTable({
 
   return (
     <>
+      <FilterBar state={filters} dispatch={dispatchFilters} />
       <div className="mb-2">
         <RelativeViewToggle />
       </div>
@@ -558,7 +567,13 @@ export function HoldingsTable({
         </table>
         </div>
       ) : (
-        <p>{t("holdingsTable.noHoldings")}</p>
+        <EmptyState
+          message={t("holdingsTable.noHoldings")}
+          actions={[
+            { label: t("holdingsTable.clearFilters"), onClick: clearFilters },
+            { label: t("holdingsTable.openScreener"), onClick: () => navigate("/screener") },
+          ]}
+        />
       )}
     </>
   );

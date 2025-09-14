@@ -1,17 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+        
 import { FixedSizeGrid as Grid } from "react-window";
-import { getPortfolio } from "../api";
-import type { InstrumentSummary, Portfolio } from "../types";
+import { getOwners, getPortfolio } from "../api";
+import type { InstrumentSummary, OwnerSummary, Portfolio } from "../types";
 import InstrumentTile from "../components/InstrumentTile";
+import SummaryBar from "../components/SummaryBar";
+import { PortfolioView } from "../components/PortfolioView";
+import { useRoute } from "../RouteContext";
+import useFetchWithRetry from "../hooks/useFetchWithRetry";
 
 export function Member() {
   const { owner } = useParams<{ owner?: string }>();
   const [data, setData] = useState<Portfolio | null>(null);
+
+  const { selectedOwner, setSelectedOwner } = useRoute();
+  const [retryNonce, setRetryNonce] = useState(0);
+
+  const ownersReq = useFetchWithRetry<OwnerSummary[]>(getOwners, 500, 5, [retryNonce]);
+
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+
     if (!owner) return;
     setLoading(true);
     getPortfolio(owner)
@@ -110,6 +124,33 @@ export function Member() {
       {instruments.map((inst) => (
         <InstrumentTile key={inst.ticker} instrument={inst} />
       ))}
+    </div>
+  );
+}
+    if (!selectedOwner) {
+      setPortfolio(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    getPortfolio(selectedOwner)
+      .then((p) => {
+        setPortfolio(p);
+        setError(null);
+      })
+      .catch(() => setError("Failed to load portfolio"))
+      .finally(() => setLoading(false));
+  }, [selectedOwner, retryNonce]);
+
+  return (
+    <div className="p-4 md:p-8">
+      <SummaryBar
+        owners={ownersReq.data ?? []}
+        owner={selectedOwner}
+        onOwnerChange={setSelectedOwner}
+        onRefresh={() => setRetryNonce((n) => n + 1)}
+      />
+      <PortfolioView data={portfolio} loading={loading} error={error} />
     </div>
   );
 }

@@ -147,6 +147,7 @@ def create_app() -> FastAPI:
     )
     app.state.background_tasks = []
 
+    # ────────────────────────── CORS ──────────────────────────
     cfg = load_config()
     storage_uri = "memory://"
     if cfg.app_env in {"production", "aws"}:
@@ -194,14 +195,35 @@ def create_app() -> FastAPI:
     cors_headers = ["Authorization", "Content-Type"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_methods=cors_methods,
-        allow_headers=cors_headers,
+        allow_origins=config.cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
         allow_credentials=True,
     )
     # Register SlowAPIMiddleware after CORSMiddleware so CORS preflight requests
     # are handled before rate limiting or other middleware runs.
     app.add_middleware(SlowAPIMiddleware)
+
+    storage_uri = "memory://"
+    if config.app_env in {"production", "aws"}:
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            storage_uri = redis_url
+
+    limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=[f"{config.rate_limit_per_minute}/minute"],
+        storage_uri=storage_uri,
+    )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    app.state.repo_root = paths.repo_root
+    app.state.accounts_root = paths.accounts_root
+    app.state.virtual_pf_root = paths.virtual_pf_root
+
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.

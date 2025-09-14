@@ -65,7 +65,7 @@ export default function PensionForecast() {
         investmentGrowthPct,
       });
       setData(res.forecast);
-      setProjectedPot(res.projected_pot_gbp);
+      setProjectedPot(res.projected_pot_gbp + res.pension_pot_gbp);
       setPensionPot(res.pension_pot_gbp);
       setCurrentAge(res.current_age);
       setRetirementAge(res.retirement_age);

@@ -71,6 +71,7 @@ def pension_forecast(
             contribution_annual=annual_contribution,
             investment_growth_pct=investment_growth_pct,
             desired_income_annual=desired_income_annual,
+            initial_pot=pension_pot,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

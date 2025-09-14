@@ -62,7 +62,7 @@ describe("PensionForecast page", () => {
     ]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
-      projected_pot_gbp: 0,
+      projected_pot_gbp: 200,
       pension_pot_gbp: 123,
       current_age: 30,
       retirement_age: 65,
@@ -99,6 +99,7 @@ describe("PensionForecast page", () => {
     );
     await screen.findByText(/birth date: 1990-01-01/i);
     await screen.findByText(/pension pot: £123.00/i);
+    await screen.findByText(/projected pot at 65: £323.00/i);
   });
 });
 

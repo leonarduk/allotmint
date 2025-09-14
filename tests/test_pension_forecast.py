@@ -49,3 +49,17 @@ def test_forecast_post_retirement_life_expectancy():
     assert forecast[0]["age"] == 73
     assert len(forecast) == 17
     assert all(r["income"] == 19000 for r in forecast)
+
+
+def test_forecast_includes_initial_pot():
+    today = dt.date(2024, 1, 1)
+    res = forecast_pension(
+        dob="1984-01-01",
+        retirement_age=65,
+        death_age=66,
+        contribution_annual=0.0,
+        investment_growth_pct=0.0,
+        initial_pot=500.0,
+        today=today,
+    )
+    assert res["projected_pot_gbp"] == 500.0

@@ -99,7 +99,18 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI):
         if not skip_warm:
             # Pre-fetch recent price data so the first request is fast.
-            snapshot, ts = _load_snapshot()
+            try:
+                result = _load_snapshot()
+                if (
+                    not isinstance(result, tuple)
+                    or len(result) != 2
+                    or not isinstance(result[0], dict)
+                ):
+                    raise ValueError("Malformed snapshot")
+                snapshot, ts = result
+            except Exception as exc:
+                logger.error("Failed to load price snapshot: %s", exc)
+                snapshot, ts = {}, None
             refresh_snapshot_in_memory(snapshot, ts)
             # Seed instrument API with the on-disk snapshot to avoid network
             # calls before the background refresh completes.

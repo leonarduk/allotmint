@@ -91,6 +91,8 @@ def create_app() -> FastAPI:
     """
 
     cfg = reload_config()
+    app_env = cfg.app_env or "test"
+
     if cfg.google_auth_enabled and not cfg.google_client_id:
         raise RuntimeError("google_client_id required when google_auth_enabled is true")
 
@@ -101,8 +103,7 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        skip_warm = bool(cfg.skip_snapshot_warm)
-        if not skip_warm:
+        if not cfg.skip_snapshot_warm:
             # Pre-fetch recent price data so the first request is fast.
             try:
                 result = _load_snapshot()
@@ -127,7 +128,7 @@ def create_app() -> FastAPI:
             )
             app.state.background_tasks.append(price_task)
 
-        task = refresh_snapshot_async(days=cfg.snapshot_warm_days or 30)
+        task = refresh_snapshot_async(days=cfg.snapshot_warm_days)
         if isinstance(task, (asyncio.Task, asyncio.Future)):
             app.state.background_tasks.append(task)
         yield
@@ -174,6 +175,12 @@ def create_app() -> FastAPI:
     app.state.virtual_pf_root = paths.virtual_pf_root
 
     # ───────────────────────────── CORS ─────────────────────────────
+    # Add permissive CORS settings as configured.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cfg.cors_origins or [],
+        allow_methods=["*"],
+        allow_headers=["*"],
     # The frontend origin varies by environment. Read the whitelist from
     # configuration and fall back to the production site plus the local
     # development servers if none are provided to avoid blocking dev requests.
@@ -300,8 +307,7 @@ def create_app() -> FastAPI:
     async def health():
         """Return a small payload used by tests and uptime monitors."""
 
-        cfg = reload_config()
-        return {"status": "ok", "env": cfg.app_env or "test"}
+        return {"status": "ok", "env": app_env}
 
     return app
 

@@ -123,6 +123,7 @@ export default function AlertSettings() {
       <Menu />
       <h1>{t("alertSettings.title")}</h1>
       <p>{t("alertSettings.description")}</p>
+      {!owner && <p>{t("alertSettings.signInNotice")}</p>}
       <div style={{ marginTop: "1rem" }}>
         <label>
           {t("alertSettings.threshold")}{" "}
@@ -135,7 +136,11 @@ export default function AlertSettings() {
             style={{ width: "4rem" }}
           />
         </label>
-        <button onClick={save} style={{ marginLeft: "0.5rem" }}>
+        <button
+          onClick={save}
+          style={{ marginLeft: "0.5rem" }}
+          disabled={!owner}
+        >
           {t("alertSettings.save")}
         </button>
         {status === "saved" && (

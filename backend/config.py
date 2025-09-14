@@ -338,10 +338,13 @@ def load_config() -> Config:
         cors_origins=cors_origins,
     )
 
-    globals()["config"] = cfg
-    globals()["settings"] = cfg
-
     return cfg
+
+
+@lru_cache()
+def load_config() -> Config:
+    """Cached configuration loader used by the application."""
+    return _load_config()
 
 
 config = load_config()

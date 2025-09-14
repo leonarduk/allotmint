@@ -35,7 +35,7 @@ from backend.common.portfolio_utils import (
     refresh_snapshot_async,
     refresh_snapshot_in_memory,
 )
-import backend.config as config_module
+from backend import config_module
 from backend.routes.agent import router as agent_router
 from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.alerts import router as alerts_router

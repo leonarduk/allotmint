@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Tuple
 import requests
 from pydantic import BaseModel
 
+from backend import config_module
 from backend.config import settings
 
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"

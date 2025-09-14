@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getRebalance } from '../api';
 import type { TradeSuggestion } from '../types';
+import EmptyState from '../components/EmptyState';
 
 type Row = { ticker: string; current: string; target: string };
 
@@ -155,7 +156,9 @@ export default function Rebalance() {
           </tbody>
         </table>
       )}
-      {trades && trades.length === 0 && <p>No trades required.</p>}
+      {trades && trades.length === 0 && (
+        <EmptyState message="No trades required." />
+      )}
     </div>
   );
 }

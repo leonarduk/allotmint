@@ -327,8 +327,10 @@ describe("HoldingsTable", () => {
           render(<HoldingsTable holdings={holdings} />);
           expect(await screen.findByText('View:')).toBeInTheDocument();
           expect(screen.getByText('No holdings match the current filters.')).toBeInTheDocument();
+          expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
+          expect(screen.getByRole('button', { name: 'Open Screener' })).toBeInTheDocument();
           await act(async () => {
-              await userEvent.click(screen.getByRole('button', { name: 'All' }));
+              await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
           });
           expect(screen.getByText('AAA')).toBeInTheDocument();
       });

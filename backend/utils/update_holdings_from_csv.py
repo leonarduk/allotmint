@@ -29,10 +29,11 @@ def update_from_csv(
     account: str,
     provider: str,
     data: bytes,
-    *,
-    accounts_root: Path | None = None,
-) -> dict[str, object]:
-    """Parse ``data`` from ``provider`` and update ``owner``/``account`` holdings."""
+) -> dict[str, str]:
+    """Parse ``data`` from ``provider`` and update ``owner``/``account`` holdings.
+
+    Returns a mapping with the path to the written holdings file.
+    """
 
     transactions: List[Any] = importers.parse(provider, data)
 
@@ -46,15 +47,14 @@ def update_from_csv(
         "holdings": holdings,
     }
 
-    root = Path(accounts_root or config.accounts_root or "")
-    acct_dir = root / owner
-    acct_dir.mkdir(parents=True, exist_ok=True)
-    acct_path = acct_dir / f"{account.lower()}.json"
+    base_dir = Path(config.accounts_root) / owner
+    base_dir.mkdir(parents=True, exist_ok=True)
+    acct_path = base_dir / f"{account.lower()}.json"
     acct_path.write_text(json.dumps(payload, indent=2))
 
     try:
-        portfolio_loader.rebuild_account_holdings(owner, account, accounts_root or root)
+        portfolio_loader.rebuild_account_holdings(owner, account)
     except Exception:  # pragma: no cover - rebuild errors are non-fatal
         pass
 
-    return payload
+    return {"path": str(acct_path)}

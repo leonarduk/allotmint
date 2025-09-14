@@ -93,3 +93,9 @@ ui:
     pension: true
     reports: true
     scenario: true
+    trail: true
+    alertsettings: true
+    taxharvest: true
+    taxallowances: true
+    tradecompliance: true
+    logs: true

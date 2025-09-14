@@ -5,6 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict
 
+import logging
 import yaml
 from fastapi import APIRouter, HTTPException
 
@@ -17,6 +18,8 @@ from backend.config import (
 )
 
 router = APIRouter(prefix="/config", tags=["config"])
+
+logger = logging.getLogger(__name__)
 
 
 def deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
@@ -104,6 +107,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         validate_google_auth(google_auth_enabled, google_client_id)
     except ConfigValidationError as exc:
+        logger.error("Invalid config update: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
 
     try:
@@ -117,4 +121,5 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         cfg = config_module.load_config()
         return asdict(cfg)
     except ConfigValidationError as exc:
+        logger.error("Invalid config after reload: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))

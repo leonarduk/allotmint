@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Weekly Report - Week {{ week_number }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    h1 { margin-bottom: 0.5rem; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
+    th, td { padding: 0.5rem; border: 1px solid #ddd; }
+    th { background: #f5f5f5; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>Weekly Report - Week {{ week_number }}</h1>
+  <section>
+    <h2>Portfolio Stats</h2>
+    <table>
+      <tbody>
+        {% for label, value in portfolio_stats.items() %}
+        <tr>
+          <th>{{ label }}</th>
+          <td>{{ value }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>Holdings</h2>
+    {{ holdings_table|safe }}
+  </section>
+  <section>
+    <h2>Transactions</h2>
+    {{ transactions_table|safe }}
+  </section>
+</body>
+</html>

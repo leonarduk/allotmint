@@ -57,7 +57,7 @@ catch {
 Write-Host '# Running tests with coverage (backend scope via .coveragerc) ...' -ForegroundColor Cyan
 
 & $PYTHON -m coverage erase | Out-Null
-& $PYTHON -m coverage run -m pytest -o addopts='' -p no:cov @PytestArgs
+& $PYTHON -m coverage run -m pytest -o addopts='' -p no:cov @PytestArgs 2>&1 | Tee-Object -Variable testOutput
 $exitCode = $LASTEXITCODE
 
 & $PYTHON -m coverage html
@@ -68,6 +68,15 @@ if (Test-Path $report) {
   Write-Host ("HTML coverage report: {0}" -f (Resolve-Path $report)) -ForegroundColor Green
   if ($Open) {
     Start-Process (Resolve-Path $report)
+  }
+}
+
+$failurePattern = 'FAILURES'
+if ($exitCode -ne 0 -and $testOutput) {
+  $failureStart = $testOutput | Select-String -Pattern $failurePattern | Select-Object -First 1
+  if ($failureStart) {
+    $startIndex = $failureStart.LineNumber - 1
+    $testOutput[$startIndex..($testOutput.Count - 1)] | ForEach-Object { Write-Host $_ -ForegroundColor Red }
   }
 }
 

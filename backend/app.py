@@ -90,8 +90,7 @@ def create_app() -> FastAPI:
     used, even if other tests reload or replace it.
     """
 
-    cfg = config_module.config
-    app_env = cfg.app_env or "test"
+    cfg = reload_config()
 
     if cfg.google_auth_enabled and not cfg.google_client_id:
         raise RuntimeError("google_client_id required when google_auth_enabled is true")
@@ -301,7 +300,7 @@ def create_app() -> FastAPI:
     async def health():
         """Return a small payload used by tests and uptime monitors."""
 
-        return {"status": "ok", "env": app_env}
+        return {"status": "ok", "env": cfg.app_env}
 
     return app
 

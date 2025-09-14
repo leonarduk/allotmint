@@ -8,6 +8,13 @@ import yaml
 from dataclasses import asdict
 from fastapi import APIRouter, HTTPException
 
+from backend.config import (
+    ConfigValidationError,
+    _project_config_path,
+    config,
+    reload_config,
+    validate_google_auth,
+)
 from backend import config_module
 
 router = APIRouter(prefix="/config", tags=["config"])
@@ -24,13 +31,13 @@ def deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
 @router.get("")
 async def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
-    return asdict(config_module.config)
+    return asdict(config)
 
 
 @router.put("")
 async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Update configuration values and persist them to ``config.yaml``."""
-    path: Path = config_module._project_config_path()
+    path: Path = _project_config_path()
     data: Dict[str, Any] = {}
     if path.exists():
         try:
@@ -96,8 +103,8 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
             google_client_id = None
 
     try:
-        config_module.validate_google_auth(google_auth_enabled, google_client_id)
-    except config_module.ConfigValidationError as exc:
+        validate_google_auth(google_auth_enabled, google_client_id)
+    except ConfigValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
     try:
@@ -107,7 +114,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(500, f"Failed to write config: {exc}")
 
     try:
-        config_module.reload_config()
-        return asdict(config_module.config)
-    except config_module.ConfigValidationError as exc:
+        reload_config()
+        return asdict(config)
+    except ConfigValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

@@ -71,6 +71,10 @@ if (Test-Path $report) {
   }
 }
 
+if ($exitCode -eq 0) {
+  Write-Host "All tests passed." -ForegroundColor Green
+}
+
 $failurePattern = 'FAILURES'
 if ($exitCode -ne 0 -and $testOutput) {
   $failureStart = $testOutput | Select-String -Pattern $failurePattern | Select-Object -First 1

@@ -76,12 +76,12 @@ ui:
     market: true
     instrument: true
     owner: true
-    performance: false
-    transactions: false
-    screener: false
-    trading: false
+    performance: true
+    transactions: true
+    screener: true
+    trading: true
     timeseries: true
-    watchlist: false
+    watchlist: true
     allocation: true
     rebalance: true
     instrumentadmin: true
@@ -89,13 +89,13 @@ ui:
     virtual: false
     support: true
     settings: true
-    profile: false
+    profile: true
     pension: true
     reports: true
     scenario: true
-    trail: true
     alertsettings: true
     taxharvest: true
     taxallowances: true
+    trail: true
     tradecompliance: true
     logs: true

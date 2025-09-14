@@ -41,7 +41,7 @@ export default function MarketOverview() {
     if (active && payload && payload.length) {
       const { value, change } = payload[0].payload;
       return (
-        <div className="rounded border bg-white p-2 text-sm shadow">
+        <div className="rounded border bg-white p-2 text-sm shadow text-gray-900">
           <p className="font-semibold">{label}</p>
           <p>Level: {value.toLocaleString()}</p>
           <p>Change: {change.toFixed(2)}%</p>
@@ -124,7 +124,7 @@ export default function MarketOverview() {
               height={100}
             />
             <YAxis />
-            <Tooltip />
+            <Tooltip contentStyle={{ backgroundColor: '#fff', color: '#213547' }} />
             <Bar dataKey="change" fill="#82ca9d" />
           </BarChart>
         </ResponsiveContainer>

@@ -237,8 +237,17 @@
   },
   "alertSettings": {
     "title": "Alert Settings",
+    "description": "Konfigurieren Sie, wann Sie Benachrichtigungen erhalten. Die Alarme erscheinen auf der Alerts-Seite und als Push-Benachrichtigungen.",
     "threshold": "Threshold %:",
     "save": "Save",
+    "push": {
+      "title": "Push-Benachrichtigungen",
+      "notSupported": "Push wird nicht unterstützt",
+      "enable": "Push-Alerts aktivieren",
+      "disable": "Push-Alerts deaktivieren",
+      "denied": "Push-Berechtigung verweigert.",
+      "error": "Fehler bei der Verarbeitung der Push-Anmeldung."
+    },
     "status": {
       "saved": "Saved",
       "error": "Error"

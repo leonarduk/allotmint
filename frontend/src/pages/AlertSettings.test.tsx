@@ -34,5 +34,9 @@ describe("AlertSettings navigation", () => {
     expect(
       screen.getByRole("button", { name: en.alertSettings.save }),
     ).toBeInTheDocument();
+    expect(screen.getByText(en.alertSettings.description)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: en.alertSettings.push.title })
+    ).toBeInTheDocument();
   });
 });

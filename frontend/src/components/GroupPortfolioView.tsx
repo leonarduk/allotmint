@@ -39,6 +39,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { BadgeCheck, LineChart, Shield } from "lucide-react";
 
 const PIE_COLORS = [
   "#8884d8",
@@ -259,19 +260,52 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         }}
       >
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Alpha vs Benchmark</div>
+          <div
+            style={{
+              fontSize: "0.9rem",
+              color: "#aaa",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.25rem",
+            }}
+          >
+            <BadgeCheck size={16} />
+            Alpha vs Benchmark
+          </div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
             {percentOrNa(safeAlpha)}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Tracking Error</div>
+          <div
+            style={{
+              fontSize: "0.9rem",
+              color: "#aaa",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.25rem",
+            }}
+          >
+            <LineChart size={16} />
+            Tracking Error
+          </div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
             {percentOrNa(safeTrackingError)}
           </div>
         </div>
         <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
+          <div
+            style={{
+              fontSize: "0.9rem",
+              color: "#aaa",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.25rem",
+            }}
+          >
+            <Shield size={16} />
+            Max Drawdown
+          </div>
           <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
             {percentOrNa(safeMaxDrawdown)}
           </div>

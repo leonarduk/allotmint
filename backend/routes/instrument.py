@@ -293,7 +293,7 @@ async def instrument(
             start_fx = df["Date"].dt.date.min()
             end_fx = df["Date"].dt.date.max()
             try:
-                fx = fetch_fx_rate_range(base_currency, start_fx, end_fx)
+                fx = fetch_fx_rate_range(base_currency, "GBP", start_fx, end_fx)
                 if not fx.empty:
                     fx["Date"] = pd.to_datetime(fx["Date"])
                     df = df.merge(fx, on="Date", how="left")

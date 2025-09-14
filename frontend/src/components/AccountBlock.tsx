@@ -49,10 +49,15 @@ export function AccountBlock({
         <>
           <div className="mb-2">
             Est&nbsp;Value:&nbsp;
-            {money(
-              account.value_estimate_gbp,
-              account.value_estimate_currency || baseCurrency,
-            )}
+            {account.value_estimate_gbp != null
+              ? new Intl.NumberFormat(undefined, {
+                  style: "currency",
+                  currency:
+                    account.value_estimate_currency || baseCurrency,
+                  notation: "compact",
+                  maximumFractionDigits: 2,
+                }).format(account.value_estimate_gbp)
+              : "—"}
           </div>
 
           {account.last_updated && (

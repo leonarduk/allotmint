@@ -122,6 +122,8 @@
       "no": "Nein"
     },
     "noHoldings": "Keine Bestände entsprechen den aktuellen Filtern.",
+    "clearFilters": "Filter löschen",
+    "openScreener": "Screener öffnen",
     "source": "Quelle:",
     "actualPurchaseCost": "Tatsächliche Anschaffungskosten",
     "inferredCost": "Abgeleitet vom Preis am Erwerbsdatum",

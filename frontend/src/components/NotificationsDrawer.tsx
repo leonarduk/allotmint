@@ -1,6 +1,7 @@
 import { useFetch } from "../hooks/useFetch";
 import * as api from "../api";
 import type { Alert, Nudge } from "../types";
+import EmptyState from "./EmptyState";
 
 interface Props {
   open: boolean;
@@ -77,7 +78,9 @@ export function NotificationsDrawer({ open, onClose }: Props) {
         </div>
         {alertLoading && <div>Loading...</div>}
         {alertError && <div>Cannot reach server</div>}
-        {!alertLoading && !alertError && alertList.length === 0 && <div>No alerts</div>}
+        {!alertLoading && !alertError && alertList.length === 0 && (
+          <EmptyState message="No alerts" />
+        )}
         {!alertLoading && !alertError && alertList.length > 0 && (
           <ul style={{ listStyle: "none", padding: 0 }}>
             {alertList.map((a, i) => (
@@ -102,7 +105,9 @@ export function NotificationsDrawer({ open, onClose }: Props) {
         </div>
         {nudgeLoading && <div>Loading...</div>}
         {nudgeError && <div>Cannot reach server</div>}
-        {!nudgeLoading && !nudgeError && nudgeList.length === 0 && <div>No nudges</div>}
+        {!nudgeLoading && !nudgeError && nudgeList.length === 0 && (
+          <EmptyState message="No nudges" />
+        )}
         {!nudgeLoading && !nudgeError && nudgeList.length > 0 && (
           <ul style={{ listStyle: "none", padding: 0 }}>
             {nudgeList.map((n) => (

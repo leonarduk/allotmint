@@ -122,6 +122,8 @@
       "no": "NO"
     },
     "noHoldings": "Nessuna partecipazione corrisponde ai filtri attuali.",
+    "clearFilters": "Cancella filtri",
+    "openScreener": "Apri Screener",
     "source": "Fonte:",
     "actualPurchaseCost": "Costo di acquisto effettivo",
     "inferredCost": "Dedotto dal prezzo alla data di acquisizione",

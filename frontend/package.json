@@ -15,8 +15,10 @@
     "deploy:aws:linux": "bash scripts/deploy-to-aws.sh -b $S3_BUCKET ${CLOUDFRONT_DISTRIBUTION_ID:+-d $CLOUDFRONT_DISTRIBUTION_ID}"
   },
   "dependencies": {
+    "@radix-ui/react-collapsible": "^1.1.12",
     "@tanstack/react-virtual": "^3.13.12",
     "i18next": "^25.4.0",
+    "lucide-react": "^0.544.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-helmet-async": "^2.0.5",
@@ -29,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/oxide": "^4.1.12",
     "@tailwindcss/postcss": "^4.1.12",
     "@testing-library/jest-dom": "^6.6.4",

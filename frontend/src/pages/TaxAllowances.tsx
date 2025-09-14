@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getAllowances } from "../api";
+import EmptyState from "../components/EmptyState";
 
 interface AllowanceInfo {
   used: number;
@@ -24,7 +25,7 @@ export default function TaxAllowances() {
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p className="text-red-500">{error}</p>;
-  if (!data) return <p>No data</p>;
+  if (!data) return <EmptyState message="No data" />;
 
   return (
     <div>

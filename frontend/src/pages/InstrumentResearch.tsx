@@ -5,6 +5,7 @@ import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
 import { getScreener, getNews, getQuotes } from "../api";
 import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
+import EmptyState from "../components/EmptyState";
 import { largeNumber } from "../lib/money";
 import { useConfig } from "../ConfigContext";
 
@@ -401,7 +402,7 @@ export default function InstrumentResearch() {
       ) : newsError ? (
         <div>{newsError}</div>
       ) : news.length === 0 ? (
-        <div>No news available</div>
+        <EmptyState message="No news available" />
       ) : (
         <div>
           <h2>News</h2>

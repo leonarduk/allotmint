@@ -57,7 +57,7 @@ def test_prices_converted_to_arbitrary_base_currency(monkeypatch):
     def fake_memoized_range(ticker, exch, s_iso, e_iso):
         return _sample_df(start, end)
 
-    def fake_fx(base, s, e):
+    def fake_fx(base, quote, s, e):
         dates = pd.bdate_range(s, e).date
         rates = {"USD": 0.8, "EUR": 0.9}
         return pd.DataFrame({"Date": dates, "Rate": [rates[base]] * len(dates)})

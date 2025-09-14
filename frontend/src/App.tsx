@@ -54,6 +54,7 @@ import Rebalance from "./pages/Rebalance";
 import PensionForecast from "./pages/PensionForecast";
 import TaxHarvest from "./pages/TaxHarvest";
 import TaxAllowances from "./pages/TaxAllowances";
+import RightRail from "./components/RightRail";
 
 interface AppProps {
   onLogout?: () => void;
@@ -353,7 +354,8 @@ export default function App({ onLogout }: AppProps) {
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+    <div className="xl:flex xl:justify-center">
+      <main style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       <div
         style={{
           display: "flex",
@@ -510,6 +512,8 @@ export default function App({ onLogout }: AppProps) {
       {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}
       {mode === "pension" && <PensionForecast />}
+      </main>
+      <RightRail owner={selectedOwner} />
     </div>
   );
 }

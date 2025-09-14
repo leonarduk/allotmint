@@ -166,6 +166,28 @@ def test_refresh_prices_requires_config(monkeypatch):
         prices.refresh_prices()
 
 
+def test_build_securities_from_portfolios(monkeypatch):
+    portfolios = [
+        {
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "XYZ", "name": "XYZ Plc"},
+                        {"ticker": "abc"},
+                        {"ticker": ""},
+                    ]
+                }
+            ]
+        }
+    ]
+    monkeypatch.setattr(prices, "list_portfolios", lambda: portfolios)
+    expected = {
+        "XYZ": {"ticker": "XYZ", "name": "XYZ Plc"},
+        "ABC": {"ticker": "ABC", "name": "ABC"},
+    }
+    assert prices._build_securities_from_portfolios() == expected
+
+
 def test_get_security_meta(monkeypatch):
     portfolios = [
         {
@@ -173,7 +195,6 @@ def test_get_security_meta(monkeypatch):
                 {
                     "holdings": [
                         {"ticker": "XYZ", "name": "XYZ Plc"},
-                        {"ticker": ""},
                     ]
                 }
             ]

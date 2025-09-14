@@ -15,6 +15,7 @@
     "deploy:aws:linux": "bash scripts/deploy-to-aws.sh -b $S3_BUCKET ${CLOUDFRONT_DISTRIBUTION_ID:+-d $CLOUDFRONT_DISTRIBUTION_ID}"
   },
   "dependencies": {
+    "@radix-ui/react-collapsible": "^1.1.12",
     "@tanstack/react-virtual": "^3.13.12",
     "i18next": "^25.4.0",
     "lucide-react": "^0.544.0",

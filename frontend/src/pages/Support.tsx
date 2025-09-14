@@ -13,6 +13,7 @@ import {
 } from "../api";
 import { useConfig } from "../ConfigContext";
 import { OwnerSelector } from "../components/OwnerSelector";
+import SectionCard from "../components/SectionCard";
 import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 
@@ -285,10 +286,7 @@ export default function Support() {
         </p>
       </header>
 
-      <section className="rounded-lg border p-4 shadow-sm">
-        <h2 className="mb-2 text-xl md:text-2xl">
-          {t("support.environment")}
-        </h2>
+      <SectionCard title={t("support.environment")} items={envEntries}>
         <table className="w-full table-auto text-sm">
           <tbody>
             {envEntries.map(([k, v]) => {
@@ -314,10 +312,9 @@ export default function Support() {
             })}
           </tbody>
         </table>
-      </section>
+      </SectionCard>
 
-      <section className="rounded-lg border p-4 shadow-sm">
-        <h2 className="mb-2 text-xl font-semibold">{t("support.health.title")}</h2>
+      <SectionCard title={t("support.health.title")} items={health}>
         <button
           type="button"
           onClick={runHealthCheck}
@@ -357,10 +354,9 @@ export default function Support() {
             </button>
           </div>
         )}
-      </section>
+      </SectionCard>
 
-      <section className="rounded-lg border p-4 shadow-sm">
-        <h2 className="mb-2 text-xl font-semibold">{t("support.notifications.title")}</h2>
+      <SectionCard title={t("support.notifications.title")}>
         <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
         {typeof Notification === "undefined" ||
         typeof navigator === "undefined" ||
@@ -386,10 +382,9 @@ export default function Support() {
             )}
           </div>
         )}
-      </section>
+      </SectionCard>
 
-      <section className="rounded-lg border p-4 shadow-sm">
-        <h2 className="mb-2 text-xl font-semibold">{t("support.config.title")}</h2>
+      <SectionCard title={t("support.config.title")}>
         {!Object.keys(config).length ? (
           <p>{t("common.loading")}</p>
         ) : (
@@ -483,12 +478,9 @@ export default function Support() {
             </div>
           </form>
         )}
-      </section>
+      </SectionCard>
 
-      <section className="rounded-lg border p-4 shadow-sm">
-        <h2 className="mb-2 text-xl md:text-2xl">
-          {t("support.telegramMessage")}
-        </h2>
+      <SectionCard title={t("support.telegramMessage")}>
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
@@ -513,7 +505,7 @@ export default function Support() {
             <span className="ml-2">{t("support.status.sending")}</span>
           )}
         </div>
-      </section>
+      </SectionCard>
     </div>
   );
 }

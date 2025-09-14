@@ -245,7 +245,7 @@ describe("Support page", () => {
     const switchesHeading = await screen.findByRole("heading", {
       name: en.support.config.otherSwitches,
     });
-    const switchesSection = switchesHeading.parentElement as HTMLElement;
+    const switchesSection = switchesHeading.parentElement?.parentElement as HTMLElement;
     expect(
       within(switchesSection).getByRole("checkbox", { name: /flag/i })
     ).toBeInTheDocument();
@@ -256,7 +256,7 @@ describe("Support page", () => {
     const paramsHeading = screen.getByRole("heading", {
       name: en.support.config.otherParams,
     });
-    const paramsSection = paramsHeading.parentElement as HTMLElement;
+    const paramsSection = paramsHeading.parentElement?.parentElement as HTMLElement;
     expect(
       within(paramsSection).getByRole("radio", { name: /dark/i })
     ).toBeInTheDocument();

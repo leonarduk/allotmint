@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import type { Alert } from "../types";
+import EmptyState from "../components/EmptyState";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import errorToast from "../utils/errorToast";
 
@@ -75,11 +76,7 @@ export default function Alerts() {
   }
 
   if (alerts.length === 0) {
-    return (
-      <div role="status" aria-live="polite">
-        No alerts.
-      </div>
-    );
+    return <EmptyState message="No alerts." role="status" aria-live="polite" />;
   }
 
   return (

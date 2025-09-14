@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { complianceForOwner, getOwners } from "../api";
 import type { OwnerSummary, ComplianceResult } from "../types";
 import { OwnerSelector } from "../components/OwnerSelector";
+import EmptyState from "../components/EmptyState";
 
 export default function ComplianceWarnings() {
   const { owner: ownerParam } = useParams<{ owner?: string }>();
@@ -53,7 +54,7 @@ export default function ComplianceWarnings() {
               ))}
             </ul>
           ) : (
-            <p>No warnings.</p>
+            <EmptyState message="No warnings." />
           )}
 
           {result.hold_countdowns &&

@@ -1,11 +1,12 @@
 import { useConfig } from "../ConfigContext";
 import { useAuth } from "../AuthContext";
+import EmptyState from "../components/EmptyState";
 export default function ProfilePage() {
   const { user } = useAuth();
   const { theme } = useConfig();
 
   if (!user) {
-    return <div className="p-4">No user information available.</div>;
+    return <EmptyState message="No user information available." />;
   }
 
   const placeholder =

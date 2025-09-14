@@ -7,6 +7,7 @@ import tableStyles from "../styles/table.module.css";
 import moversPlugin from "../plugins/movers";
 import { SignalBadge } from "./SignalBadge";
 import { InstrumentDetail } from "./InstrumentDetail";
+import EmptyState from "./EmptyState";
 
 interface Props {
   slug?: string;
@@ -53,7 +54,7 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
       .slice(0, limit);
   }, [data, limit]);
 
-  if (!slug) return <div>No group selected.</div>;
+  if (!slug) return <EmptyState message="No group selected." />;
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Failed to load movers.</div>;
   if (rows.length === 0) return null;

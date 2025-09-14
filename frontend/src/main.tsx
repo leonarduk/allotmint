@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { HelmetProvider } from 'react-helmet-async'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import './index.css'
 import './styles/responsive.css'
 import './i18n'
@@ -14,6 +14,7 @@ import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from
 import LoginPage from './LoginPage'
 import { UserProvider } from './UserContext'
 import { FocusModeProvider } from './FocusModeContext'
+import ErrorBoundary from './ErrorBoundary'
 
 const storedToken = getStoredAuthToken()
 if (storedToken) setAuthToken(storedToken)
@@ -42,6 +43,7 @@ export function Root() {
   const [authed, setAuthed] = useState(false)
   const { setUser } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const logout = () => {
     apiLogout()
@@ -69,28 +71,30 @@ export function Root() {
   }
 
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <Routes>
-        <Route path="/support" element={<Support />} />
-        <Route path="/virtual" element={<VirtualPortfolio />} />
-        <Route path="/compliance" element={<ComplianceWarnings />} />
-        <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
-        <Route path="/trade-compliance" element={<TradeCompliance />} />
-        <Route path="/trade-compliance/:owner" element={<TradeCompliance />} />
-        <Route path="/research/:ticker" element={<InstrumentResearch />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/alerts" element={<Alerts />} />
-        <Route path="/alert-settings" element={<AlertSettings />} />
-        <Route path="/goals" element={<Goals />} />
-        <Route path="/trail" element={<Trail />} />
-        {import.meta.env.VITE_SMOKE_TEST && SmokeTest && (
-          <Route path="/smoke-test" element={<SmokeTest />} />
-        )}
-        <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
-        <Route path="/returns/compare" element={<ReturnComparison />} />
-        <Route path="/*" element={<App onLogout={logout} />} />
-      </Routes>
-    </Suspense>
+    <ErrorBoundary key={location.pathname}>
+      <Suspense fallback={<div>Loading...</div>}>
+        <Routes>
+          <Route path="/support" element={<Support />} />
+          <Route path="/virtual" element={<VirtualPortfolio />} />
+          <Route path="/compliance" element={<ComplianceWarnings />} />
+          <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+          <Route path="/trade-compliance" element={<TradeCompliance />} />
+          <Route path="/trade-compliance/:owner" element={<TradeCompliance />} />
+          <Route path="/research/:ticker" element={<InstrumentResearch />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/alerts" element={<Alerts />} />
+          <Route path="/alert-settings" element={<AlertSettings />} />
+          <Route path="/goals" element={<Goals />} />
+          <Route path="/trail" element={<Trail />} />
+          {import.meta.env.VITE_SMOKE_TEST && SmokeTest && (
+            <Route path="/smoke-test" element={<SmokeTest />} />
+          )}
+          <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
+          <Route path="/returns/compare" element={<ReturnComparison />} />
+          <Route path="/*" element={<App onLogout={logout} />} />
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   )
 }
 

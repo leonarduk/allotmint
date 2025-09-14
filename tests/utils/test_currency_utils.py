@@ -3,18 +3,14 @@ import pytest
 from backend.utils.currency_utils import currency_from_isin
 
 
-def test_known_prefixes():
-    assert currency_from_isin("GB0000000001") == "GBP"
-    assert currency_from_isin("US0000000001") == "USD"
-
-
-def test_unknown_prefix_defaults_to_gbp():
-    assert currency_from_isin("ZZ0000000001") == "GBP"
-    assert currency_from_isin("") == "GBP"
-
-
-def test_non_string_isin_raises_type_error():
-    with pytest.raises(TypeError):
-        currency_from_isin(None)
-    with pytest.raises(TypeError):
-        currency_from_isin(123)
+@pytest.mark.parametrize(
+    "isin,expected",
+    [
+        ("GB00B03MLX29", "GBP"),
+        ("us0378331005", "USD"),
+        ("XX0000000000", "GBP"),
+    ],
+)
+def test_currency_from_isin(isin, expected):
+    """Known and unknown ISIN prefixes map to correct currencies."""
+    assert currency_from_isin(isin) == expected

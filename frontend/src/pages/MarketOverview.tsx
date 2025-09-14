@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getMarketOverview } from '../api';
 import type { MarketOverview as MarketOverviewData } from '../types';
+import EmptyState from '../components/EmptyState';
 import {
   ResponsiveContainer,
   BarChart,
@@ -135,11 +136,9 @@ export default function MarketOverview() {
           {t('market.latestHeadlines', { defaultValue: 'Latest Headlines' })}
         </h2>
         {data.headlines.length === 0 ? (
-          <p>
-            {t('market.noHeadlines', {
-              defaultValue: 'No headlines available',
-            })}
-          </p>
+          <EmptyState
+            message={t('market.noHeadlines', { defaultValue: 'No headlines available' })}
+          />
         ) : (
           <ul className="list-disc pl-4">
             {data.headlines.map((h, idx) => (

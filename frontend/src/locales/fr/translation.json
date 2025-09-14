@@ -122,6 +122,8 @@
       "no": "Non"
     },
     "noHoldings": "Aucune position ne correspond aux filtres actuels.",
+    "clearFilters": "Effacer les filtres",
+    "openScreener": "Ouvrir le Screener",
     "source": "Source :",
     "actualPurchaseCost": "Coût d'achat réel",
     "inferredCost": "Déduit du prix à la date d'acquisition",

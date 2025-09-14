@@ -16,6 +16,8 @@ import { useConfig } from "../ConfigContext";
 import { isSupportedFx } from "../lib/fx";
 import { formatDateISO } from "../lib/date";
 import { RelativeViewToggle } from "./RelativeViewToggle";
+import EmptyState from "./EmptyState";
+import { useNavigate } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
 import Sparkline from "./Sparkline";
@@ -38,6 +40,12 @@ export function HoldingsTable({
 }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency } = useConfig();
+  let navigate: (path: string) => void = () => {};
+  try {
+    navigate = useNavigate();
+  } catch {
+    // no router context
+  }
 
   const viewPresets = useMemo(
     () => [
@@ -49,14 +57,16 @@ export function HoldingsTable({
     [t],
   );
 
-  const [filters, setFilters] = useState({
+  const initialFilters = {
     ticker: "",
     name: "",
     instrument_type: "",
     units: "",
     gain_pct: "",
     sell_eligible: "",
-  });
+  };
+
+  const [filters, setFilters] = useState(initialFilters);
 
   const [viewPreset, setViewPreset] = useState(() =>
     typeof window === "undefined"
@@ -87,6 +97,11 @@ export function HoldingsTable({
 
   const handleFilterChange = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters(initialFilters);
+    setViewPreset("");
   };
 
 
@@ -558,7 +573,13 @@ export function HoldingsTable({
         </table>
         </div>
       ) : (
-        <p>{t("holdingsTable.noHoldings")}</p>
+        <EmptyState
+          message={t("holdingsTable.noHoldings")}
+          actions={[
+            { label: t("holdingsTable.clearFilters"), onClick: clearFilters },
+            { label: t("holdingsTable.openScreener"), onClick: () => navigate("/screener") },
+          ]}
+        />
       )}
     </>
   );

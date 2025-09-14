@@ -2,15 +2,18 @@ from __future__ import annotations
 
 """Market overview endpoint aggregating indexes, sectors and headlines."""
 
+import logging
 from typing import Any, Dict, List, Optional
 
-import logging
 import requests
 import yfinance as yf
 from fastapi import APIRouter
 
-from backend.config import config
+from backend import config_module
 from backend.routes.news import _fetch_news
+
+cfg = getattr(config_module, "settings", config_module.config)
+config = cfg
 
 router = APIRouter(tags=["market"])
 
@@ -39,7 +42,7 @@ def _fetch_indexes() -> Dict[str, Dict[str, Optional[float]]]:
 
 
 def _fetch_sectors() -> List[Dict[str, float]]:
-    params = {"function": "SECTOR", "apikey": config.alpha_vantage_key or "demo"}
+    params = {"function": "SECTOR", "apikey": cfg.alpha_vantage_key or "demo"}
     resp = requests.get("https://www.alphavantage.co/query", params=params, timeout=10)
     resp.raise_for_status()
     data = resp.json().get("Rank A: Real-Time Performance", {})

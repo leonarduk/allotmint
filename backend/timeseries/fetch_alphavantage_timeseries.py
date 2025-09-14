@@ -5,9 +5,12 @@ from datetime import date, timedelta
 import pandas as pd
 import requests
 
-from backend.config import config
+from backend import config_module
 from backend.timeseries.ticker_validator import is_valid_ticker, record_skipped_ticker
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
+
+cfg = getattr(config_module, "settings", config_module.config)
+config = cfg
 
 # Setup logger
 logger = logging.getLogger("alphavantage_timeseries")
@@ -71,7 +74,7 @@ def fetch_alphavantage_timeseries_range(
     api_key: str | None = None,
 ) -> pd.DataFrame:
     """Fetch historical Alpha Vantage data using a date range."""
-    if api_key is None and not config.alpha_vantage_enabled:
+    if api_key is None and not cfg.alpha_vantage_enabled:
         logger.info("Alpha Vantage fetching disabled via config")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     if not is_valid_ticker(ticker, exchange):
@@ -79,7 +82,7 @@ def fetch_alphavantage_timeseries_range(
         record_skipped_ticker(ticker, exchange, reason="unknown")
         return pd.DataFrame(columns=STANDARD_COLUMNS)
     symbol = _build_symbol(ticker, exchange)
-    key = api_key or config.alpha_vantage_key or "demo"
+    key = api_key or cfg.alpha_vantage_key or "demo"
 
     params = {
         "function": "TIME_SERIES_DAILY_ADJUSTED",

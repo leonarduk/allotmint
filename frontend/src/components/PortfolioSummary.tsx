@@ -1,6 +1,7 @@
 import type { Account } from "../types";
 import { money, percent } from "../lib/money";
 import { useConfig } from "../ConfigContext";
+import { PiggyBank, LineChart, BadgeCheck } from "lucide-react";
 
 export type PortfolioTotals = {
   totalValue: number;
@@ -80,13 +81,35 @@ export function PortfolioSummary({ totals }: Props) {
       }}
     >
       <div>
-        <div style={{ fontSize: "1rem", color: "#aaa" }}>Total Value</div>
+        <div
+          style={{
+            fontSize: "1rem",
+            color: "#aaa",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.25rem",
+          }}
+        >
+          <PiggyBank size={20} />
+          Total Value
+        </div>
         <div style={{ fontSize: "2rem", fontWeight: "bold" }}>
           {money(totalValue, baseCurrency)}
         </div>
       </div>
       <div>
-        <div style={{ fontSize: "1rem", color: "#aaa" }}>Day Change</div>
+        <div
+          style={{
+            fontSize: "1rem",
+            color: "#aaa",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.25rem",
+          }}
+        >
+          <LineChart size={20} />
+          Day Change
+        </div>
         <div
           style={{
             fontSize: "2rem",
@@ -98,7 +121,18 @@ export function PortfolioSummary({ totals }: Props) {
         </div>
       </div>
       <div>
-        <div style={{ fontSize: "1rem", color: "#aaa" }}>Total Gain</div>
+        <div
+          style={{
+            fontSize: "1rem",
+            color: "#aaa",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.25rem",
+          }}
+        >
+          <BadgeCheck size={20} />
+          Total Gain
+        </div>
         <div
           style={{
             fontSize: "2rem",

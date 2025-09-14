@@ -35,7 +35,7 @@ from backend.common.portfolio_utils import (
     refresh_snapshot_async,
     refresh_snapshot_in_memory,
 )
-from backend.config import config
+from backend.config import load_config
 from backend.routes.agent import router as agent_router
 from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.alerts import router as alerts_router
@@ -86,6 +86,8 @@ def create_app() -> FastAPI:
     in-memory price snapshot so the first request is quick. Returning the app
     instance instead of creating it at module import time keeps things
     test-friendly and avoids accidental state sharing between invocations.
+    The configuration object is fetched lazily to ensure the latest values are
+    used, even if other tests reload or replace it.
     """
 
     # The FastAPI constructor accepts a few descriptive fields that end up in
@@ -95,10 +97,22 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        skip_warm = bool(config.skip_snapshot_warm)
+
+      skip_warm = bool(config.skip_snapshot_warm)
         if not skip_warm:
             # Pre-fetch recent price data so the first request is fast.
-            snapshot, ts = _load_snapshot()
+            try:
+                result = _load_snapshot()
+                if (
+                    not isinstance(result, tuple)
+                    or len(result) != 2
+                    or not isinstance(result[0], dict)
+                ):
+                    raise ValueError("Malformed snapshot")
+                snapshot, ts = result
+            except Exception as exc:
+                logger.error("Failed to load price snapshot: %s", exc)
+                snapshot, ts = {}, None
             refresh_snapshot_in_memory(snapshot, ts)
             # Seed instrument API with the on-disk snapshot to avoid network
             # calls before the background refresh completes.
@@ -136,22 +150,23 @@ def create_app() -> FastAPI:
     )
     app.state.background_tasks = []
 
+    # ────────────────────────── CORS ──────────────────────────
+    cfg = load_config()
     storage_uri = "memory://"
-    if config.app_env in {"production", "aws"}:
+    if cfg.app_env in {"production", "aws"}:
         redis_url = os.getenv("REDIS_URL")
         if redis_url:
             storage_uri = redis_url
 
     limiter = Limiter(
         key_func=get_remote_address,
-        default_limits=[f"{config.rate_limit_per_minute}/minute"],
+        default_limits=[f"{cfg.rate_limit_per_minute}/minute"],
         storage_uri=storage_uri,
     )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    app.add_middleware(SlowAPIMiddleware)
 
-    paths = resolve_paths(config.repo_root, config.accounts_root)
+    paths = resolve_paths(cfg.repo_root, cfg.accounts_root)
     app.state.repo_root = paths.repo_root
     app.state.accounts_root = paths.accounts_root
     app.state.virtual_pf_root = paths.virtual_pf_root
@@ -178,21 +193,45 @@ def create_app() -> FastAPI:
         "http://localhost:3000",
         "http://localhost:5173",
     ]
-    cors_origins = _validate_cors_origins(config.cors_origins or default_cors)
+    cors_origins = _validate_cors_origins(cfg.cors_origins or default_cors)
     cors_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     cors_headers = ["Authorization", "Content-Type"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_methods=cors_methods,
-        allow_headers=cors_headers,
+        allow_origins=config.cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
         allow_credentials=True,
     )
+    # Register SlowAPIMiddleware after CORSMiddleware so CORS preflight requests
+    # are handled before rate limiting or other middleware runs.
+    app.add_middleware(SlowAPIMiddleware)
+
+    storage_uri = "memory://"
+    if config.app_env in {"production", "aws"}:
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            storage_uri = redis_url
+
+    limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=[f"{config.rate_limit_per_minute}/minute"],
+        storage_uri=storage_uri,
+    )
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    app.state.repo_root = paths.repo_root
+    app.state.accounts_root = paths.accounts_root
+    app.state.virtual_pf_root = paths.virtual_pf_root
+
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.
     # Sensitive routes are guarded by a JWT-based dependency.
-    if config.disable_auth:
+    if cfg.disable_auth:
         protected = []
     else:
         protected = [Depends(auth.get_current_user)]
@@ -279,7 +318,8 @@ def create_app() -> FastAPI:
     async def health():
         """Return a small payload used by tests and uptime monitors."""
 
-        return {"status": "ok", "env": config.app_env or "test"}
+        cfg = load_config()
+        return {"status": "ok", "env": cfg.app_env or "test"}
 
     return app
 
@@ -288,4 +328,4 @@ def create_app() -> FastAPI:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(create_app(), host="0.0.0.0", port=config.uvicorn_port or 8000)
+    uvicorn.run(create_app(), host="0.0.0.0", port=load_config().uvicorn_port or 8000)

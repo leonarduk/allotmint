@@ -113,6 +113,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     load_config.cache_clear()
     try:
+        load_config()
         return get_config_dict()
     except ConfigValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

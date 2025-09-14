@@ -25,6 +25,16 @@ page at `/smoke-test`:
 VITE_SMOKE_TEST=1 npm run dev
 ```
 
+### Enabling service workers in development
+
+Push alerts rely on a service worker. The service worker is registered
+automatically in production builds, but you can enable it locally by starting the
+dev server with the `VITE_ENABLE_SW` flag:
+
+```bash
+VITE_ENABLE_SW=1 npm run dev
+```
+
 ## Routing
 
 The app opts into upcoming React Router v7 behavior by enabling the

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Optional
 
 from backend.common.virtual_portfolio import VirtualPortfolio
@@ -26,20 +26,33 @@ def resolve_paths(
     repo_root: Optional[Path | str] = None,
     accounts_root: Optional[Path | str] = None,
 ) -> ResolvedPaths:
-    """Return fully resolved repository and accounts paths."""
+    """Return fully resolved repository and accounts paths.
+
+    ``repo_root`` is treated as the base of the repository. If ``None`` or the
+    supplied path does not exist the function falls back to the actual
+    repository root relative to this file. ``accounts_root`` may be an absolute
+    path or a path relative to ``repo_root``. Windows-style absolute paths are
+    handled even when running on a POSIX platform.
+    """
 
     if repo_root and Path(repo_root).exists():
-        repo_path = Path(repo_root)
+        repo_path = Path(repo_root).expanduser()
     else:
         repo_path = Path(__file__).resolve().parents[2]
 
-    if accounts_root and Path(accounts_root).exists():
-        accounts_path = Path(accounts_root)
-    else:
-        base = Path(config.data_root) if config.data_root else repo_path / "data"
-        accounts_path = base / "accounts"
+    data_root = repo_path / "data"
 
-    virtual_root = (Path(config.data_root) if config.data_root else repo_path / "data") / "virtual_portfolios"
+    if accounts_root:
+        acct_str = str(accounts_root)
+        if Path(acct_str).is_absolute() or PureWindowsPath(acct_str).is_absolute():
+            accounts_path = Path(acct_str).expanduser()
+        else:
+            accounts_path = (repo_path / acct_str).resolve()
+        data_root = accounts_path.parent
+    else:
+        accounts_path = data_root / "accounts"
+
+    virtual_root = data_root / "virtual_portfolios"
     return ResolvedPaths(repo_path, accounts_path, virtual_root)
 
 

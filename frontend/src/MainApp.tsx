@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, lazy } from "react";
+import { useCallback, useEffect, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getGroupInstruments, getGroups, getOwners, getPortfolio } from "./api";
@@ -15,7 +15,6 @@ import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
 import { TransactionsPage } from "./components/TransactionsPage";
-import PortfolioDashboard from "./pages/PortfolioDashboard";
 import QuestBoard from "./components/QuestBoard";
 
 import { NotificationsDrawer } from "./components/NotificationsDrawer";
@@ -28,6 +27,8 @@ import PriceRefreshControls from "./components/PriceRefreshControls";
 import { Header } from "./components/Header";
 import InstallPwaPrompt from "./components/InstallPwaPrompt";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
+import lazyWithDelay from "./utils/lazyWithDelay";
+import PortfolioDashboardSkeleton from "./components/skeletons/PortfolioDashboardSkeleton";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
@@ -40,6 +41,7 @@ const InstrumentAdmin = lazy(() => import("./pages/InstrumentAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
 const LogsPage = lazy(() => import("./pages/Logs"));
+const PortfolioDashboard = lazyWithDelay(() => import("./pages/PortfolioDashboard"));
 
 export default function MainApp() {
   const navigate = useNavigate();
@@ -283,19 +285,21 @@ export default function MainApp() {
             selected={selectedOwner}
             onSelect={setSelectedOwner}
           />
-          <PortfolioDashboard
-            twr={null}
-            irr={null}
-            bestDay={null}
-            worstDay={null}
-            lastDay={null}
-            alpha={null}
-            trackingError={null}
-            maxDrawdown={null}
-            volatility={null}
-            data={[]}
-            owner={selectedOwner}
-          />
+          <Suspense fallback={<PortfolioDashboardSkeleton />}>
+            <PortfolioDashboard
+              twr={null}
+              irr={null}
+              bestDay={null}
+              worstDay={null}
+              lastDay={null}
+              alpha={null}
+              trackingError={null}
+              maxDrawdown={null}
+              volatility={null}
+              data={[]}
+              owner={selectedOwner}
+            />
+          </Suspense>
         </>
       )}
 

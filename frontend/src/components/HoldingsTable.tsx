@@ -210,7 +210,7 @@ export function HoldingsTable({
             key={p.label}
             type="button"
             onClick={() => setViewPreset(p.value)}
-            className={`ml-2 ${viewPreset === p.value ? 'font-bold' : ''}`}
+            className={`ml-2 ${viewPreset === p.value ? 'font-bold' : ''} focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500`}
           >
             {p.label}
           </button>
@@ -220,7 +220,7 @@ export function HoldingsTable({
         {t("holdingsTable.quickFilters")}
         <button
           type="button"
-          className="ml-2"
+          className="ml-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
           onClick={() => handleFilterChange("sell_eligible", "true")}
         >
           {t("holdingsTable.quickFiltersSellEligible")}
@@ -408,19 +408,26 @@ export function HoldingsTable({
                   <button
                     type="button"
                     onClick={handleClick}
-                    className="link-button"
+                    className="link-button focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                   >
                     {h.ticker}
                   </button>
                 </td>
                 <td className={tableStyles.cell}>{h.name}</td>
                 <td className={`${tableStyles.cell} w-20`}>
-                  <Sparkline ticker={h.ticker} days={sparkRange} />
+                  <Sparkline
+                    ticker={h.ticker}
+                    days={sparkRange}
+                    ariaLabel={t('holdingsTable.sparklineAria', { ticker: h.ticker })}
+                  />
                   {sparkData.length ? (
                     <ResponsiveContainer width="100%" height={40}>
                       <LineChart
                         data={sparkData}
                         margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
+                        role="img"
+                        aria-label={t('holdingsTable.historyAria', { ticker: h.ticker })}
+                        tabIndex={0}
                       >
                         <Line
                           type="monotone"

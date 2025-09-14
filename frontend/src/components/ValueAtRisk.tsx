@@ -87,7 +87,11 @@ export function ValueAtRisk({ owner }: Props) {
         </div>
       )}
       {!loading && !err && !(var95 == null && var99 == null) && (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        <ul
+          role="img"
+          aria-label={t('var.chartAria', { defaultValue: 'Value at Risk chart' })}
+          style={{ listStyle: 'none', padding: 0, margin: 0 }}
+        >
           <li>
             95%:{' '}
             <button
@@ -98,6 +102,7 @@ export function ValueAtRisk({ owner }: Props) {
                   .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
               }
               disabled={var95 == null}
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             >
               {format(var95)}
             </button>
@@ -112,6 +117,7 @@ export function ValueAtRisk({ owner }: Props) {
                   .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
               }
               disabled={var99 == null}
+              className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
             >
               {format(var99)}
             </button>

@@ -45,7 +45,11 @@ export function PriceRefreshControls({
 
   return (
     <div style={{ marginBottom: "1rem" }}>
-      <button onClick={handleRefresh} disabled={refreshing}>
+      <button
+        onClick={handleRefresh}
+        disabled={refreshing}
+        className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+      >
         {refreshing ? t("app.refreshing") : t("app.refreshPrices")}
       </button>
       {lastRefresh && (

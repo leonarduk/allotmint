@@ -30,7 +30,7 @@ def deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
 @router.get("")
 async def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
-    return asdict(config)
+    return asdict(config_module.config)
 
 
 @router.put("")

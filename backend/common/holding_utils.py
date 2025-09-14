@@ -217,7 +217,8 @@ def _get_price_for_date_scaled(
     d: dt.date,
     field: str = "Close_gbp",
 ) -> tuple[Optional[float], Optional[str]]:
-    if ticker.upper() in {"CASH", "GBP.CASH", "CASH.GBP"}:
+    parts = ticker.upper().split(".")
+    if "CASH" in parts:
         return 1.0, None
 
     """

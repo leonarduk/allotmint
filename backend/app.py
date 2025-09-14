@@ -148,7 +148,6 @@ def create_app() -> FastAPI:
     )
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    app.add_middleware(SlowAPIMiddleware)
 
     paths = resolve_paths(config.repo_root, config.accounts_root)
     app.state.repo_root = paths.repo_root
@@ -187,6 +186,9 @@ def create_app() -> FastAPI:
         allow_headers=cors_headers,
         allow_credentials=True,
     )
+    # Register SlowAPIMiddleware after CORSMiddleware so CORS preflight requests
+    # are handled before rate limiting or other middleware runs.
+    app.add_middleware(SlowAPIMiddleware)
 
     # ──────────────────────────── Routers ────────────────────────────
     # The API surface is composed of a few routers grouped by concern.

@@ -403,7 +403,7 @@ def _convert_to_base_currency(
 
             if fx.empty:
                 try:
-                    fx = fetch_fx_rate_range(curr, start, end).copy()
+                    fx = fetch_fx_rate_range(curr, "GBP", start, end).copy()
                     if fx.empty:
                         raise ValueError(f"Offline mode: no FX rates for {curr}")
 
@@ -416,7 +416,7 @@ def _convert_to_base_currency(
             if fx.empty:
                 raise ValueError(f"Offline mode: FX cache lacks range for {curr}")
         else:
-            fx = fetch_fx_rate_range(curr, start, end).copy()
+            fx = fetch_fx_rate_range(curr, "GBP", start, end).copy()
             if fx.empty:
                 return pd.DataFrame()
             fx["Date"] = pd.to_datetime(fx["Date"])

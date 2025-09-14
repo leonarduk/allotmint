@@ -310,6 +310,32 @@ async def instrument(
             except Exception:
                 pass
 
+        system_base = getattr(config, "base_currency", "").upper()
+        if (
+            system_base == "USD"
+            and "Close_gbp" in df.columns
+            and "Close_usd" not in df.columns
+        ):
+            start_fx = df["Date"].dt.date.min()
+            end_fx = df["Date"].dt.date.max()
+            try:
+                fx_usd = fetch_fx_rate_range("USD", "GBP", start_fx, end_fx).rename(
+                    columns={"Rate": "Rate_usd"}
+                )
+                if not fx_usd.empty:
+                    fx_usd["Date"] = pd.to_datetime(fx_usd["Date"])
+                    df = df.merge(fx_usd, on="Date", how="left")
+                    df["Close_usd"] = df["Close_gbp"] / pd.to_numeric(
+                        df["Rate_usd"], errors="coerce"
+                    )
+                    df.drop(columns=["Rate_usd"], inplace=True)
+                    cols.append("Close_usd")
+                    rename["Close_usd"] = "close_usd"
+                    assigns["close_usd"] = lambda d: d["close_usd"].astype(float)
+                    fx_links["USDGBP"] = "/timeseries/meta?ticker=USDGBP"
+            except Exception:
+                pass
+
         prices = (
             df[cols]
             .rename(columns=rename)

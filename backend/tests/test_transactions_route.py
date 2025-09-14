@@ -11,7 +11,9 @@ from backend.routes import transactions
 def _client(monkeypatch, tmp_path):
     app = FastAPI()
     app.include_router(transactions.router)
-    monkeypatch.setattr(transactions, "config", SimpleNamespace(accounts_root=tmp_path))
+    monkeypatch.setattr(
+        transactions, "config", SimpleNamespace(accounts_root=tmp_path, offline_mode=False)
+    )
     monkeypatch.setattr(
         transactions,
         "portfolio_loader",
@@ -103,7 +105,7 @@ def test_list_transactions_filter(monkeypatch):
         "/transactions",
         params={
             "owner": "a",
-            "account": "isa",
+            "account": "ISA",
             "start": "2024-01-01",
             "end": "2024-01-31",
         },
@@ -112,3 +114,47 @@ def test_list_transactions_filter(monkeypatch):
     data = resp.json()
     assert len(data) == 1
     assert data[0]["account"] == "isa"
+
+
+def test_transactions_with_compliance_account_case(monkeypatch, tmp_path):
+    app = FastAPI()
+    app.include_router(transactions.router)
+    app.state.accounts_root = tmp_path
+    client = TestClient(app)
+    sample = [transactions.Transaction(owner="a", account="isa", date="2024-01-01")]
+    monkeypatch.setattr(transactions, "_load_all_transactions", lambda: sample)
+    monkeypatch.setattr(
+        transactions,
+        "compliance",
+        SimpleNamespace(evaluate_trades=lambda owner, txs, root: txs),
+    )
+    resp = client.get(
+        "/transactions/compliance",
+        params={"owner": "a", "account": "ISA"},
+    )
+    assert resp.status_code == 200
+    assert len(resp.json()["transactions"]) == 1
+
+
+def test_list_dividends_account_case(monkeypatch):
+    app = FastAPI()
+    app.include_router(transactions.router)
+    client = TestClient(app)
+    sample = [
+        transactions.Transaction(
+            owner="a",
+            account="isa",
+            type="DIVIDEND",
+            ticker="ABC",
+            date="2024-01-01",
+        )
+    ]
+    monkeypatch.setattr(transactions, "_load_all_transactions", lambda: sample)
+    resp = client.get(
+        "/dividends",
+        params={"owner": "a", "account": "ISA"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+

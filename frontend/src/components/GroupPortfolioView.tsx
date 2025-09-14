@@ -1,5 +1,12 @@
 // src/components/GroupPortfolioView.tsx
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  lazy,
+  Suspense,
+  type ComponentType,
+} from "react";
 
 import type {
   GroupPortfolio,
@@ -17,7 +24,9 @@ import {
 } from "../api";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
-import { TopMoversSummary } from "./TopMoversSummary";
+import Defer from "./Defer";
+import TableSkeleton from "./skeletons/TableSkeleton";
+import KPISkeleton from "./skeletons/KPISkeleton";
 import { money, percent, percentOrNa } from "../lib/money";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
 import { translateInstrumentType } from "../lib/instrumentType";
@@ -39,6 +48,20 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+function lazyWithDelay<T>(factory: () => Promise<T> | T, delay = 300) {
+  return lazy(() =>
+    Promise.all([
+      Promise.resolve(factory()),
+      new Promise((resolve) => setTimeout(resolve, delay)),
+    ]).then(([module]) => module as any),
+  );
+}
+
+const TopMoversSummary = lazyWithDelay(async () => {
+  const m: any = await import("./TopMoversSummary");
+  return { default: m.TopMoversSummary || m.default };
+});
 
 const PIE_COLORS = [
   "#8884d8",
@@ -247,36 +270,44 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
 
       {!relativeViewEnabled && <PortfolioSummary totals={totals} />}
 
-      <div
-        style={{
-          display: "flex",
-          gap: "2rem",
-          marginBottom: "1rem",
-          padding: "0.75rem 1rem",
-          backgroundColor: "#222",
-          border: "1px solid #444",
-          borderRadius: "6px",
-        }}
-      >
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Alpha vs Benchmark</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(safeAlpha)}
+      {alpha === null && trackingError === null && maxDrawdown === null ? (
+        <KPISkeleton />
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            gap: "2rem",
+            marginBottom: "1rem",
+            padding: "0.75rem 1rem",
+            backgroundColor: "#222",
+            border: "1px solid #444",
+            borderRadius: "6px",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+              Alpha vs Benchmark
+            </div>
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+              {percentOrNa(safeAlpha)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+              Tracking Error
+            </div>
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+              {percentOrNa(safeTrackingError)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+              {percentOrNa(safeMaxDrawdown)}
+            </div>
           </div>
         </div>
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Tracking Error</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(safeTrackingError)}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: "0.9rem", color: "#aaa" }}>Max Drawdown</div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(safeMaxDrawdown)}
-          </div>
-        </div>
-      </div>
+      )}
 
       {error && (
         <p style={{ color: "red" }}>
@@ -355,7 +386,11 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         </div>
       )}
 
-      <TopMoversSummary slug={slug} />
+      <Defer>
+        <Suspense fallback={<TableSkeleton />}>
+          <TopMoversSummary slug={slug} />
+        </Suspense>
+      </Defer>
 
       {/* Per-owner summary */}
       <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>

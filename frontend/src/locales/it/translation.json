@@ -30,12 +30,17 @@
       "settings": "Impostazioni utente",
       "profile": "Profilo",
       "pension": "Previsione pensionistica",
+      "trail": "Trail",
       "reports": "Segnalazioni",
       "alertsettings": "Alert Settings",
       "support": "Supporto",
       "scenario": "Tester di scenario",
-      "logs": "Tronchi"
+    "logs": "Tronchi"
     }
+  },
+  "trail": {
+    "daily": "Daily",
+    "once": "Once"
   },
   "common": {
     "error": "Errore",
@@ -155,7 +160,9 @@
       "delta": "Δ £",
       "deltaPct": "Δ %"
     },
-    "noPriceData": "Nessun dati sui prezzi"
+    "noPriceData": "Nessun dati sui prezzi",
+    "intraday": "Intraday",
+    "intradayUnavailable": "Dati intraday non disponibili"
   },
   "owner": {
     "label": "Proprietario",

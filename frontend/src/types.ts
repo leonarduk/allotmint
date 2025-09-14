@@ -23,6 +23,10 @@ export interface Holding {
   current_price_currency?: string | null;
   /** Date of the last known price for this holding */
   last_price_date?: string | null;
+  /** Timestamp of the last known price for this holding */
+  last_price_time?: string | null;
+  /** Whether the current price may be stale */
+  is_stale?: boolean;
   latest_source?: string | null;
   day_change_gbp?: number;
   day_change_currency?: string | null;
@@ -443,4 +447,16 @@ export interface QuestResponse {
   quests: Quest[];
   xp: number;
   streak: number;
+}
+
+export interface TrailTask {
+  id: string;
+  title: string;
+  type: "daily" | "once";
+  commentary: string;
+  completed: boolean;
+}
+
+export interface TrailResponse {
+  tasks: TrailTask[];
 }

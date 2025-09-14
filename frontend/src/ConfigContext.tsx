@@ -31,6 +31,7 @@ export interface TabsConfig {
   settings: boolean;
   profile: boolean;
   pension: boolean;
+  trail: boolean;
   alertsettings: boolean;
   taxharvest: boolean;
   taxallowances: boolean;
@@ -80,6 +81,7 @@ const defaultTabs: TabsConfig = {
   settings: true,
   profile: false,
   pension: true,
+  trail: true,
   alertsettings: true,
   taxharvest: true,
   taxallowances: true,

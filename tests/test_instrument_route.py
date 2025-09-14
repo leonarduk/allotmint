@@ -179,6 +179,23 @@ def test_non_gbp_instrument_has_distinct_close(monkeypatch):
     assert prices[-1]["close"] != prices[-1]["close_gbp"]
 
 
+def test_intraday_route(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    class FakeTicker:
+        def history(self, period: str, interval: str):
+            return pd.DataFrame({
+                "Datetime": [pd.Timestamp("2024-01-02T10:00:00")],
+                "Close": [10.0],
+            })
+
+    with patch("backend.routes.instrument.yf.Ticker", return_value=FakeTicker()):
+        client = _auth_client(app)
+        resp = client.get("/instrument/intraday?ticker=ABC.L")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["prices"][0]["close"] == pytest.approx(10.0)
+
 def test_base_currency_param_gbp_to_usd(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()

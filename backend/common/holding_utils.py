@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from typing import Any, Dict, Optional
 
 import pandas as pd
+import requests
 
 from backend.common.approvals import is_approval_valid
 from backend.common.constants import (
@@ -118,6 +119,55 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
 
     logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
     return result
+
+
+def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
+    """Fetch real-time quotes for ``full_tickers``.
+
+    Returns a mapping ``{'TICKER': {'price': float, 'timestamp': datetime}}``
+    where the timestamp is timezone-aware (UTC). Entries with missing data are
+    skipped. Any network or parsing errors result in an empty mapping.
+    """
+
+    out: dict[str, Dict[str, dt.datetime]] = {}
+    if not full_tickers:
+        return out
+
+    symbols = ",".join(full_tickers)
+    url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
+
+    try:
+        from backend.common.portfolio_utils import _fx_to_base  # type: ignore
+
+        fx_cache: Dict[str, float] = {}
+        resp = requests.get(url, timeout=5)
+        payload = resp.json().get("quoteResponse", {}).get("result", [])
+        for row in payload:
+            sym = row.get("symbol")
+            price = row.get("regularMarketPrice")
+            ts = row.get("regularMarketTime")
+            if sym and price is not None and ts:
+                price = float(price)
+
+                # Apply scaling override (e.g., GBX -> GBP)
+                tkr, exch = (sym.split(".", 1) + [""])[:2]
+                scale = get_scaling_override(tkr, exch, None)
+                price *= scale
+
+                # Convert to GBP using latest FX rates if necessary
+                meta = get_instrument_meta(sym)
+                ccy = (meta.get("currency") or "GBP").upper()
+                if ccy != "GBP":
+                    price *= _fx_to_base(ccy, "GBP", fx_cache)
+
+                out[sym.upper()] = {
+                    "price": price,
+                    "timestamp": dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc),
+                }
+    except Exception as exc:
+        logger.warning("live price fetch failed for %s: %s", symbols, exc)
+
+    return out
 
 
 # In-memory map populated elsewhere; exported for consumers that rely on it.
@@ -415,13 +465,26 @@ def enrich_holding(
     units = float(out.get(UNITS, 0) or 0)
 
     px = px_source = prev_px = None
+    last_price_time = None
+    is_stale = True
     if units != 0:
-        # Current price as of "yesterday" (app constraint)
-        asof_date = today - dt.timedelta(days=1)
-        px, px_source = _get_price_for_date_scaled(ticker, exchange, asof_date, field="Close_gbp")
+        from backend.common import portfolio_utils as pu  # local import to avoid circular
 
-        # price one day before to calculate day-on-day change
-        prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
+        snap = pu._PRICE_SNAPSHOT.get(full) or pu._PRICE_SNAPSHOT.get(ticker)
+        if isinstance(snap, dict) and snap.get("last_price") is not None:
+            px = float(snap["last_price"])
+            last_price_time = snap.get("last_price_time")
+            is_stale = bool(snap.get("is_stale", False))
+            px_source = "snapshot"
+            prev_date = _nearest_weekday(today - dt.timedelta(days=1), forward=False)
+        else:
+            # fallback to previous close
+            asof_date = today - dt.timedelta(days=1)
+            px, px_source = _get_price_for_date_scaled(
+                ticker, exchange, asof_date, field="Close_gbp"
+            )
+            prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
+
         prev_px, _ = _get_price_for_date_scaled(
             ticker, exchange, prev_date, field="Close_gbp"
         )
@@ -429,6 +492,8 @@ def enrich_holding(
     out["price"] = px  # legacy name used in parts of UI
     out["current_price_gbp"] = px
     out["latest_source"] = px_source
+    out["last_price_time"] = last_price_time
+    out["is_stale"] = is_stale
 
     if px is not None:
         mv = round(units * float(px), 2)

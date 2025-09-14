@@ -114,10 +114,23 @@ def fetch_yahoo_timeseries_range(ticker: str, exchange: str, start_date: date, e
 
 
 def fetch_yahoo_timeseries_period(
-    ticker: str, exchange: str = "US", period: str = "1y", interval: str = "1d"
+    ticker: str,
+    exchange: str = "US",
+    period: str = "1y",
+    interval: str = "1d",
+    normalize: bool = True,
 ) -> pd.DataFrame:
-    """
-    Backwards-compatible one-shot period-based fetch. Does NOT use rolling cache.
+    """Backwards-compatible one-shot period-based fetch.
+
+    Parameters
+    ----------
+    ticker, exchange, period, interval
+        Passed directly to ``yfinance.Ticker.history``.
+    normalize : bool, default True
+        When ``True`` (the default) the output is passed through
+        :func:`normalize_history` which truncates timestamps to ``date``
+        objects and attaches metadata columns. For intraday usage set this to
+        ``False`` to keep full ``datetime`` values.
     """
     full_ticker = _build_full_ticker(ticker, exchange)
     logger.debug(f"Fetching Yahoo data for {full_ticker} with period='{period}', interval='{interval}'")
@@ -128,7 +141,14 @@ def fetch_yahoo_timeseries_period(
         if df.empty:
             raise ValueError(f"No data returned for {full_ticker}")
 
-        return normalize_history(df, full_ticker, "Yahoo")
+        if normalize:
+            return normalize_history(df, full_ticker, "Yahoo")
+
+        # For intraday data we keep the timestamp column as-is
+        df = df.reset_index()
+        if "Datetime" in df.columns and "Date" not in df.columns:
+            df = df.rename(columns={"Datetime": "Date"})
+        return df
 
     except Exception as e:
         logger.error(f"Failed to fetch Yahoo data for {full_ticker}: {e}")

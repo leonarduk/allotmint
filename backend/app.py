@@ -73,6 +73,7 @@ from backend.routes.virtual_portfolio import router as virtual_portfolio_router
 from backend.routes.goals import router as goals_router
 from backend.routes.tax import router as tax_router
 from backend.routes.quest_routes import router as quest_router
+from backend.routes.trail import router as trail_router
 from backend.utils import page_cache
 
 logger = logging.getLogger(__name__)
@@ -211,6 +212,7 @@ def create_app() -> FastAPI:
     app.include_router(alerts_router, dependencies=protected)
     app.include_router(nudges_router, dependencies=protected)
     app.include_router(quest_router, dependencies=protected)
+    app.include_router(trail_router, dependencies=protected)
     app.include_router(compliance_router)
     app.include_router(screener_router)
     app.include_router(support_router)

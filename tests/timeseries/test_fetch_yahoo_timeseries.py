@@ -130,6 +130,28 @@ def test_fetch_yahoo_timeseries_period_success(mock_ticker_cls):
 
 
 @patch("backend.timeseries.fetch_yahoo_timeseries.yf.Ticker")
+def test_fetch_yahoo_timeseries_period_no_normalize_preserves_datetime(mock_ticker_cls):
+    mock_stock = Mock()
+    raw = pd.DataFrame(
+        {
+            "Open": [1.23],
+            "High": [2.34],
+            "Low": [1.11],
+            "Close": [2.22],
+            "Volume": [50],
+        },
+        index=pd.to_datetime(["2024-01-01 10:30:00"]),
+    )
+    raw.index.name = "Datetime"
+    mock_stock.history.return_value = raw
+    mock_ticker_cls.return_value = mock_stock
+    df = fetch_yahoo_timeseries_period(
+        "abc", "l", period="5d", interval="5m", normalize=False
+    )
+    assert df.loc[0, "Date"] == pd.Timestamp("2024-01-01 10:30:00")
+
+
+@patch("backend.timeseries.fetch_yahoo_timeseries.yf.Ticker")
 def test_fetch_yahoo_timeseries_period_empty(mock_ticker_cls):
     mock_stock = Mock()
     mock_stock.history.return_value = pd.DataFrame()

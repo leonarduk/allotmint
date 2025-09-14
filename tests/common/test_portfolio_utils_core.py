@@ -20,33 +20,33 @@ def test_compute_var_insufficient_data():
     assert pu.compute_var(df) is None
 
 
-def test_fx_to_gbp_cache_hit(monkeypatch):
+def test_fx_to_base_cache_hit(monkeypatch):
     cache = {"USD": 1.25}
 
     def fake_fetch(*args, **kwargs):
         raise AssertionError("fetch_fx_rate_range should not be called for cache hit")
 
     monkeypatch.setattr(pu, "fetch_fx_rate_range", fake_fetch)
-    assert pu._fx_to_gbp("usd", cache) == 1.25
+    assert pu._fx_to_base("usd", "GBP", cache) == 1.25
 
 
-def test_fx_to_gbp_cache_miss(monkeypatch):
+def test_fx_to_base_cache_miss(monkeypatch):
     cache = {}
     df = pd.DataFrame({"Rate": [1.3]})
     monkeypatch.setattr(pu, "fetch_fx_rate_range", lambda *args, **kwargs: df)
-    rate = pu._fx_to_gbp("USD", cache)
+    rate = pu._fx_to_base("USD", "GBP", cache)
     assert rate == 1.3
     assert cache["USD"] == 1.3
 
 
-def test_fx_to_gbp_fetch_failure(monkeypatch, caplog):
+def test_fx_to_base_fetch_failure(monkeypatch, caplog):
     def fake_fetch(*args, **kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(pu, "fetch_fx_rate_range", fake_fetch)
     cache = {}
     with caplog.at_level("WARNING"):
-        rate = pu._fx_to_gbp("USD", cache)
+        rate = pu._fx_to_base("USD", "GBP", cache)
     assert rate == 1.0
     assert cache["USD"] == 1.0
     assert "Failed to fetch FX rate" in caplog.text

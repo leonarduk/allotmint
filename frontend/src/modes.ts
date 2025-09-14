@@ -12,6 +12,7 @@ export type Mode =
   | "dataadmin"
   | "settings"
   | "profile"
+  | "trail"
   | "support"
   | "scenario"
   | "logs";
@@ -30,6 +31,7 @@ export const MODES: Mode[] = [
   "dataadmin",
   "settings",
   "profile",
+  "trail",
   "support",
   "scenario",
   "logs",

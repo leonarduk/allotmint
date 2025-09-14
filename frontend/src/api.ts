@@ -32,6 +32,7 @@ import type {
   ScenarioEvent,
   TradeSuggestion,
   QuestResponse,
+  TrailResponse,
   SectorContribution,
   RegionContribution,
   UserConfig,
@@ -513,6 +514,15 @@ export const getInstrumentDetail = (
     `${API_BASE}/instrument/?ticker=${encodeURIComponent(
       ticker
     )}&days=${days}&format=json`,
+    { signal },
+  );
+
+export const getInstrumentIntraday = (
+  ticker: string,
+  signal?: AbortSignal,
+) =>
+  fetchJson<{ ticker: string; prices: { timestamp: string; close: number }[] }>(
+    `${API_BASE}/instrument/intraday?ticker=${encodeURIComponent(ticker)}`,
     { signal },
   );
 
@@ -1074,6 +1084,15 @@ export const getQuests = () =>
 
 export const completeQuest = (id: string) =>
   fetchJson<QuestResponse>(`${API_BASE}/quests/${encodeURIComponent(id)}/complete`, {
+    method: "POST",
+  });
+
+// ───────────── Trail tasks API ─────────────
+export const getTrailTasks = () =>
+  fetchJson<TrailResponse>(`${API_BASE}/trail`);
+
+export const completeTrailTask = (id: string) =>
+  fetchJson<TrailResponse>(`${API_BASE}/trail/${encodeURIComponent(id)}/complete`, {
     method: "POST",
   });
 

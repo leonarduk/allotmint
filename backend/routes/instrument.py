@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
+import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -24,6 +25,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from backend.common.instruments import list_instruments
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import get_security_meta
+from backend.common.instrument_api import intraday_timeseries_for_ticker
 from backend.timeseries.cache import load_meta_timeseries_range
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 from backend.utils.fx_rates import fetch_fx_rate_range
@@ -339,6 +341,40 @@ async def instrument(
             ticker=ticker,
             df=df,
             positions=positions,
-            window_days=window_days,
+    window_days=window_days,
         )
     )
+
+
+@router.get("/intraday")
+async def intraday(
+    ticker: str = Query(..., description="Full ticker, e.g. VWRL.L"),
+):
+    """Return ~48h of intraday prices for ``ticker``.
+
+    Data is sourced from Yahoo Finance with a 5 minute interval. If no data is
+    available the endpoint responds with HTTP 404.
+    """
+
+    _validate_ticker(ticker)
+
+    tkr, *exch = ticker.split(".", 1)
+    full = f"{tkr}.{exch[0]}" if exch else tkr
+    try:
+        stock = yf.Ticker(full)
+        df = stock.history(period="2d", interval="5m")
+    except Exception as exc:  # pragma: no cover - network/IO errors
+        raise HTTPException(502, str(exc))
+    if df.empty:
+        raise HTTPException(404, f"No intraday data for {ticker}")
+
+    df = df.reset_index()
+    prices = [
+        {
+            "timestamp": row["Datetime"].to_pydatetime().isoformat(),
+            "close": float(row["Close"]),
+        }
+        for _, row in df.iterrows()
+    ]
+
+    return {"ticker": ticker, "prices": prices}

@@ -3,9 +3,8 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import asdict, dataclass, field
-from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional, overload
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -169,8 +168,7 @@ def _parse_str_list(val: Any) -> Optional[List[str]]:
     return None
 
 
-@lru_cache(maxsize=1)
-def load_config() -> Config:
+def _load_config() -> Config:
     """Load configuration from config.yaml with optional env overrides."""
     path = _project_config_path()
     data: Dict[str, Any] = {}
@@ -289,7 +287,7 @@ def load_config() -> Config:
     if alpha_key_env:
         data["alpha_vantage_key"] = alpha_key_env
 
-    return Config(
+    cfg = Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
         telegram_bot_token=data.get("telegram_bot_token"),
@@ -333,31 +331,19 @@ def load_config() -> Config:
         cors_origins=cors_origins,
     )
 
+    globals()["config"] = cfg
+    globals()["settings"] = cfg
 
-# New-style usage
-config = load_config()
+    return cfg
+
+
+config = _load_config()
 settings = config
 
 
-# ---- Back-compat helpers ----
-def get_config_dict() -> Dict[str, Any]:
-    """Return the config as a plain dict."""
-    return asdict(load_config())
-
-
-@overload
-def get_config() -> Dict[str, Any]: ...
-@overload
-def get_config(key: str, default: Any = None) -> Any: ...
-
-
-def get_config(key: Optional[str] = None, default: Any = None):
-    """
-    Backward-compatible accessor.
-      get_config() -> dict
-      get_config("key") -> value or default
-    """
-    d = get_config_dict()
-    if key is None:
-        return d
-    return d.get(key, default)
+def reload_config() -> Config:
+    """Reload configuration and update module-level ``config``."""
+    global config, settings
+    new_config = _load_config()
+    config = settings = new_config
+    return new_config

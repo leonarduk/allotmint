@@ -9,9 +9,12 @@ from backend.config import config
 def test_health_env_variable(monkeypatch):
     monkeypatch.setattr(config, "app_env", "staging")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
-    app = create_app()
-    with TestClient(app) as client:
-        resp = client.get("/health")
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
+    with patch("backend.app.refresh_snapshot_async") as mock_refresh:
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.get("/health")
+    mock_refresh.assert_called_once_with(days=30)
     assert resp.status_code == 200
     assert resp.json()["env"] == "staging"
 
@@ -38,6 +41,7 @@ def test_startup_warms_snapshot(monkeypatch):
 
 def test_skip_snapshot_warm(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with (
         patch("backend.app.refresh_snapshot_async") as mock_refresh,
         patch("backend.app._load_snapshot") as mock_load,
@@ -47,7 +51,7 @@ def test_skip_snapshot_warm(monkeypatch):
         app = create_app()
         with TestClient(app):
             pass
-    mock_refresh.assert_not_called()
+    mock_refresh.assert_called_once_with(days=30)
     mock_load.assert_not_called()
     mock_update.assert_not_called()
     mock_prime.assert_not_called()

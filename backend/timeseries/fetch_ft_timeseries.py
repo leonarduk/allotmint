@@ -159,12 +159,16 @@ if __name__ == "__main__":
     parser.set_defaults(selenium_headless=None)
     args = parser.parse_args()
 
-    cfg = get_config()
+    cfg = config
     df = fetch_ft_timeseries(
         args.ticker,
         days=args.days,
-        url_template=args.ft_url_template or cfg.get("ft_url_template"),
-        headless=args.selenium_headless if args.selenium_headless is not None else cfg.get("selenium_headless", True),
-        user_agent=args.selenium_user_agent or cfg.get("selenium_user_agent"),
+        url_template=args.ft_url_template or cfg.ft_url_template,
+        headless=(
+            args.selenium_headless
+            if args.selenium_headless is not None
+            else (cfg.selenium_headless if cfg.selenium_headless is not None else True)
+        ),
+        user_agent=args.selenium_user_agent or cfg.selenium_user_agent,
     )
     print(df.head())

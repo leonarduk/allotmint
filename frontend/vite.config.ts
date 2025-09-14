@@ -33,7 +33,7 @@ export default defineConfig(async ({ command }) => {
       ignore: ['**/*.test.tsx']
     })
     pageRoutes.push(
-      ...files.map((file) => `/${path.basename(file, '.tsx')}`)
+      ...files.map((file) => `/${path.basename(file, '.tsx').toLowerCase()}`)
     )
     const { createRequire } = await import('node:module')
     const require = createRequire(import.meta.url)

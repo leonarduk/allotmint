@@ -19,7 +19,7 @@ export default function SectionCard({
   children,
   items,
   emptyMessage = "No items.",
-  defaultOpen = true,
+  defaultOpen = false,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const isEmpty = Array.isArray(items) && items.length === 0;

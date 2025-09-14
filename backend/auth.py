@@ -38,9 +38,13 @@ logger = logging.getLogger(__name__)
 
 SECRET_KEY = os.getenv("JWT_SECRET")
 _testing = os.getenv("TESTING")
-app_env = (os.getenv("APP_ENV") or (config.app_env or "")).lower()
 if not SECRET_KEY:
-    if config.disable_auth or _testing or app_env not in {"production", "aws"}:
+    if (
+        config.disable_auth
+        or _testing
+        or (os.getenv("APP_ENV") or (config.app_env or "")).lower()
+        not in {"production", "aws"}
+    ):
         logger.warning("JWT_SECRET not set; using ephemeral secret for development")
         SECRET_KEY = secrets.token_urlsafe(32)
     else:

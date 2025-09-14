@@ -2,13 +2,15 @@ import { useEffect, useState, memo } from "react";
 import i18n from "i18next";
 import "./LanguageSwitcher.css";
 
+const base = import.meta.env.BASE_URL;
+
 const LANGUAGES = [
-  { code: "en", flag: "/flags/en.svg", name: "English" },
-  { code: "fr", flag: "/flags/fr.svg", name: "French" },
-  { code: "de", flag: "/flags/de.svg", name: "German" },
-  { code: "es", flag: "/flags/es.svg", name: "Spanish" },
-  { code: "pt", flag: "/flags/pt.svg", name: "Portuguese" },
-  { code: "it", flag: "/flags/it.svg", name: "Italian" },
+  { code: "en", flag: `${base}flags/en.svg`, name: "English" },
+  { code: "fr", flag: `${base}flags/fr.svg`, name: "French" },
+  { code: "de", flag: `${base}flags/de.svg`, name: "German" },
+  { code: "es", flag: `${base}flags/es.svg`, name: "Spanish" },
+  { code: "pt", flag: `${base}flags/pt.svg`, name: "Portuguese" },
+  { code: "it", flag: `${base}flags/it.svg`, name: "Italian" },
 ];
 
 export const LanguageSwitcher = memo(function LanguageSwitcher() {

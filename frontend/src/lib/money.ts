@@ -33,7 +33,8 @@ export const percentOrNa = (
     fractionDigits = 2,
     locale: string = i18n.language,
 ): string => {
-    if (typeof v !== "number" || !Number.isFinite(v) || Math.abs(v) > 1) {
+    if (typeof v !== "number" || !Number.isFinite(v)) return "N/A";
+    if (Math.abs(v) > 1) {
         console.warn("Metric value out of range:", v);
         return "N/A";
     }

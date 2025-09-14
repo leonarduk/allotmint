@@ -195,14 +195,14 @@ def create_app() -> FastAPI:
         "http://localhost:3000",
         "http://localhost:5173",
     ]
-    cors_origins = _validate_cors_origins(cfg.cors_origins or default_cors)
-    cors_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-    cors_headers = ["Authorization", "Content-Type"]
+    cors_origins = _validate_cors_origins(
+        list(dict.fromkeys((cfg.cors_origins or []) + default_cors))
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
-        allow_methods=cors_methods,
-        allow_headers=cors_headers,
+        allow_methods=["*"],
+        allow_headers=["*"],
         allow_credentials=True,
     )
     # Register SlowAPIMiddleware after CORSMiddleware so CORS preflight requests

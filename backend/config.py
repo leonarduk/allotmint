@@ -169,8 +169,14 @@ def _parse_str_list(val: Any) -> Optional[List[str]]:
     return None
 
 
-def _load_config() -> Config:
-    """Load configuration from config.yaml with optional env overrides."""
+@lru_cache(maxsize=None)
+def load_config() -> Config:
+    """Load configuration from config.yaml with optional env overrides.
+
+    This function is cached so repeated calls avoid re-parsing configuration
+    files. Tests and callers that need a fresh configuration can clear the
+    cache via ``load_config.cache_clear()``.
+    """
     path = _project_config_path()
     data: Dict[str, Any] = {}
 

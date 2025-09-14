@@ -132,6 +132,7 @@ def forecast_pension(
     investment_growth_pct: float = 5.0,
     desired_income_annual: Optional[float] = None,
     annuity_multiple: float = DEFAULT_ANNUITY_MULTIPLE,
+    initial_pot: float = 0.0,
     today: Optional[dt.date] = None,
 ) -> Dict[str, Any]:
     """Return a simple year-by-year pension income forecast.
@@ -140,9 +141,9 @@ def forecast_pension(
     ``normal_retirement_age`` fields.  The state pension amount, if provided,
     is assumed to start at ``retirement_age``.  ``contribution_annual`` and
     ``investment_growth_pct`` are used to project the size of a defined
-    contribution pot.  ``desired_income_annual`` is compared against the
-    projected pot (via ``annuity_multiple``) to determine the earliest age
-    that the desired income could be supported.
+    contribution pot, starting from ``initial_pot``.  ``desired_income_annual``
+    is compared against the projected pot (via ``annuity_multiple``) to
+    determine the earliest age that the desired income could be supported.
 
     The forecast runs from the current age (rounded down) up to but excluding
     ``death_age``.
@@ -155,12 +156,16 @@ def forecast_pension(
 
     start_age = int(current_age)
     if death_age <= start_age:
-        return {"forecast": [], "projected_pot_gbp": 0.0, "earliest_retirement_age": None}
+        return {
+            "forecast": [],
+            "projected_pot_gbp": float(initial_pot),
+            "earliest_retirement_age": None,
+        }
 
     pensions = db_pensions or []
     forecast: list[Dict[str, float]] = []
-    pot = 0.0
-    pot_at_retirement = 0.0
+    pot = initial_pot
+    pot_at_retirement = initial_pot
     earliest_age: Optional[int] = None
     growth_factor = 1 + investment_growth_pct / 100.0
     for age in range(start_age, death_age):

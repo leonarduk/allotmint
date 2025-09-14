@@ -15,7 +15,7 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
 
     def fake_forecast(**kwargs):
         called.update(kwargs)
-        return {"forecast": []}
+        return {"forecast": [], "projected_pot_gbp": 0.0}
 
     def fake_portfolio(owner: str, root=None):  # pragma: no cover - signature match
         return {
@@ -45,6 +45,7 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
     assert isinstance(body["current_age"], float)
     assert body["dob"] == "1980-01-01"
     assert body["pension_pot_gbp"] == 150
+    assert called["initial_pot"] == 150
 
 
 def test_pension_route_missing_dob(monkeypatch):

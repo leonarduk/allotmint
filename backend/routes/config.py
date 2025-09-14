@@ -8,7 +8,7 @@ import yaml
 from dataclasses import asdict
 from fastapi import APIRouter, HTTPException
 
-import backend.config as config_module
+from backend import config_module
 
 router = APIRouter(prefix="/config", tags=["config"])
 

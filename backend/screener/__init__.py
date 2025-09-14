@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Tuple
 import requests
 from pydantic import BaseModel
 
-import backend.config as config_module
+from backend import config_module
 
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
 # Cache configuration

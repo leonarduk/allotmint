@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-import backend.config as config_module
+from backend import config_module
 from backend.config import ConfigValidationError
 from backend.routes import timeseries_admin
 from backend import auth

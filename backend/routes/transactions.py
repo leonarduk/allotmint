@@ -110,7 +110,10 @@ def _load_all_transactions() -> List[Transaction]:
         except (OSError, json.JSONDecodeError):
             continue
         owner = data.get("owner", path.parent.name)
-        account = data.get("account_type", path.stem.replace("_transactions", ""))
+        account = (
+            data.get("account_type")
+            or path.stem.replace("_transactions", "")
+        ).lower()
         for t in data.get("transactions", []):
             t = dict(t)
             t.pop("account", None)
@@ -127,9 +130,13 @@ async def transactions_with_compliance(
 ):
     """Return transactions for ``owner`` annotated with compliance warnings."""
 
-    txs = [t.model_dump() for t in _load_all_transactions() if t.owner == owner]
+    txs = [t.model_dump() for t in _load_all_transactions() if t.owner.lower() == owner.lower()]
     if account:
-        txs = [t for t in txs if t.get("account") == account]
+        txs = [
+            t
+            for t in txs
+            if (t.get("account") or "").lower() == account.lower()
+        ]
     if ticker:
         txs = [t for t in txs if (t.get("ticker") or "").upper() == ticker.upper()]
     txs.sort(key=lambda t: _parse_date(t.get("date")) or date.min)
@@ -232,23 +239,23 @@ async def import_transactions(
 
 @router.post("/holdings/import")
 async def import_holdings(
-    request: Request,
     owner: str = Form(...),
     account: str = Form(...),
     provider: str = Form(...),
     file: UploadFile = File(...),
-) -> dict:
-    """Parse a holdings export and persist it to the accounts store."""
+) -> dict[str, str]:
+    """Parse a holdings export and persist it to the accounts store.
+
+    Returns a mapping containing the path of the written holdings file.
+    """
 
     data = await file.read()
     try:
-        root = request.app.state.accounts_root
         return update_holdings_from_csv.update_from_csv(
             owner,
             account,
             provider,
             data,
-            accounts_root=root,
         )
     except importers.UnknownProvider as exc:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {exc}")

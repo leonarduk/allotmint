@@ -10,7 +10,7 @@ from backend.common.portfolio_loader import rebuild_account_holdings
 def test_rebuild_account_holdings(tmp_path: Path) -> None:
     owner_dir = tmp_path / "alice"
     owner_dir.mkdir()
-    tx_file = owner_dir / "isa_transactions.json"
+    tx_file = owner_dir / "ISA_transactions.json"
     tx_data = {
         "currency": "GBP",
         "transactions": [

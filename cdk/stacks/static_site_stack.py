@@ -143,6 +143,9 @@ class StaticSiteStack(Stack):
             prune=True,
         )
 
+        # Deploy HTML without triggering a CloudFront invalidation here.
+        # The HTML cache TTL is short (5 minutes), so changes propagate quickly
+        # without risking long invalidation waits that can fail the deployment.
         html_deploy = s3_deployment.BucketDeployment(
             self,
             "DeployHtml",
@@ -151,8 +154,6 @@ class StaticSiteStack(Stack):
             exclude=["*"],
             include=["*.html"],
             cache_control=[s3_deployment.CacheControl.no_cache()],
-            distribution=distribution,
-            distribution_paths=["/*.html", "/*/index.html"],
             prune=False,
         )
         html_deploy.node.add_dependency(asset_deploy)

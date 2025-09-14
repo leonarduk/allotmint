@@ -24,7 +24,7 @@ import pandas as pd
 from backend.common import group_portfolio
 from backend.common import portfolio as portfolio_mod
 from backend.common.data_loader import DATA_BUCKET_ENV
-from backend.common.instruments import get_instrument_meta
+from backend.common.instruments import get_instrument_meta, instrument_meta_path
 from backend.common.portfolio_loader import list_portfolios  # existing helper
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
@@ -196,8 +196,6 @@ def refresh_snapshot_in_memory(
 # ──────────────────────────────────────────────────────────────
 # Securities universe
 # ──────────────────────────────────────────────────────────────
-INSTRUMENTS_DIR = config.data_root / "instruments"
-INSTRUMENTS_S3_PREFIX = "instruments"
 
 
 # Cache paths for which we've already logged missing metadata warnings to avoid
@@ -205,9 +203,10 @@ INSTRUMENTS_S3_PREFIX = "instruments"
 _MISSING_META: set[str] = set()
 
 # Shortcut metadata for well-known symbols that don't need a filesystem/S3
-# lookup.
+# lookup.  ``CASH.GBP`` is the canonical form; legacy ``<ccy>.CASH`` tickers are
+# normalised to this format for backward compatibility.
 _DEFAULT_META: Dict[str, Dict[str, str | None]] = {
-    "GBP.CASH": {
+    "CASH.GBP": {
         "name": "GBP Cash",
         "sector": None,
         "region": None,
@@ -218,61 +217,35 @@ _DEFAULT_META: Dict[str, Dict[str, str | None]] = {
 }
 
 
+def _canonicalise_cash_ticker(ticker: str) -> str:
+    """Return ``ticker`` upper-cased with any legacy ``<ccy>.CASH`` form normalised."""
+
+    t = ticker.upper()
+    parts = t.split(".")
+    if len(parts) == 2 and parts[1] == "CASH":
+        return f"CASH.{parts[0]}"
+    return t
+
+
 def _meta_from_file(ticker: str) -> Dict[str, str] | None:
     """Best-effort lookup of instrument metadata from data files or S3."""
-    t = ticker.upper()
+
+    t = _canonicalise_cash_ticker(ticker)
     if t in _DEFAULT_META:
         return _DEFAULT_META[t]
-    sym, exch = (t.split(".", 1) + ["Unknown"])[:2]
-    data: Dict[str, Any] | None = None
-    if config.app_env == "aws":
-        bucket = os.getenv(DATA_BUCKET_ENV)
-        if not bucket:
-            logger.error(
-                "Missing %s env var for instrument metadata; falling back to local files",
-                DATA_BUCKET_ENV,
-            )
-        else:
-            key = f"{INSTRUMENTS_S3_PREFIX}/{exch or 'Unknown'}/{sym}.json"
-            try:
-                import boto3  # type: ignore
-                from botocore.exceptions import BotoCoreError, ClientError
 
-                s3 = boto3.client("s3")
-                obj = s3.get_object(Bucket=bucket, Key=key)
-                body = obj.get("Body")
-                if body:
-                    data = json.loads(body.read().decode("utf-8"))
-                else:
-                    logger.error(
-                        "Empty S3 object body for instrument %s from bucket %s; falling back to local files",
-                        key,
-                        bucket,
-                    )
-            except (ClientError, BotoCoreError, json.JSONDecodeError) as exc:
-                logger.error(
-                    "Failed to fetch instrument %s from bucket %s: %s; falling back to local files",
-                    key,
-                    bucket,
-                    exc,
-                )
-            except ImportError as exc:
-                logger.warning(
-                    "boto3 not available for S3 instrument fetch: %s; falling back to local files",
-                    exc,
-                )
-    if data is None:
-        path = INSTRUMENTS_DIR / (exch or "Unknown") / f"{sym}.json"
-        try:
-            data = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError) as exc:
-            path_str = str(path)
-            if path_str not in _MISSING_META:
-                _MISSING_META.add(path_str)
-                logger.warning("Instrument metadata %s not found or invalid: %s", path_str, exc)
-            return None
+    data = get_instrument_meta(t)
+    if not data:
+        sym, exch = (t.split(".", 1) + ["Unknown"])[:2]
+        path = instrument_meta_path(sym, exch or "Unknown")
+        path_str = str(path)
+        if path_str not in _MISSING_META:
+            _MISSING_META.add(path_str)
+            logger.warning("Instrument metadata %s not found or invalid", path_str)
+        return None
+
     return {
-        "name": data.get("name", ticker.upper()),
+        "name": data.get("name", t),
         "sector": data.get("sector"),
         "region": data.get("region"),
         "currency": data.get("currency"),

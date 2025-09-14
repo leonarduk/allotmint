@@ -23,6 +23,7 @@ export default function AlertSettings() {
   const [pushStatus, setPushStatus] = useState<
     "idle" | "enabled" | "disabled" | "denied" | "error"
   >("idle");
+  const [swMissing, setSwMissing] = useState(false);
 
   useEffect(() => {
     if (!owner) {
@@ -41,12 +42,17 @@ export default function AlertSettings() {
       "PushManager" in window
     ) {
       setPushSupported(true);
+      const timeoutId = setTimeout(() => setSwMissing(true), 3000);
       navigator.serviceWorker.ready
-        .then((reg) => reg.pushManager.getSubscription())
+        .then((reg) => {
+          clearTimeout(timeoutId);
+          return reg.pushManager.getSubscription();
+        })
         .then((sub) => setPushEnabled(!!sub))
         .catch(() => {
           /* ignore */
         });
+      return () => clearTimeout(timeoutId);
     }
   }, []);
 
@@ -117,6 +123,7 @@ export default function AlertSettings() {
       <Menu />
       <h1>{t("alertSettings.title")}</h1>
       <p>{t("alertSettings.description")}</p>
+      {!owner && <p>{t("alertSettings.signInNotice")}</p>}
       <div style={{ marginTop: "1rem" }}>
         <label>
           {t("alertSettings.threshold")}{" "}
@@ -129,7 +136,11 @@ export default function AlertSettings() {
             style={{ width: "4rem" }}
           />
         </label>
-        <button onClick={save} style={{ marginLeft: "0.5rem" }}>
+        <button
+          onClick={save}
+          style={{ marginLeft: "0.5rem" }}
+          disabled={!owner}
+        >
           {t("alertSettings.save")}
         </button>
         {status === "saved" && (
@@ -147,6 +158,11 @@ export default function AlertSettings() {
         <h2>{t("alertSettings.push.title")}</h2>
         {!pushSupported ? (
           <p>{t("alertSettings.push.notSupported")}</p>
+        ) : swMissing ? (
+          <p>
+            Push notifications require a service worker; please build or enable
+            service workers in development.
+          </p>
         ) : (
           <div>
             <button

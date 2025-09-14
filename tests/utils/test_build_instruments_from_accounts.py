@@ -47,7 +47,7 @@ def test_infer_currency(sym, exch, scaling, expected):
     assert infer_currency(sym, exch, scaling) == expected
 
 
-def test_build_instruments(monkeypatch, tmp_path):
+def test_build_and_write_instruments(monkeypatch, tmp_path):
     accounts_dir = tmp_path / "accounts"
     owner_dir = accounts_dir / "alice"
     owner_dir.mkdir(parents=True)
@@ -88,3 +88,27 @@ def test_build_instruments(monkeypatch, tmp_path):
     assert equity["name"] == "ABC PLC"
     assert equity["currency"] == "GBP"
     assert equity["exchange"] == "L"
+
+    bia.write_instrument_files(instruments)
+
+    cash_file = instruments_dir / "Cash" / "GBP.json"
+    equity_file = instruments_dir / "L" / "ABC.json"
+    cash_data = json.loads(cash_file.read_text(encoding="utf-8"))
+    equity_data = json.loads(equity_file.read_text(encoding="utf-8"))
+
+    assert cash_data == {
+        "ticker": "CASH.GBP",
+        "name": "Cash (GBP)",
+        "sector": None,
+        "region": None,
+        "exchange": None,
+        "currency": "GBP",
+    }
+    assert equity_data == {
+        "ticker": "ABC.L",
+        "name": "ABC PLC",
+        "sector": None,
+        "region": None,
+        "exchange": "L",
+        "currency": "GBP",
+    }

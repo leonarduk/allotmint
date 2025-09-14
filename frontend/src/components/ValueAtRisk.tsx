@@ -60,7 +60,7 @@ export function ValueAtRisk({ owner }: Props) {
     <div style={{ marginBottom: "2rem" }}>
       <h2>{t("var.title")}</h2>
       <p style={{ fontSize: "0.85rem", marginTop: "-0.5rem" }}>
-        <a href="/docs/value_at_risk.md" target="_blank" rel="noopener noreferrer">
+        <a href="/value_at_risk.md" target="_blank" rel="noopener noreferrer">
           {t("var.details")}
         </a>
       </p>

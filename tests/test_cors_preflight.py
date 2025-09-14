@@ -27,3 +27,19 @@ def test_cors_preflight(monkeypatch):
     assert "Authorization" in allow_headers
     assert "Content-Type" in allow_headers
     assert "*" not in allow_headers
+
+
+def test_cors_preflight_app_origin_always_allowed(monkeypatch):
+    origin = "https://app.allotmint.io"
+    monkeypatch.setattr(config, "cors_origins", ["http://localhost:3000"])
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    with TestClient(app) as client:
+        headers = {
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization,Content-Type",
+        }
+        resp = client.options("/health", headers=headers)
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == origin

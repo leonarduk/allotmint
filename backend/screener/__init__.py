@@ -14,12 +14,15 @@ from typing import Dict, List, Optional, Tuple
 import requests
 from pydantic import BaseModel
 
-from backend.config import settings
+from backend import config_module
+
+cfg = getattr(config_module, "settings", config_module.config)
+config = cfg
 
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
 # Cache configuration
 _MIN_TTL = 24 * 60 * 60  # one day
-ttl_cfg = settings.fundamentals_cache_ttl_seconds or _MIN_TTL
+ttl_cfg = cfg.fundamentals_cache_ttl_seconds or _MIN_TTL
 _CACHE_TTL_SECONDS = max(
     _MIN_TTL,
     min(ttl_cfg, 7 * 24 * 60 * 60),
@@ -80,11 +83,7 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
     endpoint, utilising a simple in-memory cache.
     """
 
-    api_key = settings.alpha_vantage_key
-    if not api_key:
-        raise RuntimeError(
-            "Alpha Vantage API key not configured; set ALPHA_VANTAGE_KEY in your environment or .env file"
-        )
+    api_key = cfg.alpha_vantage_key or "demo"
 
     key = (ticker.upper(), date.today().isoformat())
     now = datetime.now(UTC)

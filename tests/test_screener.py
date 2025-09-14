@@ -46,7 +46,7 @@ def test_fetch_fundamentals_parses_values(monkeypatch):
 
     from backend import config
 
-    monkeypatch.setattr(config.settings, "alpha_vantage_key", "demo")
+    monkeypatch.setattr(config, "alpha_vantage_key", "demo")
     monkeypatch.setattr("backend.screener.requests.get", mock_get)
 
     f = fetch_fundamentals("aapl")

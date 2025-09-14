@@ -9,7 +9,10 @@ from typing import Any, Dict, Iterable
 import boto3
 import requests
 
-from backend.config import config
+from backend import config_module
+
+cfg = getattr(config_module, "settings", config_module.config)
+config = cfg
 
 log = logging.getLogger("tasks.quotes")
 
@@ -19,9 +22,9 @@ TABLE_NAME = os.environ.get("QUOTES_TABLE", "Quotes")
 
 def fetch_quote(symbol: str, api_key: str | None = None) -> Dict[str, Any]:
     """Fetch a single quote from Alpha Vantage."""
-    if not config.alpha_vantage_enabled:
+    if not cfg.alpha_vantage_enabled:
         raise RuntimeError("Alpha Vantage fetching disabled via config")
-    key = api_key or config.alpha_vantage_key or "demo"
+    key = api_key or cfg.alpha_vantage_key or "demo"
     params = {"function": "GLOBAL_QUOTE", "symbol": symbol, "apikey": key}
     resp = requests.get(BASE_URL, params=params, timeout=10)
     resp.raise_for_status()

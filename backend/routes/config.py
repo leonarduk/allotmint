@@ -1,21 +1,25 @@
 from __future__ import annotations
 
+import os
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict
 
-import os
+import logging
 import yaml
 from fastapi import APIRouter, HTTPException
 
+from backend import config_module
 from backend.config import (
     ConfigValidationError,
     _project_config_path,
-    get_config_dict,
-    load_config,
+    config,
     validate_google_auth,
 )
 
 router = APIRouter(prefix="/config", tags=["config"])
+
+logger = logging.getLogger(__name__)
 
 
 def deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
@@ -29,7 +33,7 @@ def deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
 @router.get("")
 async def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
-    return get_config_dict()
+    return asdict(config_module.config)
 
 
 @router.put("")
@@ -103,6 +107,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         validate_google_auth(google_auth_enabled, google_client_id)
     except ConfigValidationError as exc:
+        logger.error("Invalid config update: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
 
     try:
@@ -111,8 +116,10 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:
         raise HTTPException(500, f"Failed to write config: {exc}")
 
-    load_config.cache_clear()
     try:
-        return get_config_dict()
+        config_module.load_config.cache_clear()
+        cfg = config_module.load_config()
+        return asdict(cfg)
     except ConfigValidationError as exc:
+        logger.error("Invalid config after reload: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))

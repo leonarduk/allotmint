@@ -67,15 +67,13 @@ def test_save_approvals_persists(tmp_path):
     assert loaded == approvals
 
 
-def test_load_approvals_creates_default(tmp_path):
+def test_load_approvals_missing(tmp_path):
     owner_dir = tmp_path / "charlie"
     owner_dir.mkdir()
     loaded = load_approvals("charlie", accounts_root=tmp_path)
     assert loaded == {}
     path = owner_dir / "approvals.json"
-    assert path.exists()
-    data = json.loads(path.read_text())
-    assert data == {"approvals": []}
+    assert not path.exists()
 
 
 def test_approvals_endpoints(tmp_path):
@@ -88,6 +86,8 @@ def test_approvals_endpoints(tmp_path):
     config.skip_snapshot_warm = True
     config.offline_mode = True
     app = create_app()
+    config.accounts_root = tmp_path
+    app.state.accounts_root = tmp_path
     client = TestClient(app)
     try:
         resp = client.get("/accounts/bob/approvals")

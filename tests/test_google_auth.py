@@ -1,20 +1,29 @@
-from fastapi.testclient import TestClient
+from typing import Optional
+import sys
+from dataclasses import replace
+import functools
+
 import pandas as pd
 import pytest
-from typing import Optional
+from fastapi.testclient import TestClient
 
 from backend.app import create_app
-from backend.config import ConfigValidationError, config
+from backend.config import ConfigValidationError, reload_config
+from backend import config_module
 from backend.routes import timeseries_admin
 from backend import auth
 
 
 def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@example.com"):
-    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
-    monkeypatch.setattr(config, "disable_auth", False)
-    monkeypatch.setattr(config, "google_auth_enabled", True)
-    monkeypatch.setattr(config, "google_client_id", "client")
+
+    app = create_app()
+
+    cfg_module = sys.modules["backend.config"]
+    monkeypatch.setattr(cfg_module.config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(cfg_module.config, "disable_auth", False)
+    monkeypatch.setattr(cfg_module.config, "google_auth_enabled", True)
+    monkeypatch.setattr(cfg_module.config, "google_client_id", "client")
 
     accounts_root = tmp_path / "accounts"
     accounts_root.mkdir(parents=True)
@@ -24,9 +33,8 @@ def _setup_app(monkeypatch, tmp_path, allowed_email: Optional[str] = "user@examp
         (owner_dir / "person.json").write_text(
             f'{{"email": "{allowed_email}"}}', encoding="utf-8"
         )
-    monkeypatch.setattr(config, "accounts_root", accounts_root)
+    monkeypatch.setattr(cfg_module.config, "accounts_root", accounts_root)
 
-    app = create_app()
     return TestClient(app)
 
 
@@ -71,18 +79,25 @@ def test_google_token_rejects_when_no_accounts(monkeypatch, tmp_path):
 def test_startup_requires_google_client_id(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "")
-    from backend.config import load_config
-
-    load_config.cache_clear()
     with pytest.raises(ConfigValidationError):
-        load_config()
+        reload_config()
 
 
 def test_missing_client_id_fails_startup(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
-    from backend import config as cfg
-    cfg.load_config.cache_clear()
     with pytest.raises(ConfigValidationError):
-        cfg.load_config()
-    cfg.load_config.cache_clear()
+        reload_config()
+
+
+def test_create_app_guard_raises(monkeypatch):
+    base = config_module.reload_config()
+
+    def fake_load_config():
+        return replace(base, google_auth_enabled=True, google_client_id=None)
+
+    monkeypatch.setattr(config_module, "load_config", functools.lru_cache()(fake_load_config))
+    config_module.load_config.cache_clear()
+
+    with pytest.raises(RuntimeError):
+        create_app()

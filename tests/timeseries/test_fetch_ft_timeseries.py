@@ -16,7 +16,7 @@ def test_build_ft_ticker_non_isin_returns_none():
     assert _build_ft_ticker("AAPL") is None
 
 
-def test_fetch_ft_timeseries_range_no_cookie_banner(monkeypatch):
+def test_fetch_ft_timeseries_range_cookie_banner(monkeypatch):
     html = """
     <table class="mod-ui-table">
     <thead>
@@ -29,7 +29,7 @@ def test_fetch_ft_timeseries_range_no_cookie_banner(monkeypatch):
     </table>
     """
 
-    class FakeElement:
+    class FakeTableElement:
         def __init__(self, html: str):
             self.html = html
 
@@ -37,27 +37,32 @@ def test_fetch_ft_timeseries_range_no_cookie_banner(monkeypatch):
             assert name == "outerHTML"
             return self.html
 
-        def click(self):
-            pass
+    class FakeCookieElement:
+        def __init__(self, driver):
+            self.driver = driver
 
-    class FakeDriver:
+        def click(self):
+            self.driver.cookie_clicked = True
+
+    class FakeChrome:
         def __init__(self):
             self.quit_called = False
+            self.cookie_clicked = False
 
         def get(self, url: str):
             self.url = url
 
         def find_element(self, by, selector):
             if selector == "button.js-accept-all-cookies":
-                raise Exception("no cookie banner")
+                return FakeCookieElement(self)
             if selector == "table.mod-ui-table":
-                return FakeElement(html)
+                return FakeTableElement(html)
             raise Exception("unexpected selector")
 
         def quit(self):
             self.quit_called = True
 
-    driver = FakeDriver()
+    driver = FakeChrome()
 
     class FakeWait:
         def __init__(self, driver, timeout):
@@ -66,18 +71,24 @@ def test_fetch_ft_timeseries_range_no_cookie_banner(monkeypatch):
         def until(self, condition):
             return True
 
-    monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.init_driver", lambda *a, **k: driver)
+    monkeypatch.setattr(
+        "backend.timeseries.fetch_ft_timeseries.webdriver.Chrome", lambda *a, **k: driver
+    )
     monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.WebDriverWait", FakeWait)
+    monkeypatch.setattr(
+        "backend.timeseries.fetch_ft_timeseries.time.sleep", lambda *a, **k: None
+    )
 
     df = fetch_ft_timeseries_range("TEST:GBP", date(2024, 1, 1), date(2024, 1, 2))
 
+    assert driver.cookie_clicked
     assert not df.empty
     assert list(df.columns) == STANDARD_COLUMNS
     assert driver.quit_called
 
 
 def test_fetch_ft_timeseries_range_find_element_failure(monkeypatch):
-    class FailingDriver:
+    class FailingChrome:
         def __init__(self):
             self.quit_called = False
 
@@ -90,7 +101,7 @@ def test_fetch_ft_timeseries_range_find_element_failure(monkeypatch):
         def quit(self):
             self.quit_called = True
 
-    driver = FailingDriver()
+    driver = FailingChrome()
 
     class FakeWait:
         def __init__(self, driver, timeout):
@@ -99,15 +110,19 @@ def test_fetch_ft_timeseries_range_find_element_failure(monkeypatch):
         def until(self, condition):
             return True
 
-    monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.init_driver", lambda *a, **k: driver)
+    monkeypatch.setattr(
+        "backend.timeseries.fetch_ft_timeseries.webdriver.Chrome", lambda *a, **k: driver
+    )
     monkeypatch.setattr("backend.timeseries.fetch_ft_timeseries.WebDriverWait", FakeWait)
 
     df = fetch_ft_timeseries_range("TEST:GBP", date(2024, 1, 1), date(2024, 1, 2))
 
     assert df.empty
+    assert list(df.columns) == STANDARD_COLUMNS
     assert driver.quit_called
 
 
 def test_fetch_ft_timeseries_non_isin_returns_empty_df():
     df = fetch_ft_timeseries("AAPL")
     assert df.empty
+

@@ -5,7 +5,8 @@ import os
 from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional, overload
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -57,6 +58,11 @@ class TabsConfig:
     virtual: bool = True
     support: bool = True
     settings: bool = True
+    alertsettings: bool = True
+    tradecompliance: bool = True
+    trail: bool = True
+    taxharvest: bool = True
+    taxallowances: bool = True
     profile: bool = False
     pension: bool = True
     reports: bool = True
@@ -169,9 +175,14 @@ def _parse_str_list(val: Any) -> Optional[List[str]]:
     return None
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=None)
 def load_config() -> Config:
-    """Load configuration from config.yaml with optional env overrides."""
+    """Load configuration from config.yaml with optional env overrides.
+
+    This function is cached so repeated calls avoid re-parsing configuration
+    files. Tests and callers that need a fresh configuration can clear the
+    cache via ``load_config.cache_clear()``.
+    """
     path = _project_config_path()
     data: Dict[str, Any] = {}
 
@@ -289,7 +300,7 @@ def load_config() -> Config:
     if alpha_key_env:
         data["alpha_vantage_key"] = alpha_key_env
 
-    return Config(
+    cfg = Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
         telegram_bot_token=data.get("telegram_bot_token"),
@@ -333,31 +344,28 @@ def load_config() -> Config:
         cors_origins=cors_origins,
     )
 
+    return cfg
 
-# New-style usage
-config = load_config()
-settings = config
-
-
-# ---- Back-compat helpers ----
-def get_config_dict() -> Dict[str, Any]:
-    """Return the config as a plain dict."""
-    return asdict(load_config())
+settings = load_config()
+config = settings
 
 
-@overload
-def get_config() -> Dict[str, Any]: ...
-@overload
-def get_config(key: str, default: Any = None) -> Any: ...
+def reload_config() -> Config:
+    """Reload configuration and update module-level ``config``."""
+    global config, settings
+    load_config.cache_clear()
+    new_config = load_config()
+    if isinstance(config, Config):
+        config.__dict__.update(new_config.__dict__)
+        settings = config
+        return config
+    config = settings = new_config
+    return new_config
 
 
-def get_config(key: Optional[str] = None, default: Any = None):
-    """
-    Backward-compatible accessor.
-      get_config() -> dict
-      get_config("key") -> value or default
-    """
-    d = get_config_dict()
-    if key is None:
-        return d
-    return d.get(key, default)
+def __getattr__(name: str) -> Any:
+    try:
+        return getattr(load_config(), name)
+    except AttributeError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+

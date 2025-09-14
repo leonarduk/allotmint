@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-import backend.config as config_module
+from backend.config import reload_config
 
 
 def import_cache():
@@ -13,26 +13,29 @@ def import_cache():
 
 
 def test_missing_cache_base_raises(monkeypatch):
-    importlib.reload(config_module)
+    reload_config()
     monkeypatch.delenv("TIMESERIES_CACHE_BASE", raising=False)
-    monkeypatch.setattr(config_module.config, "timeseries_cache_base", None)
+    cfg_module = sys.modules["backend.config"]
+    monkeypatch.setattr(cfg_module.config, "timeseries_cache_base", None)
     sys.modules.pop("backend.timeseries.cache", None)
     with pytest.raises(ValueError, match="TIMESERIES_CACHE_BASE"):
         import_cache()
 
 
 def test_cache_base_from_env(monkeypatch, tmp_path):
-    importlib.reload(config_module)
-    monkeypatch.setattr(config_module.config, "timeseries_cache_base", None)
+    reload_config()
+    cfg_module = sys.modules["backend.config"]
+    monkeypatch.setattr(cfg_module.config, "timeseries_cache_base", None)
     monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
     cache = import_cache()
     assert cache._cache_path("bar") == str(tmp_path / "bar")
 
 
 def test_cache_base_from_config(monkeypatch, tmp_path):
-    importlib.reload(config_module)
+    reload_config()
     monkeypatch.delenv("TIMESERIES_CACHE_BASE", raising=False)
-    monkeypatch.setattr(config_module.config, "timeseries_cache_base", str(tmp_path))
+    cfg_module = sys.modules["backend.config"]
+    monkeypatch.setattr(cfg_module.config, "timeseries_cache_base", str(tmp_path))
     cache = import_cache()
     assert cache._cache_path("baz") == str(tmp_path / "baz")
 

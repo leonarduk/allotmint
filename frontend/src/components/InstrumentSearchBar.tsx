@@ -1,6 +1,11 @@
-import { useEffect, useState, useRef, memo } from "react";
+import { useEffect, useState, useRef, memo, useId } from "react";
 import { useNavigate } from "react-router-dom";
 import { searchInstruments } from "../api";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 
 interface Result {
   ticker: string;
@@ -25,7 +30,13 @@ const SECTORS = [
 
 const REGIONS = ["Africa", "Asia", "Europe", "North America", "South America", "Oceania", "UK", "US"];
 
-export default memo(function InstrumentSearchBar() {
+interface InstrumentSearchBarProps {
+  onNavigate?: () => void;
+}
+
+const InstrumentSearchBar = memo(function InstrumentSearchBar({
+  onNavigate,
+}: InstrumentSearchBarProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState("");
@@ -72,6 +83,7 @@ export default memo(function InstrumentSearchBar() {
     setQuery("");
     setResults([]);
     navigate(`/research/${encodeURIComponent(tkr)}`);
+    onNavigate?.();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -88,7 +100,13 @@ export default memo(function InstrumentSearchBar() {
   };
 
   return (
-    <div style={{ position: "relative", marginLeft: "1rem" }}>
+    <div
+      style={{
+        position: "relative",
+        flex: 1,
+        minWidth: "15rem",
+      }}
+    >
       <div style={{ display: "flex", gap: "0.25rem" }}>
         <input
           type="text"
@@ -168,3 +186,62 @@ export default memo(function InstrumentSearchBar() {
     </div>
   );
 });
+
+export function InstrumentSearchBarToggle() {
+  const [open, setOpen] = useState(false);
+  const contentId = useId();
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} style={{ marginLeft: "1rem" }}>
+      <CollapsibleTrigger
+        type="button"
+        aria-controls={contentId}
+        aria-expanded={open}
+        style={{
+          padding: "0.25rem 0.75rem",
+          borderRadius: "0.25rem",
+          border: "1px solid #ccc",
+          background: open ? "#eee" : "#fff",
+          cursor: "pointer",
+        }}
+      >
+        Research
+      </CollapsibleTrigger>
+      <CollapsibleContent
+        id={contentId}
+        style={{
+          marginTop: "0.5rem",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "0.5rem",
+          }}
+        >
+          <InstrumentSearchBar onNavigate={() => setOpen(false)} />
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close search"
+            style={{
+              padding: "0.25rem 0.5rem",
+              borderRadius: "0.25rem",
+              border: "1px solid #ccc",
+              background: "#f5f5f5",
+              cursor: "pointer",
+              alignSelf: "center",
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+export default InstrumentSearchBarToggle;
+
+export { InstrumentSearchBar };

@@ -28,6 +28,10 @@ def _client(monkeypatch, list_plots_return, build_map=None):
         "backend.routes.scenario.apply_price_shock",
         lambda pf, ticker, pct: {"total_value_estimate_gbp": pf["total_value_estimate_gbp"] * (1 + pct)},
     )
+    monkeypatch.setattr(
+        "backend.routes.scenario.apply_historical_event",
+        lambda pf, event_id=None, date=None, horizons=None: {h: pf for h in horizons or []},
+    )
     return TestClient(app)
 
 
@@ -60,3 +64,11 @@ def test_run_scenario_derives_baseline(monkeypatch):
     data = resp.json()[0]
     assert data["baseline_total_value_gbp"] == 120
     assert data["delta_gbp"] == 12.0
+
+
+def test_historical_scenario_parses_tokens(monkeypatch):
+    client = _client(monkeypatch, [{"owner": "alice", "accounts": [1]}])
+    resp = client.get(
+        "/scenario/historical", params={"event_id": "evt", "horizons": "1d,1w"}
+    )
+    assert resp.status_code == 200

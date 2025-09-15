@@ -206,6 +206,7 @@
     "onlineYes": "Ja",
     "onlineNo": "Nein",
     "environment": "Umgebung",
+    "priceRefresh": "Preisaktualisierung",
     "telegramMessage": "Telegram-Nachricht",
     "send": "Senden",
     "status": {

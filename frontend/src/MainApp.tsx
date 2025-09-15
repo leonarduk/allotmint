@@ -23,7 +23,6 @@ import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import Menu from "./components/Menu";
 import { useRoute } from "./RouteContext";
-import PriceRefreshControls from "./components/PriceRefreshControls";
 import { Header } from "./components/Header";
 import InstallPwaPrompt from "./components/InstallPwaPrompt";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
@@ -208,14 +207,6 @@ export default function MainApp() {
       />
 
       <QuestBoard />
-
-      <PriceRefreshControls
-        mode={mode}
-        selectedOwner={selectedOwner}
-        selectedGroup={selectedGroup}
-        onPortfolio={setPortfolio}
-        onInstruments={setInstruments}
-      />
 
       {/* OWNER VIEW */}
       {mode === "owner" && (

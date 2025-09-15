@@ -10,12 +10,14 @@ import {
   deletePushSubscription,
   checkPortfolioHealth,
   type Finding,
+  refreshPrices,
 } from "../api";
 import { useConfig } from "../ConfigContext";
 import { OwnerSelector } from "../components/OwnerSelector";
 import SectionCard from "../components/SectionCard";
 import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
+import { usePriceRefresh } from "../PriceRefreshContext";
 
 const TAB_KEYS = orderedTabPlugins.map((p) => p.id) as TabPluginId[];
 const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record<
@@ -43,6 +45,9 @@ export default function Support() {
   const [health, setHealth] = useState<Finding[]>([]);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [healthRunning, setHealthRunning] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const { lastRefresh, setLastRefresh } = usePriceRefresh();
 
   const envEntries = Object.entries(import.meta.env).sort();
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
@@ -128,6 +133,19 @@ export default function Support() {
       );
     } catch {
       /* ignore */
+    }
+  }
+
+  async function handleRefreshPrices() {
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      const resp = await refreshPrices();
+      setLastRefresh(resp.timestamp ?? new Date().toISOString());
+    } catch (e) {
+      setRefreshError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -312,6 +330,25 @@ export default function Support() {
             })}
           </tbody>
         </table>
+      </SectionCard>
+
+      <SectionCard title={t("support.priceRefresh")}> 
+        <button
+          type="button"
+          onClick={handleRefreshPrices}
+          disabled={refreshing}
+          className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+        >
+          {refreshing ? t("app.refreshing") : t("app.refreshPrices")}
+        </button>
+        {lastRefresh && (
+          <span className="ml-2 text-sm text-gray-600">
+            {t("app.last")} {new Date(lastRefresh).toLocaleString()}
+          </span>
+        )}
+        {refreshError && (
+          <span className="ml-2 text-sm text-red-600">{refreshError}</span>
+        )}
       </SectionCard>
 
       <SectionCard title={t("support.health.title")} items={health}>

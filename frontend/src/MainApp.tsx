@@ -40,7 +40,9 @@ const InstrumentAdmin = lazy(() => import("./pages/InstrumentAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
 const LogsPage = lazy(() => import("./pages/Logs"));
-const PortfolioDashboard = lazyWithDelay(() => import("./pages/PortfolioDashboard"));
+const PerformanceDashboard = lazyWithDelay(
+  () => import("./components/PerformanceDashboard"),
+);
 
 export default function MainApp() {
   const navigate = useNavigate();
@@ -277,19 +279,7 @@ export default function MainApp() {
             onSelect={setSelectedOwner}
           />
           <Suspense fallback={<PortfolioDashboardSkeleton />}>
-            <PortfolioDashboard
-              twr={null}
-              irr={null}
-              bestDay={null}
-              worstDay={null}
-              lastDay={null}
-              alpha={null}
-              trackingError={null}
-              maxDrawdown={null}
-              volatility={null}
-              data={[]}
-              owner={selectedOwner}
-            />
+            <PerformanceDashboard owner={selectedOwner} />
           </Suspense>
         </>
       )}

@@ -36,8 +36,8 @@ server:
 market_data:
   offline_mode: false                 # Run without external data fetches
   fx_proxy_url: ''                    # Optional proxy for FX rates
-  alpha_vantage_enabled: false        # Use AlphaVantage for quotes
-  alpha_vantage_key: ""              # AlphaVantage API key (ALPHA_VANTAGE_KEY)
+  alpha_vantage_enabled: true         # Use AlphaVantage for quotes
+  alpha_vantage_key: "demo"          # AlphaVantage API key (ALPHA_VANTAGE_KEY)
   fundamentals_cache_ttl_seconds: 86400 # TTL for fundamentals cache (seconds)
   stooq_timeout: 10                   # Timeout for Stooq requests (seconds)
   stooq_requests_per_minute: 60       # Rate limit for Stooq requests

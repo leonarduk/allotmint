@@ -7,8 +7,13 @@ interface Position {
   price: number;
 }
 
+interface Trade {
+  ticker: string;
+  loss: number;
+}
+
 export default function TaxHarvest() {
-  const [trades, setTrades] = useState<any[] | null>(null);
+  const [trades, setTrades] = useState<Trade[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const samplePositions: Position[] = [
     { ticker: "ABC", basis: 100, price: 80 },
@@ -39,8 +44,10 @@ export default function TaxHarvest() {
       {error && <p className="text-red-500">{error}</p>}
       {trades && (
         <ul data-testid="harvest-results">
-          {trades.map((t, idx) => (
-            <li key={idx}>{JSON.stringify(t)}</li>
+          {trades.map(({ ticker, loss }, idx) => (
+            <li key={idx}>
+              {ticker}: {loss}
+            </li>
           ))}
         </ul>
       )}

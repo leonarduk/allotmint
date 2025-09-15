@@ -206,6 +206,7 @@
     "onlineYes": "Sim",
     "onlineNo": "Não",
     "environment": "Ambiente",
+    "priceRefresh": "Atualização de preços",
     "telegramMessage": "Mensagem do Telegram",
     "send": "Enviar",
     "status": {

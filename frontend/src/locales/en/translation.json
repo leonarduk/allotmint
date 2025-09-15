@@ -208,6 +208,7 @@
     "onlineYes": "Yes",
     "onlineNo": "No",
     "environment": "Environment",
+    "priceRefresh": "Price Refresh",
     "telegramMessage": "Telegram Message",
     "send": "Send",
     "status": {

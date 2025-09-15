@@ -23,7 +23,6 @@ import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import Menu from "./components/Menu";
 import { useRoute } from "./RouteContext";
-import PriceRefreshControls from "./components/PriceRefreshControls";
 import { Header } from "./components/Header";
 import InstallPwaPrompt from "./components/InstallPwaPrompt";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
@@ -41,7 +40,9 @@ const InstrumentAdmin = lazy(() => import("./pages/InstrumentAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
 const LogsPage = lazy(() => import("./pages/Logs"));
-const PortfolioDashboard = lazyWithDelay(() => import("./pages/PortfolioDashboard"));
+const PerformanceDashboard = lazyWithDelay(
+  () => import("./components/PerformanceDashboard"),
+);
 
 export default function MainApp() {
   const navigate = useNavigate();
@@ -217,14 +218,6 @@ export default function MainApp() {
 
       <QuestBoard />
 
-      <PriceRefreshControls
-        mode={mode}
-        selectedOwner={selectedOwner}
-        selectedGroup={selectedGroup}
-        onPortfolio={setPortfolio}
-        onInstruments={setInstruments}
-      />
-
       {/* OWNER VIEW */}
       {mode === "owner" && (
         <>
@@ -294,19 +287,7 @@ export default function MainApp() {
             onSelect={handleOwnerSelect}
           />
           <Suspense fallback={<PortfolioDashboardSkeleton />}>
-            <PortfolioDashboard
-              twr={null}
-              irr={null}
-              bestDay={null}
-              worstDay={null}
-              lastDay={null}
-              alpha={null}
-              trackingError={null}
-              maxDrawdown={null}
-              volatility={null}
-              data={[]}
-              owner={selectedOwner}
-            />
+            <PerformanceDashboard owner={selectedOwner} />
           </Suspense>
         </>
       )}

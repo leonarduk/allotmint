@@ -6,7 +6,6 @@ import {
   getGroups,
   getOwners,
   getPortfolio,
-  refreshPrices,
 } from "./api";
 
 import type {
@@ -45,7 +44,6 @@ import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import ProfilePage from "./pages/Profile";
 import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
-import { usePriceRefresh } from "./PriceRefreshContext";
 import InstrumentSearchBar from "./components/InstrumentSearchBar";
 import UserAvatar from "./components/UserAvatar";
 import Logs from "./pages/Logs";
@@ -57,7 +55,9 @@ import PensionForecast from "./pages/PensionForecast";
 import TaxHarvest from "./pages/TaxHarvest";
 import TaxAllowances from "./pages/TaxAllowances";
 import RightRail from "./components/RightRail";
-const PortfolioDashboard = lazyWithDelay(() => import("./pages/PortfolioDashboard"));
+const PerformanceDashboard = lazyWithDelay(
+  () => import("./components/PerformanceDashboard"),
+);
 
 interface AppProps {
   onLogout?: () => void;
@@ -148,14 +148,8 @@ export default function App({ onLogout }: AppProps) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const [refreshingPrices, setRefreshingPrices] = useState(false);
-  const [priceRefreshError, setPriceRefreshError] = useState<string | null>(
-    null
-  );
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
-
-  const { lastRefresh, setLastRefresh } = usePriceRefresh();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const handleRetry = useCallback(() => {
@@ -341,25 +335,6 @@ export default function App({ onLogout }: AppProps) {
     }
   }, [mode, selectedGroup]);
 
-  async function handleRefreshPrices() {
-    setRefreshingPrices(true);
-    setPriceRefreshError(null);
-    try {
-      const resp = await refreshPrices();
-      setLastRefresh(resp.timestamp ?? new Date().toISOString());
-
-      if (mode === "owner" && selectedOwner) {
-        setPortfolio(await getPortfolio(selectedOwner));
-      } else if (mode === "instrument" && selectedGroup) {
-        setInstruments(await getGroupInstruments(selectedGroup));
-      }
-    } catch (e) {
-      setPriceRefreshError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRefreshingPrices(false);
-    }
-  }
-
   if (backendUnavailable) {
     return <BackendUnavailableCard onRetry={handleRetry} />;
   }
@@ -370,36 +345,26 @@ export default function App({ onLogout }: AppProps) {
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
           alignItems: "center",
+          gap: "0.5rem",
+          margin: "1rem 0",
         }}
       >
         <LanguageSwitcher />
-        <button
-          aria-label="notifications"
-          onClick={() => setNotificationsOpen(true)}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "1.5rem",
-          }}
-        >
-          🔔
-        </button>
-      </div>
-      <NotificationsDrawer
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-      />
-      <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
         <Menu
           selectedOwner={selectedOwner}
           selectedGroup={selectedGroup}
           onLogout={onLogout}
-          style={{ flexGrow: 1, margin: 0 }}
+          style={{ margin: 0 }}
         />
         <InstrumentSearchBar />
+        {mode === "owner" && (
+          <OwnerSelector
+            owners={owners}
+            selected={selectedOwner}
+            onSelect={setSelectedOwner}
+          />
+        )}
         {lastRefresh && (
           <span
             style={{
@@ -413,21 +378,24 @@ export default function App({ onLogout }: AppProps) {
             {new Date(lastRefresh).toLocaleString()}
           </span>
         )}
+        <button
+          aria-label="notifications"
+          onClick={() => setNotificationsOpen(true)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "1.5rem",
+          }}
+        >
+          🔔
+        </button>
         <UserAvatar />
       </div>
-
-      <div style={{ marginBottom: "1rem" }}>
-        <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
-          {refreshingPrices ? t("app.refreshing") : t("app.refreshPrices")}
-        </button>
-        {priceRefreshError && (
-          <span
-            style={{ marginLeft: "0.5rem", color: "red", fontSize: "0.85rem" }}
-          >
-            {priceRefreshError}
-          </span>
-        )}
-      </div>
+      <NotificationsDrawer
+        open={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+      />
 
       {/* OWNER VIEW */}
       {mode === "owner" && (
@@ -486,19 +454,7 @@ export default function App({ onLogout }: AppProps) {
             onSelect={handleOwnerSelect}
           />
           <Suspense fallback={<PortfolioDashboardSkeleton />}>
-            <PortfolioDashboard
-              twr={null}
-              irr={null}
-              bestDay={null}
-              worstDay={null}
-              lastDay={null}
-              alpha={null}
-              trackingError={null}
-              maxDrawdown={null}
-              volatility={null}
-              data={[]}
-              owner={selectedOwner}
-            />
+            <PerformanceDashboard owner={selectedOwner} />
           </Suspense>
         </>
       )}

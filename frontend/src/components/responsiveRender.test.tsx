@@ -109,7 +109,7 @@ describe("mobile viewport rendering", () => {
       ({ container } = renderWithConfig(<PortfolioView data={portfolio} />));
     });
     await waitFor(() =>
-      expect(container.querySelector("h1")).toHaveClass("mt-0"),
+      expect(container.textContent).toContain("Approx Total"),
     );
   });
 

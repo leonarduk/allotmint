@@ -94,6 +94,7 @@ export function TransactionsPage({ owners }: Props) {
               <th className={tableStyles.cell}>Date</th>
               <th className={tableStyles.cell}>Owner</th>
               <th className={tableStyles.cell}>Account</th>
+              <th className={tableStyles.cell}>Instrument</th>
               <th className={tableStyles.cell}>Type</th>
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>Amount</th>
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>Shares</th>
@@ -107,6 +108,7 @@ export function TransactionsPage({ owners }: Props) {
                 </td>
                 <td className={tableStyles.cell}>{t.owner}</td>
                 <td className={tableStyles.cell}>{t.account}</td>
+                <td className={tableStyles.cell}>{t.ticker || t.security_ref || ""}</td>
                 <td className={tableStyles.cell}>{t.type || t.kind}</td>
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {t.amount_minor != null

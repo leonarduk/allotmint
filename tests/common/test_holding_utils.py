@@ -4,7 +4,7 @@ from typing import Dict
 import pandas as pd
 import pytest
 
-from backend.common import holding_utils
+from backend.common import holding_utils, instrument_api
 import backend.common.portfolio_utils as portfolio_utils
 
 
@@ -96,3 +96,39 @@ def test_load_live_prices_with_fx(monkeypatch):
     assert prices["ABC.L"]["price"] == 1.0
     assert prices["XYZ"]["price"] == pytest.approx(0.8)
     assert isinstance(prices["ABC.L"]["timestamp"], dt.datetime)
+
+
+def test_is_cash_variants():
+    assert holding_utils._is_cash("CASH")
+    assert holding_utils._is_cash("GBP.CASH")
+    assert holding_utils._is_cash("CASH.GBP")
+
+
+def test_cash_name_variants():
+    for full in ["CASH", "GBP.CASH", "CASH.GBP"]:
+        assert holding_utils._cash_name(full) == "Cash (GBP)"
+
+
+def test_enrich_holding_cash_fields(monkeypatch):
+    today = dt.date(2024, 1, 1)
+    holding = {"ticker": "CASH", "units": 100.0, "currency": "GBP"}
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})
+    out = holding_utils.enrich_holding(holding, today, {}, {})
+    assert out["price"] == 1.0
+    assert out["market_value_gbp"] == 100.0
+    assert out["cost_basis_source"] == "cash"
+
+
+def test_enrich_holding_non_cash_standard_path(monkeypatch):
+    today = dt.date(2024, 1, 1)
+    holding = {"ticker": "ABC.L", "units": 2}
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, pc: (f, "L"))
+    monkeypatch.setattr(holding_utils, "_get_price_for_date_scaled", lambda *a, **k: (1.0, None))
+    monkeypatch.setattr(holding_utils, "get_effective_cost_basis_gbp", lambda h, cache: 0.0)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda *_: {})
+    out = holding_utils.enrich_holding(holding, today, {}, {})
+    assert out["price"] == 1.0
+    assert out["market_value_gbp"] == 2.0
+    assert out["cost_basis_source"] == "derived"

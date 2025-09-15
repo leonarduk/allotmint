@@ -74,6 +74,14 @@ export default function MainApp() {
     setRetryNonce((n) => n + 1);
   }, []);
 
+  const handleOwnerSelect = useCallback(
+    (owner: string) => {
+      setSelectedOwner(owner);
+      navigate(`/performance/${owner}`);
+    },
+    [navigate],
+  );
+
   useEffect(() => {
     if (ownersReq.data) {
       setOwners(ownersReq.data);
@@ -223,7 +231,7 @@ export default function MainApp() {
           <OwnerSelector
             owners={owners}
             selected={selectedOwner}
-            onSelect={setSelectedOwner}
+            onSelect={handleOwnerSelect}
           />
           <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
           <PortfolioView data={portfolio} loading={loading} error={err} />
@@ -283,7 +291,7 @@ export default function MainApp() {
           <OwnerSelector
             owners={owners}
             selected={selectedOwner}
-            onSelect={setSelectedOwner}
+            onSelect={handleOwnerSelect}
           />
           <Suspense fallback={<PortfolioDashboardSkeleton />}>
             <PortfolioDashboard

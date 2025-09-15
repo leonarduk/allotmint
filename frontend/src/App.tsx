@@ -162,6 +162,14 @@ export default function App({ onLogout }: AppProps) {
     setRetryNonce((n) => n + 1);
   }, []);
 
+  const handleOwnerSelect = useCallback(
+    (owner: string) => {
+      setSelectedOwner(owner);
+      navigate(`/performance/${owner}`);
+    },
+    [navigate],
+  );
+
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
 
@@ -427,7 +435,7 @@ export default function App({ onLogout }: AppProps) {
           <OwnerSelector
             owners={owners}
             selected={selectedOwner}
-            onSelect={setSelectedOwner}
+            onSelect={handleOwnerSelect}
           />
           <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
           <PortfolioView data={portfolio} loading={loading} error={err} />
@@ -475,7 +483,7 @@ export default function App({ onLogout }: AppProps) {
           <OwnerSelector
             owners={owners}
             selected={selectedOwner}
-            onSelect={setSelectedOwner}
+            onSelect={handleOwnerSelect}
           />
           <Suspense fallback={<PortfolioDashboardSkeleton />}>
             <PortfolioDashboard

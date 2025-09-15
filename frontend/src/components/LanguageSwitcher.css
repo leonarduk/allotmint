@@ -16,8 +16,9 @@
 .language-menu {
   position: absolute;
   top: 100%;
-  right: 0;
+  left: 0;
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.5rem;
 }

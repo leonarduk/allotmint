@@ -53,6 +53,31 @@ def test_fetch_sectors(monkeypatch):
     assert market._fetch_sectors() == [{"sector": "Technology", "change": 1.23}]
 
 
+def test_fetch_uk_sectors(monkeypatch):
+    class DummyResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "sectors": [
+                    {"name": "Technology", "percentChange": "1.23%"},
+                    {"sectorName": "Industrials", "change": -0.5},
+                    {"name": "Invalid", "percentChange": "oops"},
+                ]
+            }
+
+    def fake_get(url, headers=None, timeout=10):
+        return DummyResponse()
+
+    monkeypatch.setattr(market.requests, "get", fake_get)
+
+    assert market._fetch_uk_sectors() == [
+        {"sector": "Technology", "change": 1.23},
+        {"sector": "Industrials", "change": -0.5},
+    ]
+
+
 def test_fetch_headlines_fallback(monkeypatch):
     def fake_get(*args, **kwargs):
         raise requests.RequestException("boom")
@@ -106,3 +131,31 @@ def test_safe_returns_default_on_exception():
         raise RuntimeError("boom")
 
     assert market._safe(boom, "default") == "default"
+
+
+@pytest.mark.asyncio
+async def test_market_overview_region_switch(monkeypatch):
+    monkeypatch.setattr(market.cfg, "default_sector_region", "US", raising=False)
+    monkeypatch.setattr(market, "_safe", lambda func, default: func())
+    monkeypatch.setattr(market, "_fetch_indexes", lambda: {"S&P 500": {"value": 1, "change": 0.1}})
+    monkeypatch.setattr(market, "_fetch_headlines", lambda: [])
+    monkeypatch.setattr(market, "_fetch_sectors", lambda: [{"sector": "US", "change": 1.0}])
+    monkeypatch.setattr(market, "_fetch_uk_sectors", lambda: [{"sector": "UK", "change": 2.0}])
+
+    result = await market.market_overview(region="uk")
+
+    assert result["sectors"] == [{"sector": "UK", "change": 2.0}]
+
+
+@pytest.mark.asyncio
+async def test_market_overview_config_default(monkeypatch):
+    monkeypatch.setattr(market.cfg, "default_sector_region", "uk", raising=False)
+    monkeypatch.setattr(market, "_safe", lambda func, default: func())
+    monkeypatch.setattr(market, "_fetch_indexes", lambda: {})
+    monkeypatch.setattr(market, "_fetch_headlines", lambda: [])
+    monkeypatch.setattr(market, "_fetch_sectors", lambda: [{"sector": "US", "change": 1.0}])
+    monkeypatch.setattr(market, "_fetch_uk_sectors", lambda: [{"sector": "UK", "change": 2.0}])
+
+    result = await market.market_overview()
+
+    assert result["sectors"] == [{"sector": "UK", "change": 2.0}]

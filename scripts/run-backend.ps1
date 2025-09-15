@@ -57,17 +57,40 @@ if (Test-Path '.env') {
     }
 }
 
-# Ensure data directory exists
-if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
-  Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
-  bash scripts/sync_data.sh
-}
 # Place synthesized CDK templates outside the repository
 $env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
 
 # ───────────────── helpers ───────────────────
 function Get-HasCommand($name) {
   return [bool](Get-Command $name -ErrorAction SilentlyContinue)
+}
+
+function Test-Internet {
+  param(
+    [string]$Host = 'pypi.org'
+  )
+
+  try {
+    if (Get-HasCommand 'Test-Connection') {
+      if (Test-Connection -ComputerName $Host -Count 1 -Quiet -TimeoutSeconds 2 -ErrorAction Stop) {
+        return $true
+      }
+    }
+  } catch {
+    # fall back to web request
+  }
+
+  try {
+    $uri = if ($Host -match '^https?://') { $Host } else { "https://$Host/" }
+    if (Get-HasCommand 'Invoke-WebRequest') {
+      Invoke-WebRequest -Uri $uri -UseBasicParsing -Method Head -TimeoutSec 5 | Out-Null
+      return $true
+    }
+  } catch {
+    return $false
+  }
+
+  return $false
 }
 
 function Coalesce([object]$value, [object]$fallback) {
@@ -142,14 +165,30 @@ $configPath = Join-Path $REPO_ROOT 'config.yaml'
 $cfg = Read-Config $configPath
 
 # ───────────── offline mode & installs ────────
-$offline = $false
+$offlineRoot = $false
 if ($cfg.PSObject.Properties.Name -contains 'offline_mode') {
-  $offline = [bool]$cfg.offline_mode
+  $offlineRoot = [bool]$cfg.offline_mode
 }
 
 # Derive offline mode (param overrides config)
 $offlineCfg = Get-ConfigValue $cfg @('market_data','offline_mode') $false
-$offline = ($Offline.IsPresent -and $Offline) -or [bool]$offlineCfg
+$offline = ($Offline.IsPresent -and $Offline) -or $offlineRoot -or [bool]$offlineCfg
+
+if (-not $offline) {
+  if (-not (Test-Internet)) {
+    Write-Host 'Network connectivity check failed; enabling offline mode.' -ForegroundColor Yellow
+    $offline = $true
+  }
+}
+
+if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
+  if (-not $offline) {
+    Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
+    bash scripts/sync_data.sh
+  } else {
+    Write-Host 'Data directory missing but offline mode active; skipping sync.' -ForegroundColor Yellow
+  }
+}
 
 if (-not $offline) {
   if (-not (Test-Path '.\.venv\Scripts\Activate.ps1')) {
@@ -188,15 +227,19 @@ if (Test-Path $logConfig) {
 $reloadRaw = Get-ConfigValue $cfg @('server','reload') $true
 $reload    = [bool]$reloadRaw
 
-if ($env:DATA_BUCKET) {
-  if (Get-HasCommand 'aws') {
-    Write-Host "Syncing data from s3://$env:DATA_BUCKET/" -ForegroundColor Yellow
-    aws s3 sync "s3://$env:DATA_BUCKET/" data/ | Out-Null
+if (-not $offline) {
+  if ($env:DATA_BUCKET) {
+    if (Get-HasCommand 'aws') {
+      Write-Host "Syncing data from s3://$env:DATA_BUCKET/" -ForegroundColor Yellow
+      aws s3 sync "s3://$env:DATA_BUCKET/" data/ | Out-Null
+    } else {
+      Write-Host "AWS CLI not found; skipping data sync from s3://$env:DATA_BUCKET/" -ForegroundColor Yellow
+    }
   } else {
-    Write-Host "AWS CLI not found; skipping data sync from s3://$env:DATA_BUCKET/" -ForegroundColor Yellow
+    Write-Host "DATA_BUCKET not set; skipping data sync" -ForegroundColor Yellow
   }
 } else {
-  Write-Host "DATA_BUCKET not set; skipping data sync" -ForegroundColor Yellow
+  Write-Host 'Offline mode active; skipping remote data sync.' -ForegroundColor Yellow
 }
 
 # ───────────── start server ───────────────────

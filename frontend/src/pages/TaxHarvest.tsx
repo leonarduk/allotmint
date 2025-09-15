@@ -10,17 +10,25 @@ interface Position {
 export default function TaxHarvest() {
   const [trades, setTrades] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const samplePositions: Position[] = [
-    { ticker: "ABC", basis: 100, price: 80 },
-    { ticker: "XYZ", basis: 200, price: 150 },
-  ];
+
+  const [ticker, setTicker] = useState("");
+  const [basis, setBasis] = useState("");
+  const [price, setPrice] = useState("");
+  const [threshold, setThreshold] = useState("");
 
   const handleHarvest = async () => {
     try {
-      const res = await harvestTax(samplePositions, 0);
+      const positions: Position[] = [
+        {
+          ticker,
+          basis: parseFloat(basis),
+          price: parseFloat(price),
+        },
+      ];
+      const res = await harvestTax(positions, parseFloat(threshold));
       setTrades(res.trades);
       setError(null);
-    } catch (e) {
+    } catch {
       setError("Failed to harvest");
       setTrades(null);
     }
@@ -29,6 +37,35 @@ export default function TaxHarvest() {
   return (
     <div>
       <h1 className="mb-4 text-2xl md:text-4xl">Tax Harvest</h1>
+      <div className="mb-4 flex flex-col gap-2 max-w-sm">
+        <input
+          placeholder="Ticker"
+          className="rounded border px-2 py-1"
+          value={ticker}
+          onChange={(e) => setTicker(e.target.value)}
+        />
+        <input
+          placeholder="Basis"
+          type="number"
+          className="rounded border px-2 py-1"
+          value={basis}
+          onChange={(e) => setBasis(e.target.value)}
+        />
+        <input
+          placeholder="Price"
+          type="number"
+          className="rounded border px-2 py-1"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+        />
+        <input
+          placeholder="Threshold"
+          type="number"
+          className="rounded border px-2 py-1"
+          value={threshold}
+          onChange={(e) => setThreshold(e.target.value)}
+        />
+      </div>
       <button
         type="button"
         className="mb-4 rounded border px-4 py-2"

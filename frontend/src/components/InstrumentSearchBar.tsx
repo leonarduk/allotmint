@@ -25,7 +25,13 @@ const SECTORS = [
 
 const REGIONS = ["Africa", "Asia", "Europe", "North America", "South America", "Oceania", "UK", "US"];
 
-export default memo(function InstrumentSearchBar() {
+interface InstrumentSearchBarProps {
+  onClose?: () => void;
+}
+
+export default memo(function InstrumentSearchBar({
+  onClose,
+}: InstrumentSearchBarProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState("");
@@ -89,7 +95,7 @@ export default memo(function InstrumentSearchBar() {
 
   return (
     <div style={{ position: "relative", marginLeft: "1rem" }}>
-      <div style={{ display: "flex", gap: "0.25rem" }}>
+      <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
         <input
           type="text"
           placeholder="Search…"
@@ -127,6 +133,28 @@ export default memo(function InstrumentSearchBar() {
             </option>
           ))}
         </select>
+        {onClose && (
+          <button
+            type="button"
+            aria-label="Close search"
+            onClick={onClose}
+            style={{
+              border: "1px solid #ccc",
+              background: "#fff",
+              borderRadius: "9999px",
+              width: "1.5rem",
+              height: "1.5rem",
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        )}
       </div>
       {error && (
         <div role="alert" style={{ color: "red" }}>

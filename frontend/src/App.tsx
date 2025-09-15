@@ -151,6 +151,7 @@ export default function App({ onLogout }: AppProps) {
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   const handleRetry = useCallback(() => {
     setRetryNonce((n) => n + 1);
@@ -357,7 +358,24 @@ export default function App({ onLogout }: AppProps) {
           onLogout={onLogout}
           style={{ margin: 0 }}
         />
-        <InstrumentSearchBar />
+        {showSearch ? (
+          <InstrumentSearchBar onClose={() => setShowSearch(false)} />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowSearch(true)}
+            style={{
+              marginLeft: "1rem",
+              padding: "0.25rem 0.5rem",
+              borderRadius: "0.25rem",
+              border: "1px solid #ccc",
+              background: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            {t("app.research")}
+          </button>
+        )}
         {mode === "owner" && (
           <OwnerSelector
             owners={owners}

@@ -11,6 +11,7 @@ from backend.common.allowances import (
     current_tax_year,
     remaining_allowances,
 )
+from backend.config import config
 
 router = APIRouter(prefix="/tax", tags=["tax"])
 
@@ -32,20 +33,38 @@ async def harvest(req: HarvestRequest) -> dict:
     return {"trades": trades}
 
 
-@router.get("/allowances")
-async def allowances(
-    owner: str | None = Query(None),
-    current_user: str = Depends(get_current_user),
-) -> Dict[str, Dict[str, float]]:
-    """Return remaining ISA and pension allowances for ``owner``.
+if config.disable_auth:
 
-    If ``owner`` is not provided the currently authenticated user is used.
-    The response contains ``used``, ``limit`` and ``remaining`` totals for
-    each supported account type in the current UK tax year.
-    """
+    @router.get("/allowances")
+    async def allowances(owner: str | None = Query(None)) -> dict:
+        """Return remaining ISA and pension allowances for ``owner``.
 
-    if owner is None:
-        owner = current_user
-    tax_year = current_tax_year()
-    data = remaining_allowances(owner, tax_year)
-    return {"owner": owner, "tax_year": tax_year, "allowances": data}
+        When authentication is disabled and ``owner`` is not provided the
+        "demo" account is used.
+        """
+
+        if owner is None:
+            owner = "demo"
+        tax_year = current_tax_year()
+        data = remaining_allowances(owner, tax_year)
+        return {"owner": owner, "tax_year": tax_year, "allowances": data}
+
+else:
+
+    @router.get("/allowances")
+    async def allowances(
+        owner: str | None = Query(None),
+        current_user: str = Depends(get_current_user),
+    ) -> dict:
+        """Return remaining ISA and pension allowances for ``owner``.
+
+        If ``owner`` is not provided the currently authenticated user is used.
+        The response contains ``used``, ``limit`` and ``remaining`` totals for
+        each supported account type in the current UK tax year.
+        """
+
+        if owner is None:
+            owner = current_user
+        tax_year = current_tax_year()
+        data = remaining_allowances(owner, tax_year)
+        return {"owner": owner, "tax_year": tax_year, "allowances": data}

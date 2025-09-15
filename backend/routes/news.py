@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import requests
+import xml.etree.ElementTree as ET
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend import config_module
@@ -57,7 +58,44 @@ def _try_consume_quota() -> bool:
     return True
 
 
+def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
+    """Fetch headlines from Yahoo Finance search API."""
+
+    endpoint = cfg.yahoo_news_endpoint or "https://query1.finance.yahoo.com/v1/finance/search"
+    params = {"q": ticker, "quotesCount": 0, "newsCount": 10}
+    resp = requests.get(endpoint, params=params, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    items = data.get("news", [])
+    out: List[Dict[str, str]] = []
+    for item in items:
+        title = item.get("title")
+        link = item.get("link")
+        if title and link:
+            out.append({"headline": title, "url": link})
+    return out
+
+
+def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
+    """Fetch headlines from Google Finance via RSS search."""
+
+    endpoint = cfg.google_news_endpoint or "https://news.google.com/rss/search"
+    params = {"q": ticker, "hl": "en-US", "gl": "US", "ceid": "US:en"}
+    resp = requests.get(endpoint, params=params, timeout=10)
+    resp.raise_for_status()
+    root = ET.fromstring(resp.text)
+    out: List[Dict[str, str]] = []
+    for item in root.findall(".//item"):
+        title = item.findtext("title")
+        link = item.findtext("link")
+        if title and link:
+            out.append({"headline": title, "url": link})
+    return out
+
+
 def _fetch_news(ticker: str) -> List[Dict[str, str]]:
+    """Fetch news from AlphaVantage with fallbacks to Yahoo and Google."""
+
     params = {
         "function": "NEWS_SENTIMENT",
         "tickers": ticker,
@@ -68,20 +106,27 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
         resp = requests.get(BASE_URL, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
-        feed = data.get("feed")
-        if feed is None:
-            message = (
-                data.get("Note")
-                or data.get("Error Message")
-                or data.get("Information")
-                or data.get("Message")
-                or "Unexpected response"
-            )
-            raise RuntimeError(message)
-        return [{"headline": item.get("title"), "url": item.get("url")} for item in feed]
+        feed = data.get("feed") or []
+        if feed:
+            return [
+                {"headline": item.get("title"), "url": item.get("url")}
+                for item in feed
+            ]
     except Exception as exc:  # pragma: no cover - defensive
-        logging.getLogger(__name__).error("Failed to fetch news for %s: %s", ticker, exc)
-        return []
+        logging.getLogger(__name__).error(
+            "Failed to fetch news for %s: %s", ticker, exc
+        )
+
+    for fetcher in (fetch_news_yahoo, fetch_news_google):
+        try:
+            items = fetcher(ticker)
+            if items:
+                return items
+        except Exception as exc:  # pragma: no cover - defensive
+            logging.getLogger(__name__).error(
+                "Fallback news fetch failed for %s: %s", ticker, exc
+            )
+    return []
 
 
 @router.get("/news")

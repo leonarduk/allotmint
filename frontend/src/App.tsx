@@ -335,11 +335,39 @@ export default function App({ onLogout }: AppProps) {
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
           alignItems: "center",
+          gap: "0.5rem",
+          margin: "1rem 0",
         }}
       >
         <LanguageSwitcher />
+        <Menu
+          selectedOwner={selectedOwner}
+          selectedGroup={selectedGroup}
+          onLogout={onLogout}
+          style={{ margin: 0 }}
+        />
+        <InstrumentSearchBar />
+        {mode === "owner" && (
+          <OwnerSelector
+            owners={owners}
+            selected={selectedOwner}
+            onSelect={setSelectedOwner}
+          />
+        )}
+        {lastRefresh && (
+          <span
+            style={{
+              background: "#eee",
+              borderRadius: "1rem",
+              padding: "0.25rem 0.5rem",
+              fontSize: "0.75rem",
+            }}
+            title={t("app.last") ?? undefined}
+          >
+            {new Date(lastRefresh).toLocaleString()}
+          </span>
+        )}
         <button
           aria-label="notifications"
           onClick={() => setNotificationsOpen(true)}
@@ -352,30 +380,16 @@ export default function App({ onLogout }: AppProps) {
         >
           🔔
         </button>
+        <UserAvatar />
       </div>
       <NotificationsDrawer
         open={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       />
-      <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
-        <Menu
-          selectedOwner={selectedOwner}
-          selectedGroup={selectedGroup}
-          onLogout={onLogout}
-          style={{ flexGrow: 1, margin: 0 }}
-        />
-        <InstrumentSearchBar />
-        <UserAvatar />
-      </div>
 
       {/* OWNER VIEW */}
       {mode === "owner" && (
         <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={setSelectedOwner}
-          />
           <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
           <PortfolioView data={portfolio} loading={loading} error={err} />
         </>

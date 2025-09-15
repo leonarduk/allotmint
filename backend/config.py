@@ -124,6 +124,12 @@ class Config:
     fundamentals_cache_ttl_seconds: Optional[int] = None
     stooq_timeout: Optional[int] = None
     news_requests_per_day: int = 25
+    yahoo_news_endpoint: Optional[str] = None
+    yahoo_news_key: Optional[str] = None
+    yahoo_news_requests_per_day: int = 500
+    google_news_endpoint: Optional[str] = None
+    google_news_key: Optional[str] = None
+    google_news_requests_per_day: int = 500
 
     # new vars
     max_trades_per_month: Optional[int] = None

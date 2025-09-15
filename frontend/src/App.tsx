@@ -362,36 +362,26 @@ export default function App({ onLogout }: AppProps) {
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
           alignItems: "center",
+          gap: "0.5rem",
+          margin: "1rem 0",
         }}
       >
         <LanguageSwitcher />
-        <button
-          aria-label="notifications"
-          onClick={() => setNotificationsOpen(true)}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "1.5rem",
-          }}
-        >
-          🔔
-        </button>
-      </div>
-      <NotificationsDrawer
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-      />
-      <div style={{ display: "flex", alignItems: "center", margin: "1rem 0" }}>
         <Menu
           selectedOwner={selectedOwner}
           selectedGroup={selectedGroup}
           onLogout={onLogout}
-          style={{ flexGrow: 1, margin: 0 }}
+          style={{ margin: 0 }}
         />
         <InstrumentSearchBar />
+        {mode === "owner" && (
+          <OwnerSelector
+            owners={owners}
+            selected={selectedOwner}
+            onSelect={setSelectedOwner}
+          />
+        )}
         {lastRefresh && (
           <span
             style={{
@@ -405,8 +395,24 @@ export default function App({ onLogout }: AppProps) {
             {new Date(lastRefresh).toLocaleString()}
           </span>
         )}
+        <button
+          aria-label="notifications"
+          onClick={() => setNotificationsOpen(true)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "1.5rem",
+          }}
+        >
+          🔔
+        </button>
         <UserAvatar />
       </div>
+      <NotificationsDrawer
+        open={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+      />
 
       <div style={{ marginBottom: "1rem" }}>
         <button onClick={handleRefreshPrices} disabled={refreshingPrices}>
@@ -424,11 +430,6 @@ export default function App({ onLogout }: AppProps) {
       {/* OWNER VIEW */}
       {mode === "owner" && (
         <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={setSelectedOwner}
-          />
           <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
           <PortfolioView data={portfolio} loading={loading} error={err} />
         </>

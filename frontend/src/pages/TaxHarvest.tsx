@@ -7,16 +7,23 @@ interface Position {
   price: number;
 }
 
+interface Trade {
+  ticker: string;
+  loss: number;
+}
+
 export default function TaxHarvest() {
-  const [trades, setTrades] = useState<any[] | null>(null);
+  const [trades, setTrades] = useState<Trade[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [ticker, setTicker] = useState("");
   const [basis, setBasis] = useState("");
   const [price, setPrice] = useState("");
   const [threshold, setThreshold] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleHarvest = async () => {
+    setIsLoading(true);
     try {
       const positions: Position[] = [
         {
@@ -28,9 +35,12 @@ export default function TaxHarvest() {
       const res = await harvestTax(positions, parseFloat(threshold));
       setTrades(res.trades);
       setError(null);
-    } catch {
-      setError("Failed to harvest");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
       setTrades(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -70,17 +80,24 @@ export default function TaxHarvest() {
         type="button"
         className="mb-4 rounded border px-4 py-2"
         onClick={handleHarvest}
+        disabled={isLoading}
       >
         Run Harvest
       </button>
+      {isLoading && (
+        <div data-testid="spinner">Loading...</div>
+      )}
       {error && <p className="text-red-500">{error}</p>}
-      {trades && (
+      {trades && trades.length > 0 && (
         <ul data-testid="harvest-results">
-          {trades.map((t, idx) => (
-            <li key={idx}>{JSON.stringify(t)}</li>
+          {trades.map(({ ticker, loss }, idx) => (
+            <li key={idx}>
+              {ticker}: {loss}
+            </li>
           ))}
         </ul>
       )}
+      {trades && trades.length === 0 && <p>No trades qualify</p>}
     </div>
   );
 }

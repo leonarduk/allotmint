@@ -31,6 +31,7 @@ function Get-ConfigValue([object]$obj, [object[]]$path, [object]$default) {
     return $default
   }
 }
+
 if (-not $pythonCmd) {
   Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
   exit 1
@@ -154,11 +155,31 @@ function Read-Config([string]$path) {
     return Read-YamlSimple $path
   }
 }
+if (-not $pythonCmd) {
+  Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
+  exit 1
+}
+$PYTHON = $pythonCmd.Name
 
-# ───────────── create & activate venv ─────────
+Write-Host "# -------- Configuration --------" -ForegroundColor DarkCyan
+Write-Host "# Set market_data.offline_mode: true in config.yaml to skip dependency installation" -ForegroundColor DarkCyan
+Write-Host "# You can also pass -Offline to this script" -ForegroundColor DarkCyan
+Write-Host "# --------------------------------" -ForegroundColor DarkCyan
 
+# ───────────────── repo root ─────────────────
+$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+$REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
+Set-Location $REPO_ROOT
 
-# (activation moved below)
+# Load environment variables from .env if present
+if (Test-Path '.env') {
+    Get-Content '.env' | ForEach-Object {
+        if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)\s*$') {
+            $key = $matches[1]; $value = $matches[2];
+            Set-Item -Path Env:$key -Value $value
+        }
+    }
+}
 
 # ───────────────── load config ────────────────
 $configPath = Join-Path $REPO_ROOT 'config.yaml'
@@ -189,6 +210,24 @@ if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction Silently
     Write-Host 'Data directory missing but offline mode active; skipping sync.' -ForegroundColor Yellow
   }
 }
+
+# Ensure data directory exists
+if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
+  if (-not $offline) {
+    Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
+    bash scripts/sync_data.sh
+  } else {
+    Write-Host 'Data directory missing; offline mode prevents automatic sync.' -ForegroundColor Yellow
+  }
+}
+
+# Place synthesized CDK templates outside the repository
+$env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
+
+# ───────────── create & activate venv ─────────
+
+
+# (activation moved below)
 
 if (-not $offline) {
   if (-not (Test-Path '.\.venv\Scripts\Activate.ps1')) {

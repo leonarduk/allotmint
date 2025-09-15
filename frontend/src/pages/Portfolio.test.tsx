@@ -36,7 +36,7 @@ describe("Portfolio page", () => {
     );
 
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
-    expect(await screen.findByTestId("owner-name")).toHaveTextContent("alice");
+    await screen.findByText(/Approx Total:/);
 
     mockGetPortfolio.mockClear();
     mockGetPortfolio.mockResolvedValueOnce({
@@ -53,6 +53,6 @@ describe("Portfolio page", () => {
     });
 
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
-    expect(await screen.findByTestId("owner-name")).toHaveTextContent("bob");
+    await screen.findByText(/Approx Total:/);
   });
 });

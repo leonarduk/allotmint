@@ -101,6 +101,32 @@ def test_list_all_unique_tickers(monkeypatch):
     assert tickers == ["AAA", "BBB", "CCC"]
 
 
+def test_list_all_unique_tickers_warns_and_dedups(monkeypatch, caplog):
+    portfolios = [
+        {
+            "owner": "alice",
+            "accounts": [
+                {"account_type": "isa", "holdings": [{"ticker": "AAA"}, {}]},
+            ],
+        },
+        {
+            "owner": "bob",
+            "accounts": [
+                {"account_type": "sipp", "holdings": [{"ticker": "AAA"}, {"ticker": "BBB"}]},
+            ],
+        },
+    ]
+    monkeypatch.setattr(pu, "list_portfolios", lambda: portfolios)
+    monkeypatch.setattr(pu, "list_virtual_portfolios", lambda: [])
+
+    with caplog.at_level("WARNING"):
+        tickers = pu.list_all_unique_tickers()
+
+    assert tickers == ["AAA", "BBB"]
+    assert tickers.count("AAA") == 1
+    assert "Missing ticker in holding" in caplog.text
+
+
 def test_refresh_snapshot_in_memory(monkeypatch):
     snapshot = {"AAA": {"price": 1}}
     ts = datetime(2024, 1, 1, tzinfo=timezone.utc)

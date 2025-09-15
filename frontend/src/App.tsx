@@ -57,7 +57,9 @@ import PensionForecast from "./pages/PensionForecast";
 import TaxHarvest from "./pages/TaxHarvest";
 import TaxAllowances from "./pages/TaxAllowances";
 import RightRail from "./components/RightRail";
-const PortfolioDashboard = lazyWithDelay(() => import("./pages/PortfolioDashboard"));
+const PerformanceDashboard = lazyWithDelay(
+  () => import("./components/PerformanceDashboard"),
+);
 
 interface AppProps {
   onLogout?: () => void;
@@ -478,19 +480,7 @@ export default function App({ onLogout }: AppProps) {
             onSelect={setSelectedOwner}
           />
           <Suspense fallback={<PortfolioDashboardSkeleton />}>
-            <PortfolioDashboard
-              twr={null}
-              irr={null}
-              bestDay={null}
-              worstDay={null}
-              lastDay={null}
-              alpha={null}
-              trackingError={null}
-              maxDrawdown={null}
-              volatility={null}
-              data={[]}
-              owner={selectedOwner}
-            />
+            <PerformanceDashboard owner={selectedOwner} />
           </Suspense>
         </>
       )}

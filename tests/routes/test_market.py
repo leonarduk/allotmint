@@ -2,8 +2,9 @@ import logging
 from types import SimpleNamespace
 
 import pytest
+import requests
 
-from backend.routes import market
+from backend.routes import market, news
 
 
 def test_fetch_indexes(monkeypatch):
@@ -50,6 +51,19 @@ def test_fetch_sectors(monkeypatch):
     monkeypatch.setattr(market.requests, "get", fake_get)
 
     assert market._fetch_sectors() == [{"sector": "Technology", "change": 1.23}]
+
+
+def test_fetch_headlines_fallback(monkeypatch):
+    def fake_get(*args, **kwargs):
+        raise requests.RequestException("boom")
+
+    monkeypatch.setattr(news.requests, "get", fake_get)
+    monkeypatch.setattr(
+        news, "fetch_news_yahoo", lambda t: [{"url": "u1", "headline": "h1"}]
+    )
+
+    headlines = market._fetch_headlines()
+    assert headlines == [{"url": "u1", "headline": "h1"}]
 
 
 def test_fetch_headlines_dedup(monkeypatch):

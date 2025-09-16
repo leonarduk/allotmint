@@ -25,6 +25,7 @@
     "deploy:local:frontend:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target frontend",
     "deploy:local:backend:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target backend",
     "deploy:local:both:ps": "powershell -ExecutionPolicy Bypass -File scripts/deploy-local.ps1 -Target both",
-    "smoke:test": "tsx scripts/frontend-backend-smoke.ts"
+    "smoke:test": "tsx scripts/frontend-backend-smoke.ts",
+    "smoke:test:all": "tsx scripts/smoke-all.ts"
   }
 }

@@ -44,7 +44,7 @@ import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import ProfilePage from "./pages/Profile";
 import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
-import InstrumentSearchBar from "./components/InstrumentSearchBar";
+import { InstrumentSearchBar } from "./components/InstrumentSearchBar";
 import UserAvatar from "./components/UserAvatar";
 import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";

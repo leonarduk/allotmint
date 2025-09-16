@@ -11,6 +11,8 @@ if (-not $pythonCmd) {
   $pythonCmd = Get-Command py -ErrorAction SilentlyContinue
 }
 
+$pythonInstallMessage = 'Python must be installed. Install it from https://www.python.org/downloads/'
+
 function Get-ConfigValue([object]$obj, [object[]]$path, [object]$default) {
   try {
     $cur = $obj
@@ -33,9 +35,24 @@ function Get-ConfigValue([object]$obj, [object[]]$path, [object]$default) {
 }
 
 if (-not $pythonCmd) {
-  Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
+  Write-Host $pythonInstallMessage -ForegroundColor Red
   exit 1
 }
+
+try {
+  $versionOutput = & $pythonCmd.Name --version 2>&1
+} catch {
+  Write-Host $pythonInstallMessage -ForegroundColor Red
+  exit 1
+}
+
+$pythonVersionExit = $LASTEXITCODE
+$versionText = ($versionOutput | Out-String).Trim()
+if ($pythonVersionExit -ne 0 -or $versionText -match 'Microsoft Store') {
+  Write-Host $pythonInstallMessage -ForegroundColor Red
+  exit 1
+}
+
 $PYTHON = $pythonCmd.Name
 
 Write-Host "# -------- Configuration --------" -ForegroundColor DarkCyan

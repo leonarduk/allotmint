@@ -54,27 +54,19 @@ export function useInstrumentHistory(ticker: string, _days: number) {
 
   useEffect(() => {
     let active = true;
-    // eslint-disable-next-line no-console
-    console.log('[useInstrumentHistory] effect start for', ticker);
     const cached = cache.get(ticker);
     if (cached) {
-      // eslint-disable-next-line no-console
-      console.log('[useInstrumentHistory] cache hit for', ticker);
       setData(cached);
       setLoading(false);
       return;
     }
 
     async function fetchWithRetry() {
-      // eslint-disable-next-line no-console
-      console.log('[useInstrumentHistory] fetching for', ticker);
       setLoading(true);
       setError(null);
       const maxAttempts = 3;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-          // eslint-disable-next-line no-console
-          console.log('[useInstrumentHistory] dynamic import api and call fetchInstrumentDetailWithRetry');
           const api = await import("../api");
           const res = await api.fetchInstrumentDetailWithRetry(ticker, 365);
           if (!active) return;

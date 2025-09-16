@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getInstrumentDetail } from "../api";
+import * as api from "../api";
 import type { InstrumentDetail } from "../types";
 
 // Cache full instrument detail (including metadata like name, sector and
@@ -26,7 +26,7 @@ export async function preloadInstrumentHistory(
           if (!ticker) break;
           if (cache.has(ticker)) continue;
           try {
-            const res = await getInstrumentDetail(ticker, 365);
+            const res = await api.fetchInstrumentDetailWithRetry(ticker, 365);
             cache.set(ticker, res);
           } catch {
             // ignore errors during preloading
@@ -45,6 +45,7 @@ export async function preloadInstrumentHistory(
  * to cover all use cases.
  */
 export function useInstrumentHistory(ticker: string, _days: number) {
+  // console.debug('useInstrumentHistory invoked with', ticker);
   const [data, setData] = useState<InstrumentDetail | null>(
     () => cache.get(ticker) ?? null,
   );
@@ -66,7 +67,8 @@ export function useInstrumentHistory(ticker: string, _days: number) {
       const maxAttempts = 3;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-          const res = await getInstrumentDetail(ticker, 365);
+          // console.debug('useInstrumentHistory: fetching detail for', ticker);
+          const res = await api.fetchInstrumentDetailWithRetry(ticker, 365);
           if (!active) return;
           cache.set(ticker, res);
           setData(res);

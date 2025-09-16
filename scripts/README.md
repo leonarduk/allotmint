@@ -22,15 +22,19 @@ Set `API_BASE` to target a different backend URL and `TEST_ID_TOKEN` if needed.
 
 ## smoke-test.ps1
 
-Check a single endpoint for an HTTP 200 response.
+Check one or more endpoints for an HTTP 200 response.
 
 ```powershell
-# Pass URL as a parameter
-./scripts/smoke-test.ps1 https://example.com
+# Pass URLs as parameters
+./scripts/smoke-test.ps1 https://example.com https://example.com/health
 
 # or rely on the environment variable
-$env:SMOKE_TEST_URL = "https://example.com"
+$env:SMOKE_TEST_URLS = "https://example.com,https://example.com/health"
 ./scripts/smoke-test.ps1
+```
+
+```bash
+SMOKE_TEST_URLS=http://localhost:8000/health,http://localhost:5173 npm run smoke:test
 ```
 
 

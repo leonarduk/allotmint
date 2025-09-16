@@ -32,11 +32,6 @@ export default function Menu({
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
-    const hasMM = typeof window !== 'undefined' && typeof (window as any).matchMedia === 'function';
-    return hasMM ? (window as any).matchMedia('(min-width: 768px)').matches : false;
-  });
-
   useEffect(() => {
     function handleFocus(e: FocusEvent) {
       if (open && containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -44,16 +39,8 @@ export default function Menu({
       }
     }
     document.addEventListener('focusin', handleFocus);
-    const mq = typeof window !== 'undefined' && typeof (window as any).matchMedia === 'function'
-      ? (window as any).matchMedia('(min-width: 768px)')
-      : null;
-    const onChange = () => setIsDesktop(!!mq?.matches);
-    mq?.addEventListener?.('change', onChange);
-    // Initialize in case of hydration/mount
-    onChange();
     return () => {
       document.removeEventListener('focusin', handleFocus);
-      mq?.removeEventListener?.('change', onChange);
     };
   }, [open]);
 
@@ -161,7 +148,8 @@ export default function Menu({
     <nav className="mb-4" ref={containerRef}>
       <button
         aria-label={t('app.menu')}
-        className="md:hidden mb-2 p-2 border rounded"
+        aria-expanded={open}
+        className="mb-2 p-2 border rounded"
         onClick={() => setOpen((o) => !o)}
       >
         ☰
@@ -178,9 +166,10 @@ export default function Menu({
           </button>
         </div>
       ) : (
-        (open || isDesktop) && (
         <div
-          className={`flex flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
+          hidden={!open}
+          aria-hidden={!open}
+          className={`${open ? 'flex md:flex' : 'hidden'} flex-col gap-2 md:flex-row md:flex-wrap`}
           style={style}
         >
           {orderedTabPlugins
@@ -237,7 +226,6 @@ export default function Menu({
             {t('app.focusMode')}
           </button>
         </div>
-        )
       )}
     </nav>
   );

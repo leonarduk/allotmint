@@ -157,6 +157,7 @@ function InstrumentSearchBarComponent({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              color: "#213547",
               cursor: "pointer",
               padding: 0,
             }}
@@ -223,6 +224,7 @@ export function InstrumentSearchBarToggle() {
           borderRadius: "0.25rem",
           border: "1px solid #ccc",
           background: open ? "#eee" : "#fff",
+          color: "#213547",
           cursor: "pointer",
         }}
       >
@@ -251,6 +253,7 @@ export function InstrumentSearchBarToggle() {
               borderRadius: "0.25rem",
               border: "1px solid #ccc",
               background: "#f5f5f5",
+              color: "#213547",
               cursor: "pointer",
               alignSelf: "center",
             }}

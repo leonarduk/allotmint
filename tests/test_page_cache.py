@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import time
 from pathlib import Path
@@ -131,3 +132,77 @@ def test_schedule_refresh_can_refresh_false(monkeypatch, tmp_path):
     page_cache.schedule_refresh("never", 0, builder, can_refresh=lambda: False)
     assert "never" not in page_cache._refresh_tasks
     assert called is False
+
+
+def test_schedule_refresh_idempotent(monkeypatch, tmp_path):
+    async def run():
+        monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+
+        def builder():
+            return {}
+
+        page_cache.schedule_refresh("page", 0.01, builder)
+        first = list(page_cache._refresh_tasks)
+        page_cache.schedule_refresh("page", 0.01, builder)
+        assert list(page_cache._refresh_tasks) == first
+        try:
+            await page_cache.cancel_refresh_tasks()
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+
+
+def test_builder_returns_awaitable_and_save_error(monkeypatch, tmp_path, caplog):
+    async def run():
+        monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+
+        async def builder_async():
+            return {"ok": True}
+
+        def builder():
+            return builder_async()
+
+        calls = iter([True, False, True])
+
+        def can_refresh():
+            return next(calls)
+
+        async def fake_sleep(seconds):
+            if seconds == 0:
+                raise asyncio.CancelledError
+            return
+
+        def flaky_save(*a, **k):
+            raise ValueError()
+
+        monkeypatch.setattr(page_cache, "save_cache", flaky_save)
+        monkeypatch.setattr(page_cache.asyncio, "sleep", fake_sleep)
+
+        page_cache.schedule_refresh("x", 0.1, builder, can_refresh=can_refresh)
+        with caplog.at_level(logging.ERROR):
+            await asyncio.sleep(0.2)
+        try:
+            await page_cache.cancel_refresh_tasks()
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+
+
+def test_cancel_refresh_tasks_handles_error():
+    class FakeTask:
+        def cancel(self):
+            self.cancelled = True
+
+        def get_loop(self):
+            return asyncio.get_running_loop()
+
+        def __await__(self):
+            raise ValueError("boom")
+
+    async def run():
+        page_cache._refresh_tasks = {"fake": FakeTask()}
+        await page_cache.cancel_refresh_tasks()
+
+    asyncio.run(run())

@@ -123,7 +123,7 @@ def fetch_stooq_timeseries(ticker: str, exchange: str, days: int = 365) -> pd.Da
     return fetch_stooq_timeseries_range(ticker, exchange, start, today)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Example usage
     df = fetch_stooq_timeseries("GRG", "LSE", days=700)
     print(df.head())

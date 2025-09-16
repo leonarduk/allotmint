@@ -1,5 +1,8 @@
+import asyncio
 import logging
 from dataclasses import dataclass
+
+import pytest
 
 
 @dataclass
@@ -32,3 +35,18 @@ def test_lambda_handler_suggests_trades(monkeypatch, caplog):
     assert any(
         "Suggested trades for alice/vacation" in rec.message for rec in caplog.records
     )
+
+
+def test_schedule_runs_once(monkeypatch):
+    import backend.tasks.auto_rebalance as auto
+
+    async def fake_run_once():
+        pass
+
+    async def fake_sleep(_):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(auto, "run_once", fake_run_once)
+    monkeypatch.setattr(auto.asyncio, "sleep", fake_sleep)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(auto.schedule(10))

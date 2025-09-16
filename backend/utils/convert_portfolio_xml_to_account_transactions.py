@@ -198,5 +198,5 @@ def main() -> None:
     write_account_json(df, output_root)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

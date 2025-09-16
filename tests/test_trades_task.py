@@ -1,4 +1,6 @@
 import csv
+from pathlib import Path
+
 from backend.tasks import trades
 
 
@@ -44,3 +46,28 @@ def test_lambda_handler_saves_and_alerts(monkeypatch, tmp_path):
     with csv_path.open() as f:
         rows = list(csv.DictReader(f))
     assert rows == sample
+
+
+def test_persist_trades_empty(monkeypatch):
+    monkeypatch.setattr(trades, "load_trades", lambda owner: [])
+    monkeypatch.setattr(trades, "_local_trades_path", lambda owner: Path("/tmp/unused.csv"))
+    saved = trades.persist_trades("alice", [])
+    assert saved == 0
+
+
+def test_lambda_handler_since(monkeypatch, tmp_path):
+    sample = []
+    called = {}
+
+    def fake_recent(self, since):
+        called["since"] = since
+        return sample
+
+    monkeypatch.setattr(trades.AlpacaAPI, "recent_trades", fake_recent)
+    monkeypatch.setattr(trades, "load_trades", lambda owner: [])
+    monkeypatch.setattr(trades, "_local_trades_path", lambda owner: tmp_path / owner / "trades.csv")
+    monkeypatch.setattr(trades, "persist_trades", lambda owner, trades_list: 0)
+    monkeypatch.setattr(trades, "publish_alert", lambda alert: None)
+    result = trades.lambda_handler({"owner": "bob", "since": "2024-01-01T00:00:00"}, None)
+    assert result == {"count": 0}
+    assert called["since"].isoformat() == "2024-01-01T00:00:00"

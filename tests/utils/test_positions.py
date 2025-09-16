@@ -176,3 +176,43 @@ def test_extract_dividends(portfolio_xml):
     rec = {(r["account"], r["ticker"]): r for _, r in df.iterrows()}
     assert rec[("A", "FOO")]["amount_minor"] == 1234
     assert rec[("B", "BAR")]["amount_minor"] == 5678
+
+
+def test_extract_holdings_ignores_invalid(tmp_path):
+    xml = """
+<root>
+  <securities>
+    <security><name>NoID</name></security>
+  </securities>
+  <account>
+    <portfolio-transaction type="BUY"><date>2020-01-01</date><shares/><security reference="s1"/></portfolio-transaction>
+    <portfolio-transaction type="BUY"><date>2020-01-01</date><shares>100000000</shares></portfolio-transaction>
+    <portfolio-transaction type="BUY"><date>2020-01-01</date><shares>100000000</shares><security></security></portfolio-transaction>
+    <portfolio-transaction type="BUY"><date>2020-01-01</date><shares>0</shares><security reference="s1"/></portfolio-transaction>
+  </account>
+</root>"""
+    path = tmp_path / "invalid.xml"
+    path.write_text(xml)
+    df = extract_holdings_from_transactions(path)
+    assert df.empty
+
+
+def test_extract_dividends_ignores_invalid(tmp_path):
+    xml = """
+<root>
+  <securities>
+    <security id="s1"><name>Foo</name></security>
+    <security><name>NoID</name></security>
+  </securities>
+  <account>
+    <portfolio-transaction type="DIVIDEND"><date>2020-02-01</date><amount>5</amount><security reference="s1"/></portfolio-transaction>
+    <portfolio-transaction type="DIVIDEND"><date>2020-01-01</date></portfolio-transaction>
+    <portfolio-transaction type="DIVIDEND"><date>2020-01-01</date><amount>abc</amount><security reference="s1"/></portfolio-transaction>
+    <portfolio-transaction type="DIVIDEND"><date>2020-01-01</date><amount>5</amount></portfolio-transaction>
+    <portfolio-transaction type="DIVIDEND"><date>2020-01-01</date><amount>5</amount><security></security></portfolio-transaction>
+  </account>
+</root>"""
+    path = tmp_path / "divs.xml"
+    path.write_text(xml)
+    df = extract_dividends_from_transactions(path, cutoff_date="2020-01-31")
+    assert df.empty

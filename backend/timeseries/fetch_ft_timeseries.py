@@ -142,7 +142,7 @@ def fetch_ft_timeseries(
     return pd.DataFrame(columns=STANDARD_COLUMNS)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     logging.basicConfig(level=logging.DEBUG)
     parser = argparse.ArgumentParser(description="Fetch FT timeseries data")
     parser.add_argument("ticker", help="Ticker or ISIN to fetch")

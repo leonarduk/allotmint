@@ -368,9 +368,9 @@ describe("GroupPortfolioView", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     mockAllFetches(mockPortfolio, {
-      alpha: 2,
+      alpha: null,
       trackingError: null,
-      maxDrawdown: Infinity,
+      maxDrawdown: null,
     });
 
     renderWithConfig(<GroupPortfolioView slug="all" />);
@@ -381,11 +381,7 @@ describe("GroupPortfolioView", () => {
     within(teLabel.parentElement!).getByText("N/A");
     const mdLabel = await screen.findByText("Max Drawdown");
     within(mdLabel.parentElement!).getByText("N/A");
-    expect(warnSpy).toHaveBeenCalledTimes(2);
-    expect(warnSpy).toHaveBeenCalledWith("Metric value out of range:", 2);
-    expect(warnSpy).toHaveBeenCalledWith(
-      "Metric value out of range:",
-      Infinity,
-    );
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });

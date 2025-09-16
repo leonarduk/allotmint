@@ -823,8 +823,19 @@ def _alpha_vs_benchmark(name: str, benchmark: str, days: int = 365, *, group: bo
     if port_ret.empty:
         return None
 
-    port_cum = (1 + port_ret).prod() - 1
-    bench_cum = (1 + bench_ret).prod() - 1
+    aligned = pd.DataFrame({"portfolio": port_ret, "benchmark": bench_ret})
+    aligned = aligned.replace([np.inf, -np.inf], np.nan).dropna()
+
+    # Daily returns above 1,000% are almost certainly data errors (for example
+    # when a benchmark trades near zero).  Drop those rows before computing
+    # cumulative performance.
+    max_reasonable_return = 10.0
+    aligned = aligned[(aligned.abs() <= max_reasonable_return).all(axis=1)]
+    if aligned.empty:
+        return None
+
+    port_cum = (1 + aligned["portfolio"]).prod() - 1
+    bench_cum = (1 + aligned["benchmark"]).prod() - 1
     return float(port_cum - bench_cum)
 
 

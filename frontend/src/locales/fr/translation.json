@@ -368,6 +368,7 @@
     "name": "Name",
     "region": "Region",
     "sector": "Sector",
+    "grouping": "Regroupement",
     "actions": "Actions",
     "add": "Add Instrument",
   "save": "Save",

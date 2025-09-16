@@ -13,12 +13,14 @@ def make_client() -> TestClient:
 
 def test_list_instrument_metadata(monkeypatch):
     monkeypatch.setattr(
-        instrument_admin, "list_instruments", lambda: [{"ticker": "ABC.L"}]
+        instrument_admin,
+        "list_instruments",
+        lambda: [{"ticker": "ABC.L", "grouping": "Income"}],
     )
     client = make_client()
     resp = client.get("/instrument/admin")
     assert resp.status_code == 200
-    assert resp.json() == [{"ticker": "ABC.L"}]
+    assert resp.json() == [{"ticker": "ABC.L", "grouping": "Income"}]
 
 
 def test_get_instrument_ok(monkeypatch, tmp_path):
@@ -72,10 +74,13 @@ def test_post_instrument_create(monkeypatch, tmp_path):
     monkeypatch.setattr(instrument_admin, "instrument_meta_path", fake_path)
     monkeypatch.setattr(instrument_admin, "save_instrument_meta", fake_save)
     client = make_client()
-    resp = client.post("/instrument/admin/L/ABC", json={"ticker": "ABC.L"})
+    resp = client.post(
+        "/instrument/admin/L/ABC", json={"ticker": "ABC.L", "grouping": "Income"}
+    )
     assert resp.status_code == 200
     assert resp.json() == {"status": "created"}
     assert saved["ticker"] == "ABC.L"
+    assert saved["body"]["grouping"] == "Income"
 
 
 def test_post_instrument_conflict(monkeypatch, tmp_path):
@@ -122,12 +127,22 @@ def test_put_instrument_update(monkeypatch, tmp_path):
         p.write_text("{}")
         return p
 
+    saved = {}
+
+    def fake_save(t, e, body):
+        saved["ticker"] = f"{t}.{e}"
+        saved["body"] = body
+
     monkeypatch.setattr(instrument_admin, "instrument_meta_path", fake_path)
-    monkeypatch.setattr(instrument_admin, "save_instrument_meta", lambda *a, **k: None)
+    monkeypatch.setattr(instrument_admin, "save_instrument_meta", fake_save)
     client = make_client()
-    resp = client.put("/instrument/admin/L/ABC", json={"ticker": "ABC.L"})
+    resp = client.put(
+        "/instrument/admin/L/ABC", json={"ticker": "ABC.L", "grouping": "Income"}
+    )
     assert resp.status_code == 200
     assert resp.json() == {"status": "updated"}
+    assert saved["ticker"] == "ABC.L"
+    assert saved["body"]["grouping"] == "Income"
 
 
 def test_put_instrument_not_found(monkeypatch, tmp_path):

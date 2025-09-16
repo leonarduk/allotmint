@@ -367,6 +367,7 @@
     "name": "Name",
     "region": "Region",
     "sector": "Sector",
+    "grouping": "Gruppierung",
     "actions": "Actions",
     "add": "Add Instrument",
   "save": "Save",

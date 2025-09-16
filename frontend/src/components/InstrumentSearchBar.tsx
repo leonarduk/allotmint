@@ -35,7 +35,7 @@ interface InstrumentSearchBarProps {
   onNavigate?: () => void;
 }
 
-const InstrumentSearchBar = memo(function InstrumentSearchBar({
+function InstrumentSearchBarComponent({
   onClose,
   onNavigate,
 }: InstrumentSearchBarProps) {

@@ -54,6 +54,24 @@ def test_aggregate_with_mixed_holdings(monkeypatch):
     assert rows["CCC.L"]["market_value_gbp"] == 40.0
 
 
+def test_grouping_from_security_meta(monkeypatch):
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {"sector": "Legacy Sector"})
+    monkeypatch.setattr(
+        portfolio_utils,
+        "get_security_meta",
+        lambda ticker: {"currency": "GBP", "grouping": "Security Group"},
+    )
+    monkeypatch.setattr(instrument_api, "price_change_pct", lambda *args, **kwargs: None)
+
+    portfolio = {"accounts": [{"holdings": [{"ticker": "XYZ.L", "units": 1}]}]}
+    rows = {r["ticker"]: r for r in portfolio_utils.aggregate_by_ticker(portfolio)}
+
+    assert rows["XYZ.L"]["grouping"] == "Security Group"
+
+
 def test_performance_with_synthetic_holdings(monkeypatch):
     portfolio = {
         "accounts": [

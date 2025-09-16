@@ -398,11 +398,11 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             instrument_meta = get_instrument_meta(full_tkr) or {}
 
             grouping_value = _first_nonempty_str(
-                meta.get("grouping"),
+                instrument_meta.get("grouping"),
                 h.get("grouping"),
-                meta.get("sector"),
+                instrument_meta.get("sector"),
                 h.get("sector"),
-                meta.get("region"),
+                instrument_meta.get("region"),
                 h.get("region"),
             )
 
@@ -450,6 +450,23 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     row["sector"] = security_meta["sector"]
                 if row.get("region") is None and security_meta.get("region"):
                     row["region"] = security_meta["region"]
+                if security_meta:
+                    grouping_value = _first_nonempty_str(
+                        security_meta.get("grouping"),
+                        instrument_meta.get("grouping"),
+                        h.get("grouping"),
+                        security_meta.get("sector"),
+                        instrument_meta.get("sector"),
+                        h.get("sector"),
+                        security_meta.get("region"),
+                        instrument_meta.get("region"),
+                        h.get("region"),
+                        row.get("grouping"),
+                        row.get("sector"),
+                        row.get("region"),
+                    )
+                    if grouping_value:
+                        row["grouping"] = grouping_value
 
             # attach snapshot if present
             cost = _safe_num(h.get("cost_gbp") or h.get("cost_basis_gbp") or h.get("effective_cost_basis_gbp"))

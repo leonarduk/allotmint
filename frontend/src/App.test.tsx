@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -10,6 +11,7 @@ describe("App", () => {
   beforeEach(() => {
     vi.resetModules();
     mockTradingSignals.mockReset();
+    (globalThis as any).lastRefresh = null;
   });
 
   it.skip("preselects group from URL", async () => {
@@ -423,6 +425,66 @@ describe("App", () => {
       "Scenario Tester",
       "Support",
     ]);
+  });
+
+  it("toggles the research search bar in the header", async () => {
+    window.history.pushState({}, "", "/");
+
+    const user = userEvent.setup();
+
+    vi.doMock("./api", () => ({
+      getOwners: vi.fn().mockResolvedValue([]),
+      getGroups: vi.fn().mockResolvedValue([]),
+      getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getPortfolio: vi.fn(),
+      refreshPrices: vi.fn(),
+      getAlerts: vi.fn().mockResolvedValue([]),
+      getNudges: vi.fn().mockResolvedValue([]),
+      getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+      getCompliance: vi
+        .fn()
+        .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+      getTimeseries: vi.fn().mockResolvedValue([]),
+      saveTimeseries: vi.fn(),
+      getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getGroupMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      getTradingSignals: vi.fn().mockResolvedValue([]),
+      listTimeseries: vi.fn().mockResolvedValue([]),
+      refetchTimeseries: vi.fn(),
+      rebuildTimeseriesCache: vi.fn(),
+    }));
+
+    const { default: App } = await import("./App");
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const researchButton = await screen.findByRole("button", {
+      name: /Research/i,
+    });
+    expect(researchButton).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/Search instruments/i)
+    ).not.toBeInTheDocument();
+
+    await user.click(researchButton);
+
+    expect(
+      await screen.findByLabelText(/Search instruments/i)
+    ).toBeInTheDocument();
+
+    const closeButton = screen.getByRole("button", { name: /Close search/i });
+    await user.click(closeButton);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText(/Search instruments/i)
+      ).not.toBeInTheDocument();
+    });
+    expect(researchButton).toHaveAttribute("aria-expanded", "false");
   });
 
   it("renders the user avatar when logged in", async () => {

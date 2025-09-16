@@ -2,6 +2,8 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import i18n from "../i18n";
+
 vi.mock("../api", () => ({
   listInstrumentMetadata: vi.fn().mockResolvedValue([
     {
@@ -59,8 +61,10 @@ describe("InstrumentAdmin page", () => {
     expect(await screen.findByDisplayValue("AAA")).toBeInTheDocument();
     expect(screen.getByDisplayValue("BBB")).toBeInTheDocument();
 
+    const searchPlaceholder = i18n.t("instrumentadmin.searchPlaceholder");
+
     fireEvent.change(
-      screen.getByPlaceholderText("Filter instruments…"),
+      screen.getByPlaceholderText(searchPlaceholder),
       { target: { value: "beta" } },
     );
 

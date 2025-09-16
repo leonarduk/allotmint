@@ -7,6 +7,7 @@
     "loading": "Caricamento…",
     "supportLink": "Supporto",
     "userLink": "App",
+    "research": "Ricerca",
     "logout": "Logout",
     "menu": "Menu",
     "focusMode": "Modalità concentrazione",
@@ -377,7 +378,8 @@
     "searchPlaceholder": "Filtro Strumenti ...",
     "validation": {
       "ticker": "È richiesto il ticker",
-      "name": "È richiesto il nome"
+      "name": "È richiesto il nome",
+      "grouping": "È richiesto il raggruppamento"
     }
   },
   "var": {

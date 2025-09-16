@@ -6,6 +6,7 @@ import logging
 import os
 import secrets
 from contextvars import ContextVar
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Set
 
@@ -149,16 +150,33 @@ def authenticate_user(id_token_str: str) -> Optional[str]:
     return verify_google_token(id_token_str)
 
 
-def create_access_token(email: str) -> str:
+DEFAULT_TOKEN_EXPIRE_MINUTES = 15
+
+
+def create_access_token(email: str, expires_delta: timedelta | None = None) -> str:
     """Create a JWT for the given email."""
 
-    return jwt.encode({"sub": email}, SECRET_KEY, algorithm=ALGORITHM)
+    expire = datetime.now(timezone.utc) + (
+        expires_delta if expires_delta is not None else timedelta(minutes=DEFAULT_TOKEN_EXPIRE_MINUTES)
+    )
+    payload = {"sub": email, "exp": expire}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_token(token: str) -> Optional[str]:
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"require": ["exp"]},
+        )
         return payload.get("sub")
+    except jwt.ExpiredSignatureError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired",
+        ) from exc
     except jwt.PyJWTError:
         return None
 

@@ -437,8 +437,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             if grouping_value and not _first_nonempty_str(row.get("grouping")):
                 row["grouping"] = grouping_value
 
-            # accumulate units & cost
-            # accumulate units & cost (allow for differing field names)
+            # accumulate units from the holding
             row["units"] += _safe_num(h.get("units"))
 
             security_meta: Dict[str, Any] | None = None

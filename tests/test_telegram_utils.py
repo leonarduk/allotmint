@@ -213,3 +213,77 @@ def test_redacts_token_from_errors(monkeypatch, caplog):
 
     assert token not in caplog.text
     assert "***" in caplog.text
+
+
+def test_redact_token(monkeypatch):
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "XYZ")
+    assert telegram_utils.redact_token("use XYZ now") == "use *** now"
+
+
+def test_send_message_offline(monkeypatch, caplog):
+    telegram_utils.RECENT_MESSAGES.clear()
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", True)
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
+    with patch("backend.utils.telegram_utils.requests.post") as post:
+        telegram_utils.send_message("hi")
+    assert not post.called
+
+
+def test_rate_limit_sleep(monkeypatch):
+    telegram_utils.RECENT_MESSAGES.clear()
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
+    telegram_utils._NEXT_ALLOWED_TIME = 10
+    sleeps = []
+
+    monkeypatch.setattr(telegram_utils.time, "time", lambda: 0)
+    monkeypatch.setattr(telegram_utils.time, "sleep", lambda s: sleeps.append(s))
+
+    def fake_post(url, data, timeout):
+        return SimpleNamespace(status_code=200, headers={}, raise_for_status=lambda: None)
+
+    with patch("backend.utils.telegram_utils.requests.post", fake_post):
+        telegram_utils.send_message("hi")
+
+    assert sleeps and sleeps[0] == 10
+
+
+def test_invalid_retry_after(monkeypatch):
+    telegram_utils.RECENT_MESSAGES.clear()
+    telegram_utils._NEXT_ALLOWED_TIME = 0
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
+    sleeps = []
+    monkeypatch.setattr(telegram_utils.time, "sleep", lambda s: sleeps.append(s))
+
+    responses = iter(
+        [
+            SimpleNamespace(status_code=429, headers={"Retry-After": "bad"}, raise_for_status=lambda: None),
+            SimpleNamespace(status_code=200, headers={}, raise_for_status=lambda: None),
+        ]
+    )
+
+    with patch("backend.utils.telegram_utils.requests.post", lambda *a, **k: next(responses)):
+        telegram_utils.send_message("hi")
+
+    assert sleeps  # retry occurred
+
+
+def test_raise_for_status(monkeypatch, caplog):
+    telegram_utils.RECENT_MESSAGES.clear()
+    telegram_utils._NEXT_ALLOWED_TIME = 0
+    monkeypatch.setattr(telegram_utils.config, "offline_mode", False)
+    monkeypatch.setattr(telegram_utils.config, "telegram_bot_token", "T")
+    monkeypatch.setattr(telegram_utils.config, "telegram_chat_id", "C")
+
+    def fake_post(url, data, timeout):
+        def boom():
+            raise requests.RequestException("boom")
+
+        return SimpleNamespace(status_code=400, headers={}, raise_for_status=boom)
+
+    with patch("backend.utils.telegram_utils.requests.post", fake_post), caplog.at_level(logging.WARNING):
+        telegram_utils.send_message("hi")

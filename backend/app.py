@@ -319,7 +319,7 @@ def create_app() -> FastAPI:
 
 
 # optional local test:  python -m backend.app
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
     uvicorn.run(

@@ -75,3 +75,11 @@ def test_fetch_fx_rate_range_unsupported(monkeypatch):
 
     df = fetch_fx_rate_range("AUD", "GBP", start, end)
     assert list(df["Rate"]) == [1.0]
+
+
+def test_fetch_fx_rate_same_currency():
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 3)
+    fetch_fx_rate_range.cache_clear()
+    df = fetch_fx_rate_range("USD", "USD", start, end)
+    assert list(df["Rate"]) == [1.0, 1.0, 1.0]

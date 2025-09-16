@@ -1,6 +1,7 @@
 import builtins
 import datetime as dt
 import json
+from types import SimpleNamespace
 
 import pandas as pd
 
@@ -57,6 +58,27 @@ def test_handle_timeseries_response_variants(monkeypatch):
     # Empty DataFrame -> 404
     resp_empty = th.handle_timeseries_response(pd.DataFrame(), "json", "t", "s")
     assert resp_empty.status_code == 404
+
+    # JSON without metadata
+    resp_plain = th.handle_timeseries_response(df, "json", "t", "s")
+    body_plain = json.loads(resp_plain.body)
+    assert body_plain[0]["Open"] == 1
+
+
+def test_get_scaling_override_bad_json(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text("not json")
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+    assert th.get_scaling_override("T", "X", None) == 1.0
+
+
+def test_get_scaling_override_invalid_value(monkeypatch, tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "scaling_overrides.json").write_text('{"*": {"*": "bad"}}')
+    monkeypatch.setattr(th, "config", SimpleNamespace(repo_root=tmp_path))
+    assert th.get_scaling_override("T", "X", None) == 1.0
 
 
 def test_nearest_weekday():

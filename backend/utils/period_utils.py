@@ -18,5 +18,5 @@ def parse_period_to_days(period: str) -> int:
         return value * 30
     elif unit == "y":
         return value * 365
-    else:
+    else:  # pragma: no cover
         raise ValueError(f"Unsupported time unit: '{unit}'")

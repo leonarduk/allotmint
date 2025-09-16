@@ -110,7 +110,7 @@ def generate_json_holdings(xml_path: str, output_base_dir: str | Path = config.a
         print(f"Wrote {out_file} ({len(output['holdings'])} holdings)")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     xml = "C:/workspaces/bitbucket/luk/data/portfolio/investments-with-id.xml"
     output_root = "C:/workspaces/github/allotmint/data/accounts"
     generate_json_holdings(xml, output_root)

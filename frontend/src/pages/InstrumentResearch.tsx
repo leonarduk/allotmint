@@ -201,7 +201,7 @@ export default function InstrumentResearch() {
           showBollinger={showBollinger}
         />
       )}
-      {quoteLoading || screenerLoading ? (
+      {(quoteLoading && screenerLoading) ? (
         <div>Loading quote...</div>
       ) : quoteError || screenerError ? (
         <div>{quoteError || screenerError}</div>

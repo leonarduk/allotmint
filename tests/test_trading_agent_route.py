@@ -1,6 +1,10 @@
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+import backend.routes.trading_agent as ta
+import asyncio
+import logging
+import pytest
 
 
 def test_trading_agent_signals_route(monkeypatch):
@@ -32,3 +36,14 @@ def test_trading_agent_signals_route(monkeypatch):
             "rationale": "details",
         }
     ]
+
+
+def test_trading_agent_email_error(monkeypatch, caplog):
+    fake_signals = [{"ticker": "A", "action": "BUY", "reason": "r"}]
+    monkeypatch.setattr(ta.trading_agent, "run", lambda **_: fake_signals)
+    monkeypatch.setattr(ta.alert_utils, "send_push_notification", lambda text: None)
+    monkeypatch.setattr(ta, "publish_alert", lambda payload: (_ for _ in ()).throw(RuntimeError("nope")))
+    with caplog.at_level(logging.INFO):
+        result = asyncio.run(ta.signals(notify_email=True))
+    assert result == [ta.TradingSignal.model_validate(s) for s in fake_signals]
+    assert any("SNS topic ARN not configured" in r.message for r in caplog.records)

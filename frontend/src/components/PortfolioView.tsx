@@ -74,9 +74,6 @@ export function PortfolioView({ data, loading, error }: Props) {
 
   return (
     <div>
-      <h1 className="mt-0">
-        Portfolio: <span data-testid="owner-name">{data.owner}</span>
-      </h1>
       <div className="mb-4">
         As of {formatDateISO(new Date(data.as_of))}
       </div>

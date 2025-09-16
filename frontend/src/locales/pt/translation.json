@@ -7,6 +7,7 @@
     "loading": "Carregando…",
     "supportLink": "Suporte",
     "userLink": "App",
+    "research": "Pesquisa",
     "logout": "Sair",
     "menu": "Menu",
     "focusMode": "Modo de foco",
@@ -64,6 +65,14 @@
   },
   "instrumentTable": {
     "noInstruments": "Sem instrumentos.",
+    "ungrouped": "Sem grupo",
+    "groupTotals": {
+      "market": "Mercado",
+      "gain": "Ganho",
+      "gainPct": "Ganho %",
+      "delta7d": "7d %",
+      "delta30d": "30d %"
+    },
     "columns": {
       "ticker": "Ticker",
       "name": "Nome",
@@ -206,6 +215,7 @@
     "onlineYes": "Sim",
     "onlineNo": "Não",
     "environment": "Ambiente",
+    "priceRefresh": "Atualização de preços",
     "telegramMessage": "Mensagem do Telegram",
     "send": "Enviar",
     "status": {
@@ -366,6 +376,7 @@
     "name": "Nome",
     "region": "Região",
     "sector": "Setor",
+    "grouping": "Agrupamento",
     "actions": "Ações",
     "add": "Adicionar instrumento",
   "save": "Salvar",
@@ -374,7 +385,8 @@
   "searchPlaceholder": "Filtrar instrumentos…",
   "validation": {
     "ticker": "Ticker é obrigatório",
-    "name": "Nome é obrigatório"
+    "name": "Nome é obrigatório",
+    "grouping": "Agrupamento é obrigatório"
   }
 },
   "var": {

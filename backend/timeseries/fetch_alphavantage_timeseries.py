@@ -161,6 +161,6 @@ def fetch_alphavantage_timeseries(
     return fetch_alphavantage_timeseries_range(ticker, exchange, start, today, api_key)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     df = fetch_alphavantage_timeseries("IBM", "US", days=30)
     print(df.head())

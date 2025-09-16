@@ -144,7 +144,7 @@ async def cancel_refresh_tasks() -> None:
     current_loop = None
     try:
         current_loop = asyncio.get_running_loop()
-    except RuntimeError:
+    except RuntimeError:  # pragma: no cover
         pass
 
     for task in tasks:

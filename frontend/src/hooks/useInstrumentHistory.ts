@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { getInstrumentDetail } from "../api";
 import type { InstrumentDetail } from "../types";
 
 // Cache full instrument detail (including metadata like name, sector and
@@ -26,7 +25,8 @@ export async function preloadInstrumentHistory(
           if (!ticker) break;
           if (cache.has(ticker)) continue;
           try {
-            const res = await getInstrumentDetail(ticker, 365);
+            const api = await import("../api");
+            const res = await api.fetchInstrumentDetailWithRetry(ticker, 365);
             cache.set(ticker, res);
           } catch {
             // ignore errors during preloading
@@ -45,6 +45,7 @@ export async function preloadInstrumentHistory(
  * to cover all use cases.
  */
 export function useInstrumentHistory(ticker: string, _days: number) {
+  // console.debug('useInstrumentHistory invoked with', ticker);
   const [data, setData] = useState<InstrumentDetail | null>(
     () => cache.get(ticker) ?? null,
   );
@@ -53,20 +54,29 @@ export function useInstrumentHistory(ticker: string, _days: number) {
 
   useEffect(() => {
     let active = true;
+    // eslint-disable-next-line no-console
+    console.log('[useInstrumentHistory] effect start for', ticker);
     const cached = cache.get(ticker);
     if (cached) {
+      // eslint-disable-next-line no-console
+      console.log('[useInstrumentHistory] cache hit for', ticker);
       setData(cached);
       setLoading(false);
       return;
     }
 
     async function fetchWithRetry() {
+      // eslint-disable-next-line no-console
+      console.log('[useInstrumentHistory] fetching for', ticker);
       setLoading(true);
       setError(null);
       const maxAttempts = 3;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-          const res = await getInstrumentDetail(ticker, 365);
+          // eslint-disable-next-line no-console
+          console.log('[useInstrumentHistory] dynamic import api and call fetchInstrumentDetailWithRetry');
+          const api = await import("../api");
+          const res = await api.fetchInstrumentDetailWithRetry(ticker, 365);
           if (!active) return;
           cache.set(ticker, res);
           setData(res);

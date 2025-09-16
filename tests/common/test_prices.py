@@ -149,6 +149,20 @@ def test_refresh_prices_writes_json_and_updates_cache(tmp_path, monkeypatch):
     alerts_mock.assert_called_once()
 
 
+@pytest.mark.parametrize("px", [0, None])
+def test_get_price_snapshot_skips_zero_and_none_changes(monkeypatch, px):
+    ticker = "ABC.L"
+    last_price = 100.0
+    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: last_price})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None)
+    monkeypatch.setattr(prices, "_close_on", lambda *a, **k: px)
+    snap = prices.get_price_snapshot([ticker])
+    info = snap[ticker]
+    assert info["change_7d_pct"] is None
+    assert info["change_30d_pct"] is None
+
+
 def test_get_price_snapshot_resolved(monkeypatch):
     ticker = "ABC.L"
     last_price = 50.0
@@ -229,6 +243,27 @@ def test_refresh_prices_requires_config(monkeypatch):
     monkeypatch.setattr(prices.config, "prices_json", None)
     with pytest.raises(RuntimeError):
         prices.refresh_prices()
+
+
+def test_get_price_gbp_cache(tmp_path, monkeypatch):
+    ticker = "ABC.L"
+    last_price = 101.0
+    monkeypatch.setattr(prices, "_price_cache", {})
+    assert prices.get_price_gbp(ticker) is None
+
+    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [ticker])
+    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: last_price})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None)
+    monkeypatch.setattr(prices, "_close_on", lambda *a, **k: None)
+    refresh_mock = Mock()
+    alerts_mock = Mock()
+    monkeypatch.setattr(prices, "refresh_snapshot_in_memory", refresh_mock)
+    monkeypatch.setattr(prices, "check_price_alerts", alerts_mock)
+    out_path = tmp_path / "prices.json"
+    monkeypatch.setattr(prices.config, "prices_json", out_path)
+    prices.refresh_prices()
+    assert prices.get_price_gbp(ticker) == last_price
 
 
 def test_build_securities_from_portfolios(monkeypatch):

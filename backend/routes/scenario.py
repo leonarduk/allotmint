@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from backend.common.data_loader import list_plots
 from backend.common.portfolio import build_owner_portfolio
 from backend.utils.scenario_tester import (
+    _HORIZONS,
     apply_historical_event_portfolio as apply_historical_event,
     apply_price_shock,
 )
@@ -53,14 +54,38 @@ def run_scenario(
 def run_historical_scenario(
     event_id: str | None = Query(None, description="Historical event identifier"),
     date: str | None = Query(None, description="Event date (YYYY-MM-DD)"),
-    horizons: List[int] = Query(..., description="Event horizons in days"),
+    horizons: List[str] = Query(
+        ..., description="Event horizons as day counts or tokens like '1w'"
+    ),
 ):
-    """Calculate shocked portfolio values for a historical event."""
+    """Calculate shocked portfolio values for a historical event.
+
+    ``horizons`` accepts either integer day counts or one of the preset tokens
+    ``1d``, ``1w``, ``1m``, ``3m`` or ``1y``. Values may be provided as a
+    comma-separated string (e.g. ``horizons=1d,1w,30``). Unrecognised tokens
+    will raise ``HTTPException(status_code=400, detail="invalid horizon")``.
+    """
 
     if event_id is None and date is None:
         raise HTTPException(status_code=400, detail="event_id or date must be provided")
-    if not horizons:
+
+    # split comma separated horizons and convert tokens to day counts
+    tokens: list[str] = []
+    for item in horizons:
+        tokens.extend([t.strip().lower() for t in str(item).split(",") if t.strip()])
+
+    if not tokens:
         raise HTTPException(status_code=400, detail="horizons must be provided")
+
+    parsed: list[int] = []
+    for tok in tokens:
+        if tok in _HORIZONS:
+            parsed.append(_HORIZONS[tok])
+        else:
+            try:
+                parsed.append(int(tok))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="invalid horizon")
 
     results = []
     owners = [p["owner"] for p in list_plots() if p.get("accounts")]
@@ -75,7 +100,9 @@ def run_historical_scenario(
             baseline = sum(a.get("value_estimate_gbp") or 0.0 for a in pf.get("accounts", []))
             pf["total_value_estimate_gbp"] = baseline
 
-        shocked = apply_historical_event(pf, event_id=event_id, date=date, horizons=horizons)
+        shocked = apply_historical_event(
+            pf, event_id=event_id, date=date, horizons=parsed
+        )
         horizon_map = {}
         for h, shocked_pf in shocked.items():
             val = shocked_pf.get("total_value_estimate_gbp")

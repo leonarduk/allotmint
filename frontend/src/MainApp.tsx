@@ -23,7 +23,6 @@ import useFetchWithRetry from "./hooks/useFetchWithRetry";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import Menu from "./components/Menu";
 import { useRoute } from "./RouteContext";
-import PriceRefreshControls from "./components/PriceRefreshControls";
 import { Header } from "./components/Header";
 import InstallPwaPrompt from "./components/InstallPwaPrompt";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
@@ -41,7 +40,9 @@ const InstrumentAdmin = lazy(() => import("./pages/InstrumentAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
 const LogsPage = lazy(() => import("./pages/Logs"));
-const PortfolioDashboard = lazyWithDelay(() => import("./pages/PortfolioDashboard"));
+const PerformanceDashboard = lazyWithDelay(
+  () => import("./components/PerformanceDashboard"),
+);
 
 export default function MainApp() {
   const navigate = useNavigate();
@@ -73,6 +74,14 @@ export default function MainApp() {
   const handleRetry = useCallback(() => {
     setRetryNonce((n) => n + 1);
   }, []);
+
+  const handleOwnerSelect = useCallback(
+    (owner: string) => {
+      setSelectedOwner(owner);
+      navigate(`/performance/${owner}`);
+    },
+    [navigate],
+  );
 
   useEffect(() => {
     if (ownersReq.data) {
@@ -209,21 +218,13 @@ export default function MainApp() {
 
       <QuestBoard />
 
-      <PriceRefreshControls
-        mode={mode}
-        selectedOwner={selectedOwner}
-        selectedGroup={selectedGroup}
-        onPortfolio={setPortfolio}
-        onInstruments={setInstruments}
-      />
-
       {/* OWNER VIEW */}
       {mode === "owner" && (
         <>
           <OwnerSelector
             owners={owners}
             selected={selectedOwner}
-            onSelect={setSelectedOwner}
+            onSelect={handleOwnerSelect}
           />
           <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
           <PortfolioView data={portfolio} loading={loading} error={err} />
@@ -283,22 +284,10 @@ export default function MainApp() {
           <OwnerSelector
             owners={owners}
             selected={selectedOwner}
-            onSelect={setSelectedOwner}
+            onSelect={handleOwnerSelect}
           />
           <Suspense fallback={<PortfolioDashboardSkeleton />}>
-            <PortfolioDashboard
-              twr={null}
-              irr={null}
-              bestDay={null}
-              worstDay={null}
-              lastDay={null}
-              alpha={null}
-              trackingError={null}
-              maxDrawdown={null}
-              volatility={null}
-              data={[]}
-              owner={selectedOwner}
-            />
+            <PerformanceDashboard owner={selectedOwner} />
           </Suspense>
         </>
       )}

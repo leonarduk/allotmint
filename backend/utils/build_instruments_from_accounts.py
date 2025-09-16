@@ -167,5 +167,5 @@ def main():
     print(f"Created {len(instruments)} instrument files under {INSTRUMENTS_DIR}")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

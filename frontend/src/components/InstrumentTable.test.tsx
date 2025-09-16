@@ -67,6 +67,7 @@ describe("InstrumentTable", () => {
         {
             ticker: "ABC",
             name: "ABC Corp",
+            grouping: "Group A",
             currency: "GBP",
             instrument_type: "Equity",
             units: 10,
@@ -80,6 +81,7 @@ describe("InstrumentTable", () => {
         {
             ticker: "XYZ",
             name: "XYZ Inc",
+            grouping: "Group A",
             currency: "USD",
             instrument_type: "Equity",
             units: 5,
@@ -93,6 +95,7 @@ describe("InstrumentTable", () => {
         {
             ticker: "DEF",
             name: "DEF Ltd",
+            grouping: "Group B",
             currency: "GBX",
             instrument_type: "Equity",
             units: 3,
@@ -118,8 +121,49 @@ describe("InstrumentTable", () => {
         },
     ];
 
+    const getGroupHeader = (title: string) => {
+        const heading = screen.getByRole("heading", { name: title });
+        const container = heading.parentElement?.parentElement;
+        if (!container) {
+            throw new Error(`Group header for ${title} not found`);
+        }
+        return container as HTMLElement;
+    };
+
+    const openGroup = (title: string) => {
+        const header = getGroupHeader(title);
+        const toggle = header.querySelector<HTMLButtonElement>('button[aria-label="Expand"]');
+        if (!toggle) {
+            throw new Error(`Expand button for ${title} not found`);
+        }
+        fireEvent.click(toggle);
+        return header;
+    };
+
+    it("renders groups collapsed by default with aggregated totals", () => {
+        render(<InstrumentTable rows={rows} />);
+        expect(screen.getByText("Group A")).toBeInTheDocument();
+        expect(screen.getByText("Group B")).toBeInTheDocument();
+        expect(screen.getByText("Ungrouped")).toBeInTheDocument();
+        expect(screen.queryByRole('table')).toBeNull();
+
+        const groupAHeader = getGroupHeader("Group A");
+        expect(within(groupAHeader).getByText("Market")).toBeInTheDocument();
+        expect(within(groupAHeader).getByText("£1,500.00")).toBeInTheDocument();
+        expect(within(groupAHeader).getByText("▲£50.00")).toBeInTheDocument();
+        expect(within(groupAHeader).getByText("▲3.4%")).toBeInTheDocument();
+        expect(within(groupAHeader).getByText("▲0.3%")).toBeInTheDocument();
+        expect(within(groupAHeader).getByText("▲0.7%")).toBeInTheDocument();
+
+        expect(screen.queryByText("ABC")).toBeNull();
+
+        openGroup("Group A");
+        expect(screen.getByText("ABC")).toBeInTheDocument();
+    });
+
     it("passes ticker and name to InstrumentDetail", () => {
         render(<InstrumentTable rows={rows} />);
+        openGroup("Group A");
         expect(screen.getByText("GBP")).toBeInTheDocument();
         fireEvent.click(screen.getByText("ABC"));
 
@@ -135,6 +179,9 @@ describe("InstrumentTable", () => {
         const mock = InstrumentDetail as unknown as Mock;
         mock.mockClear();
         render(<InstrumentTable rows={rows} />);
+        openGroup("Group A");
+        openGroup("Group B");
+        openGroup("Ungrouped");
         fireEvent.click(screen.getByRole('button', { name: 'USD' }));
         expect(mock).toHaveBeenCalled();
         type DetailProps = Parameters<typeof InstrumentDetail>[0];
@@ -146,42 +193,52 @@ describe("InstrumentTable", () => {
 
     it("sorts by ticker when header clicked", () => {
         render(<InstrumentTable rows={rows} />);
+        openGroup("Group A");
         // initial sort is ticker ascending => ABC first
-        let dataRows = screen.getAllByRole("row");
+        let table = screen.getByRole("table");
+        let dataRows = within(table).getAllByRole("row");
         expect(within(dataRows[1]).getByText("ABC")).toBeInTheDocument();
 
-        fireEvent.click(screen.getByText(/^Ticker/));
-        dataRows = screen.getAllByRole("row");
+        fireEvent.click(within(table).getByText(/^Ticker/));
+        table = screen.getByRole("table");
+        dataRows = within(table).getAllByRole("row");
         expect(within(dataRows[1]).getByText("XYZ")).toBeInTheDocument();
     });
 
     it("allows toggling columns", () => {
         render(<InstrumentTable rows={rows} />);
-        expect(screen.getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
+        openGroup("Group A");
+        const table = screen.getByRole('table');
+        expect(within(table).getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
         const checkbox = screen.getByLabelText("Gain %");
         fireEvent.click(checkbox);
-        expect(screen.queryByRole('columnheader', {name: /Gain %/})).toBeNull();
+        expect(within(screen.getByRole('table')).queryByRole('columnheader', {name: /Gain %/})).toBeNull();
     });
 
     it("shows absolute columns when relative view disabled", () => {
         render(<InstrumentTable rows={rows} />);
-        expect(screen.getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', { name: 'Cost £' })).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', { name: 'Market £' })).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', { name: 'Gain £' })).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', { name: 'Last £' })).toBeInTheDocument();
+        openGroup("Group A");
+        const table = screen.getByRole('table');
+        expect(within(table).getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();
+        expect(within(table).getByRole('columnheader', { name: 'Cost £' })).toBeInTheDocument();
+        expect(within(table).getByRole('columnheader', { name: 'Market £' })).toBeInTheDocument();
+        expect(within(table).getByRole('columnheader', { name: 'Gain £' })).toBeInTheDocument();
+        expect(within(table).getByRole('columnheader', { name: 'Last £' })).toBeInTheDocument();
     });
 
     it("toggles relative view to hide absolute columns", async () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
-        expect(screen.getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();
+        openGroup("Group A");
+        const table = () => screen.getByRole('table');
+        expect(within(table()).getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();
         const toggle = screen.getByLabelText('Relative view');
         await userEvent.click(toggle);
-        expect(screen.queryByRole('columnheader', { name: 'Units' })).toBeNull();
-        expect(screen.queryByRole('columnheader', { name: 'Cost £' })).toBeNull();
-        expect(screen.queryByRole('columnheader', { name: 'Market £' })).toBeNull();
-        expect(screen.queryByRole('columnheader', { name: 'Gain £' })).toBeNull();
-        expect(screen.queryByRole('columnheader', { name: 'Last £' })).toBeNull();
-        expect(screen.getByRole('columnheader', { name: 'Gain %' })).toBeInTheDocument();
+        const updatedTable = table();
+        expect(within(updatedTable).queryByRole('columnheader', { name: 'Units' })).toBeNull();
+        expect(within(updatedTable).queryByRole('columnheader', { name: 'Cost £' })).toBeNull();
+        expect(within(updatedTable).queryByRole('columnheader', { name: 'Market £' })).toBeNull();
+        expect(within(updatedTable).queryByRole('columnheader', { name: 'Gain £' })).toBeNull();
+        expect(within(updatedTable).queryByRole('columnheader', { name: 'Last £' })).toBeNull();
+        expect(within(updatedTable).getByRole('columnheader', { name: 'Gain %' })).toBeInTheDocument();
     });
 });

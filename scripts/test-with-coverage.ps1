@@ -76,7 +76,18 @@ if ($exitCode -eq 0) {
 }
 
 $failurePattern = 'FAILURES'
+$summaryPattern = 'short test summary info'
 if ($exitCode -ne 0 -and $testOutput) {
+  $summaryStart = $testOutput | Select-String -Pattern $summaryPattern | Select-Object -First 1
+  if ($summaryStart) {
+    $startIndex = $summaryStart.LineNumber
+    $summaryLines = $testOutput[$startIndex..($testOutput.Count - 1)] |
+      Select-String -Pattern '^FAILED'
+    if ($summaryLines) {
+      Write-Host 'Failed tests summary:' -ForegroundColor Red
+      $summaryLines | ForEach-Object { Write-Host $_.Line -ForegroundColor Red }
+    }
+  }
   $failureStart = $testOutput | Select-String -Pattern $failurePattern | Select-Object -First 1
   if ($failureStart) {
     $startIndex = $failureStart.LineNumber - 1

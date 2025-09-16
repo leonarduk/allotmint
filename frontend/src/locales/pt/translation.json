@@ -368,6 +368,7 @@
     "name": "Nome",
     "region": "Região",
     "sector": "Setor",
+    "grouping": "Agrupamento",
     "actions": "Ações",
     "add": "Adicionar instrumento",
   "save": "Salvar",
@@ -376,7 +377,8 @@
   "searchPlaceholder": "Filtrar instrumentos…",
   "validation": {
     "ticker": "Ticker é obrigatório",
-    "name": "Nome é obrigatório"
+    "name": "Nome é obrigatório",
+    "grouping": "Agrupamento é obrigatório"
   }
 },
   "var": {

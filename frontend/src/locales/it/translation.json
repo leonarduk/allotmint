@@ -369,6 +369,7 @@
     "name": "Nome",
     "region": "Regione",
     "sector": "Settore",
+    "grouping": "Raggruppamento",
     "actions": "Azioni",
     "add": "Aggiungi strumento",
     "save": "Salva",
@@ -377,7 +378,8 @@
     "searchPlaceholder": "Filtro Strumenti ...",
     "validation": {
       "ticker": "È richiesto il ticker",
-      "name": "È richiesto il nome"
+      "name": "È richiesto il nome",
+      "grouping": "È richiesto il raggruppamento"
     }
   },
   "var": {

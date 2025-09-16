@@ -1,5 +1,15 @@
 # Scripts
 
+## lint.ps1
+
+Run all configured linters (Python Ruff/Black and frontend ESLint) and emit a
+Codex-friendly summary of any issues. The output can be pasted directly into
+the Codex fix workflow.
+
+```powershell
+./scripts/lint.ps1
+```
+
 ## frontend-backend-smoke.ts
 
 Run a quick smoke test against key backend endpoints. After running any `deploy:local:*` command to start the stack, execute:

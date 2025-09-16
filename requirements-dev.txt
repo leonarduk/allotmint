@@ -10,3 +10,5 @@ python-dotenv~=1.0.1
 pytest-cov~=6.2.1
 pytest~=8.4.1
 reportlab>=4.5
+black~=24.8.0
+ruff~=0.6.9

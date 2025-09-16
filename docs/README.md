@@ -81,6 +81,20 @@ pip install -r requirements.txt -r requirements-dev.txt
 Workflows and helper scripts install from these files, so update them when new
 packages are needed.
 
+### Code quality tooling
+
+Format Python code with [Black](https://black.readthedocs.io/) and lint it with
+[Ruff](https://docs.astral.sh/ruff/). After installing the development
+dependencies, run:
+
+```bash
+black .
+ruff check .
+```
+
+`black` rewrites files in-place, while `ruff check` reports lint issues (use
+`ruff check --fix` to automatically apply safe fixes).
+
 ### Environment variables
 
 Sensitive settings are loaded from environment variables rather than

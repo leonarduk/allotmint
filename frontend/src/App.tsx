@@ -36,6 +36,7 @@ import TopMovers from "./pages/TopMovers";
 import MarketOverview from "./pages/MarketOverview";
 import Trading from "./pages/Trading";
 import { useConfig } from "./ConfigContext";
+import { usePriceRefresh } from "./PriceRefreshContext";
 import DataAdmin from "./pages/DataAdmin";
 import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
@@ -130,6 +131,7 @@ export default function App({ onLogout }: AppProps) {
   const location = useLocation();
   const { t } = useTranslation();
   const { tabs } = useConfig();
+  const { lastRefresh } = usePriceRefresh();
 
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);

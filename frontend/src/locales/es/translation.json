@@ -65,6 +65,14 @@
   },
   "instrumentTable": {
     "noInstruments": "Sin instrumentos.",
+    "ungrouped": "Sin grupo",
+    "groupTotals": {
+      "market": "Mercado",
+      "gain": "Ganancia",
+      "gainPct": "Ganancia %",
+      "delta7d": "7d %",
+      "delta30d": "30d %"
+    },
     "columns": {
       "ticker": "Ticker",
       "name": "Nombre",

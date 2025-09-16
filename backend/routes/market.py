@@ -10,7 +10,7 @@ import yfinance as yf
 from fastapi import APIRouter, Query
 
 from backend import config_module
-from backend.routes.news import _fetch_news
+from backend.routes.news import get_cached_news
 
 cfg = getattr(config_module, "settings", config_module.config)
 config = cfg
@@ -153,7 +153,14 @@ def _fetch_headlines() -> List[Dict[str, str]]:
     success = False
 
     for sym in INDEX_SYMBOLS.values():
-        items = _fetch_news(sym)
+        try:
+            items = get_cached_news(sym)
+        except RuntimeError:
+            logger.warning(
+                "News quota exhausted while building market headlines; returning partial data"
+            )
+            break
+
         if not items:
             continue
 

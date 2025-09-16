@@ -372,6 +372,7 @@ export default function App({ onLogout }: AppProps) {
               borderRadius: "0.25rem",
               border: "1px solid #ccc",
               background: "#fff",
+              color: "#213547",
               cursor: "pointer",
             }}
           >

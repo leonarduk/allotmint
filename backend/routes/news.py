@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 import requests
 import xml.etree.ElementTree as ET
@@ -129,6 +129,55 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
     return []
 
 
+def get_cached_news(
+    ticker: str,
+    *,
+    cache_writer: Callable[[str, List[Dict[str, str]]], None] | None = None,
+    raise_on_quota_exhausted: bool = False,
+) -> List[Dict[str, str]]:
+    """Return cached or freshly fetched news for ``ticker``.
+
+    The helper mirrors the caching and quota handling used by the ``/news``
+    endpoint so that other modules can reuse the same logic synchronously.
+    When ``cache_writer`` is provided it is invoked to persist fresh payloads;
+    otherwise the helper writes to ``page_cache`` directly.  If the quota is
+    exhausted and no cached payload is available a ``RuntimeError`` is raised
+    when ``raise_on_quota_exhausted`` is true.
+    """
+
+    tkr = ticker.strip().upper()
+    if not tkr:
+        return []
+
+    page = f"news_{tkr}"
+
+    def _call() -> List[Dict[str, str]]:
+        if not _try_consume_quota():
+            raise RuntimeError("news quota exceeded")
+        return _fetch_news(tkr)
+
+    page_cache.schedule_refresh(page, NEWS_TTL, _call, can_refresh=_can_request_news)
+
+    cached = page_cache.load_cache(page)
+    if cached is not None and not page_cache.is_stale(page, NEWS_TTL):
+        return cached
+
+    try:
+        payload = _call()
+    except RuntimeError:
+        if cached is not None:
+            return cached
+        if raise_on_quota_exhausted:
+            raise
+        return []
+
+    if cache_writer is not None:
+        cache_writer(page, payload)
+    else:
+        page_cache.save_cache(page, payload)
+    return payload
+
+
 @router.get("/news")
 async def get_news(
     background_tasks: BackgroundTasks,
@@ -139,25 +188,13 @@ async def get_news(
     tkr = ticker.strip().upper()
     if not tkr:
         return []
-    page = f"news_{tkr}"
-
-    def _call() -> List[Dict[str, str]]:
-        if not _try_consume_quota():
-            raise RuntimeError("news quota exceeded")
-        return _fetch_news(tkr)
-
-    page_cache.schedule_refresh(page, NEWS_TTL, _call, can_refresh=_can_request_news)
-    if not page_cache.is_stale(page, NEWS_TTL):
-        cached = page_cache.load_cache(page)
-        if cached is not None:
-            return cached
-
     try:
-        payload = _call()
-    except RuntimeError:
-        cached = page_cache.load_cache(page)
-        if cached is not None:
-            return cached
-        raise HTTPException(status_code=429, detail="News request quota exceeded")
-    background_tasks.add_task(page_cache.save_cache, page, payload)
-    return payload
+        return get_cached_news(
+            tkr,
+            cache_writer=lambda page, data: background_tasks.add_task(
+                page_cache.save_cache, page, data
+            ),
+            raise_on_quota_exhausted=True,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=429, detail="News request quota exceeded") from exc

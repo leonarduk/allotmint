@@ -41,7 +41,7 @@ market_data:
   fundamentals_cache_ttl_seconds: 86400 # TTL for fundamentals cache (seconds)
   stooq_timeout: 10                   # Timeout for Stooq requests (seconds)
   stooq_requests_per_minute: 60       # Rate limit for Stooq requests
-  # Max AlphaVantage news requests per day
+  # Max AlphaVantage news requests per day (shared with market headlines)
   news_requests_per_day: 25
   # Sector performance configuration
   default_sector_region: US

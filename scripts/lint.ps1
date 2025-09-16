@@ -24,12 +24,18 @@ function Run-Linter {
     Write-Host "Running $Name..." -ForegroundColor Cyan
     try {
         $output = & $Command 2>&1
+        $exitCode = $LASTEXITCODE
     } catch {
         Write-Host "$Name failed: $($_.Exception.Message)" -ForegroundColor Yellow
         $script:summary += "$($Name): failed to run ($($_.Exception.Message))"
         return
     }
     $output | ForEach-Object { Write-Host $_ }
+    if ($exitCode -ne 0) {
+        Write-Host "$Name exited with code $exitCode" -ForegroundColor Yellow
+        $script:summary += "$($Name): exited with code $exitCode"
+        return
+    }
     if ($Parser) {
         $parsed = & $Parser $output
         if ($parsed) { $script:summary += $parsed }

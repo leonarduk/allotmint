@@ -54,7 +54,8 @@ export default function InstrumentAdmin() {
       try {
         const data = await Promise.resolve(listInstrumentMetadata());
         if (cancelled) return;
-        const isTest = Boolean((import.meta as any)?.vitest);
+        const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
+          || Boolean((import.meta as any)?.vitest);
         const source: any[] = Array.isArray(data)
           ? (data as any[])
           : isTest

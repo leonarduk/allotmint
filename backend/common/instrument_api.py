@@ -16,7 +16,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Mapping
 
 import pandas as pd
 
@@ -79,6 +79,31 @@ def _resolve_full_ticker(ticker: str, latest: Dict[str, float]) -> Optional[tupl
     ex = _TICKER_EXCHANGE_MAP.get(base)
     if ex:
         return base, ex
+    return None
+
+
+# Fallback helper for group-by metadata
+def _derive_grouping(*sources: Optional[Mapping[str, Any]], current: Optional[str] = None) -> Optional[str]:
+    """Return the first non-empty grouping/sector/region from the provided metadata."""
+
+    if isinstance(current, str):
+        cur = current.strip()
+        if cur:
+            return cur
+    elif current:
+        return current
+
+    for src in sources:
+        if not src:
+            continue
+        for key in ("grouping", "sector", "region"):
+            val = src.get(key)
+            if isinstance(val, str):
+                candidate = val.strip()
+            else:
+                candidate = val
+            if candidate:
+                return candidate
     return None
 
 
@@ -492,6 +517,7 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
         entry.setdefault("industry", meta.get("industry") or meta.get("sector"))
         entry.setdefault("region", meta.get("region"))
         entry.setdefault("sector", meta.get("sector"))
+        entry["grouping"] = _derive_grouping(meta, entry, current=entry.get("grouping"))
         entry.update(_price_and_changes(tkr))
         cost = entry["market_value_gbp"] - entry["gain_gbp"]
         entry["gain_pct"] = (entry["gain_gbp"] / cost * 100.0) if cost else None

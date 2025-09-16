@@ -395,7 +395,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             exch = (h.get("exchange") or inferred or "L").upper()
             full_tkr = f"{sym}.{exch}"
 
-            meta = get_instrument_meta(full_tkr)
+            instrument_meta = get_instrument_meta(full_tkr) or {}
 
             grouping_value = _first_nonempty_str(
                 meta.get("grouping"),
@@ -410,10 +410,10 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 full_tkr,
                 {
                     "ticker": full_tkr,
-                    "name": meta.get("name") or h.get("name", full_tkr),
-                    "currency": meta.get("currency") or h.get("currency"),
-                    "sector": meta.get("sector") or h.get("sector"),
-                    "region": meta.get("region") or h.get("region"),
+                    "name": instrument_meta.get("name") or h.get("name", full_tkr),
+                    "currency": instrument_meta.get("currency") or h.get("currency"),
+                    "sector": instrument_meta.get("sector") or h.get("sector"),
+                    "region": instrument_meta.get("region") or h.get("region"),
                     "grouping": grouping_value,
                     "units": 0.0,
                     "market_value_gbp": 0.0,
@@ -426,7 +426,8 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     "is_stale": None,
                     "change_7d_pct": None,
                     "change_30d_pct": None,
-                    "instrument_type": meta.get("instrumentType") or meta.get("instrument_type"),
+                    "instrument_type": instrument_meta.get("instrumentType")
+                    or instrument_meta.get("instrument_type"),
                     "cost_currency": base_currency,
                     "market_value_currency": base_currency,
                     "gain_currency": base_currency,
@@ -440,15 +441,15 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             # accumulate units & cost (allow for differing field names)
             row["units"] += _safe_num(h.get("units"))
 
+            security_meta: Dict[str, Any] | None = None
             if row.get("currency") is None or row.get("sector") is None or row.get("region") is None:
-                meta = get_security_meta(full_tkr)
-                if meta:
-                    if row.get("currency") is None and meta.get("currency"):
-                        row["currency"] = meta["currency"]
-                    if row.get("sector") is None and meta.get("sector"):
-                        row["sector"] = meta["sector"]
-                    if row.get("region") is None and meta.get("region"):
-                        row["region"] = meta["region"]
+                security_meta = get_security_meta(full_tkr) or {}
+                if row.get("currency") is None and security_meta.get("currency"):
+                    row["currency"] = security_meta["currency"]
+                if row.get("sector") is None and security_meta.get("sector"):
+                    row["sector"] = security_meta["sector"]
+                if row.get("region") is None and security_meta.get("region"):
+                    row["region"] = security_meta["region"]
 
             # attach snapshot if present
             cost = _safe_num(h.get("cost_gbp") or h.get("cost_basis_gbp") or h.get("effective_cost_basis_gbp"))
@@ -494,6 +495,14 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             for k in ("asset_class", "industry", "region", "owner", "sector"):
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
+
+            row["grouping"] = instrument_api._derive_grouping(
+                instrument_meta,
+                security_meta,
+                h,
+                row,
+                current=row.get("grouping"),
+            )
 
     rate = _fx_to_base("GBP", base_currency, fx_cache)
     for r in rows.values():

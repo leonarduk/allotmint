@@ -38,6 +38,15 @@ SMOKE_TEST_URLS=http://localhost:8000/health,http://localhost:5173 npm run smoke
 ```
 
 
+## run-smoke-tests-all.ps1
+
+Run the combined backend and frontend smoke suites defined in `npm run smoke:test:all`.
+
+```powershell
+./scripts/run-smoke-tests-all.ps1
+```
+
+
 ## site_healthcheck.py
 
 Parse the sitemap and verify that each URL responds with HTTP 200.

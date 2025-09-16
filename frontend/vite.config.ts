@@ -63,7 +63,15 @@ export default defineConfig(async ({ command }) => {
     },
     test: {
       environment: 'jsdom',
-      setupFiles: './src/setupTests.ts'
+      setupFiles: './src/setupTests.ts',
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'html'],
+        lines: 85,
+        functions: 85,
+        branches: 85,
+        statements: 85
+      }
     }
   }
   return config

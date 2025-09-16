@@ -80,10 +80,15 @@ export function TimeseriesEdit() {
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => {
-      searchInstruments(trimmed, undefined, undefined, controller.signal)
-        .then(setSuggestions)
-        .catch((err) => {
-          if (err.name !== "AbortError") {
+      Promise.resolve(
+        searchInstruments(trimmed, undefined, undefined, controller.signal) as
+          | Promise<{ ticker: string; name: string }[]>
+          | { ticker: string; name: string }[]
+          | undefined,
+      )
+        .then((res) => setSuggestions(Array.isArray(res) ? res : []))
+        .catch((err: any) => {
+          if (err?.name !== "AbortError") {
             console.error(err);
             setSuggestions([]);
           }

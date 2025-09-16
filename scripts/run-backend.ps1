@@ -5,13 +5,44 @@ Param(
 
 $ErrorActionPreference = 'Stop'
 
-# Ensure Python is available (try `python` then `py`)
-$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonCmd) {
-  $pythonCmd = Get-Command py -ErrorAction SilentlyContinue
+# Ensure Python is available (prefer a working interpreter; fall back to `py` if `python` is a Store stub)
+$pythonInstallMessage = 'Python must be installed. Install it from https://www.python.org/downloads/'
+
+$pythonCmd = $null
+$versionOutput = ''
+
+function Test-PythonCandidate([string]$cmd) {
+  try {
+    $out = & $cmd --version 2>&1
+    $exit = $LASTEXITCODE
+    $text = ($out | Out-String).Trim()
+    if ($exit -ne 0) { return @{ Ok=$false; Text=$text } }
+    if ($text -match 'Microsoft Store') { return @{ Ok=$false; Text=$text } }
+    return @{ Ok=$true; Text=$text }
+  } catch {
+    return @{ Ok=$false; Text='error invoking' }
+  }
 }
 
-$pythonInstallMessage = 'Python must be installed. Install it from https://www.python.org/downloads/'
+$candidate = Get-Command python -ErrorAction SilentlyContinue
+if ($candidate) {
+  $res = Test-PythonCandidate $candidate.Name
+  if ($res.Ok) {
+    $pythonCmd = $candidate
+    $versionOutput = $res.Text
+  }
+}
+
+if (-not $pythonCmd) {
+  $candidate = Get-Command py -ErrorAction SilentlyContinue
+  if ($candidate) {
+    $res = Test-PythonCandidate $candidate.Name
+    if ($res.Ok) {
+      $pythonCmd = $candidate
+      $versionOutput = $res.Text
+    }
+  }
+}
 
 function Get-ConfigValue([object]$obj, [object[]]$path, [object]$default) {
   try {
@@ -35,20 +66,6 @@ function Get-ConfigValue([object]$obj, [object[]]$path, [object]$default) {
 }
 
 if (-not $pythonCmd) {
-  Write-Host $pythonInstallMessage -ForegroundColor Red
-  exit 1
-}
-
-try {
-  $versionOutput = & $pythonCmd.Name --version 2>&1
-} catch {
-  Write-Host $pythonInstallMessage -ForegroundColor Red
-  exit 1
-}
-
-$pythonVersionExit = $LASTEXITCODE
-$versionText = ($versionOutput | Out-String).Trim()
-if ($pythonVersionExit -ne 0 -or $versionText -match 'Microsoft Store') {
   Write-Host $pythonInstallMessage -ForegroundColor Red
   exit 1
 }
@@ -157,6 +174,55 @@ function Read-YamlSimple([string]$path) {
   return [pscustomobject]$result
 }
 
+function Sync-Data([string]$DataDir = 'data') {
+  if (Test-Path $DataDir) {
+    $items = Get-ChildItem -Path $DataDir -Force -ErrorAction SilentlyContinue
+    if ($items -and $items.Count -gt 0) {
+      Write-Host "Data directory '$DataDir' already populated; skipping sync." -ForegroundColor Yellow
+      return
+    }
+  }
+
+  # If data is a git submodule, update it
+  if (Test-Path '.gitmodules') {
+    try {
+      $submodulePaths = git config --file .gitmodules --get-regexp path 2>$null
+      if ($LASTEXITCODE -eq 0 -and ($submodulePaths | Select-String -SimpleMatch "submodule.$DataDir.path")) {
+        Write-Host 'Syncing data via git submodule...' -ForegroundColor Yellow
+        git submodule update --init $DataDir
+        return
+      }
+    } catch {}
+  }
+
+  # DATA_REPO clone path
+  if ($env:DATA_REPO) {
+    $branch = if ($env:DATA_BRANCH) { $env:DATA_BRANCH } else { 'main' }
+    Write-Host "Cloning data repository $env:DATA_REPO (branch $branch)..." -ForegroundColor Yellow
+    if (-not (Get-HasCommand 'git')) {
+      Write-Host 'git not found; install Git or set DATA_BUCKET to use S3.' -ForegroundColor Red
+      throw 'Git not installed'
+    }
+    git clone --depth 1 --branch $branch $env:DATA_REPO $DataDir
+    return
+  }
+
+  # S3 sync path
+  if ($env:DATA_BUCKET) {
+    $prefix = if ($env:DATA_PREFIX) { $env:DATA_PREFIX } else { '' }
+    $src = if ($prefix -ne '') { "s3://$($env:DATA_BUCKET)/$prefix" } else { "s3://$($env:DATA_BUCKET)/" }
+    Write-Host "Syncing data from $src ..." -ForegroundColor Yellow
+    if (-not (Get-HasCommand 'aws')) {
+      Write-Host 'AWS CLI not found; please install AWS CLI to sync from S3.' -ForegroundColor Red
+      throw 'AWS CLI not installed'
+    }
+    aws s3 sync $src $DataDir | Out-Null
+    return
+  }
+
+  Write-Host 'No data source configured. Set DATA_REPO or DATA_BUCKET or define a git submodule.' -ForegroundColor Yellow
+}
+
 function Read-Config([string]$path) {
   if (-not (Test-Path $path)) { return [pscustomobject]@{} }
 
@@ -171,31 +237,6 @@ function Read-Config([string]$path) {
     Write-Host '⚠️  ConvertFrom-Yaml unavailable; using simple YAML parser (scalars only).' -ForegroundColor Yellow
     return Read-YamlSimple $path
   }
-}
-if (-not $pythonCmd) {
-  Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
-  exit 1
-}
-$PYTHON = $pythonCmd.Name
-
-Write-Host "# -------- Configuration --------" -ForegroundColor DarkCyan
-Write-Host "# Set market_data.offline_mode: true in config.yaml to skip dependency installation" -ForegroundColor DarkCyan
-Write-Host "# You can also pass -Offline to this script" -ForegroundColor DarkCyan
-Write-Host "# --------------------------------" -ForegroundColor DarkCyan
-
-# ───────────────── repo root ─────────────────
-$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-$REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
-Set-Location $REPO_ROOT
-
-# Load environment variables from .env if present
-if (Test-Path '.env') {
-    Get-Content '.env' | ForEach-Object {
-        if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)\s*$') {
-            $key = $matches[1]; $value = $matches[2];
-            Set-Item -Path Env:$key -Value $value
-        }
-    }
 }
 
 # ───────────────── load config ────────────────
@@ -222,24 +263,13 @@ if (-not $offline) {
 if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
   if (-not $offline) {
     Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
-    bash scripts/sync_data.sh
+    try { Sync-Data 'data' } catch { Write-Host $_ -ForegroundColor Yellow }
   } else {
     Write-Host 'Data directory missing but offline mode active; skipping sync.' -ForegroundColor Yellow
   }
 }
 
-# Ensure data directory exists
-if (-not (Test-Path 'data') -or -not (Get-ChildItem 'data' -ErrorAction SilentlyContinue)) {
-  if (-not $offline) {
-    Write-Host 'Data directory missing; syncing...' -ForegroundColor Yellow
-    bash scripts/sync_data.sh
-  } else {
-    Write-Host 'Data directory missing; offline mode prevents automatic sync.' -ForegroundColor Yellow
-  }
-}
-
-# Place synthesized CDK templates outside the repository
-$env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
+# Place synthesized CDK templates outside the repository (already set above)
 
 # ───────────── create & activate venv ─────────
 
@@ -262,6 +292,22 @@ if (-not $offline) {
   & $PYTHON -m pip install -r .\requirements.txt
 } else {
   Write-Host 'Offline mode detected; skipping dependency installation.' -ForegroundColor Yellow
+}
+
+# Ensure uvicorn is available
+$uvicornAvailable = $false
+try {
+  & $PYTHON -c "import uvicorn" 2>$null
+  if ($LASTEXITCODE -eq 0) { $uvicornAvailable = $true }
+} catch {}
+if (-not $uvicornAvailable) {
+  if ($offline) {
+    Write-Host 'uvicorn is not installed and Offline mode is enabled. Install dependencies (pip install -r requirements.txt) or run without -Offline.' -ForegroundColor Red
+    exit 1
+  } else {
+    Write-Host 'Installing uvicorn...' -ForegroundColor Yellow
+    & $PYTHON -m pip install uvicorn
+  }
 }
 
 # ───────────── env + defaults (PS 5.1) ────────

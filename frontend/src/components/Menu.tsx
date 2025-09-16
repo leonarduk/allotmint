@@ -147,8 +147,8 @@ export default function Menu({
   return (
     <nav className="mb-4" ref={containerRef}>
       <button
-        aria-label={t('app.menu')}
         aria-expanded={open}
+        aria-label={t('app.menu')}
         className="mb-2 p-2 border rounded"
         onClick={() => setOpen((o) => !o)}
       >

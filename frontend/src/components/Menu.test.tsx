@@ -30,6 +30,20 @@ describe("Menu", () => {
     expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
   });
 
+  it("updates aria-expanded attribute when toggled", () => {
+    render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>,
+    );
+    const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("shows support tabs on support route", () => {
     render(
       <MemoryRouter initialEntries={["/support"]}>

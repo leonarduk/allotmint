@@ -367,6 +367,7 @@
     "name": "Name",
     "region": "Region",
     "sector": "Sector",
+    "grouping": "Grouping",
     "actions": "Actions",
     "add": "Add Instrument",
   "save": "Save",
@@ -375,7 +376,8 @@
   "searchPlaceholder": "Filter instruments…",
   "validation": {
     "ticker": "Ticker is required",
-    "name": "Name is required"
+    "name": "Name is required",
+    "grouping": "Grouping is required"
   }
 },
   "var": {

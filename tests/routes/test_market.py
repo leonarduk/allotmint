@@ -152,11 +152,11 @@ def test_fetch_headlines_with_mocked_news(monkeypatch):
         ],
     }
 
-    def fake_fetch_news(symbol):
+    def fake_get_cached_news(symbol):
         calls.append(symbol)
         return responses[symbol]
 
-    monkeypatch.setattr(market, "_fetch_news", fake_fetch_news)
+    monkeypatch.setattr(market, "get_cached_news", fake_get_cached_news)
 
     headlines = market._fetch_headlines()
 

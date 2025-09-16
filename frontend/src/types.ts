@@ -89,6 +89,7 @@ export type GroupPortfolio = {
 export type InstrumentSummary = {
   ticker: string;
   name: string;
+  grouping?: string | null;
   currency?: string | null;
   units: number;
   market_value_gbp: number;
@@ -298,6 +299,7 @@ export interface InstrumentMetadata {
   name: string;
   region?: string | null;
   sector?: string | null;
+  grouping?: string | null;
 }
 
 export interface QuoteRow {

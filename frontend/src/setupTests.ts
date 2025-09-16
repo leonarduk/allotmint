@@ -36,6 +36,44 @@ if (typeof window.ResizeObserver === 'undefined') {
   } as any;
 }
 
+// Basic IntersectionObserver stub for components relying on visibility detection
+if (typeof window.IntersectionObserver === 'undefined') {
+  class MockIntersectionObserver {
+    private readonly callback: IntersectionObserverCallback;
+
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback;
+    }
+
+    observe(target: Element) {
+      this.callback(
+        [
+          {
+            isIntersecting: true,
+            intersectionRatio: 1,
+            target,
+            time: 0,
+            boundingClientRect: target.getBoundingClientRect(),
+            intersectionRect: target.getBoundingClientRect(),
+            rootBounds: null,
+          } as IntersectionObserverEntry,
+        ],
+        this as unknown as IntersectionObserver,
+      );
+    }
+
+    unobserve() {}
+
+    disconnect() {}
+
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+
+  (window as any).IntersectionObserver = MockIntersectionObserver;
+}
+
 // Provide non-zero element sizes so chart libraries (e.g., Recharts) can render
 // and tests relying on layout don't fail due to 0x0 containers in JSDOM.
 const defineSize = (prop: 'offsetWidth' | 'offsetHeight', value: number) => {

@@ -77,6 +77,17 @@ def _safe_num(val, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
 
+
+def _first_nonempty_str(*values: Any) -> str | None:
+    """Return the first non-empty string from ``values`` if present."""
+
+    for value in values:
+        if isinstance(value, str):
+            candidate = value.strip()
+            if candidate:
+                return candidate
+    return None
+
 def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float]) -> float:
     """Return ``base_currency`` per unit of ``currency`` using recent FX rates."""
 
@@ -386,6 +397,15 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
 
             instrument_meta = get_instrument_meta(full_tkr) or {}
 
+            grouping_value = _first_nonempty_str(
+                meta.get("grouping"),
+                h.get("grouping"),
+                meta.get("sector"),
+                h.get("sector"),
+                meta.get("region"),
+                h.get("region"),
+            )
+
             row = rows.setdefault(
                 full_tkr,
                 {
@@ -394,6 +414,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     "currency": instrument_meta.get("currency") or h.get("currency"),
                     "sector": instrument_meta.get("sector") or h.get("sector"),
                     "region": instrument_meta.get("region") or h.get("region"),
+                    "grouping": grouping_value,
                     "units": 0.0,
                     "market_value_gbp": 0.0,
                     "gain_gbp": 0.0,
@@ -412,6 +433,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     "gain_currency": base_currency,
                 },
             )
+
+            if grouping_value and not _first_nonempty_str(row.get("grouping")):
+                row["grouping"] = grouping_value
 
             # accumulate units & cost
             # accumulate units & cost (allow for differing field names)
@@ -499,6 +523,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             r["last_price_currency"] = base_currency
         if r.get("day_change_gbp") is not None:
             r["day_change_currency"] = base_currency
+        if not _first_nonempty_str(r.get("grouping")):
+            fallback = _first_nonempty_str(r.get("sector"), r.get("region"))
+            r["grouping"] = fallback or "Unknown"
 
     return list(rows.values())
 

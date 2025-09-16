@@ -195,7 +195,7 @@ def list_instruments() -> List[Dict[str, Any]]:
         try:
             with p.open("r", encoding="utf-8") as f:
                 data = json.load(f)
-            for field in ("asset_class", "industry", "region"):
+            for field in ("asset_class", "industry", "region", "grouping"):
                 data.setdefault(field, None)
             instruments.append(data)
         except Exception:

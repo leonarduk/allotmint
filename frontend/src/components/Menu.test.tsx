@@ -14,7 +14,9 @@ describe("Menu", () => {
     );
     expect(screen.queryByRole("link", { name: "Support" })).not.toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
       "/support",

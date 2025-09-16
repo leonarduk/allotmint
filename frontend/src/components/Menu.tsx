@@ -161,6 +161,7 @@ export default function Menu({
     <nav className="mb-4" ref={containerRef}>
       <button
         aria-label={t('app.menu')}
+        aria-expanded={open}
         className="md:hidden mb-2 p-2 border rounded"
         onClick={() => setOpen((o) => !o)}
       >

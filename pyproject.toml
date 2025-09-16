@@ -16,3 +16,20 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = ["asyncio: mark tests that require asyncio support"]
 
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+

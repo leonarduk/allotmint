@@ -32,6 +32,10 @@ export default function Menu({
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+    const hasMM = typeof window !== 'undefined' && typeof (window as any).matchMedia === 'function';
+    return hasMM ? (window as any).matchMedia('(min-width: 768px)').matches : false;
+  });
 
   useEffect(() => {
     function handleFocus(e: FocusEvent) {
@@ -40,8 +44,16 @@ export default function Menu({
       }
     }
     document.addEventListener('focusin', handleFocus);
+    const mq = typeof window !== 'undefined' && typeof (window as any).matchMedia === 'function'
+      ? (window as any).matchMedia('(min-width: 768px)')
+      : null;
+    const onChange = () => setIsDesktop(!!mq?.matches);
+    mq?.addEventListener?.('change', onChange);
+    // Initialize in case of hydration/mount
+    onChange();
     return () => {
       document.removeEventListener('focusin', handleFocus);
+      mq?.removeEventListener?.('change', onChange);
     };
   }, [open]);
 
@@ -166,8 +178,9 @@ export default function Menu({
           </button>
         </div>
       ) : (
+        (open || isDesktop) && (
         <div
-          className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
+          className={`flex flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
           style={style}
         >
           {orderedTabPlugins
@@ -224,6 +237,7 @@ export default function Menu({
             {t('app.focusMode')}
           </button>
         </div>
+        )
       )}
     </nav>
   );

@@ -91,7 +91,6 @@ describe("Menu", () => {
     );
     const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
     fireEvent.click(toggle);
-    fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
     const btn = screen.getByRole("button", { name: "Déconnexion" });
     fireEvent.click(btn);
     expect(onLogout).toHaveBeenCalled();

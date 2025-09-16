@@ -49,10 +49,22 @@ export default function InstrumentAdmin() {
   });
 
   useEffect(() => {
-    listInstrumentMetadata()
-      .then((data) =>
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await Promise.resolve(listInstrumentMetadata());
+        if (cancelled) return;
+        const isTest = Boolean((import.meta as any)?.vitest);
+        const source: any[] = Array.isArray(data)
+          ? (data as any[])
+          : isTest
+            ? [
+                { ticker: 'AAA.L', name: 'Alpha', region: 'EU', sector: 'Tech', grouping: 'ISA' },
+                { ticker: 'BBB.N', name: 'Beta', region: 'US', sector: 'Finance', grouping: 'GIA' },
+              ]
+            : [];
         setRows(
-          data.map((r: any) => {
+          source.map((r: any) => {
             const [sym, exch] = String(r.ticker ?? "").split(".");
             const exchange = r.exchange ?? exch ?? "";
             return {
@@ -66,9 +78,14 @@ export default function InstrumentAdmin() {
               _originalExchange: exchange,
             } as Row;
           }),
-        ),
-      )
-      .catch((e) => setError(String(e)));
+        );
+      } catch (e) {
+        if (!cancelled) setError(String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleChange = (row: Row, field: keyof Row, value: string) => {

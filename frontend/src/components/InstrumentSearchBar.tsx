@@ -34,9 +34,9 @@ interface InstrumentSearchBarProps {
   onClose?: () => void;
 }
 
-export default memo(function InstrumentSearchBar({
+const InstrumentSearchBar = memo(function InstrumentSearchBar({
   onClose,
-      
+
 }: InstrumentSearchBarProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -260,6 +260,6 @@ export function InstrumentSearchBarToggle() {
   );
 }
 
-export default InstrumentSearchBarToggle;
-
 export { InstrumentSearchBar };
+
+export default InstrumentSearchBarToggle;

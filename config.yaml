@@ -1,7 +1,7 @@
 # File and directory paths
 paths:
   repo_root: .                        # Base path for the repository
-  data_root: ../allotmint-data
+  data_root: data
   accounts_root: accounts             # Directory containing account files
   prices_json: prices/latest_prices.json # Location for cached price data
   timeseries_cache_base: timeseries   # Cache directory for time series data

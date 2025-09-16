@@ -12,13 +12,34 @@ from typing import Any, Dict, List
 
 from backend.config import config
 
-_INSTRUMENTS_DIR = config.data_root / "instruments"
+logger = logging.getLogger(__name__)
+
+
+def _resolve_instruments_dir() -> Path:
+    """Return the configured instruments directory or fall back to bundled data."""
+
+    configured_dir = config.data_root / "instruments"
+    if configured_dir.is_dir():
+        return configured_dir
+
+    fallback_dir = Path(__file__).resolve().parents[2] / "data" / "instruments"
+    if fallback_dir.is_dir():
+        logger.warning(
+            "Configured instruments directory %s missing; falling back to %s", configured_dir, fallback_dir
+        )
+        return fallback_dir
+
+    logger.warning(
+        "Configured instruments directory %s missing and fallback %s not found", configured_dir, fallback_dir
+    )
+    return configured_dir
+
+
+_INSTRUMENTS_DIR = _resolve_instruments_dir()
 _VALID_RE = re.compile(r"^[A-Z0-9-]+$")
 
 METADATA_BUCKET_ENV = "METADATA_BUCKET"
 METADATA_PREFIX_ENV = "METADATA_PREFIX"
-
-logger = logging.getLogger(__name__)
 
 
 def _validate_part(value: str) -> str:

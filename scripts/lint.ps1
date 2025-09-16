@@ -5,6 +5,14 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
 Set-Location $REPO_ROOT
 
+$pythonCommand = $null
+foreach ($candidate in @('python', 'py')) {
+    if (Get-Command $candidate -ErrorAction SilentlyContinue) {
+        $pythonCommand = $candidate
+        break
+    }
+}
+
 $summary = @()
 
 function Run-Linter {
@@ -55,16 +63,16 @@ function Parse-ESLint {
     }
 }
 
-if (Get-Command ruff -ErrorAction SilentlyContinue) {
-    Run-Linter "ruff" { ruff check --config backend/pyproject.toml backend tests cdk scripts } ${function:Parse-Ruff}
+if ($pythonCommand) {
+    Run-Linter "ruff" { & $pythonCommand -m ruff check --config backend/pyproject.toml backend tests cdk scripts } ${function:Parse-Ruff}
 } else {
-    $summary += "ruff: not installed"
+    $summary += "ruff: python not available"
 }
 
-if (Get-Command black -ErrorAction SilentlyContinue) {
-    Run-Linter "black" { black --check --config backend/pyproject.toml backend tests cdk scripts } ${function:Parse-Black}
+if ($pythonCommand) {
+    Run-Linter "black" { & $pythonCommand -m black --check --config backend/pyproject.toml backend tests cdk scripts } ${function:Parse-Black}
 } else {
-    $summary += "black: not installed"
+    $summary += "black: python not available"
 }
 
 if (Test-Path frontend) {

@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -176,3 +177,36 @@ def test_returns_compare_not_found(client, monkeypatch):
     resp = client.get("/returns/compare", params={"owner": "bob"})
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Owner not found"
+
+
+def test_group_alpha_handles_near_zero_benchmark(client, monkeypatch):
+    dates = pd.to_datetime(["2024-01-01", "2024-01-02"]).date
+    port_series = pd.Series([100.0, 101.0], index=dates)
+
+    def fake_portfolio_value_series(name, days, *, group=False):
+        assert name == "test-group"
+        assert group is True
+        assert days == 365
+        return port_series
+
+    def fake_load_meta_timeseries(ticker, exchange, days):
+        return pd.DataFrame(
+            {
+                "Date": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+                "Close": [0.0, 1e-6],
+            }
+        )
+
+    monkeypatch.setattr(
+        portfolio_utils, "_portfolio_value_series", fake_portfolio_value_series
+    )
+    monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
+
+    resp = client.get("/performance-group/test-group/alpha")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == {
+        "group": "test-group",
+        "benchmark": "VWRL.L",
+        "alpha_vs_benchmark": None,
+    }

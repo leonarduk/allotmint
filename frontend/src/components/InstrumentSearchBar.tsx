@@ -32,11 +32,13 @@ const REGIONS = ["Africa", "Asia", "Europe", "North America", "South America", "
 
 interface InstrumentSearchBarProps {
   onClose?: () => void;
+  onNavigate?: () => void;
 }
 
-export default memo(function InstrumentSearchBar({
+function InstrumentSearchBarComponent({
   onClose,
-      
+  onNavigate,
+
 }: InstrumentSearchBarProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -203,7 +205,9 @@ export default memo(function InstrumentSearchBar({
       )}
     </div>
   );
-});
+}
+
+const InstrumentSearchBar = memo(InstrumentSearchBarComponent);
 
 export function InstrumentSearchBarToggle() {
   const [open, setOpen] = useState(false);
@@ -260,6 +264,6 @@ export function InstrumentSearchBarToggle() {
   );
 }
 
-export default InstrumentSearchBarToggle;
-
 export { InstrumentSearchBar };
+
+export default InstrumentSearchBarToggle;

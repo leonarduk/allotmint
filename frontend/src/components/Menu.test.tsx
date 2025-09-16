@@ -1,36 +1,45 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, fireEvent, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import i18n from "../i18n";
 import Menu from "./Menu";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
 
+afterEach(cleanup);
+
 describe("Menu", () => {
   it("hides links by default and shows them after toggle", () => {
-    render(
+    const { getByRole, getByLabelText } = render(
       <MemoryRouter>
         <Menu />
       </MemoryRouter>,
     );
-    expect(screen.queryByRole("link", { name: "Support" })).not.toBeInTheDocument();
-    const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
+    const nav = getByRole("navigation");
+    const container = nav.querySelector(":scope > div") as HTMLElement | null;
+    expect(container).not.toBeNull();
+    const menuContainer = container as HTMLElement;
+    expect(menuContainer).toHaveClass("hidden");
+    const toggle = getByLabelText(i18n.t("app.menu"));
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(toggle);
-    expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(menuContainer).toHaveClass("flex");
+    expect(getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
       "/support",
     );
-    expect(screen.getByRole("link", { name: "Logs" })).toHaveAttribute("href", "/logs");
+    expect(getByRole("link", { name: "Logs" })).toHaveAttribute("href", "/logs");
   });
 
   it("shows support tabs on support route", () => {
-    render(
+    const { getByLabelText, getByRole } = render(
       <MemoryRouter initialEntries={["/support"]}>
         <Menu />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
-    expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
+    fireEvent.click(getByLabelText(i18n.t("app.menu")));
+    expect(getByRole("link", { name: "Logs" })).toBeInTheDocument();
+    expect(getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
       "/",
     );
@@ -71,28 +80,28 @@ describe("Menu", () => {
       setRelativeViewEnabled: () => {},
       setBaseCurrency: () => {},
     };
-    render(
+    const { queryByRole } = render(
       <configContext.Provider value={config}>
         <MemoryRouter>
           <Menu />
         </MemoryRouter>
       </configContext.Provider>,
     );
-    expect(screen.queryByRole("link", { name: "Support" })).toBeNull();
+    expect(queryByRole("link", { name: "Support" })).toBeNull();
   });
 
   it("renders logout button when callback provided", () => {
     const onLogout = vi.fn();
     i18n.changeLanguage("fr");
-    render(
+    const { getByLabelText, getByRole } = render(
       <MemoryRouter>
         <Menu onLogout={onLogout} />
       </MemoryRouter>,
     );
-    const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
+    const toggle = getByLabelText(i18n.t("app.menu"));
     fireEvent.click(toggle);
-    fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
-    const btn = screen.getByRole("button", { name: "Déconnexion" });
+    fireEvent.click(getByLabelText(i18n.t("app.menu")));
+    const btn = getByRole("button", { name: "Déconnexion" });
     fireEvent.click(btn);
     expect(onLogout).toHaveBeenCalled();
     i18n.changeLanguage("en");

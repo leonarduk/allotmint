@@ -14,7 +14,7 @@ import {
   __clearInstrumentHistoryCache,
 } from './useInstrumentHistory';
 
-const mockGetInstrumentDetail = vi.spyOn(api, 'getInstrumentDetail');
+const mockGetInstrumentDetail = vi.spyOn(api, 'fetchInstrumentDetailWithRetry');
 
 afterAll(() => {
   mockGetInstrumentDetail.mockRestore();

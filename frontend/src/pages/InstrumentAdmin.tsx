@@ -13,6 +13,7 @@ interface Row {
   name: string;
   region?: string | null;
   sector?: string | null;
+  grouping?: string | null;
   isNew?: boolean;
   _originalTicker?: string;
   _originalExchange?: string;
@@ -34,7 +35,14 @@ export default function InstrumentAdmin() {
       predicate: (row, value) => {
         if (!value) return true;
         const q = String(value).toLowerCase();
-        return [row.ticker, row.exchange, row.name, row.region ?? "", row.sector ?? ""]
+        return [
+          row.ticker,
+          row.exchange,
+          row.name,
+          row.region ?? "",
+          row.sector ?? "",
+          row.grouping ?? "",
+        ]
           .some((field) => field.toLowerCase().includes(q));
       },
     },
@@ -53,6 +61,7 @@ export default function InstrumentAdmin() {
               name: r.name ?? "",
               region: r.region ?? "",
               sector: r.sector ?? "",
+              grouping: r.grouping ?? "",
               _originalTicker: sym ?? "",
               _originalExchange: exchange,
             } as Row;
@@ -75,7 +84,15 @@ export default function InstrumentAdmin() {
   const handleAdd = () =>
     setRows((prev) => [
       ...prev,
-      { ticker: "", exchange: "", name: "", region: "", sector: "", isNew: true },
+      {
+        ticker: "",
+        exchange: "",
+        name: "",
+        region: "",
+        sector: "",
+        grouping: "",
+        isNew: true,
+      },
     ]);
 
   const handleSave = async (row: Row) => {
@@ -95,6 +112,7 @@ export default function InstrumentAdmin() {
         name: row.name,
         region: row.region,
         sector: row.sector,
+        grouping: row.grouping,
       };
       if (row.isNew) {
         await createInstrumentMetadata(row.ticker, row.exchange, payload);
@@ -113,6 +131,7 @@ export default function InstrumentAdmin() {
             name: r.name ?? "",
             region: r.region ?? "",
             sector: r.sector ?? "",
+            grouping: r.grouping ?? "",
             _originalTicker: sym ?? "",
             _originalExchange: exchange,
           } as Row;
@@ -155,6 +174,7 @@ export default function InstrumentAdmin() {
             <th>{t("instrumentadmin.name")}</th>
             <th>{t("instrumentadmin.region")}</th>
             <th>{t("instrumentadmin.sector")}</th>
+            <th>{t("instrumentadmin.grouping")}</th>
             <th>{t("instrumentadmin.actions")}</th>
           </tr>
         </thead>
@@ -189,6 +209,12 @@ export default function InstrumentAdmin() {
                 <input
                   value={r.sector ?? ""}
                   onChange={(e) => handleChange(r, "sector", e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  value={r.grouping ?? ""}
+                  onChange={(e) => handleChange(r, "grouping", e.target.value)}
                 />
               </td>
               <td>

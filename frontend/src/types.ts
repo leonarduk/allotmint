@@ -298,6 +298,7 @@ export interface InstrumentMetadata {
   name: string;
   region?: string | null;
   sector?: string | null;
+  grouping?: string | null;
 }
 
 export interface QuoteRow {

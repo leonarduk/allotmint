@@ -35,10 +35,9 @@ interface InstrumentSearchBarProps {
   onNavigate?: () => void;
 }
 
-function InstrumentSearchBarComponent({
+const InstrumentSearchBar = memo(function InstrumentSearchBar({
   onClose,
   onNavigate,
-
 }: InstrumentSearchBarProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");

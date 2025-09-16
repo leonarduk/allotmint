@@ -18,7 +18,7 @@ function Run-Linter {
         $output = & $Command 2>&1
     } catch {
         Write-Host "$Name failed: $($_.Exception.Message)" -ForegroundColor Yellow
-        $script:summary += "$Name: failed to run ($($_.Exception.Message))"
+        $script:summary += "$($Name): failed to run ($($_.Exception.Message))"
         return
     }
     $output | ForEach-Object { Write-Host $_ }

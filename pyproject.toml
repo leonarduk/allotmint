@@ -4,6 +4,6 @@ dependencies = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=backend --cov-fail-under=85"
+addopts = "--cov=backend --cov-fail-under=90"
 testpaths = ["tests"]
 

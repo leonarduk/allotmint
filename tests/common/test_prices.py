@@ -68,6 +68,62 @@ def test_get_price_snapshot_uses_latest_and_live(monkeypatch: pytest.MonkeyPatch
     assert info["change_30d_pct"] == pytest.approx((120.5 / 90.0 - 1.0) * 100.0)
     assert requested_dates == [seven_day, thirty_day]
 
+    requested_dates.clear()
+    old_timestamp = now - timedelta(minutes=20)
+    monkeypatch.setattr(
+        prices,
+        "load_live_prices",
+        lambda tickers: {ticker.upper(): {"price": 120.5, "timestamp": old_timestamp}},
+    )
+
+    stale_snapshot = prices.get_price_snapshot([ticker])
+    stale_info = stale_snapshot[ticker]
+
+    assert stale_info["last_price"] == pytest.approx(120.5)
+    assert stale_info["last_price_time"] == old_timestamp.isoformat().replace("+00:00", "Z")
+    assert stale_info["is_stale"] is True
+    assert stale_info["change_7d_pct"] == pytest.approx((120.5 / 100.0 - 1.0) * 100.0)
+    assert stale_info["change_30d_pct"] == pytest.approx((120.5 / 90.0 - 1.0) * 100.0)
+    assert requested_dates == [seven_day, thirty_day]
+
+
+def test_get_price_snapshot_defaults_to_cached_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    ticker = "XYZ.L"
+    base = ticker.split(".", 1)[0]
+    yday = date.today() - timedelta(days=1)
+    seven_day = yday - timedelta(days=7)
+    thirty_day = yday - timedelta(days=30)
+
+    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 99.5})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None)
+
+    requested: List[tuple[str, str, date]] = []
+
+    def fake_close_on(sym: str, exch: str, requested_date: date) -> float | None:
+        requested.append((sym, exch, requested_date))
+        if requested_date == seven_day:
+            return 88.0
+        if requested_date == thirty_day:
+            return None
+        raise AssertionError(f"Unexpected date requested: {requested_date}")
+
+    monkeypatch.setattr(prices, "_close_on", fake_close_on)
+
+    snapshot = prices.get_price_snapshot([ticker])
+    info = snapshot[ticker]
+
+    assert info["last_price"] == pytest.approx(99.5)
+    assert info["last_price_date"] == yday.isoformat()
+    assert info["last_price_time"] is None
+    assert info["is_stale"] is True
+    assert info["change_7d_pct"] == pytest.approx((99.5 / 88.0 - 1.0) * 100.0)
+    assert info["change_30d_pct"] is None
+    assert requested == [
+        (base, "L", seven_day),
+        (base, "L", thirty_day),
+    ]
+
 
 def test_build_securities_from_portfolios(monkeypatch: pytest.MonkeyPatch) -> None:
     portfolios = [

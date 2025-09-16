@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 from types import SimpleNamespace
 from pathlib import Path
 
@@ -11,6 +12,14 @@ from backend import auth
 def test_create_and_decode_token():
     token = auth.create_access_token("user@example.com")
     assert auth.decode_token(token) == "user@example.com"
+
+
+def test_decode_token_expired():
+    token = auth.create_access_token("user@example.com", expires_delta=timedelta(seconds=-1))
+    with pytest.raises(HTTPException) as exc:
+        auth.decode_token(token)
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Token expired"
 
 
 def test_get_current_user_invalid_token():

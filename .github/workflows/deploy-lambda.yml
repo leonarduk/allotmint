@@ -140,9 +140,20 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
+      - name: Install root dependencies
         run: npm ci
 
-      - name: Run smoke tests
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+        working-directory: frontend
+
+      - name: Run backend smoke tests
         run: npm run smoke:test
+
+      - name: Run frontend smoke tests
+        run: npm --prefix frontend run smoke:frontend
 

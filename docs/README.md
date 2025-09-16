@@ -81,6 +81,18 @@ pip install -r requirements.txt -r requirements-dev.txt
 Workflows and helper scripts install from these files, so update them when new
 packages are needed.
 
+### Pre-commit hooks
+
+Install the Git hooks so code style checks and tests run automatically before
+each commit:
+
+```bash
+pre-commit install
+```
+
+The configured hooks format Python code with Black, lint with Ruff, and execute
+the pytest suite.
+
 ### Environment variables
 
 Sensitive settings are loaded from environment variables rather than

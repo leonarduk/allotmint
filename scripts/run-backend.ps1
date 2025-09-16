@@ -68,12 +68,12 @@ function Get-HasCommand($name) {
 
 function Test-Internet {
   param(
-    [string]$Host = 'pypi.org'
+    [string]$TargetHost = 'pypi.org'
   )
 
   try {
     if (Get-HasCommand 'Test-Connection') {
-      if (Test-Connection -ComputerName $Host -Count 1 -Quiet -TimeoutSeconds 2 -ErrorAction Stop) {
+      if (Test-Connection -ComputerName $TargetHost -Count 1 -Quiet -TimeoutSeconds 2 -ErrorAction Stop) {
         return $true
       }
     }
@@ -82,7 +82,7 @@ function Test-Internet {
   }
 
   try {
-    $uri = if ($Host -match '^https?://') { $Host } else { "https://$Host/" }
+    $uri = if ($TargetHost -match '^https?://') { $TargetHost } else { "https://$TargetHost/" }
     if (Get-HasCommand 'Invoke-WebRequest') {
       Invoke-WebRequest -Uri $uri -UseBasicParsing -Method Head -TimeoutSec 5 | Out-Null
       return $true

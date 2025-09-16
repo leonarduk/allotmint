@@ -38,6 +38,9 @@ OFFLINE_MODE = config.offline_mode
 
 logger = logging.getLogger("timeseries_cache")
 
+# Simple counter for fetch failures – useful for lightweight monitoring.
+_FAILED_FETCH_COUNT = 0
+
 # Expected schema for any timeseries DF we return
 EXPECTED_COLS = ["Date", "Open", "High", "Low", "Close", "Volume", "Ticker", "Source"]
 
@@ -196,7 +199,25 @@ def _rolling_cache(
     else:
         fetch_args.update(start_date=cutoff, end_date=today)
 
-    new = fetch_func(**fetch_args)
+    try:
+        new = fetch_func(**fetch_args)
+    except Exception as exc:  # pragma: no cover - defensive path
+        global _FAILED_FETCH_COUNT
+        _FAILED_FETCH_COUNT += 1
+        fetch_name = getattr(fetch_func, "__name__", repr(fetch_func))
+        logger.warning(
+            "Timeseries fetch failed for %s.%s via %s; serving cached data if available: %s",
+            ticker,
+            exchange,
+            fetch_name,
+            exc,
+        )
+        logger.debug("Timeseries fetch failure details", exc_info=True)
+        if existing.empty:
+            return _empty_ts()
+        ex = existing.copy()
+        ex["Date"] = ex["Date"].dt.date
+        return _ensure_schema(ex[ex["Date"] >= cutoff].reset_index(drop=True))
     new = _ensure_schema(new)
 
     if new.empty:

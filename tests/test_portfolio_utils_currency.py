@@ -7,6 +7,7 @@ def test_currency_from_instrument_meta(monkeypatch):
     portfolio = {"accounts": [{"holdings": [{"ticker": "ABC", "units": 1}]}]}
 
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda t: {"currency": "USD"})
+    monkeypatch.setenv("TESTING", "1")
 
     rows = portfolio_utils.aggregate_by_ticker(portfolio)
 
@@ -41,6 +42,7 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 100}})
 
     rows_usd = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="USD")
+    assert len(rows_usd) == 1
     rate_usd = 1 / 0.8
     assert rows_usd[0]["market_value_gbp"] == round(100 * rate_usd, 2)
     assert rows_usd[0]["gain_gbp"] == round(10 * rate_usd, 2)
@@ -49,6 +51,7 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
     assert rows_usd[0]["market_value_currency"] == "USD"
 
     rows_eur = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="EUR")
+    assert len(rows_eur) == 1
     rate_eur = 1 / 0.9
     assert rows_eur[0]["market_value_gbp"] == round(100 * rate_eur, 2)
     assert rows_eur[0]["gain_gbp"] == round(10 * rate_eur, 2)
@@ -82,6 +85,7 @@ def test_aggregate_by_ticker_sets_grouping(monkeypatch):
     monkeypatch.setattr(ia, "price_change_pct", lambda ticker, days: None)
 
     rows = portfolio_utils.aggregate_by_ticker(portfolio)
+    assert len(rows) == 3
     by_ticker = {row["ticker"]: row for row in rows}
 
     assert by_ticker["AAA.L"]["grouping"] == "Explicit"

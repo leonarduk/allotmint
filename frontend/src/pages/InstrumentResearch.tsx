@@ -120,10 +120,10 @@ export default function InstrumentResearch() {
         {tkr}
         {detail?.name
           ? ` - ${detail.name}`
-          : metrics?.name
-          ? ` - ${metrics.name}`
           : quote?.name
           ? ` - ${quote.name}`
+          : metrics?.name
+          ? ` - ${metrics.name}`
           : ""}
         {detail?.sector || detail?.currency ? (
           <span

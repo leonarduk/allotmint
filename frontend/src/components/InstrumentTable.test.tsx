@@ -151,39 +151,54 @@ describe("InstrumentTable", () => {
         },
     ];
 
-    const getGroupHeader = (title: string) => {
-        const heading = screen.getByRole("heading", { name: title });
-        const container = heading.parentElement?.parentElement;
-        if (!container) {
-            throw new Error(`Group header for ${title} not found`);
+    const getSummaryButton = (title: string) =>
+        screen.getByRole("button", { name: new RegExp(`Toggle ${title}`, "i") });
+
+    const getSummaryRow = (title: string) => {
+        const button = getSummaryButton(title);
+        const row = button.closest("tr");
+        if (!row) {
+            throw new Error(`Summary row for ${title} not found`);
         }
-        return container as HTMLElement;
+        return row as HTMLTableRowElement;
     };
 
     const openGroup = (title: string) => {
-        const header = getGroupHeader(title);
-        const toggle = header.querySelector<HTMLButtonElement>('button[aria-label="Expand"]');
-        if (!toggle) {
-            throw new Error(`Expand button for ${title} not found`);
+        const button = getSummaryButton(title);
+        fireEvent.click(button);
+        return button;
+    };
+
+    const getGroupTickers = (title: string) => {
+        const summaryRow = getSummaryRow(title);
+        const tickers: string[] = [];
+        let current = summaryRow.nextElementSibling as HTMLTableRowElement | null;
+        while (current) {
+            const cell = current.cells[0];
+            if (!cell) {
+                break;
+            }
+            const tickerButton = cell.querySelector("button");
+            if (!tickerButton) {
+                break;
+            }
+            tickers.push(tickerButton.textContent ?? "");
+            current = current.nextElementSibling as HTMLTableRowElement | null;
         }
-        fireEvent.click(toggle);
-        return header;
+        return tickers;
     };
 
     it("renders groups collapsed by default with aggregated totals", () => {
         render(<InstrumentTable rows={rows} />);
-        expect(screen.getByText("Group A")).toBeInTheDocument();
-        expect(screen.getByText("Group B")).toBeInTheDocument();
-        expect(screen.getByText("Ungrouped")).toBeInTheDocument();
-        expect(screen.queryByRole('table')).toBeNull();
+        const table = screen.getByRole("table");
+        expect(table).toBeInTheDocument();
 
-        const groupAHeader = getGroupHeader("Group A");
-        expect(within(groupAHeader).getByText("Market")).toBeInTheDocument();
-        expect(within(groupAHeader).getByText("£1,500.00")).toBeInTheDocument();
-        expect(within(groupAHeader).getByText("▲£50.00")).toBeInTheDocument();
-        expect(within(groupAHeader).getByText("▲3.4%")).toBeInTheDocument();
-        expect(within(groupAHeader).getByText("▲0.3%")).toBeInTheDocument();
-        expect(within(groupAHeader).getByText("▲0.7%")).toBeInTheDocument();
+        const groupASummary = getSummaryRow("Group A");
+        expect(within(groupASummary).getByText("£1,500.00")).toBeInTheDocument();
+        expect(within(groupASummary).getByText("▲£50.00")).toBeInTheDocument();
+        expect(within(groupASummary).getByText("▲3.4%")).toBeInTheDocument();
+        expect(within(groupASummary).getByText("▲0.3%")).toBeInTheDocument();
+        expect(within(groupASummary).getByText("▲0.7%")).toBeInTheDocument();
 
         expect(screen.queryByText("ABC")).toBeNull();
 
@@ -225,14 +240,12 @@ describe("InstrumentTable", () => {
         render(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         // initial sort is ticker ascending => ABC first
-        let table = screen.getByRole("table");
-        let dataRows = within(table).getAllByRole("row");
-        expect(within(dataRows[1]).getByText("ABC")).toBeInTheDocument();
+        let tickers = getGroupTickers("Group A");
+        expect(tickers[0]).toBe("ABC");
 
-        fireEvent.click(within(table).getByText(/^Ticker/));
-        table = screen.getByRole("table");
-        dataRows = within(table).getAllByRole("row");
-        expect(within(dataRows[1]).getByText("XYZ")).toBeInTheDocument();
+        fireEvent.click(within(screen.getByRole("table")).getByText(/^Ticker/));
+        tickers = getGroupTickers("Group A");
+        expect(tickers[0]).toBe("XYZ");
     });
 
     it("allows toggling columns", () => {

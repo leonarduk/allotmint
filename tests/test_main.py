@@ -1,3 +1,6 @@
+import json
+import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
 
@@ -130,10 +133,11 @@ def test_get_account_case_insensitive(mock_load_account, mock_resolve, client, t
     (tmp_path / "steve").mkdir()
     (tmp_path / "steve" / "isa.json").write_text("{}", encoding="utf-8")
 
-    def loader(owner, account):
-        if loader.calls == 0:
+    def loader(owner, account, data_root=None):
+        if loader.calls < 2:
             loader.calls += 1
             raise FileNotFoundError
+        loader.calls += 1
         return {"account": account}
 
     loader.calls = 0
@@ -143,6 +147,27 @@ def test_get_account_case_insensitive(mock_load_account, mock_resolve, client, t
     resp = client.get("/account/steve/ISA")
     assert resp.status_code == 200
     assert resp.json() == {"account": "isa", "account_type": "isa", "holdings": []}
+
+
+def test_get_account_with_data_root_override(client):
+    expected_path = Path(__file__).resolve().parent.parent / "data" / "accounts" / "demo" / "isa.json"
+    expected_payload = json.loads(expected_path.read_text(encoding="utf-8"))
+
+    previous_env = os.environ.get("DATA_ROOT")
+    previous_root = client.app.state.accounts_root
+    try:
+        os.environ["DATA_ROOT"] = "."
+        client.app.state.accounts_root = Path(".") / "accounts"
+
+        response = client.get("/account/demo/isa")
+        assert response.status_code == 200
+        assert response.json() == expected_payload
+    finally:
+        if previous_env is None:
+            os.environ.pop("DATA_ROOT", None)
+        else:
+            os.environ["DATA_ROOT"] = previous_env
+        client.app.state.accounts_root = previous_root
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})

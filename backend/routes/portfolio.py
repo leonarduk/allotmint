@@ -397,23 +397,38 @@ async def group_movers(
 
 
 @router.get("/account/{owner}/{account}")
-async def get_account(owner: str, account: str):
+async def get_account(owner: str, account: str, request: Request):
+    accounts_root = request.app.state.accounts_root
+    root = accounts_root
+
     try:
-        data = data_loader.load_account(owner, account)
+        data = data_loader.load_account(owner, account, root)
     except FileNotFoundError:
-        paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
-        owner_dir = paths.accounts_root / owner
+        owner_dir = root / owner
+        if not owner_dir.exists():
+            paths = data_loader.resolve_paths(None, None)
+            root = paths.accounts_root
+            owner_dir = root / owner
+
         if not owner_dir.exists():
             raise HTTPException(status_code=404, detail="Account not found")
-        match = next(
-            (f.stem for f in owner_dir.glob("*.json") if f.stem.lower() == account.lower()),
-            None,
-        )
-        if not match:
-            raise HTTPException(status_code=404, detail="Account not found")
-        data = data_loader.load_account(owner, match)
-        account = match
-        
+
+        try:
+            data = data_loader.load_account(owner, account, root)
+        except FileNotFoundError:
+            match = next(
+                (
+                    f.stem
+                    for f in owner_dir.glob("*.json")
+                    if f.stem.lower() == account.lower()
+                ),
+                None,
+            )
+            if not match:
+                raise HTTPException(status_code=404, detail="Account not found")
+            data = data_loader.load_account(owner, match, root)
+            account = match
+
     holdings = data.pop("holdings", data.pop("approvals", [])) or []
 
     data["holdings"] = holdings

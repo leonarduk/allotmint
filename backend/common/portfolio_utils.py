@@ -397,15 +397,6 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
 
             instrument_meta = get_instrument_meta(full_tkr) or {}
 
-            grouping_value = _first_nonempty_str(
-                instrument_meta.get("grouping"),
-                h.get("grouping"),
-                instrument_meta.get("sector"),
-                h.get("sector"),
-                instrument_meta.get("region"),
-                h.get("region"),
-            )
-
             row = rows.setdefault(
                 full_tkr,
                 {
@@ -414,7 +405,18 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     "currency": instrument_meta.get("currency") or h.get("currency"),
                     "sector": instrument_meta.get("sector") or h.get("sector"),
                     "region": instrument_meta.get("region") or h.get("region"),
-                    "grouping": grouping_value,
+                    "grouping": _first_nonempty_str(
+                        instrument_meta.get("grouping"),
+                        h.get("grouping"),
+                        instrument_meta.get("sector"),
+                        h.get("sector"),
+                        instrument_meta.get("region"),
+                        h.get("region"),
+                    ),
+                    "grouping_id": _first_nonempty_str(
+                        instrument_meta.get("grouping_id"),
+                        h.get("grouping_id"),
+                    ),
                     "units": 0.0,
                     "market_value_gbp": 0.0,
                     "gain_gbp": 0.0,
@@ -433,9 +435,6 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     "gain_currency": base_currency,
                 },
             )
-
-            if grouping_value and not _first_nonempty_str(row.get("grouping")):
-                row["grouping"] = grouping_value
 
             # accumulate units from the holding
             row["units"] += _safe_num(h.get("units"))
@@ -466,6 +465,14 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     )
                     if grouping_value:
                         row["grouping"] = grouping_value
+                    grouping_id_value = _first_nonempty_str(
+                        security_meta.get("grouping_id"),
+                        instrument_meta.get("grouping_id"),
+                        h.get("grouping_id"),
+                        row.get("grouping_id"),
+                    )
+                    if grouping_id_value:
+                        row["grouping_id"] = grouping_id_value
 
             # attach snapshot if present
             cost = _safe_num(h.get("cost_gbp") or h.get("cost_basis_gbp") or h.get("effective_cost_basis_gbp"))
@@ -512,13 +519,17 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
 
-            row["grouping"] = instrument_api._derive_grouping(
+            grouping_name, grouping_id = instrument_api._resolve_grouping_details(
                 instrument_meta,
                 security_meta,
                 h,
                 row,
                 current=row.get("grouping"),
             )
+            if grouping_id:
+                row["grouping_id"] = grouping_id
+            if grouping_name:
+                row["grouping"] = grouping_name
 
     rate = _fx_to_base("GBP", base_currency, fx_cache)
     for r in rows.values():
@@ -546,6 +557,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 r.get("region"),
             )
             r["grouping"] = fallback or "Unknown"
+            r["grouping_id"] = None
 
     return list(rows.values())
 

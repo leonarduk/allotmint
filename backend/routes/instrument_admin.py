@@ -10,6 +10,7 @@ from backend.common.instruments import (
     delete_instrument_meta,
     get_instrument_meta,
     instrument_meta_path,
+    list_group_definitions,
     save_instrument_meta,
     list_instruments,
 )
@@ -25,6 +26,14 @@ async def list_instrument_metadata() -> list[dict[str, Any]]:
     """Return metadata for all instruments."""
 
     return list_instruments()
+
+
+@router.get("/admin/groupings")
+async def list_instrument_groupings() -> list[dict[str, Any]]:
+    """Return shared instrument grouping definitions."""
+
+    catalogue = list_group_definitions()
+    return sorted((dict(entry) for entry in catalogue.values()), key=lambda item: item.get("id", ""))
 
 
 @router.get("/admin/{exchange}/{ticker}")

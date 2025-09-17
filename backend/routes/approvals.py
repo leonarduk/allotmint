@@ -1,11 +1,11 @@
 import json
 from datetime import date
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
 from backend.common.approvals import delete_approval, load_approvals, upsert_approval
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
+from backend.routes._accounts import resolve_accounts_root
 
 router = APIRouter(prefix="/accounts", tags=["approvals"])
 
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/accounts", tags=["approvals"])
 @router.get("/{owner}/approvals")
 @handle_owner_not_found
 async def get_approvals(owner: str, request: Request):
-    root = Path(request.app.state.accounts_root).resolve()
+    root = resolve_accounts_root(request)
     try:
         owner_dir = (root / owner).resolve()
         owner_dir.relative_to(root)
@@ -36,7 +36,7 @@ async def post_approval_request(owner: str, request: Request):
     ticker = (data.get("ticker") or "").upper()
     if not ticker:
         raise HTTPException(status_code=400, detail="ticker is required")
-    root = Path(request.app.state.accounts_root).resolve()
+    root = resolve_accounts_root(request)
     try:
         owner_dir = (root / owner).resolve()
         owner_dir.relative_to(root)
@@ -73,7 +73,7 @@ async def post_approval(owner: str, request: Request):
         approved_on = date.fromisoformat(when)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="invalid approved_on") from exc
-    root = Path(request.app.state.accounts_root).resolve()
+    root = resolve_accounts_root(request)
     try:
         owner_dir = (root / owner).resolve()
         owner_dir.relative_to(root)
@@ -93,7 +93,7 @@ async def post_approval(owner: str, request: Request):
 async def delete_approval_route(owner: str, request: Request):
     data = await request.json()
     ticker = (data.get("ticker") or "").upper()
-    root = Path(request.app.state.accounts_root).resolve()
+    root = resolve_accounts_root(request)
     try:
         owner_dir = (root / owner).resolve()
         owner_dir.relative_to(root)

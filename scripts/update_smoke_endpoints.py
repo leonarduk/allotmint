@@ -68,7 +68,7 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
         "approved_on": "1970-01-01",
     },
     ("DELETE", "/accounts/{owner}/approvals"): {"ticker": "AAPL"},
-    ("POST", "/compliance/validate"): {"owner": "demo-owner"},
+    ("POST", "/compliance/validate"): {"owner": "demo"},
     ("POST", "/user-config/{owner}"): {},
     (
         "POST",
@@ -79,8 +79,8 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
 MANUAL_QUERIES: dict[tuple[str, str], dict[str, str]] = {}
 
 SAMPLE_QUERY_VALUES: dict[str, str] = {
-    "owner": "demo-owner",
-    "account": "demo-account",
+    "owner": "demo",
+    "account": "isa",
     "user": "user@example.com",
     "email": "user@example.com",
     "exchange": "NASDAQ",
@@ -165,8 +165,8 @@ def main() -> None:
         "// Values are chosen based on common parameter names. Unknown names default to\n"
         "// `1` which parses as an integer or string.\n"
         "const SAMPLE_PATH_VALUES: Record<string, string> = {\n"
-        "  owner: 'demo-owner',\n"
-        "  account: 'demo-account',\n"
+        "  owner: 'demo',\n"
+        "  account: 'isa',\n"
         "  user: 'user@example.com',\n"
         "  email: 'user@example.com',\n"
         "  id: '1',\n"

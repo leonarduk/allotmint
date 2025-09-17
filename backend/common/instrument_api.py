@@ -96,7 +96,7 @@ def _derive_grouping(*sources: Optional[Mapping[str, Any]], current: Optional[st
     for src in sources:
         if not src:
             continue
-        for key in ("grouping", "sector", "region"):
+        for key in ("grouping", "sector", "currency", "region"):
             val = src.get(key)
             if isinstance(val, str):
                 candidate = val.strip()

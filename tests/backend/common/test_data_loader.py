@@ -1,4 +1,5 @@
 import json
+from contextvars import ContextVar
 from pathlib import Path
 
 import pytest
@@ -87,6 +88,25 @@ class TestListLocalPlots:
         _write_owner(data_root, "demo", ["demo1"], viewers=[])
 
         result = _list_local_plots(data_root=data_root, current_user="viewer")
+
+        assert result == [
+            {"owner": "alice", "accounts": ["alpha"]},
+            {"owner": "demo", "accounts": ["demo1"]},
+        ]
+
+    def test_accepts_contextvar_current_user(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        data_root = tmp_path / "accounts"
+        self._configure(monkeypatch, tmp_path, data_root, disable_auth=False)
+
+        _write_owner(data_root, "alice", ["alpha"], viewers=["viewer"])
+        _write_owner(data_root, "demo", ["demo1"], viewers=[])
+
+        user_var: ContextVar[str | None] = ContextVar("user", default=None)
+        token = user_var.set("viewer")
+        try:
+            result = _list_local_plots(data_root=data_root, current_user=user_var)
+        finally:
+            user_var.reset(token)
 
         assert result == [
             {"owner": "alice", "accounts": ["alpha"]},

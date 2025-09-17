@@ -88,12 +88,10 @@ def _list_local_plots(
     if not root.exists():
         return results
 
-    # ``current_user`` may be passed in as ``None`` or as a simple string
-    # identifier.  Previously this function assumed ``current_user`` was a
-    # ``ContextVar`` and attempted to call ``.get(None)``, which raises an
-    # ``AttributeError`` when a plain string is supplied.  Normalise the value
-    # explicitly to handle both cases safely.
-    user = current_user if current_user else None
+    # ``current_user`` may be passed in as ``None``, a simple string identifier
+    # or as a ``ContextVar`` (mirroring the AWS loader).  Normalise the value to
+    # the underlying string before applying permission checks.
+    user = current_user.get(None) if hasattr(current_user, "get") else current_user
 
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
@@ -104,11 +102,7 @@ def _list_local_plots(
         # configuration file cannot be loaded, which previously triggered this
         # condition unintentionally.  Be explicit about the check so that a
         # missing config behaves the same as auth being disabled.
-        if (
-            config.disable_auth is False
-            and current_user is None
-            and owner_dir.name != "demo"
-        ):
+        if config.disable_auth is False and user is None and owner_dir.name != "demo":
             continue
 
         owner = owner_dir.name

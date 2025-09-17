@@ -392,8 +392,16 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 sym, inferred = (tkr.split(".", 1) + [None])[:2]
                 if not h.get("exchange"):
                     logger.debug("Could not resolve exchange for %s; defaulting to L", tkr)
-            exch = (h.get("exchange") or inferred or "L").upper()
-            full_tkr = f"{sym}.{exch}"
+
+            sym = (sym or "").upper()
+            base_sym = sym.split(".", 1)[0]
+            exchange_value = (h.get("exchange") or inferred or "L")
+            exch = exchange_value.upper() if isinstance(exchange_value, str) else "L"
+
+            if "." in sym:
+                full_tkr = sym
+            else:
+                full_tkr = f"{sym}.{exch}"
 
             instrument_meta = get_instrument_meta(full_tkr) or {}
 
@@ -484,7 +492,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
 
             # attach snapshot if present – overrides derived values above
-            snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(sym)
+            snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             price = snap.get("last_price") if isinstance(snap, dict) else None
             if price and price == price:  # guard against None/NaN/0
                 row["last_price_gbp"] = price

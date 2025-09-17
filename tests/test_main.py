@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -148,24 +147,15 @@ def test_get_account_case_insensitive(mock_load_account, mock_resolve, client, t
     assert resp.json() == {"account": "isa", "account_type": "isa", "holdings": []}
 
 
-def test_get_account_demo_fallback(client):
+def test_get_account_demo_fallback(client, monkeypatch):
     expected = data_loader.load_account("demo", "isa")
 
-    original_data_root = os.environ.get("DATA_ROOT")
-    original_accounts_root = client.app.state.accounts_root
-    try:
-        os.environ["DATA_ROOT"] = "."
-        client.app.state.accounts_root = Path(".")
+    monkeypatch.setenv("DATA_ROOT", ".")
+    monkeypatch.setattr(client.app.state, "accounts_root", Path("."))
 
-        response = client.get("/account/demo/isa")
-        assert response.status_code == 200
-        assert response.json() == expected
-    finally:
-        if original_data_root is None:
-            os.environ.pop("DATA_ROOT", None)
-        else:
-            os.environ["DATA_ROOT"] = original_data_root
-        client.app.state.accounts_root = original_accounts_root
+    response = client.get("/account/demo/isa")
+    assert response.status_code == 200
+    assert response.json() == expected
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})

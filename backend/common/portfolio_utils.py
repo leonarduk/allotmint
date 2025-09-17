@@ -551,7 +551,11 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
         if r.get("day_change_gbp") is not None:
             r["day_change_currency"] = base_currency
         if not _first_nonempty_str(r.get("grouping")):
-            fallback = _first_nonempty_str(r.get("sector"), r.get("region"))
+            fallback = _first_nonempty_str(
+                r.get("sector"),
+                r.get("currency"),
+                r.get("region"),
+            )
             r["grouping"] = fallback or "Unknown"
             r["grouping_id"] = None
 

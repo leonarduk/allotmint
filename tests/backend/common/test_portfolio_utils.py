@@ -195,6 +195,7 @@ def test_safe_num_returns_default_for_invalid():
 
 
 def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
+
     portfolio = {
         "accounts": [
             {
@@ -227,3 +228,19 @@ def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
     rows = portfolio_utils.aggregate_by_ticker(portfolio)
     assert rows[0]["grouping"] == "Shared Group"
     assert rows[0]["grouping_id"] == "shared"
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, latest: (ticker, "L"))
+    monkeypatch.setattr(instrument_api, "price_change_pct", lambda *args, **kwargs: None)
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    rows_by_ticker = {row["ticker"]: row for row in rows}
+
+    assert rows_by_ticker["AAA.L"]["grouping"] == "Technology"
+    assert rows_by_ticker["BBB.L"]["grouping"] == "USD"
+    assert rows_by_ticker["CCC.L"]["grouping"] == "Europe"
+    assert rows_by_ticker["DDD.L"]["grouping"] == "Unknown"

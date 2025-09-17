@@ -35,6 +35,48 @@
   font-size: 0.75rem;
 }
 
+.groupSection {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.groupRow {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.groupCell {
+  font-weight: 600;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.groupToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+}
+
+.groupToggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.groupToggleIcon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.groupCount {
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
 @media (max-width: 768px) {
   .cell {
     padding: 2px 4px;

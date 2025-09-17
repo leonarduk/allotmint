@@ -12,8 +12,6 @@ import i18n from '../i18n';
 import { useConfig } from '../ConfigContext';
 import { isSupportedFx } from '../lib/fx';
 import { RelativeViewToggle } from './RelativeViewToggle';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import {
   assignInstrumentGroup,
   clearInstrumentGroup,
@@ -61,6 +59,7 @@ export function InstrumentTable({ rows }: Props) {
   const [groupOptions, setGroupOptions] = useState<string[]>([]);
   const [groupOverrides, setGroupOverrides] = useState<Record<string, string | null | undefined>>({});
   const [pendingGroupTicker, setPendingGroupTicker] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
 
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -156,129 +155,175 @@ export function InstrumentTable({ rows }: Props) {
           </label>
         ))}
       </div>
-      {groups.map((group) => {
-        const totals = (
-          <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            <div className="flex items-baseline gap-1">
-              <dt className="font-medium text-foreground">
-                {t('instrumentTable.groupTotals.market', { defaultValue: 'Market' })}
-              </dt>
-              <dd>{money(group.totals.marketValue, baseCurrency)}</dd>
-            </div>
-            <div className="flex items-baseline gap-1">
-              <dt className="font-medium text-foreground">
-                {t('instrumentTable.groupTotals.gain', { defaultValue: 'Gain' })}
-              </dt>
-              <dd>{formatSignedMoney(group.totals.gain, baseCurrency)}</dd>
-            </div>
-            <div className="flex items-baseline gap-1">
-              <dt className="font-medium text-foreground">
-                {t('instrumentTable.groupTotals.gainPct', { defaultValue: 'Gain %' })}
-              </dt>
-              <dd>{formatSignedPercent(group.totals.gainPct)}</dd>
-            </div>
-            <div className="flex items-baseline gap-1">
-              <dt className="font-medium text-foreground">
-                {t('instrumentTable.groupTotals.delta7d', { defaultValue: '7d %' })}
-              </dt>
-              <dd>{formatSignedPercent(group.totals.change7dPct)}</dd>
-            </div>
-            <div className="flex items-baseline gap-1">
-              <dt className="font-medium text-foreground">
-                {t('instrumentTable.groupTotals.delta30d', { defaultValue: '30d %' })}
-              </dt>
-              <dd>{formatSignedPercent(group.totals.change30dPct)}</dd>
-            </div>
-          </dl>
-        );
-
-        return (
-          <GroupCard key={group.key} title={group.label} totals={totals}>
-            <table
-              className={`${tableStyles.table} ${tableStyles.clickable}`}
-              style={{ marginBottom: '0' }}
+      <table className={`${tableStyles.table} ${tableStyles.clickable}`} style={{ marginBottom: '0' }}>
+        <thead>
+          <tr>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort('ticker')}
             >
-              <thead>
-                <tr>
-                  <th
-                    className={`${tableStyles.cell} ${tableStyles.clickable}`}
-                    onClick={() => handleSort('ticker')}
-                  >
-                    {t('instrumentTable.columns.ticker')}
-                    {sortKey === 'ticker' ? (asc ? ' ▲' : ' ▼') : ''}
-                  </th>
-                  <th
-                    className={`${tableStyles.cell} ${tableStyles.clickable}`}
-                    onClick={() => handleSort('name')}
-                  >
-                    {t('instrumentTable.columns.name')}
-                    {sortKey === 'name' ? (asc ? ' ▲' : ' ▼') : ''}
-                  </th>
-                  <th className={tableStyles.cell}>
-                    {t('instrumentTable.columns.ccy')}
-                  </th>
-                  <th className={tableStyles.cell}>
-                    {t('instrumentTable.columns.type')}
-                  </th>
-                  {!relativeViewEnabled && visibleColumns.units && (
-                    <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {t('instrumentTable.columns.units')}
-                    </th>
-                  )}
-                  {!relativeViewEnabled && visibleColumns.cost && (
-                    <th
-                      className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                      onClick={() => handleSort('cost')}
-                    >
-                      {t('instrumentTable.columns.cost')}
-                      {sortKey === 'cost' ? (asc ? ' ▲' : ' ▼') : ''}
-                    </th>
-                  )}
-                  {!relativeViewEnabled && visibleColumns.market && (
-                    <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {t('instrumentTable.columns.market')}
-                    </th>
-                  )}
-                  {!relativeViewEnabled && visibleColumns.gain && (
-                    <th
-                      className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                      onClick={() => handleSort('gain_gbp')}
-                    >
-                      {t('instrumentTable.columns.gain')}
-                      {sortKey === 'gain_gbp' ? (asc ? ' ▲' : ' ▼') : ''}
-                    </th>
-                  )}
-                  {visibleColumns.gain_pct && (
-                    <th
-                      className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
-                      onClick={() => handleSort('gain_pct')}
-                    >
-                      {t('instrumentTable.columns.gainPct')}
-                      {sortKey === 'gain_pct' ? (asc ? ' ▲' : ' ▼') : ''}
-                    </th>
-                  )}
-                  {!relativeViewEnabled && (
-                    <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {t('instrumentTable.columns.last')}
-                    </th>
-                  )}
-                  <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {t('instrumentTable.columns.lastDate')}
-                  </th>
-                  <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {t('instrumentTable.columns.delta7d')}
-                  </th>
-                  <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {t('instrumentTable.columns.delta30d')}
-                  </th>
-                  <th className={tableStyles.cell}>
-                    {t('instrumentTable.columns.groupActions', { defaultValue: 'Group' })}
-                  </th>
-                </tr>
-              </thead>
+              {t('instrumentTable.columns.ticker')}
+              {sortKey === 'ticker' ? (asc ? ' ▲' : ' ▼') : ''}
+            </th>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort('name')}
+            >
+              {t('instrumentTable.columns.name')}
+              {sortKey === 'name' ? (asc ? ' ▲' : ' ▼') : ''}
+            </th>
+            <th className={tableStyles.cell}>
+              {t('instrumentTable.columns.ccy')}
+            </th>
+            <th className={tableStyles.cell}>
+              {t('instrumentTable.columns.type')}
+            </th>
+            {!relativeViewEnabled && visibleColumns.units && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t('instrumentTable.columns.units')}
+              </th>
+            )}
+            {!relativeViewEnabled && visibleColumns.cost && (
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort('cost')}
+              >
+                {t('instrumentTable.columns.cost')}
+                {sortKey === 'cost' ? (asc ? ' ▲' : ' ▼') : ''}
+              </th>
+            )}
+            {!relativeViewEnabled && visibleColumns.market && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t('instrumentTable.columns.market')}
+              </th>
+            )}
+            {!relativeViewEnabled && visibleColumns.gain && (
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort('gain_gbp')}
+              >
+                {t('instrumentTable.columns.gain')}
+                {sortKey === 'gain_gbp' ? (asc ? ' ▲' : ' ▼') : ''}
+              </th>
+            )}
+            {visibleColumns.gain_pct && (
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort('gain_pct')}
+              >
+                {t('instrumentTable.columns.gainPct')}
+                {sortKey === 'gain_pct' ? (asc ? ' ▲' : ' ▼') : ''}
+              </th>
+            )}
+            {!relativeViewEnabled && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t('instrumentTable.columns.last')}
+              </th>
+            )}
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t('instrumentTable.columns.lastDate')}
+            </th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t('instrumentTable.columns.delta7d')}
+            </th>
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t('instrumentTable.columns.delta30d')}
+            </th>
+            <th className={tableStyles.cell}>
+              {t('instrumentTable.columns.groupActions', { defaultValue: 'Group' })}
+            </th>
+          </tr>
+        </thead>
+        {groups.map((group) => {
+          const expanded = expandedGroups.has(group.key);
+          const toggleLabel = t('instrumentTable.groupToggle', {
+            group: group.label,
+            defaultValue: `Toggle ${group.label}`,
+          });
+          const groupDomId = `group-${sanitizeGroupKey(group.key)}`;
+          const totalUnits = group.rows.reduce((sum, row) => sum + (row.units ?? 0), 0);
+          const totalCost = group.rows.reduce((sum, row) => sum + row.cost, 0);
 
-              <tbody>
-                {group.rows.map((r) => {
+          return (
+            <tbody key={group.key} id={groupDomId} className={tableStyles.groupSection}>
+              <tr className={tableStyles.groupRow}>
+                <th
+                  scope="row"
+                  className={`${tableStyles.cell} ${tableStyles.groupCell}`}
+                  colSpan={2}
+                >
+                  <button
+                    type="button"
+                    className={tableStyles.groupToggle}
+                    onClick={() =>
+                      setExpandedGroups((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(group.key)) {
+                          next.delete(group.key);
+                        } else {
+                          next.add(group.key);
+                        }
+                        return next;
+                      })
+                    }
+                    aria-expanded={expanded}
+                    aria-controls={groupDomId}
+                    aria-label={toggleLabel}
+                  >
+                    <span aria-hidden="true" className={tableStyles.groupToggleIcon}>
+                      {expanded ? '−' : '+'}
+                    </span>
+                    <span>{group.label}</span>
+                    <span className={tableStyles.groupCount}>
+                      ({group.rows.length})
+                    </span>
+                  </button>
+                </th>
+                <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
+                <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
+                {!relativeViewEnabled && visibleColumns.units && (
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    {totalUnits ? new Intl.NumberFormat(i18n.language).format(totalUnits) : '—'}
+                  </td>
+                )}
+                {!relativeViewEnabled && visibleColumns.cost && (
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    {totalCost ? money(totalCost, baseCurrency) : '—'}
+                  </td>
+                )}
+                {!relativeViewEnabled && visibleColumns.market && (
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    {money(group.totals.marketValue, baseCurrency)}
+                  </td>
+                )}
+                {!relativeViewEnabled && visibleColumns.gain && (
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    {formatSignedMoney(group.totals.gain, baseCurrency)}
+                  </td>
+                )}
+                {visibleColumns.gain_pct && (
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    {formatSignedPercent(group.totals.gainPct)}
+                  </td>
+                )}
+                {!relativeViewEnabled && (
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    —
+                  </td>
+                )}
+                <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                  —
+                </td>
+                <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                  {formatSignedPercent(group.totals.change7dPct)}
+                </td>
+                <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                  {formatSignedPercent(group.totals.change30dPct)}
+                </td>
+                <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
+              </tr>
+              {expanded &&
+                group.rows.map((r) => {
                   const gainClass =
                     r.gain_gbp >= 0 ? statusStyles.positive : statusStyles.negative;
                   const gainPrefix = r.gain_gbp >= 0 ? '▲' : '▼';
@@ -458,11 +503,10 @@ export function InstrumentTable({ rows }: Props) {
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
-          </GroupCard>
-        );
-      })}
+            </tbody>
+          );
+        })}
+      </table>
 
       {selected && (
         <InstrumentDetail
@@ -474,38 +518,6 @@ export function InstrumentTable({ rows }: Props) {
         />
       )}
     </>
-  );
-}
-
-type GroupCardProps = {
-  title: string;
-  totals: ReactNode;
-  children: ReactNode;
-};
-
-function GroupCard({ title, totals, children }: GroupCardProps) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen} className="w-full">
-      <Card className="mb-4">
-        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-1 flex-col gap-2">
-            <CardTitle>{title}</CardTitle>
-            {totals}
-          </div>
-          <CollapsibleTrigger
-            className="ml-auto text-sm"
-            aria-label={open ? 'Collapse' : 'Expand'}
-          >
-            {open ? '−' : '+'}
-          </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent>
-          <CardContent>{children}</CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
   );
 }
 
@@ -539,6 +551,11 @@ function createGroupedRows(rows: RowWithCost[], ungroupedLabel: string): Grouped
     rows: group.rows,
     totals: calculateGroupTotals(group.rows),
   }));
+}
+
+function sanitizeGroupKey(key: string): string {
+  const sanitized = key.replace(/[^a-zA-Z0-9_-]/g, '-');
+  return sanitized || 'group';
 }
 
 function calculateGroupTotals(rows: RowWithCost[]): GroupTotals {

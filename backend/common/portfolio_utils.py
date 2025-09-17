@@ -452,20 +452,20 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 {
                     "ticker": full_tkr,
                     "name": instrument_meta.get("name") or h.get("name", full_tkr),
-                    "currency": instrument_meta.get("currency") or h.get("currency"),
-                    "sector": instrument_meta.get("sector") or h.get("sector"),
-                    "region": instrument_meta.get("region") or h.get("region"),
+                    "currency": h.get("currency") or instrument_meta.get("currency"),
+                    "sector": h.get("sector") or instrument_meta.get("sector"),
+                    "region": h.get("region") or instrument_meta.get("region"),
                     "grouping": _first_nonempty_str(
-                        instrument_meta.get("grouping"),
                         h.get("grouping"),
-                        instrument_meta.get("sector"),
+                        instrument_meta.get("grouping"),
                         h.get("sector"),
-                        instrument_meta.get("region"),
+                        instrument_meta.get("sector"),
                         h.get("region"),
+                        instrument_meta.get("region"),
                     ),
                     "grouping_id": _first_nonempty_str(
-                        instrument_meta.get("grouping_id"),
                         h.get("grouping_id"),
+                        instrument_meta.get("grouping_id"),
                     ),
                     "units": 0.0,
                     "market_value_gbp": 0.0,
@@ -500,26 +500,26 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     row["region"] = security_meta["region"]
                 if security_meta:
                     grouping_value = _first_nonempty_str(
+                        row.get("grouping"),
+                        h.get("grouping"),
                         security_meta.get("grouping"),
                         instrument_meta.get("grouping"),
-                        h.get("grouping"),
+                        row.get("sector"),
+                        h.get("sector"),
                         security_meta.get("sector"),
                         instrument_meta.get("sector"),
-                        h.get("sector"),
+                        row.get("region"),
+                        h.get("region"),
                         security_meta.get("region"),
                         instrument_meta.get("region"),
-                        h.get("region"),
-                        row.get("grouping"),
-                        row.get("sector"),
-                        row.get("region"),
                     )
                     if grouping_value:
                         row["grouping"] = grouping_value
                     grouping_id_value = _first_nonempty_str(
+                        row.get("grouping_id"),
+                        h.get("grouping_id"),
                         security_meta.get("grouping_id"),
                         instrument_meta.get("grouping_id"),
-                        h.get("grouping_id"),
-                        row.get("grouping_id"),
                     )
                     if grouping_id_value:
                         row["grouping_id"] = grouping_id_value

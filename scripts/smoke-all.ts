@@ -22,14 +22,27 @@ for (const variable of forwardedEnvironmentVariables) {
   }
 }
 
+const scriptArgs = process.argv.slice(2).filter((arg) => arg !== '--');
+const cliBase = scriptArgs[0];
+
+if (cliBase) {
+  env.SMOKE_URL = cliBase;
+}
+
+const targetBase = env.SMOKE_URL;
+
 const require = createRequire(import.meta.url);
 
 const tsxCliPath = require.resolve('tsx/cli');
 
+const backendArgs = targetBase
+  ? [tsxCliPath, 'scripts/frontend-backend-smoke.ts', targetBase]
+  : [tsxCliPath, 'scripts/frontend-backend-smoke.ts'];
+
 const commands: Command[] = [
   {
     command: process.execPath,
-    args: [tsxCliPath, 'scripts/frontend-backend-smoke.ts'],
+    args: backendArgs,
     label: 'backend smoke suite',
   },
   {

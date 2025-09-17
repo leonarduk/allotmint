@@ -102,11 +102,7 @@ def _list_local_plots(
         # configuration file cannot be loaded, which previously triggered this
         # condition unintentionally.  Be explicit about the check so that a
         # missing config behaves the same as auth being disabled.
-        if (
-            config.disable_auth is False
-            and current_user is None
-            and owner_dir.name != "demo"
-        ):
+        if config.disable_auth is False and user is None and owner_dir.name != "demo":
             continue
 
         owner = owner_dir.name

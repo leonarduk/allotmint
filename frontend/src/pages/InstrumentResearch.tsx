@@ -141,29 +141,30 @@ export default function InstrumentResearch() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <h1 style={{ marginBottom: "1rem" }}>
-        {tkr}
-        {detail?.name
-          ? ` - ${detail.name}`
-          : quote?.name
-          ? ` - ${quote.name}`
-          : metrics?.name
-          ? ` - ${metrics.name}`
-          : ""}
-        {detail?.sector || detail?.currency ? (
-          <span
-            style={{
-              display: "block",
-              fontSize: "0.8rem",
-              fontWeight: "normal",
-            }}
-          >
-            {detail?.sector ?? ""}
-            {detail?.sector && detail?.currency ? " · " : ""}
-            {detail?.currency ?? ""}
-          </span>
-        ) : null}
-      </h1>
+      {(() => {
+        const headingName = quote?.name ?? metrics?.name ?? detail?.name ?? null;
+        if (!headingName) {
+          return <div style={{ marginBottom: "1rem" }}>{tkr}</div>;
+        }
+        return (
+          <h1 style={{ marginBottom: "1rem" }}>
+            {tkr} {` - ${headingName}`}
+            {detail?.sector || detail?.currency ? (
+              <span
+                style={{
+                  display: "block",
+                  fontSize: "0.8rem",
+                  fontWeight: "normal",
+                }}
+              >
+                {detail?.sector ?? ""}
+                {detail?.sector && detail?.currency ? " · " : ""}
+                {detail?.currency ?? ""}
+              </span>
+            ) : null}
+          </h1>
+        );
+      })()}
 
       <div style={{ marginBottom: "1rem" }}>
         {tabs.screener && !(disabledTabs ?? []).includes("screener") && (

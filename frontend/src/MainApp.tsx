@@ -192,6 +192,13 @@ export default function MainApp() {
       >
         <LanguageSwitcher />
         <button
+          type="button"
+          aria-label="refresh-prices"
+          style={{ marginRight: "0.5rem" }}
+        >
+          {t('app.refreshPrices')}
+        </button>
+        <button
           aria-label="notifications"
           onClick={() => setNotificationsOpen(true)}
           style={{

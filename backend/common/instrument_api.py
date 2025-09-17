@@ -162,6 +162,9 @@ def _resolve_grouping_details(
         name, slug = _coerce_group_value(src.get("sector"), catalogue)
         if name:
             return name, slug
+        name, slug = _coerce_group_value(src.get("currency"), catalogue)
+        if name:
+            return name, slug
         name, slug = _coerce_group_value(src.get("region"), catalogue)
         if name:
             return name, slug
@@ -170,7 +173,7 @@ def _resolve_grouping_details(
 
 
 def _derive_grouping(*sources: Optional[Mapping[str, Any]], current: Optional[Any] = None) -> Optional[str]:
-    """Return the first non-empty grouping/sector/region from the provided metadata."""
+    """Return the first non-empty grouping/sector/currency/region from the metadata."""
 
     name, _ = _resolve_grouping_details(*sources, current=current)
     return name

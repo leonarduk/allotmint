@@ -206,7 +206,31 @@ def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
                         "market_value_gbp": 100.0,
                         "gain_gbp": 10.0,
                         "cost_gbp": 90.0,
-                    }
+                        "sector": "Technology",
+                    },
+                    {
+                        "ticker": "BBB.L",
+                        "units": 2.0,
+                        "market_value_gbp": 50.0,
+                        "gain_gbp": 5.0,
+                        "cost_gbp": 45.0,
+                        "currency": "USD",
+                    },
+                    {
+                        "ticker": "CCC.L",
+                        "units": 3.0,
+                        "market_value_gbp": 75.0,
+                        "gain_gbp": 15.0,
+                        "cost_gbp": 60.0,
+                        "region": "Europe",
+                    },
+                    {
+                        "ticker": "DDD.L",
+                        "units": 4.0,
+                        "market_value_gbp": 25.0,
+                        "gain_gbp": 2.0,
+                        "cost_gbp": 23.0,
+                    },
                 ]
             }
         ]
@@ -221,7 +245,12 @@ def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
     monkeypatch.setattr(
         portfolio_utils,
         "get_instrument_meta",
-        lambda t: {"name": "Shared", "currency": "GBP", "grouping_id": "shared"},
+        lambda t: {
+            "name": "Shared",
+            "currency": "GBP",
+            "grouping_id": "shared",
+            "grouping": "shared",
+        },
     )
     monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda t: {})
 
@@ -240,6 +269,7 @@ def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
     rows_by_ticker = {row["ticker"]: row for row in rows}
 
+    assert "AAA.L" in rows_by_ticker
     assert rows_by_ticker["AAA.L"]["grouping"] == "Technology"
     assert rows_by_ticker["BBB.L"]["grouping"] == "USD"
     assert rows_by_ticker["CCC.L"]["grouping"] == "Europe"

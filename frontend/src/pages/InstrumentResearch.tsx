@@ -45,41 +45,66 @@ export default function InstrumentResearch() {
     const newsCtrl = new AbortController();
     const quoteCtrl = new AbortController();
 
-    setScreenerLoading(true);
-    setScreenerError(null);
-    getScreener([tkr], {}, screenerCtrl.signal)
-      .then((rows) => setMetrics(rows[0] || null))
-      .catch((err) => {
-        if (err.name !== "AbortError") {
-          console.error(err);
-          setScreenerError(err.message ?? String(err));
+    const fetchScreener = async () => {
+      setScreenerLoading(true);
+      setScreenerError(null);
+      try {
+        const rows = await getScreener([tkr], {}, screenerCtrl.signal);
+        setMetrics(rows[0] || null);
+      } catch (err) {
+        const error = err as { name?: string } | null | undefined;
+        if (error?.name === "AbortError") {
+          return;
         }
-      })
-      .finally(() => setScreenerLoading(false));
+        console.error(err);
+        setMetrics(null);
+        setScreenerError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setScreenerLoading(false);
+      }
+    };
 
-    setQuoteLoading(true);
-    setQuoteError(null);
-    getQuotes([tkr], quoteCtrl.signal)
-      .then((rows) => setQuote(rows[0] || null))
-      .catch((err) => {
-        if (err.name !== "AbortError") {
-          console.error(err);
-          setQuoteError(err.message ?? String(err));
+    const fetchQuote = async () => {
+      setQuoteLoading(true);
+      setQuoteError(null);
+      try {
+        const rows = await getQuotes([tkr], quoteCtrl.signal);
+        setQuote(rows[0] || null);
+      } catch (err) {
+        const error = err as { name?: string } | null | undefined;
+        if (error?.name === "AbortError") {
+          return;
         }
-      })
-      .finally(() => setQuoteLoading(false));
+        console.error(err);
+        setQuote(null);
+        setQuoteError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setQuoteLoading(false);
+      }
+    };
 
-    setNewsLoading(true);
-    setNewsError(null);
-    getNews(tkr, newsCtrl.signal)
-      .then(setNews)
-      .catch((err) => {
-        if (err.name !== "AbortError") {
-          console.error(err);
-          setNewsError(err.message ?? String(err));
+    const fetchNews = async () => {
+      setNewsLoading(true);
+      setNewsError(null);
+      try {
+        const items = await getNews(tkr, newsCtrl.signal);
+        setNews(items);
+      } catch (err) {
+        const error = err as { name?: string } | null | undefined;
+        if (error?.name === "AbortError") {
+          return;
         }
-      })
-      .finally(() => setNewsLoading(false));
+        console.error(err);
+        setNews([]);
+        setNewsError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setNewsLoading(false);
+      }
+    };
+
+    void fetchScreener();
+    void fetchQuote();
+    void fetchNews();
     return () => {
       screenerCtrl.abort();
       newsCtrl.abort();

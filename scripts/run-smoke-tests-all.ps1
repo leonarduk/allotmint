@@ -40,6 +40,16 @@ $repoRoot = Resolve-RepoRoot -ScriptRoot $PSScriptRoot
 
 Push-Location -Path $repoRoot
 try {
+    $tsxCliGlob = Join-Path -Path $repoRoot -ChildPath 'node_modules/.bin/tsx*'
+    if (-not (Test-Path -Path $tsxCliGlob)) {
+        Write-Host "Local tsx CLI was not found. Installing Node dev dependencies ..." -ForegroundColor Yellow
+        npm install
+
+        if (-not (Test-Path -Path $tsxCliGlob)) {
+            throw "Local tsx CLI is still missing after running 'npm install'. Please ensure Node dev dependencies are installed and rerun the script."
+        }
+    }
+
     Write-Host 'Running npm run smoke:test:all ...' -ForegroundColor Cyan
     npm run smoke:test:all
 }

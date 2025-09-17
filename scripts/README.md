@@ -1,5 +1,15 @@
 # Scripts
 
+## lint.ps1
+
+Run all configured linters (Python Ruff/Black and frontend ESLint) and emit a
+Codex-friendly summary of any issues. The output can be pasted directly into
+the Codex fix workflow.
+
+```powershell
+./scripts/lint.ps1
+```
+
 ## frontend-backend-smoke.ts
 
 Run a quick smoke test against key backend endpoints. After running any `deploy:local:*` command to start the stack, execute:
@@ -8,19 +18,34 @@ Run a quick smoke test against key backend endpoints. After running any `deploy:
 npm run smoke:test
 ```
 
-Set `API_BASE` to target a different backend URL and `TEST_ID_TOKEN` if needed.
+Set `SMOKE_URL` to point at a different deployment and include `TEST_ID_TOKEN`
+when the target requires authentication (the smoke runner forwards it as a
+bearer token).
 
 ## smoke-test.ps1
 
-Check a single endpoint for an HTTP 200 response.
+Check one or more endpoints for an HTTP 200 response.
 
 ```powershell
-# Pass URL as a parameter
-./scripts/smoke-test.ps1 https://example.com
+# Pass URLs as parameters
+./scripts/smoke-test.ps1 https://example.com https://example.com/health
 
 # or rely on the environment variable
-$env:SMOKE_TEST_URL = "https://example.com"
+$env:SMOKE_TEST_URLS = "https://example.com,https://example.com/health"
 ./scripts/smoke-test.ps1
+```
+
+```bash
+SMOKE_TEST_URLS=http://localhost:8000/health,http://localhost:5173 npm run smoke:test
+```
+
+
+## run-smoke-tests-all.ps1
+
+Run the combined backend and frontend smoke suites defined in `npm run smoke:test:all`.
+
+```powershell
+./scripts/run-smoke-tests-all.ps1
 ```
 
 

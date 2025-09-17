@@ -52,6 +52,13 @@ def test_post_approval_request_missing_ticker(tmp_path: Path) -> None:
     assert resp.json()["detail"] == "ticker is required"
 
 
+def test_post_approval_request_missing_owner(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    resp = client.post("/accounts/missing/approval-requests", json={"ticker": "ADM.L"})
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Owner not found"}
+
+
 def test_post_approval_request_write_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / "bob").mkdir()
     client = make_client(tmp_path)
@@ -95,6 +102,15 @@ def test_post_approval_success(tmp_path: Path) -> None:
     ]
 
 
+def test_post_approval_missing_owner(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    resp = client.post(
+        "/accounts/missing/approvals", json={"ticker": "ADM.L", "approved_on": "2024-06-04"}
+    )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Owner not found"}
+
+
 def test_post_approval_write_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / "bob").mkdir()
     client = make_client(tmp_path)
@@ -132,4 +148,11 @@ def test_delete_approval_route_nonexistent_ticker(tmp_path: Path) -> None:
     assert resp.json()["approvals"] == [
         {"ticker": "ADM.L", "approved_on": "2024-06-04"}
     ]
+
+
+def test_delete_approval_missing_owner(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    resp = client.request("DELETE", "/accounts/missing/approvals", json={"ticker": "ADM.L"})
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Owner not found"}
 

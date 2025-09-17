@@ -20,6 +20,8 @@ describe("InstrumentSearchBar", () => {
     const searchMock = searchInstruments as unknown as vi.Mock;
     searchMock.mockResolvedValue([{ ticker: "AAA", name: "AAA Corp" }]);
 
+    const user = userEvent.setup();
+
     render(
       <MemoryRouter initialEntries={["/"]}>
         <Routes>
@@ -28,6 +30,18 @@ describe("InstrumentSearchBar", () => {
         </Routes>
       </MemoryRouter>
     );
+
+    const researchButton = screen.getByRole("button", { name: /Research/i });
+    expect(researchButton).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/Search instruments/i)
+    ).not.toBeInTheDocument();
+
+    await user.click(researchButton);
+
+    expect(
+      await screen.findByLabelText(/Search instruments/i)
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/Filter by sector/i), {
       target: { value: "Energy" },

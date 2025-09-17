@@ -93,7 +93,7 @@ export function HoldingsTable({
   };
 
   const clearFilters = () => {
-    setFilters(initialFilters);
+    dispatchFilters({ type: "clearAll" });
     setViewPreset("");
   };
 

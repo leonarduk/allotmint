@@ -32,7 +32,6 @@ export default function Menu({
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     function handleFocus(e: FocusEvent) {
       if (open && containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -148,8 +147,9 @@ export default function Menu({
   return (
     <nav className="mb-4" ref={containerRef}>
       <button
+        aria-expanded={open}
         aria-label={t('app.menu')}
-        className="md:hidden mb-2 p-2 border rounded"
+        className="mb-2 p-2 border rounded"
         onClick={() => setOpen((o) => !o)}
       >
         ☰
@@ -167,7 +167,9 @@ export default function Menu({
         </div>
       ) : (
         <div
-          className={`${open ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row md:flex-wrap`}
+          hidden={!open}
+          aria-hidden={!open}
+          className={`${open ? 'flex md:flex' : 'hidden'} flex-col gap-2 md:flex-row md:flex-wrap`}
           style={style}
         >
           {orderedTabPlugins

@@ -54,6 +54,45 @@ def test_aggregate_with_mixed_holdings(monkeypatch):
     assert rows["CCC.L"]["market_value_gbp"] == 40.0
 
 
+def test_grouping_from_security_meta(monkeypatch):
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {"sector": "Legacy Sector"})
+
+    def fake_security_meta(ticker):
+        return {
+            "currency": "GBP",
+            "grouping": "Security Group",
+            "grouping_id": "security-group",
+        }
+
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", fake_security_meta)
+    monkeypatch.setattr(instrument_api, "price_change_pct", lambda *args, **kwargs: None)
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "XYZ.L", "units": 1},
+                    {
+                        "ticker": "ABC.L",
+                        "units": 1,
+                        "grouping": "Custom Group",
+                        "grouping_id": "custom-group",
+                    },
+                ]
+            }
+        ]
+    }
+    rows = {r["ticker"]: r for r in portfolio_utils.aggregate_by_ticker(portfolio)}
+
+    assert rows["XYZ.L"]["grouping"] == "Security Group"
+    assert rows["XYZ.L"]["grouping_id"] == "security-group"
+    assert rows["ABC.L"]["grouping"] == "Custom Group"
+    assert rows["ABC.L"]["grouping_id"] == "custom-group"
+
+
 def test_performance_with_synthetic_holdings(monkeypatch):
     portfolio = {
         "accounts": [

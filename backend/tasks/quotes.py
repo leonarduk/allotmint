@@ -60,7 +60,7 @@ def lambda_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     return {"count": len(items)}
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     syms = os.environ.get("SYMBOLS", "IBM").split(",")
     quotes = [fetch_quote(s) for s in syms]
     save_quotes(quotes)

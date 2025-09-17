@@ -45,41 +45,66 @@ export default function InstrumentResearch() {
     const newsCtrl = new AbortController();
     const quoteCtrl = new AbortController();
 
-    setScreenerLoading(true);
-    setScreenerError(null);
-    getScreener([tkr], {}, screenerCtrl.signal)
-      .then((rows) => setMetrics(rows[0] || null))
-      .catch((err) => {
-        if (err.name !== "AbortError") {
-          console.error(err);
-          setScreenerError(err.message ?? String(err));
+    const fetchScreener = async () => {
+      setScreenerLoading(true);
+      setScreenerError(null);
+      try {
+        const rows = await getScreener([tkr], {}, screenerCtrl.signal);
+        setMetrics(rows[0] || null);
+      } catch (err) {
+        const error = err as { name?: string } | null | undefined;
+        if (error?.name === "AbortError") {
+          return;
         }
-      })
-      .finally(() => setScreenerLoading(false));
+        console.error(err);
+        setMetrics(null);
+        setScreenerError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setScreenerLoading(false);
+      }
+    };
 
-    setQuoteLoading(true);
-    setQuoteError(null);
-    getQuotes([tkr], quoteCtrl.signal)
-      .then((rows) => setQuote(rows[0] || null))
-      .catch((err) => {
-        if (err.name !== "AbortError") {
-          console.error(err);
-          setQuoteError(err.message ?? String(err));
+    const fetchQuote = async () => {
+      setQuoteLoading(true);
+      setQuoteError(null);
+      try {
+        const rows = await getQuotes([tkr], quoteCtrl.signal);
+        setQuote(rows[0] || null);
+      } catch (err) {
+        const error = err as { name?: string } | null | undefined;
+        if (error?.name === "AbortError") {
+          return;
         }
-      })
-      .finally(() => setQuoteLoading(false));
+        console.error(err);
+        setQuote(null);
+        setQuoteError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setQuoteLoading(false);
+      }
+    };
 
-    setNewsLoading(true);
-    setNewsError(null);
-    getNews(tkr, newsCtrl.signal)
-      .then(setNews)
-      .catch((err) => {
-        if (err.name !== "AbortError") {
-          console.error(err);
-          setNewsError(err.message ?? String(err));
+    const fetchNews = async () => {
+      setNewsLoading(true);
+      setNewsError(null);
+      try {
+        const items = await getNews(tkr, newsCtrl.signal);
+        setNews(items);
+      } catch (err) {
+        const error = err as { name?: string } | null | undefined;
+        if (error?.name === "AbortError") {
+          return;
         }
-      })
-      .finally(() => setNewsLoading(false));
+        console.error(err);
+        setNews([]);
+        setNewsError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setNewsLoading(false);
+      }
+    };
+
+    void fetchScreener();
+    void fetchQuote();
+    void fetchNews();
     return () => {
       screenerCtrl.abort();
       newsCtrl.abort();
@@ -116,29 +141,30 @@ export default function InstrumentResearch() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <h1 style={{ marginBottom: "1rem" }}>
-        {tkr}
-        {detail?.name
-          ? ` - ${detail.name}`
-          : metrics?.name
-          ? ` - ${metrics.name}`
-          : quote?.name
-          ? ` - ${quote.name}`
-          : ""}
-        {detail?.sector || detail?.currency ? (
-          <span
-            style={{
-              display: "block",
-              fontSize: "0.8rem",
-              fontWeight: "normal",
-            }}
-          >
-            {detail?.sector ?? ""}
-            {detail?.sector && detail?.currency ? " · " : ""}
-            {detail?.currency ?? ""}
-          </span>
-        ) : null}
-      </h1>
+      {(() => {
+        const headingName = quote?.name ?? metrics?.name ?? detail?.name ?? null;
+        if (!headingName) {
+          return <div style={{ marginBottom: "1rem" }}>{tkr}</div>;
+        }
+        return (
+          <h1 style={{ marginBottom: "1rem" }}>
+            {tkr} {` - ${headingName}`}
+            {detail?.sector || detail?.currency ? (
+              <span
+                style={{
+                  display: "block",
+                  fontSize: "0.8rem",
+                  fontWeight: "normal",
+                }}
+              >
+                {detail?.sector ?? ""}
+                {detail?.sector && detail?.currency ? " · " : ""}
+                {detail?.currency ?? ""}
+              </span>
+            ) : null}
+          </h1>
+        );
+      })()}
 
       <div style={{ marginBottom: "1rem" }}>
         {tabs.screener && !(disabledTabs ?? []).includes("screener") && (
@@ -201,7 +227,7 @@ export default function InstrumentResearch() {
           showBollinger={showBollinger}
         />
       )}
-      {quoteLoading || screenerLoading ? (
+      {(quoteLoading && screenerLoading) ? (
         <div>Loading quote...</div>
       ) : quoteError || screenerError ? (
         <div>{quoteError || screenerError}</div>

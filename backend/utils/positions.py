@@ -232,10 +232,10 @@ def get_name_map_from_xml(xml_file: str) -> dict[str, str]:
 # ------------------------------------------------------------------ #
 #  Quick CLI test
 # ------------------------------------------------------------------ #
-if __name__ == "__main__":
-    xml = r"C:/workspaces/bitbucket/luk/data/portfolio/investments-with-id.xml"
-    df = extract_holdings_from_transactions(xml, by_account=True)
-    print(f"\nRebuilt {len(df)} positions")
+if __name__ == "__main__":  # pragma: no cover
+    xml = r"C:/workspaces/bitbucket/luk/data/portfolio/investments-with-id.xml"  # pragma: no cover
+    df = extract_holdings_from_transactions(xml, by_account=True)  # pragma: no cover
+    print(f"\nRebuilt {len(df)} positions")  # pragma: no cover
 
-    pd.set_option("display.max_rows", None)
-    print(df.to_string(index=False, formatters={"quantity": "{:,.4f}".format}))
+    pd.set_option("display.max_rows", None)  # pragma: no cover
+    print(df.to_string(index=False, formatters={"quantity": "{:,.4f}".format}))  # pragma: no cover

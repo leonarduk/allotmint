@@ -12,14 +12,36 @@ describe("Menu", () => {
         <Menu />
       </MemoryRouter>,
     );
-    expect(screen.queryByRole("link", { name: "Support" })).not.toBeInTheDocument();
     const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Support" })).not.toBeInTheDocument();
     fireEvent.click(toggle);
-    expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const supportLink = screen.getByRole("link", { name: "Support" });
+    expect(supportLink).toBeVisible();
+    expect(supportLink).toHaveAttribute(
       "href",
       "/support",
     );
-    expect(screen.getByRole("link", { name: "Logs" })).toHaveAttribute("href", "/logs");
+    expect(screen.getByRole("link", { name: "Logs" })).toBeVisible();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Support" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
+  });
+
+  it("updates aria-expanded attribute when toggled", () => {
+    render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>,
+    );
+    const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
   it("shows support tabs on support route", () => {
@@ -78,6 +100,7 @@ describe("Menu", () => {
         </MemoryRouter>
       </configContext.Provider>,
     );
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("app.menu") }));
     expect(screen.queryByRole("link", { name: "Support" })).toBeNull();
   });
 
@@ -91,7 +114,6 @@ describe("Menu", () => {
     );
     const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
     fireEvent.click(toggle);
-    fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
     const btn = screen.getByRole("button", { name: "Déconnexion" });
     fireEvent.click(btn);
     expect(onLogout).toHaveBeenCalled();

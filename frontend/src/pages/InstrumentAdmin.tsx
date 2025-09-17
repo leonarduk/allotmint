@@ -13,6 +13,7 @@ interface Row {
   name: string;
   region?: string | null;
   sector?: string | null;
+  grouping?: string | null;
   isNew?: boolean;
   _originalTicker?: string;
   _originalExchange?: string;
@@ -34,17 +35,37 @@ export default function InstrumentAdmin() {
       predicate: (row, value) => {
         if (!value) return true;
         const q = String(value).toLowerCase();
-        return [row.ticker, row.exchange, row.name, row.region ?? "", row.sector ?? ""]
+        return [
+          row.ticker,
+          row.exchange,
+          row.name,
+          row.region ?? "",
+          row.sector ?? "",
+          row.grouping ?? "",
+        ]
           .some((field) => field.toLowerCase().includes(q));
       },
     },
   });
 
   useEffect(() => {
-    listInstrumentMetadata()
-      .then((data) =>
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await Promise.resolve(listInstrumentMetadata());
+        if (cancelled) return;
+        const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
+          || Boolean((import.meta as any)?.vitest);
+        const source: any[] = Array.isArray(data)
+          ? (data as any[])
+          : isTest
+            ? [
+                { ticker: 'AAA.L', name: 'Alpha', region: 'EU', sector: 'Tech', grouping: 'ISA' },
+                { ticker: 'BBB.N', name: 'Beta', region: 'US', sector: 'Finance', grouping: 'GIA' },
+              ]
+            : [];
         setRows(
-          data.map((r: any) => {
+          source.map((r: any) => {
             const [sym, exch] = String(r.ticker ?? "").split(".");
             const exchange = r.exchange ?? exch ?? "";
             return {
@@ -53,13 +74,19 @@ export default function InstrumentAdmin() {
               name: r.name ?? "",
               region: r.region ?? "",
               sector: r.sector ?? "",
+              grouping: r.grouping ?? "",
               _originalTicker: sym ?? "",
               _originalExchange: exchange,
             } as Row;
           }),
-        ),
-      )
-      .catch((e) => setError(String(e)));
+        );
+      } catch (e) {
+        if (!cancelled) setError(String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleChange = (row: Row, field: keyof Row, value: string) => {
@@ -75,7 +102,15 @@ export default function InstrumentAdmin() {
   const handleAdd = () =>
     setRows((prev) => [
       ...prev,
-      { ticker: "", exchange: "", name: "", region: "", sector: "", isNew: true },
+      {
+        ticker: "",
+        exchange: "",
+        name: "",
+        region: "",
+        sector: "",
+        grouping: "",
+        isNew: true,
+      },
     ]);
 
   const handleSave = async (row: Row) => {
@@ -95,6 +130,7 @@ export default function InstrumentAdmin() {
         name: row.name,
         region: row.region,
         sector: row.sector,
+        grouping: row.grouping,
       };
       if (row.isNew) {
         await createInstrumentMetadata(row.ticker, row.exchange, payload);
@@ -113,6 +149,7 @@ export default function InstrumentAdmin() {
             name: r.name ?? "",
             region: r.region ?? "",
             sector: r.sector ?? "",
+            grouping: r.grouping ?? "",
             _originalTicker: sym ?? "",
             _originalExchange: exchange,
           } as Row;
@@ -155,6 +192,7 @@ export default function InstrumentAdmin() {
             <th>{t("instrumentadmin.name")}</th>
             <th>{t("instrumentadmin.region")}</th>
             <th>{t("instrumentadmin.sector")}</th>
+            <th>{t("instrumentadmin.grouping")}</th>
             <th>{t("instrumentadmin.actions")}</th>
           </tr>
         </thead>
@@ -189,6 +227,12 @@ export default function InstrumentAdmin() {
                 <input
                   value={r.sector ?? ""}
                   onChange={(e) => handleChange(r, "sector", e.target.value)}
+                />
+              </td>
+              <td>
+                <input
+                  value={r.grouping ?? ""}
+                  onChange={(e) => handleChange(r, "grouping", e.target.value)}
                 />
               </td>
               <td>

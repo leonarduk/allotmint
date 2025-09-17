@@ -262,5 +262,5 @@ def load_prices_for_tickers(
 # ──────────────────────────────────────────────────────────────
 # CLI test
 # ──────────────────────────────────────────────────────────────
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     print(json.dumps(refresh_prices(), indent=2))

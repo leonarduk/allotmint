@@ -118,12 +118,20 @@ class Config:
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
     fx_proxy_url: Optional[str] = None
+    default_sector_region: str = "US"
+    uk_sector_endpoint: Optional[str] = None
 
     alpha_vantage_enabled: Optional[bool] = None
     alpha_vantage_key: Optional[str] = None
     fundamentals_cache_ttl_seconds: Optional[int] = None
     stooq_timeout: Optional[int] = None
     news_requests_per_day: int = 25
+    yahoo_news_endpoint: Optional[str] = None
+    yahoo_news_key: Optional[str] = None
+    yahoo_news_requests_per_day: int = 500
+    google_news_endpoint: Optional[str] = None
+    google_news_key: Optional[str] = None
+    google_news_requests_per_day: int = 500
 
     # new vars
     max_trades_per_month: Optional[int] = None
@@ -325,6 +333,8 @@ def load_config() -> Config:
         theme=data.get("theme"),
         timeseries_cache_base=timeseries_cache_base,
         fx_proxy_url=data.get("fx_proxy_url"),
+        default_sector_region=data.get("default_sector_region", "US"),
+        uk_sector_endpoint=data.get("uk_sector_endpoint"),
         alpha_vantage_key=data.get("alpha_vantage_key"),
         fundamentals_cache_ttl_seconds=data.get("fundamentals_cache_ttl_seconds"),
         stooq_timeout=data.get("stooq_timeout"),

@@ -34,5 +34,5 @@ async def schedule(interval_seconds: int = 86400) -> None:
         await asyncio.sleep(interval_seconds)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     asyncio.run(schedule())

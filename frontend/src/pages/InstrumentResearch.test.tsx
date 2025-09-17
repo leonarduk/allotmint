@@ -129,9 +129,12 @@ describe("InstrumentResearch page", () => {
     newsResolve!([{ headline: "headline", url: "http://example.com" }]);
 
     expect(await screen.findByText("Price")).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
-      "AAA - Acme Corp",
-    );
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: /AAA - Acme Corp/,
+      }),
+    ).toHaveTextContent("AAA - Acme Corp");
     expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
   });
 
@@ -261,7 +264,10 @@ describe("InstrumentResearch page", () => {
     mockGetNews.mockResolvedValue([]);
     renderPage();
 
-    const heading = await screen.findByRole("heading", { level: 1 });
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: /AAA - Acme Corp/,
+    });
     expect(heading).toHaveTextContent("AAA - Acme Corp");
     expect(heading).toHaveTextContent("Tech");
     expect(heading).toHaveTextContent("USD");

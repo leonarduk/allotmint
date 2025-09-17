@@ -7,10 +7,10 @@ from typing import Any, Dict, List, Optional
 
 import requests
 import yfinance as yf
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from backend import config_module
-from backend.routes.news import _fetch_news
+from backend.routes.news import get_cached_news
 
 cfg = getattr(config_module, "settings", config_module.config)
 config = cfg
@@ -24,6 +24,8 @@ INDEX_SYMBOLS = {
     "FTSE 100": "^FTSE",
     "FTSE 250": "^FTMC",
 }
+
+UK_SECTOR_ENDPOINT_DEFAULT = "https://www.londonstockexchange.com/api/sectors/ftse350"
 
 
 def _fetch_indexes() -> Dict[str, Dict[str, Optional[float]]]:
@@ -55,6 +57,88 @@ def _fetch_sectors() -> List[Dict[str, float]]:
     return out
 
 
+def _fetch_uk_sectors() -> List[Dict[str, float]]:
+    """Fetch FTSE sector performance data from the London Stock Exchange API."""
+
+    endpoint = getattr(cfg, "uk_sector_endpoint", None) or UK_SECTOR_ENDPOINT_DEFAULT
+    headers: Dict[str, str] = {}
+    user_agent = getattr(cfg, "selenium_user_agent", None)
+    if user_agent:
+        headers["User-Agent"] = user_agent
+
+    resp = requests.get(endpoint, headers=headers, timeout=10)
+    resp.raise_for_status()
+    payload = resp.json()
+
+    items: List[Dict[str, Any]] = []
+    if isinstance(payload, dict):
+        for key in (
+            "sectors",
+            "sectorPerformance",
+            "indexSectors",
+            "items",
+            "data",
+            "constituents",
+            "values",
+        ):
+            value = payload.get(key)
+            if isinstance(value, list):
+                items = value
+                break
+        else:
+            if all(isinstance(v, (int, float, str)) for v in payload.values()):
+                items = [
+                    {"name": name, "percentChange": value}
+                    for name, value in payload.items()
+                ]
+    elif isinstance(payload, list):
+        items = payload
+
+    out: List[Dict[str, float]] = []
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+
+        name = entry.get("name") or entry.get("sector") or entry.get("sectorName") or entry.get("label")
+        if not name:
+            continue
+
+        change_raw: Any = (
+            entry.get("percentChange")
+            or entry.get("percentageChange")
+            or entry.get("change")
+            or entry.get("changePercent")
+            or entry.get("changePercentage")
+            or entry.get("pctChange")
+        )
+
+        if change_raw is None:
+            if isinstance(entry.get("performance"), dict):
+                perf = entry["performance"]
+                for key in ("percentChange", "percentageChange", "change", "pct", "value"):
+                    if perf.get(key) is not None:
+                        change_raw = perf[key]
+                        break
+            elif isinstance(entry.get("values"), dict):
+                values = entry["values"]
+                for key in ("percentChange", "percentageChange", "change", "pct"):
+                    if values.get(key) is not None:
+                        change_raw = values[key]
+                        break
+
+        if isinstance(change_raw, str):
+            change_raw = change_raw.strip().rstrip("%")
+
+        try:
+            change = float(change_raw)
+        except (TypeError, ValueError):
+            continue
+
+        out.append({"sector": name, "change": change})
+
+    return out
+
+
 def _fetch_headlines() -> List[Dict[str, str]]:
     """Fetch latest headlines for all known index symbols.
 
@@ -69,7 +153,14 @@ def _fetch_headlines() -> List[Dict[str, str]]:
     success = False
 
     for sym in INDEX_SYMBOLS.values():
-        items = _fetch_news(sym)
+        try:
+            items = get_cached_news(sym)
+        except RuntimeError:
+            logger.warning(
+                "News quota exhausted while building market headlines; returning partial data"
+            )
+            break
+
         if not items:
             continue
 
@@ -94,10 +185,14 @@ def _safe(func, default):
 
 
 @router.get("/market/overview")
-async def market_overview() -> Dict[str, Any]:
+async def market_overview(region: Optional[str] = Query(None, description="Set to 'uk' to use London sector data.")) -> Dict[str, Any]:
     """Return index levels, sector performance and latest headlines."""
 
     indexes = _safe(_fetch_indexes, {})
-    sectors = _safe(_fetch_sectors, [])
+    default_region = getattr(cfg, "default_sector_region", "US") or "US"
+    region_value = region if isinstance(region, str) else None
+    selected_region = (region_value or default_region).lower()
+    fetcher = _fetch_uk_sectors if selected_region == "uk" else _fetch_sectors
+    sectors = _safe(fetcher, [])
     headlines = _safe(_fetch_headlines, [])
     return {"indexes": indexes, "sectors": sectors, "headlines": headlines}

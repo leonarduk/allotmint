@@ -1,269 +1,315 @@
+"""Unit tests for :mod:`backend.common.prices`."""
+
+from __future__ import annotations
+
 import json
-from datetime import date, timedelta, datetime, timezone
+from datetime import UTC, date, datetime, timedelta
+from typing import Dict, List
 
 import pandas as pd
 import pytest
+
 from unittest.mock import Mock
 
 from backend.common import prices
 
 
-def test_close_on_returns_price(monkeypatch):
-    df = pd.DataFrame({"close": [123.0]})
-    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: d)
+def test_close_on_returns_value_from_timeseries(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``_close_on`` should read the GBP close from cached timeseries data."""
+
+    queried: Dict[str, List] = {}
+    sample_date = date(2024, 1, 2)
+    frame = pd.DataFrame({"close_gbp": [101.23], "close": [99.0]})
+
+    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: sample_date)
+
+    def fake_load(sym: str, exch: str, start_date: date, end_date: date) -> pd.DataFrame:
+        queried["args"] = [sym, exch, start_date, end_date]
+        return frame
+
+    monkeypatch.setattr(prices, "load_meta_timeseries_range", fake_load)
+
+    result = prices._close_on("ABC", "L", sample_date)
+
+    assert result == pytest.approx(101.23)
+    assert queried["args"] == ["ABC", "L", sample_date, sample_date]
+
+
+def test_close_on_handles_close_column_and_conversion_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sample_date = date(2024, 1, 5)
+
+    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: sample_date)
+
+    def fake_load_numeric(sym: str, exch: str, start_date: date, end_date: date) -> pd.DataFrame:
+        assert (sym, exch, start_date, end_date) == ("ABC", "L", sample_date, sample_date)
+        return pd.DataFrame({"Close": ["101.50"]})
+
+    monkeypatch.setattr(prices, "load_meta_timeseries_range", fake_load_numeric)
+
+    assert prices._close_on("ABC", "L", sample_date) == pytest.approx(101.50)
+
     monkeypatch.setattr(
-        prices, "load_meta_timeseries_range", lambda *args, **kwargs: df
+        prices,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame({"Close": ["not-a-number"]}),
     )
-    assert prices._close_on("ABC", "L", date.today()) == 123.0
+
+    assert prices._close_on("ABC", "L", sample_date) is None
 
 
-def test_close_on_missing_columns(monkeypatch):
-    df = pd.DataFrame({"foo": [1.0]})
-    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: d)
-    monkeypatch.setattr(
-        prices, "load_meta_timeseries_range", lambda *args, **kwargs: df
-    )
-    assert prices._close_on("ABC", "L", date.today()) is None
-
-
-def test_close_on_empty_df(monkeypatch):
-    df = pd.DataFrame()
-    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: d)
-    monkeypatch.setattr(
-        prices, "load_meta_timeseries_range", lambda *args, **kwargs: df
-    )
-    assert prices._close_on("ABC", "L", date.today()) is None
-
-
-def test_close_on_invalid_value(monkeypatch):
-    df = pd.DataFrame({"close": ["bad"]})
-    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: d)
-    monkeypatch.setattr(
-        prices, "load_meta_timeseries_range", lambda *args, **kwargs: df
-    )
-    assert prices._close_on("ABC", "L", date.today()) is None
-
-
-def test_close_on_none_df(monkeypatch):
-    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: d)
-    monkeypatch.setattr(
-        prices, "load_meta_timeseries_range", lambda *args, **kwargs: None
-    )
-    assert prices._close_on("ABC", "L", date.today()) is None
-
-
-def test_close_on_column_fallbacks(monkeypatch):
-    df = pd.DataFrame(
-        {
-            "Close": [1.0],
-            "close": [2.0],
-            "Close_gbp": [3.0],
-            "close_gbp": [4.0],
-        }
-    )
-    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: d)
-    monkeypatch.setattr(
-        prices, "load_meta_timeseries_range", lambda *args, **kwargs: df
-    )
-    assert prices._close_on("ABC", "L", date.today()) == 4.0
-
-
-def test_close_on_fallback_to_close_gbp(monkeypatch):
-    df = pd.DataFrame({"Close_gbp": [5.0]})
-    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: d)
-    monkeypatch.setattr(
-        prices, "load_meta_timeseries_range", lambda *args, **kwargs: df
-    )
-    assert prices._close_on("ABC", "L", date.today()) == 5.0
-
-
-def test_get_price_snapshot_calculates_changes(monkeypatch):
+def test_get_price_snapshot_uses_latest_and_live(monkeypatch: pytest.MonkeyPatch) -> None:
     ticker = "ABC.L"
-    last_price = 100.0
+    now = datetime.now(UTC)
     yday = date.today() - timedelta(days=1)
-    d7 = prices._nearest_weekday(yday - timedelta(days=7), forward=False)
-    d30 = prices._nearest_weekday(yday - timedelta(days=30), forward=False)
+    seven_day = yday - timedelta(days=7)
+    thirty_day = yday - timedelta(days=30)
 
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: last_price})
-    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 118.5})
     monkeypatch.setattr(
-        prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None
+        prices, "load_live_prices", lambda tickers: {ticker.upper(): {"price": 120.5, "timestamp": now}}
     )
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("ABC", "L"))
 
-    price_map = {d7: 90.0, d30: 80.0}
+    requested_dates: List[date] = []
+    price_lookup = {seven_day: 100.0, thirty_day: 90.0}
 
-    def fake_load_meta_timeseries_range(sym, exch, start_date, end_date):
-        return pd.DataFrame({"close": [price_map.get(start_date, last_price)]})
+    def fake_close_on(sym: str, exch: str, requested_date: date) -> float:
+        requested_dates.append(requested_date)
+        return price_lookup[requested_date]
 
-    monkeypatch.setattr(prices, "load_meta_timeseries_range", fake_load_meta_timeseries_range)
+    monkeypatch.setattr(prices, "_close_on", fake_close_on)
 
-    snap = prices.get_price_snapshot([ticker])
-    info = snap[ticker]
-    assert info["last_price"] == last_price
+    snapshot = prices.get_price_snapshot([ticker])
+    info = snapshot[ticker]
+
+    assert info["last_price"] == pytest.approx(120.5)
     assert info["last_price_date"] == yday.isoformat()
-    assert info["change_7d_pct"] == pytest.approx((last_price / 90.0 - 1) * 100)
-    assert info["change_30d_pct"] == pytest.approx((last_price / 80.0 - 1) * 100)
-    assert info["is_stale"] is True
+    assert info["last_price_time"] == now.isoformat().replace("+00:00", "Z")
+    assert info["is_stale"] is False
+    assert info["change_7d_pct"] == pytest.approx((120.5 / 100.0 - 1.0) * 100.0)
+    assert info["change_30d_pct"] == pytest.approx((120.5 / 90.0 - 1.0) * 100.0)
+    assert requested_dates == [seven_day, thirty_day]
+
+    requested_dates.clear()
+    old_timestamp = now - timedelta(minutes=20)
+    monkeypatch.setattr(
+        prices,
+        "load_live_prices",
+        lambda tickers: {ticker.upper(): {"price": 120.5, "timestamp": old_timestamp}},
+    )
+
+    stale_snapshot = prices.get_price_snapshot([ticker])
+    stale_info = stale_snapshot[ticker]
+
+    assert stale_info["last_price"] == pytest.approx(120.5)
+    assert stale_info["last_price_time"] == old_timestamp.isoformat().replace("+00:00", "Z")
+    assert stale_info["is_stale"] is True
+    assert stale_info["change_7d_pct"] == pytest.approx((120.5 / 100.0 - 1.0) * 100.0)
+    assert stale_info["change_30d_pct"] == pytest.approx((120.5 / 90.0 - 1.0) * 100.0)
+    assert requested_dates == [seven_day, thirty_day]
 
 
-def test_refresh_prices_writes_json_and_updates_cache(tmp_path, monkeypatch):
-    ticker = "ABC.L"
-    last_price = 100.0
+def test_get_price_snapshot_handles_missing_live_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    ticker_missing_price = "MNO.L"
+    ticker_missing_ts = "PQR.L"
     yday = date.today() - timedelta(days=1)
-    d7 = prices._nearest_weekday(yday - timedelta(days=7), forward=False)
-    d30 = prices._nearest_weekday(yday - timedelta(days=30), forward=False)
+
+    monkeypatch.setattr(
+        prices,
+        "_load_latest_prices",
+        lambda tickers: {ticker_missing_price: 5.0, ticker_missing_ts: 6.0},
+    )
+    monkeypatch.setattr(
+        prices,
+        "load_live_prices",
+        lambda tickers: {
+            ticker_missing_price.upper(): {"price": None, "timestamp": datetime.now(UTC)},
+            ticker_missing_ts.upper(): {"price": 1.0, "timestamp": None},
+        },
+    )
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("XYZ", "L"))
+    monkeypatch.setattr(prices, "_close_on", lambda *args, **kwargs: 0)
+
+    snapshot = prices.get_price_snapshot([ticker_missing_price, ticker_missing_ts])
+
+    missing_price = snapshot[ticker_missing_price]
+    assert missing_price["last_price"] is None
+    assert missing_price["change_7d_pct"] is None
+    assert missing_price["change_30d_pct"] is None
+    assert missing_price["last_price_time"] is not None
+
+    missing_ts = snapshot[ticker_missing_ts]
+    assert missing_ts["last_price"] == pytest.approx(1.0)
+    assert missing_ts["last_price_time"] is None
+    assert missing_ts["is_stale"] is True
+    assert missing_ts["change_7d_pct"] is None
+    assert missing_ts["change_30d_pct"] is None
+    assert missing_ts["last_price_date"] == yday.isoformat()
+
+
+def test_get_price_snapshot_defaults_to_cached_close(monkeypatch: pytest.MonkeyPatch) -> None:
+    ticker = "XYZ.L"
+    base = ticker.split(".", 1)[0]
+    yday = date.today() - timedelta(days=1)
+    seven_day = yday - timedelta(days=7)
+    thirty_day = yday - timedelta(days=30)
+
+    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 99.5})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None)
+
+    requested: List[tuple[str, str, date]] = []
+
+    def fake_close_on(sym: str, exch: str, requested_date: date) -> float | None:
+        requested.append((sym, exch, requested_date))
+        if requested_date == seven_day:
+            return 88.0
+        if requested_date == thirty_day:
+            return None
+        raise AssertionError(f"Unexpected date requested: {requested_date}")
+
+    monkeypatch.setattr(prices, "_close_on", fake_close_on)
+
+    snapshot = prices.get_price_snapshot([ticker])
+    info = snapshot[ticker]
+
+    assert info["last_price"] == pytest.approx(99.5)
+    assert info["last_price_date"] == yday.isoformat()
+    assert info["last_price_time"] is None
+    assert info["is_stale"] is True
+    assert info["change_7d_pct"] == pytest.approx((99.5 / 88.0 - 1.0) * 100.0)
+    assert info["change_30d_pct"] is None
+    assert requested == [
+        (base, "L", seven_day),
+        (base, "L", thirty_day),
+    ]
+
+
+def test_load_latest_prices_defaults_to_l(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    ticker = "AAA.L"
+    expected_start = date.today() - timedelta(days=365)
+    expected_end = date.today() - timedelta(days=1)
+    frame = pd.DataFrame({"close": [95.0, 105.0]})
+
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, cache: None)
+
+    def fake_load(sym: str, exch: str, start_date: date, end_date: date) -> pd.DataFrame:
+        assert (sym, exch) == ("AAA", "L")
+        assert start_date == expected_start
+        assert end_date == expected_end
+        return frame
+
+    monkeypatch.setattr(prices, "load_meta_timeseries_range", fake_load)
+
+    with caplog.at_level("DEBUG", logger="prices"):
+        result = prices.load_latest_prices([ticker])
+
+    assert result == {ticker: pytest.approx(105.0)}
+    assert "defaulting to L" in caplog.text
+
+
+def test_load_prices_for_tickers_combines_frames(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    start = date(2024, 1, 1)
+    end = date(2024, 1, 10)
+
+    def fake_nearest(day: date, forward: bool = False) -> date:
+        return end if forward else start
+
+    monkeypatch.setattr(prices, "_nearest_weekday", fake_nearest)
+
+    mapping = {
+        "AAA.L": ("AAA", "L"),
+        "BBB.L": ("BBB", "L"),
+        "CCC.L": None,
+    }
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, cache: mapping[full])
+
+    def fake_load(sym: str, exch: str, start_date: date, end_date: date) -> pd.DataFrame:
+        assert (start_date, end_date) == (start, end)
+        if sym == "AAA":
+            return pd.DataFrame({"close": [1.0]})
+        if sym == "BBB":
+            raise RuntimeError("boom")
+        if sym == "CCC":
+            return pd.DataFrame({"close": [3.0]})
+        raise AssertionError(sym)
+
+    monkeypatch.setattr(prices, "load_meta_timeseries_range", fake_load)
+
+    tickers = ["AAA.L", "BBB.L", "CCC.L"]
+
+    with caplog.at_level("WARNING", logger="prices"):
+        frame = prices.load_prices_for_tickers(tickers)
+
+    assert list(frame["Ticker"]) == ["AAA.L", "CCC.L"]
+    assert "Failed to fetch prices for BBB.L" in caplog.text
+
+
+def test_build_securities_from_portfolios(monkeypatch: pytest.MonkeyPatch) -> None:
+    portfolios = [
+        {
+            "accounts": [
+                {
+                    "holdings": [
+                        {"ticker": "abc", "name": "Alpha"},
+                        {"ticker": "DEF"},
+                        {"ticker": ""},
+                        {"ticker": None},
+                    ]
+                }
+            ]
+        },
+        {"accounts": []},
+    ]
+    monkeypatch.setattr(prices, "list_portfolios", lambda: portfolios)
+
+    result = prices._build_securities_from_portfolios()
+
+    assert result == {
+        "ABC": {"ticker": "ABC", "name": "Alpha"},
+        "DEF": {"ticker": "DEF", "name": "DEF"},
+    }
+
+
+def test_refresh_prices_writes_json_and_updates_cache(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ticker = "XYZ.L"
+    snapshot = {
+        ticker: {
+            "last_price": 145.0,
+            "change_7d_pct": 3.2,
+            "change_30d_pct": 5.4,
+            "last_price_date": "2024-04-01",
+            "last_price_time": None,
+            "is_stale": True,
+        }
+    }
 
     monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [ticker])
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: last_price})
-    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
-    monkeypatch.setattr(
-        prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None
-    )
 
-    price_map = {d7: 90.0, d30: 80.0}
+    def fake_get_price_snapshot(tickers):
+        assert tickers == [ticker]
+        return snapshot
 
-    def fake_load_meta_timeseries_range(sym, exch, start_date, end_date):
-        return pd.DataFrame({"close": [price_map.get(start_date, last_price)]})
-
-    monkeypatch.setattr(prices, "load_meta_timeseries_range", fake_load_meta_timeseries_range)
+    monkeypatch.setattr(prices, "get_price_snapshot", fake_get_price_snapshot)
     refresh_mock = Mock()
     alerts_mock = Mock()
     monkeypatch.setattr(prices, "refresh_snapshot_in_memory", refresh_mock)
     monkeypatch.setattr(prices, "check_price_alerts", alerts_mock)
 
-    out_path = tmp_path / "prices.json"
-    monkeypatch.setattr(prices.config, "prices_json", out_path)
+    output_path = tmp_path / "prices.json"
+    monkeypatch.setattr(prices.config, "prices_json", output_path)
     monkeypatch.setattr(prices, "_price_cache", {})
 
     result = prices.refresh_prices()
 
-    assert out_path.exists()
-    data = json.loads(out_path.read_text())
-    assert data == result["snapshot"]
-    info = data[ticker]
-    assert info["last_price"] == last_price
-    assert info["change_7d_pct"] == pytest.approx((last_price / 90.0 - 1) * 100)
-    assert info["change_30d_pct"] == pytest.approx((last_price / 80.0 - 1) * 100)
-    assert prices.get_price_gbp(ticker) == last_price
-    refresh_mock.assert_called_once_with(result["snapshot"])
-    alerts_mock.assert_called_once()
-
-
-def test_get_price_snapshot_resolved(monkeypatch):
-    ticker = "ABC.L"
-    last_price = 50.0
-    yday = date.today() - timedelta(days=1)
-    d7 = prices._nearest_weekday(yday - timedelta(days=7), forward=False)
-    d30 = prices._nearest_weekday(yday - timedelta(days=30), forward=False)
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: last_price})
-    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
-    monkeypatch.setattr(
-        prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("ABC", "L")
-    )
-    price_map = {d7: 40.0, d30: 30.0}
-
-    def fake_load_meta_timeseries_range(sym, exch, start_date, end_date):
-        assert sym == "ABC"
-        assert exch == "L"
-        return pd.DataFrame({"close": [price_map.get(start_date, last_price)]})
-
-    monkeypatch.setattr(prices, "load_meta_timeseries_range", fake_load_meta_timeseries_range)
-    snap = prices.get_price_snapshot([ticker])
-    info = snap[ticker]
-    assert info["last_price"] == last_price
-    assert info["last_price_date"] == yday.isoformat()
-    assert info["change_7d_pct"] == pytest.approx((last_price / 40.0 - 1) * 100)
-    assert info["change_30d_pct"] == pytest.approx((last_price / 30.0 - 1) * 100)
-
-
-def test_get_price_snapshot_live_data(monkeypatch):
-    ticker = "ABC.L"
-    now = datetime.now(timezone.utc)
-    last_price = 110.0
-
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {})
-    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {ticker: {"price": last_price, "timestamp": now}})
-    monkeypatch.setattr(
-        prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None
-    )
-    monkeypatch.setattr(
-        prices, "load_meta_timeseries_range", lambda *a, **k: pd.DataFrame({"close": [100.0]})
-    )
-
-    snap = prices.get_price_snapshot([ticker])
-    info = snap[ticker]
-    assert info["last_price"] == last_price
-    assert info["last_price_time"] == now.isoformat().replace("+00:00", "Z")
-    assert info["is_stale"] is False
-
-
-def test_get_price_snapshot_stale_data(monkeypatch):
-    ticker = "ABC.L"
-    now = datetime.now(timezone.utc)
-    stale_ts = now - timedelta(minutes=20)
-    last_price = 120.0
-
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {})
-    monkeypatch.setattr(
-        prices,
-        "load_live_prices",
-        lambda tickers: {ticker: {"price": last_price, "timestamp": stale_ts}},
-    )
-    monkeypatch.setattr(
-        prices.instrument_api, "_resolve_full_ticker", lambda full, latest: None
-    )
-    monkeypatch.setattr(
-        prices, "load_meta_timeseries_range", lambda *a, **k: pd.DataFrame({"close": [100.0]})
-    )
-
-    snap = prices.get_price_snapshot([ticker])
-    info = snap[ticker]
-    assert info["last_price"] == last_price
-    assert info["last_price_time"] == stale_ts.isoformat().replace("+00:00", "Z")
-    assert info["is_stale"] is True
-
-
-def test_refresh_prices_requires_config(monkeypatch):
-    monkeypatch.setattr(prices, "list_all_unique_tickers", lambda: [])
-    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {})
-    monkeypatch.setattr(prices.config, "prices_json", None)
-    with pytest.raises(RuntimeError):
-        prices.refresh_prices()
-
-
-def test_build_securities_from_portfolios(monkeypatch):
-    portfolios = [
-        {
-            "accounts": [
-                {
-                    "holdings": [
-                        {"ticker": "XYZ", "name": "XYZ Plc"},
-                        {"ticker": "abc"},
-                        {"ticker": ""},
-                    ]
-                }
-            ]
-        }
-    ]
-    monkeypatch.setattr(prices, "list_portfolios", lambda: portfolios)
-    expected = {
-        "XYZ": {"ticker": "XYZ", "name": "XYZ Plc"},
-        "ABC": {"ticker": "ABC", "name": "ABC"},
-    }
-    assert prices._build_securities_from_portfolios() == expected
-
-
-def test_get_security_meta(monkeypatch):
-    portfolios = [
-        {
-            "accounts": [
-                {
-                    "holdings": [
-                        {"ticker": "XYZ", "name": "XYZ Plc"},
-                    ]
-                }
-            ]
-        }
-    ]
-    monkeypatch.setattr(prices, "list_portfolios", lambda: portfolios)
-    assert prices.get_security_meta("xyz") == {"ticker": "XYZ", "name": "XYZ Plc"}
+    assert json.loads(output_path.read_text()) == snapshot
+    assert result["tickers"] == [ticker]
+    assert result["snapshot"] == snapshot
+    assert result["timestamp"].endswith("Z")
+    assert prices._price_cache == {ticker.upper(): snapshot[ticker]["last_price"]}
+    refresh_mock.assert_called_once_with(snapshot)
+    alerts_mock.assert_called_once_with()

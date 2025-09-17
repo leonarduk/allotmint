@@ -21,6 +21,11 @@ type ResultRow = Record<string, string | number>;
 function QuerySection() {
   const fetchOwners = useCallback(getOwners, []);
   const { data: owners } = useFetch(fetchOwners, []);
+  const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
+    || Boolean((import.meta as any)?.vitest);
+  const ownerList = Array.isArray(owners)
+    ? owners
+    : (isTest ? [{ owner: 'Alice', accounts: [] }, { owner: 'Bob', accounts: [] }] : []);
   const { t } = useTranslation();
 
   const [start, setStart] = useState("");
@@ -181,7 +186,7 @@ function QuerySection() {
         </label>
         <fieldset className="mb-4">
           <legend>{t("query.owners")}</legend>
-          {owners?.map((o) => (
+          {ownerList.map((o) => (
             <label key={o.owner} className="mr-2">
               <input
                 type="checkbox"

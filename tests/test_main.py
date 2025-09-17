@@ -1,9 +1,11 @@
-from unittest.mock import MagicMock, patch
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.common import data_loader
 from backend.local_api.main import app
 
 
@@ -130,7 +132,7 @@ def test_get_account_case_insensitive(mock_load_account, mock_resolve, client, t
     (tmp_path / "steve").mkdir()
     (tmp_path / "steve" / "isa.json").write_text("{}", encoding="utf-8")
 
-    def loader(owner, account):
+    def loader(owner, account, data_root=None):
         if loader.calls == 0:
             loader.calls += 1
             raise FileNotFoundError
@@ -143,6 +145,17 @@ def test_get_account_case_insensitive(mock_load_account, mock_resolve, client, t
     resp = client.get("/account/steve/ISA")
     assert resp.status_code == 200
     assert resp.json() == {"account": "isa", "account_type": "isa", "holdings": []}
+
+
+def test_get_account_demo_fallback(client, monkeypatch):
+    expected = data_loader.load_account("demo", "isa")
+
+    monkeypatch.setenv("DATA_ROOT", ".")
+    monkeypatch.setattr(client.app.state, "accounts_root", Path("."))
+
+    response = client.get("/account/demo/isa")
+    assert response.status_code == 200
+    assert response.json() == expected
 
 
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})

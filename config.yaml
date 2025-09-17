@@ -1,7 +1,7 @@
 # File and directory paths
 paths:
   repo_root: .                        # Base path for the repository
-  data_root: ../allotmint-data
+  data_root: data
   accounts_root: accounts             # Directory containing account files
   prices_json: prices/latest_prices.json # Location for cached price data
   timeseries_cache_base: timeseries   # Cache directory for time series data
@@ -36,13 +36,23 @@ server:
 market_data:
   offline_mode: false                 # Run without external data fetches
   fx_proxy_url: ''                    # Optional proxy for FX rates
-  alpha_vantage_enabled: false        # Use AlphaVantage for quotes
-  alpha_vantage_key: ""              # AlphaVantage API key (ALPHA_VANTAGE_KEY)
+  alpha_vantage_enabled: true         # Use AlphaVantage for quotes
+  alpha_vantage_key: "demo"          # AlphaVantage API key (ALPHA_VANTAGE_KEY)
   fundamentals_cache_ttl_seconds: 86400 # TTL for fundamentals cache (seconds)
   stooq_timeout: 10                   # Timeout for Stooq requests (seconds)
   stooq_requests_per_minute: 60       # Rate limit for Stooq requests
-  # Max AlphaVantage news requests per day
+  # Max AlphaVantage news requests per day (shared with market headlines)
   news_requests_per_day: 25
+  # Sector performance configuration
+  default_sector_region: US
+  uk_sector_endpoint: "https://www.londonstockexchange.com/api/sectors/ftse350"
+  # Yahoo and Google news fallbacks
+  yahoo_news_endpoint: "https://query1.finance.yahoo.com/v1/finance/search"
+  yahoo_news_key: ""
+  yahoo_news_requests_per_day: 500
+  google_news_endpoint: "https://news.google.com/rss/search"
+  google_news_key: ""
+  google_news_requests_per_day: 500
   # URL template for Financial Times scraping
   ft_url_template: "https://markets.ft.com/data/funds/tearsheet/historical?s={ticker}"
   # Selenium user agent

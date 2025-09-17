@@ -12,13 +12,76 @@ from typing import Any, Dict, List
 
 from backend.config import config
 
-_INSTRUMENTS_DIR = config.data_root / "instruments"
+logger = logging.getLogger(__name__)
+
+
+def _resolve_instruments_dir() -> Path:
+    """Return the configured instruments directory or fall back to bundled data."""
+
+    configured_dir = config.data_root / "instruments"
+    if configured_dir.is_dir():
+        return configured_dir
+
+    fallback_dir = Path(__file__).resolve().parents[2] / "data" / "instruments"
+    if fallback_dir.is_dir():
+        logger.warning(
+            "Configured instruments directory %s missing; falling back to %s", configured_dir, fallback_dir
+        )
+        return fallback_dir
+
+    logger.warning(
+        "Configured instruments directory %s missing and fallback %s not found", configured_dir, fallback_dir
+    )
+    return configured_dir
+
+
+_INSTRUMENTS_DIR = _resolve_instruments_dir()
 _VALID_RE = re.compile(r"^[A-Z0-9-]+$")
 
 METADATA_BUCKET_ENV = "METADATA_BUCKET"
 METADATA_PREFIX_ENV = "METADATA_PREFIX"
 
-logger = logging.getLogger(__name__)
+
+@lru_cache(maxsize=1)
+def list_group_definitions() -> Dict[str, Dict[str, Any]]:
+    """Return catalogue of shared instrument group definitions."""
+
+    root = config.data_root / "instruments" / "groupings"
+    try:
+        if not root.is_dir():
+            return {}
+    except OSError:
+        return {}
+
+    definitions: Dict[str, Dict[str, Any]] = {}
+    for path in sorted(root.glob("*.json")):
+        try:
+            with path.open("r", encoding="utf-8") as fh:
+                payload = json.load(fh)
+        except FileNotFoundError:
+            continue
+        except Exception as exc:  # pragma: no cover - logged for visibility
+            logger.warning("Failed to load group definition %s: %s", path, exc)
+            continue
+
+        if not isinstance(payload, dict):
+            logger.warning("Group definition %s is not a JSON object", path)
+            continue
+
+        raw_id = payload.get("id")
+        ident = str(raw_id if raw_id is not None else path.stem).strip()
+        if not ident:
+            ident = path.stem
+
+        raw_name = payload.get("name")
+        name = str(raw_name if raw_name is not None else ident).strip() or ident
+
+        normalized = dict(payload)
+        normalized["id"] = ident
+        normalized["name"] = name
+        definitions[ident] = normalized
+
+    return definitions
 
 
 def _validate_part(value: str) -> str:
@@ -195,7 +258,7 @@ def list_instruments() -> List[Dict[str, Any]]:
         try:
             with p.open("r", encoding="utf-8") as f:
                 data = json.load(f)
-            for field in ("asset_class", "industry", "region"):
+            for field in ("asset_class", "industry", "region", "grouping"):
                 data.setdefault(field, None)
             instruments.append(data)
         except Exception:

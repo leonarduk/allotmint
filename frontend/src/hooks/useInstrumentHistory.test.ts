@@ -1,20 +1,17 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeEach,
-  afterAll,
-  afterEach,
-} from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll, afterEach } from 'vitest';
+// Mock the API module so we can reliably intercept calls across ESM boundaries
+vi.mock('../api', () => ({
+  fetchInstrumentDetailWithRetry: vi.fn(),
+}));
 import * as api from '../api';
 import {
   useInstrumentHistory,
   __clearInstrumentHistoryCache,
 } from './useInstrumentHistory';
 
-const mockGetInstrumentDetail = vi.spyOn(api, 'getInstrumentDetail');
+const mockGetInstrumentDetail = api
+  .fetchInstrumentDetailWithRetry as unknown as ReturnType<typeof vi.fn>;
 
 afterAll(() => {
   mockGetInstrumentDetail.mockRestore();

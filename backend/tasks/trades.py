@@ -72,7 +72,7 @@ def lambda_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     return {"count": saved}
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Manual execution for local testing
     result = lambda_handler({}, None)
     log.info("Imported %s trades", result.get("count"))

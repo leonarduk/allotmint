@@ -137,3 +137,45 @@ def test_build_exchange_map_uses_metadata(monkeypatch):
     )
     result = ia._build_exchange_map(["ABC", "DEF"])
     assert result == {"ABC": "L"}
+
+
+def test_instrument_summaries_populate_grouping(monkeypatch):
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "AAA.L", "name": "Alpha", "units": 1.0, "market_value_gbp": 100.0, "gain_gbp": 10.0},
+                    {"ticker": "BBB.L", "name": "Beta", "units": 2.0, "market_value_gbp": 50.0, "gain_gbp": 5.0},
+                    {"ticker": "CCC.L", "name": "Gamma", "units": 3.0, "market_value_gbp": 25.0, "gain_gbp": 2.5},
+                ]
+            }
+        ]
+    }
+
+    meta = {
+        "AAA.L": {"grouping": "Explicit"},
+        "BBB.L": {"sector": "Sector B"},
+        "CCC.L": {"region": "Region C"},
+    }
+
+    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug: portfolio)
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: meta.get(t, {}))
+
+    def fake_price_and_changes(ticker: str) -> dict:
+        return {
+            "last_price_gbp": 0.0,
+            "last_price_date": "2024-01-01",
+            "last_price_time": None,
+            "is_stale": False,
+            "change_7d_pct": None,
+            "change_30d_pct": None,
+        }
+
+    monkeypatch.setattr(ia, "_price_and_changes", fake_price_and_changes)
+
+    summaries = ia.instrument_summaries_for_group("demo")
+    by_ticker = {row["ticker"]: row for row in summaries}
+
+    assert by_ticker["AAA.L"]["grouping"] == "Explicit"
+    assert by_ticker["BBB.L"]["grouping"] == "Sector B"
+    assert by_ticker["CCC.L"]["grouping"] == "Region C"

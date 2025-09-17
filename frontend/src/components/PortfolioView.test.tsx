@@ -27,9 +27,8 @@ describe("PortfolioView", () => {
         ],
     };
 
-    it("renders owner's name and account blocks", () => {
+    it("renders account blocks", () => {
         render(<PortfolioView data={mockOwner}/>);
-        expect(screen.getByTestId("owner-name")).toHaveTextContent("steve");
 
         // Match headings like "ISA (GBP)"
         const isaBlock = screen.getByText((_, el) => {

@@ -52,5 +52,5 @@ def main():
         simplify_account_file(file, out_dir)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

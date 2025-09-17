@@ -323,7 +323,7 @@ def load_timeseries_data(
 
 # ─────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Example usage
     today = datetime.today().date()
     cutoff = today - timedelta(days=700)

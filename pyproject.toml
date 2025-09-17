@@ -1,9 +1,35 @@
 [project]
 dependencies = [
-    "reportlab>=4.5",
+    "reportlab>=4.4.3",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest~=8.4.1",
+    "pytest-cov~=6.2.1",
+    "pytest-asyncio~=0.23",
 ]
 
 [tool.pytest.ini_options]
-addopts = "--cov=backend --cov-fail-under=80"
+addopts = "--cov=backend --cov-fail-under=90"
 testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["asyncio: mark tests that require asyncio support"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
 

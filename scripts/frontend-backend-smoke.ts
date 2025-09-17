@@ -81,7 +81,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/compliance/validate",
     "body": {
-      "owner": "demo-owner"
+      "owner": "demo"
     }
   },
   {
@@ -171,6 +171,16 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/health"
   },
   {
+    "method": "POST",
+    "path": "/holdings/import",
+    "body": {
+      "owner": "test",
+      "account": "test",
+      "provider": "test",
+      "file": {}
+    }
+  },
+  {
     "method": "GET",
     "path": "/instrument/",
     "query": {
@@ -180,6 +190,19 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "GET",
     "path": "/instrument/admin"
+  },
+  {
+    "method": "GET",
+    "path": "/instrument/admin/groupings"
+  },
+  {
+    "method": "GET",
+    "path": "/instrument/admin/groups"
+  },
+  {
+    "method": "POST",
+    "path": "/instrument/admin/groups",
+    "body": {}
   },
   {
     "method": "DELETE",
@@ -198,6 +221,22 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "PUT",
     "path": "/instrument/admin/{exchange}/{ticker}",
     "body": {}
+  },
+  {
+    "method": "DELETE",
+    "path": "/instrument/admin/{exchange}/{ticker}/group"
+  },
+  {
+    "method": "POST",
+    "path": "/instrument/admin/{exchange}/{ticker}/group",
+    "body": {}
+  },
+  {
+    "method": "GET",
+    "path": "/instrument/intraday",
+    "query": {
+      "ticker": "AAPL"
+    }
   },
   {
     "method": "GET",
@@ -256,7 +295,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/pension/forecast",
     "query": {
-      "owner": "demo-owner",
+      "owner": "demo",
       "death_age": "0"
     }
   },
@@ -351,7 +390,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/returns/compare",
     "query": {
-      "owner": "demo-owner"
+      "owner": "demo"
     }
   },
   {
@@ -366,7 +405,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/scenario/historical",
     "query": {
-      "horizons": "[0]"
+      "horizons": "['test']"
     }
   },
   {
@@ -462,6 +501,14 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
+    "path": "/trail"
+  },
+  {
+    "method": "POST",
+    "path": "/trail/{task_id}/complete"
+  },
+  {
+    "method": "GET",
     "path": "/transactions"
   },
   {
@@ -480,7 +527,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/transactions/compliance",
     "query": {
-      "owner": "demo-owner"
+      "owner": "demo"
     }
   },
   {
@@ -544,8 +591,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
 // Values are chosen based on common parameter names. Unknown names default to
 // `1` which parses as an integer or string.
 const SAMPLE_PATH_VALUES: Record<string, string> = {
-  owner: 'demo-owner',
-  account: 'demo-account',
+  owner: 'demo',
+  account: 'isa',
   user: 'user@example.com',
   email: 'user@example.com',
   id: '1',
@@ -570,8 +617,20 @@ export function fillPath(path: string): string {
 }
 
 export async function runSmoke(base: string) {
+  const normalizedBase = base.replace(/\/+$/, '');
+  const healthUrl = `${normalizedBase}/health`;
+
+  try {
+    await fetch(healthUrl, { method: 'GET' });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Preflight check failed: could not reach ${healthUrl} (${reason}). Start the backend (make run-backend) or provide SMOKE_URL pointing to a running instance.`,
+    );
+  }
+
   for (const ep of smokeEndpoints) {
-    let url = base + fillPath(ep.path);
+    let url = normalizedBase + fillPath(ep.path);
     if (ep.query) url += '?' + new URLSearchParams(ep.query).toString();
     let body: any = undefined;
     let headers: any = undefined;
@@ -589,7 +648,13 @@ export async function runSmoke(base: string) {
         headers = { 'Content-Type': 'application/json' };
       }
     }
-    const res = await fetch(url, { method: ep.method, body, headers });
+    let res: Awaited<ReturnType<typeof fetch>>;
+    try {
+      res = await fetch(url, { method: ep.method, body, headers });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Network error while calling ${ep.method} ${ep.path}: ${reason}`);
+    }
     if (res.status >= 500) {
       throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
     }
@@ -605,5 +670,13 @@ export async function runSmoke(base: string) {
 }
 
 if (require.main === module) {
-  runSmoke(process.argv[2] || process.env.SMOKE_URL || 'http://localhost:8000').catch(err => { console.error(err); process.exit(1); });
+  const base = process.argv[2] || process.env.SMOKE_URL || 'http://localhost:8000';
+  runSmoke(base).catch(err => {
+    if (err instanceof Error) {
+      console.error(err.message);
+    } else {
+      console.error(err);
+    }
+    process.exit(1);
+  });
 }

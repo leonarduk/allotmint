@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { createRequire } from 'module';
 
 type Command = {
   command: string;
@@ -21,10 +22,14 @@ for (const variable of forwardedEnvironmentVariables) {
   }
 }
 
+const require = createRequire(import.meta.url);
+
+const tsxCliPath = require.resolve('tsx/cli');
+
 const commands: Command[] = [
   {
-    command: 'tsx',
-    args: ['scripts/frontend-backend-smoke.ts'],
+    command: process.execPath,
+    args: [tsxCliPath, 'scripts/frontend-backend-smoke.ts'],
     label: 'backend smoke suite',
   },
   {

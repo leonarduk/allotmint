@@ -42,6 +42,48 @@ METADATA_BUCKET_ENV = "METADATA_BUCKET"
 METADATA_PREFIX_ENV = "METADATA_PREFIX"
 
 
+@lru_cache(maxsize=1)
+def list_group_definitions() -> Dict[str, Dict[str, Any]]:
+    """Return catalogue of shared instrument group definitions."""
+
+    root = config.data_root / "instruments" / "groupings"
+    try:
+        if not root.is_dir():
+            return {}
+    except OSError:
+        return {}
+
+    definitions: Dict[str, Dict[str, Any]] = {}
+    for path in sorted(root.glob("*.json")):
+        try:
+            with path.open("r", encoding="utf-8") as fh:
+                payload = json.load(fh)
+        except FileNotFoundError:
+            continue
+        except Exception as exc:  # pragma: no cover - logged for visibility
+            logger.warning("Failed to load group definition %s: %s", path, exc)
+            continue
+
+        if not isinstance(payload, dict):
+            logger.warning("Group definition %s is not a JSON object", path)
+            continue
+
+        raw_id = payload.get("id")
+        ident = str(raw_id if raw_id is not None else path.stem).strip()
+        if not ident:
+            ident = path.stem
+
+        raw_name = payload.get("name")
+        name = str(raw_name if raw_name is not None else ident).strip() or ident
+
+        normalized = dict(payload)
+        normalized["id"] = ident
+        normalized["name"] = name
+        definitions[ident] = normalized
+
+    return definitions
+
+
 def _validate_part(value: str) -> str:
     """Return ``value`` upper-cased if it matches ``_VALID_RE``."""
 

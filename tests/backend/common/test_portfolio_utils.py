@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from backend.common import instrument_api as ia
 from backend.common import portfolio_utils
 
 
@@ -191,3 +192,55 @@ def test_safe_num_parses_numeric_strings():
 
 def test_safe_num_returns_default_for_invalid():
     assert portfolio_utils._safe_num("not-a-number", default=7.5) == 7.5
+
+
+def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "AAA.L",
+                        "units": 1.0,
+                        "market_value_gbp": 100.0,
+                        "gain_gbp": 10.0,
+                        "cost_gbp": 90.0,
+                    }
+                ]
+            }
+        ]
+    }
+
+    definitions = {"shared": {"id": "shared", "name": "Shared Group"}}
+    monkeypatch.setattr(ia, "list_group_definitions", lambda: definitions)
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
+
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(
+        portfolio_utils,
+        "get_instrument_meta",
+        lambda t: {"name": "Shared", "currency": "GBP", "grouping_id": "shared"},
+    )
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda t: {})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio)
+    assert rows[0]["grouping"] == "Shared Group"
+    assert rows[0]["grouping_id"] == "shared"
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda ticker, latest: (ticker, "L"))
+    monkeypatch.setattr(instrument_api, "price_change_pct", lambda *args, **kwargs: None)
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    rows_by_ticker = {row["ticker"]: row for row in rows}
+
+    assert rows_by_ticker["AAA.L"]["grouping"] == "Technology"
+    assert rows_by_ticker["BBB.L"]["grouping"] == "USD"
+    assert rows_by_ticker["CCC.L"]["grouping"] == "Europe"
+    assert rows_by_ticker["DDD.L"]["grouping"] == "Unknown"

@@ -96,3 +96,44 @@ def test_pension_route_prefers_monthly_over_annual(monkeypatch):
         )
     assert resp.status_code == 200
     assert called.get("contribution_annual") == 1200
+
+
+def test_pension_route_rejects_death_age_not_exceeding_retirement(monkeypatch):
+    monkeypatch.setattr(
+        "backend.routes.pension.state_pension_age_uk", lambda dob: 67
+    )
+    monkeypatch.setattr(
+        "backend.routes.pension.load_person_meta",
+        lambda owner, root=None: {"dob": "1980-01-01"},
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get(
+            "/pension/forecast", params={"owner": "carol", "death_age": 67}
+        )
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "death_age must exceed retirement_age"}
+
+
+def test_pension_route_propagates_missing_portfolio(monkeypatch):
+    monkeypatch.setattr(
+        "backend.routes.pension.state_pension_age_uk", lambda dob: 67
+    )
+    monkeypatch.setattr(
+        "backend.routes.pension.load_person_meta",
+        lambda owner, root=None: {"dob": "1980-01-01"},
+    )
+
+    def fake_portfolio(owner: str, root=None):  # pragma: no cover - signature match
+        raise FileNotFoundError("no portfolio for owner")
+
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio", fake_portfolio
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get(
+            "/pension/forecast", params={"owner": "dave", "death_age": 90}
+        )
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "no portfolio for owner"}

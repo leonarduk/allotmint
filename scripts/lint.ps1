@@ -5,11 +5,20 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT = Split-Path -Parent $SCRIPT_DIR
 Set-Location $REPO_ROOT
 
+# Validate each python candidate by probing with --version so that we avoid
+# launching the linters when the interpreter shim is present but unusable.
 $pythonCommand = $null
 foreach ($candidate in @('python', 'py')) {
     if (Get-Command $candidate -ErrorAction SilentlyContinue) {
-        $pythonCommand = $candidate
-        break
+        try {
+            $null = & $candidate --version 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                $pythonCommand = $candidate
+                break
+            }
+        } catch {
+            continue
+        }
     }
 }
 
@@ -71,21 +80,16 @@ function Parse-ESLint {
 
 if ($pythonCommand) {
     Run-Linter "ruff" { & $pythonCommand -m ruff check --config backend/pyproject.toml backend tests cdk scripts } ${function:Parse-Ruff}
-} else {
-    $summary += "ruff: python not available"
-}
-
-if ($pythonCommand) {
     Run-Linter "black" { & $pythonCommand -m black --check --config backend/pyproject.toml backend tests cdk scripts } ${function:Parse-Black}
 } else {
-    $summary += "black: python not available"
+    $summary += "Python linters skipped: no working python interpreter found"
 }
 
 if (Test-Path frontend) {
     if (Get-Command npm -ErrorAction SilentlyContinue) {
         Run-Linter "eslint" {
             Push-Location frontend
-            $r = npm run lint --silent -- --format unix
+            $r = npm run lint --silent
             Pop-Location
             $r
         } ${function:Parse-ESLint}

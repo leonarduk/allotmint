@@ -67,6 +67,17 @@ def test_create_group_rejects_invalid(monkeypatch):
     resp = client.post("/instrument/admin/groups", json={"name": "   "})
     assert resp.status_code == 400
 
+def test_list_instrument_groupings(monkeypatch):
+    monkeypatch.setattr(
+        instrument_admin,
+        "list_group_definitions",
+        lambda: {"shared": {"id": "shared", "name": "Shared Group"}},
+    )
+    client = make_client()
+    resp = client.get("/instrument/admin/groupings")
+    assert resp.status_code == 200
+    assert resp.json() == [{"id": "shared", "name": "Shared Group"}]
+
 
 def test_get_instrument_ok(monkeypatch, tmp_path):
     def fake_path(t, e):

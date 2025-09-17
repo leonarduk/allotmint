@@ -18,7 +18,9 @@ Run a quick smoke test against key backend endpoints. After running any `deploy:
 npm run smoke:test
 ```
 
-Set `API_BASE` to target a different backend URL and `TEST_ID_TOKEN` if needed.
+Set `SMOKE_URL` to point at a different deployment and include `TEST_ID_TOKEN`
+when the target requires authentication (the smoke runner forwards it as a
+bearer token).
 
 ## smoke-test.ps1
 

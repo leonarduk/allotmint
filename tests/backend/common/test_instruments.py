@@ -187,3 +187,32 @@ def test_list_instruments_adds_default_fields(monkeypatch, tmp_path) -> None:
             "grouping": None,
         }
     ]
+
+
+def test_list_group_definitions_returns_empty_when_missing(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(instruments.config, "data_root", tmp_path)
+    instruments.list_group_definitions.cache_clear()
+    try:
+        assert instruments.list_group_definitions() == {}
+    finally:
+        instruments.list_group_definitions.cache_clear()
+
+
+def test_list_group_definitions_loads_json(monkeypatch, tmp_path) -> None:
+    root = tmp_path / "instruments" / "groupings"
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "shared.json").write_text(json.dumps({"name": "Shared Group"}))
+    (root / "balanced.json").write_text(json.dumps({"id": "balanced", "name": " Balanced "}))
+    (root / "invalid.json").write_text("not-json")
+
+    monkeypatch.setattr(instruments.config, "data_root", tmp_path)
+    instruments.list_group_definitions.cache_clear()
+    try:
+        defs = instruments.list_group_definitions()
+        assert defs == {
+            "balanced": {"id": "balanced", "name": "Balanced"},
+            "shared": {"id": "shared", "name": "Shared Group"},
+        }
+        assert "invalid" not in defs
+    finally:
+        instruments.list_group_definitions.cache_clear()

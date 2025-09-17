@@ -16,13 +16,14 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Mapping
+from typing import Any, Dict, List, Optional, Mapping, Tuple
 
 import pandas as pd
 
 from backend.common.constants import ACCOUNTS, HOLDINGS, OWNER
 from backend.common.group_portfolio import build_group_portfolio
 from backend.common.holding_utils import load_latest_prices
+from backend.common.instruments import list_group_definitions
 from backend.common.portfolio_utils import get_security_meta, list_all_unique_tickers
 from backend.config import config
 from backend.timeseries.cache import (
@@ -83,28 +84,96 @@ def _resolve_full_ticker(ticker: str, latest: Dict[str, float]) -> Optional[tupl
 
 
 # Fallback helper for group-by metadata
-def _derive_grouping(*sources: Optional[Mapping[str, Any]], current: Optional[str] = None) -> Optional[str]:
-    """Return the first non-empty grouping/sector/region from the provided metadata."""
+def _coerce_group_value(
+    value: Any,
+    catalogue: Mapping[str, Mapping[str, Any]],
+    *,
+    treat_as_id: bool = False,
+) -> Tuple[Optional[str], Optional[str]]:
+    if value is None:
+        return None, None
 
-    if isinstance(current, str):
-        cur = current.strip()
-        if cur:
-            return cur
-    elif current:
-        return current
+    if isinstance(value, Mapping):
+        raw_id = value.get("id") or value.get("grouping_id")
+        raw_name = value.get("name")
+        ident = str(raw_id).strip() if raw_id is not None else None
+        if ident:
+            name, slug = _coerce_group_value(ident, catalogue, treat_as_id=True)
+            if isinstance(raw_name, str) and raw_name.strip():
+                return raw_name.strip(), slug or ident
+            return name, slug
+        if isinstance(raw_name, str):
+            return _coerce_group_value(raw_name, catalogue, treat_as_id=treat_as_id)
+        return None, None
+
+    if isinstance(value, str):
+        trimmed = value.strip()
+        if not trimmed:
+            return None, None
+
+        if treat_as_id:
+            definition = catalogue.get(trimmed)
+            if definition:
+                ident = str(definition.get("id") or trimmed)
+                name_val = definition.get("name")
+                if isinstance(name_val, str) and name_val.strip():
+                    return name_val.strip(), ident
+                return ident, ident
+            return trimmed, trimmed
+
+        definition = catalogue.get(trimmed)
+        if definition:
+            ident = str(definition.get("id") or trimmed)
+            name_val = definition.get("name")
+            if isinstance(name_val, str) and name_val.strip():
+                return name_val.strip(), ident
+            return ident, ident
+
+        for definition in catalogue.values():
+            name_val = definition.get("name")
+            if isinstance(name_val, str) and name_val.strip().lower() == trimmed.lower():
+                ident = str(definition.get("id") or trimmed)
+                return name_val.strip(), ident
+
+        return trimmed, None
+
+    return None, None
+
+
+def _resolve_grouping_details(
+    *sources: Optional[Mapping[str, Any]],
+    current: Optional[Any] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    catalogue = list_group_definitions()
+
+    name, slug = _coerce_group_value(current, catalogue)
+    if name:
+        return name, slug
 
     for src in sources:
         if not src:
             continue
-        for key in ("grouping", "sector", "region"):
-            val = src.get(key)
-            if isinstance(val, str):
-                candidate = val.strip()
-            else:
-                candidate = val
-            if candidate:
-                return candidate
-    return None
+        name, slug = _coerce_group_value(src.get("grouping_id"), catalogue, treat_as_id=True)
+        if name:
+            return name, slug
+        name, slug = _coerce_group_value(src.get("grouping"), catalogue)
+        if name:
+            return name, slug
+        name, slug = _coerce_group_value(src.get("sector"), catalogue)
+        if name:
+            return name, slug
+        name, slug = _coerce_group_value(src.get("region"), catalogue)
+        if name:
+            return name, slug
+
+    return None, None
+
+
+def _derive_grouping(*sources: Optional[Mapping[str, Any]], current: Optional[Any] = None) -> Optional[str]:
+    """Return the first non-empty grouping/sector/region from the provided metadata."""
+
+    name, _ = _resolve_grouping_details(*sources, current=current)
+    return name
 
 
 # Load once; callers can restart process to refresh or we can add a reload later.
@@ -517,7 +586,11 @@ def instrument_summaries_for_group(group_slug: str) -> List[Dict[str, Any]]:
         entry.setdefault("industry", meta.get("industry") or meta.get("sector"))
         entry.setdefault("region", meta.get("region"))
         entry.setdefault("sector", meta.get("sector"))
-        entry["grouping"] = _derive_grouping(meta, entry, current=entry.get("grouping"))
+        grouping_name, grouping_id = _resolve_grouping_details(meta, entry, current=entry.get("grouping"))
+        if grouping_id:
+            entry["grouping_id"] = grouping_id
+        if grouping_name:
+            entry["grouping"] = grouping_name
         entry.update(_price_and_changes(tkr))
         cost = entry["market_value_gbp"] - entry["gain_gbp"]
         entry["gain_pct"] = (entry["gain_gbp"] / cost * 100.0) if cost else None

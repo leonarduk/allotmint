@@ -4,7 +4,8 @@ Run quick checks against critical backend endpoints and the frontend smoke test 
 
 ## Environment variables
 
-- `SMOKE_URL` – base URL of the deployment to exercise.
+- `SMOKE_URL` – base URL of the deployment to exercise for both backend and
+  frontend suites.
 - `TEST_ID_TOKEN` – optional ID token added as a `Bearer` token for backend endpoints requiring authentication.
 - `SMOKE_AUTH_TOKEN` – optional bearer token stored in the frontend's `localStorage`; falls back to `TEST_ID_TOKEN` when unset.
 
@@ -28,7 +29,8 @@ Run only the frontend smoke page checks:
 SMOKE_URL=https://example.com npm --prefix frontend run smoke:frontend
 ```
 
-Include `TEST_ID_TOKEN` (and optionally `SMOKE_AUTH_TOKEN`) if the target requires auth:
+Include `TEST_ID_TOKEN` (and optionally `SMOKE_AUTH_TOKEN`) if the target
+requires auth; the backend smoke runner forwards it as a bearer token:
 
 ```bash
 SMOKE_URL=https://example.com TEST_ID_TOKEN=token npm run smoke:test:all

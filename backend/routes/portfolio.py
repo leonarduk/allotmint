@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from fastapi import APIRouter, HTTPException, Query, Request, Depends
@@ -397,21 +398,32 @@ async def group_movers(
 
 
 @router.get("/account/{owner}/{account}")
-async def get_account(owner: str, account: str):
-    try:
-        data = data_loader.load_account(owner, account)
-    except FileNotFoundError:
+async def get_account(owner: str, account: str, request: Request):
+    accounts_root_value = getattr(request.app.state, "accounts_root", None)
+    if accounts_root_value:
+        root = Path(accounts_root_value)
+    else:
         paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
-        owner_dir = paths.accounts_root / owner
+        root = paths.accounts_root
+
+    try:
+        data = data_loader.load_account(owner, account, root)
+    except FileNotFoundError:
+        search_root = root
+        owner_dir = search_root / owner
         if not owner_dir.exists():
-            raise HTTPException(status_code=404, detail="Account not found")
+            fallback_paths = data_loader.resolve_paths(None, None)
+            search_root = fallback_paths.accounts_root
+            owner_dir = search_root / owner
+            if not owner_dir.exists():
+                raise HTTPException(status_code=404, detail="Account not found")
         match = next(
             (f.stem for f in owner_dir.glob("*.json") if f.stem.lower() == account.lower()),
             None,
         )
         if not match:
             raise HTTPException(status_code=404, detail="Account not found")
-        data = data_loader.load_account(owner, match)
+        data = data_loader.load_account(owner, match, search_root)
         account = match
         
     holdings = data.pop("holdings", data.pop("approvals", [])) or []

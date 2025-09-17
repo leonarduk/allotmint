@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { InstrumentSummary } from '../types';
 import { InstrumentDetail } from './InstrumentDetail';
@@ -14,6 +14,12 @@ import { isSupportedFx } from '../lib/fx';
 import { RelativeViewToggle } from './RelativeViewToggle';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import {
+  assignInstrumentGroup,
+  clearInstrumentGroup,
+  createInstrumentGroup,
+  listInstrumentGroups,
+} from '../api';
 
 type Props = {
   rows: InstrumentSummary[];
@@ -52,6 +58,9 @@ export function InstrumentTable({ rows }: Props) {
     gain: true,
     gain_pct: true,
   });
+  const [groupOptions, setGroupOptions] = useState<string[]>([]);
+  const [groupOverrides, setGroupOverrides] = useState<Record<string, string | null | undefined>>({});
+  const [pendingGroupTicker, setPendingGroupTicker] = useState<string | null>(null);
 
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -86,6 +95,27 @@ export function InstrumentTable({ rows }: Props) {
     [sorted, ungroupedLabel],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    listInstrumentGroups()
+      .then((fetched) => {
+        if (cancelled) return;
+        setGroupOptions(mergeGroupOptions([], fetched));
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('Failed to load instrument groups', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setGroupOverrides({});
+    setGroupOptions((prev) => mergeGroupOptions(prev, rows.map((r) => r.grouping ?? null)));
+  }, [rows]);
+
   if (!rowsWithCost.length) {
     return <p>{t('instrumentTable.noInstruments')}</p>;
   }
@@ -97,6 +127,16 @@ export function InstrumentTable({ rows }: Props) {
     ['gain', 'Gain'],
     ['gain_pct', 'Gain %'],
   ];
+
+  const assignmentLabel = t('instrumentTable.groupActions.placeholder', {
+    defaultValue: 'Change…',
+  });
+  const savingLabel = t('instrumentTable.groupActions.saving', {
+    defaultValue: 'Saving…',
+  });
+  const promptLabel = t('instrumentTable.groupActions.prompt', {
+    defaultValue: 'Enter new group name',
+  });
 
   return (
     <>
@@ -231,6 +271,9 @@ export function InstrumentTable({ rows }: Props) {
                   <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {t('instrumentTable.columns.delta30d')}
                   </th>
+                  <th className={tableStyles.cell}>
+                    {t('instrumentTable.columns.groupActions', { defaultValue: 'Group' })}
+                  </th>
                 </tr>
               </thead>
 
@@ -245,6 +288,14 @@ export function InstrumentTable({ rows }: Props) {
                       : statusStyles.negative;
                   const gainPctPrefix =
                     r.gain_pct != null && r.gain_pct >= 0 ? '▲' : '▼';
+                  const overrideExists = Object.prototype.hasOwnProperty.call(
+                    groupOverrides,
+                    r.ticker,
+                  );
+                  const currentGrouping = overrideExists
+                    ? groupOverrides[r.ticker] ?? null
+                    : r.grouping ?? null;
+                  const availableGroups = mergeGroupOptions(groupOptions, [currentGrouping]);
 
                   return (
                     <tr key={`${group.key}-${r.ticker}`}>
@@ -356,6 +407,53 @@ export function InstrumentTable({ rows }: Props) {
                         {r.change_30d_pct == null
                           ? '—'
                           : percent(r.change_30d_pct, 1)}
+                      </td>
+                      <td className={tableStyles.cell}>
+                        <div className="flex flex-col gap-1">
+                          <span>{currentGrouping ?? '—'}</span>
+                          <select
+                            aria-label={t('instrumentTable.groupActions.ariaLabel', {
+                              ticker: r.ticker,
+                              defaultValue: `Change group for ${r.ticker}`,
+                            })}
+                            value=""
+                            onChange={async (event) => {
+                              const value = event.target.value;
+                              event.target.value = '';
+                              await handleGroupSelection(
+                                r.ticker,
+                                value,
+                                setGroupOptions,
+                                setGroupOverrides,
+                                setPendingGroupTicker,
+                                promptLabel,
+                              );
+                            }}
+                            disabled={pendingGroupTicker === r.ticker}
+                          >
+                            <option value="" disabled>
+                              {pendingGroupTicker === r.ticker ? savingLabel : assignmentLabel}
+                            </option>
+                            <option value="__clear__">
+                              {t('instrumentTable.groupActions.clear', {
+                                defaultValue: 'Clear assignment',
+                              })}
+                            </option>
+                            {availableGroups.map((option) => (
+                              <option key={option} value={option}>
+                                {t('instrumentTable.groupActions.assign', {
+                                  group: option,
+                                  defaultValue: `Assign to ${option}`,
+                                })}
+                              </option>
+                            ))}
+                            <option value="__create__">
+                              {t('instrumentTable.groupActions.create', {
+                                defaultValue: 'Create new group…',
+                              })}
+                            </option>
+                          </select>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -493,4 +591,106 @@ function formatSignedPercent(value: number | null | undefined): ReactNode {
   const prefix = isPositive ? '▲' : '▼';
   const className = isPositive ? statusStyles.positive : statusStyles.negative;
   return <span className={className}>{`${prefix}${percent(value, 1)}`}</span>;
+}
+
+type GroupOverridesMap = Record<string, string | null | undefined>;
+
+async function handleGroupSelection(
+  fullTicker: string,
+  selection: string,
+  setOptions: Dispatch<SetStateAction<string[]>>,
+  setOverrides: Dispatch<SetStateAction<GroupOverridesMap>>,
+  setPending: Dispatch<SetStateAction<string | null>>,
+  promptText: string,
+): Promise<void> {
+  if (!selection) return;
+  const { ticker, exchange } = splitTickerParts(fullTicker);
+  if (!ticker) return;
+
+  if (selection === '__create__') {
+    const name = window.prompt(promptText);
+    const trimmed = name?.trim();
+    if (!trimmed) {
+      return;
+    }
+    setPending(fullTicker);
+    try {
+      const created = await createInstrumentGroup(trimmed);
+      setOptions(() => mergeGroupOptions([], created.groups));
+      const assigned = await assignInstrumentGroup(ticker, exchange, created.group);
+      const applied = assigned.group ?? created.group;
+      setOverrides((prev) => ({ ...prev, [fullTicker]: applied }));
+      if (assigned.groups?.length) {
+        setOptions(() => mergeGroupOptions([], assigned.groups));
+      } else {
+        setOptions((prev) => mergeGroupOptions(prev, [applied]));
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to create group', err);
+    } finally {
+      setPending(null);
+    }
+    return;
+  }
+
+  if (selection === '__clear__') {
+    setPending(fullTicker);
+    try {
+      await clearInstrumentGroup(ticker, exchange);
+      setOverrides((prev) => ({ ...prev, [fullTicker]: null }));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to clear group', err);
+    } finally {
+      setPending(null);
+    }
+    return;
+  }
+
+  setPending(fullTicker);
+  try {
+    const assigned = await assignInstrumentGroup(ticker, exchange, selection);
+    const applied = assigned.group ?? selection;
+    setOverrides((prev) => ({ ...prev, [fullTicker]: applied }));
+    if (assigned.groups?.length) {
+      setOptions(() => mergeGroupOptions([], assigned.groups));
+    } else {
+      setOptions((prev) => mergeGroupOptions(prev, [applied]));
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to assign group', err);
+  } finally {
+    setPending(null);
+  }
+}
+
+function mergeGroupOptions(
+  base: Iterable<string>,
+  extras: Iterable<string | null | undefined>,
+): string[] {
+  const map = new Map<string, string>();
+  for (const value of base) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLocaleLowerCase();
+    if (!map.has(key)) map.set(key, trimmed);
+  }
+  for (const value of extras) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLocaleLowerCase();
+    if (!map.has(key)) map.set(key, trimmed);
+  }
+  return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+}
+
+function splitTickerParts(value: string): { ticker: string; exchange: string } {
+  const [sym, exch] = value.split('.', 2);
+  const ticker = sym?.trim() ?? '';
+  const exchange = (exch?.trim() ?? 'L') || 'L';
+  return { ticker, exchange };
 }

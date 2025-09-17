@@ -1,6 +1,6 @@
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, type Mock } from "vitest";
+import { describe, it, expect, vi, afterEach, type Mock } from "vitest";
 import { useState } from "react";
 import type { InstrumentSummary } from "../types";
 import { configContext, type AppConfig } from "../ConfigContext";
@@ -55,12 +55,42 @@ const TestProvider = ({ children }: { children: React.ReactNode }) => {
 
 const renderWithConfig = (ui: React.ReactElement) => render(<TestProvider>{ui}</TestProvider>);
 
+const {
+    listInstrumentGroupsMock,
+    assignInstrumentGroupMock,
+    createInstrumentGroupMock,
+    clearInstrumentGroupMock,
+} = vi.hoisted(() => ({
+    listInstrumentGroupsMock: vi.fn(async () => ["Group A", "Group B"]),
+    assignInstrumentGroupMock: vi.fn(async () => ({
+        status: "assigned",
+        group: "Group B",
+        groups: ["Group A", "Group B"],
+    })),
+    createInstrumentGroupMock: vi.fn(async () => ({
+        status: "created",
+        group: "New Group",
+        groups: ["Group A", "Group B", "New Group"],
+    })),
+    clearInstrumentGroupMock: vi.fn(async () => ({ status: "cleared" })),
+}));
+
+vi.mock("../api", () => ({
+    listInstrumentGroups: listInstrumentGroupsMock,
+    assignInstrumentGroup: assignInstrumentGroupMock,
+    createInstrumentGroup: createInstrumentGroupMock,
+    clearInstrumentGroup: clearInstrumentGroupMock,
+}));
+
 vi.mock("./InstrumentDetail", () => ({
     InstrumentDetail: vi.fn(() => <div data-testid="instrument-detail" />),
 }));
 
 import { InstrumentTable } from "./InstrumentTable";
 import { InstrumentDetail } from "./InstrumentDetail";
+afterEach(() => {
+    vi.clearAllMocks();
+});
 
 describe("InstrumentTable", () => {
     const rows: InstrumentSummary[] = [
@@ -240,5 +270,55 @@ describe("InstrumentTable", () => {
         expect(within(updatedTable).queryByRole('columnheader', { name: 'Gain £' })).toBeNull();
         expect(within(updatedTable).queryByRole('columnheader', { name: 'Last £' })).toBeNull();
         expect(within(updatedTable).getByRole('columnheader', { name: 'Gain %' })).toBeInTheDocument();
+    });
+
+    it("assigns an existing group via the action menu", async () => {
+        renderWithConfig(<InstrumentTable rows={rows} />);
+        openGroup("Group A");
+        await waitFor(() => expect(listInstrumentGroupsMock).toHaveBeenCalled());
+        const select = screen.getByLabelText("Change group for ABC");
+        fireEvent.change(select, { target: { value: "Group B" } });
+
+        await waitFor(() => expect(assignInstrumentGroupMock).toHaveBeenCalledWith("ABC", "L", "Group B"));
+        const container = select.parentElement as HTMLElement;
+        await waitFor(() => expect(within(container).getByText("Group B")).toBeInTheDocument());
+    });
+
+    it("creates a new group and assigns it", async () => {
+        createInstrumentGroupMock.mockResolvedValueOnce({
+            status: "created",
+            group: "Income",
+            groups: ["Group A", "Group B", "Income"],
+        });
+        assignInstrumentGroupMock.mockResolvedValueOnce({
+            status: "assigned",
+            group: "Income",
+            groups: ["Group A", "Group B", "Income"],
+        });
+        const promptSpy = vi.spyOn(window, "prompt").mockReturnValue(" Income ");
+
+        renderWithConfig(<InstrumentTable rows={rows} />);
+        openGroup("Group A");
+        await waitFor(() => expect(listInstrumentGroupsMock).toHaveBeenCalled());
+        const select = screen.getByLabelText("Change group for ABC");
+        fireEvent.change(select, { target: { value: "__create__" } });
+
+        await waitFor(() => expect(createInstrumentGroupMock).toHaveBeenCalledWith("Income"));
+        await waitFor(() => expect(assignInstrumentGroupMock).toHaveBeenCalledWith("ABC", "L", "Income"));
+        const container = select.parentElement as HTMLElement;
+        await waitFor(() => expect(within(container).getByText("Income")).toBeInTheDocument());
+        promptSpy.mockRestore();
+    });
+
+    it("clears an assigned group", async () => {
+        renderWithConfig(<InstrumentTable rows={rows} />);
+        openGroup("Group A");
+        await waitFor(() => expect(listInstrumentGroupsMock).toHaveBeenCalled());
+        const select = screen.getByLabelText("Change group for ABC");
+        fireEvent.change(select, { target: { value: "__clear__" } });
+
+        await waitFor(() => expect(clearInstrumentGroupMock).toHaveBeenCalledWith("ABC", "L"));
+        const container = select.parentElement as HTMLElement;
+        await waitFor(() => expect(within(container).getByText("—")).toBeInTheDocument());
     });
 });

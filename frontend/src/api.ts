@@ -616,6 +616,40 @@ export const rebuildTimeseriesCache = (ticker: string, exchange: string) =>
 export const listInstrumentMetadata = () =>
   fetchJson<InstrumentMetadata[]>(`${API_BASE}/instrument/admin`);
 
+export const listInstrumentGroups = () =>
+  fetchJson<string[]>(`${API_BASE}/instrument/admin/groups`);
+
+type InstrumentGroupMutationResponse = {
+  status: string;
+  group: string;
+  groups: string[];
+};
+
+export const createInstrumentGroup = (name: string) =>
+  fetchJson<InstrumentGroupMutationResponse>(`${API_BASE}/instrument/admin/groups`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+
+export const assignInstrumentGroup = (ticker: string, exchange: string, group: string) =>
+  fetchJson<InstrumentGroupMutationResponse>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}/group`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ group }),
+    },
+  );
+
+export const clearInstrumentGroup = (ticker: string, exchange: string) =>
+  fetchJson<{ status: string }>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}/group`,
+    {
+      method: "DELETE",
+    },
+  );
+
 export const createInstrumentMetadata = (
   ticker: string,
   exchange: string,

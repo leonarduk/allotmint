@@ -1,5 +1,172 @@
+from datetime import UTC, datetime, timedelta, date
+
 import pytest
+
+import backend.screener as screener_module
 from backend.screener import fetch_fundamentals, screen, Fundamentals
+
+
+@pytest.fixture(autouse=True)
+def reset_screener_cache():
+    """Ensure screener cache state is clean between tests."""
+
+    original_ttl = screener_module._CACHE_TTL_SECONDS
+    screener_module._CACHE.clear()
+    yield
+    screener_module._CACHE.clear()
+    screener_module._CACHE_TTL_SECONDS = original_ttl
+
+
+def _make_base_fundamentals(ticker: str = "AAA") -> Fundamentals:
+    return Fundamentals(
+        ticker=ticker,
+        name="Base Corp",
+        peg_ratio=0.5,
+        pe_ratio=10.0,
+        de_ratio=0.5,
+        lt_de_ratio=0.4,
+        interest_coverage=12.0,
+        current_ratio=2.0,
+        quick_ratio=1.8,
+        fcf=2000.0,
+        eps=6.0,
+        gross_margin=0.5,
+        operating_margin=0.3,
+        net_margin=0.2,
+        ebitda_margin=0.35,
+        roa=0.18,
+        roe=0.25,
+        roi=0.22,
+        dividend_yield=0.04,
+        dividend_payout_ratio=0.4,
+        beta=1.1,
+        shares_outstanding=1500,
+        float_shares=1300,
+        market_cap=8000,
+        high_52w=120.0,
+        low_52w=70.0,
+        avg_volume=20000,
+    )
+
+
+def test_fetch_fundamentals_uses_cache(monkeypatch):
+    sample = {
+        "Name": "Cached Corp",
+        "PEG": "0.5",
+    }
+
+    calls = {"count": 0}
+
+    class MockResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return sample
+
+    def mock_get(url, params, timeout):
+        calls["count"] += 1
+        return MockResp()
+
+    monkeypatch.setattr("backend.screener.requests.get", mock_get)
+
+    first = fetch_fundamentals("aapl")
+    second = fetch_fundamentals("aapl")
+
+    assert calls["count"] == 1
+    assert first is second
+
+
+def test_fetch_fundamentals_refreshes_expired_cache(monkeypatch):
+    sample = {
+        "Name": "Expired Corp",
+        "PEG": "0.7",
+    }
+
+    calls = {"count": 0}
+
+    class MockResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return sample
+
+    def mock_get(url, params, timeout):
+        calls["count"] += 1
+        return MockResp()
+
+    monkeypatch.setattr("backend.screener.requests.get", mock_get)
+
+    first = fetch_fundamentals("aapl")
+    cache_key = ("AAPL", date.today().isoformat())
+    _, cached_value = screener_module._CACHE[cache_key]
+    screener_module._CACHE[cache_key] = (
+        datetime.now(UTC) - timedelta(seconds=screener_module._CACHE_TTL_SECONDS + 1),
+        cached_value,
+    )
+
+    second = fetch_fundamentals("aapl")
+
+    assert calls["count"] == 2
+    assert second is not first
+
+
+@pytest.mark.parametrize(
+    "threshold_kwargs, failing_updates",
+    [
+        ({"peg_max": 1.0}, {"peg_ratio": 2.0}),
+        ({"pe_max": 12.0}, {"pe_ratio": None}),
+        ({"de_max": 0.6}, {"de_ratio": 0.8}),
+        ({"lt_de_max": 0.5}, {"lt_de_ratio": 0.8}),
+        ({"interest_coverage_min": 15.0}, {"interest_coverage": None}),
+        ({"current_ratio_min": 2.5}, {"current_ratio": 2.0}),
+        ({"quick_ratio_min": 2.0}, {"quick_ratio": None}),
+        ({"fcf_min": 2500.0}, {"fcf": 2000.0}),
+        ({"eps_min": 7.0}, {"eps": 6.0}),
+        ({"gross_margin_min": 0.55}, {"gross_margin": None}),
+        ({"operating_margin_min": 0.35}, {"operating_margin": 0.3}),
+        ({"net_margin_min": 0.25}, {"net_margin": 0.2}),
+        ({"ebitda_margin_min": 0.4}, {"ebitda_margin": 0.35}),
+        ({"roa_min": 0.2}, {"roa": 0.18}),
+        ({"roe_min": 0.3}, {"roe": None}),
+        ({"roi_min": 0.24}, {"roi": 0.22}),
+        ({"dividend_yield_min": 0.05}, {"dividend_yield": 0.04}),
+        ({"dividend_payout_ratio_max": 0.35}, {"dividend_payout_ratio": None}),
+        ({"beta_max": 1.0}, {"beta": 1.1}),
+        ({"shares_outstanding_min": 1600}, {"shares_outstanding": 1500}),
+        ({"float_shares_min": 1350}, {"float_shares": None}),
+        ({"market_cap_min": 9000}, {"market_cap": 8000}),
+        ({"high_52w_max": 110.0}, {"high_52w": 120.0}),
+        ({"low_52w_min": 80.0}, {"low_52w": 70.0}),
+        ({"avg_volume_min": 25000}, {"avg_volume": 20000}),
+    ],
+)
+def test_screen_filters_each_threshold(monkeypatch, threshold_kwargs, failing_updates):
+    base = _make_base_fundamentals()
+    failing = base.model_copy(update=failing_updates)
+
+    def mock_fetch(_):
+        return failing
+
+    monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
+
+    assert screen(["AAA"], **threshold_kwargs) == []
+
+
+def test_screen_skips_tickers_with_fetch_errors(monkeypatch):
+    good = _make_base_fundamentals("BBB")
+
+    def mock_fetch(ticker):
+        if ticker == "AAA":
+            raise RuntimeError("boom")
+        return good.model_copy(update={"ticker": ticker})
+
+    monkeypatch.setattr("backend.screener.fetch_fundamentals", mock_fetch)
+
+    results = screen(["AAA", "BBB"])
+
+    assert [r.ticker for r in results] == ["BBB"]
 
 
 def test_fetch_fundamentals_parses_values(monkeypatch):

@@ -89,7 +89,7 @@ if (Test-Path frontend) {
     if (Get-Command npm -ErrorAction SilentlyContinue) {
         Run-Linter "eslint" {
             Push-Location frontend
-            $r = npm run lint --silent -- --format unix
+            $r = npm run lint --silent
             Pop-Location
             $r
         } ${function:Parse-ESLint}

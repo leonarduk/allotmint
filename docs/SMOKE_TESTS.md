@@ -9,6 +9,14 @@ Run quick checks against critical backend endpoints and the frontend smoke test 
 - `TEST_ID_TOKEN` – optional ID token added as a `Bearer` token for backend endpoints requiring authentication.
 - `SMOKE_AUTH_TOKEN` – optional bearer token stored in the frontend's `localStorage`; falls back to `TEST_ID_TOKEN` when unset.
 
+If the backend is offline you'll see an error similar to:
+
+```
+Preflight check failed: could not reach http://localhost:8000/health (fetch failed). Start the backend (make run-backend) or provide SMOKE_URL pointing to a running instance.
+```
+
+Start the backend locally or point `SMOKE_URL` at an accessible deployment, then re-run the smoke tests.
+
 ## Usage
 
 Run the backend and frontend suites together with a single command:

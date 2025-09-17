@@ -617,8 +617,20 @@ export function fillPath(path: string): string {
 }
 
 export async function runSmoke(base: string) {
+  const normalizedBase = base.replace(/\/+$/, '');
+  const healthUrl = `${normalizedBase}/health`;
+
+  try {
+    await fetch(healthUrl, { method: 'GET' });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Preflight check failed: could not reach ${healthUrl} (${reason}). Start the backend (make run-backend) or provide SMOKE_URL pointing to a running instance.`,
+    );
+  }
+
   for (const ep of smokeEndpoints) {
-    let url = base + fillPath(ep.path);
+    let url = normalizedBase + fillPath(ep.path);
     if (ep.query) url += '?' + new URLSearchParams(ep.query).toString();
     let body: any = undefined;
     let headers: any = undefined;
@@ -636,7 +648,13 @@ export async function runSmoke(base: string) {
         headers = { 'Content-Type': 'application/json' };
       }
     }
-    const res = await fetch(url, { method: ep.method, body, headers });
+    let res: Awaited<ReturnType<typeof fetch>>;
+    try {
+      res = await fetch(url, { method: ep.method, body, headers });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Network error while calling ${ep.method} ${ep.path}: ${reason}`);
+    }
     if (res.status >= 500) {
       throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
     }
@@ -652,5 +670,13 @@ export async function runSmoke(base: string) {
 }
 
 if (require.main === module) {
-  runSmoke(process.argv[2] || process.env.SMOKE_URL || 'http://localhost:8000').catch(err => { console.error(err); process.exit(1); });
+  const base = process.argv[2] || process.env.SMOKE_URL || 'http://localhost:8000';
+  runSmoke(base).catch(err => {
+    if (err instanceof Error) {
+      console.error(err.message);
+    } else {
+      console.error(err);
+    }
+    process.exit(1);
+  });
 }

@@ -42,6 +42,8 @@ async def post_approval_request(owner: str, request: Request):
         owner_dir.relative_to(root)
     except Exception:
         raise_owner_not_found()
+    if not owner_dir.exists():
+        raise_owner_not_found()
     path = owner_dir / "approval_requests.json"
     try:
         raw = json.loads(path.read_text())
@@ -77,6 +79,8 @@ async def post_approval(owner: str, request: Request):
         owner_dir.relative_to(root)
     except Exception:
         raise_owner_not_found()
+    if not owner_dir.exists():
+        raise_owner_not_found()
     approvals = upsert_approval(owner, ticker, approved_on, root)
     entries = [
         {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
@@ -94,6 +98,8 @@ async def delete_approval_route(owner: str, request: Request):
         owner_dir = (root / owner).resolve()
         owner_dir.relative_to(root)
     except Exception:
+        raise_owner_not_found()
+    if not owner_dir.exists():
         raise_owner_not_found()
     approvals = delete_approval(owner, ticker, root)
     entries = [

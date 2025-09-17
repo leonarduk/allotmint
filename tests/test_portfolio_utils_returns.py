@@ -101,6 +101,7 @@ def test_compute_cash_apy_empty(monkeypatch):
 
     assert pu.compute_cash_apy("owner") is None
 
+@pytest.fixture
 def sample_portfolio():
     return {
         "accounts": [

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from fastapi import APIRouter, HTTPException, Query, Request, Depends
@@ -31,6 +30,7 @@ from backend.common import (
 )
 from backend.common import portfolio as portfolio_mod
 from backend.config import config
+from backend.routes._accounts import resolve_accounts_root
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -466,12 +466,7 @@ async def group_movers(
 
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str, request: Request):
-    accounts_root_value = getattr(request.app.state, "accounts_root", None)
-    if accounts_root_value is not None:
-        root = Path(accounts_root_value)
-    else:
-        paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
-        root = paths.accounts_root
+    root = resolve_accounts_root(request)
 
     try:
         data = data_loader.load_account(owner, account, root)

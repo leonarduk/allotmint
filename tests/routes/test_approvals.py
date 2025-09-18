@@ -4,18 +4,28 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
 import backend.routes.approvals as approvals
+import backend.routes._accounts as account_utils
+from backend.common.data_loader import ResolvedPaths
+from backend.config import config
 
 
-def make_client(tmp_path: Path) -> TestClient:
+_DEFAULT = object()
+
+
+def make_client(tmp_path: Path, accounts_root: Any = _DEFAULT) -> TestClient:
     app = FastAPI()
     app.include_router(approvals.router)
-    app.state.accounts_root = tmp_path
+    if accounts_root is _DEFAULT:
+        app.state.accounts_root = tmp_path
+    else:
+        app.state.accounts_root = accounts_root
     return TestClient(app, raise_server_exceptions=False)
 
 
@@ -70,6 +80,49 @@ def test_post_approval_request_write_failure(tmp_path: Path, monkeypatch: pytest
     resp = client.post("/accounts/bob/approval-requests", json={"ticker": "ADM.L"})
     assert resp.status_code == 500
     assert resp.json()["detail"] == "no space left"
+
+
+def test_post_approval_request_accounts_root_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fallback_root = tmp_path / "fallback"
+    owner_dir = fallback_root / "bob"
+    owner_dir.mkdir(parents=True)
+    state_root = tmp_path / "state_missing"
+    default_missing = tmp_path / "default_missing"
+
+    calls: list[tuple[object, object]] = []
+
+    def fake_resolve_paths(repo_root: object, accounts_root: object) -> ResolvedPaths:
+        calls.append((repo_root, accounts_root))
+        if repo_root is None and accounts_root is None:
+            return ResolvedPaths(
+                repo_root=tmp_path / "fallback_repo",
+                accounts_root=fallback_root,
+                virtual_pf_root=tmp_path / "virtual_final",
+            )
+        return ResolvedPaths(
+            repo_root=tmp_path / "initial_repo",
+            accounts_root=default_missing,
+            virtual_pf_root=tmp_path / "virtual_initial",
+        )
+
+    monkeypatch.setattr(config, "repo_root", Path("/configured-root"))
+    monkeypatch.setattr(config, "accounts_root", Path("configured-accounts"))
+    monkeypatch.setattr(account_utils.data_loader, "resolve_paths", fake_resolve_paths)
+
+    client = make_client(tmp_path, accounts_root=state_root)
+    resp = client.post("/accounts/bob/approval-requests", json={"ticker": "adm.l"})
+
+    assert resp.status_code == 200
+    saved_path = owner_dir / "approval_requests.json"
+    assert saved_path.exists()
+    assert not (state_root / "bob" / "approval_requests.json").exists()
+    assert not (default_missing / "bob" / "approval_requests.json").exists()
+    assert calls == [
+        (Path("/configured-root"), Path("configured-accounts")),
+        (None, None),
+    ]
 
 
 @pytest.mark.parametrize(

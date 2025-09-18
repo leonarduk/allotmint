@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
@@ -6,8 +6,23 @@ import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
 import { getScreener, getNews, getQuotes } from "../api";
 import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
 import EmptyState from "../components/EmptyState";
-import { largeNumber } from "../lib/money";
+import { largeNumber, money, percent } from "../lib/money";
 import { useConfig } from "../ConfigContext";
+import { formatDateISO } from "../lib/date";
+import tableStyles from "../styles/table.module.css";
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+
+type ActiveTab = "fundamentals" | "timeseries" | "news";
+
+type TimeseriesRow = {
+  date: string;
+  close_gbp: number;
+  change_gbp: number;
+  change_pct: number;
+};
+
+const toNum = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) ? value : NaN;
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
@@ -16,7 +31,7 @@ export default function InstrumentResearch() {
   const [showBollinger, setShowBollinger] = useState(false);
   const { t } = useTranslation();
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
-  const { tabs, disabledTabs } = useConfig();
+  const { tabs, disabledTabs, baseCurrency } = useConfig();
   const {
     data: detail,
     loading: detailLoading,
@@ -31,6 +46,7 @@ export default function InstrumentResearch() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("fundamentals");
   const [inWatchlist, setInWatchlist] = useState(() => {
     const list = (localStorage.getItem("watchlistSymbols") || "")
       .split(",")
@@ -38,6 +54,37 @@ export default function InstrumentResearch() {
       .filter(Boolean);
     return !!tkr && list.includes(tkr);
   });
+
+  const timeseriesRows = useMemo<TimeseriesRow[]>(() => {
+    const priceEntries = Array.isArray((detail as any)?.prices)
+      ? ((detail as any).prices as Array<{
+          date?: unknown;
+          close?: unknown;
+          close_gbp?: unknown;
+        }>)
+      : [];
+
+    const raw = priceEntries
+      .map((entry) => ({
+        date: typeof entry.date === "string" ? entry.date : "",
+        close_gbp: toNum(entry.close_gbp ?? entry.close),
+      }))
+      .filter((item): item is { date: string; close_gbp: number } =>
+        Boolean(item.date) && Number.isFinite(item.close_gbp),
+      );
+
+    return raw.map((price, index, arr) => {
+      const prev = arr[index - 1];
+      const change_gbp = prev ? price.close_gbp - prev.close_gbp : NaN;
+      const change_pct = prev ? (change_gbp / prev.close_gbp) * 100 : NaN;
+      return {
+        date: price.date,
+        close_gbp: price.close_gbp,
+        change_gbp,
+        change_pct,
+      };
+    });
+  }, [detail]);
 
   useEffect(() => {
     if (!tkr) return;
@@ -227,182 +274,347 @@ export default function InstrumentResearch() {
           showBollinger={showBollinger}
         />
       )}
-      {(quoteLoading && screenerLoading) ? (
-        <div>Loading quote...</div>
-      ) : quoteError || screenerError ? (
-        <div>{quoteError || screenerError}</div>
-      ) : (
-        (quote || metrics) && (
-          <table style={{ marginBottom: "1rem" }}>
-            <tbody>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Price</th>
-                <td>{quote?.last ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Change %
-                </th>
-                <td>
-                  {quote?.changePct != null
-                    ? `${quote.changePct.toFixed(2)}%`
-                    : "—"}
-                </td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Day Range
-                </th>
-                <td>
-                  {quote
-                    ? `${quote.low ?? "—"} - ${quote.high ?? "—"}`
-                    : "—"}
-                </td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  52W Range
-                </th>
-                <td>
-                  {metrics
-                    ? `${metrics.low_52w ?? "—"} - ${metrics.high_52w ?? "—"}`
-                    : "—"}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        )
+      <div style={{ margin: "1rem 0" }}>
+        {([
+          ["fundamentals", "Fundamentals"],
+          ["timeseries", "Timeseries"],
+          ["news", "News"],
+        ] as const).map(([tab, label]) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            disabled={activeTab === tab}
+            style={{
+              marginRight: "0.5rem",
+              padding: "0.4rem 0.8rem",
+              cursor: activeTab === tab ? "default" : "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {activeTab === "fundamentals" && (
+        <>
+          {(quoteLoading && screenerLoading) ? (
+            <div>Loading quote...</div>
+          ) : quoteError || screenerError ? (
+            <div>{quoteError || screenerError}</div>
+          ) : (
+            (quote || metrics) && (
+              <table style={{ marginBottom: "1rem" }}>
+                <tbody>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Price
+                    </th>
+                    <td>{quote?.last ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Change %
+                    </th>
+                    <td>
+                      {quote?.changePct != null
+                        ? `${quote.changePct.toFixed(2)}%`
+                        : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Day Range
+                    </th>
+                    <td>
+                      {quote
+                        ? `${quote.low ?? "—"} - ${quote.high ?? "—"}`
+                        : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      52W Range
+                    </th>
+                    <td>
+                      {metrics
+                        ? `${metrics.low_52w ?? "—"} - ${metrics.high_52w ?? "—"}`
+                        : "—"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            )
+          )}
+          {screenerLoading ? (
+            <div>Loading metrics...</div>
+          ) : screenerError ? (
+            <div>{screenerError}</div>
+          ) : (
+            metrics && (
+              <table style={{ marginBottom: "1rem" }}>
+                <tbody>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      PEG
+                    </th>
+                    <td>{metrics.peg_ratio ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      P/E
+                    </th>
+                    <td>{metrics.pe_ratio ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      D/E
+                    </th>
+                    <td>{metrics.de_ratio ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      LT D/E
+                    </th>
+                    <td>{metrics.lt_de_ratio ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Market Cap
+                    </th>
+                    <td>{largeNumber(metrics.market_cap)}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      EPS
+                    </th>
+                    <td>{metrics.eps ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Dividend Yield
+                    </th>
+                    <td>{metrics.dividend_yield ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Beta
+                    </th>
+                    <td>{metrics.beta ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Avg Volume
+                    </th>
+                    <td>{largeNumber(metrics.avg_volume)}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Interest Coverage
+                    </th>
+                    <td>{metrics.interest_coverage ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Current Ratio
+                    </th>
+                    <td>{metrics.current_ratio ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Quick Ratio
+                    </th>
+                    <td>{metrics.quick_ratio ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      FCF
+                    </th>
+                    <td>{largeNumber(metrics.fcf)}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Gross Margin
+                    </th>
+                    <td>{metrics.gross_margin ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Operating Margin
+                    </th>
+                    <td>{metrics.operating_margin ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Net Margin
+                    </th>
+                    <td>{metrics.net_margin ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      EBITDA Margin
+                    </th>
+                    <td>{metrics.ebitda_margin ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      ROA
+                    </th>
+                    <td>{metrics.roa ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      ROE
+                    </th>
+                    <td>{metrics.roe ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      ROI
+                    </th>
+                    <td>{metrics.roi ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Dividend Payout Ratio
+                    </th>
+                    <td>{metrics.dividend_payout_ratio ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Shares Outstanding
+                    </th>
+                    <td>{largeNumber(metrics.shares_outstanding)}</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
+                      Float Shares
+                    </th>
+                    <td>{largeNumber(metrics.float_shares)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )
+          )}
+        </>
       )}
-      {screenerLoading ? (
-        <div>Loading metrics...</div>
-      ) : screenerError ? (
-        <div>{screenerError}</div>
-      ) : (
-        metrics && (
-          <table style={{ marginBottom: "1rem" }}>
-            <tbody>
+      {activeTab === "timeseries" && (
+        <table style={{ marginBottom: "1rem", width: "100%" }}>
+          <thead>
+            <tr>
+              <th className={tableStyles.cell}>{t("instrumentDetail.priceColumns.date")}</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t("instrumentDetail.priceColumns.close")}
+              </th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t("instrumentDetail.priceColumns.delta")}
+              </th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {t("instrumentDetail.priceColumns.deltaPct")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {detailLoading ? (
               <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>PEG</th>
-                <td>{metrics.peg_ratio ?? "—"}</td>
+                <td
+                  colSpan={4}
+                  className={`${tableStyles.cell} ${tableStyles.center}`}
+                  style={{ color: "#888" }}
+                >
+                  {t("app.loading")}
+                </td>
               </tr>
+            ) : detailError ? (
               <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>P/E</th>
-                <td>{metrics.pe_ratio ?? "—"}</td>
+                <td colSpan={4} className={`${tableStyles.cell} ${tableStyles.center}`}>
+                  {detailError.message}
+                </td>
               </tr>
+            ) : timeseriesRows.length ? (
+              timeseriesRows
+                .slice(-60)
+                .reverse()
+                .map((row) => {
+                  const colour = Number.isFinite(row.change_gbp)
+                    ? row.change_gbp >= 0
+                      ? "lightgreen"
+                      : "red"
+                    : undefined;
+                  return (
+                    <tr key={row.date}>
+                      <td className={tableStyles.cell}>
+                        {formatDateISO(new Date(row.date))}
+                      </td>
+                      <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                        {money(row.close_gbp, baseCurrency)}
+                      </td>
+                      <td
+                        className={`${tableStyles.cell} ${tableStyles.right}`}
+                        style={{ color: colour }}
+                      >
+                        {money(row.change_gbp, baseCurrency)}
+                      </td>
+                      <td
+                        className={`${tableStyles.cell} ${tableStyles.right}`}
+                        style={{ color: colour }}
+                      >
+                        {Number.isFinite(row.change_pct) ? (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "flex-end",
+                              gap: "0.25rem",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {row.change_pct >= 0 ? (
+                              <ArrowUpRight size={12} />
+                            ) : (
+                              <ArrowDownRight size={12} />
+                            )}
+                            {percent(row.change_pct, 2)}
+                          </span>
+                        ) : (
+                          percent(row.change_pct, 2)
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+            ) : (
               <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>D/E</th>
-                <td>{metrics.de_ratio ?? "—"}</td>
+                <td
+                  colSpan={4}
+                  className={`${tableStyles.cell} ${tableStyles.center}`}
+                  style={{ color: "#888" }}
+                >
+                  {t("instrumentDetail.noPriceData")}
+                </td>
               </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  LT D/E
-                </th>
-                <td>{metrics.lt_de_ratio ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Market Cap
-                </th>
-                <td>{largeNumber(metrics.market_cap)}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>EPS</th>
-                <td>{metrics.eps ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Dividend Yield
-                </th>
-                <td>{metrics.dividend_yield ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>Beta</th>
-                <td>{metrics.beta ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Avg Volume
-                </th>
-                <td>{largeNumber(metrics.avg_volume)}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Interest Coverage
-                </th>
-                <td>{metrics.interest_coverage ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Current Ratio
-                </th>
-                <td>{metrics.current_ratio ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Quick Ratio
-                </th>
-                <td>{metrics.quick_ratio ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>FCF</th>
-                <td>{largeNumber(metrics.fcf)}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Gross Margin
-                </th>
-                <td>{metrics.gross_margin ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Operating Margin
-                </th>
-                <td>{metrics.operating_margin ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Net Margin
-                </th>
-                <td>{metrics.net_margin ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  EBITDA Margin
-                </th>
-                <td>{metrics.ebitda_margin ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>ROA</th>
-                <td>{metrics.roa ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>ROE</th>
-                <td>{metrics.roe ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>ROI</th>
-                <td>{metrics.roi ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Dividend Payout Ratio
-                </th>
-                <td>{metrics.dividend_payout_ratio ?? "—"}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Shares Outstanding
-                </th>
-                <td>{largeNumber(metrics.shares_outstanding)}</td>
-              </tr>
-              <tr>
-                <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                  Float Shares
-                </th>
-                <td>{largeNumber(metrics.float_shares)}</td>
-              </tr>
-            </tbody>
-          </table>
+            )}
+          </tbody>
+        </table>
+      )}
+      {activeTab === "news" && (
+        newsLoading ? (
+          <div>Loading news...</div>
+        ) : newsError ? (
+          <div>{newsError}</div>
+        ) : news.length === 0 ? (
+          <EmptyState message="No news available" />
+        ) : (
+          <div>
+            <h2>News</h2>
+            <ul>
+              {news.map((n, i) => (
+                <li key={i}>
+                  <a href={n.url} target="_blank" rel="noopener noreferrer">
+                    {n.headline}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
         )
       )}
       {detailLoading ? (
@@ -422,26 +634,6 @@ export default function InstrumentResearch() {
             </ul>
           </div>
         )
-      )}
-      {newsLoading ? (
-        <div>Loading news...</div>
-      ) : newsError ? (
-        <div>{newsError}</div>
-      ) : news.length === 0 ? (
-        <EmptyState message="No news available" />
-      ) : (
-        <div>
-          <h2>News</h2>
-          <ul>
-            {news.map((n, i) => (
-              <li key={i}>
-                <a href={n.url} target="_blank" rel="noopener noreferrer">
-                  {n.headline}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
     </div>
   );

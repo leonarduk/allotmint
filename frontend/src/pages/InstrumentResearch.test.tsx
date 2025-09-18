@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../hooks/useInstrumentHistory", () => ({
   useInstrumentHistory: vi.fn(),
 }));
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "./InstrumentResearch";
@@ -106,6 +106,8 @@ describe("InstrumentResearch page", () => {
 
     expect(screen.getByText(/Loading metrics/i)).toBeInTheDocument();
     expect(screen.getByText(/Loading quote/i)).toBeInTheDocument();
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
     expect(screen.getByText(/Loading news/i)).toBeInTheDocument();
 
     screenerResolve!([
@@ -127,6 +129,8 @@ describe("InstrumentResearch page", () => {
       } as QuoteRow,
     ]);
     newsResolve!([{ headline: "headline", url: "http://example.com" }]);
+
+    await userEvent.click(screen.getByRole("button", { name: /Fundamentals/i }));
 
     expect(await screen.findByText("Price")).toBeInTheDocument();
     expect(
@@ -154,6 +158,8 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("detail fail")).toBeInTheDocument();
     expect(await screen.findByText("screener fail")).toBeInTheDocument();
     expect(await screen.findByText("quotes fail")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /News/i }));
     expect(await screen.findByText("news fail")).toBeInTheDocument();
   });
 
@@ -164,6 +170,7 @@ describe("InstrumentResearch page", () => {
 
     renderPage();
 
+    await userEvent.click(screen.getByRole("button", { name: /News/i }));
     expect(await screen.findByText("No news available")).toBeInTheDocument();
   });
 
@@ -320,6 +327,36 @@ describe("InstrumentResearch page", () => {
       expect.stringContaining("Can't perform a React state update on an unmounted component"),
     );
     errSpy.mockRestore();
+  });
+
+  it("shows timeseries table when tab selected", async () => {
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        prices: [
+          { date: "2024-01-01", close_gbp: 100 },
+          { date: "2024-01-02", close_gbp: 110 },
+        ],
+      },
+      loading: false,
+      error: null,
+    } as any);
+
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+
+    renderPage();
+
+    await userEvent.click(screen.getByRole("button", { name: /Timeseries/i }));
+
+    const dateCell = await screen.findByText("2024-01-02");
+    const row = dateCell.closest("tr");
+    expect(row).not.toBeNull();
+    if (!row) throw new Error("Row not found");
+    expect(within(row).getByText(/110\.00/)).toBeInTheDocument();
+    expect(within(row).getByText(/10\.00%/)).toBeInTheDocument();
   });
 });
 

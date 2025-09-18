@@ -230,6 +230,7 @@ export interface InstrumentPosition {
 }
 
 export interface InstrumentDetail {
+  ticker?: string | null;
   prices: unknown;
   positions: InstrumentPosition[];
   mini?: InstrumentDetailMini;
@@ -300,6 +301,7 @@ export interface InstrumentMetadata {
   region?: string | null;
   sector?: string | null;
   grouping?: string | null;
+  currency?: string | null;
 }
 
 export interface QuoteRow {

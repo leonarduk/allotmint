@@ -1,18 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../hooks/useInstrumentHistory", () => ({
   useInstrumentHistory: vi.fn(),
+  getCachedInstrumentHistory: vi.fn(() => null),
 }));
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "./InstrumentResearch";
-import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
+import type { ScreenerResult, NewsItem, QuoteRow, InstrumentMetadata } from "../types";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import * as api from "../api";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
 const mockGetScreener = vi.spyOn(api, "getScreener");
 const mockGetQuotes = vi.spyOn(api, "getQuotes");
 const mockGetNews = vi.spyOn(api, "getNews");
+const mockListInstrumentMetadata = vi.spyOn(api, "listInstrumentMetadata");
+const mockUpdateInstrumentMetadata = vi.spyOn(api, "updateInstrumentMetadata");
 const mockUseInstrumentHistory = vi.mocked(useInstrumentHistory);
 
 const defaultConfig: ConfigContextValue = {
@@ -75,10 +78,30 @@ describe("InstrumentResearch page", () => {
   beforeEach(() => {
     mockUseInstrumentHistory.mockReset();
     mockUseInstrumentHistory.mockReturnValue({
-      data: { mini: { "30": [] }, positions: [] },
+      data: { mini: { "30": [] }, positions: [], ticker: "AAA.L" },
       loading: false,
       error: null,
     } as any);
+    mockListInstrumentMetadata.mockReset();
+    mockUpdateInstrumentMetadata.mockReset();
+    const catalogue: InstrumentMetadata[] = [
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "USD",
+      },
+      {
+        ticker: "BBB.N",
+        exchange: "N",
+        name: "Beta",
+        sector: "Finance",
+        currency: "USD",
+      },
+    ];
+    mockListInstrumentMetadata.mockResolvedValue(catalogue);
+    mockUpdateInstrumentMetadata.mockResolvedValue({} as any);
   });
 
   it("shows loading indicators while fetching data", async () => {
@@ -255,6 +278,7 @@ describe("InstrumentResearch page", () => {
         name: "Acme Corp",
         sector: "Tech",
         currency: "USD",
+        ticker: "AAA.L",
       },
       loading: false,
       error: null,
@@ -276,6 +300,98 @@ describe("InstrumentResearch page", () => {
     expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Corp");
     expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Tech");
     expect(screen.getByText(/Currency:/)).toHaveTextContent("Currency: USD");
+  });
+
+  it("allows editing instrument metadata", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+
+    const editButton = await screen.findByRole("button", { name: /Edit/i });
+    await userEvent.click(editButton);
+
+    const nameInput = await screen.findByLabelText(/Name/i);
+    await userEvent.clear(nameInput);
+    await userEvent.type(nameInput, "Acme Updated");
+
+    const sectorInput = screen.getByLabelText(/Sector/i);
+    await userEvent.clear(sectorInput);
+    await userEvent.type(sectorInput, "Healthcare");
+
+    const currencySelect = screen.getByLabelText(/Currency/i);
+    await userEvent.selectOptions(currencySelect, "EUR");
+
+    const saveButton = screen.getByRole("button", { name: /Save/i });
+    await userEvent.click(saveButton);
+
+    expect(
+      await screen.findByText("Instrument details updated."),
+    ).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).toHaveBeenCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Updated",
+        sector: "Healthcare",
+        currency: "EUR",
+      }),
+    );
+    expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Updated");
+    expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Healthcare");
+    expect(screen.getByText(/Currency:/)).toHaveTextContent("Currency: EUR");
+  });
+
+  it("validates currency before saving metadata", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+
+    const editButton = await screen.findByRole("button", { name: /Edit/i });
+    await userEvent.click(editButton);
+
+    const currencySelect = screen.getByLabelText(/Currency/i);
+    await userEvent.selectOptions(currencySelect, "");
+
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(
+      await screen.findByText("Select a supported currency before saving."),
+    ).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).not.toHaveBeenCalled();
+  });
+
+  it("shows an error when saving metadata fails", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    mockUpdateInstrumentMetadata.mockRejectedValueOnce(new Error("save failed"));
+    renderPage();
+
+    const editButton = await screen.findByRole("button", { name: /Edit/i });
+    await userEvent.click(editButton);
+
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(
+      await screen.findByText("Unable to save instrument details. save failed"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Currency/i)).toBeInTheDocument();
+  });
+
+  it("surfaces catalogue load failures", async () => {
+    mockListInstrumentMetadata.mockRejectedValueOnce(new Error("catalog fail"));
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+
+    expect(
+      await screen.findByText("Unable to load the instrument catalogue. catalog fail"),
+    ).toBeInTheDocument();
   });
 
   it("skips state updates when unmounted", async () => {

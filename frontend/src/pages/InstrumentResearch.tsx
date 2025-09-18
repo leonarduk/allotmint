@@ -1,13 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
+import { useInstrumentHistory, getCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
-import { getScreener, getNews, getQuotes } from "../api";
-import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
+import {
+  getScreener,
+  getNews,
+  getQuotes,
+  listInstrumentMetadata,
+  updateInstrumentMetadata,
+} from "../api";
+import type {
+  ScreenerResult,
+  NewsItem,
+  QuoteRow,
+  InstrumentMetadata,
+} from "../types";
 import EmptyState from "../components/EmptyState";
 import { largeNumber } from "../lib/money";
-import { useConfig } from "../ConfigContext";
+import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
+
+function normaliseOptional(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function normaliseUppercase(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim().toUpperCase();
+  return trimmed || undefined;
+}
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
@@ -16,6 +40,9 @@ export default function InstrumentResearch() {
   const [showBollinger, setShowBollinger] = useState(false);
   const { t } = useTranslation();
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
+  const tickerParts = tkr.split(".", 2);
+  const baseTicker = tickerParts[0] ?? "";
+  const initialExchange = tickerParts.length > 1 ? tickerParts[1] ?? "" : "";
   const { tabs, disabledTabs } = useConfig();
   const {
     data: detail,
@@ -31,6 +58,25 @@ export default function InstrumentResearch() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);
+  const [instrumentExchange, setInstrumentExchange] = useState(initialExchange);
+  type MetadataState = { name: string; sector: string; currency: string };
+  const [metadata, setMetadata] = useState<MetadataState>({
+    name: "",
+    sector: "",
+    currency: "",
+  });
+  const [formValues, setFormValues] = useState<MetadataState>({
+    name: "",
+    sector: "",
+    currency: "",
+  });
+  const [isEditingMetadata, setIsEditingMetadata] = useState(false);
+  const isEditingMetadataRef = useRef(isEditingMetadata);
+  const [metadataSaving, setMetadataSaving] = useState(false);
+  const [metadataStatus, setMetadataStatus] = useState<
+    { kind: "success" | "error"; text: string } | null
+  >(null);
+  const [sectorOptions, setSectorOptions] = useState<string[]>([]);
   const [inWatchlist, setInWatchlist] = useState(() => {
     const list = (localStorage.getItem("watchlistSymbols") || "")
       .split(",")
@@ -38,6 +84,203 @@ export default function InstrumentResearch() {
       .filter(Boolean);
     return !!tkr && list.includes(tkr);
   });
+
+  useEffect(() => {
+    setInstrumentExchange(initialExchange);
+    setIsEditingMetadata(false);
+    setMetadataSaving(false);
+    setMetadataStatus(null);
+    setMetadata({ name: "", sector: "", currency: "" });
+    setFormValues({ name: "", sector: "", currency: "" });
+    setSectorOptions([]);
+  }, [tkr, initialExchange]);
+
+  useEffect(() => {
+    isEditingMetadataRef.current = isEditingMetadata;
+  }, [isEditingMetadata]);
+
+  useEffect(() => {
+    if (!detail) return;
+    const name = normaliseOptional(detail.name);
+    const sector = normaliseOptional(detail.sector);
+    const currency = normaliseUppercase(detail.currency);
+    setMetadata((prev) => ({
+      name: name ?? prev.name,
+      sector: sector ?? prev.sector,
+      currency: currency ?? prev.currency,
+    }));
+    if (!isEditingMetadata) {
+      setFormValues((prev) => ({
+        name: name ?? prev.name,
+        sector: sector ?? prev.sector,
+        currency: currency ?? prev.currency,
+      }));
+    }
+    if (!instrumentExchange) {
+      const detailTicker = typeof detail.ticker === "string" ? detail.ticker : "";
+      if (detailTicker) {
+        const [, exch] = detailTicker.split(".", 2);
+        if (exch) setInstrumentExchange(exch);
+      }
+    }
+  }, [detail, isEditingMetadata, instrumentExchange]);
+
+  useEffect(() => {
+    if (!tkr) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalogue = await listInstrumentMetadata();
+        if (cancelled) return;
+        const sectors = new Set<string>();
+        let matched: InstrumentMetadata | null = null;
+        const target = tkr.toUpperCase();
+        const base = baseTicker.toUpperCase();
+        for (const entry of catalogue ?? []) {
+          if (!entry) continue;
+          if (typeof entry.sector === "string") {
+            const trimmed = entry.sector.trim();
+            if (trimmed) sectors.add(trimmed);
+          }
+          const tickerValue = typeof entry.ticker === "string" ? entry.ticker : "";
+          if (!tickerValue) continue;
+          const [sym] = tickerValue.split(".", 2);
+          const upper = tickerValue.toUpperCase();
+          if (!matched) {
+            if (upper === target) {
+              matched = entry;
+            } else if (base && sym && sym.toUpperCase() === base) {
+              matched = entry;
+            }
+          }
+        }
+        setSectorOptions(
+          Array.from(sectors).sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: "base" }),
+          ),
+        );
+        if (matched) {
+          const name = normaliseOptional(matched.name) ?? matched.name;
+          const sector = normaliseOptional(matched.sector);
+          const currency = normaliseUppercase(matched.currency);
+          setMetadata((prev) => ({
+            name: prev.name || name || "",
+            sector: prev.sector || sector || "",
+            currency: prev.currency || currency || "",
+          }));
+          if (!isEditingMetadataRef.current) {
+            setFormValues((prev) => ({
+              name: prev.name || name || "",
+              sector: prev.sector || sector || "",
+              currency: prev.currency || currency || "",
+            }));
+          }
+          setInstrumentExchange((prev) => {
+            if (prev) return prev;
+            const exchange =
+              normaliseUppercase((matched as InstrumentMetadata).exchange) ??
+              (() => {
+                const value = typeof matched?.ticker === "string" ? matched.ticker : "";
+                const parts = value.split(".", 2);
+                return parts.length > 1 ? parts[1]?.trim().toUpperCase() ?? "" : "";
+              })();
+            return exchange || prev;
+          });
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error(err);
+        const baseMessage = t("instrumentDetail.metadataLoadError");
+        const extra = err instanceof Error ? err.message : String(err);
+        setMetadataStatus({ kind: "error", text: `${baseMessage} ${extra}` });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tkr, baseTicker, t]);
+
+  const updateFormField = (field: keyof MetadataState) => (value: string) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }));
+    setMetadataStatus((prev) => (prev?.kind === "error" ? null : prev));
+  };
+
+  const handleStartEditing = () => {
+    setFormValues(metadata);
+    setMetadataStatus(null);
+    setIsEditingMetadata(true);
+  };
+
+  const handleCancelEditing = () => {
+    setFormValues(metadata);
+    setIsEditingMetadata(false);
+    setMetadataStatus((prev) => (prev?.kind === "success" ? prev : null));
+  };
+
+  const handleSaveMetadata = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!isEditingMetadata) return;
+    const trimmedName = formValues.name.trim();
+    const trimmedSector = formValues.sector.trim();
+    const selectedCurrency = formValues.currency.trim().toUpperCase();
+    if (!selectedCurrency || !SUPPORTED_CURRENCIES.includes(selectedCurrency)) {
+      setMetadataStatus({ kind: "error", text: t("instrumentDetail.metadataCurrencyError") });
+      return;
+    }
+    const exchange = instrumentExchange.trim().toUpperCase();
+    if (!baseTicker || !exchange) {
+      setMetadataStatus({ kind: "error", text: t("instrumentDetail.metadataMissingExchange") });
+      return;
+    }
+    setMetadataSaving(true);
+    setMetadataStatus(null);
+    try {
+      const payload: InstrumentMetadata = {
+        ticker: `${baseTicker}.${exchange}`,
+        exchange,
+        name: trimmedName,
+        sector: trimmedSector || null,
+        currency: selectedCurrency,
+      };
+      await updateInstrumentMetadata(baseTicker, exchange, payload);
+      setMetadata({
+        name: trimmedName,
+        sector: trimmedSector,
+        currency: selectedCurrency,
+      });
+      setFormValues({
+        name: trimmedName,
+        sector: trimmedSector,
+        currency: selectedCurrency,
+      });
+      setInstrumentExchange(exchange);
+      setIsEditingMetadata(false);
+      const cached = getCachedInstrumentHistory(tkr);
+      if (cached) {
+        cached.name = trimmedName;
+        cached.sector = trimmedSector;
+        cached.currency = selectedCurrency;
+      }
+      if (trimmedSector) {
+        setSectorOptions((prev) => {
+          if (prev.some((entry) => entry.toUpperCase() === trimmedSector.toUpperCase())) {
+            return prev;
+          }
+          return [...prev, trimmedSector].sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: "base" }),
+          );
+        });
+      }
+      setMetadataStatus({ kind: "success", text: t("instrumentDetail.metadataSaveSuccess") });
+    } catch (err) {
+      console.error(err);
+      const baseMessage = t("instrumentDetail.metadataSaveError");
+      const extra = err instanceof Error ? err.message : String(err);
+      setMetadataStatus({ kind: "error", text: `${baseMessage} ${extra}` });
+    } finally {
+      setMetadataSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!tkr) return;
@@ -137,19 +380,26 @@ export default function InstrumentResearch() {
     }
   }
 
+  const fallbackSector = detail ? normaliseOptional(detail.sector) : undefined;
+  const fallbackCurrency = detail ? normaliseUppercase(detail.currency) : undefined;
+  const displayName =
+    metadata.name || quote?.name || metrics?.name || detail?.name || null;
+  const displaySector = metadata.sector || fallbackSector || "";
+  const displayCurrency = metadata.currency || fallbackCurrency || "";
+
   if (!tkr) return <div>Invalid ticker</div>;
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
       {(() => {
-        const headingName = quote?.name ?? metrics?.name ?? detail?.name ?? null;
+        const headingName = displayName;
         if (!headingName) {
           return <div style={{ marginBottom: "1rem" }}>{tkr}</div>;
         }
         return (
           <h1 style={{ marginBottom: "1rem" }}>
             {tkr} {` - ${headingName}`}
-            {detail?.sector || detail?.currency ? (
+            {displaySector || displayCurrency ? (
               <span
                 style={{
                   display: "block",
@@ -157,9 +407,9 @@ export default function InstrumentResearch() {
                   fontWeight: "normal",
                 }}
               >
-                {detail?.sector ?? ""}
-                {detail?.sector && detail?.currency ? " · " : ""}
-                {detail?.currency ?? ""}
+                {displaySector}
+                {displaySector && displayCurrency ? " · " : ""}
+                {displayCurrency}
               </span>
             ) : null}
           </h1>
@@ -179,16 +429,123 @@ export default function InstrumentResearch() {
           {inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
         </button>
       </div>
-      {detail && (
-        <div style={{ marginBottom: "1rem" }}>
-          <h2>Instrument info</h2>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {detail.name && <li>Name: {detail.name}</li>}
-            {detail.sector && <li>Sector: {detail.sector}</li>}
-            {detail.currency && <li>Currency: {detail.currency}</li>}
-          </ul>
+      <form onSubmit={handleSaveMetadata} style={{ marginBottom: "1rem" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+            marginBottom: "0.5rem",
+          }}
+        >
+          <h2 style={{ margin: 0 }}>{t("instrumentDetail.infoHeading")}</h2>
+          {isEditingMetadata ? (
+            <div>
+              <button
+                type="submit"
+                disabled={metadataSaving}
+                style={{ marginRight: "0.5rem" }}
+              >
+                {t("instrumentDetail.save")}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelEditing}
+                disabled={metadataSaving}
+              >
+                {t("instrumentDetail.cancel")}
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={handleStartEditing}>
+              {t("instrumentDetail.edit")}
+            </button>
+          )}
         </div>
-      )}
+        {metadataStatus && (
+          <div
+            style={{
+              marginBottom: "0.5rem",
+              color: metadataStatus.kind === "error" ? "red" : "green",
+            }}
+          >
+            {metadataStatus.text}
+          </div>
+        )}
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <li style={{ marginBottom: "0.5rem" }}>
+            {isEditingMetadata ? (
+              <label htmlFor="instrument-name" style={{ display: "block" }}>
+                {t("instrumentDetail.nameLabel")}
+                <input
+                  id="instrument-name"
+                  value={formValues.name}
+                  onChange={(e) => updateFormField("name")(e.target.value)}
+                  style={{ display: "block", marginTop: "0.25rem", width: "100%" }}
+                  disabled={metadataSaving}
+                />
+              </label>
+            ) : (
+              <span>
+                {t("instrumentDetail.nameLabel")}: {displayName ?? "—"}
+              </span>
+            )}
+          </li>
+          <li style={{ marginBottom: "0.5rem" }}>
+            {isEditingMetadata ? (
+              <label htmlFor="instrument-sector" style={{ display: "block" }}>
+                {t("instrumentDetail.sectorLabel")}
+                <input
+                  id="instrument-sector"
+                  list="instrument-sector-options"
+                  value={formValues.sector}
+                  onChange={(e) => updateFormField("sector")(e.target.value)}
+                  style={{ display: "block", marginTop: "0.25rem", width: "100%" }}
+                  disabled={metadataSaving}
+                />
+              </label>
+            ) : (
+              <span>
+                {t("instrumentDetail.sectorLabel")}: {displaySector || "—"}
+              </span>
+            )}
+          </li>
+          <li>
+            {isEditingMetadata ? (
+              <label htmlFor="instrument-currency" style={{ display: "block" }}>
+                {t("instrumentDetail.currencyLabel")}
+                <select
+                  id="instrument-currency"
+                  value={formValues.currency}
+                  onChange={(e) => updateFormField("currency")(e.target.value)}
+                  style={{ display: "block", marginTop: "0.25rem" }}
+                  disabled={metadataSaving}
+                >
+                  <option value="">{t("instrumentDetail.currencyPlaceholder")}</option>
+                  {SUPPORTED_CURRENCIES.map((currency) => (
+                    <option key={currency} value={currency}>
+                      {currency}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <span>
+                {t("instrumentDetail.currencyLabel")}: {displayCurrency || "—"}
+              </span>
+            )}
+          </li>
+        </ul>
+        {isEditingMetadata && (
+          <datalist id="instrument-sector-options">
+            {sectorOptions.map((sector) => (
+              <option key={sector} value={sector} />
+            ))}
+          </datalist>
+        )}
+      </form>
       <div style={{ marginBottom: "0.5rem" }}>
         {[7, 30, 180, 365].map((d) => (
           <button

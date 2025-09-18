@@ -192,9 +192,18 @@ export function useConfig() {
   return useContext(configContext);
 }
 
+export const SUPPORTED_CURRENCIES = [
+  "GBP",
+  "USD",
+  "EUR",
+  "CHF",
+  "JPY",
+  "CAD",
+];
+
 export function BaseCurrencySelector() {
   const { baseCurrency, setBaseCurrency } = useConfig();
-  const currencies = ["GBP", "USD", "EUR", "CHF", "JPY", "CAD"];
+  const currencies = SUPPORTED_CURRENCIES;
   return (
     <select
       value={baseCurrency}

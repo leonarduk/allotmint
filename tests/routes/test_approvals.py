@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -155,4 +156,17 @@ def test_delete_approval_missing_owner(tmp_path: Path) -> None:
     resp = client.request("DELETE", "/accounts/missing/approvals", json={"ticker": "ADM.L"})
     assert resp.status_code == 404
     assert resp.json() == {"detail": "Owner not found"}
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="requires Windows case-insensitive filesystem")
+def test_post_approval_request_case_insensitive_root(tmp_path: Path) -> None:
+    root = tmp_path / "RealRoot"
+    owner = "bob"
+    root.mkdir()
+    (root / owner).mkdir()
+    client = make_client(root)
+    mixed_case_root = Path(root.parent / root.name.upper())
+    client.app.state.accounts_root = mixed_case_root
+    resp = client.post(f"/accounts/{owner}/approval-requests", json={"ticker": "ADM.L"})
+    assert resp.status_code == 200
 

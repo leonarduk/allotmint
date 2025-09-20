@@ -129,6 +129,8 @@ describe("InstrumentResearch page", () => {
 
     expect(screen.getByText(/Loading metrics/i)).toBeInTheDocument();
     expect(screen.getByText(/Loading quote/i)).toBeInTheDocument();
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
     expect(screen.getByText(/Loading news/i)).toBeInTheDocument();
 
     screenerResolve!([
@@ -150,6 +152,9 @@ describe("InstrumentResearch page", () => {
       } as QuoteRow,
     ]);
     newsResolve!([{ headline: "headline", url: "http://example.com" }]);
+
+    const fundamentalsTab = screen.getByRole("button", { name: /Fundamentals/i });
+    await userEvent.click(fundamentalsTab);
 
     expect(await screen.findByText("Price")).toBeInTheDocument();
     expect(
@@ -177,6 +182,8 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("detail fail")).toBeInTheDocument();
     expect(await screen.findByText("screener fail")).toBeInTheDocument();
     expect(await screen.findByText("quotes fail")).toBeInTheDocument();
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
     expect(await screen.findByText("news fail")).toBeInTheDocument();
   });
 
@@ -187,6 +194,8 @@ describe("InstrumentResearch page", () => {
 
     renderPage();
 
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
     expect(await screen.findByText("No news available")).toBeInTheDocument();
   });
 
@@ -268,6 +277,46 @@ describe("InstrumentResearch page", () => {
     for (const heading of expected) {
       expect(screen.getByText(heading)).toBeInTheDocument();
     }
+  });
+
+  it("reveals timeseries data and news when switching tabs", async () => {
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        prices: [
+          { date: "2024-01-01", close_gbp: 100 },
+          { date: "2024-01-02", close_gbp: 105 },
+        ],
+        ticker: "AAA.L",
+      },
+      loading: false,
+      error: null,
+    } as any);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([
+      { headline: "headline one", url: "http://example.com" },
+    ]);
+
+    renderPage();
+
+    expect(
+      screen.queryByRole("heading", { name: /Recent Prices/i }),
+    ).not.toBeInTheDocument();
+
+    const timeseriesTab = screen.getByRole("button", { name: /Timeseries/i });
+    await userEvent.click(timeseriesTab);
+
+    expect(
+      await screen.findByRole("heading", { name: /Recent Prices/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2024-01-02")).toBeInTheDocument();
+
+    expect(screen.queryByText("headline one")).not.toBeInTheDocument();
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
+    expect(await screen.findByText("headline one")).toBeInTheDocument();
   });
 
   it("renders instrument metadata when available", async () => {

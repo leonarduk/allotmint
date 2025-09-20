@@ -1,5 +1,7 @@
 import json
+import os
 from datetime import date
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -10,15 +12,32 @@ from backend.routes._accounts import resolve_accounts_root
 router = APIRouter(prefix="/accounts", tags=["approvals"])
 
 
+def _resolve_owner_dir(root: Path, owner: str) -> Path:
+    """Return ``owner``'s directory ensuring it is within ``root``."""
+
+    resolved_root = root.resolve()
+    owner_dir = (resolved_root / owner).resolve()
+    root_path = os.path.abspath(os.fspath(resolved_root))
+    owner_path = os.path.abspath(os.fspath(owner_dir))
+    try:
+        common = os.path.commonpath([root_path, owner_path])
+    except ValueError:
+        raise_owner_not_found()
+    if os.name == "nt":
+        if os.path.normcase(common) != os.path.normcase(root_path):
+            raise_owner_not_found()
+    elif common != root_path:
+        raise_owner_not_found()
+    if not owner_dir.exists():
+        raise_owner_not_found()
+    return owner_dir
+
+
 @router.get("/{owner}/approvals")
 @handle_owner_not_found
 async def get_approvals(owner: str, request: Request):
     root = resolve_accounts_root(request)
-    try:
-        owner_dir = (root / owner).resolve()
-        owner_dir.relative_to(root)
-    except Exception:
-        raise_owner_not_found()
+    _resolve_owner_dir(root, owner)
     try:
         approvals = load_approvals(owner, root)
     except FileNotFoundError:
@@ -37,13 +56,7 @@ async def post_approval_request(owner: str, request: Request):
     if not ticker:
         raise HTTPException(status_code=400, detail="ticker is required")
     root = resolve_accounts_root(request)
-    try:
-        owner_dir = (root / owner).resolve()
-        owner_dir.relative_to(root)
-    except Exception:
-        raise_owner_not_found()
-    if not owner_dir.exists():
-        raise_owner_not_found()
+    owner_dir = _resolve_owner_dir(root, owner)
     path = owner_dir / "approval_requests.json"
     try:
         raw = json.loads(path.read_text())
@@ -74,13 +87,7 @@ async def post_approval(owner: str, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="invalid approved_on") from exc
     root = resolve_accounts_root(request)
-    try:
-        owner_dir = (root / owner).resolve()
-        owner_dir.relative_to(root)
-    except Exception:
-        raise_owner_not_found()
-    if not owner_dir.exists():
-        raise_owner_not_found()
+    owner_dir = _resolve_owner_dir(root, owner)
     approvals = upsert_approval(owner, ticker, approved_on, root)
     entries = [
         {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
@@ -94,13 +101,7 @@ async def delete_approval_route(owner: str, request: Request):
     data = await request.json()
     ticker = (data.get("ticker") or "").upper()
     root = resolve_accounts_root(request)
-    try:
-        owner_dir = (root / owner).resolve()
-        owner_dir.relative_to(root)
-    except Exception:
-        raise_owner_not_found()
-    if not owner_dir.exists():
-        raise_owner_not_found()
+    owner_dir = _resolve_owner_dir(root, owner)
     approvals = delete_approval(owner, ticker, root)
     entries = [
         {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()

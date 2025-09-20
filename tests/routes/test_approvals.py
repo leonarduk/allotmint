@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,16 @@ def test_post_approval_request_write_failure(tmp_path: Path, monkeypatch: pytest
     resp = client.post("/accounts/bob/approval-requests", json={"ticker": "ADM.L"})
     assert resp.status_code == 500
     assert resp.json()["detail"] == "no space left"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="requires Windows case-insensitive paths")
+def test_post_approval_request_owner_dir_case_insensitive(tmp_path: Path) -> None:
+    owner_dir = tmp_path / "MiXeDCaSe" / "bob"
+    owner_dir.mkdir(parents=True)
+    mixed_case_root = Path(str(owner_dir.parent).lower())
+    client = make_client(tmp_path, accounts_root=mixed_case_root)
+    resp = client.post("/accounts/bob/approval-requests", json={"ticker": "ADM.L"})
+    assert resp.status_code == 200
 
 
 def test_post_approval_request_accounts_root_fallback(

@@ -41,8 +41,15 @@
     }
   },
   "trail": {
+    "title": "Trail progress",
     "daily": "Daily",
-    "once": "Once"
+    "once": "Once",
+    "progressLabel": "Daily progress: {{completed}} / {{total}} ({{percent}}%)",
+    "xpLabel": "XP: {{xp}}",
+    "streakLabel": "Streak: {{count}} day",
+    "streakLabel_plural": "Streak: {{count}} days",
+    "dailyComplete": "Daily tasks complete! Keep the streak going.",
+    "allDone": "All Trail tasks are complete — fantastic work!"
   },
   "common": {
     "error": "Error",

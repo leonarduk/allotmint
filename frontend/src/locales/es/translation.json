@@ -45,8 +45,15 @@
     }
   },
   "trail": {
-    "daily": "Daily",
-    "once": "Once"
+    "title": "Progreso del Trail",
+    "daily": "Diario",
+    "once": "Única vez",
+    "progressLabel": "Progreso diario: {{completed}} / {{total}} ({{percent}}%)",
+    "xpLabel": "XP: {{xp}}",
+    "streakLabel": "Racha: {{count}} día",
+    "streakLabel_plural": "Racha: {{count}} días",
+    "dailyComplete": "¡Tareas diarias completas! Mantén la racha.",
+    "allDone": "Todas las tareas de Trail están completas — ¡excelente!"
   },
   "common": {
     "error": "Error",

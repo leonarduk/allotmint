@@ -43,7 +43,7 @@ import UserConfigPage from "./pages/UserConfig";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
-import { InstrumentSearchBar } from "./components/InstrumentSearchBar";
+import InstrumentSearchBarToggle from "./components/InstrumentSearchBar";
 import UserAvatar from "./components/UserAvatar";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
@@ -142,7 +142,6 @@ export default function App({ onLogout }: AppProps) {
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
 
   const handleRetry = useCallback(() => {
     setRetryNonce((n) => n + 1);
@@ -340,29 +339,7 @@ export default function App({ onLogout }: AppProps) {
           onLogout={onLogout}
           style={{ margin: 0 }}
         />
-        <button
-          type="button"
-          aria-expanded={showSearch ? "true" : "false"}
-          aria-controls="instrument-search"
-          onClick={() => setShowSearch((prev) => !prev)}
-          style={{
-            marginLeft: "1rem",
-            padding: "0.25rem 0.5rem",
-            borderRadius: "0.25rem",
-            border: "1px solid #ccc",
-            background: "#fff",
-            color: "#213547",
-            cursor: "pointer",
-          }}
-        >
-          {t("app.research")}
-        </button>
-        {showSearch && (
-          <InstrumentSearchBar
-            id="instrument-search"
-            onNavigate={() => setShowSearch(false)}
-          />
-        )}
+        <InstrumentSearchBarToggle />
         {mode === "owner" && (
           <OwnerSelector
             owners={owners}

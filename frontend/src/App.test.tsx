@@ -500,10 +500,17 @@ describe("App", () => {
     ]);
   });
 
-  it("toggles the research search bar in the header", async () => {
+  it("opens the research search bar and closes after navigating to a result", async () => {
     window.history.pushState({}, "", "/");
 
-    const user = userEvent.setup();
+    vi.useFakeTimers();
+    const user = userEvent.setup({
+      advanceTimers: vi.advanceTimersByTimeAsync,
+    });
+
+    const searchInstruments = vi
+      .fn()
+      .mockResolvedValue([{ ticker: "AAA", name: "Alpha Corp" }]);
 
     vi.doMock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
@@ -525,40 +532,53 @@ describe("App", () => {
       listTimeseries: vi.fn().mockResolvedValue([]),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      searchInstruments,
     }));
 
     const { default: App } = await import("./App");
 
-    render(
-      <MemoryRouter initialEntries={["/"]}>
-        <App />
-      </MemoryRouter>,
-    );
+    try {
+      render(
+        <MemoryRouter initialEntries={["/"]}>
+          <App />
+        </MemoryRouter>,
+      );
 
-    const researchButton = await screen.findByRole("button", {
-      name: /Research/i,
-    });
-    expect(researchButton).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText(/Search instruments/i)
-    ).not.toBeInTheDocument();
+      const researchButton = await screen.findByRole("button", {
+        name: /Research/i,
+      });
+      expect(researchButton).toHaveAttribute("aria-expanded", "false");
 
-    await user.click(researchButton);
+      await user.click(researchButton);
 
-    expect(
-      await screen.findByLabelText(/Search instruments/i)
-    ).toBeInTheDocument();
+      const searchInput = await screen.findByLabelText(/Search instruments/i);
+      await user.type(searchInput, "AA");
 
-    expect(researchButton).toHaveAttribute("aria-expanded", "true");
+      await vi.advanceTimersByTimeAsync(350);
 
-    await user.click(researchButton);
+      await waitFor(() => expect(searchInstruments).toHaveBeenCalledTimes(1));
+      expect(searchInstruments).toHaveBeenCalledWith(
+        "AA",
+        undefined,
+        undefined,
+        expect.anything(),
+      );
 
-    await waitFor(() => {
-      expect(
-        screen.queryByLabelText(/Search instruments/i)
-      ).not.toBeInTheDocument();
-    });
-    expect(researchButton).toHaveAttribute("aria-expanded", "false");
+      const result = await screen.findByText("AAA — Alpha Corp");
+      await user.click(result);
+
+      await waitFor(() => {
+        expect(researchButton).toHaveAttribute("aria-expanded", "false");
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.queryByLabelText(/Search instruments/i),
+        ).not.toBeInTheDocument();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("renders the user avatar when logged in", async () => {

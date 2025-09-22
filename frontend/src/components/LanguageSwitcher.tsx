@@ -16,6 +16,7 @@ const LANGUAGES = [
 export const LanguageSwitcher = memo(function LanguageSwitcher() {
   const [current, setCurrent] = useState(i18n.language);
   const [open, setOpen] = useState(false);
+  const [fallbackFlags, setFallbackFlags] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const saved = localStorage.getItem("lang");
@@ -36,8 +37,22 @@ export const LanguageSwitcher = memo(function LanguageSwitcher() {
     setOpen(false);
   }
 
+  function handleFlagError(code: string) {
+    setFallbackFlags((prev) =>
+      prev[code]
+        ? prev
+        : {
+            ...prev,
+            [code]: true,
+          }
+    );
+  }
+
+  const isFallback = (code: string) => Boolean(fallbackFlags[code]);
+
   const currentLang =
     LANGUAGES.find((l) => l.code === current) || LANGUAGES[0];
+  const currentFallback = isFallback(currentLang.code);
 
   return (
     <div
@@ -53,27 +68,46 @@ export const LanguageSwitcher = memo(function LanguageSwitcher() {
         className="language-btn"
         aria-label={currentLang.name}
       >
-        <img
-          src={currentLang.flag}
-          alt={currentLang.name}
-          width={24}
-          height={24}
-        />
-        <span className="language-name">{currentLang.name}</span>
+        {!currentFallback && (
+          <img
+            src={currentLang.flag}
+            alt={currentLang.name}
+            width={24}
+            height={24}
+            onError={() => handleFlagError(currentLang.code)}
+          />
+        )}
+        {currentFallback && (
+          <span className="language-name">{currentLang.name}</span>
+        )}
       </button>
       {open && (
         <div className="language-menu">
-          {LANGUAGES.filter((l) => l.code !== current).map((l) => (
-            <button
-              key={l.code}
-              onClick={() => selectLanguage(l.code)}
-              className="language-btn"
-              aria-label={l.name}
-            >
-              <img src={l.flag} alt={l.name} width={24} height={24} />
-              <span className="language-name">{l.name}</span>
-            </button>
-          ))}
+          {LANGUAGES.filter((l) => l.code !== current).map((l) => {
+            const fallback = isFallback(l.code);
+
+            return (
+              <button
+                key={l.code}
+                onClick={() => selectLanguage(l.code)}
+                className="language-btn"
+                aria-label={l.name}
+              >
+                {!fallback && (
+                  <img
+                    src={l.flag}
+                    alt={l.name}
+                    width={24}
+                    height={24}
+                    onError={() => handleFlagError(l.code)}
+                  />
+                )}
+                {fallback && (
+                  <span className="language-name">{l.name}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

@@ -16,12 +16,15 @@ if config.disable_auth:
 
     @router.post("/{task_id}/complete")
     async def complete_task(task_id: str):
-        """Mark ``task_id`` complete for the demo user when auth is disabled."""
+        """Mark ``task_id`` complete for the demo user when auth is disabled.
+
+        Returns the updated tasks payload.
+        """
         try:
             tasks = trail.mark_complete("demo", task_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
-        return tasks
+        return {"tasks": tasks}
 
 else:
 
@@ -32,9 +35,12 @@ else:
 
     @router.post("/{task_id}/complete")
     async def complete_task(task_id: str, current_user: str = Depends(get_current_user)):
-        """Mark ``task_id`` complete for the authenticated user."""
+        """Mark ``task_id`` complete for the authenticated user.
+
+        Returns the updated tasks payload.
+        """
         try:
             tasks = trail.mark_complete(current_user, task_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
-        return tasks
+        return {"tasks": tasks}

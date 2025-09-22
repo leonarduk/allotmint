@@ -18,13 +18,13 @@ if config.disable_auth:
     async def complete_task(task_id: str):
         """Mark ``task_id`` complete for the demo user when auth is disabled.
 
-        Returns the updated tasks payload.
+        Returns the payload produced by :func:`trail.mark_complete`.
         """
         try:
-            tasks = trail.mark_complete("demo", task_id)
+            payload = trail.mark_complete("demo", task_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
-        return {"tasks": tasks}
+        return payload
 
 else:
 
@@ -37,10 +37,10 @@ else:
     async def complete_task(task_id: str, current_user: str = Depends(get_current_user)):
         """Mark ``task_id`` complete for the authenticated user.
 
-        Returns the updated tasks payload.
+        Returns the payload produced by :func:`trail.mark_complete`.
         """
         try:
-            tasks = trail.mark_complete(current_user, task_id)
+            payload = trail.mark_complete(current_user, task_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
-        return {"tasks": tasks}
+        return payload

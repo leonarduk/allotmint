@@ -247,6 +247,20 @@ describe("InstrumentTable", () => {
         expect(tickers[0]).toBe("XYZ");
     });
 
+    it("sorts by 7d change when header clicked", () => {
+        render(<InstrumentTable rows={rows} />);
+        openGroup("Group A");
+
+        const header = within(screen.getByRole("table")).getByRole("columnheader", { name: "7d %" });
+        fireEvent.click(header);
+        let tickers = getGroupTickers("Group A");
+        expect(tickers[0]).toBe("XYZ");
+
+        fireEvent.click(header);
+        tickers = getGroupTickers("Group A");
+        expect(tickers[0]).toBe("ABC");
+    });
+
     it("allows toggling columns", () => {
         render(<InstrumentTable rows={rows} />);
         openGroup("Group A");

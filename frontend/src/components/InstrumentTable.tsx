@@ -172,15 +172,27 @@ export function InstrumentTable({ rows }: Props) {
               {t('instrumentTable.columns.name')}
               {sortKey === 'name' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
-            <th className={tableStyles.cell}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort('currency')}
+            >
               {t('instrumentTable.columns.ccy')}
+              {sortKey === 'currency' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
-            <th className={tableStyles.cell}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort('instrument_type')}
+            >
               {t('instrumentTable.columns.type')}
+              {sortKey === 'instrument_type' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
             {!relativeViewEnabled && visibleColumns.units && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort('units')}
+              >
                 {t('instrumentTable.columns.units')}
+                {sortKey === 'units' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}
             {!relativeViewEnabled && visibleColumns.cost && (
@@ -193,8 +205,12 @@ export function InstrumentTable({ rows }: Props) {
               </th>
             )}
             {!relativeViewEnabled && visibleColumns.market && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort('market_value_gbp')}
+              >
                 {t('instrumentTable.columns.market')}
+                {sortKey === 'market_value_gbp' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
@@ -216,18 +232,34 @@ export function InstrumentTable({ rows }: Props) {
               </th>
             )}
             {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort('last_price_gbp')}
+              >
                 {t('instrumentTable.columns.last')}
+                {sortKey === 'last_price_gbp' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort('last_price_date')}
+            >
               {t('instrumentTable.columns.lastDate')}
+              {sortKey === 'last_price_date' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort('change_7d_pct')}
+            >
               {t('instrumentTable.columns.delta7d')}
+              {sortKey === 'change_7d_pct' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort('change_30d_pct')}
+            >
               {t('instrumentTable.columns.delta30d')}
+              {sortKey === 'change_30d_pct' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
             <th className={tableStyles.cell}>
               {t('instrumentTable.columns.groupActions', { defaultValue: 'Group' })}

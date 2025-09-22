@@ -110,3 +110,25 @@ def test_mark_complete_updates_streak(memory_storage):
     assert response["xp"] == len(trail.DAILY_TASK_IDS) * trail.DAILY_XP_REWARD * 2
     assert response["daily_totals"][today_str]["completed"] == trail.DAILY_TASK_COUNT
     assert response["daily_totals"][today_str]["total"] == trail.DAILY_TASK_COUNT
+
+
+def test_progress_persists_after_reload(memory_storage, monkeypatch):
+    user = "erin"
+    today = date.today().isoformat()
+
+    for task_id in trail.DAILY_TASK_IDS:
+        trail.mark_complete(user, task_id)
+    for task_id in trail.ONCE_TASK_IDS:
+        trail.mark_complete(user, task_id)
+
+    # Simulate a fresh process loading from storage.
+    monkeypatch.setattr(trail, "_DATA", {})
+    reloaded = trail.get_tasks(user)
+
+    assert reloaded["xp"] == (
+        len(trail.DAILY_TASK_IDS) * trail.DAILY_XP_REWARD
+        + len(trail.ONCE_TASK_IDS) * trail.ONCE_XP_REWARD
+    )
+    assert reloaded["streak"] == 1
+    assert reloaded["daily_totals"][today]["completed"] == trail.DAILY_TASK_COUNT
+    assert reloaded["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT

@@ -102,7 +102,9 @@ describe("Trail page", () => {
 
     render(<Trail />);
 
-    expect(await screen.findByText(en.trail.dailyComplete)).toBeInTheDocument();
+    const celebration = await screen.findByRole("status");
+    expect(celebration).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText(en.trail.dailyComplete)).toBeInTheDocument();
     expect(screen.getByText(en.trail.allDone)).toBeInTheDocument();
   });
 });

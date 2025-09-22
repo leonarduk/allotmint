@@ -466,10 +466,13 @@ export interface TrailCompletionTotals {
   total: number;
 }
 
-export interface TrailResponse {
-  tasks: TrailTask[];
+export interface TrailSummary {
   xp: number;
   streak: number;
   daily_totals: Record<string, TrailCompletionTotals>;
   today: string;
+}
+
+export interface TrailResponse extends TrailSummary {
+  tasks: TrailTask[];
 }

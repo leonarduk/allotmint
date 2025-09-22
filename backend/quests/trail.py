@@ -11,7 +11,8 @@ while deployments may swap in other backends.
 import os
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Dict, List
+from copy import deepcopy
+from typing import Dict, Iterable, List
 
 from backend.common.storage import get_storage
 from backend.config import config
@@ -78,16 +79,69 @@ _TRAIL_STORAGE = get_storage(os.getenv("TRAIL_URI", _DEFAULT_TRAIL_URI))
 _DATA: Dict[str, Dict] = {}
 
 
+def _coerce_int(value: object, default: int = 0) -> int:
+    """Best-effort conversion to ``int`` while guarding invalid values."""
+
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_str(value: object) -> str:
+    """Return ``value`` when it is a ``str`` otherwise an empty string."""
+
+    return value if isinstance(value, str) else ""
+
+
+def _coerce_string_iter(values: Iterable) -> List[str]:
+    """Normalise a collection of values into a list of unique strings."""
+
+    seen = []
+    for val in values or []:
+        if isinstance(val, str) and val not in seen:
+            seen.append(val)
+    return seen
+
+
 def _ensure_user_data(user: str) -> Dict:
     """Ensure the cached state for ``user`` has all expected keys."""
 
-    user_data = _DATA.setdefault(user, {})
-    user_data.setdefault("once", [])
-    user_data.setdefault("daily", {})
-    user_data.setdefault("xp", 0)
-    user_data.setdefault("streak", 0)
-    user_data.setdefault("last_completed_day", "")
-    user_data.setdefault("daily_totals", {})
+    raw = _DATA.get(user)
+    if not isinstance(raw, dict):
+        raw = {}
+
+    once = _coerce_string_iter(raw.get("once", []))
+    daily_raw = raw.get("daily", {})
+    if isinstance(daily_raw, dict):
+        daily = {
+            day: _coerce_string_iter(tasks)
+            for day, tasks in daily_raw.items()
+            if isinstance(day, str)
+        }
+    else:
+        daily = {}
+
+    totals_raw = raw.get("daily_totals", {})
+    daily_totals: Dict[str, Dict[str, int]] = {}
+    if isinstance(totals_raw, dict):
+        for day, totals in totals_raw.items():
+            if not isinstance(day, str) or not isinstance(totals, dict):
+                continue
+            completed = _coerce_int(totals.get("completed"), 0)
+            total = _coerce_int(totals.get("total"), DAILY_TASK_COUNT)
+            daily_totals[day] = {"completed": completed, "total": total}
+
+    user_data = {
+        "once": once,
+        "daily": daily,
+        "xp": max(0, _coerce_int(raw.get("xp"), 0)),
+        "streak": max(0, _coerce_int(raw.get("streak"), 0)),
+        "last_completed_day": _coerce_str(raw.get("last_completed_day")),
+        "daily_totals": daily_totals,
+    }
+
+    _DATA[user] = user_data
     return user_data
 
 
@@ -104,6 +158,15 @@ def _load() -> None:
         _DATA = data
     else:
         _DATA = {}
+
+    changed = False
+    for user, record in list(_DATA.items()):
+        before = deepcopy(record) if isinstance(record, dict) else record
+        after = _ensure_user_data(user)
+        if after != before:
+            changed = True
+    if changed:
+        _save()
 
 
 def _save() -> None:

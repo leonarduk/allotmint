@@ -17,7 +17,14 @@ from pydantic import BaseModel
 
 from backend import config_module
 
-cfg = getattr(config_module, "settings", config_module.config)
+
+def _current_config():
+    """Return the most up-to-date backend configuration instance."""
+
+    return getattr(config_module, "settings", config_module.config)
+
+
+cfg = _current_config()
 config = cfg
 
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
@@ -162,6 +169,7 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
     """Return key metrics for ``ticker`` using Yahoo Finance with Alpha Vantage
     fallback, utilising a simple in-memory cache."""
 
+    cfg = _current_config()
     api_key = cfg.alpha_vantage_key or "demo"
 
     key = (ticker.upper(), date.today().isoformat())

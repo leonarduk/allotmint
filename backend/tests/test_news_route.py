@@ -1,7 +1,7 @@
 import requests
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from backend.routes import news
 from backend.utils import page_cache
@@ -44,36 +44,22 @@ def test_get_news_falls_back(monkeypatch):
     monkeypatch.setattr(
         news,
         "fetch_news_yahoo",
-        lambda t: [
-            {
-                "headline": "h1",
-                "url": "u1",
-                "source": "Yahoo",
-                "published_at": "2023-01-01T00:00:00Z",
-            }
-        ],
+        lambda t: [{"headline": "h1", "url": "u1"}],
     )
 
     resp = client.get("/news", params={"ticker": "AAA"})
     assert resp.status_code == 200
-    assert resp.json() == [
-        {
-            "headline": "h1",
-            "url": "u1",
-            "source": "Yahoo",
-            "published_at": "2023-01-01T00:00:00Z",
-        }
-    ]
+    assert resp.json() == [{"headline": "h1", "url": "u1"}]
 
 
-def test_get_news_includes_metadata_and_caches(monkeypatch):
+def test_get_news_trims_payload_and_caches(monkeypatch):
     client = _client()
 
     monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
     monkeypatch.setattr(page_cache, "is_stale", lambda *a, **k: True)
     monkeypatch.setattr(page_cache, "load_cache", lambda *a, **k: None)
 
-    saved: List[Tuple[str, List[Dict[str, Optional[str]]]]] = []
+    saved: List[Tuple[str, List[Dict[str, str]]]] = []
 
     def fake_save_cache(page: str, payload):
         saved.append((page, payload))
@@ -105,8 +91,6 @@ def test_get_news_includes_metadata_and_caches(monkeypatch):
         {
             "headline": "Alpha headline",
             "url": "https://example.com/article",
-            "source": "AlphaVantage",
-            "published_at": "2023-08-25T16:00:00Z",
         }
     ]
     assert saved == [
@@ -116,8 +100,6 @@ def test_get_news_includes_metadata_and_caches(monkeypatch):
                 {
                     "headline": "Alpha headline",
                     "url": "https://example.com/article",
-                    "source": "AlphaVantage",
-                    "published_at": "2023-08-25T16:00:00Z",
                 }
             ],
         )

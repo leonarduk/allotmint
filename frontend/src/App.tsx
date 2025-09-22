@@ -344,7 +344,7 @@ export default function App({ onLogout }: AppProps) {
           type="button"
           aria-expanded={showSearch ? "true" : "false"}
           aria-controls="instrument-search"
-          onClick={() => setShowSearch(true)}
+          onClick={() => setShowSearch((prev) => !prev)}
           style={{
             marginLeft: "1rem",
             padding: "0.25rem 0.5rem",
@@ -360,7 +360,7 @@ export default function App({ onLogout }: AppProps) {
         {showSearch && (
           <InstrumentSearchBar
             id="instrument-search"
-            onClose={() => setShowSearch(false)}
+            onNavigate={() => setShowSearch(false)}
           />
         )}
         {mode === "owner" && (

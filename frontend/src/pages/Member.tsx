@@ -22,10 +22,9 @@ export function Member() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (ownerParam && ownerParam !== selectedOwner) {
-      setSelectedOwner(ownerParam);
-    }
-  }, [ownerParam, selectedOwner, setSelectedOwner]);
+    if (!ownerParam) return;
+    setSelectedOwner((prev) => (prev === ownerParam ? prev : ownerParam));
+  }, [ownerParam, setSelectedOwner]);
 
   useEffect(() => {
     if (!selectedOwner) {

@@ -40,8 +40,18 @@
     }
   },
   "trail": {
-    "daily": "Daily",
-    "once": "Once"
+    "daily": "Diario",
+    "once": "Una vez",
+    "progressHeading": "Progreso de hoy",
+    "progressSummary": "{{completed}} de {{total}} tareas diarias completadas ({{percent}} %)",
+    "noDailyTasks": "No hay tareas diarias hoy.",
+    "xpTitle": "XP",
+    "xpLabel": "{{xp}} XP",
+    "streakTitle": "Racha",
+    "streakLabel_zero": "Sin racha todavía",
+    "streakLabel_one": "{{count}} día de racha",
+    "streakLabel_other": "{{count}} días de racha",
+    "celebration": "¡Todas las tareas diarias completadas! ¡Excelente trabajo!"
   },
   "common": {
     "error": "Error",

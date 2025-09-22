@@ -463,4 +463,7 @@ export interface TrailTask {
 
 export interface TrailResponse {
   tasks: TrailTask[];
+  xp: number;
+  streak: number;
+  daily_totals: Record<string, number>;
 }

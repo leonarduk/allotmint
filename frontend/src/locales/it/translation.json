@@ -40,8 +40,18 @@
     }
   },
   "trail": {
-    "daily": "Daily",
-    "once": "Once"
+    "daily": "Quotidiano",
+    "once": "Una volta",
+    "progressHeading": "Progresso di oggi",
+    "progressSummary": "{{completed}} su {{total}} attività quotidiane completate ({{percent}} %)",
+    "noDailyTasks": "Nessuna attività quotidiana oggi.",
+    "xpTitle": "XP",
+    "xpLabel": "{{xp}} XP",
+    "streakTitle": "Serie",
+    "streakLabel_zero": "Ancora nessuna serie",
+    "streakLabel_one": "Serie di {{count}} giorno",
+    "streakLabel_other": "Serie di {{count}} giorni",
+    "celebration": "Tutte le attività quotidiane completate! Ottimo lavoro!"
   },
   "common": {
     "error": "Errore",

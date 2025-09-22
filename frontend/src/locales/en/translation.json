@@ -43,7 +43,17 @@
   },
   "trail": {
     "daily": "Daily",
-    "once": "Once"
+    "once": "Once",
+    "progressHeading": "Today's progress",
+    "progressSummary": "{{completed}} of {{total}} daily tasks complete ({{percent}}%)",
+    "noDailyTasks": "No daily tasks available today.",
+    "xpTitle": "XP",
+    "xpLabel": "{{xp}} XP",
+    "streakTitle": "Streak",
+    "streakLabel_zero": "No streak yet",
+    "streakLabel_one": "{{count}} day streak",
+    "streakLabel_other": "{{count}} day streak",
+    "celebration": "All daily tasks complete! Fantastic work!"
   },
   "common": {
     "error": "Error",

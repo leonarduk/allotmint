@@ -65,11 +65,26 @@ def is_stale(page_name: str, ttl: int) -> bool:
     return age > ttl
 
 
+def time_until_stale(page_name: str, ttl: int) -> float | None:
+    """Return seconds until ``page_name`` becomes stale or ``None`` if missing."""
+
+    path = _cache_path(page_name)
+    if not path.exists():
+        return None
+    age = time.time() - path.stat().st_mtime
+    remaining = ttl - age
+    if remaining <= 0:
+        return 0.0
+    return remaining
+
+
 def schedule_refresh(
     page_name: str,
     ttl: int,
     builder: Callable[[], Any],
     can_refresh: Callable[[], bool] | None = None,
+    *,
+    initial_delay: float | None = None,
 ) -> None:
     """Ensure a background task keeps ``page_name`` cached every ``ttl`` seconds."""
 
@@ -89,6 +104,8 @@ def schedule_refresh(
 
     async def _loop() -> None:
         try:
+            if initial_delay is not None and initial_delay > 0:
+                await asyncio.sleep(initial_delay)
             while True:
                 if can_refresh is not None and not can_refresh():
                     await asyncio.sleep(ttl)

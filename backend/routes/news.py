@@ -245,17 +245,30 @@ def get_cached_news(
             raise RuntimeError("news quota exceeded")
         return _fetch_news(tkr)
 
-    page_cache.schedule_refresh(page, NEWS_TTL, _call, can_refresh=_can_request_news)
+    def _schedule_refresh(initial_delay: float | None = None) -> None:
+        page_cache.schedule_refresh(
+            page,
+            NEWS_TTL,
+            _call,
+            can_refresh=_can_request_news,
+            initial_delay=initial_delay,
+        )
 
     cached = page_cache.load_cache(page)
-    if cached is not None and not page_cache.is_stale(page, NEWS_TTL):
+    cache_fresh = cached is not None and not page_cache.is_stale(page, NEWS_TTL)
+
+    if cache_fresh:
+        delay = page_cache.time_until_stale(page, NEWS_TTL)
+        _schedule_refresh(delay)
         return cached
 
     try:
         payload = _call()
     except RuntimeError:
         if cached is not None:
+            _schedule_refresh()
             return cached
+        _schedule_refresh()
         if raise_on_quota_exhausted:
             raise
         return []
@@ -264,6 +277,8 @@ def get_cached_news(
         cache_writer(page, payload)
     else:
         page_cache.save_cache(page, payload)
+
+    _schedule_refresh(NEWS_TTL)
     return payload
 
 

@@ -177,7 +177,7 @@ def test_screen_skips_tickers_with_fetch_errors(monkeypatch):
     assert [r.ticker for r in results] == ["BBB"]
 
 
-def test_fetch_fundamentals_parses_values(monkeypatch):
+def test_fetch_fundamentals_parses_values(monkeypatch, empty_yahoo_ticker):
     sample = {
         "Name": "Foo Corp",
         "PEG": "1.5",

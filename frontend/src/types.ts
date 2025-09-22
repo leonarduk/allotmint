@@ -205,6 +205,8 @@ export interface InstrumentDetailMini {
 export interface NewsItem {
   headline: string;
   url: string;
+  source?: string | null;
+  published_at?: string | null;
 }
 
 export interface SectorPerformance {

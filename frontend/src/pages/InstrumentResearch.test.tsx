@@ -3,7 +3,7 @@ vi.mock("../hooks/useInstrumentHistory", () => ({
   useInstrumentHistory: vi.fn(),
   getCachedInstrumentHistory: vi.fn(() => null),
 }));
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "./InstrumentResearch";
@@ -195,6 +195,31 @@ describe("InstrumentResearch page", () => {
     const newsTab = screen.getByRole("button", { name: /News/i });
     await userEvent.click(newsTab);
     expect(await screen.findByText("No news available")).toBeInTheDocument();
+  });
+
+  it("renders news metadata when available", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([
+      {
+        headline: "Alpha headline",
+        url: "https://example.com/alpha",
+        source: "Example News",
+        published_at: "2023-08-25T16:00:00Z",
+      },
+    ]);
+
+    renderPage();
+
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
+
+    const link = await screen.findByRole("link", { name: "Alpha headline" });
+    const listItem = link.closest("li");
+    expect(listItem).not.toBeNull();
+    const scoped = within(listItem as HTMLElement);
+    expect(scoped.getByText("Example News")).toBeInTheDocument();
+    expect(scoped.getByText("2023-08-25")).toBeInTheDocument();
   });
 
   it("navigates to screener when link clicked", async () => {

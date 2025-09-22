@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 import requests
 import xml.etree.ElementTree as ET
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from email.utils import parsedate_to_datetime
 
 from backend import config_module
 from backend.utils import page_cache
@@ -58,7 +59,24 @@ def _try_consume_quota() -> bool:
     return True
 
 
-def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
+def _isoformat(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    # Normalise to UTC with seconds precision
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    value = dt.astimezone(timezone.utc).replace(microsecond=0)
+    return value.isoformat().replace("+00:00", "Z")
+
+
+def _clean_str(value: object) -> Optional[str]:
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return None
+
+
+def fetch_news_yahoo(ticker: str) -> List[Dict[str, Optional[str]]]:
     """Fetch headlines from Yahoo Finance search API."""
 
     endpoint = cfg.yahoo_news_endpoint or "https://query1.finance.yahoo.com/v1/finance/search"
@@ -67,16 +85,37 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     resp.raise_for_status()
     data = resp.json()
     items = data.get("news", [])
-    out: List[Dict[str, str]] = []
+    out: List[Dict[str, Optional[str]]] = []
     for item in items:
-        title = item.get("title")
-        link = item.get("link")
+        title = _clean_str(item.get("title"))
+        link = _clean_str(item.get("link"))
         if title and link:
-            out.append({"headline": title, "url": link})
+            source = _clean_str(
+                item.get("publisher") or item.get("source") or item.get("provider")
+            )
+            published_at: Optional[str] = None
+            publish_ts = item.get("providerPublishTime")
+            if isinstance(publish_ts, (int, float)):
+                published_at = _isoformat(datetime.fromtimestamp(publish_ts, tz=timezone.utc))
+            elif isinstance(publish_ts, str):
+                try:
+                    published_at = _isoformat(
+                        datetime.fromtimestamp(float(publish_ts), tz=timezone.utc)
+                    )
+                except (TypeError, ValueError):  # pragma: no cover - defensive
+                    published_at = None
+            out.append(
+                {
+                    "headline": title,
+                    "url": link,
+                    "source": source,
+                    "published_at": published_at,
+                }
+            )
     return out
 
 
-def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
+def fetch_news_google(ticker: str) -> List[Dict[str, Optional[str]]]:
     """Fetch headlines from Google Finance via RSS search."""
 
     endpoint = cfg.google_news_endpoint or "https://news.google.com/rss/search"
@@ -84,16 +123,41 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
     resp = requests.get(endpoint, params=params, timeout=10)
     resp.raise_for_status()
     root = ET.fromstring(resp.text)
-    out: List[Dict[str, str]] = []
+    out: List[Dict[str, Optional[str]]] = []
     for item in root.findall(".//item"):
-        title = item.findtext("title")
-        link = item.findtext("link")
+        title = _clean_str(item.findtext("title"))
+        link = _clean_str(item.findtext("link"))
         if title and link:
-            out.append({"headline": title, "url": link})
+            published_at = item.findtext("pubDate")
+            parsed_dt: Optional[datetime] = None
+            if published_at:
+                try:
+                    parsed_dt = parsedate_to_datetime(published_at)
+                except (TypeError, ValueError):  # pragma: no cover - defensive
+                    parsed_dt = None
+            source_text = _clean_str(item.findtext("{http://news.google.com}source"))
+            out.append(
+                {
+                    "headline": title,
+                    "url": link,
+                    "source": source_text,
+                    "published_at": _isoformat(parsed_dt),
+                }
+            )
     return out
 
 
-def _fetch_news(ticker: str) -> List[Dict[str, str]]:
+def _parse_alpha_time(value: Optional[str]) -> Optional[str]:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        dt = datetime.strptime(value, "%Y%m%dT%H%M%S")
+    except ValueError:
+        return None
+    return _isoformat(dt.replace(tzinfo=timezone.utc))
+
+
+def _fetch_news(ticker: str) -> List[Dict[str, Optional[str]]]:
     """Fetch news from AlphaVantage with fallbacks to Yahoo and Google."""
 
     params = {
@@ -108,10 +172,22 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
         data = resp.json()
         feed = data.get("feed") or []
         if feed:
-            return [
-                {"headline": item.get("title"), "url": item.get("url")}
-                for item in feed
-            ]
+            enriched: List[Dict[str, Optional[str]]] = []
+            for item in feed:
+                title = _clean_str(item.get("title"))
+                url = _clean_str(item.get("url"))
+                if not (title and url):
+                    continue
+                enriched.append(
+                    {
+                        "headline": title,
+                        "url": url,
+                        "source": _clean_str(item.get("source")),
+                        "published_at": _parse_alpha_time(item.get("time_published")),
+                    }
+                )
+            if enriched:
+                return enriched
     except Exception as exc:  # pragma: no cover - defensive
         logging.getLogger(__name__).error(
             "Failed to fetch news for %s: %s", ticker, exc
@@ -132,9 +208,9 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
 def get_cached_news(
     ticker: str,
     *,
-    cache_writer: Callable[[str, List[Dict[str, str]]], None] | None = None,
+    cache_writer: Callable[[str, List[Dict[str, Optional[str]]]], None] | None = None,
     raise_on_quota_exhausted: bool = False,
-) -> List[Dict[str, str]]:
+) -> List[Dict[str, Optional[str]]]:
     """Return cached or freshly fetched news for ``ticker``.
 
     The helper mirrors the caching and quota handling used by the ``/news``
@@ -151,7 +227,7 @@ def get_cached_news(
 
     page = f"news_{tkr}"
 
-    def _call() -> List[Dict[str, str]]:
+    def _call() -> List[Dict[str, Optional[str]]]:
         if not _try_consume_quota():
             raise RuntimeError("news quota exceeded")
         return _fetch_news(tkr)

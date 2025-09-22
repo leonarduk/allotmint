@@ -44,6 +44,12 @@ import type {
   MarketOverview,
 } from "./types";
 
+const cleanOptionalString = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
 /* ------------------------------------------------------------------ */
 /* Base URL – fall back to localhost if no Vite env vars are defined. */
 /* ------------------------------------------------------------------ */
@@ -233,7 +239,14 @@ export const getNews = (ticker: string, signal?: AbortSignal) => {
   const params = new URLSearchParams({ ticker });
   return fetchJson<NewsItem[]>(`${API_BASE}/news?${params.toString()}`, {
     signal,
-  });
+  }).then((items) =>
+    items.map((item) => ({
+      headline: item.headline,
+      url: item.url,
+      source: cleanOptionalString(item.source ?? null),
+      published_at: cleanOptionalString(item.published_at ?? null),
+    })),
+  );
 };
 
 /** Aggregate market overview data. */

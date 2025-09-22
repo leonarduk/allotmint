@@ -276,17 +276,13 @@ def get_effective_cost_basis_gbp(
     else:
         exchange = "L"
         logger.debug("Could not resolve exchange for %s; defaulting to L", full)
-    scale = get_scaling_override(ticker, exchange, None)
-
     booked_raw = h.get(COST_BASIS_GBP)
     try:
         booked = float(booked_raw) if booked_raw is not None else 0.0
     except (TypeError, ValueError):
         booked = 0.0
     if booked > 0:
-        scaled = round(booked * scale, 2)
-        h[COST_BASIS_GBP] = scaled
-        return scaled
+        return round(booked, 2)
 
     acq = _parse_date(h.get(ACQUIRED_DATE))
 

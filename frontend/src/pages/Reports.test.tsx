@@ -51,7 +51,6 @@ const allTabs = {
   pension: true,
   reports: true,
   scenario: true,
-  logs: true,
 };
 
 describe("Reports page", () => {

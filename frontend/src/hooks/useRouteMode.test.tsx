@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 vi.mock("../api", () => ({ getGroups: vi.fn().mockResolvedValue([]) }));
 import {
   configContext,
@@ -83,7 +83,6 @@ describe("useRouteMode", () => {
         pension: false,
         scenario: false,
         reports: false,
-        logs: false,
     };
 
     const config: ConfigContextValue = {

@@ -14,8 +14,7 @@ export type Mode =
   | "profile"
   | "trail"
   | "support"
-  | "scenario"
-  | "logs";
+  | "scenario";
 
 export const MODES: Mode[] = [
   "group",
@@ -34,5 +33,4 @@ export const MODES: Mode[] = [
   "trail",
   "support",
   "scenario",
-  "logs",
 ];

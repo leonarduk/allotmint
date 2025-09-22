@@ -35,8 +35,13 @@
       "reports": "Berichte",
       "alertsettings": "Alert Settings",
       "support": "Support",
-      "scenario": "Szenario-Tester",
-    "logs": "Protokolle"
+      "scenario": "Szenario-Tester"
+    },
+    "logs": {
+      "title": "Protokolle",
+      "refresh": "Protokolle aktualisieren",
+      "empty": "Keine Protokolle verfügbar.",
+      "error": "Protokolle konnten nicht geladen werden."
     }
   },
   "trail": {

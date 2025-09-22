@@ -32,7 +32,6 @@ const defaultConfig: AppConfig = {
         pension: true,
         reports: true,
         scenario: true,
-        logs: true,
     },
 };
 

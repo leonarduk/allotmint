@@ -37,7 +37,6 @@ export interface TabsConfig {
   taxallowances: boolean;
   reports: boolean;
   scenario: boolean;
-  logs: boolean;
 }
 
 export interface AppConfig {
@@ -87,7 +86,6 @@ const defaultTabs: TabsConfig = {
   taxallowances: true,
   reports: true,
   scenario: true,
-  logs: true,
 };
 
 export interface ConfigContextValue extends AppConfig {

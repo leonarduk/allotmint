@@ -31,11 +31,13 @@ const SECTORS = [
 const REGIONS = ["Africa", "Asia", "Europe", "North America", "South America", "Oceania", "UK", "US"];
 
 interface InstrumentSearchBarProps {
+  id?: string;
   onClose?: () => void;
   onNavigate?: () => void;
 }
 
 function InstrumentSearchBarComponent({
+  id,
   onClose,
   onNavigate,
 }: InstrumentSearchBarProps) {
@@ -102,7 +104,7 @@ function InstrumentSearchBarComponent({
   };
 
   return (
-    <div style={{ position: "relative", marginLeft: "1rem" }}>
+    <div id={id} style={{ position: "relative", marginLeft: "1rem" }}>
       <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
 
         <input

@@ -35,8 +35,13 @@
       "reports": "Relatórios",
       "alertsettings": "Alert Settings",
       "support": "Suporte",
-      "scenario": "Testador de Cenários",
-    "logs": "Registros"
+      "scenario": "Testador de Cenários"
+    },
+    "logs": {
+      "title": "Registros",
+      "refresh": "Atualizar registros",
+      "empty": "Nenhum registro disponível.",
+      "error": "Não foi possível carregar os registros."
     }
   },
   "trail": {

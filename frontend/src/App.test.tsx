@@ -143,6 +143,7 @@ describe("App", () => {
 
     const { default: App } = await import("./App");
     const { configContext } = await import("./ConfigContext");
+    const user = userEvent.setup();
 
     const allTabs = {
       group: true,
@@ -167,7 +168,6 @@ describe("App", () => {
       pension: true,
       reports: true,
       scenario: true,
-      logs: true,
     };
 
     render(
@@ -222,6 +222,7 @@ describe("App", () => {
 
     const { default: App } = await import("./App");
     const { configContext } = await import("./ConfigContext");
+    const user = userEvent.setup();
 
     const allTabs = {
       group: true,
@@ -246,7 +247,6 @@ describe("App", () => {
       pension: true,
       reports: true,
       scenario: true,
-      logs: true,
     };
 
     render(
@@ -266,6 +266,9 @@ describe("App", () => {
         </MemoryRouter>
       </configContext.Provider>,
     );
+
+    const menuButton = screen.getByRole("button", { name: /menu/i });
+    await user.click(menuButton);
 
     const moversTab = await screen.findByRole("link", { name: /movers/i });
     expect(moversTab).toHaveStyle("font-weight: bold");
@@ -365,6 +368,7 @@ describe("App", () => {
   it("defaults to Group view and orders tabs correctly", async () => {
     window.history.pushState({}, "", "/");
     mockTradingSignals.mockResolvedValue([]);
+    const user = userEvent.setup();
 
     vi.mock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
@@ -396,6 +400,9 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
+    const menuToggle = screen.getByRole("button", { name: /menu/i });
+    await user.click(menuToggle);
+
     const groupLink = await screen.findByRole("link", { name: /group/i });
     expect(groupLink).toHaveAttribute("href", "/");
     expect(groupLink).toHaveStyle("font-weight: bold");
@@ -417,6 +424,7 @@ describe("App", () => {
       "Allocation",
       "Rebalance",
       "Reports",
+      "Trail",
       "Alert Settings",
       "User Settings",
       "Pension Forecast",

@@ -35,8 +35,13 @@
       "reports": "Segnalazioni",
       "alertsettings": "Alert Settings",
       "support": "Supporto",
-      "scenario": "Tester di scenario",
-    "logs": "Tronchi"
+      "scenario": "Tester di scenario"
+    },
+    "logs": {
+      "title": "Log",
+      "refresh": "Aggiorna log",
+      "empty": "Nessun log disponibile.",
+      "error": "Impossibile caricare i log."
     }
   },
   "trail": {

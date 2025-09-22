@@ -78,7 +78,6 @@ describe("Menu", () => {
         virtual: true,
         support: false,
         settings: true,
-        profile: false,
         pension: true,
         reports: true,
         scenario: true,

@@ -13,6 +13,7 @@ describe("TaxTools", () => {
   const harvestMock = harvestTax as unknown as vi.Mock;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     allowancesMock.mockResolvedValue({
       owner: "demo",
       tax_year: "2024",

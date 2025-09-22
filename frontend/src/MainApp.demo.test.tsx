@@ -20,6 +20,7 @@ describe("MainApp demo view", () => {
       ]),
       getGroups: vi.fn().mockRejectedValue(new Error("HTTP 401")),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
       getPortfolio: vi.fn().mockResolvedValue(mockPortfolio),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),

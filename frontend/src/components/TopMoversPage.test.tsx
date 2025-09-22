@@ -61,6 +61,7 @@ vi.mock("../api", () => ({
   getGroupInstruments: (
     ...args: Parameters<typeof mockGetGroupInstruments>
   ) => mockGetGroupInstruments(...args),
+  getCachedGroupInstruments: undefined,
   getGroupMovers: (
     ...args: Parameters<typeof mockGetGroupMovers>
   ) => mockGetGroupMovers(...args),

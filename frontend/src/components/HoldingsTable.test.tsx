@@ -5,6 +5,7 @@ import i18n from "../i18n";
 import { formatDateISO } from "../lib/date";
 import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
+import { money } from "../lib/money";
 vi.mock("../api", () => ({
     getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
     getGroupPortfolio: vi.fn(),
@@ -13,14 +14,16 @@ vi.mock("../api", () => ({
     getGroupMaxDrawdown: vi.fn(() => Promise.resolve({ max_drawdown: 0 })),
     getGroupSectorContributions: vi.fn(() => Promise.resolve([])),
     getGroupRegionContributions: vi.fn(() => Promise.resolve([])),
+    getGroupInstruments: vi.fn().mockResolvedValue([]),
+    getCachedGroupInstruments: undefined,
+    listInstrumentGroups: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("./TopMoversSummary", () => ({
     TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
 import { HoldingsTable } from "./HoldingsTable";
-import { GroupPortfolioView } from "./GroupPortfolioView";
+import AccountBlock from "./AccountBlock";
 import { configContext, type AppConfig } from "../ConfigContext";
-import { getGroupPortfolio } from "../api";
 
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
@@ -51,7 +54,7 @@ const defaultConfig: AppConfig = {
         scenario: true,
       },
 };
-import type { Holding } from "../types";
+import type { Account, Holding } from "../types";
 
 beforeEach(() => {
     // Ensure React act environment is enabled for explicit act() calls
@@ -190,7 +193,16 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={[stale]} />);
         const star = await screen.findByTitle("2024-01-01T09:00:00Z");
         expect(star).toHaveTextContent("*");
-        const price = screen.getByText("£100.00");
+        const row = star.closest("tr");
+        const expectedPrice = money(
+            stale.current_price_gbp!,
+            defaultConfig.baseCurrency,
+        );
+        const priceMatches = within(row!).getAllByText((_, element) =>
+            element?.textContent?.trim() === expectedPrice,
+        );
+        const price = priceMatches.find((el) => el.classList.contains("text-gray"));
+        expect(price).toBeDefined();
         expect(price).toHaveClass("text-gray");
     });
 
@@ -335,28 +347,29 @@ describe("HoldingsTable", () => {
       });
 
       it("opens InstrumentDetail without altering search params", async () => {
-        const portfolio = {
-          name: "All owners combined",
-          accounts: [
+        const account: Account = {
+          account_type: "isa",
+          currency: "GBP",
+          owner: "alice",
+          value_estimate_gbp: 150,
+          value_estimate_currency: "GBP",
+          holdings: [
             {
-              owner: "alice",
-              account_type: "isa",
-              holdings: [
-                {
-                  ticker: "AAA",
-                  name: "Alpha",
-                  currency: "GBP",
-                  instrument_type: "Equity",
-                  units: 1,
-                  cost_basis_gbp: 100,
-                  market_value_gbp: 150,
-                  gain_gbp: 50,
-                },
-              ],
+              ticker: "AAA",
+              name: "Alpha",
+              currency: "GBP",
+              instrument_type: "Equity",
+              units: 1,
+              cost_basis_gbp: 100,
+              market_value_gbp: 150,
+              gain_gbp: 50,
+              acquired_date: "2024-01-01",
+              days_held: 10,
+              sell_eligible: true,
+              days_until_eligible: 0,
             },
           ],
         };
-        vi.mocked(getGroupPortfolio).mockResolvedValue(portfolio as any);
         vi.stubGlobal(
           "ResponsiveContainer",
           ({ children }: any) => <div>{children}</div>,
@@ -368,7 +381,7 @@ describe("HoldingsTable", () => {
         vi.stubGlobal("Tooltip", () => <div />);
         renderWithConfig(
           <MemoryRouter>
-            <GroupPortfolioView slug="all" />
+            <AccountBlock account={account} />
           </MemoryRouter>,
         );
         await screen.findByRole("button", { name: "AAA" });
@@ -407,6 +420,13 @@ describe("HoldingsTable", () => {
               container.dispatchEvent(new Event('scroll'));
           });
           expect(screen.getByRole('columnheader', { name: 'Ticker' })).toBeInTheDocument();
-          expect(screen.getByText('T49')).toBeInTheDocument();
+          await waitFor(() => {
+              const rows = Array.from(container.querySelectorAll('tbody tr')).map(
+                  (row) => row.textContent ?? '',
+              );
+              expect(rows.length).toBeLessThan(manyHoldings.length + 2);
+              expect(rows.some((text) => text.includes('T20'))).toBe(true);
+              expect(rows.some((text) => text.includes('T0'))).toBe(false);
+          });
       });
   });

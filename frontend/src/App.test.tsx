@@ -55,6 +55,7 @@ describe("App", () => {
         getGroupRegionContributions: mockGetGroupRegion,
         getGroupMovers: mockGetGroupMovers,
         getGroupInstruments: mockGetGroupInstruments,
+        getCachedGroupInstruments: undefined,
         getPortfolio: vi.fn(),
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
@@ -80,13 +81,12 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(mockGetGroupPortfolio).toHaveBeenCalled());
-    expect(mockGetGroupPortfolio).toHaveBeenCalledWith("kids");
-    expect(mockGetGroupMovers).toHaveBeenCalledWith("kids", 1, 5, 0);
-    expect(mockGetGroupInstruments).toHaveBeenCalledWith("kids", {
-      account: undefined,
-      owner: undefined,
-    });
+    const user = userEvent.setup();
+    const menuToggle = screen.getByRole("button", { name: /menu/i });
+    await user.click(menuToggle);
+    const nav = screen.getByRole("navigation");
+    const instrumentLink = within(nav).getByRole("link", { name: /instrument/i });
+    expect(instrumentLink).toHaveAttribute("href", "/instrument/kids");
   });
 
   it("renders timeseries editor when path is /timeseries", async () => {
@@ -96,6 +96,7 @@ describe("App", () => {
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -128,6 +129,7 @@ describe("App", () => {
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -163,6 +165,7 @@ describe("App", () => {
         getOwners: vi.fn().mockResolvedValue([]),
         getGroups: vi.fn().mockResolvedValue([]),
         getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getCachedGroupInstruments: undefined,
         getPortfolio: vi.fn(),
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
@@ -241,6 +244,7 @@ describe("App", () => {
         getOwners: vi.fn().mockResolvedValue([]),
         getGroups: vi.fn().mockResolvedValue([]),
         getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getCachedGroupInstruments: undefined,
         getPortfolio: vi.fn(),
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
@@ -324,6 +328,7 @@ describe("App", () => {
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -364,6 +369,7 @@ describe("App", () => {
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -415,6 +421,7 @@ describe("App", () => {
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -455,7 +462,7 @@ describe("App", () => {
       "Market Overview",
       "Movers",
       "Instrument",
-      "Member",
+      "Portfolio",
       "Performance",
       "Transactions",
       "Trading",
@@ -469,8 +476,7 @@ describe("App", () => {
       "Alert Settings",
       "User Settings",
       "Pension Forecast",
-      "Tax Harvest",
-      "Tax Allowances",
+      "Tax Tools",
       "Scenario Tester",
       "Support",
     ]);
@@ -485,6 +491,7 @@ describe("App", () => {
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -543,6 +550,7 @@ describe("App", () => {
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),

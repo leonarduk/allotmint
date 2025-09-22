@@ -15,7 +15,7 @@
     "modes": {
       "group": "Groupe",
       "instrument": "Instrument",
-      "owner": "Membre",
+      "owner": "Portefeuille",
       "performance": "Performance",
       "transactions": "Transactions",
       "trading": "Trading",
@@ -204,7 +204,7 @@
     "select": "Sélectionnez un groupe."
   },
   "dashboard": {
-    "selectMember": "Sélectionnez un membre.",
+    "selectMember": "Sélectionnez un portefeuille.",
     "range": "Plage :",
     "rangeOptions": {
       "1w": "1S",

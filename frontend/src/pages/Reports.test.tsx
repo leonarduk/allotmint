@@ -12,6 +12,7 @@ vi.mock("../api", () => ({
   getOwners: mockGetOwners,
   getGroups: mockGetGroups,
   getGroupInstruments: vi.fn().mockResolvedValue([]),
+  getCachedGroupInstruments: undefined,
   getPortfolio: vi.fn(),
   refreshPrices: vi.fn(),
   getAlerts: vi.fn().mockResolvedValue([]),

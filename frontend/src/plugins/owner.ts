@@ -1,14 +1,14 @@
-import Member from "../pages/Member";
+import Portfolio from "../pages/Portfolio";
 import type { ComponentProps } from "react";
 import type { TabPlugin } from "./TabPlugin";
 
-type Props = ComponentProps<typeof Member>;
+type Props = ComponentProps<typeof Portfolio>;
 
 const plugin: TabPlugin<Props> = {
   id: "owner",
-  component: Member,
+  component: Portfolio,
   priority: 30,
-  path: ({ owner }) => (owner ? `/member/${owner}` : "/member"),
+  path: ({ owner }) => (owner ? `/portfolio/${owner}` : "/portfolio"),
 };
 
 export default plugin;

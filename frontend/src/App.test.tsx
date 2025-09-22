@@ -525,8 +525,9 @@ describe("App", () => {
       await screen.findByLabelText(/Search instruments/i)
     ).toBeInTheDocument();
 
-    const closeButton = screen.getByRole("button", { name: /Close search/i });
-    await user.click(closeButton);
+    expect(researchButton).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(researchButton);
 
     await waitFor(() => {
       expect(

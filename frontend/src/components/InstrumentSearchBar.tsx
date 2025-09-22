@@ -246,22 +246,6 @@ export function InstrumentSearchBarToggle() {
           }}
         >
           <InstrumentSearchBar onNavigate={() => setOpen(false)} />
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Close search"
-            style={{
-              padding: "0.25rem 0.5rem",
-              borderRadius: "0.25rem",
-              border: "1px solid #ccc",
-              background: "#f5f5f5",
-              color: "#213547",
-              cursor: "pointer",
-              alignSelf: "center",
-            }}
-          >
-            Close
-          </button>
         </div>
       </CollapsibleContent>
     </Collapsible>

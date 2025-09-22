@@ -150,11 +150,24 @@ def fetch_news_google(ticker: str) -> List[Dict[str, Optional[str]]]:
 def _parse_alpha_time(value: Optional[str]) -> Optional[str]:
     if not value or not isinstance(value, str):
         return None
-    try:
-        dt = datetime.strptime(value, "%Y%m%dT%H%M%S")
-    except ValueError:
+    value = value.strip()
+    if not value:
         return None
-    return _isoformat(dt.replace(tzinfo=timezone.utc))
+
+    try:
+        cleaned = value.replace("Z", "+00:00") if value.endswith("Z") else value
+        dt = datetime.fromisoformat(cleaned)
+    except ValueError:
+        try:
+            dt = datetime.strptime(value, "%Y%m%dT%H%M%S")
+        except ValueError:
+            return None
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return _isoformat(dt)
 
 
 def _fetch_news(ticker: str) -> List[Dict[str, Optional[str]]]:

@@ -91,7 +91,7 @@ def test_get_news_includes_metadata_and_caches(monkeypatch):
                         "title": "Alpha headline",
                         "url": "https://example.com/article",
                         "source": "AlphaVantage",
-                        "time_published": "20230825T160000",
+                        "time_published": "2023-08-25T12:00:00-04:00",
                     }
                 ]
             }
@@ -122,3 +122,10 @@ def test_get_news_includes_metadata_and_caches(monkeypatch):
             ],
         )
     ]
+
+
+def test_parse_alpha_time_legacy_format():
+    assert (
+        news._parse_alpha_time("20230825T160000")
+        == "2023-08-25T16:00:00Z"
+    )

@@ -104,8 +104,7 @@ ui:
     reports: true
     scenario: true
     alertsettings: true
-    taxharvest: true
-    taxallowances: true
+    taxtools: true
     trail: true
     tradecompliance: true
     logs: true

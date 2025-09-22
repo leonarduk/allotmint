@@ -53,8 +53,7 @@ import InstrumentAdmin from "./pages/InstrumentAdmin";
 import Menu from "./components/Menu";
 import Rebalance from "./pages/Rebalance";
 import PensionForecast from "./pages/PensionForecast";
-import TaxHarvest from "./pages/TaxHarvest";
-import TaxAllowances from "./pages/TaxAllowances";
+import TaxTools from "./pages/TaxTools";
 import RightRail from "./components/RightRail";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
@@ -106,10 +105,8 @@ const initialMode: Mode =
     ? "profile"
     : path[0] === "support"
     ? "support"
-    : path[0] === "tax-harvest"
-    ? "taxharvest"
-    : path[0] === "tax-allowances"
-    ? "taxallowances"
+    : path[0] === "tax-tools"
+    ? "taxtools"
     : path[0] === "settings"
     ? "settings"
     : path[0] === "reports"
@@ -229,11 +226,8 @@ export default function App({ onLogout }: AppProps) {
       case "pension":
         newMode = "pension";
         break;
-      case "tax-harvest":
-        newMode = "taxharvest";
-        break;
-      case "tax-allowances":
-        newMode = "taxallowances";
+      case "tax-tools":
+        newMode = "taxtools";
         break;
       case "settings":
         newMode = "settings";
@@ -494,8 +488,7 @@ export default function App({ onLogout }: AppProps) {
       {mode === "market" && <MarketOverview />}
       {mode === "movers" && <TopMovers />}
       {mode === "reports" && <Reports />}
-      {mode === "taxharvest" && <TaxHarvest />}
-      {mode === "taxallowances" && <TaxAllowances />}
+        {mode === "taxtools" && <TaxTools />}
       {mode === "support" && <Support />}
       {mode === "profile" && <ProfilePage />}
       {mode === "settings" && <UserConfigPage />}

@@ -61,8 +61,7 @@ class TabsConfig:
     alertsettings: bool = True
     tradecompliance: bool = True
     trail: bool = True
-    taxharvest: bool = True
-    taxallowances: bool = True
+    taxtools: bool = True
     profile: bool = False
     pension: bool = True
     reports: bool = True

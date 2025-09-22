@@ -81,10 +81,8 @@ export default function Menu({
               ? 'alertsettings'
               : path[0] === 'pension'
                 ? 'pension'
-                : path[0] === 'tax-harvest'
-                  ? 'taxharvest'
-                  : path[0] === 'tax-allowances'
-                    ? 'taxallowances'
+                : path[0] === 'tax-tools'
+                  ? 'taxtools'
                     : path[0] === 'support'
                       ? 'support'
                       : path[0] === 'settings'
@@ -131,10 +129,8 @@ export default function Menu({
         return '/profile';
       case 'pension':
         return '/pension/forecast';
-      case 'taxharvest':
-        return '/tax-harvest';
-      case 'taxallowances':
-        return '/tax-allowances';
+      case 'taxtools':
+        return '/tax-tools';
       default:
         return `/${m}`;
     }

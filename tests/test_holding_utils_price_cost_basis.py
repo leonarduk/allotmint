@@ -29,7 +29,8 @@ def test_get_price_for_date_scaled_empty_data(monkeypatch):
     assert src is None
 
 
-def test_get_effective_cost_basis_gbp_booked_cost():
+def test_get_effective_cost_basis_gbp_booked_cost(monkeypatch):
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 1.0)
     holding = {TICKER: "AAA.L", UNITS: 10, COST_BASIS_GBP: 123.45}
     assert holding_utils.get_effective_cost_basis_gbp(holding, {}) == 123.45
 

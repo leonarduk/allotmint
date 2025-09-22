@@ -72,6 +72,7 @@
   "instrumentTable": {
     "noInstruments": "No instruments.",
     "ungrouped": "Ungrouped",
+    "exchangesLabel": "Exchanges:",
     "groupTotals": {
       "market": "Market",
       "gain": "Gain",

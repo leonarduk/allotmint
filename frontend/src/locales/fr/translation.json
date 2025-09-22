@@ -78,6 +78,7 @@
   "instrumentTable": {
     "noInstruments": "Aucun instrument.",
     "ungrouped": "Non groupé",
+    "exchangesLabel": "Bourses :",
     "groupTotals": {
       "market": "Valeur",
       "gain": "Gain",

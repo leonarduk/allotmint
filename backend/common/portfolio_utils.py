@@ -488,6 +488,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 full_tkr,
                 {
                     "ticker": full_tkr,
+                    "exchange": exch,
                     "name": instrument_meta.get("name") or h.get("name", full_tkr),
                     "currency": h.get("currency") or instrument_meta.get("currency"),
                     "sector": h.get("sector") or instrument_meta.get("sector"),
@@ -517,6 +518,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     and grouping_source in _GROUPING_FALLBACK_SOURCES,
                 },
             )
+            row["exchange"] = exch
             row.setdefault("_grouping_from_fallback", False)
 
             # accumulate units from the holding

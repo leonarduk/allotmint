@@ -96,6 +96,7 @@ describe("InstrumentTable", () => {
             ticker: "ABC",
             name: "ABC Corp",
             grouping: "Group A",
+            exchange: "L",
             currency: "GBP",
             instrument_type: "Equity",
             units: 10,
@@ -110,6 +111,7 @@ describe("InstrumentTable", () => {
             ticker: "XYZ",
             name: "XYZ Inc",
             grouping: "Group A",
+            exchange: "N",
             currency: "USD",
             instrument_type: "Equity",
             units: 5,
@@ -124,6 +126,7 @@ describe("InstrumentTable", () => {
             ticker: "DEF",
             name: "DEF Ltd",
             grouping: "Group B",
+            exchange: "L",
             currency: "GBX",
             instrument_type: "Equity",
             units: 3,
@@ -137,6 +140,7 @@ describe("InstrumentTable", () => {
         {
             ticker: "CADI",
             name: "CAD Inc",
+            exchange: "T",
             currency: "CAD",
             instrument_type: "Equity",
             units: 2,
@@ -163,7 +167,9 @@ describe("InstrumentTable", () => {
 
     const openGroup = (title: string) => {
         const button = getSummaryButton(title);
-        fireEvent.click(button);
+        if (button.getAttribute("aria-expanded") !== "true") {
+            fireEvent.click(button);
+        }
         return button;
     };
 
@@ -202,6 +208,48 @@ describe("InstrumentTable", () => {
 
         openGroup("Group A");
         expect(screen.getByText("ABC")).toBeInTheDocument();
+    });
+
+    it("filters rows by exchange selection", async () => {
+        render(<InstrumentTable rows={rows} />);
+        expect(screen.getByText("Exchanges:")).toBeInTheDocument();
+
+        const lCheckbox = screen.getByLabelText("L");
+        const nCheckbox = screen.getByLabelText("N");
+        const tCheckbox = screen.getByLabelText("T");
+
+        expect(lCheckbox).toBeChecked();
+        expect(nCheckbox).toBeChecked();
+        expect(tCheckbox).toBeChecked();
+
+        openGroup("Group A");
+        openGroup("Group B");
+        openGroup("Ungrouped");
+
+        expect(screen.getByText("ABC")).toBeInTheDocument();
+        expect(screen.getByText("XYZ")).toBeInTheDocument();
+        expect(screen.getByText("DEF")).toBeInTheDocument();
+        expect(screen.getByText("CADI")).toBeInTheDocument();
+
+        fireEvent.click(lCheckbox);
+        expect(lCheckbox).not.toBeChecked();
+        expect(screen.queryByText("ABC")).toBeNull();
+        expect(screen.queryByText("DEF")).toBeNull();
+        expect(screen.getByText("XYZ")).toBeInTheDocument();
+
+        fireEvent.click(nCheckbox);
+        expect(nCheckbox).not.toBeChecked();
+        expect(screen.queryByText("XYZ")).toBeNull();
+        expect(screen.getByText("CADI")).toBeInTheDocument();
+
+        fireEvent.click(tCheckbox);
+        expect(tCheckbox).not.toBeChecked();
+        await waitFor(() => expect(screen.getByText("No instruments.")).toBeInTheDocument());
+
+        fireEvent.click(lCheckbox);
+        expect(lCheckbox).toBeChecked();
+        openGroup("Group A");
+        await waitFor(() => expect(screen.getByText("ABC")).toBeInTheDocument());
     });
 
     it("passes ticker and name to InstrumentDetail", () => {

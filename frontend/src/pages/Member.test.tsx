@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useState, type ReactNode } from "react";
@@ -115,6 +116,10 @@ describe("Member page", () => {
           owner: "alice",
           accounts: ["ISA"],
         },
+        {
+          owner: "bob",
+          accounts: ["GIA"],
+        },
       ],
       loading: false,
       error: null,
@@ -161,5 +166,56 @@ describe("Member page", () => {
 
     expect(await screen.findByText(/Approx Total:/)).toBeInTheDocument();
     expect(screen.getByText(/ISA.*GBP/)).toBeInTheDocument();
+  });
+
+  it("renders the owner selector with available owners", async () => {
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/member/:owner",
+          element: <MemberPage />,
+        },
+      ],
+      { initialEntries: ["/member/alice"] },
+    );
+
+    render(
+      <TestProvider>
+        <RouterProvider router={router} />
+      </TestProvider>,
+    );
+
+    const ownerSelect = (await screen.findByLabelText(/Owner/i)) as HTMLSelectElement;
+
+    expect(ownerSelect).toBeInTheDocument();
+    const optionValues = Array.from(ownerSelect.options).map((o) => o.value);
+    expect(optionValues).toContain("alice");
+    expect(optionValues).toContain("bob");
+  });
+
+  it("reloads the portfolio when the owner selection changes", async () => {
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/member/:owner",
+          element: <MemberPage />,
+        },
+      ],
+      { initialEntries: ["/member/alice"] },
+    );
+
+    render(
+      <TestProvider>
+        <RouterProvider router={router} />
+      </TestProvider>,
+    );
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+
+    const ownerSelect = (await screen.findByLabelText(/Owner/i)) as HTMLSelectElement;
+    await userEvent.selectOptions(ownerSelect, "bob");
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenLastCalledWith("bob"));
+    expect(ownerSelect.value).toBe("bob");
   });
 });

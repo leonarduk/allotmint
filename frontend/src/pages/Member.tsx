@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useParams } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { FixedSizeGrid as Grid } from "react-window";
 import { getOwners, getPortfolio } from "../api";
@@ -13,6 +20,7 @@ import useFetchWithRetry from "../hooks/useFetchWithRetry";
 export function Member() {
   const { owner: ownerParam } = useParams<{ owner?: string }>();
   const { selectedOwner, setSelectedOwner } = useRoute();
+  const navigate = useNavigate();
   const [retryNonce, setRetryNonce] = useState(0);
 
   const ownersReq = useFetchWithRetry<OwnerSummary[]>(getOwners, 500, 5, [retryNonce]);
@@ -21,10 +29,11 @@ export function Member() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const ownerFromRoute = ownerParam ?? "";
+
   useEffect(() => {
-    if (!ownerParam) return;
-    setSelectedOwner((prev) => (prev === ownerParam ? prev : ownerParam));
-  }, [ownerParam, setSelectedOwner]);
+    setSelectedOwner((prev) => (prev === ownerFromRoute ? prev : ownerFromRoute));
+  }, [ownerFromRoute, setSelectedOwner]);
 
   useEffect(() => {
     if (!selectedOwner) {
@@ -180,15 +189,28 @@ export function Member() {
     );
   };
 
+  const handleOwnerChange = useCallback(
+    (owner: string) => {
+      if (owner === selectedOwner) return;
+      setSelectedOwner(owner);
+      navigate(owner ? `/member/${owner}` : "/member");
+    },
+    [navigate, selectedOwner, setSelectedOwner],
+  );
+
+  const handleRefresh = useCallback(() => {
+    setRetryNonce((n) => n + 1);
+  }, []);
+
   return (
-    <div className="p-4 md:p-8">
+    <div className="space-y-4 p-4 md:p-8">
       <SummaryBar
         owners={ownersReq.data ?? []}
         owner={selectedOwner}
-        onOwnerChange={setSelectedOwner}
-        onRefresh={() => setRetryNonce((n) => n + 1)}
+        onOwnerChange={handleOwnerChange}
+        onRefresh={handleRefresh}
       />
-      <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
         <PortfolioView data={portfolio} loading={loading} error={error} />
         <div className="min-h-[200px] space-y-4">
           <h2 className="text-lg font-semibold">Holdings</h2>

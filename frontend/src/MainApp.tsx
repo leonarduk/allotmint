@@ -10,7 +10,6 @@ import type {
 } from "./types";
 
 import { OwnerSelector } from "./components/OwnerSelector";
-import { GroupSelector } from "./components/GroupSelector";
 import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
@@ -241,11 +240,6 @@ export default function MainApp() {
       {/* GROUP VIEW */}
       {mode === "group" && groups.length > 0 && (
         <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
           <ComplianceWarnings
             owners={
               groups.find((g) => g.slug === selectedGroup)?.members ?? []
@@ -275,11 +269,6 @@ export default function MainApp() {
       {/* INSTRUMENT VIEW */}
       {mode === "instrument" && groups.length > 0 && (
         <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
           {err && <p style={{ color: "red" }}>{err}</p>}
           {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
         </>

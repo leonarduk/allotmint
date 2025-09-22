@@ -40,8 +40,15 @@
     }
   },
   "trail": {
-    "daily": "Daily",
-    "once": "Once"
+    "title": "Trail-Fortschritt",
+    "daily": "Täglich",
+    "once": "Einmalig",
+    "progressLabel": "Täglicher Fortschritt: {{completed}} / {{total}} ({{percent}}%)",
+    "xpLabel": "XP: {{xp}}",
+    "streakLabel": "Serie: {{count}} Tag",
+    "streakLabel_plural": "Serie: {{count}} Tage",
+    "dailyComplete": "Tägliche Aufgaben erledigt! Weiter so.",
+    "allDone": "Alle Trail-Aufgaben erledigt – großartig!"
   },
   "common": {
     "error": "Fehler",

@@ -461,6 +461,15 @@ export interface TrailTask {
   completed: boolean;
 }
 
+export interface TrailCompletionTotals {
+  completed: number;
+  total: number;
+}
+
 export interface TrailResponse {
   tasks: TrailTask[];
+  xp: number;
+  streak: number;
+  daily_totals: Record<string, TrailCompletionTotals>;
+  today: string;
 }

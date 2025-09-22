@@ -25,6 +25,22 @@ def test_trail_routes(tmp_path, monkeypatch, disable_auth):
     with TestClient(app) as client:
         resp = client.get("/trail")
         assert resp.status_code == 200
+        payload = resp.json()
+        assert set(payload) >= {"tasks", "xp", "streak", "daily_totals", "today"}
+        assert payload["xp"] == 0
+        assert payload["streak"] == 0
 
         resp = client.post("/trail/unknown/complete")
         assert resp.status_code == 404
+
+        for index, task_id in enumerate(trail_module.DAILY_TASK_IDS):
+            resp = client.post(f"/trail/{task_id}/complete")
+            assert resp.status_code == 200
+            payload = resp.json()
+            expected_xp = (index + 1) * trail_module.DAILY_XP_REWARD
+            assert payload["xp"] == expected_xp
+
+        final_payload = payload
+        assert final_payload["streak"] == 1
+        today = final_payload["today"]
+        assert final_payload["daily_totals"][today]["completed"] == trail_module.DAILY_TASK_COUNT

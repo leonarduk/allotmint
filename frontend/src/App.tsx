@@ -43,7 +43,10 @@ import UserConfigPage from "./pages/UserConfig";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
-import { InstrumentSearchBar } from "./components/InstrumentSearchBar";
+import {
+  InstrumentSearchBar,
+  InstrumentResearchTriggerIcon,
+} from "./components/InstrumentSearchBar";
 import UserAvatar from "./components/UserAvatar";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
@@ -342,6 +345,7 @@ export default function App({ onLogout }: AppProps) {
         />
         <button
           type="button"
+          aria-label={t("app.research")}
           aria-expanded={showSearch ? "true" : "false"}
           aria-controls="instrument-search"
           onClick={() => setShowSearch((prev) => !prev)}
@@ -352,10 +356,13 @@ export default function App({ onLogout }: AppProps) {
             border: "1px solid #ccc",
             background: "#fff",
             color: "#213547",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
             cursor: "pointer",
           }}
         >
-          {t("app.research")}
+          <InstrumentResearchTriggerIcon />
         </button>
         {showSearch && (
           <InstrumentSearchBar

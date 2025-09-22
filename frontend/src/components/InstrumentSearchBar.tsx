@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef, memo, useId } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Lightbulb } from "lucide-react";
 import { searchInstruments } from "../api";
 import {
   Collapsible,
@@ -211,9 +213,20 @@ function InstrumentSearchBarComponent({
 
 const InstrumentSearchBar = memo(InstrumentSearchBarComponent);
 
+export function InstrumentResearchTriggerIcon() {
+  return (
+    <Lightbulb
+      aria-hidden="true"
+      focusable="false"
+      style={{ width: "1rem", height: "1rem" }}
+    />
+  );
+}
+
 export function InstrumentSearchBarToggle() {
   const [open, setOpen] = useState(false);
   const contentId = useId();
+  const { t } = useTranslation();
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} style={{ marginLeft: "1rem" }}>
@@ -221,16 +234,20 @@ export function InstrumentSearchBarToggle() {
         type="button"
         aria-controls={contentId}
         aria-expanded={open}
+        aria-label={t("app.research")}
         style={{
           padding: "0.25rem 0.75rem",
           borderRadius: "0.25rem",
           border: "1px solid #ccc",
           background: open ? "#eee" : "#fff",
           color: "#213547",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
           cursor: "pointer",
         }}
       >
-        Research
+        <InstrumentResearchTriggerIcon />
       </CollapsibleTrigger>
       <CollapsibleContent
         id={contentId}

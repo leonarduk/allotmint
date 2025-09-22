@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import i18n from "./i18n";
 
 const mockTradingSignals = vi.fn();
 
@@ -535,8 +536,9 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
+    const researchLabel = i18n.t("app.research");
     const researchButton = await screen.findByRole("button", {
-      name: /Research/i,
+      name: researchLabel,
     });
     expect(researchButton).toBeInTheDocument();
     expect(

@@ -90,7 +90,9 @@ def test_mark_complete_records_once_and_daily(memory_storage):
     assert memory_storage[user]["daily"][today] == ["check_market"]
     assert result["xp"] == trail.DAILY_XP_REWARD
     assert result["daily_totals"][today]["completed"] == 1
+    assert result["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
     assert memory_storage[user]["daily_totals"][today]["completed"] == 1
+    assert memory_storage[user]["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
 
     result = trail.mark_complete(user, "check_market")
     assert memory_storage[user]["daily"][today] == ["check_market"]
@@ -100,6 +102,9 @@ def test_mark_complete_records_once_and_daily(memory_storage):
     assert memory_storage[user]["once"] == ["create_goal"]
     assert result["xp"] == trail.DAILY_XP_REWARD + trail.ONCE_XP_REWARD
     assert memory_storage[user]["xp"] == trail.DAILY_XP_REWARD + trail.ONCE_XP_REWARD
+    assert (
+        memory_storage[user]["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
+    )
 
     result = trail.mark_complete(user, "create_goal")
     assert memory_storage[user]["once"] == ["create_goal"]

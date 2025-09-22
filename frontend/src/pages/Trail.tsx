@@ -136,6 +136,7 @@ export default function Trail() {
         {(allDailyComplete || allTasksComplete) && (
           <div
             role="status"
+            aria-live="polite"
             style={{
               marginTop: "1rem",
               padding: "0.75rem",

@@ -46,3 +46,14 @@ def test_trail_routes(tmp_path, monkeypatch, disable_auth):
         today = final_payload["today"]
         assert final_payload["daily_totals"][today]["completed"] == trail_module.DAILY_TASK_COUNT
         assert final_payload["daily_totals"][today]["total"] == trail_module.DAILY_TASK_COUNT
+
+        # Ensure a follow-up read reflects the persisted streak/XP totals
+        resp = client.get("/trail")
+        assert resp.status_code == 200
+        persisted_payload = resp.json()
+        assert persisted_payload["xp"] == final_payload["xp"]
+        assert persisted_payload["streak"] == final_payload["streak"]
+        assert (
+            persisted_payload["daily_totals"][today]["completed"]
+            == trail_module.DAILY_TASK_COUNT
+        )

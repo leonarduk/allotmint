@@ -78,6 +78,23 @@ _TRAIL_STORAGE = get_storage(os.getenv("TRAIL_URI", _DEFAULT_TRAIL_URI))
 _DATA: Dict[str, Dict] = {}
 
 
+def _update_daily_totals(user_data: Dict, day: str, *, completed: int | None = None) -> None:
+    """Persist the completion totals for ``day``.
+
+    Centralising this logic keeps the ``daily_totals`` payload consistent whether the
+    data is being initialised or updated after marking tasks complete.  When
+    ``completed`` is omitted the value is derived from the recorded daily tasks.
+    """
+
+    if completed is None:
+        completed = len(set(user_data["daily"].get(day, [])))
+
+    user_data.setdefault("daily_totals", {})[day] = {
+        "completed": completed,
+        "total": DAILY_TASK_COUNT,
+    }
+
+
 def _ensure_user_data(user: str, *, persist: bool = False) -> Dict:
     """Ensure the cached state for ``user`` has all expected keys.
 
@@ -161,11 +178,8 @@ def get_tasks(user: str) -> Dict:
         )
         tasks.append({**task, "completed": completed})
 
-    if today not in user_data["daily_totals"]:
-        user_data["daily_totals"][today] = {
-            "completed": len(daily_completed),
-            "total": DAILY_TASK_COUNT,
-        }
+    if today not in user_data.get("daily_totals", {}):
+        _update_daily_totals(user_data, today, completed=len(daily_completed))
         _save()
 
     daily_totals = dict(user_data.get("daily_totals", {}))
@@ -187,7 +201,7 @@ def mark_complete(user: str, task_id: str) -> Dict:
     _load()
     today = date.today()
     today_str = today.isoformat()
-    user_data = _ensure_user_data(user)
+    user_data = _ensure_user_data(user, persist=True)
 
     task = next(t for t in DEFAULT_TASKS if t["id"] == task_id)
     if task["type"] == "once":
@@ -202,10 +216,7 @@ def mark_complete(user: str, task_id: str) -> Dict:
             user_data["xp"] += DAILY_XP_REWARD
 
         daily_completed_count = len(completed_today)
-        user_data["daily_totals"][today_str] = {
-            "completed": daily_completed_count,
-            "total": DAILY_TASK_COUNT,
-        }
+        _update_daily_totals(user_data, today_str, completed=daily_completed_count)
 
         if daily_completed_count == DAILY_TASK_COUNT and DAILY_TASK_COUNT:
             yesterday = (today - timedelta(days=1)).isoformat()
@@ -216,11 +227,7 @@ def mark_complete(user: str, task_id: str) -> Dict:
             user_data["last_completed_day"] = today_str
 
     # Ensure today's totals exist even if only "once" tasks were completed.
-    daily_completed_today = len(set(user_data["daily"].get(today_str, [])))
-    user_data["daily_totals"][today_str] = {
-        "completed": daily_completed_today,
-        "total": DAILY_TASK_COUNT,
-    }
+    _update_daily_totals(user_data, today_str)
 
     _save()
     return get_tasks(user)

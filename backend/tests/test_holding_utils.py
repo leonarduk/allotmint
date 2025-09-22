@@ -35,5 +35,6 @@ def test_enrich_holding_scales_booked_cost_basis(monkeypatch):
 
     enriched = hu.enrich_holding(holding, dt.date(2024, 1, 31), price_cache={}, approvals=None, user_config=None)
 
+    assert enriched[COST_BASIS_GBP] == pytest.approx(1.23)
     assert enriched[EFFECTIVE_COST_BASIS_GBP] == pytest.approx(1.23)
     assert enriched["gain_gbp"] == pytest.approx(0.77)

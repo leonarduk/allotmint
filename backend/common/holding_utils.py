@@ -284,7 +284,9 @@ def get_effective_cost_basis_gbp(
     except (TypeError, ValueError):
         booked = 0.0
     if booked > 0:
-        return round(booked * scale, 2)
+        scaled = round(booked * scale, 2)
+        h[COST_BASIS_GBP] = scaled
+        return scaled
 
     acq = _parse_date(h.get(ACQUIRED_DATE))
 

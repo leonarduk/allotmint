@@ -74,7 +74,7 @@ type Mode =
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
 const initialMode: Mode =
-  path[0] === "member"
+  path[0] === "portfolio"
     ? "owner"
     : path[0] === "instrument"
     ? "instrument"
@@ -175,7 +175,7 @@ export default function App({ onLogout }: AppProps) {
     const params = new URLSearchParams(location.search);
     let newMode: Mode;
     switch (segs[0]) {
-      case "member":
+      case "portfolio":
         newMode = "owner";
         break;
       case "profile":
@@ -301,7 +301,7 @@ export default function App({ onLogout }: AppProps) {
     if (mode === "owner" && !selectedOwner && owners.length) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
-      navigate(`/member/${owner}`, { replace: true });
+      navigate(`/portfolio/${owner}`, { replace: true });
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
@@ -447,7 +447,7 @@ export default function App({ onLogout }: AppProps) {
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);
-              navigate(`/member/${owner}`);
+              navigate(`/portfolio/${owner}`);
             }}
           />
         </>

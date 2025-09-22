@@ -25,6 +25,7 @@ function deriveInitial() {
     path[0] === "screener" ? "screener" :
     path[0] === "timeseries" ? "timeseries" :
     path[0] === "watchlist" ? "watchlist" :
+    path[0] === "market" ? "market" :
     path[0] === "movers" ? "movers" :
     path[0] === "instrumentadmin" ? "instrumentadmin" :
     path[0] === "dataadmin" ? "dataadmin" :
@@ -63,6 +64,8 @@ export function useRouteMode(): RouteState {
         return selectedOwner
           ? `/performance/${selectedOwner}`
           : "/performance";
+      case "market":
+        return "/market";
       case "movers":
         return "/movers";
       case "scenario":
@@ -105,6 +108,9 @@ export function useRouteMode(): RouteState {
         break;
       case "watchlist":
         newMode = "watchlist";
+        break;
+      case "market":
+        newMode = "market";
         break;
       case "movers":
         newMode = "movers";

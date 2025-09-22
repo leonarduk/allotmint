@@ -14,7 +14,6 @@ def _make_client(monkeypatch, tmp_path, df):
     monkeypatch.setattr("backend.timeseries.cache.load_meta_timeseries_range", fake_load)
     import backend.routes.timeseries_meta as ts_meta
     monkeypatch.setattr(ts_meta, "load_meta_timeseries_range", fake_load)
-    monkeypatch.setattr(ts_meta.pd, "to_datetime", lambda x: x)
     from backend.app import create_app
 
     app = create_app()
@@ -41,6 +40,7 @@ def test_timeseries_meta_formats(fmt, monkeypatch, tmp_path):
     if fmt == "json":
         data = resp.json()
         assert data["ticker"] == "ABC.L"
+        assert data["prices"][0]["Date"] == "2024-01-01T00:00:00"
         assert data["prices"][0]["Close"] == 1.5
     elif fmt == "csv":
         assert "Date,Open,High,Low,Close,Volume" in resp.text

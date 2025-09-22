@@ -256,6 +256,7 @@ def _get_price_for_date_scaled(
 def get_effective_cost_basis_gbp(
     h: Dict[str, Any],
     price_cache: dict[str, float],
+    price_hint: float | None = None,
 ) -> float:
     """
     If booked cost exists, use it. Otherwise derive:
@@ -282,7 +283,18 @@ def get_effective_cost_basis_gbp(
     except (TypeError, ValueError):
         booked = 0.0
     if booked > 0:
-        return round(booked, 2)
+        scale = get_scaling_override(ticker, exchange, None)
+        chosen = round(booked, 2)
+        if scale not in (None, 0, 1):
+            scaled = round(booked * scale, 2)
+            if price_hint is not None and units > 0:
+                expected_total = round(units * price_hint, 2)
+                if abs(scaled - expected_total) < abs(chosen - expected_total):
+                    chosen = scaled
+            else:
+                chosen = scaled
+        h[COST_BASIS_GBP] = chosen
+        return chosen
 
     acq = _parse_date(h.get(ACQUIRED_DATE))
 
@@ -456,13 +468,6 @@ def enrich_holding(
 
     out["sell_eligible"] = bool(eligible and (approved or not needs_approval))
 
-    # Effective cost basis (always computed)
-    ecb = get_effective_cost_basis_gbp(out, price_cache)
-    out[EFFECTIVE_COST_BASIS_GBP] = ecb
-
-    # Choose cost for gains: prefer booked cost if present, else effective
-    cost_for_gain = float(out.get(EFFECTIVE_COST_BASIS_GBP) or 0.0) or ecb
-
     units = float(out.get(UNITS, 0) or 0)
 
     px = px_source = prev_px = None
@@ -495,6 +500,16 @@ def enrich_holding(
     out["latest_source"] = px_source
     out["last_price_time"] = last_price_time
     out["is_stale"] = is_stale
+
+    ecb = get_effective_cost_basis_gbp(out, price_cache, price_hint=px)
+    out[EFFECTIVE_COST_BASIS_GBP] = ecb
+
+    try:
+        cost_for_gain = float(out.get(COST_BASIS_GBP) or 0.0)
+    except (TypeError, ValueError):
+        cost_for_gain = 0.0
+    if cost_for_gain <= 0:
+        cost_for_gain = ecb
 
     if px is not None:
         mv = round(units * float(px), 2)

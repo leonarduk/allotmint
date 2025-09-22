@@ -35,7 +35,24 @@ _CACHE_TTL_SECONDS = max(
     _MIN_TTL,
     min(ttl_cfg, 7 * 24 * 60 * 60),
 )
-_CACHE: Dict[Tuple[str, str], Tuple[datetime, "Fundamentals"]] = {}
+_CACHE_OFFLINE: Dict[Tuple[str, str], bool] = {}
+
+
+class _CacheDict(dict):
+    def clear(self) -> None:  # type: ignore[override]
+        super().clear()
+        _CACHE_OFFLINE.clear()
+
+    def pop(self, key, default=None):  # type: ignore[override]
+        _CACHE_OFFLINE.pop(key, None)
+        return super().pop(key, default)
+
+    def __delitem__(self, key) -> None:  # type: ignore[override]
+        _CACHE_OFFLINE.pop(key, None)
+        super().__delitem__(key)
+
+
+_CACHE: Dict[Tuple[str, str], Tuple[datetime, "Fundamentals"]] = _CacheDict()
 
 
 class Fundamentals(BaseModel):
@@ -173,12 +190,18 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
     api_key = cfg.alpha_vantage_key or "demo"
 
     key = (ticker.upper(), date.today().isoformat())
+    offline_flag = bool(cfg.offline_mode)
     now = datetime.now(UTC)
 
-    if key in _CACHE:
-        cached_at, cached_value = _CACHE[key]
-        if now - cached_at < timedelta(seconds=_CACHE_TTL_SECONDS):
-            return cached_value
+    cached_entry = _CACHE.get(key)
+    cached_offline = _CACHE_OFFLINE.get(key)
+    if cached_entry is not None:
+        if cached_offline == offline_flag:
+            cached_at, cached_value = cached_entry
+            if now - cached_at < timedelta(seconds=_CACHE_TTL_SECONDS):
+                return cached_value
+        else:
+            _CACHE.pop(key, None)
 
     yahoo_result = None
     if not cfg.offline_mode:
@@ -189,10 +212,12 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
 
     if yahoo_result is not None:
         _CACHE[key] = (datetime.now(UTC), yahoo_result)
+        _CACHE_OFFLINE[key] = offline_flag
         return yahoo_result
 
     result = _fetch_fundamentals_from_alpha_vantage(ticker, api_key)
     _CACHE[key] = (datetime.now(UTC), result)
+    _CACHE_OFFLINE[key] = offline_flag
 
     return result
 

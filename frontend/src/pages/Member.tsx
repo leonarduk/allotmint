@@ -5,6 +5,7 @@ import { FixedSizeGrid as Grid } from "react-window";
 import { getOwners, getPortfolio } from "../api";
 import type { InstrumentSummary, OwnerSummary, Portfolio } from "../types";
 import InstrumentTile from "../components/InstrumentTile";
+import { InstrumentTable } from "../components/InstrumentTable";
 import SummaryBar from "../components/SummaryBar";
 import { PortfolioView } from "../components/PortfolioView";
 import { useRoute } from "../RouteContext";
@@ -14,6 +15,7 @@ export function Member() {
   const { owner: ownerParam } = useParams<{ owner?: string }>();
   const { selectedOwner, setSelectedOwner } = useRoute();
   const [retryNonce, setRetryNonce] = useState(0);
+  const [viewMode, setViewMode] = useState<"table" | "tiles">("table");
 
   const ownersReq = useFetchWithRetry<OwnerSummary[]>(getOwners, 500, 5, [retryNonce]);
 
@@ -93,9 +95,10 @@ export function Member() {
   const hasRenderableHoldings = Boolean(
     !loading && !error && portfolio && instruments.length > 0,
   );
+  const isTileView = viewMode === "tiles";
 
   useEffect(() => {
-    if (!hasRenderableHoldings) {
+    if (!hasRenderableHoldings || !isTileView) {
       setDimensions({ width: 0, height: 0 });
       return;
     }
@@ -110,7 +113,7 @@ export function Member() {
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasRenderableHoldings]);
+  }, [hasRenderableHoldings, isTileView]);
 
   const tileW = 250;
   const tileH = 160;
@@ -130,6 +133,10 @@ export function Member() {
 
     if (!portfolio || instruments.length === 0) {
       return <div>No holdings found.</div>;
+    }
+
+    if (!isTileView) {
+      return <InstrumentTable rows={instruments} />;
     }
 
     if (instruments.length > 200) {
@@ -191,7 +198,22 @@ export function Member() {
       <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
         <PortfolioView data={portfolio} loading={loading} error={error} />
         <div className="min-h-[200px] space-y-4">
-          <h2 className="text-lg font-semibold">Holdings</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Holdings</h2>
+            <label className="flex items-center gap-2 text-sm">
+              View:
+              <select
+                value={viewMode}
+                onChange={(event) =>
+                  setViewMode(event.target.value as "table" | "tiles")
+                }
+                className="rounded border px-2 py-1"
+              >
+                <option value="table">Table</option>
+                <option value="tiles">Tiles</option>
+              </select>
+            </label>
+          </div>
           {renderInstruments()}
         </div>
       </div>

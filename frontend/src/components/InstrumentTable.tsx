@@ -61,13 +61,92 @@ export function InstrumentTable({ rows }: Props) {
   const [pendingGroupTicker, setPendingGroupTicker] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
 
+  const exchanges = useMemo(() => {
+    const values = new Set<string>();
+    for (const row of rows) {
+      const exchange = row.exchange?.trim();
+      if (exchange) {
+        values.add(exchange);
+      }
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
+  const [selectedExchanges, setSelectedExchanges] = useState<string[]>(() => [...exchanges]);
+
+  useEffect(() => {
+    setSelectedExchanges((prev) => {
+      const prevSet = new Set(prev);
+      const availableSet = new Set(exchanges);
+      let changed = false;
+      const next: string[] = [];
+
+      for (const value of prev) {
+        if (availableSet.has(value)) {
+          next.push(value);
+        } else {
+          changed = true;
+        }
+      }
+
+      for (const value of exchanges) {
+        if (!prevSet.has(value)) {
+          next.push(value);
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [exchanges]);
+
+  const toggleExchangeSelection = (exchange: string) => {
+    setSelectedExchanges((prev) => {
+      const nextSet = new Set(prev);
+      if (nextSet.has(exchange)) {
+        nextSet.delete(exchange);
+      } else {
+        nextSet.add(exchange);
+      }
+
+      return exchanges.filter((value) => nextSet.has(value));
+    });
+  };
+
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const filteredRows = useMemo(
+    () => {
+      if (!rows.length) {
+        return [];
+      }
+      if (!exchanges.length) {
+        return rows;
+      }
+      if (!selectedExchanges.length) {
+        return [];
+      }
+      const selectedSet = new Set(selectedExchanges);
+      return rows.filter((row) => {
+        const exchange = row.exchange?.trim();
+        if (!exchange) {
+          return true;
+        }
+        return selectedSet.has(exchange);
+      });
+    },
+    [rows, exchanges, selectedExchanges],
+  );
+
   const rowsWithCost = useMemo<RowWithCost[]>(
     () =>
-      rows.map((r) => {
+      filteredRows.map((r) => {
         const cost = r.market_value_gbp - r.gain_gbp;
         const gain_pct =
           r.gain_pct !== undefined && r.gain_pct !== null
@@ -77,7 +156,7 @@ export function InstrumentTable({ rows }: Props) {
               : 0;
         return { ...r, cost, gain_pct };
       }),
-    [rows],
+    [filteredRows],
   );
 
   const { rows: sorted, sortKey, asc, handleSort } = useFilterableTable(
@@ -115,10 +194,11 @@ export function InstrumentTable({ rows }: Props) {
     setGroupOptions((prev) => mergeGroupOptions(prev, rows.map((r) => r.grouping ?? null)));
   }, [rows]);
 
-  if (!rowsWithCost.length) {
+  if (!rows.length) {
     return <p>{t('instrumentTable.noInstruments')}</p>;
   }
 
+  const noFilteredRows = rowsWithCost.length === 0;
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ['units', 'Units'],
     ['cost', 'Cost'],
@@ -127,6 +207,9 @@ export function InstrumentTable({ rows }: Props) {
     ['gain_pct', 'Gain %'],
   ];
 
+  const exchangeLabel = t('instrumentTable.exchangesLabel', {
+    defaultValue: 'Exchanges:',
+  });
   const assignmentLabel = t('instrumentTable.groupActions.placeholder', {
     defaultValue: 'Change…',
   });
@@ -142,6 +225,31 @@ export function InstrumentTable({ rows }: Props) {
       <div style={{ marginBottom: '0.5rem' }}>
         <RelativeViewToggle />
       </div>
+      {exchanges.length > 0 && (
+        <fieldset
+          style={{
+            marginBottom: '0.5rem',
+            border: 'none',
+            padding: 0,
+          }}
+        >
+          <legend>{exchangeLabel}</legend>
+          {exchanges.map((exchange) => {
+            const checkboxId = `instrument-table-exchange-${exchange}`;
+            return (
+              <label key={exchange} htmlFor={checkboxId} style={{ marginRight: '0.75rem' }}>
+                <input
+                  id={checkboxId}
+                  type="checkbox"
+                  checked={selectedExchanges.includes(exchange)}
+                  onChange={() => toggleExchangeSelection(exchange)}
+                />
+                {exchange}
+              </label>
+            );
+          })}
+        </fieldset>
+      )}
       <div style={{ marginBottom: '0.5rem' }}>
         Columns:
         {columnLabels.map(([key, label]) => (
@@ -155,7 +263,10 @@ export function InstrumentTable({ rows }: Props) {
           </label>
         ))}
       </div>
-      <table className={`${tableStyles.table} ${tableStyles.clickable}`} style={{ marginBottom: '0' }}>
+      {noFilteredRows ? (
+        <p>{t('instrumentTable.noInstruments')}</p>
+      ) : (
+        <table className={`${tableStyles.table} ${tableStyles.clickable}`} style={{ marginBottom: '0' }}>
         <thead>
           <tr>
             <th
@@ -538,7 +649,8 @@ export function InstrumentTable({ rows }: Props) {
             </tbody>
           );
         })}
-      </table>
+        </table>
+      )}
 
       {selected && (
         <InstrumentDetail

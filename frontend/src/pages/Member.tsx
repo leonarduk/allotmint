@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useParams } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { FixedSizeGrid as Grid } from "react-window";
 import { getOwners, getPortfolio } from "../api";
@@ -13,6 +20,7 @@ import useFetchWithRetry from "../hooks/useFetchWithRetry";
 
 export function Member() {
   const { owner: ownerParam } = useParams<{ owner?: string }>();
+  const navigate = useNavigate();
   const { selectedOwner, setSelectedOwner } = useRoute();
   const [retryNonce, setRetryNonce] = useState(0);
   const [viewMode, setViewMode] = useState<"table" | "tiles">("table");
@@ -24,12 +32,29 @@ export function Member() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!ownerParam) return;
-    setSelectedOwner((prev) => (prev === ownerParam ? prev : ownerParam));
-  }, [ownerParam, setSelectedOwner]);
+    const normalizedOwner = ownerParam ?? "";
+    if (selectedOwner !== normalizedOwner) {
+      setSelectedOwner(normalizedOwner);
+    }
+  }, [ownerParam, selectedOwner, setSelectedOwner]);
+
+  const owner = ownerParam ?? selectedOwner;
+
+  const handleOwnerChange = useCallback(
+    (newOwner: string) => {
+      if (newOwner === owner) return;
+      setSelectedOwner(newOwner);
+      navigate(newOwner ? `/member/${newOwner}` : "/member");
+    },
+    [navigate, owner, setSelectedOwner],
+  );
+
+  const handleRefresh = useCallback(() => {
+    setRetryNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => {
-    if (!selectedOwner) {
+    if (!owner) {
       setPortfolio(null);
       setLoading(false);
       setError(null);
@@ -40,7 +65,7 @@ export function Member() {
     setLoading(true);
     setError(null);
 
-    getPortfolio(selectedOwner)
+    getPortfolio(owner)
       .then((p) => {
         if (cancelled) return;
         setPortfolio(p);
@@ -64,7 +89,7 @@ export function Member() {
     return () => {
       cancelled = true;
     };
-  }, [selectedOwner, retryNonce]);
+  }, [owner, retryNonce]);
 
   const instruments: InstrumentSummary[] = useMemo(() => {
     if (!portfolio) return [];
@@ -119,7 +144,7 @@ export function Member() {
   const tileH = 160;
 
   const renderInstruments = (): ReactNode => {
-    if (!selectedOwner) {
+    if (!owner) {
       return <div>Select a member.</div>;
     }
 
@@ -188,14 +213,14 @@ export function Member() {
   };
 
   return (
-    <div className="p-4 md:p-8">
+    <div className="space-y-4 p-4 md:p-8">
       <SummaryBar
         owners={ownersReq.data ?? []}
-        owner={selectedOwner}
-        onOwnerChange={setSelectedOwner}
-        onRefresh={() => setRetryNonce((n) => n + 1)}
+        owner={owner}
+        onOwnerChange={handleOwnerChange}
+        onRefresh={handleRefresh}
       />
-      <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr),minmax(0,1fr)]">
         <PortfolioView data={portfolio} loading={loading} error={error} />
         <div className="min-h-[200px] space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">

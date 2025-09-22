@@ -1,7 +1,13 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useState, type ReactNode } from "react";
+import userEvent from "@testing-library/user-event";
 
 import MemberPage from "./Member";
 import type { Portfolio } from "../types";
@@ -223,5 +229,55 @@ describe("Member page", () => {
     expect(
       within(holdingsSection as HTMLElement).getByLabelText(/Relative view/i),
     ).toBeInTheDocument();
+  });
+
+  it("shows the owner selector and reloads when the selection changes", async () => {
+    mockedFetchWithRetry.mockReturnValue({
+      data: [
+        {
+          owner: "alice",
+          accounts: ["ISA"],
+        },
+        {
+          owner: "bob",
+          accounts: ["GIA"],
+        },
+      ],
+      loading: false,
+      error: null,
+      attempt: 0,
+      maxAttempts: 5,
+      unauthorized: false,
+    });
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/member/:owner",
+          element: <MemberPage />,
+        },
+      ],
+      { initialEntries: ["/member/alice"] },
+    );
+
+    const user = userEvent.setup();
+
+    render(
+      <TestProvider>
+        <RouterProvider router={router} />
+      </TestProvider>,
+    );
+
+    const ownerSelector = await screen.findByLabelText(/Owner/i);
+    expect(ownerSelector).toHaveValue("alice");
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("alice"));
+
+    await user.selectOptions(ownerSelector, "bob");
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/member/bob"),
+    );
   });
 });

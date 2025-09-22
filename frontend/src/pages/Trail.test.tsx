@@ -58,6 +58,10 @@ describe("Trail page", () => {
       .replace("{{completed}}", "1")
       .replace("{{total}}", "2")
       .replace("{{percent}}", "50");
+    const progressBar = await screen.findByRole("progressbar");
+    expect(progressBar).toHaveAttribute("aria-valuetext", progressText);
+    expect(progressBar).toHaveAttribute("aria-valuenow", "1");
+    expect(progressBar).toHaveAttribute("aria-valuemax", "2");
     expect(await screen.findByText(progressText)).toBeInTheDocument();
 
     expect(
@@ -65,6 +69,7 @@ describe("Trail page", () => {
     ).toBeInTheDocument();
 
     const streakText = i18n.t("trail.streakLabel", { count: 3 });
+    expect(screen.getByLabelText(streakText)).toBeInTheDocument();
     expect(screen.getByText(streakText)).toBeInTheDocument();
   });
 

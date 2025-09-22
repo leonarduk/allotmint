@@ -42,5 +42,7 @@ def test_trail_routes(tmp_path, monkeypatch, disable_auth):
 
         final_payload = payload
         assert final_payload["streak"] == 1
+        assert final_payload["xp"] == len(trail_module.DAILY_TASK_IDS) * trail_module.DAILY_XP_REWARD
         today = final_payload["today"]
         assert final_payload["daily_totals"][today]["completed"] == trail_module.DAILY_TASK_COUNT
+        assert final_payload["daily_totals"][today]["total"] == trail_module.DAILY_TASK_COUNT

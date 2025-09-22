@@ -36,6 +36,13 @@ export default function Trail() {
   const allDailyComplete =
     todaySummary.total > 0 && todaySummary.completed === todaySummary.total;
   const allTasksComplete = data.tasks.every((task) => task.completed);
+  const progressLabel = t("trail.progressLabel", {
+    completed: todaySummary.completed,
+    total: todaySummary.total,
+    percent,
+  });
+  const xpLabel = t("trail.xpLabel", { xp: data.xp });
+  const streakLabel = t("trail.streakLabel", { count: data.streak });
 
   const renderSection = (items: typeof data.tasks, label: string) => (
     <section>
@@ -86,6 +93,7 @@ export default function Trail() {
               aria-valuemin={0}
               aria-valuemax={todaySummary.total}
               aria-valuenow={todaySummary.completed}
+              aria-valuetext={progressLabel}
               style={{
                 background: "#f1f3f4",
                 borderRadius: "999px",
@@ -103,14 +111,10 @@ export default function Trail() {
               />
             </div>
             <div style={{ fontSize: "0.85rem", marginTop: "0.35rem" }}>
-              {t("trail.progressLabel", {
-                completed: todaySummary.completed,
-                total: todaySummary.total,
-                percent,
-              })}
+              {progressLabel}
             </div>
           </div>
-          <div style={{ fontWeight: 600 }}>{t("trail.xpLabel", { xp: data.xp })}</div>
+          <div style={{ fontWeight: 600 }}>{xpLabel}</div>
           <div
             style={{
               display: "inline-flex",
@@ -121,12 +125,12 @@ export default function Trail() {
               background: "#fde68a",
               fontWeight: 600,
             }}
-            aria-label={t("trail.streakLabel", { count: data.streak })}
+            aria-label={streakLabel}
           >
             <span role="img" aria-hidden="true">
               🔥
             </span>
-            <span>{t("trail.streakLabel", { count: data.streak })}</span>
+            <span>{streakLabel}</span>
           </div>
         </div>
         {(allDailyComplete || allTasksComplete) && (

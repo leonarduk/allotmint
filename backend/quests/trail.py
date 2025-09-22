@@ -78,16 +78,42 @@ _TRAIL_STORAGE = get_storage(os.getenv("TRAIL_URI", _DEFAULT_TRAIL_URI))
 _DATA: Dict[str, Dict] = {}
 
 
-def _ensure_user_data(user: str) -> Dict:
-    """Ensure the cached state for ``user`` has all expected keys."""
+def _ensure_user_data(user: str, *, persist: bool = False) -> Dict:
+    """Ensure the cached state for ``user`` has all expected keys.
+
+    Parameters
+    ----------
+    user:
+        Identifier of the user whose state should be normalised.
+    persist:
+        When ``True`` the storage layer is updated if new keys are added.
+    """
 
     user_data = _DATA.setdefault(user, {})
-    user_data.setdefault("once", [])
-    user_data.setdefault("daily", {})
-    user_data.setdefault("xp", 0)
-    user_data.setdefault("streak", 0)
-    user_data.setdefault("last_completed_day", "")
-    user_data.setdefault("daily_totals", {})
+    changed = False
+
+    if "once" not in user_data:
+        user_data["once"] = []
+        changed = True
+    if "daily" not in user_data:
+        user_data["daily"] = {}
+        changed = True
+    if "xp" not in user_data:
+        user_data["xp"] = 0
+        changed = True
+    if "streak" not in user_data:
+        user_data["streak"] = 0
+        changed = True
+    if "last_completed_day" not in user_data:
+        user_data["last_completed_day"] = ""
+        changed = True
+    if "daily_totals" not in user_data:
+        user_data["daily_totals"] = {}
+        changed = True
+
+    if persist and changed:
+        _save()
+
     return user_data
 
 
@@ -123,7 +149,7 @@ def get_tasks(user: str) -> Dict:
     """Return tasks and completion state for ``user``."""
     _load()
     today = date.today().isoformat()
-    user_data = _ensure_user_data(user)
+    user_data = _ensure_user_data(user, persist=True)
     daily_completed = set(user_data["daily"].get(today, []))
     once_completed = set(user_data.get("once", []))
     tasks = []
@@ -135,11 +161,14 @@ def get_tasks(user: str) -> Dict:
         )
         tasks.append({**task, "completed": completed})
 
+    if today not in user_data["daily_totals"]:
+        user_data["daily_totals"][today] = {
+            "completed": len(daily_completed),
+            "total": DAILY_TASK_COUNT,
+        }
+        _save()
+
     daily_totals = dict(user_data.get("daily_totals", {}))
-    daily_totals.setdefault(
-        today,
-        {"completed": len(daily_completed), "total": DAILY_TASK_COUNT},
-    )
 
     return {
         "tasks": tasks,

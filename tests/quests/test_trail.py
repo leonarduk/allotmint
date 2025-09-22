@@ -34,6 +34,30 @@ def test_get_tasks_returns_defaults(memory_storage):
     assert response["daily_totals"][response["today"]]["completed"] == 0
     assert response["daily_totals"][response["today"]]["total"] == trail.DAILY_TASK_COUNT
 
+    stored = memory_storage["alice"]
+    assert stored["xp"] == 0
+    assert stored["streak"] == 0
+    assert stored["daily_totals"][response["today"]]["completed"] == 0
+    assert stored["daily_totals"][response["today"]]["total"] == trail.DAILY_TASK_COUNT
+
+
+def test_get_tasks_upgrades_legacy_records(memory_storage):
+    today = date.today().isoformat()
+    memory_storage["erin"] = {"once": [], "daily": {}}
+
+    response = trail.get_tasks("erin")
+
+    assert response["xp"] == 0
+    assert response["streak"] == 0
+    assert response["daily_totals"][today]["completed"] == 0
+    assert response["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
+
+    stored = memory_storage["erin"]
+    assert stored["xp"] == 0
+    assert stored["streak"] == 0
+    assert stored["daily_totals"][today]["completed"] == 0
+    assert stored["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
+
 
 def test_get_tasks_with_completions(memory_storage):
     today = date.today().isoformat()
@@ -66,6 +90,7 @@ def test_mark_complete_records_once_and_daily(memory_storage):
     assert memory_storage[user]["daily"][today] == ["check_market"]
     assert result["xp"] == trail.DAILY_XP_REWARD
     assert result["daily_totals"][today]["completed"] == 1
+    assert memory_storage[user]["daily_totals"][today]["completed"] == 1
 
     result = trail.mark_complete(user, "check_market")
     assert memory_storage[user]["daily"][today] == ["check_market"]
@@ -74,6 +99,7 @@ def test_mark_complete_records_once_and_daily(memory_storage):
     result = trail.mark_complete(user, "create_goal")
     assert memory_storage[user]["once"] == ["create_goal"]
     assert result["xp"] == trail.DAILY_XP_REWARD + trail.ONCE_XP_REWARD
+    assert memory_storage[user]["xp"] == trail.DAILY_XP_REWARD + trail.ONCE_XP_REWARD
 
     result = trail.mark_complete(user, "create_goal")
     assert memory_storage[user]["once"] == ["create_goal"]
@@ -110,3 +136,5 @@ def test_mark_complete_updates_streak(memory_storage):
     assert response["xp"] == len(trail.DAILY_TASK_IDS) * trail.DAILY_XP_REWARD * 2
     assert response["daily_totals"][today_str]["completed"] == trail.DAILY_TASK_COUNT
     assert response["daily_totals"][today_str]["total"] == trail.DAILY_TASK_COUNT
+    assert memory_storage[user]["streak"] == 2
+    assert memory_storage[user]["daily_totals"][today_str]["completed"] == trail.DAILY_TASK_COUNT

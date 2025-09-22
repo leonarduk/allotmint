@@ -140,8 +140,7 @@ def create_app() -> FastAPI:
             from backend.common import instrument_api
 
             instrument_api.update_latest_prices_from_snapshot(snapshot)
-            price_task = asyncio.create_task(asyncio.to_thread(instrument_api.prime_latest_prices))
-            app.state.background_tasks.append(price_task)
+            await asyncio.to_thread(instrument_api.prime_latest_prices)
 
         task = refresh_snapshot_async(days=cfg.snapshot_warm_days)
         if isinstance(task, (asyncio.Task, asyncio.Future)):

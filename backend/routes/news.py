@@ -24,7 +24,16 @@ NEWS_TTL = 900  # seconds
 BASE_URL = "https://www.alphavantage.co/query"
 COUNTER_FILE: Path = page_cache.CACHE_DIR / "news_requests.json"
 
-NewsItem = Dict[str, str]
+
+
+def _make_news_item(headline: object, url: object) -> Dict[str, str] | None:
+    """Return a minimal news item when both ``headline`` and ``url`` are valid."""
+
+    clean_headline = _clean_str(headline)
+    clean_url = _clean_str(url)
+    if clean_headline and clean_url:
+        return {"headline": clean_headline, "url": clean_url}
+    return None
 
 
 def _load_counter() -> Dict[str, int]:
@@ -77,21 +86,20 @@ def _clean_str(value: object) -> Optional[str]:
     return None
 
 
-def _trim_payload(payload: Any) -> List[NewsItem]:
-    trimmed: List[NewsItem] = []
+def _trim_payload(payload: Any) -> List[Dict[str, str]]:
+    trimmed: List[Dict[str, str]] = []
     if not isinstance(payload, list):
         return trimmed
     for item in payload:
         if not isinstance(item, dict):
             continue
-        headline = _clean_str(item.get("headline"))
-        url = _clean_str(item.get("url"))
-        if headline and url:
-            trimmed.append({"headline": headline, "url": url})
+        news_item = _make_news_item(item.get("headline"), item.get("url"))
+        if news_item is not None:
+            trimmed.append(news_item)
     return trimmed
 
 
-def fetch_news_yahoo(ticker: str) -> List[NewsItem]:
+def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     """Fetch headlines from Yahoo Finance search API."""
 
     endpoint = cfg.yahoo_news_endpoint or "https://query1.finance.yahoo.com/v1/finance/search"
@@ -100,16 +108,15 @@ def fetch_news_yahoo(ticker: str) -> List[NewsItem]:
     resp.raise_for_status()
     data = resp.json()
     items = data.get("news", [])
-    out: List[NewsItem] = []
+    out: List[Dict[str, str]] = []
     for item in items:
-        title = _clean_str(item.get("title"))
-        link = _clean_str(item.get("link"))
-        if title and link:
-            out.append({"headline": title, "url": link})
+        news_item = _make_news_item(item.get("title"), item.get("link"))
+        if news_item is not None:
+            out.append(news_item)
     return out
 
 
-def fetch_news_google(ticker: str) -> List[NewsItem]:
+def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
     """Fetch headlines from Google Finance via RSS search."""
 
     endpoint = cfg.google_news_endpoint or "https://news.google.com/rss/search"
@@ -117,12 +124,11 @@ def fetch_news_google(ticker: str) -> List[NewsItem]:
     resp = requests.get(endpoint, params=params, timeout=10)
     resp.raise_for_status()
     root = ET.fromstring(resp.text)
-    out: List[NewsItem] = []
+    out: List[Dict[str, str]] = []
     for item in root.findall(".//item"):
-        title = _clean_str(item.findtext("title"))
-        link = _clean_str(item.findtext("link"))
-        if title and link:
-            out.append({"headline": title, "url": link})
+        news_item = _make_news_item(item.findtext("title"), item.findtext("link"))
+        if news_item is not None:
+            out.append(news_item)
     return out
 
 
@@ -149,7 +155,7 @@ def _parse_alpha_time(value: Optional[str]) -> Optional[str]:
     return _isoformat(dt)
 
 
-def _fetch_news(ticker: str) -> List[NewsItem]:
+def _fetch_news(ticker: str) -> List[Dict[str, str]]:
     """Fetch news from AlphaVantage with fallbacks to Yahoo and Google."""
 
     params = {
@@ -164,13 +170,12 @@ def _fetch_news(ticker: str) -> List[NewsItem]:
         data = resp.json()
         feed = data.get("feed") or []
         if feed:
-            enriched: List[NewsItem] = []
+            enriched: List[Dict[str, str]] = []
             for item in feed:
-                title = _clean_str(item.get("title"))
-                url = _clean_str(item.get("url"))
-                if not (title and url):
+                news_item = _make_news_item(item.get("title"), item.get("url"))
+                if news_item is None:
                     continue
-                enriched.append({"headline": title, "url": url})
+                enriched.append(news_item)
             if enriched:
                 return enriched
     except Exception as exc:  # pragma: no cover - defensive
@@ -193,9 +198,9 @@ def _fetch_news(ticker: str) -> List[NewsItem]:
 def get_cached_news(
     ticker: str,
     *,
-    cache_writer: Callable[[str, List[NewsItem]], None] | None = None,
+    cache_writer: Callable[[str, List[Dict[str, str]]], None] | None = None,
     raise_on_quota_exhausted: bool = False,
-) -> List[NewsItem]:
+) -> List[Dict[str, str]]:
     """Return cached or freshly fetched news for ``ticker``.
 
     The helper mirrors the caching and quota handling used by the ``/news``
@@ -212,7 +217,7 @@ def get_cached_news(
 
     page = f"news_{tkr}"
 
-    def _call() -> List[NewsItem]:
+    def _call() -> List[Dict[str, str]]:
         if not _try_consume_quota():
             raise RuntimeError("news quota exceeded")
         return _fetch_news(tkr)
@@ -260,7 +265,7 @@ def get_cached_news(
 async def get_news(
     background_tasks: BackgroundTasks,
     ticker: str = Query(..., min_length=1),
-) -> List[NewsItem]:
+) -> List[Dict[str, str]]:
     """Return recent news headlines for ``ticker``."""
 
     tkr = ticker.strip().upper()

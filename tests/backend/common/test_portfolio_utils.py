@@ -274,3 +274,37 @@ def test_aggregate_by_ticker_uses_shared_grouping(monkeypatch):
     assert rows_by_ticker["BBB.L"]["grouping"] == "USD"
     assert rows_by_ticker["CCC.L"]["grouping"] == "Europe"
     assert rows_by_ticker["DDD.L"]["grouping"] == "Unknown"
+
+
+def test_aggregate_by_ticker_prefers_cost_basis(monkeypatch):
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "EEE.L",
+                        "units": 1.0,
+                        "market_value_gbp": 110.0,
+                        "gain_gbp": 10.0,
+                        "cost_gbp": -100.0,
+                        "cost_basis_gbp": 100.0,
+                    }
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["cost_gbp"] == pytest.approx(100.0)
+    assert row["gain_gbp"] == pytest.approx(10.0)
+    assert row["gain_pct"] == pytest.approx(10.0)

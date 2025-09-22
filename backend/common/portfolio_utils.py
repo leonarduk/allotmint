@@ -571,7 +571,12 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                         row["grouping_id"] = grouping_id_value
 
             # attach snapshot if present
-            cost = _safe_num(h.get("cost_gbp") or h.get("cost_basis_gbp") or h.get("effective_cost_basis_gbp"))
+            cost_value = h.get("effective_cost_basis_gbp")
+            if cost_value is None:
+                cost_value = h.get("cost_basis_gbp")
+            if cost_value is None:
+                cost_value = h.get("cost_gbp")
+            cost = _safe_num(cost_value)
             row["cost_gbp"] += cost
 
             # if holdings already carry market value / gain, include them so we

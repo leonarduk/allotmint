@@ -172,10 +172,12 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         if now - cached_at < timedelta(seconds=_CACHE_TTL_SECONDS):
             return cached_value
 
-    try:
-        yahoo_result = _fetch_fundamentals_from_yahoo(ticker)
-    except Exception:
-        yahoo_result = None
+    yahoo_result = None
+    if not cfg.offline_mode:
+        try:
+            yahoo_result = _fetch_fundamentals_from_yahoo(ticker)
+        except Exception:
+            yahoo_result = None
 
     if yahoo_result is not None:
         _CACHE[key] = (datetime.now(UTC), yahoo_result)

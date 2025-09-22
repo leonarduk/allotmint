@@ -30,6 +30,39 @@ def make_client(tmp_path: Path, accounts_root: Any = _DEFAULT) -> TestClient:
     return TestClient(app, raise_server_exceptions=False)
 
 
+def configure_accounts_root_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, Path, Path, list[tuple[object, object]]]:
+    fallback_root = tmp_path / "fallback"
+    owner_dir = fallback_root / "bob"
+    owner_dir.mkdir(parents=True)
+    state_root = tmp_path / "state_configured"
+    state_root.mkdir()
+    default_missing = tmp_path / "default_missing"
+
+    calls: list[tuple[object, object]] = []
+
+    def fake_resolve_paths(repo_root: object, accounts_root: object) -> ResolvedPaths:
+        calls.append((repo_root, accounts_root))
+        if repo_root is None and accounts_root is None:
+            return ResolvedPaths(
+                repo_root=tmp_path / "fallback_repo",
+                accounts_root=fallback_root,
+                virtual_pf_root=tmp_path / "virtual_final",
+            )
+        return ResolvedPaths(
+            repo_root=tmp_path / "initial_repo",
+            accounts_root=default_missing,
+            virtual_pf_root=tmp_path / "virtual_initial",
+        )
+
+    monkeypatch.setattr(config, "repo_root", Path("/configured-root"))
+    monkeypatch.setattr(config, "accounts_root", Path("configured-accounts"))
+    monkeypatch.setattr(account_utils.data_loader, "resolve_paths", fake_resolve_paths)
+
+    return state_root, default_missing, owner_dir, calls
+
+
 def test_get_approvals_success(tmp_path: Path) -> None:
     (tmp_path / "bob").mkdir()
     (tmp_path / "bob" / "approvals.json").write_text(
@@ -96,31 +129,9 @@ def test_post_approval_request_owner_dir_case_insensitive(tmp_path: Path) -> Non
 def test_post_approval_request_accounts_root_fallback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fallback_root = tmp_path / "fallback"
-    owner_dir = fallback_root / "bob"
-    owner_dir.mkdir(parents=True)
-    state_root = tmp_path / "state_missing"
-    default_missing = tmp_path / "default_missing"
-
-    calls: list[tuple[object, object]] = []
-
-    def fake_resolve_paths(repo_root: object, accounts_root: object) -> ResolvedPaths:
-        calls.append((repo_root, accounts_root))
-        if repo_root is None and accounts_root is None:
-            return ResolvedPaths(
-                repo_root=tmp_path / "fallback_repo",
-                accounts_root=fallback_root,
-                virtual_pf_root=tmp_path / "virtual_final",
-            )
-        return ResolvedPaths(
-            repo_root=tmp_path / "initial_repo",
-            accounts_root=default_missing,
-            virtual_pf_root=tmp_path / "virtual_initial",
-        )
-
-    monkeypatch.setattr(config, "repo_root", Path("/configured-root"))
-    monkeypatch.setattr(config, "accounts_root", Path("configured-accounts"))
-    monkeypatch.setattr(account_utils.data_loader, "resolve_paths", fake_resolve_paths)
+    state_root, default_missing, owner_dir, calls = configure_accounts_root_fallback(
+        tmp_path, monkeypatch
+    )
 
     client = make_client(tmp_path, accounts_root=state_root)
     resp = client.post("/accounts/bob/approval-requests", json={"ticker": "adm.l"})
@@ -130,10 +141,7 @@ def test_post_approval_request_accounts_root_fallback(
     assert saved_path.exists()
     assert not (state_root / "bob" / "approval_requests.json").exists()
     assert not (default_missing / "bob" / "approval_requests.json").exists()
-    assert calls == [
-        (Path("/configured-root"), Path("configured-accounts")),
-        (None, None),
-    ]
+    assert calls == [(None, None)]
 
 
 @pytest.mark.parametrize(
@@ -164,6 +172,27 @@ def test_post_approval_success(tmp_path: Path) -> None:
     assert resp.json()["approvals"] == [
         {"ticker": "ADM.L", "approved_on": "2024-06-04"}
     ]
+
+
+def test_post_approval_accounts_root_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_root, default_missing, owner_dir, calls = configure_accounts_root_fallback(
+        tmp_path, monkeypatch
+    )
+
+    client = make_client(tmp_path, accounts_root=state_root)
+    resp = client.post(
+        "/accounts/bob/approvals", json={"ticker": "adm.l", "approved_on": "2024-06-04"}
+    )
+
+    assert resp.status_code == 200
+    saved_path = owner_dir / "approvals.json"
+    data = json.loads(saved_path.read_text())
+    assert data["approvals"][0]["ticker"] == "ADM.L"
+    assert not (state_root / "bob").exists()
+    assert not (default_missing / "bob").exists()
+    assert calls == [(None, None)]
 
 
 def test_post_approval_missing_owner(tmp_path: Path) -> None:
@@ -212,6 +241,32 @@ def test_delete_approval_route_nonexistent_ticker(tmp_path: Path) -> None:
     assert resp.json()["approvals"] == [
         {"ticker": "ADM.L", "approved_on": "2024-06-04"}
     ]
+
+
+def test_delete_approval_accounts_root_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_root, default_missing, owner_dir, calls = configure_accounts_root_fallback(
+        tmp_path, monkeypatch
+    )
+    saved_path = owner_dir / "approvals.json"
+    saved_path.write_text(
+        json.dumps(
+            {"approvals": [{"ticker": "ADM.L", "approved_on": "2024-06-04"}]},
+            indent=2,
+        )
+    )
+
+    client = make_client(tmp_path, accounts_root=state_root)
+    resp = client.request("DELETE", "/accounts/bob/approvals", json={"ticker": "ADM.L"})
+
+    assert resp.status_code == 200
+    data = json.loads(saved_path.read_text())
+    assert data["approvals"] == []
+    assert resp.json()["approvals"] == []
+    assert not (state_root / "bob").exists()
+    assert not (default_missing / "bob").exists()
+    assert calls == [(None, None)]
 
 
 def test_delete_approval_missing_owner(tmp_path: Path) -> None:

@@ -60,9 +60,10 @@ def _resolve_owner_dir(root: Path, owner: str) -> Path:
 @handle_owner_not_found
 async def get_approvals(owner: str, request: Request):
     root = resolve_accounts_root(request)
-    _resolve_owner_dir(root, owner)
+    owner_dir = _resolve_owner_dir(root, owner)
+    effective_root = owner_dir.parent
     try:
-        approvals = load_approvals(owner, root)
+        approvals = load_approvals(owner, effective_root)
     except FileNotFoundError:
         approvals = {}
     entries = [
@@ -111,7 +112,8 @@ async def post_approval(owner: str, request: Request):
         raise HTTPException(status_code=400, detail="invalid approved_on") from exc
     root = resolve_accounts_root(request)
     owner_dir = _resolve_owner_dir(root, owner)
-    approvals = upsert_approval(owner, ticker, approved_on, root)
+    effective_root = owner_dir.parent
+    approvals = upsert_approval(owner, ticker, approved_on, effective_root)
     entries = [
         {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
     ]
@@ -125,7 +127,8 @@ async def delete_approval_route(owner: str, request: Request):
     ticker = (data.get("ticker") or "").upper()
     root = resolve_accounts_root(request)
     owner_dir = _resolve_owner_dir(root, owner)
-    approvals = delete_approval(owner, ticker, root)
+    effective_root = owner_dir.parent
+    approvals = delete_approval(owner, ticker, effective_root)
     entries = [
         {"ticker": t, "approved_on": d.isoformat()} for t, d in approvals.items()
     ]

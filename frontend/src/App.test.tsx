@@ -481,7 +481,7 @@ describe("App", () => {
       "Market Overview",
       "Movers",
       "Instrument",
-      "Member",
+      "Portfolio",
       "Performance",
       "Transactions",
       "Trading",

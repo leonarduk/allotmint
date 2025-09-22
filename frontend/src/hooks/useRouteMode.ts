@@ -18,7 +18,7 @@ function deriveInitial() {
   const path = window.location.pathname.split("/").filter(Boolean);
   const params = new URLSearchParams(window.location.search);
   const mode: Mode =
-    path[0] === "member" ? "owner" :
+    path[0] === "portfolio" ? "owner" :
     path[0] === "instrument" ? "instrument" :
     path[0] === "transactions" ? "transactions" :
     path[0] === "performance" ? "performance" :
@@ -58,7 +58,7 @@ export function useRouteMode(): RouteState {
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":
-        return selectedOwner ? `/member/${selectedOwner}` : "/member";
+        return selectedOwner ? `/portfolio/${selectedOwner}` : "/portfolio";
       case "performance":
         return selectedOwner
           ? `/performance/${selectedOwner}`
@@ -85,7 +85,7 @@ export function useRouteMode(): RouteState {
     const params = new URLSearchParams(location.search);
     let newMode: Mode;
     switch (segs[0]) {
-      case "member":
+      case "portfolio":
         newMode = "owner";
         break;
       case "instrument":

@@ -540,7 +540,7 @@ export function InstrumentDetail({
               <tr key={`${pos.owner}-${pos.account}-${i}`}>
                 <td className={tableStyles.cell}>
                   <Link
-                    to={`/member/${encodeURIComponent(pos.owner)}`}
+                    to={`/portfolio/${encodeURIComponent(pos.owner)}`}
                     style={{ color: "#00d8ff", textDecoration: "none" }}
                   >
                     {pos.owner} – {pos.account}

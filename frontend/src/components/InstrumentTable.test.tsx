@@ -192,6 +192,18 @@ describe("InstrumentTable", () => {
         return tickers;
     };
 
+    const getGroupOrder = () =>
+        screen
+            .getAllByRole("button", { name: /^Toggle / })
+            .map((button) => {
+                const spans = button.querySelectorAll("span");
+                if (spans.length >= 2) {
+                    return spans[1]?.textContent ?? "";
+                }
+                const label = button.getAttribute("aria-label");
+                return label ? label.replace(/^Toggle\s+/, "") : "";
+            });
+
     it("renders groups collapsed by default with aggregated totals", () => {
         render(<InstrumentTable rows={rows} />);
         const table = screen.getByRole("table");
@@ -296,14 +308,18 @@ describe("InstrumentTable", () => {
 
     it("sorts by 7d change when header clicked", () => {
         render(<InstrumentTable rows={rows} />);
-        openGroup("Group A");
+        expect(getGroupOrder()).toEqual(["Group A", "Ungrouped", "Group B"]);
 
         const header = within(screen.getByRole("table")).getByRole("columnheader", { name: "7d %" });
         fireEvent.click(header);
+        expect(getGroupOrder()).toEqual(["Ungrouped", "Group A", "Group B"]);
+
+        openGroup("Group A");
         let tickers = getGroupTickers("Group A");
         expect(tickers[0]).toBe("XYZ");
 
         fireEvent.click(header);
+        expect(getGroupOrder()).toEqual(["Group B", "Group A", "Ungrouped"]);
         tickers = getGroupTickers("Group A");
         expect(tickers[0]).toBe("ABC");
     });

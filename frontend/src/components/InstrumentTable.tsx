@@ -44,6 +44,11 @@ type GroupedRows = {
 };
 
 const UNGROUPED_KEY = '__ungrouped__';
+const GROUP_SUMMARY_SORT_MAP: Partial<Record<keyof RowWithCost, keyof GroupTotals>> = {
+  change_7d_pct: 'change7dPct',
+  change_30d_pct: 'change30dPct',
+  gain_pct: 'gainPct',
+};
 
 export function InstrumentTable({ rows }: Props) {
   const { t } = useTranslation();
@@ -169,8 +174,8 @@ export function InstrumentTable({ rows }: Props) {
     defaultValue: 'Ungrouped',
   });
   const groups = useMemo<ReadonlyArray<GroupedRows>>(
-    () => createGroupedRows(sorted, ungroupedLabel),
-    [sorted, ungroupedLabel],
+    () => createGroupedRows(sorted, ungroupedLabel, sortKey, asc),
+    [sorted, ungroupedLabel, sortKey, asc],
   );
 
   useEffect(() => {
@@ -665,7 +670,12 @@ export function InstrumentTable({ rows }: Props) {
   );
 }
 
-function createGroupedRows(rows: RowWithCost[], ungroupedLabel: string): GroupedRows[] {
+function createGroupedRows(
+  rows: RowWithCost[],
+  ungroupedLabel: string,
+  sortKey: keyof RowWithCost,
+  asc: boolean,
+): GroupedRows[] {
   if (!rows.length) {
     return [];
   }
@@ -689,12 +699,28 @@ function createGroupedRows(rows: RowWithCost[], ungroupedLabel: string): Grouped
     group.rows.push(row);
   }
 
-  return ordered.map((group) => ({
+  const groups = ordered.map((group) => ({
     key: group.key,
     label: group.label,
     rows: group.rows,
     totals: calculateGroupTotals(group.rows),
   }));
+
+  const totalsKey = GROUP_SUMMARY_SORT_MAP[sortKey];
+  if (totalsKey) {
+    const toNumeric = (value: number | null | undefined) =>
+      typeof value === 'number' && Number.isFinite(value) ? value : 0;
+    groups.sort((a, b) => {
+      const va = toNumeric(a.totals[totalsKey]);
+      const vb = toNumeric(b.totals[totalsKey]);
+      if (va === vb) {
+        return 0;
+      }
+      return asc ? va - vb : vb - va;
+    });
+  }
+
+  return groups;
 }
 
 function sanitizeGroupKey(key: string): string {

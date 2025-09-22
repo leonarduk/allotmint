@@ -9,9 +9,14 @@ import {
   removeApproval,
 } from '../api';
 import type { Approval, OwnerSummary, UserConfig } from '../types';
+import { useAuth } from '../AuthContext';
+
+const AVATAR_PLACEHOLDER =
+  'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y&s=192';
 
 export default function UserConfigPage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [owner, setOwner] = useState('');
   const [cfg, setCfg] = useState<UserConfig>({});
@@ -107,6 +112,23 @@ export default function UserConfigPage() {
       <h1 className="text-2xl md:text-4xl">
         {t('userConfig.title', 'User Settings')}
       </h1>
+      {user && (
+        <div className="flex items-center space-x-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <img
+            src={user.picture || AVATAR_PLACEHOLDER}
+            alt={user.name || user.email || 'user avatar'}
+            width={96}
+            height={96}
+            className="h-24 w-24 flex-none rounded-full object-cover"
+          />
+          <div className="space-y-1">
+            {user.name && <div className="text-xl font-medium">{user.name}</div>}
+            {user.email && (
+              <div className="text-gray-700 dark:text-gray-200">{user.email}</div>
+            )}
+          </div>
+        </div>
+      )}
       <select
         className="w-full border p-2"
         value={owner}

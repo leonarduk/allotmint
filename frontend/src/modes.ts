@@ -11,7 +11,6 @@ export type Mode =
   | "instrumentadmin"
   | "dataadmin"
   | "settings"
-  | "profile"
   | "trail"
   | "support"
   | "scenario"
@@ -30,7 +29,6 @@ export const MODES: Mode[] = [
   "instrumentadmin",
   "dataadmin",
   "settings",
-  "profile",
   "trail",
   "support",
   "scenario",

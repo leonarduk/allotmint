@@ -42,7 +42,6 @@ import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
-import ProfilePage from "./pages/Profile";
 import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
 import { InstrumentSearchBar } from "./components/InstrumentSearchBar";
@@ -66,7 +65,6 @@ interface AppProps {
 
 type Mode =
   | (typeof orderedTabPlugins)[number]["id"]
-  | "profile"
   | "pension"
   | "market"
   | "rebalance";
@@ -102,8 +100,6 @@ const initialMode: Mode =
     ? "instrumentadmin"
     : path[0] === "dataadmin"
     ? "dataadmin"
-    : path[0] === "profile"
-    ? "profile"
     : path[0] === "support"
     ? "support"
     : path[0] === "tax-harvest"
@@ -177,9 +173,6 @@ export default function App({ onLogout }: AppProps) {
     switch (segs[0]) {
       case "member":
         newMode = "owner";
-        break;
-      case "profile":
-        newMode = "profile";
         break;
       case "instrument":
         newMode = "instrument";
@@ -365,6 +358,7 @@ export default function App({ onLogout }: AppProps) {
         ) : (
           <button
             type="button"
+            aria-expanded={showSearch}
             onClick={() => setShowSearch(true)}
             style={{
               marginLeft: "1rem",
@@ -497,7 +491,6 @@ export default function App({ onLogout }: AppProps) {
       {mode === "taxharvest" && <TaxHarvest />}
       {mode === "taxallowances" && <TaxAllowances />}
       {mode === "support" && <Support />}
-      {mode === "profile" && <ProfilePage />}
       {mode === "settings" && <UserConfigPage />}
       {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}

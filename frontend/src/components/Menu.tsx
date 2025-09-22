@@ -30,7 +30,13 @@ export default function Menu({
 
   const { focusMode, setFocusMode } = useFocusMode();
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    if (typeof window.matchMedia === 'function') {
+      return window.matchMedia('(min-width: 768px)').matches;
+    }
+    return window.innerWidth >= 768;
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     function handleFocus(e: FocusEvent) {
@@ -71,9 +77,7 @@ export default function Menu({
                           ? 'instrumentadmin'
                           : path[0] === 'dataadmin'
                             ? 'dataadmin'
-      : path[0] === 'profile'
-        ? 'profile'
-        : path[0] === 'virtual'
+      : path[0] === 'virtual'
           ? 'virtual'
           : path[0] === 'reports'
             ? 'reports'
@@ -131,8 +135,6 @@ export default function Menu({
         return '/rebalance';
       case 'instrumentadmin':
         return '/instrumentadmin';
-      case 'profile':
-        return '/profile';
       case 'pension':
         return '/pension/forecast';
       case 'taxharvest':

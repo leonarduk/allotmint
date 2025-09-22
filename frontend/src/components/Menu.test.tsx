@@ -1,11 +1,15 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import i18n from "../i18n";
 import Menu from "./Menu";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
 
 describe("Menu", () => {
+  beforeEach(() => {
+    window.innerWidth = 375;
+  });
+
   it("hides links by default and shows them after toggle", () => {
     render(
       <MemoryRouter>
@@ -81,7 +85,6 @@ describe("Menu", () => {
         virtual: true,
         support: false,
         settings: true,
-        profile: false,
         pension: true,
         reports: true,
         scenario: true,

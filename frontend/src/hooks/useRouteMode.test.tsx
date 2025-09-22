@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { vi } from "vitest";
+import { vi, describe, it, expect } from "vitest";
 vi.mock("../api", () => ({ getGroups: vi.fn().mockResolvedValue([]) }));
 import {
   configContext,
@@ -79,7 +79,6 @@ describe("useRouteMode", () => {
       virtual: false,
         support: false,
         settings: false,
-        profile: true,
         pension: false,
         scenario: false,
         reports: false,

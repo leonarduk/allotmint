@@ -29,7 +29,6 @@ export interface TabsConfig {
   virtual: boolean;
   support: boolean;
   settings: boolean;
-  profile: boolean;
   pension: boolean;
   trail: boolean;
   alertsettings: boolean;
@@ -79,7 +78,6 @@ const defaultTabs: TabsConfig = {
   virtual: true,
   support: true,
   settings: true,
-  profile: false,
   pension: true,
   trail: true,
   alertsettings: true,

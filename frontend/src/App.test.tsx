@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import i18n from "./i18n";
 
 const mockTradingSignals = vi.fn();
 
@@ -503,10 +504,7 @@ describe("App", () => {
   it("opens the research search bar and closes after navigating to a result", async () => {
     window.history.pushState({}, "", "/");
 
-    vi.useFakeTimers();
-    const user = userEvent.setup({
-      advanceTimers: vi.advanceTimersByTimeAsync,
-    });
+    const user = userEvent.setup();
 
     const searchInstruments = vi
       .fn()
@@ -537,48 +535,43 @@ describe("App", () => {
 
     const { default: App } = await import("./App");
 
-    try {
-      render(
-        <MemoryRouter initialEntries={["/"]}>
-          <App />
-        </MemoryRouter>,
-      );
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
 
-      const researchButton = await screen.findByRole("button", {
-        name: /Research/i,
-      });
+    const researchLabel = i18n.t("app.research");
+    const researchButton = screen.getByRole("button", {
+      name: researchLabel,
+    });
+    expect(researchButton).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(researchButton);
+
+    const searchInput = await screen.findByLabelText(/Search instruments/i);
+    await user.type(searchInput, "AA");
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    await waitFor(() => expect(searchInstruments).toHaveBeenCalledTimes(1));
+    expect(searchInstruments).toHaveBeenCalledWith(
+      "AA",
+      undefined,
+      undefined,
+      expect.anything(),
+    );
+
+    const result = await screen.findByText("AAA — Alpha Corp");
+    await user.click(result);
+
+    await waitFor(() => {
       expect(researchButton).toHaveAttribute("aria-expanded", "false");
+    });
 
-      await user.click(researchButton);
-
-      const searchInput = await screen.findByLabelText(/Search instruments/i);
-      await user.type(searchInput, "AA");
-
-      await vi.advanceTimersByTimeAsync(350);
-
-      await waitFor(() => expect(searchInstruments).toHaveBeenCalledTimes(1));
-      expect(searchInstruments).toHaveBeenCalledWith(
-        "AA",
-        undefined,
-        undefined,
-        expect.anything(),
-      );
-
-      const result = await screen.findByText("AAA — Alpha Corp");
-      await user.click(result);
-
-      await waitFor(() => {
-        expect(researchButton).toHaveAttribute("aria-expanded", "false");
-      });
-
-      await waitFor(() => {
-        expect(
-          screen.queryByLabelText(/Search instruments/i),
-        ).not.toBeInTheDocument();
-      });
-    } finally {
-      vi.useRealTimers();
-    }
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/Search instruments/i)).not.toBeInTheDocument();
+    });
   });
 
   it("renders the user avatar when logged in", async () => {

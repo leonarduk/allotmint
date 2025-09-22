@@ -981,13 +981,35 @@ export default function InstrumentResearch() {
             <div>
               <h2>News</h2>
               <ul>
-                {news.map((n, i) => (
-                  <li key={i}>
-                    <a href={n.url} target="_blank" rel="noopener noreferrer">
-                      {n.headline}
-                    </a>
-                  </li>
-                ))}
+                {news.map((n, i) => {
+                  const publishedDate = n.published_at
+                    ? new Date(n.published_at)
+                    : null;
+                  const formattedDate =
+                    publishedDate && !Number.isNaN(publishedDate.getTime())
+                      ? formatDateISO(publishedDate)
+                      : null;
+                  return (
+                    <li key={i}>
+                      <a href={n.url} target="_blank" rel="noopener noreferrer">
+                        {n.headline}
+                      </a>
+                      {(n.source || formattedDate) && (
+                        <div
+                          style={{
+                            fontSize: "0.875rem",
+                            color: "#666",
+                            marginTop: "0.25rem",
+                          }}
+                        >
+                          {n.source && <span>{n.source}</span>}
+                          {n.source && formattedDate ? " · " : null}
+                          {formattedDate && <span>{formattedDate}</span>}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

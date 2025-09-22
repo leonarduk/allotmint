@@ -23,11 +23,9 @@ describe("Menu", () => {
       "href",
       "/support",
     );
-    expect(screen.getByRole("link", { name: "Logs" })).toBeVisible();
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("link", { name: "Support" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Logs" })).not.toBeInTheDocument();
   });
 
   it("updates aria-expanded attribute when toggled", () => {
@@ -51,7 +49,6 @@ describe("Menu", () => {
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
-    expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
       "/",
@@ -85,7 +82,6 @@ describe("Menu", () => {
         pension: true,
         reports: true,
         scenario: true,
-        logs: true,
       },
       theme: "system",
       baseCurrency: "GBP",

@@ -44,7 +44,6 @@ const defaultConfig: ConfigContextValue = {
     pension: true,
     reports: true,
     scenario: true,
-    logs: true,
   },
   theme: "system",
   baseCurrency: "GBP",

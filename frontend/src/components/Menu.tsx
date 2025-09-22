@@ -91,11 +91,9 @@ export default function Menu({
                         ? 'settings'
                         : path[0] === 'scenario'
                           ? 'scenario'
-                          : path[0] === 'logs'
-                            ? 'logs'
-                            : path.length === 0
-                              ? 'group'
-                              : 'movers';
+                          : path.length === 0
+                            ? 'group'
+                            : 'movers';
 
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
   const inSupport = mode === 'support';
@@ -123,8 +121,6 @@ export default function Menu({
         return '/alert-settings';
       case 'settings':
         return '/settings';
-      case 'logs':
-        return '/logs';
       case 'allocation':
         return '/allocation';
       case 'rebalance':
@@ -173,11 +169,7 @@ export default function Menu({
           style={style}
         >
           {orderedTabPlugins
-            .filter(
-              (p) =>
-                p.section === (isSupportMode ? 'support' : 'user') ||
-                (supportEnabled && p.id === 'logs'),
-            )
+            .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
             .slice()
             .sort((a, b) => a.priority - b.priority)
             .filter((p) => {

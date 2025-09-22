@@ -35,8 +35,13 @@
       "reports": "Rapports",
       "alertsettings": "Alert Settings",
       "support": "Support",
-      "scenario": "Testeur de Scénario",
-    "logs": "Journaux"
+      "scenario": "Testeur de Scénario"
+    },
+    "logs": {
+      "title": "Journaux",
+      "refresh": "Actualiser les journaux",
+      "empty": "Aucun journal disponible.",
+      "error": "Impossible de charger les journaux."
     }
   },
   "trail": {

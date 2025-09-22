@@ -46,7 +46,6 @@ import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
 import { InstrumentSearchBar } from "./components/InstrumentSearchBar";
 import UserAvatar from "./components/UserAvatar";
-import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
 import Menu from "./components/Menu";
@@ -115,8 +114,6 @@ const initialMode: Mode =
     ? "reports"
     : path[0] === "scenario"
     ? "scenario"
-    : path[0] === "logs"
-    ? "logs"
     : path[0] === "pension"
     ? "pension"
     : path.length === 0
@@ -221,9 +218,6 @@ export default function App({ onLogout }: AppProps) {
         break;
       case "support":
         newMode = "support";
-        break;
-      case "logs":
-        newMode = "logs";
         break;
       case "pension":
         newMode = "pension";
@@ -359,24 +353,28 @@ export default function App({ onLogout }: AppProps) {
           onLogout={onLogout}
           style={{ margin: 0 }}
         />
-        {showSearch ? (
-          <InstrumentSearchBar onClose={() => setShowSearch(false)} />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowSearch(true)}
-            style={{
-              marginLeft: "1rem",
-              padding: "0.25rem 0.5rem",
-              borderRadius: "0.25rem",
-              border: "1px solid #ccc",
-              background: "#fff",
-              color: "#213547",
-              cursor: "pointer",
-            }}
-          >
-            {t("app.research")}
-          </button>
+        <button
+          type="button"
+          aria-expanded={showSearch ? "true" : "false"}
+          aria-controls="instrument-search"
+          onClick={() => setShowSearch(true)}
+          style={{
+            marginLeft: "1rem",
+            padding: "0.25rem 0.5rem",
+            borderRadius: "0.25rem",
+            border: "1px solid #ccc",
+            background: "#fff",
+            color: "#213547",
+            cursor: "pointer",
+          }}
+        >
+          {t("app.research")}
+        </button>
+        {showSearch && (
+          <InstrumentSearchBar
+            id="instrument-search"
+            onClose={() => setShowSearch(false)}
+          />
         )}
         {mode === "owner" && (
           <OwnerSelector
@@ -488,7 +486,6 @@ export default function App({ onLogout }: AppProps) {
       {mode === "support" && <Support />}
       {mode === "profile" && <ProfilePage />}
       {mode === "settings" && <UserConfigPage />}
-      {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}
       {mode === "pension" && <PensionForecast />}
       </main>

@@ -37,8 +37,7 @@
       "reports": "Reports",
       "alertsettings": "Alert Settings",
       "support": "Support",
-      "scenario": "Scenario Tester",
-      "logs": "Logs"
+      "scenario": "Scenario Tester"
     }
   },
   "trail": {
@@ -259,6 +258,12 @@
       "otherSwitches": "Other Switches",
       "otherParams": "Other parameters",
       "save": "Save"
+    },
+    "logs": {
+      "title": "Logs",
+      "refresh": "Refresh logs",
+      "empty": "No logs available.",
+      "error": "Failed to load logs."
     }
   },
   "alertSettings": {

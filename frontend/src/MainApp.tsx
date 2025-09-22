@@ -38,7 +38,6 @@ const DataAdmin = lazy(() => import("./pages/DataAdmin"));
 const InstrumentAdmin = lazy(() => import("./pages/InstrumentAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
-const LogsPage = lazy(() => import("./pages/Logs"));
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -297,7 +296,6 @@ export default function MainApp() {
       {mode === "watchlist" && <Watchlist />}
       {mode === "support" && <SupportPage />}
       {mode === "movers" && <TopMovers />}
-      {mode === "logs" && <LogsPage />}
       {mode === "scenario" && <ScenarioTester />}
     </>
   );

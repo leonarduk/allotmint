@@ -446,6 +446,10 @@ skipped_tickers.log
 virtual_portfolios/
 ```
 
+London-listed instruments now inherit a ``0.01`` scale factor when their
+metadata currency is ``GBX`` (pence). Update ``scaling_overrides.json`` only for
+edge cases where the automatic detection is incorrect.
+
 ## Tests
 
 Run Python and frontend test suites with:

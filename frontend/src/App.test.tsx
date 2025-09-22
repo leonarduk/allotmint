@@ -14,38 +14,79 @@ describe("App", () => {
     (globalThis as any).lastRefresh = null;
   });
 
-  it.skip("preselects group from URL", async () => {
-    window.history.pushState({}, "", "/instrument/kids");
+  it("loads the group slug from the URL", async () => {
+    window.history.pushState({}, "", "/?group=kids");
 
-    vi.mock("./api", () => ({
-      getOwners: vi.fn().mockResolvedValue([]),
-      getGroups: vi.fn().mockResolvedValue([
-        { slug: "family", name: "Family", members: [] },
-        { slug: "kids", name: "Kids", members: [] },
-      ]),
-      getGroupInstruments: vi.fn().mockResolvedValue([]),
-      getPortfolio: vi.fn(),
-      refreshPrices: vi.fn(),
+    const mockGetGroupPortfolio = vi.fn().mockResolvedValue({
+      name: "Kids",
+      slug: "kids",
+      accounts: [],
+      trades_this_month: 0,
+      trades_remaining: 0,
+    });
+    const mockGetGroupAlpha = vi
+      .fn()
+      .mockResolvedValue({ alpha_vs_benchmark: 0 });
+    const mockGetGroupTracking = vi.fn().mockResolvedValue({ tracking_error: 0 });
+    const mockGetGroupMaxDrawdown = vi
+      .fn()
+      .mockResolvedValue({ max_drawdown: 0 });
+    const mockGetGroupSector = vi.fn().mockResolvedValue([]);
+    const mockGetGroupRegion = vi.fn().mockResolvedValue([]);
+    const mockGetGroupMovers = vi
+      .fn()
+      .mockResolvedValue({ gainers: [], losers: [] });
+    const mockGetGroupInstruments = vi.fn().mockResolvedValue([]);
+
+    vi.mock("./api", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("./api")>();
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: vi.fn().mockResolvedValue([
+          { slug: "family", name: "Family", members: [] },
+          { slug: "kids", name: "Kids", members: [] },
+        ]),
+        getGroupPortfolio: mockGetGroupPortfolio,
+        getGroupAlphaVsBenchmark: mockGetGroupAlpha,
+        getGroupTrackingError: mockGetGroupTracking,
+        getGroupMaxDrawdown: mockGetGroupMaxDrawdown,
+        getGroupSectorContributions: mockGetGroupSector,
+        getGroupRegionContributions: mockGetGroupRegion,
+        getGroupMovers: mockGetGroupMovers,
+        getGroupInstruments: mockGetGroupInstruments,
+        getPortfolio: vi.fn(),
+        refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
-        getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
         getTimeseries: vi.fn(),
         saveTimeseries: vi.fn(),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
-      }));
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
 
     const { default: App } = await import("./App");
 
     render(
-      <MemoryRouter initialEntries={["/instrument/kids"]}>
+      <MemoryRouter initialEntries={["/?group=kids"]}>
         <App />
       </MemoryRouter>,
     );
 
-    const select = await screen.findByLabelText(/group/i, {
-      selector: "select",
+    await waitFor(() => expect(mockGetGroupPortfolio).toHaveBeenCalled());
+    expect(mockGetGroupPortfolio).toHaveBeenCalledWith("kids");
+    expect(mockGetGroupMovers).toHaveBeenCalledWith("kids", 1, 5, 0);
+    expect(mockGetGroupInstruments).toHaveBeenCalledWith("kids", {
+      account: undefined,
+      owner: undefined,
     });
-    expect(select).toHaveValue("kids");
   });
 
   it("renders timeseries editor when path is /timeseries", async () => {

@@ -40,8 +40,15 @@
     }
   },
   "trail": {
-    "daily": "Daily",
-    "once": "Once"
+    "daily": "Täglich",
+    "once": "Einmalig",
+    "xp_total": "XP: {{count}}",
+    "streak_label": "Serie",
+    "streak_none": "Noch keine Serie",
+    "streak_value": "{{count}}-Tage-Serie",
+    "progress_label": "Heutiger Fortschritt",
+    "progress_summary": "{{completed}} von {{total}} abgeschlossen ({{percent}} %)",
+    "all_complete": "Alle täglichen Aufgaben erledigt! 🎉"
   },
   "common": {
     "error": "Fehler",

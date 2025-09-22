@@ -21,6 +21,8 @@ if config.disable_auth:
             tasks = trail.mark_complete("demo", task_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
+        if isinstance(tasks, dict):
+            return tasks
         return {"tasks": tasks}
 
 else:
@@ -37,4 +39,6 @@ else:
             tasks = trail.mark_complete(current_user, task_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
+        if isinstance(tasks, dict):
+            return tasks
         return {"tasks": tasks}

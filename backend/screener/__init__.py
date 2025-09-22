@@ -68,6 +68,9 @@ class Fundamentals(BaseModel):
     avg_volume: Optional[int] = None
 
 
+_FUNDAMENTAL_FIELDS = tuple(f for f in Fundamentals.model_fields if f != "ticker")
+
+
 def _parse_float(value: Optional[str]) -> Optional[float]:
     try:
         return float(value) if value not in (None, "None", "") else None
@@ -187,11 +190,32 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         except Exception:
             yahoo_result = None
 
-    if yahoo_result is not None:
-        _CACHE[key] = (datetime.now(UTC), yahoo_result)
-        return yahoo_result
+    needs_alpha = yahoo_result is None
+    if yahoo_result is not None and not needs_alpha:
+        needs_alpha = any(getattr(yahoo_result, field) is None for field in _FUNDAMENTAL_FIELDS)
 
-    result = _fetch_fundamentals_from_alpha_vantage(ticker, api_key)
+    alpha_result = None
+    alpha_error: Optional[Exception] = None
+    if needs_alpha:
+        try:
+            alpha_result = _fetch_fundamentals_from_alpha_vantage(ticker, api_key)
+        except Exception as exc:
+            alpha_error = exc
+            alpha_result = None
+
+    if alpha_result is not None and yahoo_result is not None:
+        merged = yahoo_result.model_dump()
+        merged.update(alpha_result.model_dump(exclude_none=True))
+        result = Fundamentals(**merged)
+    elif alpha_result is not None:
+        result = alpha_result
+    elif yahoo_result is not None:
+        result = yahoo_result
+    else:
+        if alpha_error is not None:
+            raise alpha_error
+        result = _fetch_fundamentals_from_alpha_vantage(ticker, api_key)
+
     _CACHE[key] = (datetime.now(UTC), result)
 
     return result

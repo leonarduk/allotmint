@@ -26,6 +26,9 @@ from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 logger = logging.getLogger(__name__)
 
 
+_ORIGINAL_COST_BASIS_KEY = "_original_cost_basis_gbp"
+
+
 # ───────────── helpers ─────────────
 def _parse_date(val) -> Optional[dt.date]:
     if val is None:
@@ -277,7 +280,6 @@ def get_effective_cost_basis_gbp(
         exchange = "L"
         logger.debug("Could not resolve exchange for %s; defaulting to L", full)
     scale = get_scaling_override(ticker, exchange, None)
-
     booked_raw = h.get(COST_BASIS_GBP)
     try:
         booked = float(booked_raw) if booked_raw is not None else 0.0
@@ -285,6 +287,10 @@ def get_effective_cost_basis_gbp(
         booked = 0.0
     if booked > 0:
         scaled = round(booked * scale, 2)
+        if scale != 1 and abs(scaled - booked) > 0.005:
+            h[_ORIGINAL_COST_BASIS_KEY] = round(booked, 2)
+        else:
+            h.pop(_ORIGINAL_COST_BASIS_KEY, None)
         h[COST_BASIS_GBP] = scaled
         return scaled
 
@@ -465,7 +471,15 @@ def enrich_holding(
     out[EFFECTIVE_COST_BASIS_GBP] = ecb
 
     # Choose cost for gains: prefer booked cost if present, else effective
-    cost_for_gain = float(out.get(EFFECTIVE_COST_BASIS_GBP) or 0.0) or ecb
+    cost_for_gain = None
+    original_cost = out.get(_ORIGINAL_COST_BASIS_KEY)
+    if original_cost is not None:
+        try:
+            cost_for_gain = float(original_cost)
+        except (TypeError, ValueError):
+            cost_for_gain = None
+    if cost_for_gain is None or cost_for_gain <= 0:
+        cost_for_gain = float(out.get(EFFECTIVE_COST_BASIS_GBP) or 0.0) or ecb
 
     units = float(out.get(UNITS, 0) or 0)
 
@@ -526,6 +540,7 @@ def enrich_holding(
 
     # provenance
     out["cost_basis_source"] = "book" if float(out.get(COST_BASIS_GBP) or 0.0) > 0 else "derived"
+    out.pop(_ORIGINAL_COST_BASIS_KEY, None)
 
     return out
 

@@ -669,7 +669,18 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
       {instrumentLoading && !instrumentRows && (
         <p>{t("common.loading")}</p>
       )}
-      {instrumentRows && <InstrumentTable rows={instrumentRows} />}
+      {instrumentRows && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            width: "100%",
+          }}
+        >
+          <InstrumentTable rows={instrumentRows} />
+        </div>
+      )}
     </div>
   );
 }

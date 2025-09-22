@@ -593,7 +593,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
 const SAMPLE_PATH_VALUES: Record<string, string> = {
   owner: 'demo',
   account: 'isa',
-  user: 'user@example.com',
+  user: 'demo',
   email: 'user@example.com',
   id: '1',
   vp_id: '1',

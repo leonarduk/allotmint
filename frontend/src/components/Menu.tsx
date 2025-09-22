@@ -46,7 +46,7 @@ export default function Menu({
 
   let mode: TabPluginId;
   switch (path[0]) {
-    case 'member':
+    case 'portfolio':
       mode = 'owner';
       break;
     case 'instrument':
@@ -124,7 +124,7 @@ export default function Menu({
       case 'instrument':
         return selectedGroup ? `/instrument/${selectedGroup}` : '/instrument';
       case 'owner':
-        return selectedOwner ? `/member/${selectedOwner}` : '/member';
+        return selectedOwner ? `/portfolio/${selectedOwner}` : '/portfolio';
       case 'performance':
         return selectedOwner ? `/performance/${selectedOwner}` : '/performance';
       case 'movers':

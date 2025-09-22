@@ -15,7 +15,7 @@
     "modes": {
       "group": "Gruppe",
       "instrument": "Instrument",
-      "owner": "Mitglied",
+      "owner": "Portfolio",
       "performance": "Leistung",
       "transactions": "Transaktionen",
       "trading": "Handel",

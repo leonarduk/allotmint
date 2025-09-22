@@ -455,7 +455,7 @@ describe("App", () => {
       "Market Overview",
       "Movers",
       "Instrument",
-      "Member",
+      "Portfolio",
       "Performance",
       "Transactions",
       "Trading",
@@ -469,8 +469,7 @@ describe("App", () => {
       "Alert Settings",
       "User Settings",
       "Pension Forecast",
-      "Tax Harvest",
-      "Tax Allowances",
+      "Tax Tools",
       "Scenario Tester",
       "Support",
     ]);

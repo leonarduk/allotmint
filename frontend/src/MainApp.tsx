@@ -121,7 +121,7 @@ export default function MainApp() {
     if (mode === "owner" && !selectedOwner && owners.length) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
-      navigate(`/member/${owner}`, { replace: true });
+      navigate(`/portfolio/${owner}`, { replace: true });
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
@@ -249,7 +249,7 @@ export default function MainApp() {
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);
-              navigate(`/member/${owner}`);
+              navigate(`/portfolio/${owner}`);
             }}
             onTradeInfo={(info) =>
               setTradeInfo(

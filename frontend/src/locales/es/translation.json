@@ -15,7 +15,7 @@
     "modes": {
       "group": "Grupo",
       "instrument": "Instrumento",
-      "owner": "Miembro",
+      "owner": "Portafolio",
       "performance": "Rendimiento",
       "transactions": "Transacciones",
       "trading": "Trading",
@@ -204,7 +204,7 @@
     "select": "Seleccione un grupo."
   },
   "dashboard": {
-    "selectMember": "Seleccione un miembro.",
+    "selectMember": "Seleccione un portafolio.",
     "range": "Rango:",
     "rangeOptions": {
       "1w": "1S",

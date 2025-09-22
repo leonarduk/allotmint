@@ -41,7 +41,6 @@ import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
-import ProfilePage from "./pages/Profile";
 import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
 import { InstrumentSearchBar } from "./components/InstrumentSearchBar";
@@ -63,7 +62,6 @@ interface AppProps {
 
 type Mode =
   | (typeof orderedTabPlugins)[number]["id"]
-  | "profile"
   | "pension"
   | "market"
   | "rebalance";
@@ -99,8 +97,6 @@ const initialMode: Mode =
     ? "instrumentadmin"
     : path[0] === "dataadmin"
     ? "dataadmin"
-    : path[0] === "profile"
-    ? "profile"
     : path[0] === "support"
     ? "support"
     : path[0] === "tax-tools"
@@ -170,9 +166,6 @@ export default function App({ onLogout }: AppProps) {
     switch (segs[0]) {
       case "member":
         newMode = "owner";
-        break;
-      case "profile":
-        newMode = "profile";
         break;
       case "instrument":
         newMode = "instrument";
@@ -423,7 +416,7 @@ export default function App({ onLogout }: AppProps) {
       )}
 
       {/* GROUP VIEW */}
-      {mode === "group" && groups.length > 0 && (
+      {mode === "group" && selectedGroup && (
         <>
           <ComplianceWarnings
             owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
@@ -475,9 +468,8 @@ export default function App({ onLogout }: AppProps) {
       {mode === "market" && <MarketOverview />}
       {mode === "movers" && <TopMovers />}
       {mode === "reports" && <Reports />}
-        {mode === "taxtools" && <TaxTools />}
+      {mode === "taxtools" && <TaxTools />}
       {mode === "support" && <Support />}
-      {mode === "profile" && <ProfilePage />}
       {mode === "settings" && <UserConfigPage />}
       {mode === "scenario" && <ScenarioTester />}
       {mode === "pension" && <PensionForecast />}

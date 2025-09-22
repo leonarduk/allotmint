@@ -77,12 +77,11 @@ describe("useRouteMode", () => {
       instrumentadmin: false,
       dataadmin: false,
       virtual: false,
-        support: false,
-        settings: false,
-        profile: true,
-        pension: false,
-        scenario: false,
-        reports: false,
+      support: false,
+      settings: false,
+      pension: false,
+      scenario: false,
+      reports: false,
     };
 
     const config: ConfigContextValue = {

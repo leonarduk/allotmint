@@ -15,8 +15,8 @@ import {
   getGroupSectorContributions,
   getGroupRegionContributions,
   getGroupInstruments,
-  getCachedGroupInstruments,
 } from "../api";
+import * as api from "../api";
 import { InstrumentTable } from "./InstrumentTable";
 import { TopMoversSummary } from "./TopMoversSummary";
 import { money, percent, percentOrNa } from "../lib/money";
@@ -99,7 +99,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   const instrumentKeyRef = useRef<string | null>(null);
 
   const loadGroupInstruments =
-    getCachedGroupInstruments ?? getGroupInstruments;
+    api.getCachedGroupInstruments ?? getGroupInstruments;
 
   useEffect(() => {
     setActiveOwner(null);

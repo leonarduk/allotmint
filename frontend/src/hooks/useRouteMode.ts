@@ -29,7 +29,6 @@ function deriveInitial() {
     path[0] === "movers" ? "movers" :
     path[0] === "instrumentadmin" ? "instrumentadmin" :
     path[0] === "dataadmin" ? "dataadmin" :
-    path[0] === "profile" ? "profile" :
     path[0] === "trail" ? "trail" :
     path[0] === "support" ? "support" :
     path[0] === "scenario" ? "scenario" :
@@ -74,8 +73,6 @@ export function useRouteMode(): RouteState {
         return "/settings";
       case "instrumentadmin":
         return "/instrumentadmin";
-      case "profile":
-        return "/profile";
       case "trail":
         return "/trail";
       default:
@@ -120,9 +117,6 @@ export function useRouteMode(): RouteState {
         break;
       case "dataadmin":
         newMode = "dataadmin";
-        break;
-      case "profile":
-        newMode = "profile";
         break;
       case "trail":
         newMode = "trail";

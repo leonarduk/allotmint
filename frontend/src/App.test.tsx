@@ -37,16 +37,19 @@ describe("App", () => {
       .fn()
       .mockResolvedValue({ gainers: [], losers: [] });
     const mockGetGroupInstruments = vi.fn().mockResolvedValue([]);
+    const mockGetGroups = vi.fn().mockResolvedValue([
+      { slug: "family", name: "Family", members: [] },
+      { slug: "kids", name: "Kids", members: [] },
+    ]);
+    mockGetGroupPortfolio.mockName("getGroupPortfolio");
+    mockGetGroups.mockName("getGroups");
 
-    vi.mock("./api", async (importOriginal) => {
-      const actual = await importOriginal<typeof import("./api")>();
+    vi.doMock("./api", async () => {
+      const actual = await vi.importActual<typeof import("./api")>("./api");
       return {
         ...actual,
         getOwners: vi.fn().mockResolvedValue([]),
-        getGroups: vi.fn().mockResolvedValue([
-          { slug: "family", name: "Family", members: [] },
-          { slug: "kids", name: "Kids", members: [] },
-        ]),
+        getGroups: mockGetGroups,
         getGroupPortfolio: mockGetGroupPortfolio,
         getGroupAlphaVsBenchmark: mockGetGroupAlpha,
         getGroupTrackingError: mockGetGroupTracking,
@@ -55,6 +58,8 @@ describe("App", () => {
         getGroupRegionContributions: mockGetGroupRegion,
         getGroupMovers: mockGetGroupMovers,
         getGroupInstruments: mockGetGroupInstruments,
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
         getPortfolio: vi.fn(),
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
@@ -82,20 +87,33 @@ describe("App", () => {
 
     await waitFor(() => expect(mockGetGroupPortfolio).toHaveBeenCalled());
     expect(mockGetGroupPortfolio).toHaveBeenCalledWith("kids");
-    expect(mockGetGroupMovers).toHaveBeenCalledWith("kids", 1, 5, 0);
-    expect(mockGetGroupInstruments).toHaveBeenCalledWith("kids", {
-      account: undefined,
-      owner: undefined,
-    });
+    await waitFor(() =>
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("kids", 1, 5, 0),
+    );
+    await waitFor(() =>
+      expect(mockGetGroupInstruments).toHaveBeenCalledWith("kids", {
+        account: undefined,
+        owner: undefined,
+      }),
+    );
   });
 
   it("renders timeseries editor when path is /timeseries", async () => {
     window.history.pushState({}, "", "/timeseries?ticker=ABC&exchange=L");
 
-    vi.mock("./api", () => ({
+    vi.doMock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getGroupPortfolio: vi
+        .fn()
+        .mockResolvedValue({
+          name: "Default",
+          slug: "",
+          accounts: [],
+          trades_this_month: 0,
+          trades_remaining: 0,
+        }),
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -108,6 +126,7 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      getCachedGroupInstruments: undefined,
     }));
 
     const { default: App } = await import("./App");
@@ -205,7 +224,6 @@ describe("App", () => {
       virtual: true,
       support: true,
       settings: true,
-      profile: true,
       pension: true,
       reports: true,
       scenario: true,
@@ -284,7 +302,6 @@ describe("App", () => {
       virtual: true,
       support: true,
       settings: true,
-      profile: true,
       pension: true,
       reports: true,
       scenario: true,
@@ -411,7 +428,7 @@ describe("App", () => {
     mockTradingSignals.mockResolvedValue([]);
     const user = userEvent.setup();
 
-    vi.mock("./api", () => ({
+    vi.doMock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
@@ -431,6 +448,14 @@ describe("App", () => {
       listTimeseries: vi.fn().mockResolvedValue([]),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      getGroupAlphaVsBenchmark: vi
+        .fn()
+        .mockResolvedValue({ alpha_vs_benchmark: 0 }),
+      getGroupTrackingError: vi.fn().mockResolvedValue({ tracking_error: 0 }),
+      getGroupMaxDrawdown: vi.fn().mockResolvedValue({ max_drawdown: 0 }),
+      getGroupSectorContributions: vi.fn().mockResolvedValue([]),
+      getGroupRegionContributions: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
     }));
 
     const { default: App } = await import("./App");
@@ -469,8 +494,7 @@ describe("App", () => {
       "Alert Settings",
       "User Settings",
       "Pension Forecast",
-      "Tax Harvest",
-      "Tax Allowances",
+      "Tax Tools",
       "Scenario Tester",
       "Support",
     ]);

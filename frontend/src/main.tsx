@@ -25,7 +25,6 @@ const Support = lazy(() => import('./pages/Support'))
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
 const TradeCompliance = lazy(() => import('./pages/TradeCompliance'))
 const InstrumentResearch = lazy(() => import('./pages/InstrumentResearch'))
-const Profile = lazy(() => import('./pages/Profile'))
 const Alerts = lazy(() => import('./pages/Alerts'))
 const Goals = lazy(() => import('./pages/Goals'))
 const Trail = lazy(() => import('./pages/Trail'))
@@ -81,7 +80,6 @@ export function Root() {
           <Route path="/trade-compliance" element={<TradeCompliance />} />
           <Route path="/trade-compliance/:owner" element={<TradeCompliance />} />
           <Route path="/research/:ticker" element={<InstrumentResearch />} />
-          <Route path="/profile" element={<Profile />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/alert-settings" element={<AlertSettings />} />
           <Route path="/goals" element={<Goals />} />

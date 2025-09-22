@@ -34,6 +34,22 @@ def test_get_effective_cost_basis_gbp_booked_cost():
     assert holding_utils.get_effective_cost_basis_gbp(holding, {}) == 123.45
 
 
+def test_get_effective_cost_basis_gbp_updates_booked_cost_when_scaled(monkeypatch):
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda full, cache: (full.split(".")[0], "L"),
+    )
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *args, **kwargs: 0.5)
+
+    holding = {TICKER: "ABC.L", UNITS: 10, COST_BASIS_GBP: 123.45}
+
+    assert holding_utils.get_effective_cost_basis_gbp(holding, {}) == 61.73
+    assert holding[COST_BASIS_GBP] == 61.73
+
+
 def test_get_effective_cost_basis_gbp_derived(monkeypatch):
     def fake_derived(ticker, exchange, acq, cache):
         return 2.0

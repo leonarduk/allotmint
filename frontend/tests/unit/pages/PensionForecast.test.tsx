@@ -94,14 +94,22 @@ describe("PensionForecast page", () => {
     const ownerSelect = await within(form).findByLabelText(/owner/i);
     await userEvent.selectOptions(ownerSelect, "beth");
 
-    const careerPath = within(form).getByLabelText(/career path/i);
+    const nowPanel = screen.getByRole("region", {
+      name: /adjust the plan to match your life today/i,
+    });
+    const nowWithin = within(nowPanel);
+    const careerPath = nowWithin.getByLabelText(/career path/i) as HTMLInputElement;
+    expect(careerPath).toHaveAttribute("aria-valuetext", "Balanced pace");
     fireEvent.change(careerPath, { target: { value: "2" } });
+    expect(careerPath).toHaveAttribute("aria-valuetext", "Accelerated path");
 
     fireEvent.change(ownerSelect, { target: { value: "beth" } });
-    const monthlySavings = within(form).getByLabelText(/monthly savings/i);
+    const monthlySavings = nowWithin.getByLabelText(/monthly savings/i);
     fireEvent.change(monthlySavings, { target: { value: "100" } });
 
-    const monthlySpending = within(form).getByLabelText(/monthly spending in retirement/i);
+    const monthlySpending = nowWithin.getByLabelText(
+      /monthly spending in retirement/i,
+    );
     fireEvent.change(monthlySpending, { target: { value: "3000" } });
 
     const btn = screen.getByRole("button", { name: /forecast/i });

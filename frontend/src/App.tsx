@@ -55,6 +55,9 @@ import RightRail from "./components/RightRail";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
+const InstrumentResearch = lazyWithDelay(
+  () => import("./pages/InstrumentResearch"),
+);
 
 interface AppProps {
   onLogout?: () => void;
@@ -64,7 +67,8 @@ type Mode =
   | (typeof orderedTabPlugins)[number]["id"]
   | "pension"
   | "market"
-  | "rebalance";
+  | "rebalance"
+  | "research";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -107,6 +111,8 @@ const initialMode: Mode =
     ? "reports"
     : path[0] === "scenario"
     ? "scenario"
+    : path[0] === "research"
+    ? "research"
     : path[0] === "pension"
     ? "pension"
     : path.length === 0
@@ -129,6 +135,10 @@ export default function App({ onLogout }: AppProps) {
   );
   const [selectedGroup, setSelectedGroup] = useState(
     initialMode === "instrument" ? initialSlug : params.get("group") ?? ""
+  );
+
+  const [researchTicker, setResearchTicker] = useState(
+    initialMode === "research" ? decodeURIComponent(initialSlug) : ""
   );
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -208,6 +218,9 @@ export default function App({ onLogout }: AppProps) {
       case "support":
         newMode = "support";
         break;
+      case "research":
+        newMode = "research";
+        break;
       case "pension":
         newMode = "pension";
         break;
@@ -244,6 +257,8 @@ export default function App({ onLogout }: AppProps) {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
       setSelectedGroup(params.get("group") ?? "");
+    } else if (newMode === "research") {
+      setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? "") : "");
     }
   }, [location.pathname, location.search, tabs, navigate]);
 
@@ -449,6 +464,11 @@ export default function App({ onLogout }: AppProps) {
       {mode === "support" && <Support />}
       {mode === "settings" && <UserConfigPage />}
       {mode === "scenario" && <ScenarioTester />}
+      {mode === "research" && (
+        <Suspense fallback={<p>{t("app.loading")}</p>}>
+          <InstrumentResearch ticker={researchTicker} />
+        </Suspense>
+      )}
       {mode === "pension" && <PensionForecast />}
       </main>
       <Defer>

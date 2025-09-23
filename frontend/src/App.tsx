@@ -47,6 +47,7 @@ import InstrumentSearchBarToggle from "./components/InstrumentSearchBar";
 import UserAvatar from "./components/UserAvatar";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
+import InstrumentResearch from "./pages/InstrumentResearch";
 import Menu from "./components/Menu";
 import Rebalance from "./pages/Rebalance";
 import PensionForecast from "./pages/PensionForecast";
@@ -64,7 +65,8 @@ type Mode =
   | (typeof orderedTabPlugins)[number]["id"]
   | "pension"
   | "market"
-  | "rebalance";
+  | "rebalance"
+  | "research";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -109,6 +111,8 @@ const initialMode: Mode =
     ? "scenario"
     : path[0] === "pension"
     ? "pension"
+    : path[0] === "research"
+    ? "research"
     : path.length === 0
     ? "group"
     : "movers";
@@ -129,6 +133,9 @@ export default function App({ onLogout }: AppProps) {
   );
   const [selectedGroup, setSelectedGroup] = useState(
     initialMode === "instrument" ? initialSlug : params.get("group") ?? ""
+  );
+  const [researchTicker, setResearchTicker] = useState(
+    initialMode === "research" ? initialSlug : ""
   );
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -223,6 +230,9 @@ export default function App({ onLogout }: AppProps) {
       case "scenario":
         newMode = "scenario";
         break;
+      case "research":
+        newMode = "research";
+        break;
       default:
         newMode = segs.length === 0 ? "group" : "movers";
     }
@@ -244,6 +254,8 @@ export default function App({ onLogout }: AppProps) {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
       setSelectedGroup(params.get("group") ?? "");
+    } else if (newMode === "research") {
+      setResearchTicker(segs[1] ?? "");
     }
   }, [location.pathname, location.search, tabs, navigate]);
 
@@ -416,6 +428,8 @@ export default function App({ onLogout }: AppProps) {
           {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
         </>
       )}
+
+      {mode === "research" && <InstrumentResearch ticker={researchTicker} />}
 
       {/* PERFORMANCE VIEW */}
       {mode === "performance" && (

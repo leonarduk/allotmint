@@ -32,6 +32,7 @@ function deriveInitial() {
     path[0] === "trail" ? "trail" :
     path[0] === "support" ? "support" :
     path[0] === "scenario" ? "scenario" :
+    path[0] === "research" ? "research" :
     path.length === 0 ? "group" : "movers";
   const slug = path[1] ?? "";
   const owner = mode === "owner" ? slug : "";
@@ -129,6 +130,9 @@ export function useRouteMode(): RouteState {
         break;
       case "scenario":
         newMode = "scenario";
+        break;
+      case "research":
+        newMode = "research";
         break;
       default:
         newMode = segs.length === 0 ? "group" : "movers";

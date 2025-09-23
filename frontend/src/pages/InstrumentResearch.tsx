@@ -36,8 +36,13 @@ function normaliseUppercase(value: unknown) {
   return trimmed || undefined;
 }
 
-export default function InstrumentResearch() {
-  const { ticker } = useParams<{ ticker: string }>();
+interface InstrumentResearchProps {
+  ticker?: string;
+}
+
+export default function InstrumentResearch({ ticker: tickerProp }: InstrumentResearchProps = {}) {
+  const params = useParams<{ ticker: string }>();
+  const ticker = tickerProp ?? params.ticker ?? "";
   const [metrics, setMetrics] = useState<ScreenerResult | null>(null);
   const [days, setDays] = useState(30);
   const [showBollinger, setShowBollinger] = useState(false);

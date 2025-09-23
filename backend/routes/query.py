@@ -14,7 +14,7 @@ from typing import List, Optional
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import compute_var, get_security_meta
@@ -42,12 +42,6 @@ class CustomQuery(BaseModel):
     name: Optional[str] = None
     format: Optional[str] = Field("json", pattern="^(json|csv|xlsx)$")
 
-    @model_validator(mode="after")
-    def _check_targets(self):
-        if not self.owners and not self.tickers:
-            raise ValueError("owners or tickers must be supplied")
-        return self
-
 
 def _slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
@@ -57,16 +51,18 @@ def _resolve_tickers(q: CustomQuery) -> List[str]:
     tickers: set[str] = set()
     if q.tickers:
         tickers.update(t.upper() for t in q.tickers)
-    if q.owners:
-        owners = {o.lower() for o in q.owners}
-        for pf in list_portfolios():
-            if pf.get("owner", "").lower() not in owners:
-                continue
-            for acct in pf.get("accounts", []):
-                for h in acct.get("holdings", []):
-                    t = (h.get("ticker") or "").upper()
-                    if t:
-                        tickers.add(t)
+
+    owners_filter = {o.lower() for o in q.owners} if q.owners else None
+    for pf in list_portfolios():
+        owner_slug = (pf.get("owner") or "").lower()
+        if owners_filter is not None and owner_slug not in owners_filter:
+            continue
+        for acct in pf.get("accounts", []):
+            for h in acct.get("holdings", []):
+                t = (h.get("ticker") or "").upper()
+                if t:
+                    tickers.add(t)
+
     return sorted(tickers)
 
 
@@ -145,7 +141,7 @@ def _load_query_s3(slug: str) -> dict:
 async def run_query(q: CustomQuery):
     tickers = _resolve_tickers(q)
     if not tickers:
-        raise HTTPException(400, "No tickers found for query")
+        return {"results": []}
 
     rows = []
     for t in tickers:

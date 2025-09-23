@@ -25,6 +25,8 @@ export default function PensionForecast() {
   const [contributionMonthly, setContributionMonthly] = useState<string>("");
   const [desiredIncome, setDesiredIncome] = useState<string>("");
   const [investmentGrowthPct, setInvestmentGrowthPct] = useState(5);
+  const [employerContributionMonthly, setEmployerContributionMonthly] =
+    useState<string>("");
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
   const [pensionPot, setPensionPot] = useState<number | null>(null);
@@ -41,6 +43,12 @@ export default function PensionForecast() {
   const [desiredIncomeUsed, setDesiredIncomeUsed] = useState<number | null>(
     null,
   );
+  const [monthlyContributionUsed, setMonthlyContributionUsed] = useState<
+    number | null
+  >(null);
+  const [employerContributionMonthlyUsed, setEmployerContributionMonthlyUsed] =
+    useState<number | null>(null);
+  const [additionalPensionCount, setAdditionalPensionCount] = useState(0);
   const [err, setErr] = useState<string | null>(null);
   const { t } = useTranslation();
 
@@ -76,15 +84,26 @@ export default function PensionForecast() {
       .catch(() => setOwners([]));
   }, []);
 
+  const parseOptionalNumber = (value: string) => {
+    if (value.trim() === "") {
+      return undefined;
+    }
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  };
+
+  const handleAddAnotherPension = () => {
+    setAdditionalPensionCount((count) => count + 1);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const contributionMonthlyVal = contributionMonthly
-        ? parseFloat(contributionMonthly)
-        : undefined;
-      const contributionAnnualVal = contributionAnnual
-        ? parseFloat(contributionAnnual)
-        : undefined;
+      const contributionMonthlyVal = parseOptionalNumber(contributionMonthly);
+      const contributionAnnualVal = parseOptionalNumber(contributionAnnual);
+      const employerContributionMonthlyVal = parseOptionalNumber(
+        employerContributionMonthly,
+      );
       const res = await getPensionForecast({
         owner,
         deathAge,
@@ -113,6 +132,20 @@ export default function PensionForecast() {
           ? res.desired_income_annual
           : null,
       );
+      setMonthlyContributionUsed(
+        contributionMonthlyVal !== undefined
+          ? contributionMonthlyVal
+          : contributionAnnualVal !== undefined
+            ? contributionAnnualVal / 12
+            : res.contribution_annual != null
+              ? res.contribution_annual / 12
+              : null,
+      );
+      setEmployerContributionMonthlyUsed(
+        res.employer_contribution_monthly != null
+          ? res.employer_contribution_monthly
+          : employerContributionMonthlyVal ?? null,
+      );
       setErr(null);
     } catch (ex: any) {
       setErr(String(ex));
@@ -121,8 +154,57 @@ export default function PensionForecast() {
       setRetirementIncomeBreakdown(null);
       setRetirementIncomeTotal(null);
       setDesiredIncomeUsed(null);
+      setMonthlyContributionUsed(null);
+      setEmployerContributionMonthlyUsed(null);
     }
   };
+
+  const contributionMonthlyNumber = parseOptionalNumber(contributionMonthly);
+  const contributionAnnualNumber = parseOptionalNumber(contributionAnnual);
+  const employerContributionMonthlyNumber = parseOptionalNumber(
+    employerContributionMonthly,
+  );
+
+  const monthlyContributionDisplay =
+    monthlyContributionUsed ??
+    (contributionMonthlyNumber !== undefined
+      ? contributionMonthlyNumber
+      : contributionAnnualNumber !== undefined
+        ? contributionAnnualNumber / 12
+        : null);
+
+  const employerContributionDisplay =
+    employerContributionMonthlyUsed ??
+    (employerContributionMonthlyNumber !== undefined
+      ? employerContributionMonthlyNumber
+      : null);
+
+  const summaryItems = [
+    {
+      key: "pension-pot",
+      label: t("pensionForecast.summary.pensionPotLabel"),
+      value:
+        pensionPot != null
+          ? currencyFormatter.format(pensionPot)
+          : "—",
+    },
+    {
+      key: "user-contribution",
+      label: t("pensionForecast.summary.userContributionLabel"),
+      value:
+        monthlyContributionDisplay != null
+          ? currencyFormatter.format(monthlyContributionDisplay)
+          : "—",
+    },
+    {
+      key: "employer-contribution",
+      label: t("pensionForecast.summary.employerContributionLabel"),
+      value:
+        employerContributionDisplay != null
+          ? currencyFormatter.format(employerContributionDisplay)
+          : "—",
+    },
+  ];
 
   const breakdownConfig: Array<{
     key: keyof PensionIncomeBreakdown;
@@ -221,6 +303,38 @@ export default function PensionForecast() {
   return (
     <div>
       <h1 className="mb-4 text-2xl md:text-4xl">Pension Forecast</h1>
+      <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {t("pensionForecast.summary.heading")}
+            </h2>
+            <p className="text-sm text-slate-600">
+              {t("pensionForecast.summary.addedPensions", {
+                count: additionalPensionCount,
+              })}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            onClick={handleAddAnotherPension}
+          >
+            {t("pensionForecast.summary.addAnotherPension")}
+          </button>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          {summaryItems.map((item) => (
+            <div
+              key={item.key}
+              className="rounded border border-white bg-white px-4 py-3 shadow-sm"
+            >
+              <p className="text-sm text-slate-600">{item.label}</p>
+              <p className="text-xl font-semibold">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
       <form onSubmit={handleSubmit} className="mb-4 space-y-2">
         <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
         <div>
@@ -260,6 +374,17 @@ export default function PensionForecast() {
             type="number"
             value={contributionMonthly}
             onChange={(e) => setContributionMonthly(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mr-2" htmlFor="employer-contribution-monthly">
+            {t("pensionForecast.employerContributionMonthly")}
+          </label>
+          <input
+            id="employer-contribution-monthly"
+            type="number"
+            value={employerContributionMonthly}
+            onChange={(e) => setEmployerContributionMonthly(e.target.value)}
           />
         </div>
         <div>

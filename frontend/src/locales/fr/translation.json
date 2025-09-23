@@ -199,6 +199,16 @@
     "pensionPot": "Pot de pension",
     "growthAssumption": "Hypothèse de croissance (%):",
     "monthlyContribution": "Contribution mensuelle (£):",
+    "employerContributionMonthly": "Contribution employeur (£/mois):",
+    "summary": {
+      "heading": "Aperçu de votre retraite",
+      "pensionPotLabel": "Pot de pension actuel",
+      "userContributionLabel": "Votre contribution mensuelle",
+      "employerContributionLabel": "Contribution employeur",
+      "addAnotherPension": "Ajouter une autre pension",
+      "addedPensions": "Pensions ajoutées : {{count}}",
+      "addedPensions_plural": "Pensions ajoutées : {{count}}"
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

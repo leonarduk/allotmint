@@ -199,6 +199,16 @@
     "pensionPot": "Fondo pensione",
     "growthAssumption": "Ipotesi di crescita (%):",
     "monthlyContribution": "Contributo mensile (£):",
+    "employerContributionMonthly": "Contributo del datore di lavoro (£/mese):",
+    "summary": {
+      "heading": "Panoramica della tua pensione",
+      "pensionPotLabel": "Fondo pensione attuale",
+      "userContributionLabel": "Il tuo contributo mensile",
+      "employerContributionLabel": "Contributo del datore di lavoro",
+      "addAnotherPension": "Aggiungi un'altra pensione",
+      "addedPensions": "Pensioni aggiunte: {{count}}",
+      "addedPensions_plural": "Pensioni aggiunte: {{count}}"
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

@@ -1165,6 +1165,7 @@ export interface PensionForecastResponse {
   contribution_annual?: number | null;
   desired_income_annual?: number | null;
   annuity_multiple_used?: number | null;
+  employer_contribution_monthly?: number | null;
 }
 
 export const getPensionForecast = ({

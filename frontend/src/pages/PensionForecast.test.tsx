@@ -79,11 +79,17 @@ describe("PensionForecast page", () => {
       },
       retirement_income_total_annual: 15000,
       desired_income_annual: 14000,
+      employer_contribution_monthly: 80,
     });
 
     const { default: PensionForecast } = await import("./PensionForecast");
 
     renderWithI18n(<PensionForecast />);
+
+    expect(
+      await screen.findByRole("button", { name: /add another pension/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Added pensions: 0")).toBeInTheDocument();
 
     await screen.findByText("beth");
     const form = document.querySelector("form")!;
@@ -96,6 +102,8 @@ describe("PensionForecast page", () => {
     fireEvent.change(ownerSelect, { target: { value: "beth" } });
     const monthly = within(form).getByLabelText(/monthly contribution/i);
     fireEvent.change(monthly, { target: { value: "100" } });
+    const employer = within(form).getByLabelText(/employer contribution/i);
+    fireEvent.change(employer, { target: { value: "75" } });
 
     const btn = screen.getByRole("button", { name: /forecast/i });
     await userEvent.click(btn);
@@ -118,6 +126,12 @@ describe("PensionForecast page", () => {
         "You're on track: projected income of £15,000.00 meets your desired £14,000.00 from age 64.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Your pension overview")).toBeInTheDocument();
+    expect(screen.getByText("Current pension pot")).toBeInTheDocument();
+    expect(screen.getByText("Your monthly contribution")).toBeInTheDocument();
+    expect(screen.getByText("Employer contribution")).toBeInTheDocument();
+    expect(screen.getByText("£100.00")).toBeInTheDocument();
+    expect(screen.getByText("£80.00")).toBeInTheDocument();
     expect(screen.getByText("State pension")).toBeInTheDocument();
     expect(screen.getByText("Defined benefit")).toBeInTheDocument();
     expect(screen.getByText("Defined contribution")).toBeInTheDocument();
@@ -165,6 +179,37 @@ describe("PensionForecast page", () => {
     await screen.findByText(
       "Projected income leaves a shortfall of £5,000.00 per year (£416.67 per month) against your desired £12,000.00.",
     );
+  });
+
+  it("increments added pension count from the summary banner", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 30,
+      retirement_age: 65,
+      dob: "1990-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("./PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    await screen.findByText("alex");
+
+    const addButton = screen.getByRole("button", {
+      name: /add another pension/i,
+    });
+    expect(screen.getByText("Added pensions: 0")).toBeInTheDocument();
+
+    await userEvent.click(addButton);
+
+    expect(screen.getByText("Added pensions: 1")).toBeInTheDocument();
   });
 });
 

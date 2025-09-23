@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import inspect
 import logging
 from datetime import date, timedelta
 from typing import Any, Dict, Optional
@@ -505,7 +506,28 @@ def enrich_holding(
     out["last_price_time"] = last_price_time
     out["is_stale"] = is_stale
 
-    ecb = get_effective_cost_basis_gbp(out, price_cache, price_hint=px)
+    helper = get_effective_cost_basis_gbp
+    pass_price_hint = False
+    try:
+        signature = inspect.signature(helper)
+    except (TypeError, ValueError):
+        signature = None
+
+    if signature is not None:
+        params = signature.parameters
+        if "price_hint" in params:
+            pass_price_hint = True
+        else:
+            pass_price_hint = any(
+                param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values()
+            )
+    if pass_price_hint:
+        ecb = helper(out, price_cache, price_hint=px)
+    else:
+        try:
+            ecb = helper(out, price_cache, price_hint=px)
+        except TypeError:
+            ecb = helper(out, price_cache)
     out[EFFECTIVE_COST_BASIS_GBP] = ecb
 
     try:

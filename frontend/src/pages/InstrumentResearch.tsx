@@ -22,10 +22,19 @@ function normaliseUppercase(value: unknown) {
   return trimmed || undefined;
 }
 
-export default function InstrumentResearch() {
-  const { ticker } = useParams<{ ticker: string }>();
+type InstrumentResearchProps = {
+  ticker?: string;
+};
+
+export default function InstrumentResearch({ ticker }: InstrumentResearchProps) {
+  const { ticker: routeTicker } = useParams<{ ticker: string }>();
   const { t } = useTranslation();
-  const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
+  const resolvedTicker =
+    typeof ticker === "string" && ticker ? ticker : routeTicker ?? "";
+  const tkr =
+    resolvedTicker && /^[A-Za-z0-9.-]{1,10}$/.test(resolvedTicker)
+      ? resolvedTicker
+      : "";
   const tickerParts = tkr.split(".", 2);
   const baseTicker = tickerParts[0] ?? "";
   const initialExchange = tickerParts.length > 1 ? tickerParts[1] ?? "" : "";

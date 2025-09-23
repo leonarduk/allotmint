@@ -220,6 +220,19 @@
       "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
       "earliest": "Estimated earliest retirement age: {{age}}",
       "noBreakdown": "No income breakdown available."
+    },
+    "employerContributionLabel": "Contributo del datore di lavoro",
+    "header": {
+      "kicker": "Panoramica della tua pensione",
+      "heading": "Tieni traccia dei contributi a colpo d’occhio",
+      "pensionPot": "Montante pensionistico attuale",
+      "employeeContribution": "Il tuo contributo mensile",
+      "employerContribution": "Contributo del datore di lavoro",
+      "totalContribution": "Contributi mensili totali: {{total}}",
+      "addAnother": "Aggiungi un'altra pensione",
+      "additionalPensions_one": "{{count}} pensione aggiuntiva collegata",
+      "additionalPensions_other": "{{count}} pensioni aggiuntive collegate",
+      "notAvailable": "Non disponibile"
     }
   },
   "group": {

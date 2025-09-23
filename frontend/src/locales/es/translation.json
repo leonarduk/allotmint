@@ -220,6 +220,19 @@
       "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
       "earliest": "Estimated earliest retirement age: {{age}}",
       "noBreakdown": "No income breakdown available."
+    },
+    "employerContributionLabel": "Aportación del empleador",
+    "header": {
+      "kicker": "Resumen de tu pensión",
+      "heading": "Controla tus aportaciones de un vistazo",
+      "pensionPot": "Fondo de pensión actual",
+      "employeeContribution": "Tu aportación mensual",
+      "employerContribution": "Aportación del empleador",
+      "totalContribution": "Aportaciones mensuales totales: {{total}}",
+      "addAnother": "Añadir otra pensión",
+      "additionalPensions_one": "{{count}} pensión adicional vinculada",
+      "additionalPensions_other": "{{count}} pensiones adicionales vinculadas",
+      "notAvailable": "No disponible"
     }
   },
   "group": {
@@ -414,16 +427,16 @@
     "grouping": "Agrupación",
     "actions": "Actions",
     "add": "Add Instrument",
-  "save": "Save",
-  "saveSuccess": "Saved",
-  "saveError": "Error saving",
-  "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required",
-    "grouping": "Grouping is required"
-  }
-},
+    "save": "Save",
+    "saveSuccess": "Saved",
+    "saveError": "Error saving",
+    "searchPlaceholder": "Filter instruments…",
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required",
+      "grouping": "Grouping is required"
+    }
+  },
   "var": {
     "title": "Valor en Riesgo",
     "details": "Detalles de la simulación histórica",

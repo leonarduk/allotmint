@@ -40,6 +40,10 @@ describe("PensionForecast page", () => {
       current_age: 30,
       retirement_age: 65,
       dob: "1990-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
     });
 
     const { default: PensionForecast } = await import("./PensionForecast");
@@ -67,6 +71,14 @@ describe("PensionForecast page", () => {
       current_age: 30,
       retirement_age: 65,
       dob: "1990-01-01",
+      earliest_retirement_age: 64,
+      retirement_income_breakdown: {
+        state_pension_annual: 9000,
+        defined_benefit_annual: 4000,
+        defined_contribution_annual: 2000,
+      },
+      retirement_income_total_annual: 15000,
+      desired_income_annual: 14000,
     });
 
     const { default: PensionForecast } = await import("./PensionForecast");
@@ -100,6 +112,59 @@ describe("PensionForecast page", () => {
     await screen.findByText(/birth date: 1990-01-01/i);
     await screen.findByText(/pension pot: £123.00/i);
     await screen.findByText(/projected pot at 65: £323.00/i);
+    await screen.findByText("Retirement income breakdown");
+    expect(
+      screen.getByText(
+        "You're on track: projected income of £15,000.00 meets your desired £14,000.00 from age 64.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("State pension")).toBeInTheDocument();
+    expect(screen.getByText("Defined benefit")).toBeInTheDocument();
+    expect(screen.getByText("Defined contribution")).toBeInTheDocument();
+    expect(screen.getByText("£9,000.00")).toBeInTheDocument();
+    expect(screen.getByText("£750.00")).toBeInTheDocument();
+    expect(screen.getByText("60%", { exact: false })).toBeInTheDocument();
+    expect(
+      screen.getByText("Total annual income: £15,000.00", { exact: true }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Total monthly income: £1,250.00", { exact: true }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows shortfall insight when desired income is not met", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 50,
+      pension_pot_gbp: 25,
+      current_age: 40,
+      retirement_age: 67,
+      dob: "1984-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: {
+        state_pension_annual: 6000,
+        defined_benefit_annual: 0,
+        defined_contribution_annual: 1000,
+      },
+      retirement_income_total_annual: 7000,
+      desired_income_annual: 12000,
+    });
+
+    const { default: PensionForecast } = await import("./PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const desired = within(form).getByLabelText(/desired income/i);
+    fireEvent.change(desired, { target: { value: "12000" } });
+
+    const btn = screen.getByRole("button", { name: /forecast/i });
+    await userEvent.click(btn);
+
+    await screen.findByText(
+      "Projected income leaves a shortfall of £5,000.00 per year (£416.67 per month) against your desired £12,000.00.",
+    );
   });
 });
 

@@ -133,3 +133,18 @@ def test_forecast_pension_scenario() -> None:
     assert incomes == [0.0, 5000.0, 14000.0, 16000.0, 16000.0]
     assert result["projected_pot_gbp"] == pytest.approx(15059.2)
     assert result["earliest_retirement_age"] == 34
+    assert result["retirement_income_breakdown"]["state_pension_annual"] == pytest.approx(
+        9000
+    )
+    assert result["retirement_income_breakdown"]["defined_benefit_annual"] == pytest.approx(
+        5000
+    )
+    assert result["retirement_income_breakdown"]["defined_contribution_annual"] == pytest.approx(
+        752.96,
+        rel=1e-4,
+    )
+    assert result["retirement_income_total_annual"] == pytest.approx(14752.96, rel=1e-4)
+    assert result["state_pension_annual"] == pytest.approx(9000)
+    assert result["contribution_annual"] == pytest.approx(2000)
+    assert result["desired_income_annual"] == pytest.approx(800)
+    assert result["annuity_multiple_used"] == pytest.approx(20)

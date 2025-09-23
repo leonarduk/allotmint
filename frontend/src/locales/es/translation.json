@@ -198,7 +198,29 @@
     "retirementAge": "Edad de jubilación: {{age}}",
     "pensionPot": "Fondo de pensiones",
     "growthAssumption": "Suposición de crecimiento (%):",
-    "monthlyContribution": "Contribución mensual (£):"
+    "monthlyContribution": "Contribución mensual (£):",
+    "incomeBreakdownHeading": "Retirement income breakdown",
+    "incomeSources": {
+      "state": "State pension",
+      "definedBenefit": "Defined benefit",
+      "definedContribution": "Defined contribution"
+    },
+    "incomeTable": {
+      "source": "Source",
+      "annual": "Annual (£)",
+      "monthly": "Monthly (£)",
+      "share": "Share"
+    },
+    "totalAnnualIncome": "Total annual income",
+    "totalMonthlyIncome": "Total monthly income",
+    "prediction": {
+      "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
+      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} from age {{age}}.",
+      "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
+      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
+      "earliest": "Estimated earliest retirement age: {{age}}",
+      "noBreakdown": "No income breakdown available."
+    }
   },
   "group": {
     "select": "Seleccione un grupo."

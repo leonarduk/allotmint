@@ -29,6 +29,9 @@ type RowWithCost = InstrumentSummary & {
 };
 
 type GroupTotals = {
+  labelValue: string;
+  units: number;
+  cost: number;
   marketValue: number;
   gain: number;
   gainPct: number | null;
@@ -45,6 +48,14 @@ type GroupedRows = {
 
 const UNGROUPED_KEY = '__ungrouped__';
 const GROUP_SUMMARY_SORT_MAP: Partial<Record<keyof RowWithCost, keyof GroupTotals>> = {
+  ticker: 'labelValue',
+  name: 'labelValue',
+  currency: 'labelValue',
+  instrument_type: 'labelValue',
+  units: 'units',
+  cost: 'cost',
+  market_value_gbp: 'marketValue',
+  gain_gbp: 'gain',
   change_7d_pct: 'change7dPct',
   change_30d_pct: 'change30dPct',
   gain_pct: 'gainPct',
@@ -389,9 +400,6 @@ export function InstrumentTable({ rows }: Props) {
             defaultValue: `Toggle ${group.label}`,
           });
           const groupDomId = `group-${sanitizeGroupKey(group.key)}`;
-          const totalUnits = group.rows.reduce((sum, row) => sum + (row.units ?? 0), 0);
-          const totalCost = group.rows.reduce((sum, row) => sum + row.cost, 0);
-
           return (
             <tbody key={group.key} id={groupDomId} className={tableStyles.groupSection}>
               <tr className={tableStyles.groupRow}>
@@ -431,12 +439,14 @@ export function InstrumentTable({ rows }: Props) {
                 <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                 {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {totalUnits ? new Intl.NumberFormat(i18n.language).format(totalUnits) : '—'}
+                    {group.totals.units
+                      ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
+                      : '—'}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {totalCost ? money(totalCost, baseCurrency) : '—'}
+                    {group.totals.cost ? money(group.totals.cost, baseCurrency) : '—'}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.market && (
@@ -703,20 +713,31 @@ function createGroupedRows(
     key: group.key,
     label: group.label,
     rows: group.rows,
-    totals: calculateGroupTotals(group.rows),
+    totals: calculateGroupTotals(group.rows, group.label),
   }));
 
   const totalsKey = GROUP_SUMMARY_SORT_MAP[sortKey];
   if (totalsKey) {
-    const toNumeric = (value: number | null | undefined) =>
-      typeof value === 'number' && Number.isFinite(value) ? value : 0;
     groups.sort((a, b) => {
-      const va = toNumeric(a.totals[totalsKey]);
-      const vb = toNumeric(b.totals[totalsKey]);
-      if (va === vb) {
+      const va = a.totals[totalsKey];
+      const vb = b.totals[totalsKey];
+
+      if (typeof va === 'string' || typeof vb === 'string') {
+        const sa = typeof va === 'string' ? va : '';
+        const sb = typeof vb === 'string' ? vb : '';
+        const cmp = sa.localeCompare(sb);
+        return asc ? cmp : -cmp;
+      }
+
+      const toNumeric = (value: unknown) =>
+        typeof value === 'number' && Number.isFinite(value) ? value : 0;
+
+      const na = toNumeric(va);
+      const nb = toNumeric(vb);
+      if (na === nb) {
         return 0;
       }
-      return asc ? va - vb : vb - va;
+      return asc ? na - nb : nb - na;
     });
   }
 
@@ -728,7 +749,8 @@ function sanitizeGroupKey(key: string): string {
   return sanitized || 'group';
 }
 
-function calculateGroupTotals(rows: RowWithCost[]): GroupTotals {
+function calculateGroupTotals(rows: RowWithCost[], label: string): GroupTotals {
+  const totalUnits = rows.reduce((sum, row) => sum + (row.units ?? 0), 0);
   const totalMarket = rows.reduce((sum, row) => sum + row.market_value_gbp, 0);
   const totalGain = rows.reduce((sum, row) => sum + row.gain_gbp, 0);
   const totalCost = rows.reduce((sum, row) => sum + row.cost, 0);
@@ -754,6 +776,9 @@ function calculateGroupTotals(rows: RowWithCost[]): GroupTotals {
   };
 
   return {
+    labelValue: label,
+    units: totalUnits,
+    cost: totalCost,
     marketValue: totalMarket,
     gain: totalGain,
     gainPct,

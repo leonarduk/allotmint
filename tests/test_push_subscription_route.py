@@ -45,3 +45,16 @@ def test_delete_unknown_owner_is_idempotent(client):
     resp = client.delete("/alerts/push-subscription/unknown")
     assert resp.status_code == 200
     assert resp.json() == {"status": "deleted"}
+
+
+def test_push_subscription_falls_back_to_default_dataset(client, tmp_path):
+    owner = "demo"
+    payload = {"endpoint": "https://ex", "keys": {"p256dh": "a", "auth": "b"}}
+
+    custom_root = tmp_path / "alt-root"
+    custom_root.mkdir()
+    client.app.state.accounts_root = custom_root
+
+    resp = client.post(f"/alerts/push-subscription/{owner}", json=payload)
+    assert resp.status_code == 200
+    assert alert_utils.get_user_push_subscription(owner) == payload

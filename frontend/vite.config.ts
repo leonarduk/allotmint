@@ -47,6 +47,11 @@ export default defineConfig(async ({ command }) => {
 
   const config = {
     plugins,
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src')
+      }
+    },
     build: {
       cssCodeSplit: false,
       cssMinify: 'esbuild',
@@ -64,13 +69,15 @@ export default defineConfig(async ({ command }) => {
     test: {
       environment: 'jsdom',
       setupFiles: './src/setupTests.ts',
+      include: ['tests/unit/**/*.test.ts?(x)'],
       coverage: {
         provider: 'v8',
         reporter: ['text', 'html'],
         lines: 85,
         functions: 85,
         branches: 85,
-        statements: 85
+        statements: 85,
+        include: ['tests/unit/**/*.test.ts?(x)']
       }
     }
   }

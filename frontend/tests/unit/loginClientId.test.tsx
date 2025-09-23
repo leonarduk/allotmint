@@ -1,0 +1,41 @@
+import { render, screen } from '@testing-library/react'
+import { BrowserRouter } from 'react-router-dom'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+
+afterEach(() => {
+  vi.resetModules()
+})
+
+describe('Root login behaviour', () => {
+  it('shows error when clientId is missing', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: true,
+          google_client_id: ''
+        }),
+        getStoredAuthToken: vi.fn()
+      }
+    })
+
+    vi.doMock('@/LoginPage', () => ({
+      default: () => <div data-testid="login-page">login-page</div>
+    }))
+
+    document.body.innerHTML = '<div id="root"></div>'
+    const { Root } = await import('@/main')
+    render(
+      <BrowserRouter>
+        <Root />
+      </BrowserRouter>,
+    )
+    expect(await screen.findByText(/google login is not configured/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('login-page')).toBeNull()
+  })
+})

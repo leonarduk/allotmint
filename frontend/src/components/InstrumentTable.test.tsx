@@ -204,6 +204,14 @@ describe("InstrumentTable", () => {
                 return label ? label.replace(/^Toggle\s+/, "") : "";
             });
 
+    const expectGroupsCollapsed = () => {
+        screen
+            .getAllByRole("button", { name: /^Toggle / })
+            .forEach((button) =>
+                expect(button).toHaveAttribute("aria-expanded", "false"),
+            );
+    };
+
     it("renders groups collapsed by default with aggregated totals", () => {
         render(<InstrumentTable rows={rows} />);
         const table = screen.getByRole("table");
@@ -308,7 +316,7 @@ describe("InstrumentTable", () => {
 
     it("sorts by 7d change when header clicked", () => {
         render(<InstrumentTable rows={rows} />);
-        expect(getGroupOrder()).toEqual(["Group A", "Ungrouped", "Group B"]);
+        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
 
         const header = within(screen.getByRole("table")).getByRole("columnheader", { name: "7d %" });
         fireEvent.click(header);
@@ -322,6 +330,40 @@ describe("InstrumentTable", () => {
         expect(getGroupOrder()).toEqual(["Group B", "Group A", "Ungrouped"]);
         tickers = getGroupTickers("Group A");
         expect(tickers[0]).toBe("ABC");
+    });
+
+    it("reorders collapsed groups when sorting by Market £", () => {
+        render(<InstrumentTable rows={rows} />);
+        expectGroupsCollapsed();
+        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
+
+        const header = within(screen.getByRole("table")).getByRole("columnheader", {
+            name: "Market £",
+        });
+        fireEvent.click(header);
+        expect(getGroupOrder()).toEqual(["Ungrouped", "Group B", "Group A"]);
+        expectGroupsCollapsed();
+
+        fireEvent.click(header);
+        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
+        expectGroupsCollapsed();
+    });
+
+    it("reorders collapsed groups when sorting by Ticker", () => {
+        render(<InstrumentTable rows={rows} />);
+        expectGroupsCollapsed();
+        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
+
+        const header = within(screen.getByRole("table")).getByRole("columnheader", {
+            name: /^Ticker/,
+        });
+        fireEvent.click(header);
+        expect(getGroupOrder()).toEqual(["Ungrouped", "Group B", "Group A"]);
+        expectGroupsCollapsed();
+
+        fireEvent.click(header);
+        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
+        expectGroupsCollapsed();
     });
 
     it("allows toggling columns", () => {

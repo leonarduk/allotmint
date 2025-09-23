@@ -47,7 +47,7 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
         with path.open() as f:
             ov = json.load(f)
     except Exception:
-        return 1.0
+        ov = {}
 
     base = re.split(r"[.:]", ticker)[0].upper()
     ex = (exchange or "").upper()
@@ -65,7 +65,78 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
             try:
                 return float(ov[ex_key][t_key])
             except Exception:
-                pass
+                continue
+
+    def _normalize_currency(value: object) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        upper = text.upper()
+        # Treat variations like "GBp" as GBX (pence)
+        if upper == "GBP" and text.lower().endswith("p"):
+            return "GBX"
+        if upper in {"GBX", "GBXP", "GBPX"}:
+            return "GBX"
+        return upper
+
+    def _extract_currency(meta: Optional[dict]) -> Optional[str]:
+        if not isinstance(meta, dict):
+            return None
+        for key in (
+            "currency",
+            "Currency",
+            "price_currency",
+            "priceCurrency",
+            "quote_currency",
+            "quoteCurrency",
+            "currencyCode",
+        ):
+            if key in meta and meta[key] is not None:
+                norm = _normalize_currency(meta[key])
+                if norm:
+                    return norm
+        for nested in ("price", "quote"):
+            block = meta.get(nested)
+            if isinstance(block, dict):
+                norm = _normalize_currency(block.get("currency") or block.get("Currency"))
+                if norm:
+                    return norm
+        return None
+
+    full = base if not ex else f"{base}.{ex}"
+    currency: Optional[str] = None
+
+    try:  # Prefer instrument metadata when available
+        from backend.common.instruments import get_instrument_meta  # type: ignore
+
+        try:
+            inst_meta = get_instrument_meta(full) or {}
+            if not inst_meta and full != base:
+                inst_meta = get_instrument_meta(base) or {}
+        except Exception:
+            inst_meta = {}
+        currency = _extract_currency(inst_meta)
+    except Exception:
+        currency = None
+
+    if not currency:
+        try:
+            from backend.common import portfolio_utils  # type: ignore
+
+            try:
+                sec_meta = portfolio_utils.get_security_meta(full) or portfolio_utils.get_security_meta(base)
+            except Exception:
+                sec_meta = None
+            currency = _extract_currency(sec_meta)
+        except Exception:
+            currency = None
+
+    if currency == "GBX":
+        return 0.01
+    if currency:
+        return 1.0
     return 1.0
 
 

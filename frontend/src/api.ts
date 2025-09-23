@@ -44,6 +44,12 @@ import type {
   MarketOverview,
 } from "./types";
 
+const cleanOptionalString = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
 /* ------------------------------------------------------------------ */
 /* Base URL – fall back to localhost if no Vite env vars are defined. */
 /* ------------------------------------------------------------------ */
@@ -233,7 +239,14 @@ export const getNews = (ticker: string, signal?: AbortSignal) => {
   const params = new URLSearchParams({ ticker });
   return fetchJson<NewsItem[]>(`${API_BASE}/news?${params.toString()}`, {
     signal,
-  });
+  }).then((items) =>
+    items.map((item) => ({
+      headline: item.headline,
+      url: item.url,
+      source: cleanOptionalString(item.source ?? null),
+      published_at: cleanOptionalString(item.published_at ?? null),
+    })),
+  );
 };
 
 /** Aggregate market overview data. */
@@ -291,11 +304,77 @@ export const runScenario = ({
   );
 };
 
+export type GroupInstrumentFilters = {
+  owner?: string;
+  account?: string;
+};
+
+const cacheKeyForGroupInstruments = (
+  slug: string,
+  { owner, account }: GroupInstrumentFilters,
+) => `${slug}::${owner ?? ""}::${account ?? ""}`;
+
+type GroupInstrumentCacheEntry = {
+  promise: Promise<InstrumentSummary[]>;
+  value?: InstrumentSummary[];
+};
+
+const groupInstrumentCache = new Map<string, GroupInstrumentCacheEntry>();
+
 /** Retrieve per-ticker aggregation for a group portfolio. */
-export const getGroupInstruments = (slug: string) =>
-  fetchJson<InstrumentSummary[]>(
-    `${API_BASE}/portfolio-group/${slug}/instruments`
-  );
+export const getGroupInstruments = (
+  slug: string,
+  filters: GroupInstrumentFilters = {},
+) => {
+  const params = new URLSearchParams();
+  if (filters.owner) params.set("owner", filters.owner);
+  if (filters.account) params.set("account", filters.account);
+  const query = params.toString();
+  const url = query
+    ? `${API_BASE}/portfolio-group/${slug}/instruments?${query}`
+    : `${API_BASE}/portfolio-group/${slug}/instruments`;
+  return fetchJson<InstrumentSummary[]>(url);
+};
+
+export const getCachedGroupInstruments = (
+  slug: string,
+  filters: GroupInstrumentFilters = {},
+) => {
+  const key = cacheKeyForGroupInstruments(slug, filters);
+  const existing = groupInstrumentCache.get(key);
+  if (existing?.value) {
+    return Promise.resolve(existing.value);
+  }
+
+  if (existing) {
+    return existing.promise.then((rows) => {
+      existing.value = rows;
+      return rows;
+    });
+  }
+
+  const promise = getGroupInstruments(slug, filters).then((rows) => {
+    const entry = groupInstrumentCache.get(key);
+    if (entry) entry.value = rows;
+    return rows;
+  });
+
+  groupInstrumentCache.set(key, { promise });
+  return promise;
+};
+
+export const clearGroupInstrumentCache = (slug?: string) => {
+  if (!slug) {
+    groupInstrumentCache.clear();
+    return;
+  }
+  const prefix = `${slug}::`;
+  for (const key of groupInstrumentCache.keys()) {
+    if (key.startsWith(prefix)) {
+      groupInstrumentCache.delete(key);
+    }
+  }
+};
 
 /** Retrieve return contribution aggregated by sector for a group portfolio. */
 export const getGroupSectorContributions = (slug: string) =>

@@ -12,29 +12,33 @@ if config.disable_auth:
     @router.get("")
     async def list_tasks():
         """Return tasks for the demo user when authentication is disabled."""
-        return {"tasks": trail.get_tasks("demo")}
+        return trail.get_tasks("demo")
 
     @router.post("/{task_id}/complete")
     async def complete_task(task_id: str):
-        """Mark ``task_id`` complete for the demo user when auth is disabled."""
+        """Mark ``task_id`` complete for the demo user when auth is disabled.
+
+        Returns the updated Trail payload including XP, streak, and daily totals.
+        """
         try:
-            tasks = trail.mark_complete("demo", task_id)
+            return {"tasks": trail.mark_complete("demo", task_id)}
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
-        return {"tasks": tasks}
 
 else:
 
     @router.get("")
     async def list_tasks(current_user: str = Depends(get_current_user)):
         """Return tasks for the authenticated user."""
-        return {"tasks": trail.get_tasks(current_user)}
+        return trail.get_tasks(current_user)
 
     @router.post("/{task_id}/complete")
     async def complete_task(task_id: str, current_user: str = Depends(get_current_user)):
-        """Mark ``task_id`` complete for the authenticated user."""
+        """Mark ``task_id`` complete for the authenticated user.
+
+        Returns the updated Trail payload including XP, streak, and daily totals.
+        """
         try:
-            tasks = trail.mark_complete(current_user, task_id)
+            return {"tasks": trail.mark_complete(current_user, task_id)}
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
-        return {"tasks": tasks}

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from fastapi import APIRouter, HTTPException, Query, Request, Depends
@@ -31,6 +30,7 @@ from backend.common import (
 )
 from backend.common import portfolio as portfolio_mod
 from backend.config import config
+from backend.routes._accounts import resolve_accounts_root
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -247,14 +247,81 @@ async def portfolio_group(slug: str):
 # ──────────────────────────────────────────────────────────────
 # Group-level aggregation
 # ──────────────────────────────────────────────────────────────
+def _normalise_filter_values(values: Optional[Sequence[str]]) -> set[str] | None:
+    """Lower-case and strip a query parameter list, dropping empty entries."""
+
+    if values is None:
+        return None
+
+    if isinstance(values, str):
+        values = [values]
+
+    normalised = {
+        str(value).strip().lower()
+        for value in values
+        if value is not None and str(value).strip()
+    }
+    return normalised or None
+
+
+def _account_matches_filters(account: Dict[str, Any], filters: Dict[str, set[str]]) -> bool:
+    """Return ``True`` when the account satisfies all provided filters."""
+
+    for key, allowed_values in filters.items():
+        value = account.get(key)
+        if value is None:
+            return False
+        candidate = str(value).strip().lower()
+        if candidate not in allowed_values:
+            return False
+    return True
+
+
 @router.get("/portfolio-group/{slug}/instruments")
-async def group_instruments(slug: str):
-    """Return holdings for the group aggregated by ticker."""
+async def group_instruments(
+    slug: str,
+    owner: Optional[Sequence[str]] = Query(
+        None,
+        description="Filter holdings to accounts owned by the provided slug(s).",
+    ),
+    account_type: Optional[Sequence[str]] = Query(
+        None,
+        description="Filter holdings to specific account type(s).",
+    ),
+):
+    """Return holdings for the group aggregated by ticker.
+
+    Optional ``owner`` and ``account_type`` query parameters limit the accounts
+    included in the aggregation. Provide the parameters multiple times to match
+    more than one value.
+    """
+
     try:
         gp = group_portfolio.build_group_portfolio(slug)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
-    return portfolio_utils.aggregate_by_ticker(gp)
+
+    owner_filters = _normalise_filter_values(owner)
+    account_type_filters = _normalise_filter_values(account_type)
+
+    filters: Dict[str, set[str]] = {}
+    if owner_filters:
+        filters["owner"] = owner_filters
+    if account_type_filters:
+        filters["account_type"] = account_type_filters
+
+    portfolio_for_aggregation: Dict[str, Any]
+    if filters:
+        filtered_accounts = [
+            account
+            for account in gp.get("accounts", [])
+            if _account_matches_filters(account, filters)
+        ]
+        portfolio_for_aggregation = {**gp, "accounts": filtered_accounts}
+    else:
+        portfolio_for_aggregation = gp
+
+    return portfolio_utils.aggregate_by_ticker(portfolio_for_aggregation)
 
 
 @router.get("/portfolio-group/{slug}/sectors")
@@ -399,12 +466,7 @@ async def group_movers(
 
 @router.get("/account/{owner}/{account}")
 async def get_account(owner: str, account: str, request: Request):
-    accounts_root_value = getattr(request.app.state, "accounts_root", None)
-    if accounts_root_value is not None:
-        root = Path(accounts_root_value)
-    else:
-        paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
-        root = paths.accounts_root
+    root = resolve_accounts_root(request)
 
     try:
         data = data_loader.load_account(owner, account, root)

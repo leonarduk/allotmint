@@ -7,12 +7,14 @@ from backend import alerts as alert_utils
 from backend.common import data_loader
 from backend.common.alerts import get_recent_alerts
 from backend.common.errors import OWNER_NOT_FOUND
+from backend.routes._accounts import resolve_accounts_root
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
 def _validate_owner(user: str, request: Request) -> None:
-    owners = {o["owner"] for o in data_loader.list_plots(request.app.state.accounts_root)}
+    accounts_root = resolve_accounts_root(request)
+    owners = {o["owner"] for o in data_loader.list_plots(accounts_root)}
     if user not in owners:
         raise HTTPException(status_code=404, detail=OWNER_NOT_FOUND)
 

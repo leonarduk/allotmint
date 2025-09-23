@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import i18n from "./i18n";
 
 const mockTradingSignals = vi.fn();
 
@@ -14,47 +15,106 @@ describe("App", () => {
     (globalThis as any).lastRefresh = null;
   });
 
-  it.skip("preselects group from URL", async () => {
-    window.history.pushState({}, "", "/instrument/kids");
+  it("loads the group slug from the URL", async () => {
+    window.history.pushState({}, "", "/?group=kids");
 
-    vi.mock("./api", () => ({
-      getOwners: vi.fn().mockResolvedValue([]),
-      getGroups: vi.fn().mockResolvedValue([
-        { slug: "family", name: "Family", members: [] },
-        { slug: "kids", name: "Kids", members: [] },
-      ]),
-      getGroupInstruments: vi.fn().mockResolvedValue([]),
-      getPortfolio: vi.fn(),
-      refreshPrices: vi.fn(),
+    const mockGetGroupPortfolio = vi.fn().mockResolvedValue({
+      name: "Kids",
+      slug: "kids",
+      accounts: [],
+      trades_this_month: 0,
+      trades_remaining: 0,
+    });
+    const mockGetGroupAlpha = vi
+      .fn()
+      .mockResolvedValue({ alpha_vs_benchmark: 0 });
+    const mockGetGroupTracking = vi.fn().mockResolvedValue({ tracking_error: 0 });
+    const mockGetGroupMaxDrawdown = vi
+      .fn()
+      .mockResolvedValue({ max_drawdown: 0 });
+    const mockGetGroupSector = vi.fn().mockResolvedValue([]);
+    const mockGetGroupRegion = vi.fn().mockResolvedValue([]);
+    const mockGetGroupMovers = vi
+      .fn()
+      .mockResolvedValue({ gainers: [], losers: [] });
+    const mockGetGroupInstruments = vi.fn().mockResolvedValue([]);
+    const mockGetGroups = vi.fn().mockResolvedValue([
+      { slug: "family", name: "Family", members: [] },
+      { slug: "kids", name: "Kids", members: [] },
+    ]);
+    mockGetGroupPortfolio.mockName("getGroupPortfolio");
+    mockGetGroups.mockName("getGroups");
+
+    vi.doMock("./api", async () => {
+      const actual = await vi.importActual<typeof import("./api")>("./api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: mockGetGroups,
+        getGroupPortfolio: mockGetGroupPortfolio,
+        getGroupAlphaVsBenchmark: mockGetGroupAlpha,
+        getGroupTrackingError: mockGetGroupTracking,
+        getGroupMaxDrawdown: mockGetGroupMaxDrawdown,
+        getGroupSectorContributions: mockGetGroupSector,
+        getGroupRegionContributions: mockGetGroupRegion,
+        getGroupMovers: mockGetGroupMovers,
+        getGroupInstruments: mockGetGroupInstruments,
+        getCachedGroupInstruments: undefined,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        getPortfolio: vi.fn(),
+        refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
-        getCompliance: vi.fn().mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
         getTimeseries: vi.fn(),
         saveTimeseries: vi.fn(),
         refetchTimeseries: vi.fn(),
         rebuildTimeseriesCache: vi.fn(),
-      }));
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
 
     const { default: App } = await import("./App");
 
     render(
-      <MemoryRouter initialEntries={["/instrument/kids"]}>
+      <MemoryRouter initialEntries={["/?group=kids"]}>
         <App />
       </MemoryRouter>,
     );
 
-    const select = await screen.findByLabelText(/group/i, {
-      selector: "select",
-    });
-    expect(select).toHaveValue("kids");
+    await waitFor(() => expect(mockGetGroupPortfolio).toHaveBeenCalled());
+    expect(mockGetGroupPortfolio).toHaveBeenCalledWith("kids");
+    await waitFor(() =>
+      expect(mockGetGroupMovers).toHaveBeenCalledWith("kids", 1, 5, 0),
+    );
+    await waitFor(() =>
+      expect(mockGetGroupInstruments).toHaveBeenCalledWith("kids", {
+        account: undefined,
+        owner: undefined,
+      }),
+    );
   });
 
   it("renders timeseries editor when path is /timeseries", async () => {
     window.history.pushState({}, "", "/timeseries?ticker=ABC&exchange=L");
 
-    vi.mock("./api", () => ({
+    vi.doMock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
+      getGroupPortfolio: vi
+        .fn()
+        .mockResolvedValue({
+          name: "Default",
+          slug: "",
+          accounts: [],
+          trades_this_month: 0,
+          trades_remaining: 0,
+        }),
       getPortfolio: vi.fn(),
       refreshPrices: vi.fn(),
       getAlerts: vi.fn().mockResolvedValue([]),
@@ -67,6 +127,7 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      getCachedGroupInstruments: undefined,
     }));
 
     const { default: App } = await import("./App");
@@ -143,6 +204,7 @@ describe("App", () => {
 
     const { default: App } = await import("./App");
     const { configContext } = await import("./ConfigContext");
+    const user = userEvent.setup();
 
     const allTabs = {
       group: true,
@@ -163,11 +225,9 @@ describe("App", () => {
       virtual: true,
       support: true,
       settings: true,
-      profile: true,
       pension: true,
       reports: true,
       scenario: true,
-      logs: true,
     };
 
     render(
@@ -222,6 +282,7 @@ describe("App", () => {
 
     const { default: App } = await import("./App");
     const { configContext } = await import("./ConfigContext");
+    const user = userEvent.setup();
 
     const allTabs = {
       group: true,
@@ -242,11 +303,9 @@ describe("App", () => {
       virtual: true,
       support: true,
       settings: true,
-      profile: true,
       pension: true,
       reports: true,
       scenario: true,
-      logs: true,
     };
 
     render(
@@ -266,6 +325,9 @@ describe("App", () => {
         </MemoryRouter>
       </configContext.Provider>,
     );
+
+    const menuButton = screen.getByRole("button", { name: /menu/i });
+    await user.click(menuButton);
 
     const moversTab = await screen.findByRole("link", { name: /movers/i });
     expect(moversTab).toHaveStyle("font-weight: bold");
@@ -365,8 +427,9 @@ describe("App", () => {
   it("defaults to Group view and orders tabs correctly", async () => {
     window.history.pushState({}, "", "/");
     mockTradingSignals.mockResolvedValue([]);
+    const user = userEvent.setup();
 
-    vi.mock("./api", () => ({
+    vi.doMock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
       getGroups: vi.fn().mockResolvedValue([]),
       getGroupInstruments: vi.fn().mockResolvedValue([]),
@@ -386,6 +449,14 @@ describe("App", () => {
       listTimeseries: vi.fn().mockResolvedValue([]),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      getGroupAlphaVsBenchmark: vi
+        .fn()
+        .mockResolvedValue({ alpha_vs_benchmark: 0 }),
+      getGroupTrackingError: vi.fn().mockResolvedValue({ tracking_error: 0 }),
+      getGroupMaxDrawdown: vi.fn().mockResolvedValue({ max_drawdown: 0 }),
+      getGroupSectorContributions: vi.fn().mockResolvedValue([]),
+      getGroupRegionContributions: vi.fn().mockResolvedValue([]),
+      getCachedGroupInstruments: undefined,
     }));
 
     const { default: App } = await import("./App");
@@ -395,6 +466,9 @@ describe("App", () => {
         <App />
       </MemoryRouter>,
     );
+
+    const menuToggle = screen.getByRole("button", { name: /menu/i });
+    await user.click(menuToggle);
 
     const groupLink = await screen.findByRole("link", { name: /group/i });
     expect(groupLink).toHaveAttribute("href", "/");
@@ -407,7 +481,7 @@ describe("App", () => {
       "Market Overview",
       "Movers",
       "Instrument",
-      "Member",
+      "Portfolio",
       "Performance",
       "Transactions",
       "Trading",
@@ -417,20 +491,24 @@ describe("App", () => {
       "Allocation",
       "Rebalance",
       "Reports",
+      "Trail",
       "Alert Settings",
       "User Settings",
       "Pension Forecast",
-      "Tax Harvest",
-      "Tax Allowances",
+      "Tax Tools",
       "Scenario Tester",
       "Support",
     ]);
   });
 
-  it("toggles the research search bar in the header", async () => {
+  it("opens the research search bar and closes after navigating to a result", async () => {
     window.history.pushState({}, "", "/");
 
     const user = userEvent.setup();
+
+    const searchInstruments = vi
+      .fn()
+      .mockResolvedValue([{ ticker: "AAA", name: "Alpha Corp" }]);
 
     vi.doMock("./api", () => ({
       getOwners: vi.fn().mockResolvedValue([]),
@@ -452,6 +530,7 @@ describe("App", () => {
       listTimeseries: vi.fn().mockResolvedValue([]),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      searchInstruments,
     }));
 
     const { default: App } = await import("./App");
@@ -462,29 +541,37 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    const researchButton = await screen.findByRole("button", {
-      name: /Research/i,
+    const researchLabel = i18n.t("app.research");
+    const researchButton = screen.getByRole("button", {
+      name: researchLabel,
     });
-    expect(researchButton).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText(/Search instruments/i)
-    ).not.toBeInTheDocument();
+    expect(researchButton).toHaveAttribute("aria-expanded", "false");
 
     await user.click(researchButton);
 
-    expect(
-      await screen.findByLabelText(/Search instruments/i)
-    ).toBeInTheDocument();
+    const searchInput = await screen.findByLabelText(/Search instruments/i);
+    await user.type(searchInput, "AA");
 
-    const closeButton = screen.getByRole("button", { name: /Close search/i });
-    await user.click(closeButton);
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    await waitFor(() => expect(searchInstruments).toHaveBeenCalledTimes(1));
+    expect(searchInstruments).toHaveBeenCalledWith(
+      "AA",
+      undefined,
+      undefined,
+      expect.anything(),
+    );
+
+    const result = await screen.findByText("AAA — Alpha Corp");
+    await user.click(result);
 
     await waitFor(() => {
-      expect(
-        screen.queryByLabelText(/Search instruments/i)
-      ).not.toBeInTheDocument();
+      expect(researchButton).toHaveAttribute("aria-expanded", "false");
     });
-    expect(researchButton).toHaveAttribute("aria-expanded", "false");
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/Search instruments/i)).not.toBeInTheDocument();
+    });
   });
 
   it("renders the user avatar when logged in", async () => {

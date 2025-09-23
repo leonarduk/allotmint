@@ -17,6 +17,14 @@ def reset_screener_cache():
     screener_module._CACHE_TTL_SECONDS = original_ttl
 
 
+@pytest.fixture
+def empty_yahoo_ticker(monkeypatch):
+    class _EmptyTicker:
+        info = {}
+
+    monkeypatch.setattr("backend.screener.yf.Ticker", lambda *_args, **_kwargs: _EmptyTicker())
+
+
 def _make_base_fundamentals(ticker: str = "AAA") -> Fundamentals:
     return Fundamentals(
         ticker=ticker,
@@ -49,7 +57,7 @@ def _make_base_fundamentals(ticker: str = "AAA") -> Fundamentals:
     )
 
 
-def test_fetch_fundamentals_uses_cache(monkeypatch):
+def test_fetch_fundamentals_uses_cache(monkeypatch, empty_yahoo_ticker):
     sample = {
         "Name": "Cached Corp",
         "PEG": "0.5",
@@ -77,7 +85,7 @@ def test_fetch_fundamentals_uses_cache(monkeypatch):
     assert first is second
 
 
-def test_fetch_fundamentals_refreshes_expired_cache(monkeypatch):
+def test_fetch_fundamentals_refreshes_expired_cache(monkeypatch, empty_yahoo_ticker):
     sample = {
         "Name": "Expired Corp",
         "PEG": "0.7",
@@ -169,7 +177,7 @@ def test_screen_skips_tickers_with_fetch_errors(monkeypatch):
     assert [r.ticker for r in results] == ["BBB"]
 
 
-def test_fetch_fundamentals_parses_values(monkeypatch):
+def test_fetch_fundamentals_parses_values(monkeypatch, empty_yahoo_ticker):
     sample = {
         "Name": "Foo Corp",
         "PEG": "1.5",

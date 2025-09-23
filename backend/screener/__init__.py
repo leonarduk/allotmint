@@ -12,11 +12,19 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import requests
+import yfinance as yf
 from pydantic import BaseModel
 
 from backend import config_module
 
-cfg = getattr(config_module, "settings", config_module.config)
+
+def _current_config():
+    """Return the most up-to-date backend configuration instance."""
+
+    return getattr(config_module, "settings", config_module.config)
+
+
+cfg = _current_config()
 config = cfg
 
 ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
@@ -27,7 +35,24 @@ _CACHE_TTL_SECONDS = max(
     _MIN_TTL,
     min(ttl_cfg, 7 * 24 * 60 * 60),
 )
-_CACHE: Dict[Tuple[str, str], Tuple[datetime, "Fundamentals"]] = {}
+_CACHE_OFFLINE: Dict[Tuple[str, str], bool] = {}
+
+
+class _CacheDict(dict):
+    def clear(self) -> None:  # type: ignore[override]
+        super().clear()
+        _CACHE_OFFLINE.clear()
+
+    def pop(self, key, default=None):  # type: ignore[override]
+        _CACHE_OFFLINE.pop(key, None)
+        return super().pop(key, default)
+
+    def __delitem__(self, key) -> None:  # type: ignore[override]
+        _CACHE_OFFLINE.pop(key, None)
+        super().__delitem__(key)
+
+
+_CACHE: Dict[Tuple[str, str], Tuple[datetime, "Fundamentals"]] = _CacheDict()
 
 
 class Fundamentals(BaseModel):
@@ -78,27 +103,55 @@ def _parse_str(value: Optional[str]) -> Optional[str]:
     return value if value not in (None, "None", "") else None
 
 
-def fetch_fundamentals(ticker: str) -> Fundamentals:
-    """Return key metrics for ``ticker`` using Alpha Vantage's ``OVERVIEW``
-    endpoint, utilising a simple in-memory cache.
-    """
+def _fetch_fundamentals_from_yahoo(ticker: str) -> Optional[Fundamentals]:
+    """Return fundamentals sourced from Yahoo Finance or ``None`` if unavailable."""
 
-    api_key = cfg.alpha_vantage_key or "demo"
+    info = yf.Ticker(ticker).info or {}
 
-    key = (ticker.upper(), date.today().isoformat())
-    now = datetime.now(UTC)
+    result = Fundamentals(
+        ticker=ticker.upper(),
+        name=_parse_str(info.get("shortName") or info.get("longName")),
+        peg_ratio=_parse_float(info.get("pegRatio")),
+        pe_ratio=_parse_float(info.get("trailingPE") or info.get("forwardPE")),
+        de_ratio=_parse_float(info.get("debtToEquity")),
+        lt_de_ratio=_parse_float(info.get("longTermDebtToEquity")),
+        interest_coverage=_parse_float(info.get("interestCoverage")),
+        current_ratio=_parse_float(info.get("currentRatio")),
+        quick_ratio=_parse_float(info.get("quickRatio")),
+        fcf=_parse_float(info.get("freeCashflow")),
+        eps=_parse_float(info.get("trailingEps") or info.get("forwardEps")),
+        gross_margin=_parse_float(info.get("grossMargins")),
+        operating_margin=_parse_float(info.get("operatingMargins")),
+        net_margin=_parse_float(info.get("profitMargins")),
+        ebitda_margin=_parse_float(info.get("ebitdaMargins")),
+        roa=_parse_float(info.get("returnOnAssets")),
+        roe=_parse_float(info.get("returnOnEquity")),
+        roi=_parse_float(info.get("returnOnInvestment")),
+        dividend_yield=_parse_float(info.get("dividendYield")),
+        dividend_payout_ratio=_parse_float(info.get("payoutRatio")),
+        beta=_parse_float(info.get("beta")),
+        shares_outstanding=_parse_int(info.get("sharesOutstanding")),
+        float_shares=_parse_int(info.get("floatShares")),
+        market_cap=_parse_int(info.get("marketCap")),
+        high_52w=_parse_float(info.get("fiftyTwoWeekHigh")),
+        low_52w=_parse_float(info.get("fiftyTwoWeekLow")),
+        avg_volume=_parse_int(info.get("averageDailyVolume10Day") or info.get("averageVolume")),
+    )
 
-    if key in _CACHE:
-        cached_at, cached_value = _CACHE[key]
-        if now - cached_at < timedelta(seconds=_CACHE_TTL_SECONDS):
-            return cached_value
+    available = result.model_dump(exclude_none=True)
+    if not any(key not in {"ticker", "name"} for key in available):
+        return None
 
+    return result
+
+
+def _fetch_fundamentals_from_alpha_vantage(ticker: str, api_key: str) -> Fundamentals:
     params = {"function": "OVERVIEW", "symbol": ticker, "apikey": api_key}
     resp = requests.get(ALPHA_VANTAGE_URL, params=params, timeout=10)
     resp.raise_for_status()
     data = resp.json()
 
-    result = Fundamentals(
+    return Fundamentals(
         ticker=ticker.upper(),
         name=_parse_str(data.get("Name")),
         peg_ratio=_parse_float(data.get("PEG")),
@@ -128,7 +181,43 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
         avg_volume=_parse_int(data.get("AverageDailyVolume10Day")),
     )
 
-    _CACHE[key] = (now, result)
+
+def fetch_fundamentals(ticker: str) -> Fundamentals:
+    """Return key metrics for ``ticker`` using Yahoo Finance with Alpha Vantage
+    fallback, utilising a simple in-memory cache."""
+
+    cfg = _current_config()
+    api_key = cfg.alpha_vantage_key or "demo"
+
+    key = (ticker.upper(), date.today().isoformat())
+    offline_flag = bool(cfg.offline_mode)
+    now = datetime.now(UTC)
+
+    cached_entry = _CACHE.get(key)
+    cached_offline = _CACHE_OFFLINE.get(key)
+    if cached_entry is not None:
+        if cached_offline == offline_flag:
+            cached_at, cached_value = cached_entry
+            if now - cached_at < timedelta(seconds=_CACHE_TTL_SECONDS):
+                return cached_value
+        else:
+            _CACHE.pop(key, None)
+
+    yahoo_result = None
+    if not cfg.offline_mode:
+        try:
+            yahoo_result = _fetch_fundamentals_from_yahoo(ticker)
+        except Exception:
+            yahoo_result = None
+
+    if yahoo_result is not None:
+        _CACHE[key] = (datetime.now(UTC), yahoo_result)
+        _CACHE_OFFLINE[key] = offline_flag
+        return yahoo_result
+
+    result = _fetch_fundamentals_from_alpha_vantage(ticker, api_key)
+    _CACHE[key] = (datetime.now(UTC), result)
+    _CACHE_OFFLINE[key] = offline_flag
 
     return result
 

@@ -15,7 +15,7 @@
     "modes": {
       "group": "Groupe",
       "instrument": "Instrument",
-      "owner": "Membre",
+      "owner": "Portefeuille",
       "performance": "Performance",
       "transactions": "Transactions",
       "trading": "Trading",
@@ -29,19 +29,31 @@
       "instrumentadmin": "Administration des instruments",
       "dataadmin": "Administration des données",
       "settings": "Paramètres utilisateur",
-      "profile": "Profil",
       "pension": "Prévision de pension",
+      "taxtools": "Outils fiscaux",
       "trail": "Trail",
       "reports": "Rapports",
       "alertsettings": "Alert Settings",
       "support": "Support",
-      "scenario": "Testeur de Scénario",
-    "logs": "Journaux"
+      "scenario": "Testeur de Scénario"
+    },
+    "logs": {
+      "title": "Journaux",
+      "refresh": "Actualiser les journaux",
+      "empty": "Aucun journal disponible.",
+      "error": "Impossible de charger les journaux."
     }
   },
   "trail": {
-    "daily": "Daily",
-    "once": "Once"
+    "title": "Progression du Trail",
+    "daily": "Quotidien",
+    "once": "Une fois",
+    "progressLabel": "Progression du jour : {{completed}} / {{total}} ({{percent}} %)",
+    "xpLabel": "XP : {{xp}}",
+    "streakLabel": "Série : {{count}} jour",
+    "streakLabel_plural": "Série : {{count}} jours",
+    "dailyComplete": "Tâches quotidiennes terminées ! Continuez la série.",
+    "allDone": "Toutes les tâches du Trail sont terminées — formidable !"
   },
   "common": {
     "error": "Erreur",
@@ -66,6 +78,7 @@
   "instrumentTable": {
     "noInstruments": "Aucun instrument.",
     "ungrouped": "Non groupé",
+    "exchangesLabel": "Bourses :",
     "groupTotals": {
       "market": "Valeur",
       "gain": "Gain",

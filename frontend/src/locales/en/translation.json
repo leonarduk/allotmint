@@ -15,7 +15,7 @@
     "modes": {
       "group": "Group",
       "instrument": "Instrument",
-      "owner": "Member",
+      "owner": "Portfolio",
       "performance": "Performance",
       "transactions": "Transactions",
       "trading": "Trading",
@@ -29,21 +29,25 @@
       "instrumentadmin": "Instrument Admin",
       "dataadmin": "Data Admin",
       "settings": "User Settings",
-      "profile": "Profile",
       "pension": "Pension Forecast",
-      "taxharvest": "Tax Harvest",
-      "taxallowances": "Tax Allowances",
+      "taxtools": "Tax Tools",
       "trail": "Trail",
       "reports": "Reports",
       "alertsettings": "Alert Settings",
       "support": "Support",
-      "scenario": "Scenario Tester",
-      "logs": "Logs"
+      "scenario": "Scenario Tester"
     }
   },
   "trail": {
+    "title": "Trail progress",
     "daily": "Daily",
-    "once": "Once"
+    "once": "Once",
+    "progressLabel": "Daily progress: {{completed}} / {{total}} ({{percent}}%)",
+    "xpLabel": "XP: {{xp}}",
+    "streakLabel": "Streak: {{count}} day",
+    "streakLabel_plural": "Streak: {{count}} days",
+    "dailyComplete": "Daily tasks complete! Keep the streak going.",
+    "allDone": "All Trail tasks are complete — fantastic work!"
   },
   "common": {
     "error": "Error",
@@ -68,6 +72,7 @@
   "instrumentTable": {
     "noInstruments": "No instruments.",
     "ungrouped": "Ungrouped",
+    "exchangesLabel": "Exchanges:",
     "groupTotals": {
       "market": "Market",
       "gain": "Gain",
@@ -142,6 +147,18 @@
   },
   "instrumentDetail": {
     "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "infoHeading": "Instrument info",
+    "nameLabel": "Name",
+    "sectorLabel": "Sector",
+    "currencyLabel": "Currency",
+    "currencyPlaceholder": "Select a currency",
+    "metadataSaveSuccess": "Instrument details updated.",
+    "metadataSaveError": "Unable to save instrument details.",
+    "metadataLoadError": "Unable to load the instrument catalogue.",
+    "metadataCurrencyError": "Select a supported currency before saving.",
+    "metadataMissingExchange": "Instrument exchange is unknown; try reloading.",
     "change7d": "7d",
     "change30d": "30d",
     "range": "Range:",
@@ -247,6 +264,12 @@
       "otherSwitches": "Other Switches",
       "otherParams": "Other parameters",
       "save": "Save"
+    },
+    "logs": {
+      "title": "Logs",
+      "refresh": "Refresh logs",
+      "empty": "No logs available.",
+      "error": "Failed to load logs."
     }
   },
   "alertSettings": {

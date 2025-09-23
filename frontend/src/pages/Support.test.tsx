@@ -1,7 +1,7 @@
 import { render, screen, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetConfig = vi.hoisted(() => vi.fn());
 const mockUpdateConfig = vi.hoisted(() => vi.fn());
@@ -9,6 +9,7 @@ const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockSavePushSubscription = vi.hoisted(() => vi.fn());
 const mockDeletePushSubscription = vi.hoisted(() => vi.fn());
 const mockCheckPortfolioHealth = vi.hoisted(() => vi.fn());
+const mockFetch = vi.hoisted(() => vi.fn());
 
 vi.mock("../api", async () => {
   const actual = await vi.importActual<typeof import("../api")>("../api");
@@ -38,6 +39,8 @@ async function expandSection(title: string) {
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
+  mockFetch.mockResolvedValue({ ok: true, text: async () => "log entry" });
+  vi.stubGlobal("fetch", mockFetch);
   mockGetConfig.mockResolvedValue({
     flag: true,
     theme: "system",
@@ -48,8 +51,6 @@ beforeEach(() => {
       trading: true,
       support: true,
       reports: true,
-      logs: true,
-      profile: true,
       allocation: false,
       scenario: false,
       market: true,
@@ -58,6 +59,10 @@ beforeEach(() => {
     },
   });
   mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("Support page", () => {
@@ -113,8 +118,6 @@ describe("Support page", () => {
       trading: true,
       support: true,
       reports: true,
-      logs: true,
-      profile: true,
       allocation: false,
       scenario: false,
       market: true,
@@ -133,8 +136,6 @@ describe("Support page", () => {
       trading: true,
       support: true,
       reports: true,
-      logs: true,
-      profile: true,
       allocation: false,
       scenario: false,
       market: true,
@@ -201,12 +202,10 @@ describe("Support page", () => {
         group: true,
         owner: true,
         instrument: true,
-        trading: true,
-        support: true,
-        reports: true,
-        logs: true,
-        profile: true,
-        market: true,
+      trading: true,
+      support: true,
+      reports: true,
+      market: true,
         allocation: true,
         rebalance: true,
         pension: true,
@@ -219,12 +218,10 @@ describe("Support page", () => {
         group: true,
         owner: true,
         instrument: false,
-        trading: true,
-        support: true,
-        reports: true,
-        logs: true,
-        profile: true,
-        market: true,
+      trading: true,
+      support: true,
+      reports: true,
+      market: true,
         allocation: true,
         rebalance: true,
         pension: true,
@@ -260,7 +257,7 @@ describe("Support page", () => {
     const switchesHeading = await screen.findByRole("heading", {
       name: en.support.config.otherSwitches,
     });
-    const switchesSection = switchesHeading.parentElement?.parentElement as HTMLElement;
+    const switchesSection = switchesHeading.parentElement as HTMLElement;
     expect(
       within(switchesSection).getByRole("checkbox", { name: /flag/i })
     ).toBeInTheDocument();
@@ -271,7 +268,7 @@ describe("Support page", () => {
     const paramsHeading = screen.getByRole("heading", {
       name: en.support.config.otherParams,
     });
-    const paramsSection = paramsHeading.parentElement?.parentElement as HTMLElement;
+    const paramsSection = paramsHeading.parentElement as HTMLElement;
     expect(
       within(paramsSection).getByRole("radio", { name: /dark/i })
     ).toBeInTheDocument();
@@ -325,6 +322,21 @@ describe("Support page", () => {
     });
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(en.support.health.error);
+  });
+
+  it("loads logs and renders them", async () => {
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.logs.title);
+    expect(mockFetch).toHaveBeenCalledWith("/logs");
+    expect(await screen.findByText("log entry")).toBeInTheDocument();
+  });
+
+  it("shows error message when logs fetch fails", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("fail"));
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.logs.title);
+    expect(await screen.findByText(en.support.logs.error)).toBeInTheDocument();
+    expect(screen.getByText(en.support.logs.empty)).toBeInTheDocument();
   });
 });
 

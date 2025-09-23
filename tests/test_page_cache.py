@@ -153,6 +153,26 @@ def test_schedule_refresh_idempotent(monkeypatch, tmp_path):
     asyncio.run(run())
 
 
+def test_schedule_refresh_initial_delay(monkeypatch, tmp_path):
+    async def run():
+        monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)
+
+        calls = {"count": 0}
+
+        def builder():
+            calls["count"] += 1
+            return {}
+
+        page_cache.schedule_refresh("delayed", 0.05, builder, initial_delay=0.05)
+        await asyncio.sleep(0.02)
+        assert calls["count"] == 0
+        await asyncio.sleep(0.05)
+        assert calls["count"] >= 1
+        await page_cache.cancel_refresh_tasks()
+
+    asyncio.run(run())
+
+
 def test_builder_returns_awaitable_and_save_error(monkeypatch, tmp_path, caplog):
     async def run():
         monkeypatch.setattr(page_cache, "CACHE_DIR", tmp_path)

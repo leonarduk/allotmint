@@ -23,7 +23,7 @@ export default function UserAvatar() {
     />
   );
   return (
-    <Link to="/profile" className="ml-4 cursor-pointer hover:opacity-80">
+    <Link to="/settings" className="ml-4 cursor-pointer hover:opacity-80">
       {content}
     </Link>
   );

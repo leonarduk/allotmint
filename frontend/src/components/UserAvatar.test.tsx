@@ -7,7 +7,7 @@ import { AuthContext } from "../AuthContext";
 const noop = () => {};
 
 describe("UserAvatar", () => {
-  it("links to the profile page", () => {
+  it("links to the user settings page", () => {
     render(
       <AuthContext.Provider value={{ user: { picture: "p.jpg", name: "Test" }, setUser: noop }}>
         <MemoryRouter>
@@ -15,6 +15,6 @@ describe("UserAvatar", () => {
         </MemoryRouter>
       </AuthContext.Provider>,
     );
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/profile");
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings");
   });
 });

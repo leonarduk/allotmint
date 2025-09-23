@@ -98,3 +98,22 @@ If the variable is unset the UI defaults to `http://localhost:8000` (or
   2. `cd cdk && DEPLOY_BACKEND=false cdk deploy StaticSiteStack`
   3. To include the backend: `DEPLOY_BACKEND=true cdk deploy BackendLambdaStack StaticSiteStack`
 
+## Filtering group instrument holdings
+
+The group instruments endpoint aggregates holdings across the members of a
+portfolio group:
+
+```bash
+curl http://localhost:8000/portfolio-group/all/instruments
+```
+
+Use optional `owner` and `account_type` query parameters to narrow the
+aggregation to specific accounts. Repeat a parameter to match multiple values:
+
+```bash
+curl "http://localhost:8000/portfolio-group/all/instruments?owner=alex&account_type=ISA&account_type=SIPP"
+```
+
+The response continues to include the standard grouping metadata while limiting
+the holdings considered by the request.
+

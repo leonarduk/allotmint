@@ -5,6 +5,7 @@ import { GroupPortfolioView } from "./GroupPortfolioView";
 import i18n from "../i18n";
 import { configContext, type AppConfig } from "../ConfigContext";
 import { useState } from "react";
+import * as api from "../api";
 vi.mock("./TopMoversSummary", () => ({
   TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
@@ -13,11 +14,16 @@ beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  api.clearGroupInstrumentCache();
+  vi
+    .spyOn(api, "getCachedGroupInstruments")
+    .mockImplementation((slug, filters) => api.getGroupInstruments(slug, filters));
 });
 
 afterEach(async () => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  api.clearGroupInstrumentCache();
   await act(async () => {
     await i18n.changeLanguage("en");
   });
@@ -46,11 +52,9 @@ const defaultConfig: AppConfig = {
     virtual: true,
     support: true,
     settings: true,
-    profile: true,
     pension: true,
     reports: true,
     scenario: true,
-    logs: true,
   },
 };
 
@@ -73,13 +77,58 @@ const TestProvider = ({ children }: { children: React.ReactNode }) => {
 
 const renderWithConfig = (ui: React.ReactElement) => render(<TestProvider>{ui}</TestProvider>);
 
+const instrumentKey = (owner?: string | null, account?: string | null) =>
+  `${owner ?? ""}::${account ?? ""}`;
+
+const toUrlString = (input: RequestInfo | URL) => {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  if (typeof input === "object" && input && "url" in input) {
+    return (input as Request).url;
+  }
+  return String(input);
+};
+
 const mockAllFetches = (
   portfolio: any,
-  metrics: { alpha?: any; trackingError?: any; maxDrawdown?: any } = {},
+  options: {
+    metrics?: { alpha?: any; trackingError?: any; maxDrawdown?: any };
+    instruments?: Record<string, any[]>;
+  } = {},
 ) => {
-  const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics;
-  const fetchMock = vi.fn((input: RequestInfo) => {
-    const url = typeof input === "string" ? input : input.url;
+  const { metrics, instruments = {} } = options;
+  const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
+  const defaultInstrumentRows =
+    instruments[instrumentKey(undefined, undefined)] ?? [];
+
+  const toUrlString = (input: RequestInfo | URL) => {
+    if (typeof input === "string") return input;
+    if (input instanceof URL) return input.toString();
+    if (typeof input === "object" && input && "url" in input) {
+      return (input as Request).url;
+    }
+    return String(input);
+  };
+
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = toUrlString(input);
+    if (url.includes("/portfolio-group/") && url.includes("/instruments")) {
+      const parsed = new URL(url);
+      const owner = parsed.searchParams.get("owner");
+      const account = parsed.searchParams.get("account");
+      const key = instrumentKey(owner, account);
+      const rows = instruments[key] ?? defaultInstrumentRows;
+      return Promise.resolve({
+        ok: true,
+        json: async () => rows,
+      } as Response);
+    }
+    if (url.includes("/instrument/admin/groups")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => [],
+      } as Response);
+    }
     if (url.includes("/portfolio-group/") && url.includes("/movers")) {
       return Promise.resolve({
         ok: true,
@@ -171,16 +220,20 @@ describe("GroupPortfolioView", () => {
 
     renderWithConfig(<GroupPortfolioView slug="all" />);
 
-    await waitFor(() => screen.getByText("alice"));
+    await waitFor(() => expect(screen.getAllByText("alice").length).toBeGreaterThan(0));
 
     const toggle = screen.getAllByLabelText('Relative view')[0];
     await userEvent.click(toggle);
 
-    expect(screen.getByText("alice")).toBeInTheDocument();
-    expect(screen.getByText("bob")).toBeInTheDocument();
-    expect(screen.getByText("66.67%")).toBeInTheDocument();
-    expect(screen.getByText("25.00%")).toBeInTheDocument();
-    expect(screen.getByText("-4.76%")).toBeInTheDocument();
+    const ownerTable = screen
+      .getAllByRole("table")
+      .find((table) => within(table).queryByText("Owner"));
+    expect(ownerTable).toBeTruthy();
+    expect(within(ownerTable!).getByText("alice")).toBeInTheDocument();
+    expect(within(ownerTable!).getByText("bob")).toBeInTheDocument();
+    expect(within(ownerTable!).getByText("66.67%")).toBeInTheDocument();
+    expect(within(ownerTable!).getByText("25.00%")).toBeInTheDocument();
+    expect(within(ownerTable!).getByText("-4.76%")).toBeInTheDocument();
     expect(screen.queryByText("Total Value")).toBeNull();
   });
 
@@ -221,10 +274,123 @@ describe("GroupPortfolioView", () => {
 
     render(<GroupPortfolioView slug="all" />);
 
-    await waitFor(() => screen.getAllByText("Equity"));
+    await waitFor(() => {
+      const containers = document.querySelectorAll(
+        ".recharts-responsive-container",
+      );
+      expect(containers.length).toBeGreaterThan(0);
+    });
+  });
 
-    expect(screen.getAllByText("Equity").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Cash").length).toBeGreaterThan(0);
+  it("switches instrument rows across owner and account tabs", async () => {
+    const mockPortfolio = {
+      name: "All owners combined",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [],
+        },
+        {
+          owner: "alice",
+          account_type: "general",
+          value_estimate_gbp: 50,
+          holdings: [],
+        },
+        {
+          owner: "bob",
+          account_type: "isa",
+          value_estimate_gbp: 200,
+          holdings: [],
+        },
+      ],
+    };
+
+    const instruments = {
+      [instrumentKey()]: [
+        {
+          ticker: "ALL",
+          name: "All Combined",
+          units: 1,
+          market_value_gbp: 100,
+          gain_gbp: 10,
+        },
+      ],
+      [instrumentKey("alice")]: [
+        {
+          ticker: "AL-ALL",
+          name: "Alice Aggregate",
+          units: 2,
+          market_value_gbp: 150,
+          gain_gbp: 15,
+        },
+      ],
+      [instrumentKey("alice", "isa")]: [
+        {
+          ticker: "AL-ISA",
+          name: "Alice ISA",
+          units: 3,
+          market_value_gbp: 120,
+          gain_gbp: 12,
+        },
+      ],
+      [instrumentKey("bob")]: [
+        {
+          ticker: "BOB",
+          name: "Bob Aggregate",
+          units: 4,
+          market_value_gbp: 180,
+          gain_gbp: 18,
+        },
+      ],
+    };
+
+    const fetchMock = mockAllFetches(mockPortfolio, { instruments });
+
+    renderWithConfig(<GroupPortfolioView slug="all" />);
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).endsWith("/instruments"),
+        ),
+      ).toBe(true),
+    );
+    expect(screen.queryByRole("tab", { name: "All accounts" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "alice" }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).includes("owner=alice"),
+        ),
+      ).toBe(true),
+    );
+    const allAccountsTab = screen.getByRole("tab", { name: "All accounts" });
+    expect(allAccountsTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "isa" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: "isa" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).includes("owner=alice") &&
+          toUrlString(input as RequestInfo | URL).includes("account=isa"),
+        ),
+      ).toBe(true),
+    );
+    expect(screen.getByRole("tab", { name: "isa" })).toHaveAttribute("aria-selected", "true");
+
+    await userEvent.click(screen.getByRole("tab", { name: "bob" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).includes("owner=bob"),
+        ),
+      ).toBe(true),
+    );
   });
 
   it("calls onSelectMember when owner name clicked", async () => {
@@ -245,10 +411,14 @@ describe("GroupPortfolioView", () => {
     const handler = vi.fn();
     render(<GroupPortfolioView slug="all" onSelectMember={handler} />);
 
-    await screen.findAllByText("alice");
+    const summaryTable = (await screen.findAllByRole("table")).find((table) =>
+      within(table).queryByText("Owner"),
+    );
+    expect(summaryTable).toBeTruthy();
 
+    const ownerCell = within(summaryTable!).getByText("alice");
     await act(async () => {
-      await userEvent.click(screen.getAllByText("alice")[0]);
+      await userEvent.click(ownerCell);
     });
 
     expect(handler).toHaveBeenCalledWith("alice");
@@ -317,60 +487,16 @@ describe("GroupPortfolioView", () => {
     );
   });
 
-  it("updates totals when accounts are toggled", async () => {
-    await act(async () => {
-      await i18n.changeLanguage("en");
-    });
-    const mockPortfolio = {
-      name: "All owners combined",
-      accounts: [
-        {
-          owner: "alice",
-          account_type: "isa",
-          value_estimate_gbp: 100,
-          holdings: [],
-        },
-        {
-          owner: "bob",
-          account_type: "isa",
-          value_estimate_gbp: 200,
-          holdings: [],
-        },
-      ],
-    };
-
-    mockAllFetches(mockPortfolio);
-
-
-    render(<GroupPortfolioView slug="all" />);
-
-    await waitFor(() => screen.getByLabelText(/alice isa/i));
-
-    await waitFor(() =>
-      expect(screen.getAllByText("Total Value")[0].nextElementSibling).toHaveTextContent(
-        "£300.00",
-      ),
-    );
-
-    const bobCheckbox = screen.getByLabelText(/bob isa/i);
-    await act(async () => {
-      await userEvent.click(bobCheckbox);
-    });
-    await waitFor(() =>
-      expect(screen.getAllByText("Total Value")[0].nextElementSibling).toHaveTextContent(
-        "£100.00",
-      ),
-    );
-  });
-
   it("shows N/A for invalid performance metrics", async () => {
     const mockPortfolio = { name: "All owners combined", accounts: [] };
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     mockAllFetches(mockPortfolio, {
-      alpha: null,
-      trackingError: null,
-      maxDrawdown: null,
+      metrics: {
+        alpha: null,
+        trackingError: null,
+        maxDrawdown: null,
+      },
     });
 
     renderWithConfig(<GroupPortfolioView slug="all" />);

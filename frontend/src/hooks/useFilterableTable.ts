@@ -59,8 +59,10 @@ export function useFilterableTable<
       }
       const va = a[sortKey];
       const vb = b[sortKey];
-      if (typeof va === "string" && typeof vb === "string") {
-        return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+      if (typeof va === "string" || typeof vb === "string") {
+        const sa = va == null ? "" : String(va);
+        const sb = vb == null ? "" : String(vb);
+        return asc ? sa.localeCompare(sb) : sb.localeCompare(sa);
       }
       const na = (va as number) ?? 0;
       const nb = (vb as number) ?? 0;

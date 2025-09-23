@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 import xml.etree.ElementTree as ET
@@ -23,6 +23,17 @@ router = APIRouter(tags=["news"])
 NEWS_TTL = 900  # seconds
 BASE_URL = "https://www.alphavantage.co/query"
 COUNTER_FILE: Path = page_cache.CACHE_DIR / "news_requests.json"
+
+
+
+def _make_news_item(headline: object, url: object) -> Dict[str, str] | None:
+    """Return a minimal news item when both ``headline`` and ``url`` are valid."""
+
+    clean_headline = _clean_str(headline)
+    clean_url = _clean_str(url)
+    if clean_headline and clean_url:
+        return {"headline": clean_headline, "url": clean_url}
+    return None
 
 
 def _load_counter() -> Dict[str, int]:
@@ -58,6 +69,36 @@ def _try_consume_quota() -> bool:
     return True
 
 
+def _isoformat(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    # Normalise to UTC with seconds precision
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    value = dt.astimezone(timezone.utc).replace(microsecond=0)
+    return value.isoformat().replace("+00:00", "Z")
+
+
+def _clean_str(value: object) -> Optional[str]:
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return None
+
+
+def _trim_payload(payload: Any) -> List[Dict[str, str]]:
+    trimmed: List[Dict[str, str]] = []
+    if not isinstance(payload, list):
+        return trimmed
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        news_item = _make_news_item(item.get("headline"), item.get("url"))
+        if news_item is not None:
+            trimmed.append(news_item)
+    return trimmed
+
+
 def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     """Fetch headlines from Yahoo Finance search API."""
 
@@ -69,10 +110,9 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     items = data.get("news", [])
     out: List[Dict[str, str]] = []
     for item in items:
-        title = item.get("title")
-        link = item.get("link")
-        if title and link:
-            out.append({"headline": title, "url": link})
+        news_item = _make_news_item(item.get("title"), item.get("link"))
+        if news_item is not None:
+            out.append(news_item)
     return out
 
 
@@ -86,11 +126,33 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
     root = ET.fromstring(resp.text)
     out: List[Dict[str, str]] = []
     for item in root.findall(".//item"):
-        title = item.findtext("title")
-        link = item.findtext("link")
-        if title and link:
-            out.append({"headline": title, "url": link})
+        news_item = _make_news_item(item.findtext("title"), item.findtext("link"))
+        if news_item is not None:
+            out.append(news_item)
     return out
+
+
+def _parse_alpha_time(value: Optional[str]) -> Optional[str]:
+    if not value or not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value:
+        return None
+
+    try:
+        cleaned = value.replace("Z", "+00:00") if value.endswith("Z") else value
+        dt = datetime.fromisoformat(cleaned)
+    except ValueError:
+        try:
+            dt = datetime.strptime(value, "%Y%m%dT%H%M%S")
+        except ValueError:
+            return None
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return _isoformat(dt)
 
 
 def _fetch_news(ticker: str) -> List[Dict[str, str]]:
@@ -108,10 +170,14 @@ def _fetch_news(ticker: str) -> List[Dict[str, str]]:
         data = resp.json()
         feed = data.get("feed") or []
         if feed:
-            return [
-                {"headline": item.get("title"), "url": item.get("url")}
-                for item in feed
-            ]
+            enriched: List[Dict[str, str]] = []
+            for item in feed:
+                news_item = _make_news_item(item.get("title"), item.get("url"))
+                if news_item is None:
+                    continue
+                enriched.append(news_item)
+            if enriched:
+                return enriched
     except Exception as exc:  # pragma: no cover - defensive
         logging.getLogger(__name__).error(
             "Failed to fetch news for %s: %s", ticker, exc
@@ -156,25 +222,42 @@ def get_cached_news(
             raise RuntimeError("news quota exceeded")
         return _fetch_news(tkr)
 
-    page_cache.schedule_refresh(page, NEWS_TTL, _call, can_refresh=_can_request_news)
+    def _schedule_refresh(initial_delay: float | None = None) -> None:
+        page_cache.schedule_refresh(
+            page,
+            NEWS_TTL,
+            _call,
+            can_refresh=_can_request_news,
+            initial_delay=initial_delay,
+        )
 
-    cached = page_cache.load_cache(page)
-    if cached is not None and not page_cache.is_stale(page, NEWS_TTL):
-        return cached
+    cached_raw = page_cache.load_cache(page)
+    cached = _trim_payload(cached_raw) if cached_raw is not None else None
+    cache_fresh = cached_raw is not None and not page_cache.is_stale(page, NEWS_TTL)
+
+    if cache_fresh:
+        delay = page_cache.time_until_stale(page, NEWS_TTL)
+        _schedule_refresh(delay)
+        return cached if cached is not None else []
 
     try:
         payload = _call()
     except RuntimeError:
         if cached is not None:
+            _schedule_refresh()
             return cached
+        _schedule_refresh()
         if raise_on_quota_exhausted:
             raise
         return []
 
+    payload = _trim_payload(payload)
     if cache_writer is not None:
         cache_writer(page, payload)
     else:
         page_cache.save_cache(page, payload)
+
+    _schedule_refresh(NEWS_TTL)
     return payload
 
 

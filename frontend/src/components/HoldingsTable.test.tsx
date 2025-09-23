@@ -45,12 +45,10 @@ const defaultConfig: AppConfig = {
         virtual: true,
         support: true,
         settings: true,
-        profile: true,
         pension: true,
         reports: true,
         scenario: true,
-        logs: true,
-    },
+      },
 };
 import type { Holding } from "../types";
 

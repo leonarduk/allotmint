@@ -29,6 +29,9 @@ type RowWithCost = InstrumentSummary & {
 };
 
 type GroupTotals = {
+  labelValue: string;
+  units: number;
+  cost: number;
   marketValue: number;
   gain: number;
   gainPct: number | null;
@@ -44,6 +47,19 @@ type GroupedRows = {
 };
 
 const UNGROUPED_KEY = '__ungrouped__';
+const GROUP_SUMMARY_SORT_MAP: Partial<Record<keyof RowWithCost, keyof GroupTotals>> = {
+  ticker: 'labelValue',
+  name: 'labelValue',
+  currency: 'labelValue',
+  instrument_type: 'labelValue',
+  units: 'units',
+  cost: 'cost',
+  market_value_gbp: 'marketValue',
+  gain_gbp: 'gain',
+  change_7d_pct: 'change7dPct',
+  change_30d_pct: 'change30dPct',
+  gain_pct: 'gainPct',
+};
 
 export function isCashInstrument(
   instrument: Pick<InstrumentSummary, 'instrument_type' | 'ticker'>,
@@ -73,13 +89,92 @@ export function InstrumentTable({ rows }: Props) {
   const [pendingGroupTicker, setPendingGroupTicker] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
 
+  const exchanges = useMemo(() => {
+    const values = new Set<string>();
+    for (const row of rows) {
+      const exchange = row.exchange?.trim();
+      if (exchange) {
+        values.add(exchange);
+      }
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
+  const [selectedExchanges, setSelectedExchanges] = useState<string[]>(() => [...exchanges]);
+
+  useEffect(() => {
+    setSelectedExchanges((prev) => {
+      const prevSet = new Set(prev);
+      const availableSet = new Set(exchanges);
+      let changed = false;
+      const next: string[] = [];
+
+      for (const value of prev) {
+        if (availableSet.has(value)) {
+          next.push(value);
+        } else {
+          changed = true;
+        }
+      }
+
+      for (const value of exchanges) {
+        if (!prevSet.has(value)) {
+          next.push(value);
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [exchanges]);
+
+  const toggleExchangeSelection = (exchange: string) => {
+    setSelectedExchanges((prev) => {
+      const nextSet = new Set(prev);
+      if (nextSet.has(exchange)) {
+        nextSet.delete(exchange);
+      } else {
+        nextSet.add(exchange);
+      }
+
+      return exchanges.filter((value) => nextSet.has(value));
+    });
+  };
+
   const toggleColumn = (key: keyof typeof visibleColumns) => {
     setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const filteredRows = useMemo(
+    () => {
+      if (!rows.length) {
+        return [];
+      }
+      if (!exchanges.length) {
+        return rows;
+      }
+      if (!selectedExchanges.length) {
+        return [];
+      }
+      const selectedSet = new Set(selectedExchanges);
+      return rows.filter((row) => {
+        const exchange = row.exchange?.trim();
+        if (!exchange) {
+          return true;
+        }
+        return selectedSet.has(exchange);
+      });
+    },
+    [rows, exchanges, selectedExchanges],
+  );
+
   const rowsWithCost = useMemo<RowWithCost[]>(
     () =>
-      rows.map((r) => {
+      filteredRows.map((r) => {
         const cost = r.market_value_gbp - r.gain_gbp;
         const gain_pct =
           r.gain_pct !== undefined && r.gain_pct !== null
@@ -89,7 +184,7 @@ export function InstrumentTable({ rows }: Props) {
               : 0;
         return { ...r, cost, gain_pct };
       }),
-    [rows],
+    [filteredRows],
   );
 
   const cashFirstComparator = useCallback(
@@ -123,8 +218,8 @@ export function InstrumentTable({ rows }: Props) {
     defaultValue: 'Ungrouped',
   });
   const groups = useMemo<ReadonlyArray<GroupedRows>>(
-    () => createGroupedRows(sorted, ungroupedLabel),
-    [sorted, ungroupedLabel],
+    () => createGroupedRows(sorted, ungroupedLabel, sortKey, asc),
+    [sorted, ungroupedLabel, sortKey, asc],
   );
 
   useEffect(() => {
@@ -148,10 +243,11 @@ export function InstrumentTable({ rows }: Props) {
     setGroupOptions((prev) => mergeGroupOptions(prev, rows.map((r) => r.grouping ?? null)));
   }, [rows]);
 
-  if (!rowsWithCost.length) {
+  if (!rows.length) {
     return <p>{t('instrumentTable.noInstruments')}</p>;
   }
 
+  const noFilteredRows = rowsWithCost.length === 0;
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ['units', 'Units'],
     ['cost', 'Cost'],
@@ -160,6 +256,9 @@ export function InstrumentTable({ rows }: Props) {
     ['gain_pct', 'Gain %'],
   ];
 
+  const exchangeLabel = t('instrumentTable.exchangesLabel', {
+    defaultValue: 'Exchanges:',
+  });
   const assignmentLabel = t('instrumentTable.groupActions.placeholder', {
     defaultValue: 'Change…',
   });
@@ -175,6 +274,31 @@ export function InstrumentTable({ rows }: Props) {
       <div style={{ marginBottom: '0.5rem' }}>
         <RelativeViewToggle />
       </div>
+      {exchanges.length > 0 && (
+        <fieldset
+          style={{
+            marginBottom: '0.5rem',
+            border: 'none',
+            padding: 0,
+          }}
+        >
+          <legend>{exchangeLabel}</legend>
+          {exchanges.map((exchange) => {
+            const checkboxId = `instrument-table-exchange-${exchange}`;
+            return (
+              <label key={exchange} htmlFor={checkboxId} style={{ marginRight: '0.75rem' }}>
+                <input
+                  id={checkboxId}
+                  type="checkbox"
+                  checked={selectedExchanges.includes(exchange)}
+                  onChange={() => toggleExchangeSelection(exchange)}
+                />
+                {exchange}
+              </label>
+            );
+          })}
+        </fieldset>
+      )}
       <div style={{ marginBottom: '0.5rem' }}>
         Columns:
         {columnLabels.map(([key, label]) => (
@@ -188,7 +312,10 @@ export function InstrumentTable({ rows }: Props) {
           </label>
         ))}
       </div>
-      <table className={`${tableStyles.table} ${tableStyles.clickable}`} style={{ marginBottom: '0' }}>
+      {noFilteredRows ? (
+        <p>{t('instrumentTable.noInstruments')}</p>
+      ) : (
+        <table className={`${tableStyles.table} ${tableStyles.clickable}`} style={{ marginBottom: '0' }}>
         <thead>
           <tr>
             <th
@@ -205,15 +332,27 @@ export function InstrumentTable({ rows }: Props) {
               {t('instrumentTable.columns.name')}
               {sortKey === 'name' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
-            <th className={tableStyles.cell}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort('currency')}
+            >
               {t('instrumentTable.columns.ccy')}
+              {sortKey === 'currency' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
-            <th className={tableStyles.cell}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.clickable}`}
+              onClick={() => handleSort('instrument_type')}
+            >
               {t('instrumentTable.columns.type')}
+              {sortKey === 'instrument_type' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
             {!relativeViewEnabled && visibleColumns.units && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort('units')}
+              >
                 {t('instrumentTable.columns.units')}
+                {sortKey === 'units' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}
             {!relativeViewEnabled && visibleColumns.cost && (
@@ -226,8 +365,12 @@ export function InstrumentTable({ rows }: Props) {
               </th>
             )}
             {!relativeViewEnabled && visibleColumns.market && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort('market_value_gbp')}
+              >
                 {t('instrumentTable.columns.market')}
+                {sortKey === 'market_value_gbp' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}
             {!relativeViewEnabled && visibleColumns.gain && (
@@ -249,18 +392,34 @@ export function InstrumentTable({ rows }: Props) {
               </th>
             )}
             {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort('last_price_gbp')}
+              >
                 {t('instrumentTable.columns.last')}
+                {sortKey === 'last_price_gbp' ? (asc ? ' ▲' : ' ▼') : ''}
               </th>
             )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort('last_price_date')}
+            >
               {t('instrumentTable.columns.lastDate')}
+              {sortKey === 'last_price_date' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort('change_7d_pct')}
+            >
               {t('instrumentTable.columns.delta7d')}
+              {sortKey === 'change_7d_pct' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+            <th
+              className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+              onClick={() => handleSort('change_30d_pct')}
+            >
               {t('instrumentTable.columns.delta30d')}
+              {sortKey === 'change_30d_pct' ? (asc ? ' ▲' : ' ▼') : ''}
             </th>
             <th className={tableStyles.cell}>
               {t('instrumentTable.columns.groupActions', { defaultValue: 'Group' })}
@@ -274,9 +433,6 @@ export function InstrumentTable({ rows }: Props) {
             defaultValue: `Toggle ${group.label}`,
           });
           const groupDomId = `group-${sanitizeGroupKey(group.key)}`;
-          const totalUnits = group.rows.reduce((sum, row) => sum + (row.units ?? 0), 0);
-          const totalCost = group.rows.reduce((sum, row) => sum + row.cost, 0);
-
           return (
             <tbody key={group.key} id={groupDomId} className={tableStyles.groupSection}>
               <tr className={tableStyles.groupRow}>
@@ -316,12 +472,14 @@ export function InstrumentTable({ rows }: Props) {
                 <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                 {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {totalUnits ? new Intl.NumberFormat(i18n.language).format(totalUnits) : '—'}
+                    {group.totals.units
+                      ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
+                      : '—'}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {totalCost ? money(totalCost, baseCurrency) : '—'}
+                    {group.totals.cost ? money(group.totals.cost, baseCurrency) : '—'}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.market && (
@@ -539,7 +697,8 @@ export function InstrumentTable({ rows }: Props) {
             </tbody>
           );
         })}
-      </table>
+        </table>
+      )}
 
       {selected && (
         <InstrumentDetail
@@ -554,7 +713,12 @@ export function InstrumentTable({ rows }: Props) {
   );
 }
 
-function createGroupedRows(rows: RowWithCost[], ungroupedLabel: string): GroupedRows[] {
+function createGroupedRows(
+  rows: RowWithCost[],
+  ungroupedLabel: string,
+  sortKey: keyof RowWithCost,
+  asc: boolean,
+): GroupedRows[] {
   if (!rows.length) {
     return [];
   }
@@ -578,12 +742,39 @@ function createGroupedRows(rows: RowWithCost[], ungroupedLabel: string): Grouped
     group.rows.push(row);
   }
 
-  return ordered.map((group) => ({
+  const groups = ordered.map((group) => ({
     key: group.key,
     label: group.label,
     rows: group.rows,
-    totals: calculateGroupTotals(group.rows),
+    totals: calculateGroupTotals(group.rows, group.label),
   }));
+
+  const totalsKey = GROUP_SUMMARY_SORT_MAP[sortKey];
+  if (totalsKey) {
+    groups.sort((a, b) => {
+      const va = a.totals[totalsKey];
+      const vb = b.totals[totalsKey];
+
+      if (typeof va === 'string' || typeof vb === 'string') {
+        const sa = typeof va === 'string' ? va : '';
+        const sb = typeof vb === 'string' ? vb : '';
+        const cmp = sa.localeCompare(sb);
+        return asc ? cmp : -cmp;
+      }
+
+      const toNumeric = (value: unknown) =>
+        typeof value === 'number' && Number.isFinite(value) ? value : 0;
+
+      const na = toNumeric(va);
+      const nb = toNumeric(vb);
+      if (na === nb) {
+        return 0;
+      }
+      return asc ? na - nb : nb - na;
+    });
+  }
+
+  return groups;
 }
 
 function sanitizeGroupKey(key: string): string {
@@ -591,7 +782,8 @@ function sanitizeGroupKey(key: string): string {
   return sanitized || 'group';
 }
 
-function calculateGroupTotals(rows: RowWithCost[]): GroupTotals {
+function calculateGroupTotals(rows: RowWithCost[], label: string): GroupTotals {
+  const totalUnits = rows.reduce((sum, row) => sum + (row.units ?? 0), 0);
   const totalMarket = rows.reduce((sum, row) => sum + row.market_value_gbp, 0);
   const totalGain = rows.reduce((sum, row) => sum + row.gain_gbp, 0);
   const totalCost = rows.reduce((sum, row) => sum + row.cost, 0);
@@ -617,6 +809,9 @@ function calculateGroupTotals(rows: RowWithCost[]): GroupTotals {
   };
 
   return {
+    labelValue: label,
+    units: totalUnits,
+    cost: totalCost,
     marketValue: totalMarket,
     gain: totalGain,
     gainPct,

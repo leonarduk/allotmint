@@ -488,6 +488,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 full_tkr,
                 {
                     "ticker": full_tkr,
+                    "exchange": exch,
                     "name": instrument_meta.get("name") or h.get("name", full_tkr),
                     "currency": h.get("currency") or instrument_meta.get("currency"),
                     "sector": h.get("sector") or instrument_meta.get("sector"),
@@ -517,6 +518,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     and grouping_source in _GROUPING_FALLBACK_SOURCES,
                 },
             )
+            row["exchange"] = exch
             row.setdefault("_grouping_from_fallback", False)
 
             # accumulate units from the holding
@@ -569,7 +571,12 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                         row["grouping_id"] = grouping_id_value
 
             # attach snapshot if present
-            cost = _safe_num(h.get("cost_gbp") or h.get("cost_basis_gbp") or h.get("effective_cost_basis_gbp"))
+            cost_value = h.get("effective_cost_basis_gbp")
+            if cost_value is None:
+                cost_value = h.get("cost_basis_gbp")
+            if cost_value is None:
+                cost_value = h.get("cost_gbp")
+            cost = _safe_num(cost_value)
             row["cost_gbp"] += cost
 
             # if holdings already carry market value / gain, include them so we

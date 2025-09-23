@@ -26,6 +26,7 @@ type Props = {
 export function PortfolioView({ data, loading, error }: Props) {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [hasWarnings, setHasWarnings] = useState(false);
+  const { baseCurrency } = useConfig();
 
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
 
@@ -61,8 +62,6 @@ export function PortfolioView({ data, loading, error }: Props) {
   const activeSet = new Set(
     selectedAccounts.length ? selectedAccounts : allKeys
   );
-
-  const { baseCurrency } = useConfig();
 
   const totalValue = data.accounts.reduce(
     (sum, acct, idx) =>

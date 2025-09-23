@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useParams } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 import { searchInstruments } from "../api";
+import i18n from "../i18n";
 
 vi.mock("../api", () => ({
   searchInstruments: vi.fn(),
@@ -31,7 +32,8 @@ describe("InstrumentSearchBar", () => {
       </MemoryRouter>
     );
 
-    const researchButton = screen.getByRole("button", { name: /Research/i });
+    const researchLabel = i18n.t("app.research");
+    const researchButton = screen.getByRole("button", { name: researchLabel });
     expect(researchButton).toBeInTheDocument();
     expect(
       screen.queryByLabelText(/Search instruments/i)

@@ -1,18 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../hooks/useInstrumentHistory", () => ({
   useInstrumentHistory: vi.fn(),
+  getCachedInstrumentHistory: vi.fn(() => null),
 }));
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "./InstrumentResearch";
-import type { ScreenerResult, NewsItem, QuoteRow } from "../types";
+import type { ScreenerResult, NewsItem, QuoteRow, InstrumentMetadata } from "../types";
 import { useInstrumentHistory } from "../hooks/useInstrumentHistory";
 import * as api from "../api";
 import { configContext, type ConfigContextValue } from "../ConfigContext";
 const mockGetScreener = vi.spyOn(api, "getScreener");
 const mockGetQuotes = vi.spyOn(api, "getQuotes");
 const mockGetNews = vi.spyOn(api, "getNews");
+const mockListInstrumentMetadata = vi.spyOn(api, "listInstrumentMetadata");
+const mockUpdateInstrumentMetadata = vi.spyOn(api, "updateInstrumentMetadata");
 const mockUseInstrumentHistory = vi.mocked(useInstrumentHistory);
 
 const defaultConfig: ConfigContextValue = {
@@ -37,11 +40,9 @@ const defaultConfig: ConfigContextValue = {
     virtual: true,
     support: true,
     settings: true,
-    profile: true,
     pension: true,
     reports: true,
     scenario: true,
-    logs: true,
   },
   theme: "system",
   baseCurrency: "GBP",
@@ -75,10 +76,30 @@ describe("InstrumentResearch page", () => {
   beforeEach(() => {
     mockUseInstrumentHistory.mockReset();
     mockUseInstrumentHistory.mockReturnValue({
-      data: { mini: { "30": [] }, positions: [] },
+      data: { mini: { "30": [] }, positions: [], ticker: "AAA.L" },
       loading: false,
       error: null,
     } as any);
+    mockListInstrumentMetadata.mockReset();
+    mockUpdateInstrumentMetadata.mockReset();
+    const catalogue: InstrumentMetadata[] = [
+      {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "USD",
+      },
+      {
+        ticker: "BBB.N",
+        exchange: "N",
+        name: "Beta",
+        sector: "Finance",
+        currency: "USD",
+      },
+    ];
+    mockListInstrumentMetadata.mockResolvedValue(catalogue);
+    mockUpdateInstrumentMetadata.mockResolvedValue({} as any);
   });
 
   it("shows loading indicators while fetching data", async () => {
@@ -106,6 +127,8 @@ describe("InstrumentResearch page", () => {
 
     expect(screen.getByText(/Loading metrics/i)).toBeInTheDocument();
     expect(screen.getByText(/Loading quote/i)).toBeInTheDocument();
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
     expect(screen.getByText(/Loading news/i)).toBeInTheDocument();
 
     screenerResolve!([
@@ -127,6 +150,9 @@ describe("InstrumentResearch page", () => {
       } as QuoteRow,
     ]);
     newsResolve!([{ headline: "headline", url: "http://example.com" }]);
+
+    const fundamentalsTab = screen.getByRole("button", { name: /Fundamentals/i });
+    await userEvent.click(fundamentalsTab);
 
     expect(await screen.findByText("Price")).toBeInTheDocument();
     expect(
@@ -154,6 +180,8 @@ describe("InstrumentResearch page", () => {
     expect(await screen.findByText("detail fail")).toBeInTheDocument();
     expect(await screen.findByText("screener fail")).toBeInTheDocument();
     expect(await screen.findByText("quotes fail")).toBeInTheDocument();
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
     expect(await screen.findByText("news fail")).toBeInTheDocument();
   });
 
@@ -164,7 +192,34 @@ describe("InstrumentResearch page", () => {
 
     renderPage();
 
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
     expect(await screen.findByText("No news available")).toBeInTheDocument();
+  });
+
+  it("renders news metadata when available", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([
+      {
+        headline: "Alpha headline",
+        url: "https://example.com/alpha",
+        source: "Example News",
+        published_at: "2023-08-25T16:00:00Z",
+      },
+    ]);
+
+    renderPage();
+
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
+
+    const link = await screen.findByRole("link", { name: "Alpha headline" });
+    const listItem = link.closest("li");
+    expect(listItem).not.toBeNull();
+    const scoped = within(listItem as HTMLElement);
+    expect(scoped.getByText("Example News")).toBeInTheDocument();
+    expect(scoped.getByText("2023-08-25")).toBeInTheDocument();
   });
 
   it("navigates to screener when link clicked", async () => {
@@ -247,6 +302,46 @@ describe("InstrumentResearch page", () => {
     }
   });
 
+  it("reveals timeseries data and news when switching tabs", async () => {
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        prices: [
+          { date: "2024-01-01", close_gbp: 100 },
+          { date: "2024-01-02", close_gbp: 105 },
+        ],
+        ticker: "AAA.L",
+      },
+      loading: false,
+      error: null,
+    } as any);
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([
+      { headline: "headline one", url: "http://example.com" },
+    ]);
+
+    renderPage();
+
+    expect(
+      screen.queryByRole("heading", { name: /Recent Prices/i }),
+    ).not.toBeInTheDocument();
+
+    const timeseriesTab = screen.getByRole("button", { name: /Timeseries/i });
+    await userEvent.click(timeseriesTab);
+
+    expect(
+      await screen.findByRole("heading", { name: /Recent Prices/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2024-01-02")).toBeInTheDocument();
+
+    expect(screen.queryByText("headline one")).not.toBeInTheDocument();
+    const newsTab = screen.getByRole("button", { name: /News/i });
+    await userEvent.click(newsTab);
+    expect(await screen.findByText("headline one")).toBeInTheDocument();
+  });
+
   it("renders instrument metadata when available", async () => {
     mockUseInstrumentHistory.mockReturnValue({
       data: {
@@ -255,6 +350,7 @@ describe("InstrumentResearch page", () => {
         name: "Acme Corp",
         sector: "Tech",
         currency: "USD",
+        ticker: "AAA.L",
       },
       loading: false,
       error: null,
@@ -276,6 +372,98 @@ describe("InstrumentResearch page", () => {
     expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Corp");
     expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Tech");
     expect(screen.getByText(/Currency:/)).toHaveTextContent("Currency: USD");
+  });
+
+  it("allows editing instrument metadata", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+
+    const editButton = await screen.findByRole("button", { name: /Edit/i });
+    await userEvent.click(editButton);
+
+    const nameInput = await screen.findByLabelText(/Name/i);
+    await userEvent.clear(nameInput);
+    await userEvent.type(nameInput, "Acme Updated");
+
+    const sectorInput = screen.getByLabelText(/Sector/i);
+    await userEvent.clear(sectorInput);
+    await userEvent.type(sectorInput, "Healthcare");
+
+    const currencySelect = screen.getByLabelText(/Currency/i);
+    await userEvent.selectOptions(currencySelect, "EUR");
+
+    const saveButton = screen.getByRole("button", { name: /Save/i });
+    await userEvent.click(saveButton);
+
+    expect(
+      await screen.findByText("Instrument details updated."),
+    ).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).toHaveBeenCalledWith(
+      "AAA",
+      "L",
+      expect.objectContaining({
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Updated",
+        sector: "Healthcare",
+        currency: "EUR",
+      }),
+    );
+    expect(screen.getByText(/Name:/)).toHaveTextContent("Name: Acme Updated");
+    expect(screen.getByText(/Sector:/)).toHaveTextContent("Sector: Healthcare");
+    expect(screen.getByText(/Currency:/)).toHaveTextContent("Currency: EUR");
+  });
+
+  it("validates currency before saving metadata", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+
+    const editButton = await screen.findByRole("button", { name: /Edit/i });
+    await userEvent.click(editButton);
+
+    const currencySelect = screen.getByLabelText(/Currency/i);
+    await userEvent.selectOptions(currencySelect, "");
+
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(
+      await screen.findByText("Select a supported currency before saving."),
+    ).toBeInTheDocument();
+    expect(mockUpdateInstrumentMetadata).not.toHaveBeenCalled();
+  });
+
+  it("shows an error when saving metadata fails", async () => {
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    mockUpdateInstrumentMetadata.mockRejectedValueOnce(new Error("save failed"));
+    renderPage();
+
+    const editButton = await screen.findByRole("button", { name: /Edit/i });
+    await userEvent.click(editButton);
+
+    await userEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(
+      await screen.findByText("Unable to save instrument details. save failed"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Currency/i)).toBeInTheDocument();
+  });
+
+  it("surfaces catalogue load failures", async () => {
+    mockListInstrumentMetadata.mockRejectedValueOnce(new Error("catalog fail"));
+    mockGetScreener.mockResolvedValue([]);
+    mockGetQuotes.mockResolvedValue([]);
+    mockGetNews.mockResolvedValue([]);
+    renderPage();
+
+    expect(
+      await screen.findByText("Unable to load the instrument catalogue. catalog fail"),
+    ).toBeInTheDocument();
   });
 
   it("skips state updates when unmounted", async () => {

@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { percentOrNa } from "./money";
+import { money, percentOrNa } from "./money";
+
+describe("money", () => {
+  it("formats GBX values using pound units", () => {
+    const value = 123.45;
+    expect(money(value, "GBX", "en-GB")).toBe(
+      money(value, "GBP", "en-GB"),
+    );
+  });
+});
 
 describe("percentOrNa", () => {
   it("returns N/A without warning for null or undefined", () => {

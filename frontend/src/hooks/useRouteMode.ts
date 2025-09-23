@@ -18,21 +18,20 @@ function deriveInitial() {
   const path = window.location.pathname.split("/").filter(Boolean);
   const params = new URLSearchParams(window.location.search);
   const mode: Mode =
-    path[0] === "member" ? "owner" :
+    path[0] === "portfolio" ? "owner" :
     path[0] === "instrument" ? "instrument" :
     path[0] === "transactions" ? "transactions" :
     path[0] === "performance" ? "performance" :
     path[0] === "screener" ? "screener" :
     path[0] === "timeseries" ? "timeseries" :
     path[0] === "watchlist" ? "watchlist" :
+    path[0] === "market" ? "market" :
     path[0] === "movers" ? "movers" :
     path[0] === "instrumentadmin" ? "instrumentadmin" :
     path[0] === "dataadmin" ? "dataadmin" :
-    path[0] === "profile" ? "profile" :
     path[0] === "trail" ? "trail" :
     path[0] === "support" ? "support" :
     path[0] === "scenario" ? "scenario" :
-    path[0] === "logs" ? "logs" :
     path.length === 0 ? "group" : "movers";
   const slug = path[1] ?? "";
   const owner = mode === "owner" ? slug : "";
@@ -59,23 +58,21 @@ export function useRouteMode(): RouteState {
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":
-        return selectedOwner ? `/member/${selectedOwner}` : "/member";
+        return selectedOwner ? `/portfolio/${selectedOwner}` : "/portfolio";
       case "performance":
         return selectedOwner
           ? `/performance/${selectedOwner}`
           : "/performance";
+      case "market":
+        return "/market";
       case "movers":
         return "/movers";
       case "scenario":
         return "/scenario";
       case "settings":
         return "/settings";
-      case "logs":
-        return "/logs";
       case "instrumentadmin":
         return "/instrumentadmin";
-      case "profile":
-        return "/profile";
       case "trail":
         return "/trail";
       default:
@@ -88,7 +85,7 @@ export function useRouteMode(): RouteState {
     const params = new URLSearchParams(location.search);
     let newMode: Mode;
     switch (segs[0]) {
-      case "member":
+      case "portfolio":
         newMode = "owner";
         break;
       case "instrument":
@@ -109,6 +106,9 @@ export function useRouteMode(): RouteState {
       case "watchlist":
         newMode = "watchlist";
         break;
+      case "market":
+        newMode = "market";
+        break;
       case "movers":
         newMode = "movers";
         break;
@@ -118,17 +118,11 @@ export function useRouteMode(): RouteState {
       case "dataadmin":
         newMode = "dataadmin";
         break;
-      case "profile":
-        newMode = "profile";
-        break;
       case "trail":
         newMode = "trail";
         break;
       case "support":
         newMode = "support";
-        break;
-      case "logs":
-        newMode = "logs";
         break;
       case "settings":
         newMode = "settings";

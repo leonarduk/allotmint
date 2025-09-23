@@ -90,6 +90,7 @@ export type InstrumentSummary = {
   ticker: string;
   name: string;
   grouping?: string | null;
+  exchange?: string | null;
   currency?: string | null;
   units: number;
   market_value_gbp: number;
@@ -205,6 +206,8 @@ export interface InstrumentDetailMini {
 export interface NewsItem {
   headline: string;
   url: string;
+  source?: string | null;
+  published_at?: string | null;
 }
 
 export interface SectorPerformance {
@@ -230,6 +233,7 @@ export interface InstrumentPosition {
 }
 
 export interface InstrumentDetail {
+  ticker?: string | null;
   prices: unknown;
   positions: InstrumentPosition[];
   mini?: InstrumentDetailMini;
@@ -300,6 +304,7 @@ export interface InstrumentMetadata {
   region?: string | null;
   sector?: string | null;
   grouping?: string | null;
+  currency?: string | null;
 }
 
 export interface QuoteRow {
@@ -459,6 +464,15 @@ export interface TrailTask {
   completed: boolean;
 }
 
+export interface TrailCompletionTotals {
+  completed: number;
+  total: number;
+}
+
 export interface TrailResponse {
   tasks: TrailTask[];
+  xp: number;
+  streak: number;
+  daily_totals: Record<string, TrailCompletionTotals>;
+  today: string;
 }

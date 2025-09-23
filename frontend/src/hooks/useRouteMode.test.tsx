@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 vi.mock("../api", () => ({ getGroups: vi.fn().mockResolvedValue([]) }));
 import {
   configContext,
@@ -77,13 +77,11 @@ describe("useRouteMode", () => {
       instrumentadmin: false,
       dataadmin: false,
       virtual: false,
-        support: false,
-        settings: false,
-        profile: true,
-        pension: false,
-        scenario: false,
-        reports: false,
-        logs: false,
+      support: false,
+      settings: false,
+      pension: false,
+      scenario: false,
+      reports: false,
     };
 
     const config: ConfigContextValue = {
@@ -109,6 +107,6 @@ describe("useRouteMode", () => {
     );
 
     await waitFor(() => expect(result.current.route.mode).toBe("owner"));
-    expect(result.current.location.pathname).toBe("/member");
+    expect(result.current.location.pathname).toBe("/portfolio");
   });
 });

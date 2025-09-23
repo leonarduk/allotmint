@@ -19,14 +19,11 @@ export const tabPluginMap = {
   alertsettings: {},
   tradecompliance: {},
   settings: {},
-  profile: {},
   pension: {},
   trail: {},
-  taxharvest: {},
-  taxallowances: {},
+  taxtools: {},
   reports: {},
   scenario: {},
-  logs: {},
 };
 export type TabPluginId = keyof typeof tabPluginMap;
 export const orderedTabPlugins = [
@@ -48,14 +45,11 @@ export const orderedTabPlugins = [
   { id: "reports", priority: 100, section: "user" },
   { id: "alertsettings", priority: 104, section: "user" },
   { id: "settings", priority: 105, section: "user" },
-  { id: "profile", priority: 106, section: "user" },
   { id: "pension", priority: 107, section: "user" },
-  { id: "taxharvest", priority: 108, section: "user" },
-  { id: "taxallowances", priority: 109, section: "user" },
+  { id: "taxtools", priority: 108, section: "user" },
   { id: "trail", priority: 102, section: "user" },
   { id: "tradecompliance", priority: 110, section: "user" },
   { id: "support", priority: 110, section: "support" },
-  { id: "logs", priority: 115, section: "support" },
   { id: "scenario", priority: 120, section: "user" },
 ] as const;
 export const USER_TABS = orderedTabPlugins

@@ -23,6 +23,8 @@ export default function PensionForecast() {
   const [statePension, setStatePension] = useState<string>("");
   const [contributionAnnual, setContributionAnnual] = useState<string>("");
   const [contributionMonthly, setContributionMonthly] = useState<string>("");
+  const [employerContributionMonthly, setEmployerContributionMonthly] =
+    useState<string>("");
   const [desiredIncome, setDesiredIncome] = useState<string>("");
   const [investmentGrowthPct, setInvestmentGrowthPct] = useState(5);
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
@@ -41,6 +43,7 @@ export default function PensionForecast() {
   const [desiredIncomeUsed, setDesiredIncomeUsed] = useState<number | null>(
     null,
   );
+  const [additionalPensions, setAdditionalPensions] = useState<number>(0);
   const [err, setErr] = useState<string | null>(null);
   const { t } = useTranslation();
 
@@ -64,6 +67,49 @@ export default function PensionForecast() {
       }),
     [],
   );
+
+  const personalContributionMonthlyValue = useMemo(() => {
+    if (contributionMonthly.trim() !== "") {
+      const parsed = Number(contributionMonthly);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    if (contributionAnnual.trim() !== "") {
+      const parsed = Number(contributionAnnual);
+      if (Number.isFinite(parsed)) {
+        return parsed / 12;
+      }
+    }
+    return null;
+  }, [contributionAnnual, contributionMonthly]);
+
+  const employerContributionMonthlyValue = useMemo(() => {
+    if (employerContributionMonthly.trim() === "") {
+      return null;
+    }
+    const parsed = Number(employerContributionMonthly);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [employerContributionMonthly]);
+
+  const totalContributionMonthlyValue = useMemo(() => {
+    if (
+      personalContributionMonthlyValue == null &&
+      employerContributionMonthlyValue == null
+    ) {
+      return null;
+    }
+    return (
+      (personalContributionMonthlyValue ?? 0) +
+      (employerContributionMonthlyValue ?? 0)
+    );
+  }, [
+    employerContributionMonthlyValue,
+    personalContributionMonthlyValue,
+  ]);
+
+  const formatSummaryValue = (value: number | null) =>
+    value != null
+      ? currencyFormatter.format(value)
+      : t("pensionForecast.summary.valueUnavailable");
 
   useEffect(() => {
     getOwners()
@@ -122,6 +168,10 @@ export default function PensionForecast() {
       setRetirementIncomeTotal(null);
       setDesiredIncomeUsed(null);
     }
+  };
+
+  const handleAddAnotherPension = () => {
+    setAdditionalPensions((count) => count + 1);
   };
 
   const breakdownConfig: Array<{
@@ -221,6 +271,68 @@ export default function PensionForecast() {
   return (
     <div>
       <h1 className="mb-4 text-2xl md:text-4xl">Pension Forecast</h1>
+      <section
+        aria-labelledby="pension-forecast-summary"
+        className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+      >
+        <h2 id="pension-forecast-summary" className="sr-only">
+          {t("pensionForecast.summary.title")}
+        </h2>
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+          <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="text-sm font-medium text-gray-500">
+                {t("pensionForecast.summary.pensionPotLabel")}
+              </p>
+              <p className="text-xl font-semibold text-gray-900">
+                {formatSummaryValue(pensionPot)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">
+                {t("pensionForecast.summary.personalContributionLabel")}
+              </p>
+              <p className="text-xl font-semibold text-gray-900">
+                {formatSummaryValue(personalContributionMonthlyValue)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">
+                {t("pensionForecast.summary.employerContributionLabel")}
+              </p>
+              <p className="text-xl font-semibold text-gray-900">
+                {formatSummaryValue(employerContributionMonthlyValue)}
+              </p>
+            </div>
+            {totalContributionMonthlyValue != null && (
+              <div>
+                <p className="text-sm font-medium text-gray-500">
+                  {t("pensionForecast.summary.totalContributionLabel")}
+                </p>
+                <p className="text-xl font-semibold text-gray-900">
+                  {currencyFormatter.format(totalContributionMonthlyValue)}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col items-start gap-2 md:items-end">
+            <button
+              type="button"
+              onClick={handleAddAnotherPension}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            >
+              {t("pensionForecast.summary.addAnotherPension")}
+            </button>
+            {additionalPensions > 0 && (
+              <span className="text-sm text-gray-600">
+                {t("pensionForecast.summary.additionalPensions", {
+                  count: additionalPensions,
+                })}
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
       <form onSubmit={handleSubmit} className="mb-4 space-y-2">
         <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
         <div>
@@ -260,6 +372,17 @@ export default function PensionForecast() {
             type="number"
             value={contributionMonthly}
             onChange={(e) => setContributionMonthly(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="mr-2" htmlFor="employer-contribution">
+            {t("pensionForecast.employerContributionMonthly")}
+          </label>
+          <input
+            id="employer-contribution"
+            type="number"
+            value={employerContributionMonthly}
+            onChange={(e) => setEmployerContributionMonthly(e.target.value)}
           />
         </div>
         <div>

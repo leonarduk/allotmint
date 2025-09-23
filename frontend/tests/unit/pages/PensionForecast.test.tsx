@@ -96,6 +96,8 @@ describe("PensionForecast page", () => {
     fireEvent.change(ownerSelect, { target: { value: "beth" } });
     const monthly = within(form).getByLabelText(/monthly contribution/i);
     fireEvent.change(monthly, { target: { value: "100" } });
+    const employer = within(form).getByLabelText(/employer contribution/i);
+    fireEvent.change(employer, { target: { value: "50" } });
 
     const btn = screen.getByRole("button", { name: /forecast/i });
     await userEvent.click(btn);
@@ -113,6 +115,37 @@ describe("PensionForecast page", () => {
     await screen.findByText(/pension pot: £123.00/i);
     await screen.findByText(/projected pot at 65: £323.00/i);
     await screen.findByText("Retirement income breakdown");
+    const summary = await screen.findByRole("region", {
+      name: /pension summary/i,
+    });
+    expect(summary).toBeInTheDocument();
+    expect(
+      within(summary).getByText("Current pension pot", { exact: false }),
+    ).toBeInTheDocument();
+    expect(within(summary).getByText("£123.00")).toBeInTheDocument();
+    expect(
+      within(summary).getByText("Your monthly contribution", { exact: false }),
+    ).toBeInTheDocument();
+    expect(within(summary).getByText("£100.00")).toBeInTheDocument();
+    expect(
+      within(summary).getByText("Employer contribution", { exact: false }),
+    ).toBeInTheDocument();
+    expect(within(summary).getByText("£50.00")).toBeInTheDocument();
+    expect(
+      within(summary).getByText("Total monthly contribution", { exact: false }),
+    ).toBeInTheDocument();
+    expect(within(summary).getByText("£150.00")).toBeInTheDocument();
+    const addAnother = within(summary).getByRole("button", {
+      name: /add another pension/i,
+    });
+    await userEvent.click(addAnother);
+    await within(summary).findByText("Additional pensions: 1", {
+      exact: true,
+    });
+    await userEvent.click(addAnother);
+    await within(summary).findByText("Additional pensions: 2", {
+      exact: true,
+    });
     expect(
       screen.getByText(
         "You're on track: projected income of £15,000.00 meets your desired £14,000.00 from age 64.",

@@ -199,6 +199,17 @@
     "pensionPot": "Pensionsvermögen",
     "growthAssumption": "Wachstumsannahme (%):",
     "monthlyContribution": "Monatlicher Beitrag (£):",
+    "employerContributionMonthly": "Arbeitgeberbeitrag (£/Monat):",
+    "summary": {
+      "title": "Pensionsübersicht",
+      "pensionPotLabel": "Aktueller Rententopf",
+      "personalContributionLabel": "Ihr monatlicher Beitrag",
+      "employerContributionLabel": "Arbeitgeberbeitrag",
+      "totalContributionLabel": "Monatlicher Gesamtbeitrag",
+      "valueUnavailable": "—",
+      "addAnotherPension": "Weitere Pension hinzufügen",
+      "additionalPensions": "Zusätzliche Pensionen: {{count}}"
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

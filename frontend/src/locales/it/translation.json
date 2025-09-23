@@ -199,6 +199,17 @@
     "pensionPot": "Fondo pensione",
     "growthAssumption": "Ipotesi di crescita (%):",
     "monthlyContribution": "Contributo mensile (£):",
+    "employerContributionMonthly": "Contributo del datore di lavoro (£/mese):",
+    "summary": {
+      "title": "Riepilogo pensione",
+      "pensionPotLabel": "Fondo pensione attuale",
+      "personalContributionLabel": "Il tuo contributo mensile",
+      "employerContributionLabel": "Contributo del datore di lavoro",
+      "totalContributionLabel": "Contributo mensile totale",
+      "valueUnavailable": "—",
+      "addAnotherPension": "Aggiungi un'altra pensione",
+      "additionalPensions": "Pensioni aggiuntive: {{count}}"
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

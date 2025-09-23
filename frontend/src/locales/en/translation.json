@@ -205,6 +205,17 @@
     "pensionPot": "Pension pot",
     "growthAssumption": "Growth assumption (%):",
     "monthlyContribution": "Monthly Contribution (£):",
+    "employerContributionMonthly": "Employer Contribution (£/mo):",
+    "summary": {
+      "title": "Pension summary",
+      "pensionPotLabel": "Current pension pot",
+      "personalContributionLabel": "Your monthly contribution",
+      "employerContributionLabel": "Employer contribution",
+      "totalContributionLabel": "Total monthly contribution",
+      "valueUnavailable": "—",
+      "addAnotherPension": "Add another pension",
+      "additionalPensions": "Additional pensions: {{count}}"
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

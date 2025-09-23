@@ -199,6 +199,17 @@
     "pensionPot": "Fundo de pensão",
     "growthAssumption": "Suposição de crescimento (%):",
     "monthlyContribution": "Contribuição mensal (£):",
+    "employerContributionMonthly": "Contribuição do empregador (£/mês):",
+    "summary": {
+      "title": "Resumo da pensão",
+      "pensionPotLabel": "Fundo de pensão atual",
+      "personalContributionLabel": "Sua contribuição mensal",
+      "employerContributionLabel": "Contribuição do empregador",
+      "totalContributionLabel": "Contribuição mensal total",
+      "valueUnavailable": "—",
+      "addAnotherPension": "Adicionar outra pensão",
+      "additionalPensions": "Pensões adicionais: {{count}}"
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

@@ -193,12 +193,49 @@
     "select": "Sélectionnez un propriétaire."
   },
   "pensionForecast": {
+    "panels": {
+      "now": {
+        "title": "Maintenant",
+        "description": "Ajustez vos dépenses et économies actuelles pour définir votre point de départ.",
+        "summary": "Vous dépensez {{spending}} par mois et mettez de côté {{savings}} pour l'avenir."
+      },
+      "future": {
+        "title": "Votre futur vous",
+        "description": "Projetez l'évolution de vos revenus de retraite avec votre plan."
+      }
+    },
+    "monthlySpending": {
+      "label": "Dépenses mensuelles",
+      "hint": "Ce que vous dépensez habituellement chaque mois aujourd'hui."
+    },
+    "monthlySavings": {
+      "label": "Épargne mensuelle",
+      "hint": "Ce que vous pouvez investir régulièrement chaque mois pour la retraite."
+    },
+    "careerPath": {
+      "label": "Parcours de carrière",
+      "options": {
+        "steady": "Stable",
+        "balanced": "Équilibré",
+        "accelerated": "Accéléré"
+      },
+      "descriptions": {
+        "steady": "Croissance plus faible avec moins de risque pour vos placements.",
+        "balanced": "Une approche équilibrée qui combine croissance et stabilité.",
+        "accelerated": "Croissance plus élevée supposant une stratégie plus agressive."
+      }
+    },
+    "deathAgeLabel": "Planifier jusqu'à l'âge",
+    "statePensionLabel": "Pension d'État (£/an)",
+    "forecastCta": "Mettre à jour la projection",
+    "futureSummary": "Votre futur vous suit le parcours {{career}} avec une croissance annuelle de {{growth}}.",
+    "plannedIncome": "Vous prévoyez {{monthly}} par mois ({{annual}} par an).",
+    "monthlySavingsSummary": "Vous versez {{value}} par mois pour la retraite.",
+    "projectedPot": "Capital projeté à {{age}} : {{value}}",
     "currentAge": "Âge actuel : {{age}}",
     "birthDate": "Date de naissance : {{dob}}",
     "retirementAge": "Âge de retraite : {{age}}",
     "pensionPot": "Pot de pension",
-    "growthAssumption": "Hypothèse de croissance (%):",
-    "monthlyContribution": "Contribution mensuelle (£):",
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

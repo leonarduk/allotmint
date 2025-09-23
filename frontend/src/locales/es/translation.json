@@ -193,12 +193,49 @@
     "select": "Seleccione un propietario."
   },
   "pensionForecast": {
+    "panels": {
+      "now": {
+        "title": "Ahora",
+        "description": "Ajusta los gastos y ahorros actuales para definir tu punto de partida.",
+        "summary": "Gastas {{spending}} al mes y reservas {{savings}} para el futuro."
+      },
+      "future": {
+        "title": "Tu yo futuro",
+        "description": "Proyecta cómo crecerán tus ingresos de jubilación con tu plan."
+      }
+    },
+    "monthlySpending": {
+      "label": "Gasto mensual",
+      "hint": "Cuánto sueles gastar cada mes hoy."
+    },
+    "monthlySavings": {
+      "label": "Ahorro mensual",
+      "hint": "Lo que puedes invertir de forma constante cada mes para la jubilación."
+    },
+    "careerPath": {
+      "label": "Trayectoria profesional",
+      "options": {
+        "steady": "Estable",
+        "balanced": "Equilibrada",
+        "accelerated": "Acelerada"
+      },
+      "descriptions": {
+        "steady": "Menor crecimiento y menor riesgo para tus inversiones.",
+        "balanced": "Un enfoque equilibrado que combina crecimiento y estabilidad.",
+        "accelerated": "Mayor crecimiento que asume una estrategia más agresiva."
+      }
+    },
+    "deathAgeLabel": "Plan hasta la edad",
+    "statePensionLabel": "Pensión estatal (£/año)",
+    "forecastCta": "Actualizar pronóstico",
+    "futureSummary": "Tu yo futuro sigue la trayectoria {{career}} con un crecimiento anual de {{growth}}.",
+    "plannedIncome": "Planeas {{monthly}} al mes ({{annual}} al año).",
+    "monthlySavingsSummary": "Aportas {{value}} al mes para la jubilación.",
+    "projectedPot": "Capital previsto a los {{age}}: {{value}}",
     "currentAge": "Edad actual: {{age}}",
     "birthDate": "Fecha de nacimiento: {{dob}}",
     "retirementAge": "Edad de jubilación: {{age}}",
     "pensionPot": "Fondo de pensiones",
-    "growthAssumption": "Suposición de crecimiento (%):",
-    "monthlyContribution": "Contribución mensual (£):",
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

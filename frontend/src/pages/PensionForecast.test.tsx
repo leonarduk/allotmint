@@ -31,7 +31,7 @@ describe("PensionForecast page", () => {
     vi.clearAllMocks();
   });
 
-  it("renders owner selector", async () => {
+  it("renders owner selector and sliders", async () => {
     mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
@@ -53,10 +53,21 @@ describe("PensionForecast page", () => {
     const form = document.querySelector("form")!;
     const ownerSelect = await within(form).findByLabelText(/owner/i);
     expect(ownerSelect).toBeInTheDocument();
-    const selects = await screen.findAllByLabelText(/owner/i, {
-      selector: 'select',
-    });
-    expect(selects[0]).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /now/i, level: 2 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /future you/i, level: 2 }),
+    ).toBeInTheDocument();
+    expect(
+      within(form).getByLabelText(/monthly spending/i, { selector: "input" }),
+    ).toHaveAttribute("type", "range");
+    expect(
+      within(form).getByLabelText(/monthly savings/i, { selector: "input" }),
+    ).toHaveAttribute("type", "range");
+    expect(
+      within(form).getByLabelText(/career path/i, { selector: "input" }),
+    ).toHaveAttribute("type", "range");
   });
 
   it("submits with selected owner", async () => {
@@ -90,14 +101,18 @@ describe("PensionForecast page", () => {
     const ownerSelect = await within(form).findByLabelText(/owner/i);
     await userEvent.selectOptions(ownerSelect, "beth");
 
-    const growth = within(form).getByLabelText(/growth assumption/i);
-    await userEvent.selectOptions(growth, "7");
+    const spendingSlider = within(form).getByLabelText(/monthly spending/i);
+    fireEvent.change(spendingSlider, { target: { value: "1200" } });
+
+    const savingsSlider = within(form).getByLabelText(/monthly savings/i);
+    fireEvent.change(savingsSlider, { target: { value: "100" } });
+
+    const careerSlider = within(form).getByLabelText(/career path/i);
+    fireEvent.change(careerSlider, { target: { value: "2" } });
 
     fireEvent.change(ownerSelect, { target: { value: "beth" } });
-    const monthly = within(form).getByLabelText(/monthly contribution/i);
-    fireEvent.change(monthly, { target: { value: "100" } });
 
-    const btn = screen.getByRole("button", { name: /forecast/i });
+    const btn = screen.getByRole("button", { name: /update forecast/i });
     await userEvent.click(btn);
 
     await vi.waitFor(() =>
@@ -106,6 +121,7 @@ describe("PensionForecast page", () => {
           owner: "beth",
           investmentGrowthPct: 7,
           contributionMonthly: 100,
+          desiredIncomeAnnual: 14400,
         }),
       ),
     );
@@ -117,6 +133,19 @@ describe("PensionForecast page", () => {
       screen.getByText(
         "You're on track: projected income of £15,000.00 meets your desired £14,000.00 from age 64.",
       ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Future you follows the Accelerated path with 7% annual growth.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "You're planning for £1,200.00 per month (£14,400.00 annually).",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Contributing £100.00 monthly toward retirement."),
     ).toBeInTheDocument();
     expect(screen.getByText("State pension")).toBeInTheDocument();
     expect(screen.getByText("Defined benefit")).toBeInTheDocument();
@@ -156,10 +185,10 @@ describe("PensionForecast page", () => {
     renderWithI18n(<PensionForecast />);
 
     const form = document.querySelector("form")!;
-    const desired = within(form).getByLabelText(/desired income/i);
-    fireEvent.change(desired, { target: { value: "12000" } });
+    const spendingSlider = within(form).getByLabelText(/monthly spending/i);
+    fireEvent.change(spendingSlider, { target: { value: "1000" } });
 
-    const btn = screen.getByRole("button", { name: /forecast/i });
+    const btn = screen.getByRole("button", { name: /update forecast/i });
     await userEvent.click(btn);
 
     await screen.findByText(

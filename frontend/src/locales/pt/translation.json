@@ -193,12 +193,49 @@
     "select": "Selecione um proprietário."
   },
   "pensionForecast": {
+    "panels": {
+      "now": {
+        "title": "Agora",
+        "description": "Ajuste os gastos e a poupança atuais para definir sua base.",
+        "summary": "Você gasta {{spending}} por mês e reserva {{savings}} para o futuro."
+      },
+      "future": {
+        "title": "Você no futuro",
+        "description": "Projete como a renda da aposentadoria cresce com seu plano."
+      }
+    },
+    "monthlySpending": {
+      "label": "Gasto mensal",
+      "hint": "Quanto você costuma gastar a cada mês hoje."
+    },
+    "monthlySavings": {
+      "label": "Poupança mensal",
+      "hint": "Quanto você pode investir de forma consistente todo mês para a aposentadoria."
+    },
+    "careerPath": {
+      "label": "Trajetória profissional",
+      "options": {
+        "steady": "Estável",
+        "balanced": "Equilibrada",
+        "accelerated": "Acelerada"
+      },
+      "descriptions": {
+        "steady": "Crescimento menor com menos risco para seus investimentos.",
+        "balanced": "Uma abordagem equilibrada que combina crescimento e estabilidade.",
+        "accelerated": "Maior crescimento que assume uma estratégia mais agressiva."
+      }
+    },
+    "deathAgeLabel": "Planeje até a idade",
+    "statePensionLabel": "Pensão estatal (£/ano)",
+    "forecastCta": "Atualizar projeção",
+    "futureSummary": "Seu futuro segue a trajetória {{career}} com crescimento anual de {{growth}}.",
+    "plannedIncome": "Você planeja {{monthly}} por mês ({{annual}} por ano).",
+    "monthlySavingsSummary": "Você contribui com {{value}} por mês para a aposentadoria.",
+    "projectedPot": "Montante projetado aos {{age}}: {{value}}",
     "currentAge": "Idade atual: {{age}}",
     "birthDate": "Data de nascimento: {{dob}}",
     "retirementAge": "Idade de aposentadoria: {{age}}",
     "pensionPot": "Fundo de pensão",
-    "growthAssumption": "Suposição de crescimento (%):",
-    "monthlyContribution": "Contribuição mensal (£):",
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

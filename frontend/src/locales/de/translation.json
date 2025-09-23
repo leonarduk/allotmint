@@ -193,12 +193,49 @@
     "select": "Wählen Sie einen Besitzer."
   },
   "pensionForecast": {
+    "panels": {
+      "now": {
+        "title": "Jetzt",
+        "description": "Passen Sie Ausgaben und Ersparnisse von heute an, um Ihre Basis festzulegen.",
+        "summary": "Sie geben {{spending}} pro Monat aus und legen {{savings}} für die Zukunft zurück."
+      },
+      "future": {
+        "title": "Zukünftiges Ich",
+        "description": "Prognostizieren Sie, wie Ihre Renteneinnahmen mit Ihrem Plan wachsen."
+      }
+    },
+    "monthlySpending": {
+      "label": "Monatliche Ausgaben",
+      "hint": "Wie viel Sie derzeit typischerweise pro Monat ausgeben."
+    },
+    "monthlySavings": {
+      "label": "Monatliche Ersparnisse",
+      "hint": "Was Sie jeden Monat beständig für den Ruhestand investieren können."
+    },
+    "careerPath": {
+      "label": "Karriereweg",
+      "options": {
+        "steady": "Stetig",
+        "balanced": "Ausgewogen",
+        "accelerated": "Beschleunigt"
+      },
+      "descriptions": {
+        "steady": "Geringeres Wachstum und geringeres Risiko für Ihre Anlagen.",
+        "balanced": "Ein ausgewogener Ansatz, der Wachstum und Stabilität verbindet.",
+        "accelerated": "Höheres Wachstum, das eine aggressivere Strategie annimmt."
+      }
+    },
+    "deathAgeLabel": "Plan bis Alter",
+    "statePensionLabel": "Staatliche Rente (£/Jahr)",
+    "forecastCta": "Prognose aktualisieren",
+    "futureSummary": "Ihr zukünftiges Ich folgt dem {{career}}-Pfad mit {{growth}} jährlichem Wachstum.",
+    "plannedIncome": "Sie planen mit {{monthly}} pro Monat ({{annual}} jährlich).",
+    "monthlySavingsSummary": "Sie zahlen monatlich {{value}} für den Ruhestand ein.",
+    "projectedPot": "Prognostiziertes Vermögen mit {{age}}: {{value}}",
     "currentAge": "Aktuelles Alter: {{age}}",
     "birthDate": "Geburtsdatum: {{dob}}",
     "retirementAge": "Renteneintrittsalter: {{age}}",
     "pensionPot": "Pensionsvermögen",
-    "growthAssumption": "Wachstumsannahme (%):",
-    "monthlyContribution": "Monatlicher Beitrag (£):",
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

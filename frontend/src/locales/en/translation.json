@@ -199,12 +199,49 @@
     "select": "Select an owner."
   },
   "pensionForecast": {
+    "panels": {
+      "now": {
+        "title": "Now",
+        "description": "Adjust today's spending and savings to set your baseline.",
+        "summary": "You're spending {{spending}} each month and setting aside {{savings}} for the future."
+      },
+      "future": {
+        "title": "Future you",
+        "description": "Project how your retirement income grows with your plan."
+      }
+    },
+    "monthlySpending": {
+      "label": "Monthly spending",
+      "hint": "How much you typically spend each month today."
+    },
+    "monthlySavings": {
+      "label": "Monthly savings",
+      "hint": "What you can consistently invest toward retirement each month."
+    },
+    "careerPath": {
+      "label": "Career path",
+      "options": {
+        "steady": "Steady",
+        "balanced": "Balanced",
+        "accelerated": "Accelerated"
+      },
+      "descriptions": {
+        "steady": "Lower growth, lower risk path for your investments.",
+        "balanced": "A balanced approach that blends growth and stability.",
+        "accelerated": "Higher growth path that assumes a more aggressive strategy."
+      }
+    },
+    "deathAgeLabel": "Plan to age",
+    "statePensionLabel": "State pension (£/yr)",
+    "forecastCta": "Update forecast",
+    "futureSummary": "Future you follows the {{career}} path with {{growth}} annual growth.",
+    "plannedIncome": "You're planning for {{monthly}} per month ({{annual}} annually).",
+    "monthlySavingsSummary": "Contributing {{value}} monthly toward retirement.",
+    "projectedPot": "Projected pot at {{age}}: {{value}}",
     "currentAge": "Current age: {{age}}",
     "birthDate": "Birth date: {{dob}}",
     "retirementAge": "Retirement age: {{age}}",
     "pensionPot": "Pension pot",
-    "growthAssumption": "Growth assumption (%):",
-    "monthlyContribution": "Monthly Contribution (£):",
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

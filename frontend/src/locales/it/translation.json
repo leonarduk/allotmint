@@ -193,12 +193,49 @@
     "select": "Seleziona un proprietario."
   },
   "pensionForecast": {
+    "panels": {
+      "now": {
+        "title": "Adesso",
+        "description": "Regola le spese e i risparmi attuali per impostare il punto di partenza.",
+        "summary": "Spendi {{spending}} al mese e metti da parte {{savings}} per il futuro."
+      },
+      "future": {
+        "title": "Il tuo futuro",
+        "description": "Proietta come cresceranno i tuoi redditi pensionistici con il piano."
+      }
+    },
+    "monthlySpending": {
+      "label": "Spesa mensile",
+      "hint": "Quanto spendi di solito ogni mese oggi."
+    },
+    "monthlySavings": {
+      "label": "Risparmio mensile",
+      "hint": "Quanto puoi investire con costanza ogni mese per la pensione."
+    },
+    "careerPath": {
+      "label": "Percorso di carriera",
+      "options": {
+        "steady": "Stabile",
+        "balanced": "Bilanciato",
+        "accelerated": "Accelerato"
+      },
+      "descriptions": {
+        "steady": "Crescita più bassa e rischio ridotto per i tuoi investimenti.",
+        "balanced": "Un approccio bilanciato che combina crescita e stabilità.",
+        "accelerated": "Crescita più alta che presume una strategia più aggressiva."
+      }
+    },
+    "deathAgeLabel": "Pianifica fino all'età",
+    "statePensionLabel": "Pensione statale (£/anno)",
+    "forecastCta": "Aggiorna previsione",
+    "futureSummary": "Il tuo futuro segue il percorso {{career}} con una crescita annuale di {{growth}}.",
+    "plannedIncome": "Prevedi {{monthly}} al mese ({{annual}} all'anno).",
+    "monthlySavingsSummary": "Versi {{value}} al mese per la pensione.",
+    "projectedPot": "Capitale previsto a {{age}}: {{value}}",
     "currentAge": "Età attuale: {{age}}",
     "birthDate": "Data di nascita: {{dob}}",
     "retirementAge": "Età pensionistica: {{age}}",
     "pensionPot": "Fondo pensione",
-    "growthAssumption": "Ipotesi di crescita (%):",
-    "monthlyContribution": "Contributo mensile (£):",
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

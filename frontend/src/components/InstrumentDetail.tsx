@@ -77,7 +77,7 @@ export function InstrumentPositionsTable({
   mutedColor = "#888",
 }: PositionsTableProps) {
   const { t } = useTranslation();
-  const { baseCurrency } = useConfig();
+  const { baseCurrency, relativeViewEnabled } = useConfig();
 
   return (
     <table

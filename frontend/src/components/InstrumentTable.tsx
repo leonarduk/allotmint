@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { InstrumentSummary } from '../types';
-import { InstrumentDetail } from './InstrumentDetail';
 import { useFilterableTable } from '../hooks/useFilterableTable';
 import { money, percent } from '../lib/money';
 import { translateInstrumentType } from '../lib/instrumentType';
@@ -18,6 +17,7 @@ import {
   createInstrumentGroup,
   listInstrumentGroups,
 } from '../api';
+import { useNavigate } from 'react-router-dom';
 
 type Props = {
   rows: InstrumentSummary[];
@@ -76,7 +76,6 @@ export function isCashInstrument(
 export function InstrumentTable({ rows }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency } = useConfig();
-  const [selected, setSelected] = useState<InstrumentSummary | null>(null);
   const [visibleColumns, setVisibleColumns] = useState({
     units: true,
     cost: true,
@@ -88,6 +87,7 @@ export function InstrumentTable({ rows }: Props) {
   const [groupOverrides, setGroupOverrides] = useState<Record<string, string | null | undefined>>({});
   const [pendingGroupTicker, setPendingGroupTicker] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
+  const navigate = useNavigate();
 
   const exchanges = useMemo(() => {
     const values = new Set<string>();
@@ -538,7 +538,7 @@ export function InstrumentTable({ rows }: Props) {
                       <td className={tableStyles.cell}>
                         <button
                           type="button"
-                          onClick={() => setSelected(r)}
+                          onClick={() => navigate(`/research/${encodeURIComponent(r.ticker)}`)}
                           style={{
                             color: 'dodgerblue',
                             textDecoration: 'underline',
@@ -558,15 +558,9 @@ export function InstrumentTable({ rows }: Props) {
                           <button
                             type="button"
                             onClick={() =>
-                              setSelected({
-                                ticker: `${r.currency}GBP.FX`,
-                                name: `${r.currency}GBP.FX`,
-                                currency: r.currency,
-                                instrument_type: 'FX',
-                                units: 0,
-                                market_value_gbp: 0,
-                                gain_gbp: 0,
-                              })
+                              navigate(
+                                `/research/${encodeURIComponent(`${r.currency}GBP.FX`)}`,
+                              )
                             }
                             style={{
                               color: 'dodgerblue',
@@ -700,15 +694,6 @@ export function InstrumentTable({ rows }: Props) {
         </table>
       )}
 
-      {selected && (
-        <InstrumentDetail
-          ticker={selected.ticker}
-          name={selected.name}
-          currency={selected.currency ?? undefined}
-          instrument_type={selected.instrument_type}
-          onClose={() => setSelected(null)}
-        />
-      )}
     </>
   );
 }

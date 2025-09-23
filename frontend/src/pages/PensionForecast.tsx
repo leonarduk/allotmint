@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   LineChart,
   Line,
@@ -275,37 +276,25 @@ export default function PensionForecast() {
           </button>
         </div>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-2xl bg-white/10 p-4">
-            <dt className="text-sm font-medium text-blue-100">
-              {t("pensionForecast.header.pensionPot")}
-            </dt>
-            <dd className="mt-2 text-2xl font-semibold">
-              {pensionPot != null
+          <SnapshotStat
+            label={t("pensionForecast.header.pensionPot")}
+            value={
+              pensionPot != null
                 ? currencyFormatter.format(pensionPot)
-                : t("pensionForecast.header.notAvailable")}
-            </dd>
-          </div>
-          <div className="rounded-2xl bg-white/10 p-4">
-            <dt className="text-sm font-medium text-blue-100">
-              {t("pensionForecast.header.employeeContribution")}
-            </dt>
-            <dd className="mt-2 text-2xl font-semibold">
-              {currencyFormatter.format(monthlySavings)}
-            </dd>
-          </div>
-          <div className="rounded-2xl bg-white/10 p-4">
-            <dt className="text-sm font-medium text-blue-100">
-              {t("pensionForecast.header.employerContribution")}
-            </dt>
-            <dd className="mt-2 text-2xl font-semibold">
-              {currencyFormatter.format(employerContributionMonthly)}
-            </dd>
-            <p className="mt-1 text-xs text-blue-100">
-              {t("pensionForecast.header.totalContribution", {
-                total: currencyFormatter.format(totalMonthlyContribution),
-              })}
-            </p>
-          </div>
+                : t("pensionForecast.header.notAvailable")
+            }
+          />
+          <SnapshotStat
+            label={t("pensionForecast.header.employeeContribution")}
+            value={currencyFormatter.format(monthlySavings)}
+          />
+          <SnapshotStat
+            label={t("pensionForecast.header.employerContribution")}
+            value={currencyFormatter.format(employerContributionMonthly)}
+            helper={t("pensionForecast.header.totalContribution", {
+              total: currencyFormatter.format(totalMonthlyContribution),
+            })}
+          />
         </dl>
       </section>
       <div className="grid gap-6 md:grid-cols-2">
@@ -456,13 +445,13 @@ export default function PensionForecast() {
             {pensionPot !== null && (
               <InfoLine
                 label={t("pensionForecast.pensionPot")}
-                value={`£${pensionPot.toFixed(2)}`}
+                value={currencyFormatter.format(pensionPot)}
               />
             )}
             {projectedPot !== null && retirementAge !== null && (
               <InfoLine
                 label={`Projected pot at ${retirementAge}`}
-                value={`£${projectedPot.toFixed(2)}`}
+                value={currencyFormatter.format(projectedPot)}
               />
             )}
           </div>
@@ -554,6 +543,24 @@ type SliderControlProps = {
   helper?: string;
 };
 
+function SnapshotStat({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-white/10 p-4">
+      <dt className="text-sm font-medium text-blue-100">{label}</dt>
+      <dd className="mt-2 text-2xl font-semibold">{value}</dd>
+      {helper && <p className="mt-1 text-xs text-blue-100">{helper}</p>}
+    </div>
+  );
+}
+
 function SliderControl({
   id,
   label,
@@ -605,7 +612,13 @@ function SliderControl({
   );
 }
 
-function InfoLine({ label, value }: { label: string; value?: string }) {
+function InfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value?: ReactNode;
+}) {
   return (
     <div className="rounded-xl bg-white p-3 shadow-sm">
       <p className="text-sm font-medium text-slate-900">{label}</p>

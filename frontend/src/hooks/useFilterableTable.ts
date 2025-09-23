@@ -5,10 +5,22 @@ export type Filter<T, V> = {
   predicate: (row: T, value: V) => boolean;
 };
 
+export type TableComparator<T> = (
+  a: T,
+  b: T,
+  sortKey: keyof T,
+  asc: boolean,
+) => number | null | undefined;
+
 export function useFilterableTable<
   T,
   F extends Record<string, Filter<T, unknown>>
->(rows: T[], initialSortKey: keyof T, initialFilters: F) {
+>(
+  rows: T[],
+  initialSortKey: keyof T,
+  initialFilters: F,
+  comparator?: TableComparator<T>,
+) {
   const [sortKey, setSortKey] = useState<keyof T>(initialSortKey);
   const [asc, setAsc] = useState(true);
   const [filters, setFilters] = useState<F>(initialFilters);
@@ -39,6 +51,12 @@ export function useFilterableTable<
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
+      if (comparator) {
+        const result = comparator(a, b, sortKey, asc);
+        if (result !== undefined && result !== null && result !== 0) {
+          return result;
+        }
+      }
       const va = a[sortKey];
       const vb = b[sortKey];
       if (typeof va === "string" && typeof vb === "string") {
@@ -48,7 +66,7 @@ export function useFilterableTable<
       const nb = (vb as number) ?? 0;
       return asc ? na - nb : nb - na;
     });
-  }, [filtered, sortKey, asc]);
+  }, [filtered, sortKey, asc, comparator]);
 
   const filterValues = useMemo(() => {
     return Object.fromEntries(

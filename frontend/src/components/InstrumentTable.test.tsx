@@ -248,6 +248,61 @@ describe("InstrumentTable", () => {
         expect(tickers[0]).toBe("XYZ");
     });
 
+    it("keeps cash instruments ahead of others across sort orders", () => {
+        const mixedRows: InstrumentSummary[] = [
+            {
+                ticker: "BETA",
+                name: "Beta PLC",
+                currency: "GBP",
+                instrument_type: "Equity",
+                units: 10,
+                market_value_gbp: 1000,
+                gain_gbp: 50,
+            },
+            {
+                ticker: "CASHGBP",
+                name: "Cash Balance",
+                currency: "GBP",
+                instrument_type: "Cash",
+                units: 1,
+                market_value_gbp: 200,
+                gain_gbp: 0,
+            },
+            {
+                ticker: "ALPHA",
+                name: "Alpha Corp",
+                currency: "USD",
+                instrument_type: "Equity",
+                units: 5,
+                market_value_gbp: 500,
+                gain_gbp: 25,
+            },
+            {
+                ticker: "CASHALT",
+                name: "Alt Cash",
+                currency: "EUR",
+                instrument_type: "ETF",
+                units: 2,
+                market_value_gbp: 150,
+                gain_gbp: 5,
+            },
+        ];
+
+        render(<InstrumentTable rows={mixedRows} />);
+        openGroup("Ungrouped");
+
+        const table = screen.getByRole("table");
+        const tickerHeader = within(table).getByText(/^Ticker/);
+
+        let tickers = getGroupTickers("Ungrouped");
+        expect(tickers).toEqual(["CASHALT", "CASHGBP", "ALPHA", "BETA"]);
+
+        fireEvent.click(tickerHeader);
+
+        tickers = getGroupTickers("Ungrouped");
+        expect(tickers).toEqual(["CASHGBP", "CASHALT", "BETA", "ALPHA"]);
+    });
+
     it("allows toggling columns", () => {
         render(<InstrumentTable rows={rows} />);
         openGroup("Group A");

@@ -1,4 +1,5 @@
 import { renderHook, act } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { useFilterableTable, type Filter } from "./useFilterableTable";
 
 type Row = { name: string; age: number; active: boolean };
@@ -64,5 +65,35 @@ describe("useFilterableTable", () => {
       result.current.setFilter("search", "123");
       result.current.setFilter("onlyActive", true);
     }
+  });
+
+  it("applies a custom comparator before falling back to column order", () => {
+    const { result } = renderHook(() =>
+      useFilterableTable(rows, "age", filters, (a, b, _sortKey, _asc) => {
+        if (a.active && !b.active) {
+          return -1;
+        }
+        if (!a.active && b.active) {
+          return 1;
+        }
+        return 0;
+      })
+    );
+
+    expect(result.current.rows.map((r) => r.name)).toEqual([
+      "Alice",
+      "Carol",
+      "Aaron",
+      "Bob",
+    ]);
+
+    act(() => result.current.handleSort("age"));
+
+    expect(result.current.rows.map((r) => r.name)).toEqual([
+      "Carol",
+      "Alice",
+      "Bob",
+      "Aaron",
+    ]);
   });
 });

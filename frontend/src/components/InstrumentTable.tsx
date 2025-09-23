@@ -80,10 +80,39 @@ export function InstrumentTable({ rows }: Props) {
     [rows],
   );
 
-  const { rows: sorted, sortKey, asc, handleSort } = useFilterableTable(
+  const exchangeOptions = useMemo(() => {
+    const options = new Set<string>();
+    for (const row of rowsWithCost) {
+      if (isCashInstrument(row)) continue;
+      const { exchange } = splitTickerParts(row.ticker);
+      if (exchange) {
+        options.add(exchange);
+      }
+    }
+    return Array.from(options).sort((a, b) => a.localeCompare(b));
+  }, [rowsWithCost]);
+
+  const {
+    rows: sorted,
+    sortKey,
+    asc,
+    handleSort,
+    filters: activeFilters,
+    setFilter,
+  } = useFilterableTable(
     rowsWithCost,
     'ticker',
-    {},
+    {
+      exchange: {
+        value: '',
+        predicate: (row, value) =>
+          !value || splitTickerParts(row.ticker).exchange === value,
+      },
+      showCash: {
+        value: true,
+        predicate: (row, value) => value || !isCashInstrument(row),
+      },
+    },
   );
 
   const ungroupedLabel = t('instrumentTable.ungrouped', {
@@ -137,10 +166,52 @@ export function InstrumentTable({ rows }: Props) {
     defaultValue: 'Enter new group name',
   });
 
+  const exchangeLabel = t('instrumentTable.filters.exchangeLabel', {
+    defaultValue: 'Exchange',
+  });
+  const allExchangesLabel = t('instrumentTable.filters.allExchanges', {
+    defaultValue: 'All exchanges',
+  });
+  const showCashLabel = t('instrumentTable.filters.showCash', {
+    defaultValue: 'Show cash positions',
+  });
+
   return (
     <>
       <div style={{ marginBottom: '0.5rem' }}>
         <RelativeViewToggle />
+      </div>
+      <div
+        style={{
+          marginBottom: '0.5rem',
+          display: 'flex',
+          gap: '1rem',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        <label>
+          {exchangeLabel}:{' '}
+          <select
+            value={activeFilters.exchange}
+            onChange={(event) => setFilter('exchange', event.target.value)}
+          >
+            <option value="">{allExchangesLabel}</option>
+            {exchangeOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={activeFilters.showCash}
+            onChange={(event) => setFilter('showCash', event.target.checked)}
+          />
+          {showCashLabel}
+        </label>
       </div>
       <div style={{ marginBottom: '0.5rem' }}>
         Columns:
@@ -519,6 +590,11 @@ export function InstrumentTable({ rows }: Props) {
       )}
     </>
   );
+}
+
+function isCashInstrument(row: { instrument_type?: string | null }): boolean {
+  const type = row.instrument_type?.toLowerCase();
+  return type === 'cash';
 }
 
 function createGroupedRows(rows: RowWithCost[], ungroupedLabel: string): GroupedRows[] {

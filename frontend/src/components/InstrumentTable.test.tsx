@@ -95,7 +95,7 @@ afterEach(() => {
 describe("InstrumentTable", () => {
     const rows: InstrumentSummary[] = [
         {
-            ticker: "ABC",
+            ticker: "ABC.L",
             name: "ABC Corp",
             grouping: "Group A",
             currency: "GBP",
@@ -109,7 +109,7 @@ describe("InstrumentTable", () => {
             change_30d_pct: 2,
         },
         {
-            ticker: "XYZ",
+            ticker: "XYZ.NYQ",
             name: "XYZ Inc",
             grouping: "Group A",
             currency: "USD",
@@ -123,7 +123,7 @@ describe("InstrumentTable", () => {
             change_30d_pct: -2,
         },
         {
-            ticker: "DEF",
+            ticker: "DEF.TSX",
             name: "DEF Ltd",
             grouping: "Group B",
             currency: "GBX",
@@ -137,7 +137,7 @@ describe("InstrumentTable", () => {
             change_30d_pct: 1,
         },
         {
-            ticker: "CADI",
+            ticker: "CADI.TSX",
             name: "CAD Inc",
             currency: "CAD",
             instrument_type: "Equity",
@@ -146,6 +146,20 @@ describe("InstrumentTable", () => {
             gain_gbp: 20,
             last_price_gbp: 100,
             last_price_date: "2024-01-04",
+            change_7d_pct: 0,
+            change_30d_pct: 0,
+        },
+        {
+            ticker: "CASH.GBP",
+            name: "Cash GBP",
+            grouping: "Group B",
+            currency: "GBP",
+            instrument_type: "cash",
+            units: 1,
+            market_value_gbp: 75,
+            gain_gbp: 5,
+            last_price_gbp: 1,
+            last_price_date: "2024-01-05",
             change_7d_pct: 0,
             change_30d_pct: 0,
         },
@@ -200,23 +214,23 @@ describe("InstrumentTable", () => {
         expect(within(groupASummary).getByText("▲0.3%")).toBeInTheDocument();
         expect(within(groupASummary).getByText("▲0.7%")).toBeInTheDocument();
 
-        expect(screen.queryByText("ABC")).toBeNull();
+        expect(screen.queryByText("ABC.L")).toBeNull();
 
         openGroup("Group A");
-        expect(screen.getByText("ABC")).toBeInTheDocument();
+        expect(screen.getByText("ABC.L")).toBeInTheDocument();
     });
 
     it("passes ticker and name to InstrumentDetail", () => {
         render(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         expect(screen.getByText("GBP")).toBeInTheDocument();
-        fireEvent.click(screen.getByText("ABC"));
+        fireEvent.click(screen.getByText("ABC.L"));
 
         const mock = InstrumentDetail as unknown as Mock;
         expect(mock).toHaveBeenCalled();
         type DetailProps = Parameters<typeof InstrumentDetail>[0];
         const props = mock.mock.calls[0][0] as DetailProps;
-        expect(props.ticker).toBe("ABC");
+        expect(props.ticker).toBe("ABC.L");
         expect(props.name).toBe("ABC Corp");
     });
 
@@ -241,11 +255,11 @@ describe("InstrumentTable", () => {
         openGroup("Group A");
         // initial sort is ticker ascending => ABC first
         let tickers = getGroupTickers("Group A");
-        expect(tickers[0]).toBe("ABC");
+        expect(tickers[0]).toBe("ABC.L");
 
         fireEvent.click(within(screen.getByRole("table")).getByText(/^Ticker/));
         tickers = getGroupTickers("Group A");
-        expect(tickers[0]).toBe("XYZ");
+        expect(tickers[0]).toBe("XYZ.NYQ");
     });
 
     it("allows toggling columns", () => {
@@ -256,6 +270,45 @@ describe("InstrumentTable", () => {
         const checkbox = screen.getByLabelText("Gain %");
         fireEvent.click(checkbox);
         expect(within(screen.getByRole('table')).queryByRole('columnheader', {name: /Gain %/})).toBeNull();
+    });
+
+    it("toggles cash positions visibility and updates group totals", () => {
+        render(<InstrumentTable rows={rows} />);
+
+        const cashToggle = screen.getByLabelText("Show cash positions");
+        expect(cashToggle).toBeChecked();
+
+        const groupBSummary = getSummaryRow("Group B");
+        expect(within(groupBSummary).getByText("£375.00")).toBeInTheDocument();
+
+        openGroup("Group B");
+        expect(screen.getByText("CASH.GBP")).toBeInTheDocument();
+
+        fireEvent.click(cashToggle);
+
+        expect(cashToggle).not.toBeChecked();
+        expect(screen.queryByText("CASH.GBP")).toBeNull();
+        expect(within(groupBSummary).getByText("£300.00")).toBeInTheDocument();
+        expect(within(groupBSummary).queryByText("£375.00")).toBeNull();
+    });
+
+    it("filters by exchange and excludes cash exchanges from options", () => {
+        render(<InstrumentTable rows={rows} />);
+
+        const exchangeSelect = screen.getByLabelText(/Exchange/) as HTMLSelectElement;
+        const optionTexts = Array.from(exchangeSelect.options).map((option) => option.textContent);
+        expect(optionTexts).toContain("L");
+        expect(optionTexts).toContain("NYQ");
+        expect(optionTexts).toContain("TSX");
+        expect(optionTexts).not.toContain("GBP");
+
+        fireEvent.change(exchangeSelect, { target: { value: "L" } });
+
+        openGroup("Group A");
+        expect(screen.getByText("ABC.L")).toBeInTheDocument();
+        expect(screen.queryByText("XYZ.NYQ")).toBeNull();
+        expect(screen.queryByRole("button", { name: /Toggle Group B/i })).toBeNull();
+        expect(screen.queryByText("CASH.GBP")).toBeNull();
     });
 
     it("shows absolute columns when relative view disabled", () => {
@@ -289,7 +342,7 @@ describe("InstrumentTable", () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         await waitFor(() => expect(listInstrumentGroupsMock).toHaveBeenCalled());
-        const select = screen.getByLabelText("Change group for ABC");
+        const select = screen.getByLabelText("Change group for ABC.L");
         fireEvent.change(select, { target: { value: "Group B" } });
 
         await waitFor(() => expect(assignInstrumentGroupMock).toHaveBeenCalledWith("ABC", "L", "Group B"));
@@ -313,7 +366,7 @@ describe("InstrumentTable", () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         await waitFor(() => expect(listInstrumentGroupsMock).toHaveBeenCalled());
-        const select = screen.getByLabelText("Change group for ABC");
+        const select = screen.getByLabelText("Change group for ABC.L");
         fireEvent.change(select, { target: { value: "__create__" } });
 
         await waitFor(() => expect(createInstrumentGroupMock).toHaveBeenCalledWith("Income"));
@@ -327,7 +380,7 @@ describe("InstrumentTable", () => {
         renderWithConfig(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         await waitFor(() => expect(listInstrumentGroupsMock).toHaveBeenCalled());
-        const select = screen.getByLabelText("Change group for ABC");
+        const select = screen.getByLabelText("Change group for ABC.L");
         fireEvent.change(select, { target: { value: "__clear__" } });
 
         await waitFor(() => expect(clearInstrumentGroupMock).toHaveBeenCalledWith("ABC", "L"));

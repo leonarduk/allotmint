@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   LineChart,
   Line,
@@ -21,10 +21,8 @@ export default function PensionForecast() {
   const [owner, setOwner] = useState("");
   const [deathAge, setDeathAge] = useState(90);
   const [statePension, setStatePension] = useState<string>("");
-  const [contributionAnnual, setContributionAnnual] = useState<string>("");
-  const [contributionMonthly, setContributionMonthly] = useState<string>("");
-  const [desiredIncome, setDesiredIncome] = useState<string>("");
-  const [investmentGrowthPct, setInvestmentGrowthPct] = useState(5);
+  const [monthlySpending, setMonthlySpending] = useState(2500);
+  const [monthlySavings, setMonthlySavings] = useState(400);
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
   const [pensionPot, setPensionPot] = useState<number | null>(null);
@@ -43,6 +41,47 @@ export default function PensionForecast() {
   );
   const [err, setErr] = useState<string | null>(null);
   const { t } = useTranslation();
+
+  const careerPathOptions = useMemo(
+    () => [
+      {
+        id: "steady",
+        label: t("pensionForecast.careerPath.options.steady.label"),
+        description: t("pensionForecast.careerPath.options.steady.description"),
+        growth: 3,
+      },
+      {
+        id: "balanced",
+        label: t("pensionForecast.careerPath.options.balanced.label"),
+        description: t("pensionForecast.careerPath.options.balanced.description"),
+        growth: 5,
+      },
+      {
+        id: "accelerated",
+        label: t("pensionForecast.careerPath.options.accelerated.label"),
+        description: t("pensionForecast.careerPath.options.accelerated.description"),
+        growth: 7,
+      },
+    ],
+    [t],
+  );
+
+  const [careerPathIndex, setCareerPathIndex] = useState(() => {
+    const defaultIdx = careerPathOptions.findIndex((option) => option.growth === 5);
+    return defaultIdx >= 0 ? defaultIdx : 0;
+  });
+
+  useEffect(() => {
+    if (careerPathIndex >= careerPathOptions.length) {
+      setCareerPathIndex(Math.max(0, careerPathOptions.length - 1));
+    }
+  }, [careerPathIndex, careerPathOptions.length]);
+
+  const selectedCareerPath =
+    careerPathOptions[careerPathIndex] ??
+    careerPathOptions[careerPathOptions.length - 1] ??
+    careerPathOptions[0];
+  const investmentGrowthPct = selectedCareerPath?.growth ?? 5;
 
   const currencyFormatter = useMemo(
     () =>
@@ -79,12 +118,14 @@ export default function PensionForecast() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const contributionMonthlyVal = contributionMonthly
-        ? parseFloat(contributionMonthly)
-        : undefined;
-      const contributionAnnualVal = contributionAnnual
-        ? parseFloat(contributionAnnual)
-        : undefined;
+      const contributionMonthlyVal =
+        Number.isFinite(monthlySavings) && monthlySavings > 0
+          ? monthlySavings
+          : undefined;
+      const desiredIncomeAnnualVal =
+        Number.isFinite(monthlySpending) && monthlySpending > 0
+          ? monthlySpending * 12
+          : undefined;
       const res = await getPensionForecast({
         owner,
         deathAge,
@@ -92,11 +133,7 @@ export default function PensionForecast() {
           ? parseFloat(statePension)
           : undefined,
         contributionMonthly: contributionMonthlyVal,
-        contributionAnnual:
-          contributionMonthlyVal !== undefined ? undefined : contributionAnnualVal,
-        desiredIncomeAnnual: desiredIncome
-          ? parseFloat(desiredIncome)
-          : undefined,
+        desiredIncomeAnnual: desiredIncomeAnnualVal,
         investmentGrowthPct,
       });
       setData(res.forecast);
@@ -163,6 +200,17 @@ export default function PensionForecast() {
       ? currencyFormatter.format(retirementIncomeTotal / 12)
       : null;
 
+  const monthlySpendingFormatted = currencyFormatter.format(monthlySpending);
+  const monthlySavingsFormatted = currencyFormatter.format(monthlySavings);
+  const pensionPotDisplay =
+    pensionPot != null ? currencyFormatter.format(pensionPot) : null;
+  const projectedPotDisplay =
+    projectedPot != null ? currencyFormatter.format(projectedPot) : null;
+  const projectedPotLabel =
+    projectedPot != null && retirementAge != null
+      ? t("pensionForecast.projectedPotAt", { age: retirementAge })
+      : null;
+
   let banner:
     | { variant: "success" | "warning" | "info"; message: string }
     | null = null;
@@ -219,174 +267,307 @@ export default function PensionForecast() {
     : "";
 
   return (
-    <div>
-      <h1 className="mb-4 text-2xl md:text-4xl">Pension Forecast</h1>
-      <form onSubmit={handleSubmit} className="mb-4 space-y-2">
-        <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
-        <div>
-          <label className="mr-2">Death Age:</label>
-          <input
-            type="number"
-            value={deathAge}
-            onChange={(e) => setDeathAge(Number(e.target.value))}
-            required
-          />
-        </div>
-        <div>
-          <label className="mr-2">State Pension (£/yr):</label>
-          <input
-            type="number"
-            value={statePension}
-            onChange={(e) => setStatePension(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="mr-2" htmlFor="contribution-annual">
-            Annual Contribution (£):
-          </label>
-          <input
-            id="contribution-annual"
-            type="number"
-            value={contributionAnnual}
-            onChange={(e) => setContributionAnnual(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="mr-2" htmlFor="contribution-monthly">
-            {t("pensionForecast.monthlyContribution")}
-          </label>
-          <input
-            id="contribution-monthly"
-            type="number"
-            value={contributionMonthly}
-            onChange={(e) => setContributionMonthly(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="mr-2" htmlFor="desired-income">
-            Desired Income (£/yr):
-          </label>
-          <input
-            id="desired-income"
-            type="number"
-            value={desiredIncome}
-            onChange={(e) => setDesiredIncome(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="mr-2" htmlFor="investment-growth">
-            {t("pensionForecast.growthAssumption")}
-          </label>
-          <select
-            id="investment-growth"
-            value={investmentGrowthPct}
-            onChange={(e) => setInvestmentGrowthPct(Number(e.target.value))}
+    <div className="space-y-6">
+      <h1 className="text-2xl md:text-4xl">Pension Forecast</h1>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Panel
+            title={t("pensionForecast.now.title")}
+            description={t("pensionForecast.now.description")}
           >
-            {[3, 5, 7].map((g) => (
-              <option key={g} value={g}>
-                {g}%
-              </option>
-            ))}
-          </select>
+            <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
+            <SliderControl
+              id="monthly-spending"
+              label={t("pensionForecast.monthlySpending.label")}
+              helperText={t("pensionForecast.monthlySpending.helper")}
+              min={0}
+              max={10000}
+              step={50}
+              value={monthlySpending}
+              valueFormatter={() => monthlySpendingFormatted}
+              onChange={(value) => setMonthlySpending(Math.max(0, Math.round(value)))}
+            />
+            <SliderControl
+              id="monthly-savings"
+              label={t("pensionForecast.monthlySavings.label")}
+              helperText={t("pensionForecast.monthlySavings.helper")}
+              min={0}
+              max={5000}
+              step={50}
+              value={monthlySavings}
+              valueFormatter={() => monthlySavingsFormatted}
+              onChange={(value) => setMonthlySavings(Math.max(0, Math.round(value)))}
+            />
+          </Panel>
+          <Panel
+            title={t("pensionForecast.future.title")}
+            description={t("pensionForecast.future.description")}
+          >
+            <SliderControl
+              id="career-path"
+              label={t("pensionForecast.careerPath.label")}
+              helperText={t("pensionForecast.careerPath.helper", {
+                description: selectedCareerPath?.description ?? "",
+              })}
+              min={0}
+              max={careerPathOptions.length - 1}
+              step={1}
+              value={careerPathIndex}
+              valueFormatter={() =>
+                `${selectedCareerPath?.label ?? ""} · ${selectedCareerPath?.growth ?? 0}%`
+              }
+              ariaValueText={selectedCareerPath?.label ?? undefined}
+              onChange={(value) => {
+                const next = Math.round(value);
+                setCareerPathIndex(
+                  Math.min(careerPathOptions.length - 1, Math.max(0, next)),
+                );
+              }}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="death-age"
+                  className="block text-sm font-medium text-slate-700"
+                >
+                  {t("pensionForecast.deathAgeLabel")}
+                </label>
+                <input
+                  id="death-age"
+                  type="number"
+                  min={0}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  value={deathAge}
+                  onChange={(e) => setDeathAge(Number(e.target.value))}
+                  required
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="state-pension"
+                  className="block text-sm font-medium text-slate-700"
+                >
+                  {t("pensionForecast.statePensionLabel")}
+                </label>
+                <input
+                  id="state-pension"
+                  type="number"
+                  min={0}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  value={statePension}
+                  onChange={(e) => setStatePension(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1"
+              >
+                {t("pensionForecast.forecastCta")}
+              </button>
+            </div>
+            <div className="space-y-4">
+              {err && <p className="text-sm text-red-600">{err}</p>}
+              {banner && (
+                <div
+                  className={`rounded-md border px-4 py-3 text-sm ${bannerClassName}`}
+                  role="status"
+                >
+                  {banner.message}
+                </div>
+              )}
+              <div className="space-y-2 text-sm text-slate-700">
+                {currentAge !== null && dob && (
+                  <p>
+                    {t("pensionForecast.currentAge", { age: currentAge })} (
+                    {t("pensionForecast.birthDate", { dob })})
+                  </p>
+                )}
+                {retirementAge !== null && (
+                  <p>{t("pensionForecast.retirementAge", { age: retirementAge })}</p>
+                )}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <ResultStat
+                  label={t("pensionForecast.pensionPot")}
+                  value={pensionPotDisplay}
+                />
+                {projectedPotLabel && projectedPotDisplay && (
+                  <ResultStat label={projectedPotLabel} value={projectedPotDisplay} />
+                )}
+                {totalAnnualIncomeFormatted && (
+                  <ResultStat
+                    label={t("pensionForecast.totalAnnualIncome")}
+                    value={totalAnnualIncomeFormatted}
+                  />
+                )}
+                {totalMonthlyIncomeFormatted && (
+                  <ResultStat
+                    label={t("pensionForecast.totalMonthlyIncome")}
+                    value={totalMonthlyIncomeFormatted}
+                  />
+                )}
+              </div>
+              {retirementIncomeBreakdown ? (
+                <div className="overflow-x-auto">
+                  <h3 className="mb-2 text-lg font-semibold text-slate-900">
+                    {t("pensionForecast.incomeBreakdownHeading")}
+                  </h3>
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-slate-700">
+                          {t("pensionForecast.incomeTable.source")}
+                        </th>
+                        <th className="px-3 py-2 text-right font-semibold text-slate-700">
+                          {t("pensionForecast.incomeTable.annual")}
+                        </th>
+                        <th className="px-3 py-2 text-right font-semibold text-slate-700">
+                          {t("pensionForecast.incomeTable.monthly")}
+                        </th>
+                        <th className="px-3 py-2 text-right font-semibold text-slate-700">
+                          {t("pensionForecast.incomeTable.share")}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {breakdownEntries.map(({ key, label, annual, monthly, share }) => (
+                        <tr key={String(key)} className="odd:bg-white even:bg-slate-50">
+                          <td className="px-3 py-2 text-slate-700">{label}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right text-slate-900">
+                            {currencyFormatter.format(annual)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right text-slate-900">
+                            {currencyFormatter.format(monthly)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 text-right text-slate-900">
+                            {share}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                retirementIncomeTotal != null && (
+                  <p className="text-sm text-slate-600">
+                    {t("pensionForecast.prediction.noBreakdown")}
+                  </p>
+                )
+              )}
+            </div>
+          </Panel>
         </div>
-        <button type="submit" className="mt-2 rounded bg-blue-500 px-4 py-2 text-white">
-          Forecast
-        </button>
       </form>
-      {err && <p className="text-red-500">{err}</p>}
-      {banner && (
-        <div
-          className={`mb-4 rounded border px-4 py-3 text-sm ${bannerClassName}`}
-          role="status"
-        >
-          {banner.message}
-        </div>
-      )}
-      {currentAge !== null && dob && (
-        <p className="mb-2">
-          {t("pensionForecast.currentAge", { age: currentAge })} (
-          {t("pensionForecast.birthDate", { dob })})
-        </p>
-      )}
-      {retirementAge !== null && (
-        <p className="mb-2">{t("pensionForecast.retirementAge", { age: retirementAge })}</p>
-      )}
-      {pensionPot !== null && (
-        <p className="mb-2">
-          {t("pensionForecast.pensionPot")}: £{pensionPot.toFixed(2)}
-        </p>
-      )}
-      {projectedPot !== null && retirementAge !== null && (
-        <p className="mb-2">
-          Projected pot at {retirementAge}: £{projectedPot.toFixed(2)}
-        </p>
-      )}
-      {retirementIncomeBreakdown && (
-        <div className="mt-4 overflow-x-auto">
-          <h2 className="mb-2 text-xl">
-            {t("pensionForecast.incomeBreakdownHeading")}
-          </h2>
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-3 py-2 text-left font-semibold">
-                  {t("pensionForecast.incomeTable.source")}
-                </th>
-                <th className="px-3 py-2 text-right font-semibold">
-                  {t("pensionForecast.incomeTable.annual")}
-                </th>
-                <th className="px-3 py-2 text-right font-semibold">
-                  {t("pensionForecast.incomeTable.monthly")}
-                </th>
-                <th className="px-3 py-2 text-right font-semibold">
-                  {t("pensionForecast.incomeTable.share")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {breakdownEntries.map(({ key, label, annual, monthly, share }) => (
-                <tr key={String(key)} className="odd:bg-white even:bg-gray-50">
-                  <td className="px-3 py-2">{label}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
-                    {currencyFormatter.format(annual)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
-                    {currencyFormatter.format(monthly)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right">
-                    {share}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {!retirementIncomeBreakdown && retirementIncomeTotal != null && (
-        <p className="mt-4 text-sm text-gray-600">
-          {t("pensionForecast.prediction.noBreakdown")}
-        </p>
-      )}
-      {retirementIncomeTotal != null && (
-        <div className="mt-2 text-sm">
-          <p>
-            {t("pensionForecast.totalAnnualIncome")}: {totalAnnualIncomeFormatted}
-          </p>
-          <p>
-            {t("pensionForecast.totalMonthlyIncome")}: {totalMonthlyIncomeFormatted}
-          </p>
-        </div>
-      )}
       {data.length > 0 && (
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data}>
-            <XAxis dataKey="age" />
-            <YAxis />
-            <Tooltip />
-            <Line type="monotone" dataKey="income" stroke="#8884d8" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className="h-72 w-full rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data}>
+              <XAxis dataKey="age" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="income" stroke="#1d4ed8" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       )}
+    </div>
+  );
+}
+
+type PanelProps = {
+  title: string;
+  description?: string;
+  children: ReactNode;
+};
+
+function Panel({ title, description, children }: PanelProps) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <header className="mb-4">
+        <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+        {description && (
+          <p className="mt-1 text-sm text-slate-600">{description}</p>
+        )}
+      </header>
+      <div className="space-y-5">{children}</div>
+    </section>
+  );
+}
+
+type SliderControlProps = {
+  id: string;
+  label: string;
+  min: number;
+  max: number;
+  step?: number;
+  value: number;
+  onChange(value: number): void;
+  valueFormatter?(value: number): string;
+  helperText?: string;
+  ariaValueText?: string;
+};
+
+function SliderControl({
+  id,
+  label,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  valueFormatter,
+  helperText,
+  ariaValueText,
+}: SliderControlProps) {
+  const formattedValue = valueFormatter ? valueFormatter(value) : String(value);
+  const helperId = helperText ? `${id}-helper` : undefined;
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-sm font-medium text-slate-700">
+          {label}
+        </label>
+        <span className="text-sm font-semibold text-slate-900">{formattedValue}</span>
+      </div>
+      {helperText && (
+        <p id={helperId} className="mt-1 text-xs text-slate-500">
+          {helperText}
+        </p>
+      )}
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step ?? 1}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={ariaValueText ?? formattedValue}
+        aria-describedby={helperId}
+        className="mt-3 w-full accent-blue-600"
+      />
+    </div>
+  );
+}
+
+type ResultStatProps = {
+  label: string;
+  value: string | null;
+};
+
+function ResultStat({ label, value }: ResultStatProps) {
+  if (value == null) return null;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-600">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );
 }

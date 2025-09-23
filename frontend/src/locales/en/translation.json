@@ -199,12 +199,48 @@
     "select": "Select an owner."
   },
   "pensionForecast": {
+    "now": {
+      "title": "Now",
+      "description": "Adjust what you're spending and saving today to see how it shapes your future."
+    },
+    "future": {
+      "title": "Future you",
+      "description": "Tune your assumptions to explore your retirement outlook."
+    },
+    "monthlySpending": {
+      "label": "Monthly spending",
+      "helper": "Estimate how much you'll want to spend each month in retirement."
+    },
+    "monthlySavings": {
+      "label": "Monthly savings",
+      "helper": "How much you're putting away for retirement each month."
+    },
+    "careerPath": {
+      "label": "Career path",
+      "helper": "Choose the path that best matches how you expect your earnings to grow. {{description}}",
+      "options": {
+        "steady": {
+          "label": "Steady",
+          "description": "Predictable progress with lower growth potential."
+        },
+        "balanced": {
+          "label": "Balanced",
+          "description": "A mix of stability and advancement keeps growth on track."
+        },
+        "accelerated": {
+          "label": "Accelerated",
+          "description": "Rapid advancement and higher growth expectations."
+        }
+      }
+    },
     "currentAge": "Current age: {{age}}",
     "birthDate": "Birth date: {{dob}}",
     "retirementAge": "Retirement age: {{age}}",
     "pensionPot": "Pension pot",
-    "growthAssumption": "Growth assumption (%):",
-    "monthlyContribution": "Monthly Contribution (£):",
+    "projectedPotAt": "Projected pot at {{age}}",
+    "statePensionLabel": "State pension (£/yr)",
+    "deathAgeLabel": "Plan for life until age",
+    "forecastCta": "Forecast",
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",

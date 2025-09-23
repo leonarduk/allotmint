@@ -21,7 +21,7 @@ if config.disable_auth:
         Returns the updated Trail payload including XP, streak, and daily totals.
         """
         try:
-            return {"tasks": trail.mark_complete("demo", task_id)}
+            return trail.mark_complete("demo", task_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
 
@@ -39,6 +39,6 @@ else:
         Returns the updated Trail payload including XP, streak, and daily totals.
         """
         try:
-            return {"tasks": trail.mark_complete(current_user, task_id)}
+            return trail.mark_complete(current_user, task_id)
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")

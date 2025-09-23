@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { InstrumentSummary } from '../types';
 import { InstrumentDetail } from './InstrumentDetail';
@@ -60,6 +60,18 @@ const GROUP_SUMMARY_SORT_MAP: Partial<Record<keyof RowWithCost, keyof GroupTotal
   change_30d_pct: 'change30dPct',
   gain_pct: 'gainPct',
 };
+
+export function isCashInstrument(
+  instrument: Pick<InstrumentSummary, 'instrument_type' | 'ticker'>,
+): boolean {
+  const type = instrument.instrument_type?.toLowerCase();
+  if (type === 'cash') {
+    return true;
+  }
+
+  const ticker = instrument.ticker?.toUpperCase();
+  return ticker?.startsWith('CASH') ?? false;
+}
 
 export function InstrumentTable({ rows }: Props) {
   const { t } = useTranslation();
@@ -175,10 +187,31 @@ export function InstrumentTable({ rows }: Props) {
     [filteredRows],
   );
 
+  const cashFirstComparator = useCallback(
+    (
+      a: RowWithCost,
+      b: RowWithCost,
+      _sortKey: keyof RowWithCost,
+      _asc: boolean,
+    ) => {
+      const aCash = isCashInstrument(a);
+      const bCash = isCashInstrument(b);
+      if (aCash && !bCash) {
+        return -1;
+      }
+      if (!aCash && bCash) {
+        return 1;
+      }
+      return 0;
+    },
+    [],
+  );
+
   const { rows: sorted, sortKey, asc, handleSort } = useFilterableTable(
     rowsWithCost,
     'ticker',
     {},
+    cashFirstComparator,
   );
 
   const ungroupedLabel = t('instrumentTable.ungrouped', {

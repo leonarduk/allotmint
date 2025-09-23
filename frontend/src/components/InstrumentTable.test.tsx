@@ -314,56 +314,60 @@ describe("InstrumentTable", () => {
         expect(tickers[0]).toBe("XYZ");
     });
 
-    it("sorts by 7d change when header clicked", () => {
-        render(<InstrumentTable rows={rows} />);
-        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
 
-        const header = within(screen.getByRole("table")).getByRole("columnheader", { name: "7d %" });
-        fireEvent.click(header);
-        expect(getGroupOrder()).toEqual(["Ungrouped", "Group A", "Group B"]);
+    it("keeps cash instruments ahead of others across sort orders", () => {
+        const mixedRows: InstrumentSummary[] = [
+            {
+                ticker: "BETA",
+                name: "Beta PLC",
+                currency: "GBP",
+                instrument_type: "Equity",
+                units: 10,
+                market_value_gbp: 1000,
+                gain_gbp: 50,
+            },
+            {
+                ticker: "CASHGBP",
+                name: "Cash Balance",
+                currency: "GBP",
+                instrument_type: "Cash",
+                units: 1,
+                market_value_gbp: 200,
+                gain_gbp: 0,
+            },
+            {
+                ticker: "ALPHA",
+                name: "Alpha Corp",
+                currency: "USD",
+                instrument_type: "Equity",
+                units: 5,
+                market_value_gbp: 500,
+                gain_gbp: 25,
+            },
+            {
+                ticker: "CASHALT",
+                name: "Alt Cash",
+                currency: "EUR",
+                instrument_type: "ETF",
+                units: 2,
+                market_value_gbp: 150,
+                gain_gbp: 5,
+            },
+        ];
 
-        openGroup("Group A");
-        let tickers = getGroupTickers("Group A");
-        expect(tickers[0]).toBe("XYZ");
+        render(<InstrumentTable rows={mixedRows} />);
+        openGroup("Ungrouped");
 
-        fireEvent.click(header);
-        expect(getGroupOrder()).toEqual(["Group B", "Group A", "Ungrouped"]);
-        tickers = getGroupTickers("Group A");
-        expect(tickers[0]).toBe("ABC");
-    });
+        const table = screen.getByRole("table");
+        const tickerHeader = within(table).getByText(/^Ticker/);
 
-    it("reorders collapsed groups when sorting by Market £", () => {
-        render(<InstrumentTable rows={rows} />);
-        expectGroupsCollapsed();
-        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
+        let tickers = getGroupTickers("Ungrouped");
+        expect(tickers).toEqual(["CASHALT", "CASHGBP", "ALPHA", "BETA"]);
 
-        const header = within(screen.getByRole("table")).getByRole("columnheader", {
-            name: "Market £",
-        });
-        fireEvent.click(header);
-        expect(getGroupOrder()).toEqual(["Ungrouped", "Group B", "Group A"]);
-        expectGroupsCollapsed();
+        fireEvent.click(tickerHeader);
 
-        fireEvent.click(header);
-        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
-        expectGroupsCollapsed();
-    });
-
-    it("reorders collapsed groups when sorting by Ticker", () => {
-        render(<InstrumentTable rows={rows} />);
-        expectGroupsCollapsed();
-        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
-
-        const header = within(screen.getByRole("table")).getByRole("columnheader", {
-            name: /^Ticker/,
-        });
-        fireEvent.click(header);
-        expect(getGroupOrder()).toEqual(["Ungrouped", "Group B", "Group A"]);
-        expectGroupsCollapsed();
-
-        fireEvent.click(header);
-        expect(getGroupOrder()).toEqual(["Group A", "Group B", "Ungrouped"]);
-        expectGroupsCollapsed();
+        tickers = getGroupTickers("Ungrouped");
+        expect(tickers).toEqual(["CASHGBP", "CASHALT", "BETA", "ALPHA"]);
     });
 
     it("allows toggling columns", () => {

@@ -20,3 +20,25 @@ def test_complete_task_authenticated(monkeypatch):
     monkeypatch.setattr(trail_module.trail, "mark_complete", lambda user, tid: ["ok"])
     result = asyncio.run(trail_module.complete_task("t2", current_user="bob"))
     assert result == {"tasks": ["ok"]}
+
+
+def test_complete_task_demo_passthrough(monkeypatch):
+    monkeypatch.setattr(trail_module.config, "disable_auth", True)
+    importlib.reload(trail_module)
+
+    payload = {"tasks": ["already"], "xp": 123}
+    monkeypatch.setattr(trail_module.trail, "mark_complete", lambda user, tid: payload)
+
+    result = asyncio.run(trail_module.complete_task("t3"))
+    assert result is payload
+
+
+def test_complete_task_authenticated_passthrough(monkeypatch):
+    monkeypatch.setattr(trail_module.config, "disable_auth", False)
+    importlib.reload(trail_module)
+
+    payload = {"tasks": ["exists"], "streak": 5}
+    monkeypatch.setattr(trail_module.trail, "mark_complete", lambda user, tid: payload)
+
+    result = asyncio.run(trail_module.complete_task("t4", current_user="alice"))
+    assert result is payload

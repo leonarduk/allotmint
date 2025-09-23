@@ -1145,6 +1145,28 @@ export const getAllowances = (owner?: string) => {
 };
 
 // ───────────── Pension Forecast ─────────────
+export interface PensionIncomeBreakdown {
+  state_pension_annual?: number | null;
+  defined_benefit_annual?: number | null;
+  defined_contribution_annual?: number | null;
+}
+
+export interface PensionForecastResponse {
+  forecast: { age: number; income: number }[];
+  projected_pot_gbp: number;
+  pension_pot_gbp: number;
+  current_age: number;
+  retirement_age: number;
+  dob: string;
+  earliest_retirement_age: number | null;
+  retirement_income_breakdown?: PensionIncomeBreakdown | null;
+  retirement_income_total_annual?: number | null;
+  state_pension_annual?: number | null;
+  contribution_annual?: number | null;
+  desired_income_annual?: number | null;
+  annuity_multiple_used?: number | null;
+}
+
 export const getPensionForecast = ({
   owner,
   deathAge,
@@ -1181,14 +1203,9 @@ export const getPensionForecast = ({
   if (investmentGrowthPct !== undefined) {
     params.set("investment_growth_pct", String(investmentGrowthPct));
   }
-  return fetchJson<{
-    forecast: { age: number; income: number }[];
-    projected_pot_gbp: number;
-    pension_pot_gbp: number;
-    current_age: number;
-    retirement_age: number;
-    dob: string;
-  }>(`${API_BASE}/pension/forecast?${params.toString()}`);
+  return fetchJson<PensionForecastResponse>(
+    `${API_BASE}/pension/forecast?${params.toString()}`,
+  );
 };
 
 // ───────────── Quests API ─────────────

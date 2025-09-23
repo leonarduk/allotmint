@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -7,7 +7,11 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
-import { getOwners, getPensionForecast } from "../api";
+import {
+  getOwners,
+  getPensionForecast,
+  type PensionIncomeBreakdown,
+} from "../api";
 import type { OwnerSummary } from "../types";
 import { OwnerSelector } from "../components/OwnerSelector";
 import { useTranslation } from "react-i18next";
@@ -27,8 +31,39 @@ export default function PensionForecast() {
   const [currentAge, setCurrentAge] = useState<number | null>(null);
   const [retirementAge, setRetirementAge] = useState<number | null>(null);
   const [dob, setDob] = useState<string | null>(null);
+  const [earliestRetirementAge, setEarliestRetirementAge] =
+    useState<number | null>(null);
+  const [retirementIncomeBreakdown, setRetirementIncomeBreakdown] =
+    useState<PensionIncomeBreakdown | null>(null);
+  const [retirementIncomeTotal, setRetirementIncomeTotal] = useState<
+    number | null
+  >(null);
+  const [desiredIncomeUsed, setDesiredIncomeUsed] = useState<number | null>(
+    null,
+  );
   const [err, setErr] = useState<string | null>(null);
   const { t } = useTranslation();
+
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: "GBP",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    [],
+  );
+
+  const percentFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(undefined, {
+        style: "percent",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1,
+      }),
+    [],
+  );
 
   useEffect(() => {
     getOwners()
@@ -70,12 +105,118 @@ export default function PensionForecast() {
       setCurrentAge(res.current_age);
       setRetirementAge(res.retirement_age);
       setDob(res.dob || null);
+      setEarliestRetirementAge(res.earliest_retirement_age);
+      setRetirementIncomeBreakdown(res.retirement_income_breakdown ?? null);
+      setRetirementIncomeTotal(res.retirement_income_total_annual ?? null);
+      setDesiredIncomeUsed(
+        res.desired_income_annual !== undefined
+          ? res.desired_income_annual
+          : null,
+      );
       setErr(null);
     } catch (ex: any) {
       setErr(String(ex));
       setData([]);
+      setEarliestRetirementAge(null);
+      setRetirementIncomeBreakdown(null);
+      setRetirementIncomeTotal(null);
+      setDesiredIncomeUsed(null);
     }
   };
+
+  const breakdownConfig: Array<{
+    key: keyof PensionIncomeBreakdown;
+    label: string;
+  }> = [
+    {
+      key: "state_pension_annual",
+      label: t("pensionForecast.incomeSources.state"),
+    },
+    {
+      key: "defined_benefit_annual",
+      label: t("pensionForecast.incomeSources.definedBenefit"),
+    },
+    {
+      key: "defined_contribution_annual",
+      label: t("pensionForecast.incomeSources.definedContribution"),
+    },
+  ];
+
+  const breakdownEntries = retirementIncomeBreakdown
+    ? breakdownConfig.map(({ key, label }) => {
+        const annual = Number(retirementIncomeBreakdown[key] ?? 0);
+        const monthly = annual / 12;
+        const share =
+          retirementIncomeTotal && retirementIncomeTotal > 0
+            ? percentFormatter.format(annual / retirementIncomeTotal)
+            : "—";
+        return { key, label, annual, monthly, share };
+      })
+    : [];
+
+  const totalAnnualIncomeFormatted =
+    retirementIncomeTotal != null
+      ? currencyFormatter.format(retirementIncomeTotal)
+      : null;
+  const totalMonthlyIncomeFormatted =
+    retirementIncomeTotal != null
+      ? currencyFormatter.format(retirementIncomeTotal / 12)
+      : null;
+
+  let banner:
+    | { variant: "success" | "warning" | "info"; message: string }
+    | null = null;
+  if (desiredIncomeUsed != null && retirementIncomeTotal != null) {
+    if (retirementIncomeTotal >= desiredIncomeUsed) {
+      banner = {
+        variant: "success",
+        message:
+          earliestRetirementAge != null
+            ? t("pensionForecast.prediction.onTrackWithAge", {
+                total: currencyFormatter.format(retirementIncomeTotal),
+                desired: currencyFormatter.format(desiredIncomeUsed),
+                age: earliestRetirementAge,
+              })
+            : t("pensionForecast.prediction.onTrack", {
+                total: currencyFormatter.format(retirementIncomeTotal),
+                desired: currencyFormatter.format(desiredIncomeUsed),
+              }),
+      };
+    } else {
+      const shortfallAnnual = desiredIncomeUsed - retirementIncomeTotal;
+      banner = {
+        variant: "warning",
+        message:
+          earliestRetirementAge != null
+            ? t("pensionForecast.prediction.shortfallWithAge", {
+                desired: currencyFormatter.format(desiredIncomeUsed),
+                shortfallAnnual: currencyFormatter.format(shortfallAnnual),
+                shortfallMonthly: currencyFormatter.format(shortfallAnnual / 12),
+                age: earliestRetirementAge,
+              })
+            : t("pensionForecast.prediction.shortfall", {
+                desired: currencyFormatter.format(desiredIncomeUsed),
+                shortfallAnnual: currencyFormatter.format(shortfallAnnual),
+                shortfallMonthly: currencyFormatter.format(shortfallAnnual / 12),
+              }),
+      };
+    }
+  } else if (earliestRetirementAge != null) {
+    banner = {
+      variant: "info",
+      message: t("pensionForecast.prediction.earliest", {
+        age: earliestRetirementAge,
+      }),
+    };
+  }
+
+  const bannerClassName = banner
+    ? {
+        success: "border-green-300 bg-green-50 text-green-900",
+        warning: "border-yellow-300 bg-yellow-50 text-yellow-900",
+        info: "border-blue-300 bg-blue-50 text-blue-900",
+      }[banner.variant]
+    : "";
 
   return (
     <div>
@@ -122,8 +263,11 @@ export default function PensionForecast() {
           />
         </div>
         <div>
-          <label className="mr-2">Desired Income (£/yr):</label>
+          <label className="mr-2" htmlFor="desired-income">
+            Desired Income (£/yr):
+          </label>
           <input
+            id="desired-income"
             type="number"
             value={desiredIncome}
             onChange={(e) => setDesiredIncome(e.target.value)}
@@ -150,6 +294,14 @@ export default function PensionForecast() {
         </button>
       </form>
       {err && <p className="text-red-500">{err}</p>}
+      {banner && (
+        <div
+          className={`mb-4 rounded border px-4 py-3 text-sm ${bannerClassName}`}
+          role="status"
+        >
+          {banner.message}
+        </div>
+      )}
       {currentAge !== null && dob && (
         <p className="mb-2">
           {t("pensionForecast.currentAge", { age: currentAge })} (
@@ -168,6 +320,62 @@ export default function PensionForecast() {
         <p className="mb-2">
           Projected pot at {retirementAge}: £{projectedPot.toFixed(2)}
         </p>
+      )}
+      {retirementIncomeBreakdown && (
+        <div className="mt-4 overflow-x-auto">
+          <h2 className="mb-2 text-xl">
+            {t("pensionForecast.incomeBreakdownHeading")}
+          </h2>
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="px-3 py-2 text-left font-semibold">
+                  {t("pensionForecast.incomeTable.source")}
+                </th>
+                <th className="px-3 py-2 text-right font-semibold">
+                  {t("pensionForecast.incomeTable.annual")}
+                </th>
+                <th className="px-3 py-2 text-right font-semibold">
+                  {t("pensionForecast.incomeTable.monthly")}
+                </th>
+                <th className="px-3 py-2 text-right font-semibold">
+                  {t("pensionForecast.incomeTable.share")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {breakdownEntries.map(({ key, label, annual, monthly, share }) => (
+                <tr key={String(key)} className="odd:bg-white even:bg-gray-50">
+                  <td className="px-3 py-2">{label}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    {currencyFormatter.format(annual)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    {currencyFormatter.format(monthly)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    {share}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!retirementIncomeBreakdown && retirementIncomeTotal != null && (
+        <p className="mt-4 text-sm text-gray-600">
+          {t("pensionForecast.prediction.noBreakdown")}
+        </p>
+      )}
+      {retirementIncomeTotal != null && (
+        <div className="mt-2 text-sm">
+          <p>
+            {t("pensionForecast.totalAnnualIncome")}: {totalAnnualIncomeFormatted}
+          </p>
+          <p>
+            {t("pensionForecast.totalMonthlyIncome")}: {totalMonthlyIncomeFormatted}
+          </p>
+        </div>
       )}
       {data.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>

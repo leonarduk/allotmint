@@ -174,6 +174,7 @@ describe("pension forecast", () => {
             current_age: 30,
             retirement_age: 65,
             dob: "1990-01-01",
+            earliest_retirement_age: null,
           }),
       });
     // @ts-ignore
@@ -199,6 +200,7 @@ describe("pension forecast", () => {
             current_age: 30,
             retirement_age: 65,
             dob: "1990-01-01",
+            earliest_retirement_age: null,
           }),
       });
     // @ts-ignore

@@ -11,10 +11,14 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetPensionForecast = vi.hoisted(() => vi.fn());
 
-vi.mock("@/api", () => ({
-  getOwners: mockGetOwners,
-  getPensionForecast: mockGetPensionForecast,
-}));
+vi.mock("@/api", async () => {
+  const actual = await vi.importActual<typeof import("@/api")>("@/api");
+  return {
+    ...actual,
+    getOwners: mockGetOwners,
+    getPensionForecast: mockGetPensionForecast,
+  };
+});
 
 function renderWithI18n(ui: ReactElement) {
   const i18n = createInstance();
@@ -90,12 +94,15 @@ describe("PensionForecast page", () => {
     const ownerSelect = await within(form).findByLabelText(/owner/i);
     await userEvent.selectOptions(ownerSelect, "beth");
 
-    const growth = within(form).getByLabelText(/growth assumption/i);
-    await userEvent.selectOptions(growth, "7");
+    const careerPath = within(form).getByLabelText(/career path/i);
+    fireEvent.change(careerPath, { target: { value: "2" } });
 
     fireEvent.change(ownerSelect, { target: { value: "beth" } });
-    const monthly = within(form).getByLabelText(/monthly contribution/i);
-    fireEvent.change(monthly, { target: { value: "100" } });
+    const monthlySavings = within(form).getByLabelText(/monthly savings/i);
+    fireEvent.change(monthlySavings, { target: { value: "100" } });
+
+    const monthlySpending = within(form).getByLabelText(/monthly spending in retirement/i);
+    fireEvent.change(monthlySpending, { target: { value: "3000" } });
 
     const btn = screen.getByRole("button", { name: /forecast/i });
     await userEvent.click(btn);
@@ -106,12 +113,19 @@ describe("PensionForecast page", () => {
           owner: "beth",
           investmentGrowthPct: 7,
           contributionMonthly: 100,
+          desiredIncomeAnnual: 36000,
         }),
       ),
     );
     await screen.findByText(/birth date: 1990-01-01/i);
-    await screen.findByText(/pension pot: £123.00/i);
-    await screen.findByText(/projected pot at 65: £323.00/i);
+    const futurePanel = screen.getByRole("region", {
+      name: /see what retirement could look like/i,
+    });
+    const futureWithin = within(futurePanel);
+    expect(futureWithin.getByText(/pension pot/i)).toBeInTheDocument();
+    expect(futureWithin.getByText("£123.00")).toBeInTheDocument();
+    expect(futureWithin.getByText(/projected pot at 65/i)).toBeInTheDocument();
+    expect(futureWithin.getByText("£323.00")).toBeInTheDocument();
     await screen.findByText("Retirement income breakdown");
     expect(
       screen.getByText(
@@ -156,8 +170,8 @@ describe("PensionForecast page", () => {
     renderWithI18n(<PensionForecast />);
 
     const form = document.querySelector("form")!;
-    const desired = within(form).getByLabelText(/desired income/i);
-    fireEvent.change(desired, { target: { value: "12000" } });
+    const monthlySpending = within(form).getByLabelText(/monthly spending in retirement/i);
+    fireEvent.change(monthlySpending, { target: { value: "1000" } });
 
     const btn = screen.getByRole("button", { name: /forecast/i });
     await userEvent.click(btn);

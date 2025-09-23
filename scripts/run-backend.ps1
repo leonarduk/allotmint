@@ -115,14 +115,37 @@ function Test-Internet {
     # fall back to web request
   }
 
-  try {
-    $uri = if ($TargetHost -match '^https?://') { $TargetHost } else { "https://$TargetHost/" }
-    if (Get-HasCommand 'Invoke-WebRequest') {
-      Invoke-WebRequest -Uri $uri -UseBasicParsing -Method Head -TimeoutSec 5 | Out-Null
+  $uri = if ($TargetHost -match '^https?://') { $TargetHost } else { "https://$TargetHost/" }
+  if (Get-HasCommand 'Invoke-WebRequest') {
+    $originalProtocols = $null
+    try {
+      $originalProtocols = [System.Net.ServicePointManager]::SecurityProtocol
+      $tls12 = [System.Net.SecurityProtocolType]::Tls12
+      [System.Net.ServicePointManager]::SecurityProtocol = $originalProtocols -bor $tls12
+
+      Invoke-WebRequest -Uri $uri -UseBasicParsing -Method Head -TimeoutSec 5 -ErrorAction Stop | Out-Null
       return $true
+    } catch {
+      $exception = $_.Exception
+      $isTlsError = $false
+      while ($exception -ne $null) {
+        if ($exception -is [System.Security.Authentication.AuthenticationException] -or $exception.Message -match '(?i)TLS|SSL') {
+          $isTlsError = $true
+          break
+        }
+        $exception = $exception.InnerException
+      }
+
+      if ($isTlsError) {
+        Write-Warning "HTTPS connectivity check failed due to a TLS negotiation error: $($_.Exception.Message)"
+      } else {
+        Write-Warning "HTTPS connectivity check failed: $($_.Exception.Message)"
+      }
+    } finally {
+      if ($null -ne $originalProtocols) {
+        [System.Net.ServicePointManager]::SecurityProtocol = $originalProtocols
+      }
     }
-  } catch {
-    return $false
   }
 
   return $false

@@ -65,7 +65,7 @@ def test_refresh_snapshot_in_memory_from_timeseries_writes_file(tmp_path, monkey
     assert json.loads(prices_path.read_text()) == expected_snapshot
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
 async def test_refresh_snapshot_async_invokes_to_thread(monkeypatch):
     calls = {}
 
@@ -80,8 +80,17 @@ async def test_refresh_snapshot_async_invokes_to_thread(monkeypatch):
         }
         return func(*args, **kwargs)
 
+    async def fake_create_task(coro, *, name=None, context=None):
+        calls["create_task"] = {
+            "coro": coro,
+            "name": name,
+            "context": context,
+        }
+        return await coro
+
     monkeypatch.setattr(pu, "refresh_snapshot_in_memory_from_timeseries", fake_refresh)
     monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
+    monkeypatch.setattr(asyncio, "create_task", fake_create_task)
 
     task = pu.refresh_snapshot_async(days=3)
     await task

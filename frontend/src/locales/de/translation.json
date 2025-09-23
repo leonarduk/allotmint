@@ -198,7 +198,14 @@
     "retirementAge": "Renteneintrittsalter: {{age}}",
     "pensionPot": "Pensionsvermögen",
     "growthAssumption": "Wachstumsannahme (%):",
-    "monthlyContribution": "Monatlicher Beitrag (£):"
+    "monthlyContribution": "Monatlicher Beitrag (£):",
+    "monthlyContributionHeader": "Ihre monatliche Einzahlung",
+    "employerContributionHeader": "Arbeitgeberbeitrag",
+    "employerContributionInput": "Monatlicher Arbeitgeberbeitrag (£):",
+    "addAnotherPension": "Weitere Rente hinzufügen",
+    "additionalPensionNotice_one": "Sie haben {{count}} zusätzliche Rente hinzugefügt.",
+    "additionalPensionNotice_other": "Sie haben {{count}} zusätzliche Renten hinzugefügt.",
+    "totalMonthlyContribution": "Gesamte monatliche Beiträge: {{amount}}"
   },
   "group": {
     "select": "Wählen Sie eine Gruppe."

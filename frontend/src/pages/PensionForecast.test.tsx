@@ -31,7 +31,7 @@ describe("PensionForecast page", () => {
     vi.clearAllMocks();
   });
 
-  it("renders owner selector", async () => {
+  it("renders banner metrics and owner selector", async () => {
     mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
@@ -53,6 +53,20 @@ describe("PensionForecast page", () => {
       selector: 'select',
     });
     expect(selects[0]).toBeInTheDocument();
+
+    expect(screen.getByTestId("pension-pot-amount")).toHaveTextContent("—");
+    expect(screen.getByTestId("user-contribution-amount")).toHaveTextContent("£0.00");
+    expect(screen.getByTestId("employer-contribution-amount")).toHaveTextContent("£0.00");
+    const addBtn = screen.getByRole("button", { name: /add another pension/i });
+    expect(addBtn).toBeInTheDocument();
+    expect(
+      screen.queryByText(/total monthly contributions/i),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(addBtn);
+    expect(
+      screen.getByTestId("additional-pension-notice"),
+    ).toHaveTextContent("You have added 1 additional pension.");
   });
 
   it("submits with selected owner", async () => {
@@ -82,8 +96,10 @@ describe("PensionForecast page", () => {
     await userEvent.selectOptions(growth, "7");
 
     fireEvent.change(ownerSelect, { target: { value: "beth" } });
-    const monthly = within(form).getByLabelText(/monthly contribution/i);
+    const monthly = within(form).getByLabelText(/^monthly contribution/i);
     fireEvent.change(monthly, { target: { value: "100" } });
+    const employerMonthly = within(form).getByLabelText(/^employer monthly contribution/i);
+    fireEvent.change(employerMonthly, { target: { value: "50" } });
 
     const btn = screen.getByRole("button", { name: /forecast/i });
     await userEvent.click(btn);
@@ -93,13 +109,19 @@ describe("PensionForecast page", () => {
         expect.objectContaining({
           owner: "beth",
           investmentGrowthPct: 7,
-          contributionMonthly: 100,
+          contributionMonthly: 150,
         }),
       ),
     );
     await screen.findByText(/birth date: 1990-01-01/i);
     await screen.findByText(/pension pot: £123.00/i);
     await screen.findByText(/projected pot at 65: £323.00/i);
+    expect(screen.getByTestId("pension-pot-amount")).toHaveTextContent("£123.00");
+    expect(screen.getByTestId("user-contribution-amount")).toHaveTextContent("£100.00");
+    expect(screen.getByTestId("employer-contribution-amount")).toHaveTextContent(
+      "£50.00",
+    );
+    expect(screen.getByText(/total monthly contributions: £150.00/i)).toBeInTheDocument();
   });
 });
 

@@ -198,7 +198,14 @@
     "retirementAge": "Edad de jubilación: {{age}}",
     "pensionPot": "Fondo de pensiones",
     "growthAssumption": "Suposición de crecimiento (%):",
-    "monthlyContribution": "Contribución mensual (£):"
+    "monthlyContribution": "Contribución mensual (£):",
+    "monthlyContributionHeader": "Tu aportación mensual",
+    "employerContributionHeader": "Aportación del empleador",
+    "employerContributionInput": "Aportación mensual del empleador (£):",
+    "addAnotherPension": "Añadir otra pensión",
+    "additionalPensionNotice_one": "Has añadido {{count}} pensión adicional.",
+    "additionalPensionNotice_other": "Has añadido {{count}} pensiones adicionales.",
+    "totalMonthlyContribution": "Contribuciones mensuales totales: {{amount}}"
   },
   "group": {
     "select": "Seleccione un grupo."

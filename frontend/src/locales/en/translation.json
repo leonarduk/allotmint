@@ -204,7 +204,14 @@
     "retirementAge": "Retirement age: {{age}}",
     "pensionPot": "Pension pot",
     "growthAssumption": "Growth assumption (%):",
-    "monthlyContribution": "Monthly Contribution (£):"
+    "monthlyContribution": "Monthly Contribution (£):",
+    "monthlyContributionHeader": "Your monthly contribution",
+    "employerContributionHeader": "Employer contribution",
+    "employerContributionInput": "Employer monthly contribution (£):",
+    "addAnotherPension": "Add another pension",
+    "additionalPensionNotice_one": "You have added {{count}} additional pension.",
+    "additionalPensionNotice_other": "You have added {{count}} additional pensions.",
+    "totalMonthlyContribution": "Total monthly contributions: {{amount}}"
   },
   "group": {
     "select": "Select a group."

@@ -8,6 +8,7 @@ from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     ResolvedPaths,
     _list_local_plots,
+    _safe_json_load,
     resolve_paths,
 )
 from backend.config import Config
@@ -21,6 +22,34 @@ def _write_owner(root: Path, owner: str, accounts: list[str], viewers: list[str]
     person_path.write_text(json.dumps({"viewers": viewers_data}))
     for account in accounts:
         (owner_dir / f"{account}.json").write_text("{}")
+
+
+
+
+class TestSafeJsonLoad:
+    def test_parses_json_with_utf8_bom(self, tmp_path: Path) -> None:
+        payload = {"key": "value"}
+        path = tmp_path / "data.json"
+        path.write_bytes(json.dumps(payload).encode("utf-8-sig"))
+
+        result = _safe_json_load(path)
+
+        assert result == payload
+
+    def test_missing_file_raises_file_not_found(self, tmp_path: Path) -> None:
+        path = tmp_path / "missing.json"
+
+        with pytest.raises(FileNotFoundError):
+            _safe_json_load(path)
+
+    def test_whitespace_only_raises_value_error(self, tmp_path: Path) -> None:
+        path = tmp_path / "empty.json"
+        path.write_text(" \t\n  ")
+
+        with pytest.raises(ValueError) as exc:
+            _safe_json_load(path)
+
+        assert str(exc.value) == f"Empty JSON file: {path}"
 
 
 class TestResolvePaths:

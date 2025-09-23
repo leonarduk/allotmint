@@ -39,3 +39,9 @@ def test_push_subscription_owner_validation(client, tmp_path):
     resp_del = client.delete(f"/alerts/push-subscription/{owner}")
     assert resp_del.status_code == 200
     assert alert_utils.get_user_push_subscription(owner) is None
+
+
+def test_delete_unknown_owner_is_idempotent(client):
+    resp = client.delete("/alerts/push-subscription/unknown")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "deleted"}

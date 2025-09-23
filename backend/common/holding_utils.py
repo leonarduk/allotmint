@@ -281,25 +281,27 @@ def get_effective_cost_basis_gbp(
     scale = get_scaling_override(ticker, exchange, None)
     booked_raw = h.get(COST_BASIS_GBP)
     try:
-        booked = float(booked_raw) if booked_raw is not None else 0.0
+        booked_total = float(booked_raw) if booked_raw is not None else 0.0
     except (TypeError, ValueError):
-        booked = 0.0
-    if booked > 0 and scale != 1:
-        booked = round(booked * scale, 2)
-        h[COST_BASIS_GBP] = booked
-    if booked > 0:
-        scale = get_scaling_override(ticker, exchange, None)
-        chosen = round(booked, 2)
+        booked_total = 0.0
+
+    if booked_total > 0:
+        unscaled_total = round(booked_total, 2)
+        scaled_total = None
         if scale not in (None, 0, 1):
-            scaled = round(booked * scale, 2)
+            scaled_total = round(booked_total * scale, 2)
+
+        chosen_total = unscaled_total
+        if scaled_total is not None:
             if price_hint is not None and units > 0:
                 expected_total = round(units * price_hint, 2)
-                if abs(scaled - expected_total) < abs(chosen - expected_total):
-                    chosen = scaled
+                if abs(scaled_total - expected_total) < abs(unscaled_total - expected_total):
+                    chosen_total = scaled_total
             else:
-                chosen = scaled
-        h[COST_BASIS_GBP] = chosen
-        return chosen
+                chosen_total = scaled_total
+
+        h[COST_BASIS_GBP] = chosen_total
+        return chosen_total
 
     acq = _parse_date(h.get(ACQUIRED_DATE))
 

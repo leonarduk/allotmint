@@ -1,5 +1,5 @@
 import "../setupTests";
-import { render, screen, within, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { createInstance } from "i18next";
@@ -31,7 +31,7 @@ describe("PensionForecast page", () => {
     vi.clearAllMocks();
   });
 
-  it("renders owner selector", async () => {
+  it("renders owner selector and new controls", async () => {
     mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
@@ -50,13 +50,20 @@ describe("PensionForecast page", () => {
 
     renderWithI18n(<PensionForecast />);
 
-    const form = document.querySelector("form")!;
-    const ownerSelect = await within(form).findByLabelText(/owner/i);
-    expect(ownerSelect).toBeInTheDocument();
-    const selects = await screen.findAllByLabelText(/owner/i, {
-      selector: 'select',
-    });
-    expect(selects[0]).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /now/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /future you/i })).toBeInTheDocument();
+
+    const ownerSelect = await screen.findByLabelText(/owner/i);
+    expect(ownerSelect.tagName.toLowerCase()).toBe("select");
+
+    const careerSlider = screen.getByLabelText(/career path/i) as HTMLInputElement;
+    expect(careerSlider.type).toBe("range");
+
+    const spendingSlider = screen.getByLabelText(/monthly spending/i) as HTMLInputElement;
+    expect(spendingSlider.type).toBe("range");
+
+    const savingsSlider = screen.getByLabelText(/monthly savings/i) as HTMLInputElement;
+    expect(savingsSlider.type).toBe("range");
   });
 
   it("submits with selected owner", async () => {
@@ -85,19 +92,19 @@ describe("PensionForecast page", () => {
 
     renderWithI18n(<PensionForecast />);
 
-    await screen.findByText("beth");
-    const form = document.querySelector("form")!;
-    const ownerSelect = await within(form).findByLabelText(/owner/i);
+    const ownerSelect = await screen.findByLabelText(/owner/i);
     await userEvent.selectOptions(ownerSelect, "beth");
 
-    const growth = within(form).getByLabelText(/growth assumption/i);
-    await userEvent.selectOptions(growth, "7");
+    const careerSlider = screen.getByLabelText(/career path/i);
+    fireEvent.change(careerSlider, { target: { value: "2" } });
 
-    fireEvent.change(ownerSelect, { target: { value: "beth" } });
-    const monthly = within(form).getByLabelText(/monthly contribution/i);
-    fireEvent.change(monthly, { target: { value: "100" } });
+    const spendingSlider = screen.getByLabelText(/monthly spending/i);
+    fireEvent.change(spendingSlider, { target: { value: "1800" } });
 
-    const btn = screen.getByRole("button", { name: /forecast/i });
+    const savingsSlider = screen.getByLabelText(/monthly savings/i);
+    fireEvent.change(savingsSlider, { target: { value: "350" } });
+
+    const btn = screen.getByRole("button", { name: /update forecast/i });
     await userEvent.click(btn);
 
     await vi.waitFor(() =>
@@ -105,13 +112,14 @@ describe("PensionForecast page", () => {
         expect.objectContaining({
           owner: "beth",
           investmentGrowthPct: 7,
-          contributionMonthly: 100,
+          contributionMonthly: 350,
+          desiredIncomeAnnual: 1800 * 12,
         }),
       ),
     );
     await screen.findByText(/birth date: 1990-01-01/i);
-    await screen.findByText(/pension pot: £123.00/i);
-    await screen.findByText(/projected pot at 65: £323.00/i);
+    await screen.findByText(/Pension pot: £123.00/i);
+    await screen.findByText(/Projected pot at age 65: £323.00/i);
     await screen.findByText("Retirement income breakdown");
     expect(
       screen.getByText(
@@ -124,12 +132,14 @@ describe("PensionForecast page", () => {
     expect(screen.getByText("£9,000.00")).toBeInTheDocument();
     expect(screen.getByText("£750.00")).toBeInTheDocument();
     expect(screen.getByText("60%", { exact: false })).toBeInTheDocument();
-    expect(
-      screen.getByText("Total annual income: £15,000.00", { exact: true }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Total monthly income: £1,250.00", { exact: true }),
-    ).toBeInTheDocument();
+    const desiredMetric = screen.getByText("Desired income goal");
+    expect(desiredMetric.nextElementSibling).toHaveTextContent("£14,000.00");
+    expect(screen.getByText("Total annual income").nextElementSibling).toHaveTextContent(
+      "£15,000.00",
+    );
+    expect(screen.getByText("Total monthly income").nextElementSibling).toHaveTextContent(
+      "£1,250.00",
+    );
   });
 
   it("shows shortfall insight when desired income is not met", async () => {
@@ -155,12 +165,17 @@ describe("PensionForecast page", () => {
 
     renderWithI18n(<PensionForecast />);
 
-    const form = document.querySelector("form")!;
-    const desired = within(form).getByLabelText(/desired income/i);
-    fireEvent.change(desired, { target: { value: "12000" } });
+    const spendingSlider = screen.getByLabelText(/monthly spending/i);
+    fireEvent.change(spendingSlider, { target: { value: "1000" } });
 
-    const btn = screen.getByRole("button", { name: /forecast/i });
+    const btn = screen.getByRole("button", { name: /update forecast/i });
     await userEvent.click(btn);
+
+    await vi.waitFor(() =>
+      expect(mockGetPensionForecast).toHaveBeenCalledWith(
+        expect.objectContaining({ desiredIncomeAnnual: 12000 }),
+      ),
+    );
 
     await screen.findByText(
       "Projected income leaves a shortfall of £5,000.00 per year (£416.67 per month) against your desired £12,000.00.",

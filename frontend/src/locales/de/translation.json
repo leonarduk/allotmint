@@ -193,12 +193,35 @@
     "select": "Wählen Sie einen Besitzer."
   },
   "pensionForecast": {
+    "nowHeading": "Jetzt",
+    "nowIntro": "Passe die Einstellungen an deine aktuelle Situation an.",
+    "futureHeading": "Zukünftiges Ich",
+    "futureIntro": "Sieh dir an, wie sich diese Entscheidungen auf dein Renteneinkommen auswirken.",
+    "futurePlaceholder": "Starte eine Prognose, um dein zukünftiges Einkommen zu visualisieren.",
+    "perMonthSuffix": "pro Monat",
+    "deathAgeLabel": "Sterbealter",
+    "statePensionLabel": "Staatliche Rente (£/Jahr)",
+    "forecastCta": "Prognose aktualisieren",
+    "monthlySpendingLabel": "Monatliche Ausgaben",
+    "monthlySavingsLabel": "Monatliche Ersparnisse",
+    "desiredIncomeGoal": "Gewünschtes Einkommensziel",
+    "growthAssumptionValue": "Wachstumsannahme: {{value}}%",
+    "projectedPotAtAge": "Prognostiziertes Vermögen mit {{age}} Jahren: {{total}}",
     "currentAge": "Aktuelles Alter: {{age}}",
     "birthDate": "Geburtsdatum: {{dob}}",
     "retirementAge": "Renteneintrittsalter: {{age}}",
     "pensionPot": "Pensionsvermögen",
     "growthAssumption": "Wachstumsannahme (%):",
     "monthlyContribution": "Monatlicher Beitrag (£):",
+    "careerPath": {
+      "label": "Karriereweg",
+      "emerging": "Am Anfang",
+      "emergingDescription": "Start mit stabilen 3% Wachstum.",
+      "steady": "Stetiger Fortschritt",
+      "steadyDescription": "Solide Karriere mit 5% Wachstum.",
+      "accelerating": "Beschleunigt",
+      "acceleratingDescription": "Auf Kurs für schnellere 7% Wachstum."
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",
@@ -414,16 +437,16 @@
     "grouping": "Gruppierung",
     "actions": "Actions",
     "add": "Add Instrument",
-  "save": "Save",
-  "saveSuccess": "Saved",
-  "saveError": "Error saving",
-  "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required",
-    "grouping": "Grouping is required"
-  }
-},
+    "save": "Save",
+    "saveSuccess": "Saved",
+    "saveError": "Error saving",
+    "searchPlaceholder": "Filter instruments…",
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required",
+      "grouping": "Grouping is required"
+    }
+  },
   "var": {
     "title": "Value at Risk",
     "details": "Details zur historischen Simulation",

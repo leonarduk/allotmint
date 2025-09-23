@@ -220,6 +220,29 @@
       "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
       "earliest": "Estimated earliest retirement age: {{age}}",
       "noBreakdown": "No income breakdown available."
+    },
+    "nowHeading": "Aujourd'hui",
+    "nowIntro": "Ajustez les commandes pour refléter votre situation actuelle.",
+    "futureHeading": "Vous futur",
+    "futureIntro": "Voyez comment ces choix façonnent votre revenu de retraite.",
+    "futurePlaceholder": "Lancez une projection pour visualiser vos revenus futurs.",
+    "perMonthSuffix": "par mois",
+    "deathAgeLabel": "Âge au décès",
+    "statePensionLabel": "Pension d'État (£/an)",
+    "forecastCta": "Mettre à jour la projection",
+    "monthlySpendingLabel": "Dépenses mensuelles",
+    "monthlySavingsLabel": "Épargne mensuelle",
+    "desiredIncomeGoal": "Objectif de revenu souhaité",
+    "growthAssumptionValue": "Hypothèse de croissance : {{value}} %",
+    "projectedPotAtAge": "Capital projeté à {{age}} ans : {{total}}",
+    "careerPath": {
+      "label": "Parcours professionnel",
+      "emerging": "Débuts",
+      "emergingDescription": "Commence avec une croissance régulière de 3 %.",
+      "steady": "Progression régulière",
+      "steadyDescription": "Carrière confortable avec une croissance de 5 %.",
+      "accelerating": "Accélération",
+      "acceleratingDescription": "En bonne voie pour une croissance plus rapide de 7 %."
     }
   },
   "group": {
@@ -415,16 +438,16 @@
     "grouping": "Regroupement",
     "actions": "Actions",
     "add": "Add Instrument",
-  "save": "Save",
-  "saveSuccess": "Saved",
-  "saveError": "Error saving",
-  "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required",
-    "grouping": "Grouping is required"
-  }
-},
+    "save": "Save",
+    "saveSuccess": "Saved",
+    "saveError": "Error saving",
+    "searchPlaceholder": "Filter instruments…",
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required",
+      "grouping": "Grouping is required"
+    }
+  },
   "var": {
     "title": "Valeur à risque",
     "details": "Détails de la simulation historique",

@@ -220,6 +220,29 @@
       "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
       "earliest": "Estimated earliest retirement age: {{age}}",
       "noBreakdown": "No income breakdown available."
+    },
+    "nowHeading": "Adesso",
+    "nowIntro": "Regola i controlli per rispecchiare la tua situazione attuale.",
+    "futureHeading": "Il tuo futuro",
+    "futureIntro": "Scopri come queste scelte influiscono sul tuo reddito pensionistico.",
+    "futurePlaceholder": "Esegui una previsione per visualizzare il tuo reddito futuro.",
+    "perMonthSuffix": "al mese",
+    "deathAgeLabel": "Età al decesso",
+    "statePensionLabel": "Pensione statale (£/anno)",
+    "forecastCta": "Aggiorna la previsione",
+    "monthlySpendingLabel": "Spesa mensile",
+    "monthlySavingsLabel": "Risparmio mensile",
+    "desiredIncomeGoal": "Obiettivo di reddito desiderato",
+    "growthAssumptionValue": "Ipotesi di crescita: {{value}}%",
+    "projectedPotAtAge": "Capitale previsto a {{age}} anni: {{total}}",
+    "careerPath": {
+      "label": "Percorso professionale",
+      "emerging": "All'inizio",
+      "emergingDescription": "Partenza con una crescita stabile del 3%.",
+      "steady": "Progresso costante",
+      "steadyDescription": "Carriera solida con una crescita del 5%.",
+      "accelerating": "In accelerazione",
+      "acceleratingDescription": "Verso una crescita più rapida del 7%."
     }
   },
   "group": {

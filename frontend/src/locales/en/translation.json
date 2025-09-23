@@ -199,12 +199,35 @@
     "select": "Select an owner."
   },
   "pensionForecast": {
+    "nowHeading": "Now",
+    "nowIntro": "Adjust the controls to match your situation today.",
+    "futureHeading": "Future you",
+    "futureIntro": "See how those choices shape your retirement income.",
+    "futurePlaceholder": "Run a forecast to visualise your future income.",
+    "perMonthSuffix": "per month",
+    "deathAgeLabel": "Death age",
+    "statePensionLabel": "State pension (£/yr)",
+    "forecastCta": "Update forecast",
+    "monthlySpendingLabel": "Monthly spending",
+    "monthlySavingsLabel": "Monthly savings",
+    "desiredIncomeGoal": "Desired income goal",
+    "growthAssumptionValue": "Growth assumption: {{value}}%",
+    "projectedPotAtAge": "Projected pot at age {{age}}: {{total}}",
     "currentAge": "Current age: {{age}}",
     "birthDate": "Birth date: {{dob}}",
     "retirementAge": "Retirement age: {{age}}",
     "pensionPot": "Pension pot",
     "growthAssumption": "Growth assumption (%):",
     "monthlyContribution": "Monthly Contribution (£):",
+    "careerPath": {
+      "label": "Career path",
+      "emerging": "Finding your feet",
+      "emergingDescription": "Starting out with steady 3% growth.",
+      "steady": "Steady progress",
+      "steadyDescription": "Comfortable career with 5% growth.",
+      "accelerating": "Accelerating",
+      "acceleratingDescription": "On track for faster 7% growth."
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
       "state": "State pension",
@@ -429,16 +452,16 @@
     "grouping": "Grouping",
     "actions": "Actions",
     "add": "Add Instrument",
-  "save": "Save",
-  "saveSuccess": "Saved",
-  "saveError": "Error saving",
-  "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required",
-    "grouping": "Grouping is required"
-  }
-},
+    "save": "Save",
+    "saveSuccess": "Saved",
+    "saveError": "Error saving",
+    "searchPlaceholder": "Filter instruments…",
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required",
+      "grouping": "Grouping is required"
+    }
+  },
   "var": {
     "title": "Value at Risk",
     "details": "Historical simulation details",

@@ -220,6 +220,29 @@
       "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
       "earliest": "Estimated earliest retirement age: {{age}}",
       "noBreakdown": "No income breakdown available."
+    },
+    "nowHeading": "Ahora",
+    "nowIntro": "Ajusta los controles para que coincidan con tu situación actual.",
+    "futureHeading": "Tu yo futuro",
+    "futureIntro": "Descubre cómo esas elecciones influyen en tus ingresos de jubilación.",
+    "futurePlaceholder": "Ejecuta una proyección para visualizar tus ingresos futuros.",
+    "perMonthSuffix": "al mes",
+    "deathAgeLabel": "Edad de fallecimiento",
+    "statePensionLabel": "Pensión estatal (£/año)",
+    "forecastCta": "Actualizar proyección",
+    "monthlySpendingLabel": "Gasto mensual",
+    "monthlySavingsLabel": "Ahorro mensual",
+    "desiredIncomeGoal": "Objetivo de ingreso deseado",
+    "growthAssumptionValue": "Supuesto de crecimiento: {{value}}%",
+    "projectedPotAtAge": "Ahorro proyectado a los {{age}} años: {{total}}",
+    "careerPath": {
+      "label": "Trayectoria profesional",
+      "emerging": "Comenzando",
+      "emergingDescription": "Empezando con un crecimiento estable del 3%.",
+      "steady": "Progreso constante",
+      "steadyDescription": "Carrera cómoda con un crecimiento del 5%.",
+      "accelerating": "Acelerando",
+      "acceleratingDescription": "En camino a un crecimiento más rápido del 7%."
     }
   },
   "group": {
@@ -414,16 +437,16 @@
     "grouping": "Agrupación",
     "actions": "Actions",
     "add": "Add Instrument",
-  "save": "Save",
-  "saveSuccess": "Saved",
-  "saveError": "Error saving",
-  "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required",
-    "grouping": "Grouping is required"
-  }
-},
+    "save": "Save",
+    "saveSuccess": "Saved",
+    "saveError": "Error saving",
+    "searchPlaceholder": "Filter instruments…",
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required",
+      "grouping": "Grouping is required"
+    }
+  },
   "var": {
     "title": "Valor en Riesgo",
     "details": "Detalles de la simulación histórica",

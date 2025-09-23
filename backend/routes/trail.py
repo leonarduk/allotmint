@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.auth import get_current_user
@@ -21,7 +23,10 @@ if config.disable_auth:
         Returns the updated Trail payload including XP, streak, and daily totals.
         """
         try:
-            return trail.mark_complete("demo", task_id)
+            result = trail.mark_complete("demo", task_id)
+            if isinstance(result, Mapping) and "tasks" in result:
+                return result
+            return {"tasks": result}
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")
 
@@ -39,6 +44,9 @@ else:
         Returns the updated Trail payload including XP, streak, and daily totals.
         """
         try:
-            return trail.mark_complete(current_user, task_id)
+            result = trail.mark_complete(current_user, task_id)
+            if isinstance(result, Mapping) and "tasks" in result:
+                return result
+            return {"tasks": result}
         except KeyError:
             raise HTTPException(status_code=404, detail="Task not found")

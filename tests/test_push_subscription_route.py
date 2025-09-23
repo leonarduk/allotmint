@@ -22,7 +22,7 @@ def client(tmp_path, monkeypatch):
         alert_utils.config.sns_topic_arn = original_arn
 
 
-def test_push_subscription_owner_validation(client):
+def test_push_subscription_owner_validation(client, tmp_path):
     owners = client.get("/owners").json()
     assert any(o["owner"] == "demo" for o in owners)
     owner = "demo"
@@ -35,6 +35,7 @@ def test_push_subscription_owner_validation(client):
     resp_bad = client.post("/alerts/push-subscription/unknown", json=payload)
     assert resp_bad.status_code == 404
 
+    client.app.state.accounts_root = tmp_path / "does-not-exist"
     resp_del = client.delete(f"/alerts/push-subscription/{owner}")
     assert resp_del.status_code == 200
     assert alert_utils.get_user_push_subscription(owner) is None

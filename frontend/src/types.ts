@@ -229,7 +229,10 @@ export interface MarketOverview {
 export interface InstrumentPosition {
   owner: string;
   account: string;
-  units: number;
+  units: number | null;
+  market_value_gbp?: number | null;
+  unrealised_gain_gbp?: number | null;
+  gain_pct?: number | null;
 }
 
 export interface InstrumentDetail {

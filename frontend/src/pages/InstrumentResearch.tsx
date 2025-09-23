@@ -3,26 +3,12 @@ import type { FormEvent } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory, getCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
-import { InstrumentHistoryChart } from "../components/InstrumentHistoryChart";
-import {
-  getScreener,
-  getNews,
-  getQuotes,
-  listInstrumentMetadata,
-  updateInstrumentMetadata,
-} from "../api";
-import type {
-  ScreenerResult,
-  NewsItem,
-  QuoteRow,
-  InstrumentMetadata,
-} from "../types";
+import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
+import { getNews, listInstrumentMetadata, updateInstrumentMetadata } from "../api";
+import type { NewsItem, InstrumentMetadata } from "../types";
 import EmptyState from "../components/EmptyState";
-import { largeNumber, money, percent } from "../lib/money";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import { formatDateISO } from "../lib/date";
-import tableStyles from "../styles/table.module.css";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -38,27 +24,18 @@ function normaliseUppercase(value: unknown) {
 
 export default function InstrumentResearch() {
   const { ticker } = useParams<{ ticker: string }>();
-  const [metrics, setMetrics] = useState<ScreenerResult | null>(null);
-  const [days, setDays] = useState(30);
-  const [showBollinger, setShowBollinger] = useState(false);
   const { t } = useTranslation();
   const tkr = ticker && /^[A-Za-z0-9.-]{1,10}$/.test(ticker) ? ticker : "";
   const tickerParts = tkr.split(".", 2);
   const baseTicker = tickerParts[0] ?? "";
   const initialExchange = tickerParts.length > 1 ? tickerParts[1] ?? "" : "";
-  const { tabs, disabledTabs, baseCurrency } = useConfig();
+  const { tabs, disabledTabs } = useConfig();
   const {
     data: detail,
     loading: detailLoading,
     error: detailError,
-  } = useInstrumentHistory(tkr, days);
-  const historyPrices = detail?.mini?.[String(days)] ?? [];
-  const [quote, setQuote] = useState<QuoteRow | null>(null);
+  } = useInstrumentHistory(tkr, 365);
   const [news, setNews] = useState<NewsItem[]>([]);
-  const [screenerLoading, setScreenerLoading] = useState(false);
-  const [screenerError, setScreenerError] = useState<string | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
-  const [quoteError, setQuoteError] = useState<string | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);
   const [instrumentExchange, setInstrumentExchange] = useState(initialExchange);
@@ -87,8 +64,8 @@ export default function InstrumentResearch() {
       .filter(Boolean);
     return !!tkr && list.includes(tkr);
   });
-  const [activeTab, setActiveTab] = useState<"fundamentals" | "timeseries" | "news">(
-    "fundamentals",
+  const [activeTab, setActiveTab] = useState<"overview" | "positions" | "news">(
+    "overview",
   );
 
   useEffect(() => {
@@ -290,47 +267,7 @@ export default function InstrumentResearch() {
 
   useEffect(() => {
     if (!tkr) return;
-    const screenerCtrl = new AbortController();
     const newsCtrl = new AbortController();
-    const quoteCtrl = new AbortController();
-
-    const fetchScreener = async () => {
-      setScreenerLoading(true);
-      setScreenerError(null);
-      try {
-        const rows = await getScreener([tkr], {}, screenerCtrl.signal);
-        setMetrics(rows[0] || null);
-      } catch (err) {
-        const error = err as { name?: string } | null | undefined;
-        if (error?.name === "AbortError") {
-          return;
-        }
-        console.error(err);
-        setMetrics(null);
-        setScreenerError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setScreenerLoading(false);
-      }
-    };
-
-    const fetchQuote = async () => {
-      setQuoteLoading(true);
-      setQuoteError(null);
-      try {
-        const rows = await getQuotes([tkr], quoteCtrl.signal);
-        setQuote(rows[0] || null);
-      } catch (err) {
-        const error = err as { name?: string } | null | undefined;
-        if (error?.name === "AbortError") {
-          return;
-        }
-        console.error(err);
-        setQuote(null);
-        setQuoteError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setQuoteLoading(false);
-      }
-    };
 
     const fetchNews = async () => {
       setNewsLoading(true);
@@ -351,13 +288,9 @@ export default function InstrumentResearch() {
       }
     };
 
-    void fetchScreener();
-    void fetchQuote();
     void fetchNews();
     return () => {
-      screenerCtrl.abort();
       newsCtrl.abort();
-      quoteCtrl.abort();
     };
   }, [tkr]);
 
@@ -388,44 +321,26 @@ export default function InstrumentResearch() {
 
   const fallbackSector = detail ? normaliseOptional(detail.sector) : undefined;
   const fallbackCurrency = detail ? normaliseUppercase(detail.currency) : undefined;
-  const displayName =
-    metadata.name || quote?.name || metrics?.name || detail?.name || null;
+  const displayName = metadata.name || detail?.name || null;
   const displaySector = metadata.sector || fallbackSector || "";
   const displayCurrency = metadata.currency || fallbackCurrency || "";
-
-  type DetailPrice = {
-    date?: string | null;
-    close_gbp?: number | null;
-    close?: number | null;
-  };
-
-  const toFiniteNumber = (value: unknown) =>
-    typeof value === "number" && Number.isFinite(value) ? value : NaN;
-
-  const priceHistory = Array.isArray(detail?.prices)
-    ? (detail?.prices as DetailPrice[])
-        .map((entry) => {
-          const date = typeof entry?.date === "string" ? entry.date : "";
-          const closeValue = toFiniteNumber(
-            (entry?.close_gbp ?? entry?.close) ?? undefined,
-          );
-          return { date, close_gbp: closeValue };
-        })
-        .filter((entry) => entry.date && Number.isFinite(entry.close_gbp))
-    : [];
-
-  const priceHistoryWithChanges = priceHistory.map((entry, index, arr) => {
-    const prev = arr[index - 1];
-    const change_gbp = prev ? entry.close_gbp - prev.close_gbp : NaN;
-    const change_pct = prev ? (change_gbp / prev.close_gbp) * 100 : NaN;
-    return { ...entry, change_gbp, change_pct };
-  });
+  const instrumentType =
+    detail && typeof (detail as { instrument_type?: unknown }).instrument_type === "string"
+      ? ((detail as { instrument_type?: string }).instrument_type ?? null)
+      : null;
+  const positions = Array.isArray(detail?.positions) ? detail.positions : [];
 
   const tabOptions: { id: typeof activeTab; label: string }[] = [
-    { id: "fundamentals", label: "Fundamentals" },
-    { id: "timeseries", label: "Timeseries" },
+    { id: "overview", label: "Overview" },
+    { id: "positions", label: "Positions" },
     { id: "news", label: "News" },
   ];
+  const standalonePalette = {
+    positive: "#137333",
+    negative: "#b3261e",
+    link: "#1a73e8",
+    muted: "#555",
+  };
 
   if (!tkr) return <div>Invalid ticker</div>;
 
@@ -586,44 +501,6 @@ export default function InstrumentResearch() {
           </datalist>
         )}
       </form>
-      <div style={{ marginBottom: "0.5rem" }}>
-        {[7, 30, 180, 365].map((d) => (
-          <button
-            key={d}
-            onClick={() => setDays(d)}
-            disabled={days === d}
-            style={{ marginRight: "0.5rem" }}
-          >
-            {d}d
-          </button>
-        ))}
-        <label style={{ marginLeft: "1rem", fontSize: "0.85rem" }}>
-          <input
-            type="checkbox"
-            checked={showBollinger}
-            onChange={(e) => setShowBollinger(e.target.checked)}
-          />{" "}
-          {t("instrumentDetail.bollingerBands")}
-        </label>
-      </div>
-      {detailError && !detailLoading ? (
-        <div
-          style={{
-            height: 220,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          History unavailable
-        </div>
-      ) : (
-        <InstrumentHistoryChart
-          data={historyPrices}
-          loading={detailLoading}
-          showBollinger={showBollinger}
-        />
-      )}
       <div
         style={{
           display: "flex",
@@ -658,315 +535,32 @@ export default function InstrumentResearch() {
         })}
       </div>
 
-      {activeTab === "fundamentals" && (
-        <>
-          {(quoteLoading && screenerLoading) ? (
-            <div>Loading quote...</div>
-          ) : quoteError || screenerError ? (
-            <div>{quoteError || screenerError}</div>
-          ) : (
-            (quote || metrics) && (
-              <table style={{ marginBottom: "1rem" }}>
-                <tbody>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Price
-                    </th>
-                    <td>{quote?.last ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Change %
-                    </th>
-                    <td>
-                      {quote?.changePct != null
-                        ? `${quote.changePct.toFixed(2)}%`
-                        : "—"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Day Range
-                    </th>
-                    <td>
-                      {quote
-                        ? `${quote.low ?? "—"} - ${quote.high ?? "—"}`
-                        : "—"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      52W Range
-                    </th>
-                    <td>
-                      {metrics
-                        ? `${metrics.low_52w ?? "—"} - ${metrics.high_52w ?? "—"}`
-                        : "—"}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            )
-          )}
-          {screenerLoading ? (
-            <div>Loading metrics...</div>
-          ) : screenerError ? (
-            <div>{screenerError}</div>
-          ) : (
-            metrics && (
-              <table style={{ marginBottom: "1rem" }}>
-                <tbody>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      PEG
-                    </th>
-                    <td>{metrics.peg_ratio ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      P/E
-                    </th>
-                    <td>{metrics.pe_ratio ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      D/E
-                    </th>
-                    <td>{metrics.de_ratio ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      LT D/E
-                    </th>
-                    <td>{metrics.lt_de_ratio ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Market Cap
-                    </th>
-                    <td>{largeNumber(metrics.market_cap)}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      EPS
-                    </th>
-                    <td>{metrics.eps ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Dividend Yield
-                    </th>
-                    <td>{metrics.dividend_yield ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Beta
-                    </th>
-                    <td>{metrics.beta ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Avg Volume
-                    </th>
-                    <td>{largeNumber(metrics.avg_volume)}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Interest Coverage
-                    </th>
-                    <td>{metrics.interest_coverage ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Current Ratio
-                    </th>
-                    <td>{metrics.current_ratio ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Quick Ratio
-                    </th>
-                    <td>{metrics.quick_ratio ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      FCF
-                    </th>
-                    <td>{largeNumber(metrics.fcf)}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Gross Margin
-                    </th>
-                    <td>{metrics.gross_margin ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Operating Margin
-                    </th>
-                    <td>{metrics.operating_margin ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Net Margin
-                    </th>
-                    <td>{metrics.net_margin ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      EBITDA Margin
-                    </th>
-                    <td>{metrics.ebitda_margin ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      ROA
-                    </th>
-                    <td>{metrics.roa ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      ROE
-                    </th>
-                    <td>{metrics.roe ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      ROI
-                    </th>
-                    <td>{metrics.roi ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Dividend Payout Ratio
-                    </th>
-                    <td>{metrics.dividend_payout_ratio ?? "—"}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Shares Outstanding
-                    </th>
-                    <td>{largeNumber(metrics.shares_outstanding)}</td>
-                  </tr>
-                  <tr>
-                    <th style={{ textAlign: "left", paddingRight: "0.5rem" }}>
-                      Float Shares
-                    </th>
-                    <td>{largeNumber(metrics.float_shares)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            )
-          )}
-        </>
+      {activeTab === "overview" && (
+        <div style={{ marginBottom: "2rem" }}>
+          <InstrumentDetail
+            ticker={tkr}
+            name={displayName ?? tkr}
+            currency={displayCurrency || undefined}
+            instrument_type={instrumentType}
+            variant="standalone"
+            hidePositions
+          />
+        </div>
       )}
 
-      {activeTab === "timeseries" && (
-        <>
-          {detailError ? (
-            <div>{detailError.message}</div>
-          ) : (
-            <>
-              <h2>{t("instrumentDetail.recentPrices")}</h2>
-              <table
-                className={tableStyles.table}
-                style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
-              >
-                <thead>
-                  <tr>
-                    <th className={tableStyles.cell}>
-                      {t("instrumentDetail.priceColumns.date")}
-                    </th>
-                    <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {t("instrumentDetail.priceColumns.close")}
-                    </th>
-                    <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {t("instrumentDetail.priceColumns.delta")}
-                    </th>
-                    <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {t("instrumentDetail.priceColumns.deltaPct")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailLoading ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className={`${tableStyles.cell} ${tableStyles.center}`}
-                        style={{ color: "#888" }}
-                      >
-                        {t("app.loading")}
-                      </td>
-                    </tr>
-                  ) : priceHistoryWithChanges.length ? (
-                    priceHistoryWithChanges
-                      .slice(-60)
-                      .reverse()
-                      .map((p) => {
-                        const colour = Number.isFinite(p.change_gbp)
-                          ? p.change_gbp >= 0
-                            ? "lightgreen"
-                            : "red"
-                          : undefined;
-                        return (
-                          <tr key={p.date}>
-                            <td className={tableStyles.cell}>
-                              {formatDateISO(new Date(p.date))}
-                            </td>
-                            <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                              {money(p.close_gbp, baseCurrency)}
-                            </td>
-                            <td
-                              className={`${tableStyles.cell} ${tableStyles.right}`}
-                              style={{ color: colour }}
-                            >
-                              {money(p.change_gbp, baseCurrency)}
-                            </td>
-                            <td
-                              className={`${tableStyles.cell} ${tableStyles.right}`}
-                              style={{ color: colour }}
-                            >
-                              {Number.isFinite(p.change_pct) ? (
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "flex-end",
-                                    gap: "0.25rem",
-                                    fontVariantNumeric: "tabular-nums",
-                                  }}
-                                >
-                                  {p.change_pct >= 0 ? (
-                                    <ArrowUpRight size={12} />
-                                  ) : (
-                                    <ArrowDownRight size={12} />
-                                  )}
-                                  {percent(p.change_pct, 2)}
-                                </span>
-                              ) : (
-                                percent(p.change_pct, 2)
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className={`${tableStyles.cell} ${tableStyles.center}`}
-                        style={{ color: "#888" }}
-                      >
-                        {t("instrumentDetail.noPriceData")}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </>
-          )}
-        </>
+      {activeTab === "positions" && (
+        detailError ? (
+          <div>{detailError.message}</div>
+        ) : (
+          <InstrumentPositionsTable
+            positions={positions}
+            loading={detailLoading}
+            positiveColor={standalonePalette.positive}
+            negativeColor={standalonePalette.negative}
+            linkColor={standalonePalette.link}
+            mutedColor={standalonePalette.muted}
+          />
+        )
       )}
 
       {activeTab === "news" && (
@@ -1014,25 +608,6 @@ export default function InstrumentResearch() {
             </div>
           )}
         </>
-      )}
-
-      {detailLoading ? (
-        <div>Loading instrument details...</div>
-      ) : detailError ? (
-        <div>{detailError.message}</div>
-      ) : (
-        detail && detail.positions && detail.positions.length > 0 && (
-          <div>
-            <h2>Positions</h2>
-            <ul>
-              {detail.positions.map((p, i) => (
-                <li key={i}>
-                  {p.owner} – {p.account} : {p.units}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )
       )}
     </div>
   );

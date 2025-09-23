@@ -220,6 +220,19 @@
       "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
       "earliest": "Estimated earliest retirement age: {{age}}",
       "noBreakdown": "No income breakdown available."
+    },
+    "employerContributionLabel": "Contribuição do empregador",
+    "header": {
+      "kicker": "Visão geral da sua aposentadoria",
+      "heading": "Acompanhe suas contribuições de relance",
+      "pensionPot": "Fundo de aposentadoria atual",
+      "employeeContribution": "Sua contribuição mensal",
+      "employerContribution": "Contribuição do empregador",
+      "totalContribution": "Contribuições mensais totais: {{total}}",
+      "addAnother": "Adicionar outra aposentadoria",
+      "additionalPensions_one": "{{count}} aposentadoria adicional vinculada",
+      "additionalPensions_other": "{{count}} aposentadorias adicionais vinculadas",
+      "notAvailable": "Não disponível"
     }
   },
   "group": {
@@ -414,16 +427,16 @@
     "grouping": "Agrupamento",
     "actions": "Ações",
     "add": "Adicionar instrumento",
-  "save": "Salvar",
-  "saveSuccess": "Salvo",
-  "saveError": "Erro ao salvar",
-  "searchPlaceholder": "Filtrar instrumentos…",
-  "validation": {
-    "ticker": "Ticker é obrigatório",
-    "name": "Nome é obrigatório",
-    "grouping": "Agrupamento é obrigatório"
-  }
-},
+    "save": "Salvar",
+    "saveSuccess": "Salvo",
+    "saveError": "Erro ao salvar",
+    "searchPlaceholder": "Filtrar instrumentos…",
+    "validation": {
+      "ticker": "Ticker é obrigatório",
+      "name": "Nome é obrigatório",
+      "grouping": "Agrupamento é obrigatório"
+    }
+  },
   "var": {
     "title": "Valor em Risco",
     "details": "Detalhes da simulação histórica",

@@ -226,6 +226,19 @@
       "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
       "earliest": "Estimated earliest retirement age: {{age}}",
       "noBreakdown": "No income breakdown available."
+    },
+    "employerContributionLabel": "Employer contribution",
+    "header": {
+      "kicker": "Your pension snapshot",
+      "heading": "Track your contributions at a glance",
+      "pensionPot": "Current pension pot",
+      "employeeContribution": "Your monthly contribution",
+      "employerContribution": "Employer contribution",
+      "totalContribution": "Total monthly contributions: {{total}}",
+      "addAnother": "Add another pension",
+      "additionalPensions_one": "{{count}} additional pension linked",
+      "additionalPensions_other": "{{count}} additional pensions linked",
+      "notAvailable": "Not available"
     }
   },
   "group": {
@@ -429,16 +442,16 @@
     "grouping": "Grouping",
     "actions": "Actions",
     "add": "Add Instrument",
-  "save": "Save",
-  "saveSuccess": "Saved",
-  "saveError": "Error saving",
-  "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required",
-    "grouping": "Grouping is required"
-  }
-},
+    "save": "Save",
+    "saveSuccess": "Saved",
+    "saveError": "Error saving",
+    "searchPlaceholder": "Filter instruments…",
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required",
+      "grouping": "Grouping is required"
+    }
+  },
   "var": {
     "title": "Value at Risk",
     "details": "Historical simulation details",

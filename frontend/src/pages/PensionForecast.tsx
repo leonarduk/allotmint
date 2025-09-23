@@ -23,6 +23,9 @@ export default function PensionForecast() {
   const [statePension, setStatePension] = useState<string>("");
   const [monthlySavings, setMonthlySavings] = useState(250);
   const [monthlySpending, setMonthlySpending] = useState(2000);
+  const [employerContributionMonthly, setEmployerContributionMonthly] =
+    useState(150);
+  const [additionalPensions, setAdditionalPensions] = useState(0);
   const [careerPathIndex, setCareerPathIndex] = useState(1);
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
@@ -63,6 +66,12 @@ export default function PensionForecast() {
       }),
     [],
   );
+
+  const totalMonthlyContribution = monthlySavings + employerContributionMonthly;
+
+  const handleAddAnotherPension = () => {
+    setAdditionalPensions((count) => count + 1);
+  };
 
   useEffect(() => {
     getOwners()
@@ -234,6 +243,71 @@ export default function PensionForecast() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <h1 className="text-2xl md:text-4xl">Pension Forecast</h1>
+      <section
+        aria-labelledby="pension-snapshot-heading"
+        className="rounded-3xl bg-slate-900 p-6 text-white shadow-sm"
+      >
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
+              {t("pensionForecast.header.kicker")}
+            </p>
+            <h2
+              id="pension-snapshot-heading"
+              className="text-2xl font-semibold md:text-3xl"
+            >
+              {t("pensionForecast.header.heading")}
+            </h2>
+            {additionalPensions > 0 && (
+              <p className="text-sm text-blue-100">
+                {t("pensionForecast.header.additionalPensions", {
+                  count: additionalPensions,
+                })}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleAddAnotherPension}
+            className="inline-flex items-center justify-center rounded-full border border-white/30 px-4 py-2 text-sm font-semibold text-white transition hover:border-white hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-2 focus:ring-offset-slate-900"
+          >
+            {t("pensionForecast.header.addAnother")}
+          </button>
+        </div>
+        <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-2xl bg-white/10 p-4">
+            <dt className="text-sm font-medium text-blue-100">
+              {t("pensionForecast.header.pensionPot")}
+            </dt>
+            <dd className="mt-2 text-2xl font-semibold">
+              {pensionPot != null
+                ? currencyFormatter.format(pensionPot)
+                : t("pensionForecast.header.notAvailable")}
+            </dd>
+          </div>
+          <div className="rounded-2xl bg-white/10 p-4">
+            <dt className="text-sm font-medium text-blue-100">
+              {t("pensionForecast.header.employeeContribution")}
+            </dt>
+            <dd className="mt-2 text-2xl font-semibold">
+              {currencyFormatter.format(monthlySavings)}
+            </dd>
+          </div>
+          <div className="rounded-2xl bg-white/10 p-4">
+            <dt className="text-sm font-medium text-blue-100">
+              {t("pensionForecast.header.employerContribution")}
+            </dt>
+            <dd className="mt-2 text-2xl font-semibold">
+              {currencyFormatter.format(employerContributionMonthly)}
+            </dd>
+            <p className="mt-1 text-xs text-blue-100">
+              {t("pensionForecast.header.totalContribution", {
+                total: currencyFormatter.format(totalMonthlyContribution),
+              })}
+            </p>
+          </div>
+        </dl>
+      </section>
       <div className="grid gap-6 md:grid-cols-2">
         <section
           className="flex h-full flex-col gap-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
@@ -281,6 +355,17 @@ export default function PensionForecast() {
               step={50}
               value={monthlySavings}
               onChange={(value) => setMonthlySavings(value)}
+              formatValue={(value) => currencyFormatter.format(value)}
+              getValueText={(value) => currencyFormatter.format(value)}
+            />
+            <SliderControl
+              id="employer-contribution"
+              label={t("pensionForecast.employerContributionLabel")}
+              min={0}
+              max={2000}
+              step={50}
+              value={employerContributionMonthly}
+              onChange={(value) => setEmployerContributionMonthly(value)}
               formatValue={(value) => currencyFormatter.format(value)}
               getValueText={(value) => currencyFormatter.format(value)}
             />

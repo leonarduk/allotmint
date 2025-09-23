@@ -117,6 +117,29 @@ describe("PensionForecast page", () => {
         }),
       ),
     );
+    const snapshot = screen.getByRole("region", {
+      name: en.pensionForecast.header.heading,
+    });
+    const snapshotWithin = within(snapshot);
+    expect(
+      snapshotWithin.getByText(en.pensionForecast.header.pensionPot),
+    ).toBeInTheDocument();
+    expect(snapshotWithin.getByText("£123.00")).toBeInTheDocument();
+    expect(
+      snapshotWithin.getByText(en.pensionForecast.header.employeeContribution),
+    ).toBeInTheDocument();
+    expect(snapshotWithin.getByText("£100.00")).toBeInTheDocument();
+    expect(
+      snapshotWithin.getByText(en.pensionForecast.header.employerContribution),
+    ).toBeInTheDocument();
+    expect(
+      snapshotWithin.getByText(
+        en.pensionForecast.header.totalContribution.replace(
+          "{{total}}",
+          "£250.00",
+        ),
+      ),
+    ).toBeInTheDocument();
     await screen.findByText(/birth date: 1990-01-01/i);
     const futurePanel = screen.getByRole("region", {
       name: /see what retirement could look like/i,
@@ -179,6 +202,55 @@ describe("PensionForecast page", () => {
     await screen.findByText(
       "Projected income leaves a shortfall of £5,000.00 per year (£416.67 per month) against your desired £12,000.00.",
     );
+  });
+
+  it("surfaces employer contribution adjustments and additional pensions", async () => {
+    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 2500,
+      current_age: 30,
+      retirement_age: 65,
+      dob: "1993-01-01",
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const snapshot = await screen.findByRole("region", {
+      name: en.pensionForecast.header.heading,
+    });
+    expect(snapshot).toBeInTheDocument();
+    const addButton = within(snapshot).getByRole("button", {
+      name: en.pensionForecast.header.addAnother,
+    });
+    await userEvent.click(addButton);
+    expect(
+      within(snapshot).getByText(
+        en.pensionForecast.header.additionalPensions_one.replace(
+          "{{count}}",
+          "1",
+        ),
+      ),
+    ).toBeInTheDocument();
+    const employerSlider = screen.getByLabelText(
+      en.pensionForecast.employerContributionLabel,
+    );
+    fireEvent.change(employerSlider, { target: { value: "400" } });
+    expect(
+      within(snapshot).getByText(
+        en.pensionForecast.header.totalContribution.replace(
+          "{{total}}",
+          "£650.00",
+        ),
+      ),
+    ).toBeInTheDocument();
   });
 });
 

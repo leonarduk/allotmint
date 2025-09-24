@@ -6,7 +6,20 @@ import { createInstance } from "i18next";
 import en from "@/locales/en/translation.json";
 
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+
+type RouteStateMock = {
+  mode: "owner";
+  setMode: ReturnType<typeof vi.fn>;
+  selectedOwner: string;
+  setSelectedOwner: ReturnType<typeof vi.fn>;
+  selectedGroup: string;
+  setSelectedGroup: ReturnType<typeof vi.fn>;
+};
+
+let routeState: RouteStateMock;
+
+const mockUseRoute = vi.hoisted(() => vi.fn(() => routeState));
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetPensionForecast = vi.hoisted(() => vi.fn());
@@ -20,6 +33,10 @@ vi.mock("@/api", async () => {
   };
 });
 
+vi.mock("@/RouteContext", () => ({
+  useRoute: mockUseRoute,
+}));
+
 function renderWithI18n(ui: ReactElement) {
   const i18n = createInstance();
   i18n.use(initReactI18next).init({
@@ -30,6 +47,18 @@ function renderWithI18n(ui: ReactElement) {
 }
 
 describe("PensionForecast page", () => {
+  beforeEach(() => {
+    routeState = {
+      mode: "owner",
+      setMode: vi.fn(),
+      selectedOwner: "",
+      setSelectedOwner: vi.fn(),
+      selectedGroup: "",
+      setSelectedGroup: vi.fn(),
+    };
+    mockUseRoute.mockImplementation(() => routeState);
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -93,6 +122,7 @@ describe("PensionForecast page", () => {
     const form = document.querySelector("form")!;
     const ownerSelect = await within(form).findByLabelText(/owner/i);
     await userEvent.selectOptions(ownerSelect, "beth");
+    expect(routeState.setSelectedOwner).toHaveBeenCalledWith("beth");
 
     const nowPanel = screen.getByRole("region", {
       name: /adjust the plan to match your life today/i,
@@ -175,6 +205,65 @@ describe("PensionForecast page", () => {
     expect(
       screen.getByText("Total monthly income: £1,250.00", { exact: true }),
     ).toBeInTheDocument();
+  });
+
+  it("uses active route owner when available", async () => {
+    routeState.selectedOwner = "beth";
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", accounts: [] },
+      { owner: "beth", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 30,
+      retirement_age: 65,
+      dob: null,
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const ownerSelect = await within(form).findByLabelText(/owner/i);
+    await vi.waitFor(() => expect(ownerSelect).toHaveValue("beth"));
+    expect(routeState.setSelectedOwner).not.toHaveBeenCalled();
+  });
+
+  it("defaults to first non-demo owner when no active selection", async () => {
+    routeState.selectedOwner = "";
+    mockGetOwners.mockResolvedValue([
+      { owner: "demo", accounts: [] },
+      { owner: "carol", accounts: [] },
+      { owner: "zoe", accounts: [] },
+    ]);
+    mockGetPensionForecast.mockResolvedValue({
+      forecast: [],
+      projected_pot_gbp: 0,
+      pension_pot_gbp: 0,
+      current_age: 30,
+      retirement_age: 65,
+      dob: null,
+      earliest_retirement_age: null,
+      retirement_income_breakdown: null,
+      retirement_income_total_annual: null,
+      desired_income_annual: null,
+    });
+
+    const { default: PensionForecast } = await import("@/pages/PensionForecast");
+
+    renderWithI18n(<PensionForecast />);
+
+    const form = document.querySelector("form")!;
+    const ownerSelect = await within(form).findByLabelText(/owner/i);
+    await vi.waitFor(() => expect(ownerSelect).toHaveValue("carol"));
+    expect(routeState.setSelectedOwner).toHaveBeenCalledWith("carol");
   });
 
   it("shows shortfall insight when desired income is not met", async () => {

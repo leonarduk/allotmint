@@ -78,6 +78,14 @@ export function InstrumentPositionsTable({
 }: PositionsTableProps) {
   const { t } = useTranslation();
   const { baseCurrency, relativeViewEnabled } = useConfig();
+  const colorForValue = (value: unknown) => {
+    const n = toNum(value);
+    if (!Number.isFinite(n) || n === 0) {
+      return mutedColor;
+    }
+
+    return n > 0 ? positiveColor : negativeColor;
+  };
 
   return (
     <table
@@ -143,9 +151,7 @@ export function InstrumentPositionsTable({
                 <td
                   className={`${tableStyles.cell} ${tableStyles.right}`}
                   style={{
-                    color: toNum(pos.unrealised_gain_gbp) >= 0
-                      ? positiveColor
-                      : negativeColor,
+                    color: colorForValue(pos.unrealised_gain_gbp),
                   }}
                 >
                   {money(pos.unrealised_gain_gbp, baseCurrency)}
@@ -154,7 +160,7 @@ export function InstrumentPositionsTable({
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
                 style={{
-                  color: toNum(pos.gain_pct) >= 0 ? positiveColor : negativeColor,
+                  color: colorForValue(pos.gain_pct),
                 }}
               >
                 {percent(pos.gain_pct, 1)}

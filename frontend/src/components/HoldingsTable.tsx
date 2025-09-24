@@ -97,6 +97,14 @@ export function HoldingsTable({
     setViewPreset("");
   };
 
+  const getPerformanceClass = (value: number | null | undefined): string => {
+    if (typeof value !== "number" || !Number.isFinite(value) || value === 0) {
+      return "text-gray";
+    }
+
+    return value > 0 ? "text-positive" : "text-negative";
+  };
+
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -521,16 +529,16 @@ export function HoldingsTable({
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right} ${(h.gain ?? 0) >= 0 ? 'text-positive' : 'text-negative'}`}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${getPerformanceClass(h.gain)}`}
                   >
                     {money(h.gain, h.gain_currency || baseCurrency)}
                   </td>
                 )}
                 {visibleColumns.gain_pct && (
                   <td
-                    className={`${tableStyles.cell} ${tableStyles.right} ${(h.gain_pct ?? 0) >= 0 ? 'text-positive' : 'text-negative'}`}
+                    className={`${tableStyles.cell} ${tableStyles.right} ${getPerformanceClass(h.gain_pct)}`}
                   >
-                    {percent(h.gain_pct ?? 0, 1)}
+                    {percent(h.gain_pct, 1)}
                   </td>
                 )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>

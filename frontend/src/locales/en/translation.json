@@ -260,6 +260,7 @@
     "alphaVsBenchmark": "Alpha vs Benchmark",
     "trackingError": "Tracking Error",
     "maxDrawdown": "Max Drawdown",
+    "maxDrawdownHelp": "Max drawdown is the largest percentage drop from any portfolio peak to the lowest closing value that follows, calculated from the rebuilt daily totals of your holdings.",
     "timeWeightedReturn": "Time-Weighted Return",
     "xirr": "XIRR",
     "portfolioValue": "Portfolio Value",

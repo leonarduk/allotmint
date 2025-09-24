@@ -131,7 +131,9 @@ export default function App({ onLogout }: AppProps) {
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
-    initialMode === "owner" ? initialSlug : ""
+    initialMode === "owner" || initialMode === "performance"
+      ? initialSlug
+      : "",
   );
   const [selectedGroup, setSelectedGroup] = useState(
     initialMode === "instrument" ? initialSlug : params.get("group") ?? ""
@@ -251,7 +253,7 @@ export default function App({ onLogout }: AppProps) {
       return;
     }
     setMode(newMode);
-    if (newMode === "owner") {
+    if (newMode === "owner" || newMode === "performance") {
       setSelectedOwner(segs[1] ?? "");
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");

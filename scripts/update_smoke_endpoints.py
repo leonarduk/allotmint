@@ -74,6 +74,17 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
         "POST",
         "/transactions/import",
     ): {"__form__": {"provider": "test", "file": "__file__"}},
+    (
+        "POST",
+        "/holdings/import",
+    ): {
+        "__form__": {
+            "owner": "demo",
+            "account": "isa",
+            "provider": "test",
+            "file": "__file__",
+        }
+    },
 }
 
 MANUAL_QUERIES: dict[tuple[str, str], dict[str, str]] = {}
@@ -167,7 +178,7 @@ def main() -> None:
         "const SAMPLE_PATH_VALUES: Record<string, string> = {\n"
         "  owner: 'demo',\n"
         "  account: 'isa',\n"
-        "  user: 'user@example.com',\n"
+        "  user: 'demo',\n"
         "  email: 'user@example.com',\n"
         "  id: '1',\n"
         "  vp_id: '1',\n"
@@ -189,8 +200,18 @@ def main() -> None:
         "  });\n"
         "}\n"
         "\nexport async function runSmoke(base: string) {\n"
-        "  for (const ep of smokeEndpoints) {\n"
-        "    let url = base + fillPath(ep.path);\n"
+        "  const normalizedBase = base.replace(/\\/+$/, '');\n"
+        "  const healthUrl = `${normalizedBase}/health`;\n"
+        "\n  try {\n"
+        "    await fetch(healthUrl, { method: 'GET' });\n"
+        "  } catch (error) {\n"
+        "    const reason = error instanceof Error ? error.message : String(error);\n"
+        "    throw new Error(\n"
+        "      `Preflight check failed: could not reach ${healthUrl} (${reason}). Start the backend (make run-backend) or provide SMOKE_URL pointing to a running instance.`,\n"
+        "    );\n"
+        "  }\n"
+        "\n  for (const ep of smokeEndpoints) {\n"
+        "    let url = normalizedBase + fillPath(ep.path);\n"
         "    if (ep.query) url += '?' + new URLSearchParams(ep.query).toString();\n"
         "    let body: any = undefined;\n"
         "    let headers: any = undefined;\n"
@@ -208,7 +229,13 @@ def main() -> None:
         "        headers = { 'Content-Type': 'application/json' };\n"
         "      }\n"
         "    }\n"
-        "    const res = await fetch(url, { method: ep.method, body, headers });\n"
+        "    let res: Awaited<ReturnType<typeof fetch>>;\n"
+        "    try {\n"
+        "      res = await fetch(url, { method: ep.method, body, headers });\n"
+        "    } catch (error) {\n"
+        "      const reason = error instanceof Error ? error.message : String(error);\n"
+        "      throw new Error(`Network error while calling ${ep.method} ${ep.path}: ${reason}`);\n"
+        "    }\n"
         "    if (res.status >= 500) {\n"
         "      throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);\n"
         "    }\n"
@@ -221,7 +248,15 @@ def main() -> None:
         "\n  }\n"
         "}\n"
         "\nif (require.main === module) {\n"
-        "  runSmoke(process.argv[2] || process.env.SMOKE_URL || 'http://localhost:8000').catch(err => { console.error(err); process.exit(1); });\n"
+        "  const base = process.argv[2] || process.env.SMOKE_URL || 'http://localhost:8000';\n"
+        "  runSmoke(base).catch(err => {\n"
+        "    if (err instanceof Error) {\n"
+        "      console.error(err.message);\n"
+        "    } else {\n"
+        "      console.error(err);\n"
+        "    }\n"
+        "    process.exit(1);\n"
+        "  });\n"
         "}\n"
     )
     smoke_ts.write_text(content)

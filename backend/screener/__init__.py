@@ -16,6 +16,7 @@ import yfinance as yf
 from pydantic import BaseModel
 
 from backend import config_module
+from backend.common.ticker_utils import canonical_cache_ticker
 
 
 def _current_config():
@@ -189,7 +190,13 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
     cfg = _current_config()
     api_key = cfg.alpha_vantage_key or "demo"
 
-    key = (ticker.upper(), date.today().isoformat())
+    fallback = getattr(cfg, "offline_fundamentals_ticker", None)
+    canonical = canonical_cache_ticker(
+        ticker,
+        offline_mode=bool(cfg.offline_mode),
+        fallback=fallback,
+    )
+    key = (canonical, date.today().isoformat())
     offline_flag = bool(cfg.offline_mode)
     now = datetime.now(UTC)
 
@@ -211,11 +218,13 @@ def fetch_fundamentals(ticker: str) -> Fundamentals:
             yahoo_result = None
 
     if yahoo_result is not None:
+        yahoo_result = yahoo_result.model_copy(update={"ticker": canonical})
         _CACHE[key] = (datetime.now(UTC), yahoo_result)
         _CACHE_OFFLINE[key] = offline_flag
         return yahoo_result
 
     result = _fetch_fundamentals_from_alpha_vantage(ticker, api_key)
+    result = result.model_copy(update={"ticker": canonical})
     _CACHE[key] = (datetime.now(UTC), result)
     _CACHE_OFFLINE[key] = offline_flag
 

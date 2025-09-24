@@ -77,15 +77,18 @@ def run_historical_scenario(
     if not tokens:
         raise HTTPException(status_code=400, detail="horizons must be provided")
 
-    parsed: list[int] = []
+    label_pairs: list[tuple[str, int]] = []
     for tok in tokens:
         if tok in _HORIZONS:
-            parsed.append(_HORIZONS[tok])
+            label_pairs.append((tok, _HORIZONS[tok]))
         else:
             try:
-                parsed.append(int(tok))
-            except ValueError:
-                raise HTTPException(status_code=400, detail="invalid horizon")
+                days = int(tok)
+            except ValueError as exc:  # pragma: no cover - defensive
+                raise HTTPException(status_code=400, detail="invalid horizon") from exc
+            label_pairs.append((tok, days))
+
+    parsed = [days for _, days in label_pairs]
 
     results = []
     owners = [p["owner"] for p in list_plots() if p.get("accounts")]
@@ -104,9 +107,18 @@ def run_historical_scenario(
             pf, event_id=event_id, date=date, horizons=parsed
         )
         horizon_map = {}
-        for h, shocked_pf in shocked.items():
-            val = shocked_pf.get("total_value_estimate_gbp")
-            horizon_map[h] = {
+        for label, days in label_pairs:
+            shocked_pf = (
+                shocked.get(label)
+                or shocked.get(str(days))
+                or shocked.get(days)
+                or {}
+            )
+            val = (
+                shocked_pf.get("total_value_estimate_gbp")
+                or shocked_pf.get("total_value_gbp")
+            )
+            horizon_map[label] = {
                 "baseline_total_value_gbp": baseline,
                 "shocked_total_value_gbp": val,
             }

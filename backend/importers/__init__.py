@@ -18,6 +18,7 @@ class UnknownProvider(Exception):
 _IMPORTER_PATHS: Dict[str, str] = {
     "degiro": "backend.importers.degiro",
     "hargreaves": "backend.importers.hargreaves",
+    "test": "backend.importers.test",
 }
 
 

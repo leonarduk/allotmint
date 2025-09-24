@@ -776,6 +776,25 @@ export const getTransactions = (params: {
   return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
 };
 
+export interface CreateTransactionPayload {
+  owner: string;
+  account: string;
+  ticker: string;
+  date: string;
+  price_gbp: number;
+  units: number;
+  reason: string;
+  fees?: number;
+  comments?: string;
+}
+
+export const createTransaction = (payload: CreateTransactionPayload) =>
+  fetchJson<Transaction>(`${API_BASE}/transactions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
 export const getDividends = (params?: {
   owner?: string;
   account?: string;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory, getCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
@@ -9,6 +9,7 @@ import type { NewsItem, InstrumentMetadata } from "../types";
 import EmptyState from "../components/EmptyState";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import { formatDateISO } from "../lib/date";
+import { money, percent } from "../lib/money";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -29,7 +30,7 @@ export default function InstrumentResearch() {
   const tickerParts = tkr.split(".", 2);
   const baseTicker = tickerParts[0] ?? "";
   const initialExchange = tickerParts.length > 1 ? tickerParts[1] ?? "" : "";
-  const { tabs, disabledTabs } = useConfig();
+  const { tabs, disabledTabs, baseCurrency } = useConfig();
   const {
     data: detail,
     loading: detailLoading,
@@ -64,9 +65,9 @@ export default function InstrumentResearch() {
       .filter(Boolean);
     return !!tkr && list.includes(tkr);
   });
-  const [activeTab, setActiveTab] = useState<"overview" | "positions" | "news">(
-    "overview",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "timeseries" | "positions" | "fundamentals" | "news"
+  >("overview");
 
   useEffect(() => {
     setInstrumentExchange(initialExchange);
@@ -332,7 +333,9 @@ export default function InstrumentResearch() {
 
   const tabOptions: { id: typeof activeTab; label: string }[] = [
     { id: "overview", label: "Overview" },
+    { id: "timeseries", label: "Timeseries" },
     { id: "positions", label: "Positions" },
+    { id: "fundamentals", label: "Fundamentals" },
     { id: "news", label: "News" },
   ];
   const standalonePalette = {
@@ -535,7 +538,241 @@ export default function InstrumentResearch() {
         })}
       </div>
 
-      {activeTab === "overview" && (
+      {(() => {
+        if (activeTab !== "overview") return null;
+
+        const rawPrices = Array.isArray(detail?.prices)
+          ? (detail?.prices as unknown[])
+          : [];
+        const parsedPrices = rawPrices
+          .map((entry) => {
+            if (!entry || typeof entry !== "object") return null;
+            const value = entry as Record<string, unknown>;
+            const closeCandidates = [
+              value.close_gbp,
+              value.close,
+              value.close_usd,
+            ];
+            const close = closeCandidates.find(
+              (v) => typeof v === "number" && Number.isFinite(v),
+            ) as number | undefined;
+            if (close == null) return null;
+            const date = typeof value.date === "string" ? value.date : null;
+            return { close, date };
+          })
+          .filter((v): v is { close: number; date: string | null } => v != null);
+
+        const computeWindowChange = (window: number) => {
+          if (parsedPrices.length < 2) return null;
+          const subset = parsedPrices.slice(-Math.max(window, 2));
+          if (subset.length < 2) return null;
+          const first = subset[0].close;
+          const last = subset[subset.length - 1]?.close;
+          if (!Number.isFinite(first) || !Number.isFinite(last) || first === 0) {
+            return null;
+          }
+          return (last - first) / first;
+        };
+
+        const priceValues = parsedPrices.map((entry) => entry.close);
+        const dailyReturns = priceValues.reduce<number[]>((acc, value, index) => {
+          if (index === 0) return acc;
+          const prev = priceValues[index - 1];
+          if (!Number.isFinite(prev) || prev === 0 || !Number.isFinite(value)) {
+            return acc;
+          }
+          acc.push(value / prev - 1);
+          return acc;
+        }, []);
+
+        const recentReturns = dailyReturns.slice(-30);
+        const meanReturn =
+          recentReturns.length > 0
+            ? recentReturns.reduce((sum, r) => sum + r, 0) / recentReturns.length
+            : null;
+        const volatility = (() => {
+          if (recentReturns.length < 2) return null;
+          const avg =
+            recentReturns.reduce((sum, r) => sum + r, 0) / recentReturns.length;
+          const variance =
+            recentReturns.reduce((sum, r) => sum + (r - avg) ** 2, 0) /
+            (recentReturns.length - 1);
+          if (!Number.isFinite(variance)) return null;
+          const dailyVol = Math.sqrt(variance);
+          return dailyVol * Math.sqrt(252);
+        })();
+        const worstDailyReturn =
+          recentReturns.length > 0
+            ? recentReturns.reduce(
+                (min, value) => (value < min ? value : min),
+                recentReturns[0] ?? 0,
+              )
+            : null;
+        const maxDrawdown = (() => {
+          if (!priceValues.length) return null;
+          let peak = priceValues[0];
+          let maxDrop = 0;
+          for (const price of priceValues) {
+            if (!Number.isFinite(price)) continue;
+            if (price > peak) {
+              peak = price;
+              continue;
+            }
+            if (peak <= 0) continue;
+            const drop = (peak - price) / peak;
+            if (drop > maxDrop) {
+              maxDrop = drop;
+            }
+          }
+          return maxDrop || null;
+        })();
+
+        const change7d = computeWindowChange(7);
+        const change30d = computeWindowChange(30);
+        const latestPriceEntry =
+          parsedPrices.length > 0 ? parsedPrices[parsedPrices.length - 1] : null;
+        const latestPrice = latestPriceEntry?.close ?? null;
+        const latestDate = (() => {
+          if (!latestPriceEntry?.date) return null;
+          const parsed = new Date(latestPriceEntry.date);
+          if (Number.isNaN(parsed.getTime())) return latestPriceEntry.date;
+          return formatDateISO(parsed);
+        })();
+        const formattedCoverage = (() => {
+          const from =
+            typeof detail?.from === "string" && detail.from
+              ? detail.from
+              : null;
+          const to =
+            typeof detail?.to === "string" && detail.to ? detail.to : null;
+          if (from && to) return `${from} → ${to}`;
+          if (from) return `${from} → —`;
+          if (to) return `— → ${to}`;
+          return "—";
+        })();
+        const rowsCount =
+          typeof detail?.rows === "number" && Number.isFinite(detail.rows)
+            ? detail.rows.toLocaleString()
+            : "—";
+
+        const priceCurrency =
+          (typeof detail?.base_currency === "string" && detail.base_currency) ||
+          displayCurrency ||
+          baseCurrency;
+
+        const percentValue = (ratio: number | null, digits = 2) => {
+          if (ratio == null || !Number.isFinite(ratio)) return "—";
+          return percent(ratio * 100, digits);
+        };
+
+        const summarySections: {
+          title: string;
+          items: { label: string; value: ReactNode }[];
+        }[] = [
+          {
+            title: "Key Facts",
+            items: [
+              { label: "Ticker", value: tkr },
+              { label: "Exchange", value: instrumentExchange || "—" },
+              { label: "Sector", value: displaySector || "—" },
+              { label: "Currency", value: displayCurrency || "—" },
+              {
+                label: "Last Close",
+                value: latestPrice != null
+                  ? money(latestPrice, priceCurrency)
+                  : "—",
+              },
+              { label: "As of", value: latestDate ?? "—" },
+              { label: "Coverage", value: formattedCoverage },
+              { label: "Data Points", value: rowsCount },
+            ],
+          },
+          {
+            title: "Performance",
+            items: [
+              { label: "7d Change", value: percentValue(change7d, 2) },
+              { label: "30d Change", value: percentValue(change30d, 2) },
+              {
+                label: "Average Daily Return (30d)",
+                value: percentValue(meanReturn, 2),
+              },
+            ],
+          },
+          {
+            title: "Risk",
+            items: [
+              {
+                label: "Annualised Volatility (30d)",
+                value: percentValue(volatility, 2),
+              },
+              {
+                label: "Max Drawdown",
+                value: percentValue(maxDrawdown != null ? -maxDrawdown : null, 2),
+              },
+              {
+                label: "Worst Day (30d)",
+                value: percentValue(worstDailyReturn, 2),
+              },
+            ],
+          },
+        ];
+
+        return (
+          <div style={{ marginBottom: "2rem" }}>
+            <h2 style={{ marginBottom: "0.75rem" }}>Summary</h2>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "1rem",
+              }}
+            >
+              {summarySections.map((section) => (
+                <div
+                  key={section.title}
+                  style={{
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "8px",
+                    padding: "1rem",
+                    background: "#fafafa",
+                  }}
+                >
+                  <h3 style={{ marginTop: 0 }}>{section.title}</h3>
+                  <dl style={{ margin: 0 }}>
+                    {section.items.map((item) => (
+                      <div
+                        key={item.label}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "0.75rem",
+                          fontSize: "0.9rem",
+                          marginBottom: "0.5rem",
+                          alignItems: "baseline",
+                        }}
+                      >
+                        <dt style={{ margin: 0, color: "#555" }}>{item.label}</dt>
+                        <dd
+                          style={{
+                            margin: 0,
+                            fontWeight: 500,
+                            textAlign: "right",
+                            flex: "0 0 auto",
+                          }}
+                        >
+                          {item.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {activeTab === "timeseries" && (
         <div style={{ marginBottom: "2rem" }}>
           <InstrumentDetail
             ticker={tkr}
@@ -561,6 +798,14 @@ export default function InstrumentResearch() {
             mutedColor={standalonePalette.muted}
           />
         )
+      )}
+
+      {activeTab === "fundamentals" && (
+        <div style={{ marginBottom: "2rem" }}>
+          <p style={{ margin: 0, color: "#555" }}>
+            Fundamentals data is not available for this instrument.
+          </p>
+        </div>
       )}
 
       {activeTab === "news" && (

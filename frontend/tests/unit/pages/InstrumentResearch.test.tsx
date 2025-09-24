@@ -7,12 +7,11 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import InstrumentResearch from "@/pages/InstrumentResearch";
-import type { ScreenerResult, NewsItem, QuoteRow, InstrumentMetadata } from "@/types";
+import type { NewsItem, InstrumentMetadata } from "@/types";
 import { useInstrumentHistory } from "@/hooks/useInstrumentHistory";
 import * as api from "@/api";
 import { configContext, type ConfigContextValue } from "@/ConfigContext";
-const mockGetScreener = vi.spyOn(api, "getScreener");
-const mockGetQuotes = vi.spyOn(api, "getQuotes");
+
 const mockGetNews = vi.spyOn(api, "getNews");
 const mockListInstrumentMetadata = vi.spyOn(api, "listInstrumentMetadata");
 const mockUpdateInstrumentMetadata = vi.spyOn(api, "updateInstrumentMetadata");
@@ -76,12 +75,26 @@ describe("InstrumentResearch page", () => {
   beforeEach(() => {
     mockUseInstrumentHistory.mockReset();
     mockUseInstrumentHistory.mockReturnValue({
-      data: { mini: { "30": [] }, positions: [], ticker: "AAA.L" },
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        prices: [
+          { date: "2024-01-01", close_gbp: 100 },
+          { date: "2024-01-02", close_gbp: 101 },
+        ],
+        rows: 2,
+        from: "2024-01-01",
+        to: "2024-01-02",
+        base_currency: "GBP",
+      },
       loading: false,
       error: null,
     } as any);
     mockListInstrumentMetadata.mockReset();
     mockUpdateInstrumentMetadata.mockReset();
+    mockGetNews.mockReset();
+    mockGetNews.mockResolvedValue([]);
     const catalogue: InstrumentMetadata[] = [
       {
         ticker: "AAA.L",
@@ -102,66 +115,73 @@ describe("InstrumentResearch page", () => {
     mockUpdateInstrumentMetadata.mockResolvedValue({} as any);
   });
 
-  it("shows loading indicators while fetching data", async () => {
-    let screenerResolve: (v: ScreenerResult[]) => void;
-    let quotesResolve: (v: QuoteRow[]) => void;
-    let newsResolve: (v: NewsItem[]) => void;
-
-    mockGetScreener.mockReturnValueOnce(
-      new Promise((res) => {
-        screenerResolve = res;
-      }) as Promise<ScreenerResult[]>,
-    );
-    mockGetQuotes.mockReturnValueOnce(
-      new Promise((res) => {
-        quotesResolve = res;
-      }) as Promise<QuoteRow[]>,
-    );
-    mockGetNews.mockReturnValueOnce(
-      new Promise((res) => {
-        newsResolve = res;
-      }) as Promise<NewsItem[]>,
-    );
+  it("renders overview summary and defers chart to timeseries tab", async () => {
+    mockUseInstrumentHistory.mockReturnValue({
+      data: {
+        mini: { "30": [] },
+        positions: [],
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        prices: [
+          { date: "2024-01-01", close_gbp: 100 },
+          { date: "2024-01-02", close_gbp: 102 },
+          { date: "2024-01-03", close_gbp: 104 },
+          { date: "2024-01-04", close_gbp: 106 },
+          { date: "2024-01-05", close_gbp: 108 },
+          { date: "2024-01-08", close_gbp: 110 },
+          { date: "2024-01-09", close_gbp: 112 },
+          { date: "2024-01-10", close_gbp: 114 },
+          { date: "2024-01-11", close_gbp: 116 },
+          { date: "2024-01-12", close_gbp: 118 },
+        ],
+        rows: 10,
+        from: "2024-01-01",
+        to: "2024-01-12",
+        base_currency: "GBP",
+      },
+      loading: false,
+      error: null,
+    } as any);
 
     renderPage();
 
-    expect(screen.getByText(/Loading metrics/i)).toBeInTheDocument();
-    expect(screen.getByText(/Loading quote/i)).toBeInTheDocument();
-    const newsTab = screen.getByRole("button", { name: /News/i });
-    await userEvent.click(newsTab);
-    expect(screen.getByText(/Loading news/i)).toBeInTheDocument();
+    expect(await screen.findByText("Summary")).toBeInTheDocument();
+    expect(screen.getByText("Key Facts")).toBeInTheDocument();
+    expect(screen.getByText("Performance")).toBeInTheDocument();
+    expect(screen.getByText("Risk")).toBeInTheDocument();
 
-    screenerResolve!([
-      { rank: 1, ticker: "AAA" } as unknown as ScreenerResult,
-    ]);
-    quotesResolve!([
-      {
-        name: "Acme Corp",
-        symbol: "AAA",
-        last: 100,
-        open: null,
-        high: 110,
-        low: 90,
-        change: null,
-        changePct: 1,
-        volume: null,
-        marketTime: null,
-        marketState: "REGULAR",
-      } as QuoteRow,
-    ]);
-    newsResolve!([{ headline: "headline", url: "http://example.com" }]);
-
-    const fundamentalsTab = screen.getByRole("button", { name: /Fundamentals/i });
-    await userEvent.click(fundamentalsTab);
-
-    expect(await screen.findByText("Price")).toBeInTheDocument();
+    const lastCloseRow = screen.getByText("Last Close").closest("div");
+    expect(lastCloseRow).not.toBeNull();
     expect(
-      await screen.findByRole("heading", {
-        level: 1,
-        name: /AAA - Acme Corp/,
-      }),
-    ).toHaveTextContent("AAA - Acme Corp");
-    expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
+      within(lastCloseRow as HTMLElement).getByText(/£/),
+    ).toHaveTextContent("£118.00");
+
+    const coverageRow = screen.getByText("Coverage").closest("div");
+    expect(coverageRow).not.toBeNull();
+    expect(
+      within(coverageRow as HTMLElement).getByText("2024-01-01 → 2024-01-12"),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("heading", { name: /Recent Prices/i }),
+    ).not.toBeInTheDocument();
+
+    const timeseriesTab = screen.getByRole("button", { name: /Timeseries/i });
+    await userEvent.click(timeseriesTab);
+    expect(
+      await screen.findByRole("heading", { name: /Recent Prices/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows placeholder when fundamentals tab is selected", async () => {
+    renderPage();
+    const fundamentalsTab = screen.getByRole("button", {
+      name: /Fundamentals/i,
+    });
+    await userEvent.click(fundamentalsTab);
+    expect(
+      await screen.findByText(/Fundamentals data is not available/i),
+    ).toBeInTheDocument();
   });
 
   it("renders error messages when requests fail", async () => {
@@ -170,25 +190,20 @@ describe("InstrumentResearch page", () => {
       loading: false,
       error: new Error("detail fail"),
     } as any);
-
-    mockGetScreener.mockRejectedValueOnce(new Error("screener fail"));
-    mockGetQuotes.mockRejectedValueOnce(new Error("quotes fail"));
     mockGetNews.mockRejectedValueOnce(new Error("news fail"));
 
     renderPage();
 
+    const positionsTab = screen.getByRole("button", { name: /Positions/i });
+    await userEvent.click(positionsTab);
     expect(await screen.findByText("detail fail")).toBeInTheDocument();
-    expect(await screen.findByText("screener fail")).toBeInTheDocument();
-    expect(await screen.findByText("quotes fail")).toBeInTheDocument();
     const newsTab = screen.getByRole("button", { name: /News/i });
     await userEvent.click(newsTab);
     expect(await screen.findByText("news fail")).toBeInTheDocument();
   });
 
   it("shows a message when no news is available", async () => {
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([]);
+    mockGetNews.mockResolvedValueOnce([]);
 
     renderPage();
 
@@ -198,9 +213,7 @@ describe("InstrumentResearch page", () => {
   });
 
   it("renders news metadata when available", async () => {
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([
+    mockGetNews.mockResolvedValueOnce([
       {
         headline: "Alpha headline",
         url: "https://example.com/alpha",
@@ -223,9 +236,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("navigates to screener when link clicked", async () => {
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([]);
     renderPage();
     const screener = screen.getByRole("link", { name: /View Screener/i });
     await userEvent.click(screener);
@@ -233,9 +243,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("navigates to watchlist when link clicked", async () => {
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([]);
     renderPage();
     const watchlist = screen.getByRole("link", { name: /Watchlist/i });
     await userEvent.click(watchlist);
@@ -255,53 +262,6 @@ describe("InstrumentResearch page", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows instrument name and additional metrics", async () => {
-    mockGetScreener.mockResolvedValue([
-      { rank: 1, ticker: "AAA", name: "Acme Corp" } as unknown as ScreenerResult,
-    ]);
-    mockGetQuotes.mockResolvedValue([
-      {
-        name: "Acme Corp",
-        symbol: "AAA",
-        last: 100,
-        open: null,
-        high: null,
-        low: null,
-        change: null,
-        changePct: null,
-        volume: null,
-        marketTime: null,
-        marketState: "REGULAR",
-      } as QuoteRow,
-    ]);
-    mockGetNews.mockResolvedValue([]);
-    renderPage();
-
-    expect(
-      await screen.findByRole("heading", { level: 1 })
-    ).toHaveTextContent("AAA - Acme Corp");
-
-    const expected = [
-      "Interest Coverage",
-      "Current Ratio",
-      "Quick Ratio",
-      "FCF",
-      "Gross Margin",
-      "Operating Margin",
-      "Net Margin",
-      "EBITDA Margin",
-      "ROA",
-      "ROE",
-      "ROI",
-      "Dividend Payout Ratio",
-      "Shares Outstanding",
-      "Float Shares",
-    ];
-    for (const heading of expected) {
-      expect(screen.getByText(heading)).toBeInTheDocument();
-    }
-  });
-
   it("reveals timeseries data and news when switching tabs", async () => {
     mockUseInstrumentHistory.mockReturnValue({
       data: {
@@ -316,9 +276,7 @@ describe("InstrumentResearch page", () => {
       loading: false,
       error: null,
     } as any);
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([
+    mockGetNews.mockResolvedValueOnce([
       { headline: "headline one", url: "http://example.com" },
     ]);
 
@@ -334,7 +292,6 @@ describe("InstrumentResearch page", () => {
     expect(
       await screen.findByRole("heading", { name: /Recent Prices/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText("2024-01-02")).toBeInTheDocument();
 
     expect(screen.queryByText("headline one")).not.toBeInTheDocument();
     const newsTab = screen.getByRole("button", { name: /News/i });
@@ -355,9 +312,6 @@ describe("InstrumentResearch page", () => {
       loading: false,
       error: null,
     } as any);
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([]);
     renderPage();
 
     const heading = await screen.findByRole("heading", {
@@ -375,9 +329,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("allows editing instrument metadata", async () => {
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([]);
     renderPage();
 
     const editButton = await screen.findByRole("button", { name: /Edit/i });
@@ -417,9 +368,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("validates currency before saving metadata", async () => {
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([]);
     renderPage();
 
     const editButton = await screen.findByRole("button", { name: /Edit/i });
@@ -437,9 +385,6 @@ describe("InstrumentResearch page", () => {
   });
 
   it("shows an error when saving metadata fails", async () => {
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([]);
     mockUpdateInstrumentMetadata.mockRejectedValueOnce(new Error("save failed"));
     renderPage();
 
@@ -456,9 +401,6 @@ describe("InstrumentResearch page", () => {
 
   it("surfaces catalogue load failures", async () => {
     mockListInstrumentMetadata.mockRejectedValueOnce(new Error("catalog fail"));
-    mockGetScreener.mockResolvedValue([]);
-    mockGetQuotes.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([]);
     renderPage();
 
     expect(
@@ -466,48 +408,28 @@ describe("InstrumentResearch page", () => {
     ).toBeInTheDocument();
   });
 
-  it("skips state updates when unmounted", async () => {
-    mockGetScreener.mockResolvedValue([]);
-    mockGetNews.mockResolvedValue([]);
-
-    let resolveQuotes: (rows: QuoteRow[]) => void = () => {};
-    let rejectQuotes: (err: unknown) => void = () => {};
-    const quotePromise = new Promise<QuoteRow[]>((resolve, reject) => {
-      resolveQuotes = resolve;
-      rejectQuotes = reject;
+  it("skips news updates when unmounted", async () => {
+    let rejectNews: (err: unknown) => void = () => {};
+    const newsPromise = new Promise<NewsItem[]>((_, reject) => {
+      rejectNews = reject;
     });
 
-    mockGetQuotes.mockImplementationOnce((_, signal) => {
-      signal?.addEventListener("abort", () =>
-        rejectQuotes(Object.assign(new Error("aborted"), { name: "AbortError" })),
+    mockGetNews.mockImplementationOnce((_, signal) => {
+      signal?.addEventListener(
+        "abort",
+        () => rejectNews(Object.assign(new Error("aborted"), { name: "AbortError" })),
+        { once: true },
       );
-      return quotePromise;
+      return newsPromise;
     });
 
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const { unmount } = renderPage();
     unmount();
-    await Promise.resolve();
-    resolveQuotes!([
-      {
-        name: "Acme Corp",
-        symbol: "AAA",
-        last: 1,
-        open: null,
-        high: null,
-        low: null,
-        change: null,
-        changePct: null,
-        volume: null,
-        marketTime: null,
-        marketState: "REGULAR",
-      } as QuoteRow,
-    ]);
-    await quotePromise.catch(() => {});
+    await newsPromise.catch(() => {});
     expect(errSpy).not.toHaveBeenCalledWith(
       expect.stringContaining("Can't perform a React state update on an unmounted component"),
     );
     errSpy.mockRestore();
   });
 });
-

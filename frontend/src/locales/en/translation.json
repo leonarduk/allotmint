@@ -33,8 +33,10 @@
       "taxtools": "Tax Tools",
       "trail": "Trail",
       "reports": "Reports",
-      "alertsettings": "Alert Settings",
-      "support": "Support",
+  "alertsettings": "Alert Settings",
+  "compliance": "Compliance warnings",
+  "trade-compliance": "Trade compliance",
+  "support": "Support",
       "scenario": "Scenario Tester"
     }
   },

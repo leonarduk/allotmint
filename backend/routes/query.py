@@ -143,13 +143,19 @@ async def run_query(q: CustomQuery):
     if not tickers:
         return {"results": []}
 
+    needs_timeseries = Metric.VAR in q.metrics
+
     rows = []
     for t in tickers:
         sym, exch = (t.split(".", 1) + ["L"])[:2]
-        df = load_meta_timeseries_range(sym, exch, start_date=q.start, end_date=q.end)
+        df = (
+            load_meta_timeseries_range(sym, exch, start_date=q.start, end_date=q.end)
+            if needs_timeseries
+            else None
+        )
         row = {"ticker": t}
-        if Metric.VAR in q.metrics:
-            row[Metric.VAR.value] = compute_var(df)
+        if needs_timeseries:
+            row[Metric.VAR.value] = compute_var(df) if df is not None else None
         if Metric.META in q.metrics:
             meta = get_security_meta(t) or {}
             row.update(meta)

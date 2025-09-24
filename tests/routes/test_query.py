@@ -190,6 +190,30 @@ def _setup_run_query(monkeypatch):
     monkeypatch.setattr(query, "get_security_meta", lambda t: {"name": "ABC"})
 
 
+def test_run_query_skips_timeseries_when_no_metrics(monkeypatch):
+    calls = {"count": 0}
+
+    def fake_loader(*args, **kwargs):
+        calls["count"] += 1
+        return pd.DataFrame({"Close": [1, 2]})
+
+    monkeypatch.setattr(query, "_resolve_tickers", lambda q: ["ABC.L"])
+    monkeypatch.setattr(query, "load_meta_timeseries_range", fake_loader)
+    monkeypatch.setattr(query, "get_security_meta", lambda t: {})
+
+    client = make_client()
+    body = {
+        "start": "2020-01-01",
+        "end": "2020-01-02",
+        "tickers": ["ABC.L"],
+        "metrics": [],
+    }
+    resp = client.post("/custom-query/run", json=body)
+    assert resp.status_code == 200
+    assert resp.json() == {"results": [{"ticker": "ABC.L"}]}
+    assert calls["count"] == 0
+
+
 def test_run_query_json(monkeypatch):
     _setup_run_query(monkeypatch)
     client = make_client()

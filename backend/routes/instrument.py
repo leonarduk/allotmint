@@ -218,17 +218,6 @@ async def instrument(
 
     # ── history ────────────────────────────────────────────────
     df = load_meta_timeseries_range(tkr, exch, start_date=start, end_date=date.today())
-    if df.empty:
-        raise HTTPException(404, f"No price data for {ticker}")
-
-    df = df.copy()
-    df["Date"] = pd.to_datetime(df["Date"])
-
-    df.replace([np.inf, -np.inf], np.nan, inplace=True)
-
-    # Ensure Close column exists for downstream processing
-    if "Close" not in df.columns and "Close_gbp" in df.columns:
-        df["Close"] = df["Close_gbp"]
 
     meta = get_security_meta(ticker) or {}
     name = meta.get("name")
@@ -238,6 +227,52 @@ async def instrument(
     is_gbp_ticker = ticker.upper().endswith(".L") or ticker.upper().endswith(".UK")
 
     native_currency = currency or ("GBP" if is_gbp_ticker else None)
+
+    base_currency = (
+        base_currency or getattr(config, "base_currency", None) or "GBP"
+    ).upper()
+
+    if df.empty:
+        positions = _positions_for_ticker(ticker.upper(), None)
+        if format == "json":
+            payload = {
+                "ticker": ticker,
+                "from": start.isoformat(),
+                "to": date.today().isoformat(),
+                "rows": 0,
+                "positions": positions,
+                "prices": [],
+                "mini": {"7": [], "30": [], "180": []},
+                "currency": currency,
+                "name": name,
+                "sector": sector,
+                "base_currency": base_currency,
+            }
+            return JSONResponse(jsonable_encoder(payload))
+
+        pos_tbl = (
+            pd.DataFrame(positions).to_html(index=False, classes="positions")
+            if positions
+            else None
+        )
+        template = env.get_template("instrument_empty.html")
+        html = template.render(
+            ticker=ticker,
+            name=name,
+            window_days=days,
+            today=date.today().isoformat(),
+            positions_table=pos_tbl,
+        )
+        return HTMLResponse(html)
+
+    df = df.copy()
+    df["Date"] = pd.to_datetime(df["Date"])
+
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    # Ensure Close column exists for downstream processing
+    if "Close" not in df.columns and "Close_gbp" in df.columns:
+        df["Close"] = df["Close_gbp"]
 
     if "Close_gbp" not in df.columns and "Close" in df.columns:
         close_native = pd.to_numeric(df["Close"], errors="coerce")
@@ -261,10 +296,6 @@ async def instrument(
                     df.drop(columns=["Rate"], inplace=True, errors="ignore")
             except Exception:
                 pass
-
-    base_currency = (
-        base_currency or getattr(config, "base_currency", None) or "GBP"
-    ).upper()
 
     ts_is_gbp = currency == "GBP" or "Close_gbp" in df.columns
     if ts_is_gbp and "Close_gbp" not in df.columns and "Close" in df.columns:

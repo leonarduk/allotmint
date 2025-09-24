@@ -208,7 +208,15 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
 
     # Push notifications require an explicit subscription – remind the user
     # when none is configured.
-    if alerts.get_user_push_subscription(user) is None:
+    subscription = alerts.get_user_push_subscription(user)
+    if subscription:
+        try:
+            persisted = alerts._SUBSCRIPTIONS_STORAGE.load()  # type: ignore[attr-defined]
+        except Exception:
+            persisted = {}
+        if not isinstance(persisted, dict) or persisted.get(user) is None:
+            subscription = None
+    if not subscription:
         tasks.append(
             TaskDefinition(
                 id="enable_push_notifications",

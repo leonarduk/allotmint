@@ -235,20 +235,7 @@ async def instrument(
     if df.empty:
         positions = _positions_for_ticker(ticker.upper(), None)
         if format == "json":
-            payload = {
-                "ticker": ticker,
-                "from": start.isoformat(),
-                "to": date.today().isoformat(),
-                "rows": 0,
-                "positions": positions,
-                "prices": [],
-                "mini": {"7": [], "30": [], "180": []},
-                "currency": currency,
-                "name": name,
-                "sector": sector,
-                "base_currency": base_currency,
-            }
-            return JSONResponse(jsonable_encoder(payload))
+            raise HTTPException(status_code=404, detail="No price history available")
 
         pos_tbl = (
             pd.DataFrame(positions).to_html(index=False, classes="positions")

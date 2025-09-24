@@ -1,0 +1,16 @@
+.surfaceCard {
+  border: 1px solid var(--surface-card-border);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--surface-card-bg);
+  color: var(--surface-card-color);
+}
+
+.surfaceCardTitle {
+  margin-top: 0;
+  color: inherit;
+}
+
+.surfaceMuted {
+  color: var(--surface-muted-color);
+}

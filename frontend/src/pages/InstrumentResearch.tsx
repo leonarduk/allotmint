@@ -13,6 +13,7 @@ import {
 import type { NewsItem, InstrumentMetadata, ScreenerResult } from "../types";
 import EmptyState from "../components/EmptyState";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
+import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
 import { money, percent } from "../lib/money";
 
@@ -796,16 +797,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
               }}
             >
               {summarySections.map((section) => (
-                <div
-                  key={section.title}
-                  style={{
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "8px",
-                    padding: "1rem",
-                    background: "#fafafa",
-                  }}
-                >
-                  <h3 style={{ marginTop: 0 }}>{section.title}</h3>
+                <div key={section.title} className={surfaceStyles.surfaceCard}>
+                  <h3 className={surfaceStyles.surfaceCardTitle}>{section.title}</h3>
                   <dl style={{ margin: 0 }}>
                     {section.items.map((item) => (
                       <div
@@ -819,7 +812,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                           alignItems: "baseline",
                         }}
                       >
-                        <dt style={{ margin: 0, color: "#555" }}>{item.label}</dt>
+                        <dt
+                          className={surfaceStyles.surfaceMuted}
+                          style={{ margin: 0 }}
+                        >
+                          {item.label}
+                        </dt>
                         <dd
                           style={{
                             margin: 0,
@@ -1019,16 +1017,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                   }}
                 >
                   {sections.map((section) => (
-                    <div
-                      key={section.title}
-                      style={{
-                        border: "1px solid #e0e0e0",
-                        borderRadius: "8px",
-                        padding: "1rem",
-                        background: "#fafafa",
-                      }}
-                    >
-                      <h3 style={{ marginTop: 0 }}>{section.title}</h3>
+                    <div key={section.title} className={surfaceStyles.surfaceCard}>
+                      <h3 className={surfaceStyles.surfaceCardTitle}>{section.title}</h3>
                       <table
                         aria-label={`${section.title} fundamentals`}
                         style={{ width: "100%", borderCollapse: "collapse" }}
@@ -1041,9 +1031,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                                 style={{
                                   textAlign: "left",
                                   padding: "0.35rem 0",
-                                  color: "#555",
                                   fontWeight: 500,
                                 }}
+                                className={surfaceStyles.surfaceMuted}
                               >
                                 {row.label}
                               </th>

@@ -4,8 +4,13 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInstrumentHistory, getCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
-import { getNews, listInstrumentMetadata, updateInstrumentMetadata } from "../api";
-import type { NewsItem, InstrumentMetadata } from "../types";
+import {
+  getNews,
+  getScreener,
+  listInstrumentMetadata,
+  updateInstrumentMetadata,
+} from "../api";
+import type { NewsItem, InstrumentMetadata, ScreenerResult } from "../types";
 import EmptyState from "../components/EmptyState";
 import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import { formatDateISO } from "../lib/date";
@@ -77,6 +82,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [activeTab, setActiveTab] = useState<
     "overview" | "timeseries" | "positions" | "fundamentals" | "news"
   >("overview");
+  const [fundamentals, setFundamentals] = useState<ScreenerResult | null>(null);
+  const [fundamentalsLoading, setFundamentalsLoading] = useState(false);
+  const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
 
   useEffect(() => {
     setInstrumentExchange(initialExchange);
@@ -312,6 +320,52 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     setInWatchlist(!!tkr && list.includes(tkr));
   }, [tkr]);
 
+  useEffect(() => {
+    if (!tkr || activeTab !== "fundamentals") return;
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const fetchFundamentals = async () => {
+      setFundamentalsLoading(true);
+      setFundamentalsError(null);
+      setFundamentals(null);
+      try {
+        const results = await getScreener([tkr], {}, controller.signal);
+        if (cancelled) return;
+        const target = tkr.toUpperCase();
+        const [baseTarget] = target.split(".", 1);
+        const entry =
+          results?.find((item) => {
+            const tickerValue = (item?.ticker ?? "").toUpperCase();
+            if (!tickerValue) return false;
+            return (
+              tickerValue === target || (!!baseTarget && tickerValue === baseTarget)
+            );
+          }) ?? results?.[0] ?? null;
+        setFundamentals(entry ?? null);
+      } catch (err) {
+        const error = err as { name?: string } | null | undefined;
+        if (error?.name === "AbortError") return;
+        console.error(err);
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err);
+          setFundamentalsError(`Unable to load fundamentals: ${message}`);
+        }
+      } finally {
+        if (!cancelled) {
+          setFundamentalsLoading(false);
+        }
+      }
+    };
+
+    void fetchFundamentals();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [tkr, activeTab]);
+
   function toggleWatchlist() {
     const list = (localStorage.getItem("watchlistSymbols") || "")
       .split(",")
@@ -334,6 +388,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const displayName = metadata.name || detail?.name || null;
   const displaySector = metadata.sector || fallbackSector || "";
   const displayCurrency = metadata.currency || fallbackCurrency || "";
+  const fundamentalsCurrency =
+    (typeof detail?.base_currency === "string" && detail.base_currency) ||
+    displayCurrency ||
+    baseCurrency ||
+    "USD";
   const instrumentType =
     detail && typeof (detail as { instrument_type?: unknown }).instrument_type === "string"
       ? ((detail as { instrument_type?: string }).instrument_type ?? null)
@@ -811,9 +870,202 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
 
       {activeTab === "fundamentals" && (
         <div style={{ marginBottom: "2rem" }}>
-          <p style={{ margin: 0, color: "#555" }}>
-            Fundamentals data is not available for this instrument.
-          </p>
+          <h2 style={{ marginBottom: "0.75rem" }}>Fundamentals</h2>
+          {fundamentalsLoading ? (
+            <div>Loading fundamentals...</div>
+          ) : fundamentalsError ? (
+            <div style={{ color: "red" }}>{fundamentalsError}</div>
+          ) : !fundamentals ? (
+            <p style={{ margin: 0, color: "#555" }}>
+              Fundamentals data is not available for this instrument.
+            </p>
+          ) : (
+            (() => {
+              const formatRatio = (
+                value: number | null | undefined,
+                options?: Intl.NumberFormatOptions,
+              ) => {
+                if (value == null || !Number.isFinite(value)) return "—";
+                const formatter = new Intl.NumberFormat(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                  ...options,
+                });
+                return formatter.format(value);
+              };
+              const formatPercent = (
+                value: number | null | undefined,
+                digits = 2,
+              ) => {
+                if (value == null || !Number.isFinite(value)) return "—";
+                return percent(value * 100, digits);
+              };
+              const formatInteger = (value: number | null | undefined) => {
+                if (value == null || !Number.isFinite(value)) return "—";
+                return Math.round(value).toLocaleString();
+              };
+
+              const sections: {
+                title: string;
+                rows: { label: string; value: string }[];
+              }[] = [
+                {
+                  title: "Valuation",
+                  rows: [
+                    { label: "PEG Ratio", value: formatRatio(fundamentals.peg_ratio) },
+                    { label: "P/E Ratio", value: formatRatio(fundamentals.pe_ratio) },
+                    {
+                      label: "Market Cap",
+                      value: money(fundamentals.market_cap, fundamentalsCurrency),
+                    },
+                    {
+                      label: "Free Cash Flow",
+                      value: money(fundamentals.fcf, fundamentalsCurrency),
+                    },
+                    {
+                      label: "Earnings Per Share",
+                      value: formatRatio(fundamentals.eps),
+                    },
+                  ],
+                },
+                {
+                  title: "Financial Health",
+                  rows: [
+                    { label: "Debt/Equity", value: formatRatio(fundamentals.de_ratio) },
+                    {
+                      label: "Long-Term Debt/Equity",
+                      value: formatRatio(fundamentals.lt_de_ratio),
+                    },
+                    {
+                      label: "Interest Coverage",
+                      value: formatRatio(fundamentals.interest_coverage),
+                    },
+                    {
+                      label: "Current Ratio",
+                      value: formatRatio(fundamentals.current_ratio),
+                    },
+                    {
+                      label: "Quick Ratio",
+                      value: formatRatio(fundamentals.quick_ratio),
+                    },
+                  ],
+                },
+                {
+                  title: "Profitability",
+                  rows: [
+                    {
+                      label: "Gross Margin",
+                      value: formatPercent(fundamentals.gross_margin),
+                    },
+                    {
+                      label: "Operating Margin",
+                      value: formatPercent(fundamentals.operating_margin),
+                    },
+                    {
+                      label: "Net Margin",
+                      value: formatPercent(fundamentals.net_margin),
+                    },
+                    {
+                      label: "EBITDA Margin",
+                      value: formatPercent(fundamentals.ebitda_margin),
+                    },
+                    { label: "ROA", value: formatPercent(fundamentals.roa) },
+                    { label: "ROE", value: formatPercent(fundamentals.roe) },
+                    { label: "ROI", value: formatPercent(fundamentals.roi) },
+                  ],
+                },
+                {
+                  title: "Shareholder Metrics",
+                  rows: [
+                    {
+                      label: "Dividend Yield",
+                      value: formatPercent(fundamentals.dividend_yield),
+                    },
+                    {
+                      label: "Dividend Payout Ratio",
+                      value: formatPercent(fundamentals.dividend_payout_ratio),
+                    },
+                    { label: "Beta", value: formatRatio(fundamentals.beta) },
+                    {
+                      label: "Shares Outstanding",
+                      value: formatInteger(fundamentals.shares_outstanding),
+                    },
+                    {
+                      label: "Float Shares",
+                      value: formatInteger(fundamentals.float_shares),
+                    },
+                    {
+                      label: "52 Week High",
+                      value: money(fundamentals.high_52w, fundamentalsCurrency),
+                    },
+                    {
+                      label: "52 Week Low",
+                      value: money(fundamentals.low_52w, fundamentalsCurrency),
+                    },
+                    {
+                      label: "Average Volume",
+                      value: formatInteger(fundamentals.avg_volume),
+                    },
+                  ],
+                },
+              ];
+
+              return (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                    gap: "1rem",
+                  }}
+                >
+                  {sections.map((section) => (
+                    <div
+                      key={section.title}
+                      style={{
+                        border: "1px solid #e0e0e0",
+                        borderRadius: "8px",
+                        padding: "1rem",
+                        background: "#fafafa",
+                      }}
+                    >
+                      <h3 style={{ marginTop: 0 }}>{section.title}</h3>
+                      <table
+                        aria-label={`${section.title} fundamentals`}
+                        style={{ width: "100%", borderCollapse: "collapse" }}
+                      >
+                        <tbody>
+                          {section.rows.map((row) => (
+                            <tr key={row.label}>
+                              <th
+                                scope="row"
+                                style={{
+                                  textAlign: "left",
+                                  padding: "0.35rem 0",
+                                  color: "#555",
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {row.label}
+                              </th>
+                              <td
+                                style={{
+                                  textAlign: "right",
+                                  padding: "0.35rem 0",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {row.value}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          )}
         </div>
       )}
 

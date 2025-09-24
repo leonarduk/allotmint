@@ -52,3 +52,16 @@ def test_merge_skips_empty_frames(monkeypatch, tmp_path):
 
     assert is_integer_dtype(result["Volume"])
     assert result["Volume"].iloc[0] == 100
+
+
+def test_ensure_schema_missing_date(caplog):
+    """Missing Date column should return empty frame with schema and log warning."""
+    cache = import_cache()
+    df = pd.DataFrame({"Open": [1.23], "Ticker": ["ABC"]})
+
+    with caplog.at_level("WARNING", logger="timeseries_cache"):
+        result = cache._ensure_schema(df)
+
+    assert result.empty
+    assert list(result.columns) == cache.EXPECTED_COLS
+    assert "Timeseries missing 'Date' column" in caplog.text

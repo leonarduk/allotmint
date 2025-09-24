@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getGroupPortfolio } from "../api";
 import type { Account, GroupPortfolio } from "../types";
@@ -45,18 +45,26 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     [],
   );
   const [portfolio, setPortfolio] = useState<GroupPortfolio | null>(null);
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[] | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const allToggleRef = useRef<HTMLInputElement>(null);
 
   // helper to derive a stable key for each account
   const accountKey = (acct: Account, idx: number) =>
     `${acct.owner?.trim() || "unknown"}-${acct.account_type}-${idx}`;
 
-  const toggleAccount = (key: string) =>
-    setSelectedAccounts((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
+  const toggleAccount = (key: string, allKeys: string[]) =>
+    setSelectedAccounts((prev) => {
+      if (prev === null) {
+        return allKeys.filter((k) => k !== key);
+      }
+      return prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev, key];
+    });
 
   useEffect(() => {
     setLoading(true);
@@ -72,9 +80,11 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
 
   useEffect(() => {
     if (!portfolio) return;
-    const activeKeys = selectedAccounts.length
-      ? new Set(selectedAccounts)
-      : new Set(portfolio.accounts.map(accountKey));
+    const allKeys = portfolio.accounts.map(accountKey);
+    const activeKeys =
+      selectedAccounts === null
+        ? new Set(allKeys)
+        : new Set(selectedAccounts);
     const activeAccounts = portfolio.accounts.filter((acct, idx) =>
       activeKeys.has(accountKey(acct, idx)),
     );
@@ -110,12 +120,38 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
     setRegionData(region);
   }, [portfolio, selectedAccounts, t]);
 
+  useEffect(() => {
+    if (!portfolio) return;
+    const total = portfolio.accounts.length;
+    const selectedCount =
+      selectedAccounts === null ? total : selectedAccounts.length;
+    if (allToggleRef.current) {
+      allToggleRef.current.indeterminate =
+        selectedCount > 0 && selectedCount < total;
+    }
+  }, [portfolio, selectedAccounts]);
+
   if (loading && !portfolio) return <div>Loading...</div>;
 
   const chartData =
     view === "asset" ? assetData : view === "sector" ? sectorData : regionData;
 
   const total = chartData.reduce((sum, d) => sum + d.value, 0);
+  const allKeys = portfolio?.accounts.map((acct, idx) => accountKey(acct, idx)) ?? [];
+  const selectedCount =
+    selectedAccounts === null ? allKeys.length : selectedAccounts.length;
+  const allSelected =
+    !!portfolio && selectedCount === allKeys.length && selectedCount > 0;
+
+  const handleToggleAll = () => {
+    if (!portfolio) return;
+    setSelectedAccounts((prev) => {
+      if (prev === null) {
+        return [];
+      }
+      return prev.length === allKeys.length ? [] : [...allKeys];
+    });
+  };
 
   return (
     <div className="container mx-auto p-4">
@@ -138,14 +174,27 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
       </div>
       {portfolio && (
         <div className="mb-4 flex flex-wrap gap-4">
+          <label className="flex items-center gap-1 font-semibold">
+            <input
+              ref={allToggleRef}
+              type="checkbox"
+              checked={allSelected}
+              onChange={handleToggleAll}
+            />
+            {t("common.all", { defaultValue: "All" })}
+          </label>
           {portfolio.accounts.map((acct, idx) => {
             const key = accountKey(acct, idx);
+            const isChecked =
+              selectedAccounts === null
+                ? true
+                : selectedAccounts.includes(key);
             return (
               <label key={key} className="flex items-center gap-1">
                 <input
                   type="checkbox"
-                  checked={selectedAccounts.includes(key)}
-                  onChange={() => toggleAccount(key)}
+                  checked={isChecked}
+                  onChange={() => toggleAccount(key, allKeys)}
                 />
                 {`${acct.owner ?? "—"} - ${acct.account_type}`}
               </label>

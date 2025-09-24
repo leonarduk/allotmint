@@ -308,3 +308,71 @@ def test_aggregate_by_ticker_prefers_cost_basis(monkeypatch):
     assert row["cost_gbp"] == pytest.approx(100.0)
     assert row["gain_gbp"] == pytest.approx(10.0)
     assert row["gain_pct"] == pytest.approx(10.0)
+
+
+def test_aggregate_by_ticker_uses_default_meta_and_handles_price_errors(monkeypatch):
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "AAA.L",
+                        "units": 2.0,
+                    }
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker, "L"))
+    call_state = {"count": 0}
+
+    def price_change_once(*args, **kwargs):
+        call_state["count"] += 1
+        if call_state["count"] == 1:
+            raise RuntimeError("boom")
+        return None
+
+    monkeypatch.setattr(ia, "price_change_pct", price_change_once)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _: None)
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _: None)
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["ticker"] == "AAA.L"
+    assert row["name"] == "AAA.L"
+    assert row["currency"] == "GBP"
+    assert row["grouping"] == "Technology"
+    assert "_grouping_from_fallback" not in row
+    assert row["change_7d_pct"] is None
+    assert row["change_30d_pct"] is None
+
+
+def test_list_all_unique_tickers_logs_missing_and_counts_nulls(monkeypatch, caplog):
+    portfolio = {
+        "owner": "alice",
+        "accounts": [
+            {
+                "account_type": "isa",
+                "holdings": [
+                    {"ticker": "AAA.L"},
+                    {"name": "No ticker"},
+                ],
+            }
+        ],
+    }
+
+    monkeypatch.setattr(portfolio_utils, "list_portfolios", lambda: [portfolio])
+    monkeypatch.setattr(portfolio_utils, "list_virtual_portfolios", lambda: [])
+
+    with caplog.at_level("INFO"):
+        tickers = portfolio_utils.list_all_unique_tickers()
+
+    assert tickers == ["AAA.L"]
+    warning_messages = [rec.message for rec in caplog.records if rec.levelname == "WARNING"]
+    assert any("Missing ticker" in message for message in warning_messages)
+    info_messages = [rec.message for rec in caplog.records if rec.levelname == "INFO"]
+    assert any("1 null tickers" in message for message in info_messages)

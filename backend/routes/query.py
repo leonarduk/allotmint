@@ -24,6 +24,9 @@ from backend.timeseries.cache import load_meta_timeseries_range
 router = APIRouter(prefix="/custom-query", tags=["query"])
 
 QUERIES_DIR = config.data_root / "queries"
+REPO_QUERIES_DIR = (
+    (config.repo_root or Path(__file__).resolve().parents[2]) / "data" / "queries"
+)
 DATA_BUCKET_ENV = "DATA_BUCKET"
 QUERIES_PREFIX = "queries/"
 
@@ -75,9 +78,14 @@ def _save_query_local(slug: str, q: CustomQuery) -> None:
 def _load_query_local(slug: str) -> dict:
     """Load a query from the local filesystem."""
     path = QUERIES_DIR / f"{slug}.json"
-    if not path.exists():
-        raise HTTPException(404, "Query not found")
-    return json.loads(path.read_text())
+    if path.exists():
+        return json.loads(path.read_text())
+
+    fallback_path = REPO_QUERIES_DIR / f"{slug}.json"
+    if fallback_path.exists():
+        return json.loads(fallback_path.read_text())
+
+    raise HTTPException(404, "Query not found")
 
 
 def _save_query_s3(slug: str, q: CustomQuery) -> None:

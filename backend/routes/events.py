@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 router = APIRouter(tags=["events"])
 
-_events_path = Path(__file__).resolve().parents[2] / "data" / "events.json"
+_events_path = globals().get("_events_path") or Path(__file__).resolve().parents[2] / "data" / "events.json"
 
 try:
     with _events_path.open() as fh:

@@ -178,3 +178,57 @@ def test_instrument_route_json_html_and_base_currency(monkeypatch):
 
     assert resp_html.status_code == 200
     assert "<table" in resp_html.text
+
+
+def test_instrument_route_close_only_prices_populates_positions(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = pd.DataFrame(
+        {
+            "Date": pd.date_range("2022-01-01", periods=2, freq="D"),
+            "Close": [100.0, 110.0],
+        }
+    )
+
+    portfolios = [
+        {
+            "owner": "sam",
+            "accounts": [
+                {
+                    "account_type": "general",
+                    "holdings": [
+                        {"ticker": "XYZ.N", "units": 2, "cost_basis_gbp": 150.0}
+                    ],
+                }
+            ],
+        }
+    ]
+
+    def fake_fx(base, quote, start_date, end_date):
+        dates = pd.date_range(start_date, end_date, freq="D")
+        if dates.empty:
+            dates = pd.to_datetime([start_date])
+        rate = 0.8 if (base, quote) == ("USD", "GBP") else 1.0
+        return pd.DataFrame({"Date": dates, "Rate": [rate] * len(dates)})
+
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=df
+    ), patch(
+        "backend.routes.instrument.list_portfolios", return_value=portfolios
+    ), patch(
+        "backend.routes.instrument.get_security_meta",
+        return_value={"currency": "USD"},
+    ), patch(
+        "backend.routes.instrument.fetch_fx_rate_range", side_effect=fake_fx
+    ):
+        client = _auth_client(app)
+        resp = client.get("/instrument?ticker=XYZ.N&days=2&format=json")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["prices"][-1]["close_gbp"] == pytest.approx(88.0)
+    assert len(payload["positions"]) == 1
+    position = payload["positions"][0]
+    assert position["market_value_gbp"] == pytest.approx(176.0)
+    assert position["unrealised_gain_gbp"] == pytest.approx(26.0)
+    assert position["gain_pct"] == pytest.approx(17.333333, rel=1e-3)

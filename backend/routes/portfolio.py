@@ -491,16 +491,21 @@ async def get_account(owner: str, account: str, request: Request):
         data = data_loader.load_account(owner, match, search_root)
         account = match
 
+    original_account_field = data.get("account")
     holdings = data.pop("holdings", data.pop("approvals", [])) or []
     account_type_value = data.get("account_type")
 
     data["holdings"] = holdings
-    if account_type_value is None or (
-        isinstance(account_type_value, str) and not account_type_value.strip()
-    ):
+    display_type: str | None = None
+    if isinstance(account_type_value, str) and account_type_value.strip():
+        display_type = account_type_value.strip()
+
+    if display_type and display_type.lower() != account.lower() and original_account_field is None:
+        data["account_display_type"] = display_type
         data["account_type"] = account
     else:
-        data["account_type"] = account_type_value
+        data["account_type"] = display_type or account
+
     return data
 
 

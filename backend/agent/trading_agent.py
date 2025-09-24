@@ -264,7 +264,7 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
 
         if ma_short is not None and ma_long is not None:
             indicator_name = (
-                f"{cfg.ma_short_window}- vs {cfg.ma_long_window}-day moving averages"
+                f"{cfg.ma_short_window}- vs {cfg.ma_long_window}-day MA crossover"
             )
             if ma_short > ma_long:
                 add_reason(
@@ -294,7 +294,7 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
         short_ma = info.get("sma_50")
         long_ma = info.get("sma_200")
         if short_ma is not None and long_ma is not None:
-            indicator_name = "50-day vs 200-day moving averages"
+            indicator_name = "50-day vs 200-day MA crossover"
             if short_ma > long_ma:
                 add_reason(
                     "BUY",
@@ -326,7 +326,7 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
         best_confidence: Optional[float] = None
 
         for action, reasons in action_details.items():
-            if len(reasons) < 2:
+            if not reasons:
                 continue
             avg_conf = _average_confidence(reasons)
             score = (len(reasons), avg_conf or 0.0)
@@ -341,23 +341,31 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
 
         indicator_names = [reason.get("indicator", "") for reason in best_reasons]
         indicator_phrase = _join_with_and(indicator_names)
-        reason_text = (
-            f"{len(best_reasons)} indicators ({indicator_phrase}) support a"
-            f" {best_action.lower()} opportunity."
-        )
-        factor_details = [reason["detail"] for reason in best_reasons]
-        rationale_text = " ".join(factor_details)
+        count = len(best_reasons)
+        if count == 1:
+            reason_text = (
+                f"{indicator_phrase or 'Indicator'} supports a"
+                f" {best_action.lower()} opportunity."
+            )
+        else:
+            reason_text = (
+                f"{count} indicators ({indicator_phrase}) support a"
+                f" {best_action.lower()} opportunity."
+            )
+        factor_details = [reason["detail"] for reason in best_reasons if reason.get("detail")]
+        rationale_text = " ".join(factor_details).strip()
 
-        signals.append(
-            {
-                "ticker": ticker,
-                "action": best_action,
-                "reason": reason_text,
-                "confidence": best_confidence,
-                "rationale": rationale_text,
-                "factors": factor_details,
-            }
-        )
+        entry = {
+            "ticker": ticker,
+            "action": best_action,
+            "reason": reason_text,
+            "confidence": best_confidence,
+            "rationale": rationale_text or None,
+        }
+        if len(factor_details) > 1:
+            entry["factors"] = factor_details
+
+        signals.append(entry)
 
     return signals
 

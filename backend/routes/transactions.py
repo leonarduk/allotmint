@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
+from backend.common.ticker_utils import normalise_filter_ticker
 from backend.common import compliance
 from backend.config import config
 from backend import importers
@@ -50,6 +51,7 @@ class Transaction(BaseModel):
     fees: float | None = None
     comments: str | None = None
     reason_to_buy: str | None = None
+    synthetic: bool = False
 
     model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
@@ -137,8 +139,13 @@ async def transactions_with_compliance(
             for t in txs
             if (t.get("account") or "").lower() == account.lower()
         ]
-    if ticker:
-        txs = [t for t in txs if (t.get("ticker") or "").upper() == ticker.upper()]
+    norm_ticker = normalise_filter_ticker(
+        ticker,
+        offline_mode=bool(config.offline_mode),
+        fallback=getattr(config, "offline_fundamentals_ticker", None),
+    )
+    if norm_ticker:
+        txs = [t for t in txs if (t.get("ticker") or "").upper() == norm_ticker]
     txs.sort(key=lambda t: _parse_date(t.get("date")) or date.min)
     evaluated = compliance.evaluate_trades(owner, txs, request.app.state.accounts_root)
     return {"transactions": evaluated}
@@ -306,6 +313,11 @@ async def list_dividends(
 
     start_d = _parse_date(start)
     end_d = _parse_date(end)
+    norm_ticker = normalise_filter_ticker(
+        ticker,
+        offline_mode=bool(config.offline_mode),
+        fallback=getattr(config, "offline_fundamentals_ticker", None),
+    )
 
     txs: List[Transaction] = []
     for t in _load_all_transactions():
@@ -316,7 +328,7 @@ async def list_dividends(
             continue
         if account and t.account.lower() != account.lower():
             continue
-        if ticker and (t.ticker or "").lower() != ticker.lower():
+        if norm_ticker and (t.ticker or "").upper() != norm_ticker:
             continue
         tx_date = _parse_date(t.date)
         if start_d and (not tx_date or tx_date < start_d):

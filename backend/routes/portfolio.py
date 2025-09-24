@@ -494,7 +494,7 @@ async def get_account(owner: str, account: str, request: Request):
     holdings = data.pop("holdings", data.pop("approvals", [])) or []
 
     data["holdings"] = holdings
-    data.setdefault("account_type", account)
+    data["account_type"] = account
     return data
 
 

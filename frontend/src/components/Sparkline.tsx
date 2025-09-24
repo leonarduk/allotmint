@@ -113,7 +113,7 @@ function SparklineFromFetch({
   tabIndex,
 }: SparklineFetchProps) {
   const { data, error } = useInstrumentHistory(ticker, days);
-  const cached = getCachedInstrumentHistory(ticker);
+  const cached = getCachedInstrumentHistory(ticker, days);
   const points = (cached ?? data)?.mini?.[String(days)] ?? [];
   const series =
     points

@@ -45,6 +45,8 @@ describe('useInstrumentHistory', () => {
     });
 
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+    expect(mockGetInstrumentDetail).toHaveBeenNthCalledWith(1, 'ABC', 7);
+    expect(mockGetInstrumentDetail).toHaveBeenNthCalledWith(2, 'ABC', 7);
     expect(result.current.error).toBeNull();
     expect(result.current.data).not.toBeNull();
   });
@@ -73,12 +75,14 @@ describe('useInstrumentHistory', () => {
       await vi.runAllTimersAsync();
     });
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+    expect(mockGetInstrumentDetail).toHaveBeenNthCalledWith(1, 'ABC', 7);
+    expect(mockGetInstrumentDetail).toHaveBeenNthCalledWith(2, 'ABC', 7);
     expect(result.current.data).not.toBeNull();
 
     randSpy.mockRestore();
   });
 
-  it('caches detail per ticker regardless of day range', async () => {
+  it('caches detail per ticker and day range', async () => {
     mockGetInstrumentDetail.mockResolvedValue({
       mini: { 7: [], 30: [], 180: [], 365: [] },
       positions: [],
@@ -91,9 +95,15 @@ describe('useInstrumentHistory', () => {
 
     await waitFor(() => expect(result.current.data).not.toBeNull());
     expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+    expect(mockGetInstrumentDetail).toHaveBeenLastCalledWith('ABC', 7);
+
+    rerender({ days: 7 });
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
 
     rerender({ days: 30 });
     await waitFor(() => expect(result.current.data).not.toBeNull());
-    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(1);
+    expect(mockGetInstrumentDetail).toHaveBeenCalledTimes(2);
+    expect(mockGetInstrumentDetail).toHaveBeenLastCalledWith('ABC', 30);
   });
 });

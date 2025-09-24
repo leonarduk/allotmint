@@ -351,6 +351,79 @@ def test_aggregate_by_ticker_uses_default_meta_and_handles_price_errors(monkeypa
     assert row["change_30d_pct"] is None
 
 
+def test_aggregate_by_ticker_security_meta_and_default_fallback(monkeypatch):
+
+    monkeypatch.setenv("TESTING", "1")
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "XYZ.L",
+                        "units": 1.0,
+                        "market_value_gbp": 120.0,
+                        "cost_gbp": 100.0,
+                    },
+                    {
+                        "ticker": "AAA.L",
+                        "units": 2.0,
+                        "market_value_gbp": 200.0,
+                        "cost_gbp": 150.0,
+                    },
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
+
+    def fake_resolve_grouping_details(*sources, current=None):
+        if current:
+            return current, None
+        for src in sources:
+            if not src:
+                continue
+            grouping = src.get("grouping") if isinstance(src, dict) else None
+            grouping_id = src.get("grouping_id") if isinstance(src, dict) else None
+            if grouping:
+                return grouping, grouping_id
+            if grouping_id:
+                return grouping_id, grouping_id
+        return None, None
+
+    monkeypatch.setattr(ia, "_resolve_grouping_details", fake_resolve_grouping_details)
+
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _: None)
+
+    security_meta = {
+        "XYZ.L": {
+            "grouping": "Thematic",
+            "grouping_id": "theme-id",
+            "currency": "USD",
+        },
+        "AAA.L": {},
+    }
+
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: security_meta.get(ticker, {}))
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    rows_by_ticker = {row["ticker"]: row for row in rows}
+
+    xyz_row = rows_by_ticker["XYZ.L"]
+    assert xyz_row["grouping"] == "Thematic"
+    assert xyz_row["grouping_id"] == "theme-id"
+    assert xyz_row["currency"] == "USD"
+
+    aaa_row = rows_by_ticker["AAA.L"]
+    assert aaa_row["grouping"] == "Technology"
+    assert aaa_row["grouping_id"] is None
+    assert aaa_row["currency"] == "GBP"
+    assert aaa_row["sector"] == "Technology"
+
+
 def test_list_all_unique_tickers_logs_missing_and_counts_nulls(monkeypatch, caplog):
     portfolio = {
         "owner": "alice",

@@ -4,6 +4,7 @@ import { complianceForOwner, getOwners } from "../api";
 import type { OwnerSummary, ComplianceResult } from "../types";
 import { OwnerSelector } from "../components/OwnerSelector";
 import EmptyState from "../components/EmptyState";
+import { sanitizeOwners } from "../utils/owners";
 
 export default function ComplianceWarnings() {
   const { owner: ownerParam } = useParams<{ owner?: string }>();
@@ -14,7 +15,9 @@ export default function ComplianceWarnings() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getOwners().then(setOwners).catch(() => setOwners([]));
+    getOwners()
+      .then((os) => setOwners(sanitizeOwners(os)))
+      .catch(() => setOwners([]));
   }, []);
 
   useEffect(() => {

@@ -27,6 +27,7 @@ import InstallPwaPrompt from "./components/InstallPwaPrompt";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import lazyWithDelay from "./utils/lazyWithDelay";
 import PortfolioDashboardSkeleton from "./components/skeletons/PortfolioDashboardSkeleton";
+import { sanitizeOwners } from "./utils/owners";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
@@ -84,10 +85,11 @@ export default function MainApp() {
 
   useEffect(() => {
     if (ownersReq.data) {
-      setOwners(ownersReq.data);
+      const sanitizedOwners = sanitizeOwners(ownersReq.data);
+      setOwners(sanitizedOwners);
       if (
         selectedOwner &&
-        !ownersReq.data.some((o) => o.owner === selectedOwner)
+        !sanitizedOwners.some((o) => o.owner === selectedOwner)
       ) {
         setSelectedOwner("");
       }

@@ -13,6 +13,7 @@ import type {
   VirtualPortfolio as VP,
   OwnerSummary,
 } from "../types";
+import { sanitizeOwners } from "../utils/owners";
 
 export function VirtualPortfolio() {
   const [portfolios, setPortfolios] = useState<VP[]>([]);
@@ -43,7 +44,7 @@ export function VirtualPortfolio() {
         ]);
         if (!cancelled) {
           setPortfolios(ps);
-          setOwners(os);
+          setOwners(sanitizeOwners(os));
         }
       } catch (e) {
         if (!cancelled) {

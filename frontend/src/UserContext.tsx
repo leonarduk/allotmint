@@ -1,10 +1,11 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import {
+  loadStoredUserProfile,
+  persistStoredUserProfile,
+  type StoredUserProfile,
+} from "./authStorage";
 
-export interface UserProfile {
-  email?: string;
-  name?: string;
-  picture?: string;
-}
+export type UserProfile = StoredUserProfile;
 
 interface UserContextValue {
   profile?: UserProfile;
@@ -17,7 +18,13 @@ const userContext = createContext<UserContextValue>({
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<UserProfile>();
+  const [profile, setProfileState] = useState<UserProfile | undefined>(() =>
+    loadStoredUserProfile(),
+  );
+  const setProfile = useCallback((profile?: UserProfile) => {
+    setProfileState(profile);
+    persistStoredUserProfile(profile);
+  }, []);
   return (
     <userContext.Provider value={{ profile, setProfile }}>
       {children}

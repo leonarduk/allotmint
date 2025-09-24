@@ -1,11 +1,12 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
+import {
+  loadStoredAuthUser,
+  persistStoredAuthUser,
+  type StoredUserProfile,
+} from "./authStorage";
 
-export interface UserProfile {
-  email?: string;
-  name?: string;
-  picture?: string;
-}
+export type UserProfile = StoredUserProfile;
 
 interface AuthContextValue {
   user: UserProfile | null;
@@ -20,7 +21,13 @@ export const AuthContext = createContext<AuthContextValue>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [user, setUserState] = useState<UserProfile | null>(() =>
+    loadStoredAuthUser(),
+  );
+  const setUser = useCallback((u: UserProfile | null) => {
+    setUserState(u);
+    persistStoredAuthUser(u);
+  }, []);
   return (
     <AuthContext.Provider value={{ user, setUser }}>
       {children}

@@ -26,6 +26,103 @@ def _make_df():
     )
 
 
+_SEARCH_FIXTURES = [
+    {
+        "ticker": "ALPHA.L",
+        "name": "Alpha Industries",
+        "sector": "Technology",
+        "region": "UK",
+    },
+    {
+        "ticker": "BETA.L",
+        "name": "Beta Alpha Holdings",
+        "sector": "Finance",
+        "region": "US",
+    },
+    {
+        "ticker": "ALPHX.N",
+        "name": "Alpha X",
+        "sector": "Technology",
+        "region": "US",
+    },
+]
+
+_SEARCH_FIXTURES.extend(
+    {
+        "ticker": f"ALP{i:02d}.L",
+        "name": f"Alpha Candidate {i}",
+        "sector": "Technology" if i % 2 else "Finance",
+        "region": "US" if i % 3 else "UK",
+    }
+    for i in range(1, 25)
+)
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"q": ""},
+        {"q": "alpha", "sector": ""},
+        {"q": "alpha", "region": ""},
+    ],
+)
+def test_instrument_search_rejects_blank_inputs(monkeypatch, params):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+
+    with patch("backend.routes.instrument.list_instruments", return_value=_SEARCH_FIXTURES):
+        client = _auth_client(app)
+        resp = client.get("/instrument/search", params=params)
+
+    assert resp.status_code == 400
+
+
+def test_instrument_search_filters_by_sector_and_region(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+
+    with patch("backend.routes.instrument.list_instruments", return_value=_SEARCH_FIXTURES):
+        client = _auth_client(app)
+        resp_sector = client.get(
+            "/instrument/search", params={"q": "alpha", "sector": "Technology"}
+        )
+        resp_region = client.get(
+            "/instrument/search", params={"q": "alpha", "region": "US"}
+        )
+
+    assert resp_sector.status_code == 200
+    sector_rows = resp_sector.json()
+    assert sector_rows
+    assert all(row["sector"] == "Technology" for row in sector_rows)
+    assert "BETA.L" not in {row["ticker"] for row in sector_rows}
+
+    assert resp_region.status_code == 200
+    region_rows = resp_region.json()
+    assert region_rows
+    assert all(row["region"] == "US" for row in region_rows)
+    assert "ALPHA.L" not in {row["ticker"] for row in region_rows}
+
+
+def test_instrument_search_caps_results(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+
+    with patch("backend.routes.instrument.list_instruments", return_value=_SEARCH_FIXTURES):
+        client = _auth_client(app)
+        resp = client.get("/instrument/search", params={"q": "alpha"})
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 20
+
+    expected = [
+        inst["ticker"]
+        for inst in _SEARCH_FIXTURES
+        if "alpha" in (inst.get("ticker", "").lower() + inst.get("name", "").lower())
+    ][:20]
+    assert [row["ticker"] for row in rows] == expected
+
+
 @pytest.mark.parametrize("bad", ["", ".L", ".UK"])
 def test_invalid_ticker_rejected(monkeypatch, bad):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)

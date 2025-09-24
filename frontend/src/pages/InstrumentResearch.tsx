@@ -113,6 +113,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     instrumentType: string;
     currency: string;
   };
+  type MetadataOverrides = {
+    name: boolean;
+    sector: boolean;
+    instrumentType: boolean;
+    currency: boolean;
+  };
   const [metadata, setMetadata] = useState<MetadataState>({
     name: "",
     sector: "",
@@ -125,8 +131,15 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     instrumentType: "",
     currency: "",
   });
+  const [metadataOverrides, setMetadataOverrides] = useState<MetadataOverrides>({
+    name: false,
+    sector: false,
+    instrumentType: false,
+    currency: false,
+  });
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const isEditingMetadataRef = useRef(isEditingMetadata);
+  const metadataOverridesRef = useRef(metadataOverrides);
   const [metadataSaving, setMetadataSaving] = useState(false);
   const [metadataStatus, setMetadataStatus] = useState<
     { kind: "success" | "error"; text: string } | null
@@ -161,6 +174,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       instrumentType: "",
       currency: "",
     });
+    setMetadataOverrides({
+      name: false,
+      sector: false,
+      instrumentType: false,
+      currency: false,
+    });
     setSectorOptions([]);
     setInstrumentTypeOptions(DEFAULT_INSTRUMENT_TYPES);
     setOverviewHistoryDays(0);
@@ -169,6 +188,10 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   useEffect(() => {
     isEditingMetadataRef.current = isEditingMetadata;
   }, [isEditingMetadata]);
+
+  useEffect(() => {
+    metadataOverridesRef.current = metadataOverrides;
+  }, [metadataOverrides]);
 
   useEffect(() => {
     if (!detail) return;
@@ -185,19 +208,22 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         ? (detail as Record<string, unknown>)
         : null;
     const detailInstrumentType = extractInstrumentType(detailRecord);
-    setMetadata((prev) => ({
-      name: name ?? prev.name,
-      sector: sector ?? prev.sector,
-      instrumentType: detailInstrumentType ?? prev.instrumentType,
-      currency: currency ?? prev.currency,
-    }));
-    if (!isEditingMetadata) {
-      setFormValues((prev) => ({
-        name: name ?? prev.name,
-        sector: sector ?? prev.sector,
-        instrumentType: detailInstrumentType ?? prev.instrumentType,
-        currency: currency ?? prev.currency,
-      }));
+    const overrides = metadataOverridesRef.current;
+    let nextMetadata: MetadataState | null = null;
+    setMetadata((prev) => {
+      const next: MetadataState = {
+        name: overrides.name ? prev.name : name ?? prev.name ?? "",
+        sector: overrides.sector ? prev.sector : sector ?? prev.sector ?? "",
+        instrumentType: overrides.instrumentType
+          ? prev.instrumentType
+          : detailInstrumentType ?? prev.instrumentType ?? "",
+        currency: overrides.currency ? prev.currency : currency ?? prev.currency ?? "",
+      };
+      nextMetadata = next;
+      return next;
+    });
+    if (!isEditingMetadata && nextMetadata) {
+      setFormValues(nextMetadata);
     }
     if (detailInstrumentType) {
       setInstrumentTypeOptions((prev) =>
@@ -274,19 +300,43 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             (matched as { instrumentType?: unknown }).instrumentType ??
               (matched as { instrument_type?: unknown }).instrument_type,
           );
-          setMetadata((prev) => ({
-            name: prev.name || name || "",
-            sector: prev.sector || sector || "",
-            instrumentType: prev.instrumentType || metaInstrumentType || "",
-            currency: prev.currency || currency || "",
+          const overrides = metadataOverridesRef.current;
+          const hasName = typeof name === "string" && name.length > 0;
+          const hasSector = typeof sector === "string" && sector.length > 0;
+          const hasInstrumentType =
+            typeof metaInstrumentType === "string" && metaInstrumentType.length > 0;
+          const hasCurrency = typeof currency === "string" && currency.length > 0;
+          let nextMetadata: MetadataState | null = null;
+          setMetadata((prev) => {
+            const next: MetadataState = {
+              name: overrides.name ? prev.name : hasName ? name : prev.name || "",
+              sector: overrides.sector
+                ? prev.sector
+                : hasSector
+                  ? sector
+                  : prev.sector || "",
+              instrumentType: overrides.instrumentType
+                ? prev.instrumentType
+                : hasInstrumentType
+                  ? metaInstrumentType
+                  : prev.instrumentType || "",
+              currency: overrides.currency
+                ? prev.currency
+                : hasCurrency
+                  ? currency
+                  : prev.currency || "",
+            };
+            nextMetadata = next;
+            return next;
+          });
+          setMetadataOverrides((prev) => ({
+            name: prev.name || hasName,
+            sector: prev.sector || hasSector,
+            instrumentType: prev.instrumentType || hasInstrumentType,
+            currency: prev.currency || hasCurrency,
           }));
-          if (!isEditingMetadataRef.current) {
-            setFormValues((prev) => ({
-              name: prev.name || name || "",
-              sector: prev.sector || sector || "",
-              instrumentType: prev.instrumentType || metaInstrumentType || "",
-              currency: prev.currency || currency || "",
-            }));
+          if (!isEditingMetadataRef.current && nextMetadata) {
+            setFormValues(nextMetadata);
           }
           setInstrumentExchange((prev) => {
             if (prev) return prev;
@@ -364,6 +414,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         sector: trimmedSector,
         instrumentType: trimmedInstrumentType,
         currency: selectedCurrency,
+      });
+      setMetadataOverrides({
+        name: true,
+        sector: true,
+        instrumentType: true,
+        currency: true,
       });
       setFormValues({
         name: trimmedName,

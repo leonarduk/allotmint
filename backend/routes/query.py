@@ -72,6 +72,14 @@ def _save_query_local(slug: str, q: CustomQuery) -> None:
     (QUERIES_DIR / f"{slug}.json").write_text(json.dumps(q.model_dump(), default=str))
 
 
+def _load_query_local(slug: str) -> dict:
+    """Load a query from the local filesystem."""
+    path = QUERIES_DIR / f"{slug}.json"
+    if not path.exists():
+        raise HTTPException(404, "Query not found")
+    return json.loads(path.read_text())
+
+
 def _save_query_s3(slug: str, q: CustomQuery) -> None:
     """Persist a query to S3 under ``queries/<slug>.json``."""
     bucket = os.getenv(DATA_BUCKET_ENV)
@@ -170,7 +178,10 @@ async def run_query(q: CustomQuery):
     if q.name:
         slug = _slugify(q.name)
         if config.app_env == "aws":
-            _save_query_s3(slug, q)
+            try:
+                _save_query_s3(slug, q)
+            except HTTPException:
+                _save_query_local(slug, q)
         else:
             _save_query_local(slug, q)
 
@@ -201,19 +212,22 @@ async def list_saved_queries():
 @router.get("/{slug}")
 async def load_query(slug: str):
     if config.app_env == "aws":
-        return _load_query_s3(slug)
-    path = QUERIES_DIR / f"{slug}.json"
-    if not path.exists():
-        raise HTTPException(404, "Query not found")
-    return json.loads(path.read_text())
+        try:
+            return _load_query_s3(slug)
+        except HTTPException:
+            pass
+    return _load_query_local(slug)
 
 
 @router.post("/{slug}")
 async def save_query(slug: str, q: CustomQuery):
     if config.app_env == "aws":
-        _save_query_s3(slug, q)
-        return {"saved": slug}
-    QUERIES_DIR.mkdir(parents=True, exist_ok=True)
-    path = QUERIES_DIR / f"{slug}.json"
-    path.write_text(json.dumps(q.model_dump(), default=str))
+        try:
+            _save_query_s3(slug, q)
+        except HTTPException:
+            _save_query_local(slug, q)
+        else:
+            return {"saved": slug}
+    else:
+        _save_query_local(slug, q)
     return {"saved": slug}

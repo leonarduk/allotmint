@@ -151,7 +151,7 @@ async def delete_instrument(exchange: str, ticker: str) -> dict[str, str]:
     except OSError as exc:
         raise HTTPException(status_code=500, detail="Filesystem error") from exc
     if not exists:
-        raise HTTPException(status_code=404, detail="Instrument not found")
+        return {"status": "missing"}
     delete_instrument_meta(ticker, exchange)
     return {"status": "deleted"}
 

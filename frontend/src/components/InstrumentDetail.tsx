@@ -31,6 +31,8 @@ type Props = {
   onClose?: () => void;
   variant?: Variant;
   hidePositions?: boolean;
+  initialHistoryDays?: number;
+  onHistoryRangeChange?: (days: number) => void;
 };
 
 type Price = {
@@ -192,6 +194,8 @@ export function InstrumentDetail({
   onClose,
   variant = "drawer",
   hidePositions = false,
+  initialHistoryDays,
+  onHistoryRangeChange,
 }: Props) {
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
@@ -245,8 +249,9 @@ export function InstrumentDetail({
   const [showMA20, setShowMA20] = useState(false);
   const [showMA50, setShowMA50] = useState(false);
   const [showMA200, setShowMA200] = useState(false);
+  const resolvedInitialDays = initialHistoryDays ?? 365;
   const [showRSI, setShowRSI] = useState(false);
-  const [days, setDays] = useState<number>(365);
+  const [days, setDays] = useState<number>(resolvedInitialDays);
   const [priceMode, setPriceMode] = useState<"close" | "intraday">("close");
   const [intradayPrices, setIntradayPrices] = useState<{ timestamp: string; close: number }[]>([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
@@ -271,6 +276,14 @@ export function InstrumentDetail({
       .catch((e: Error) => setErr(e.message))
       .finally(() => setLoading(false));
   }, [ticker, days]);
+
+  useEffect(() => {
+    setDays(resolvedInitialDays);
+  }, [ticker, resolvedInitialDays]);
+
+  useEffect(() => {
+    onHistoryRangeChange?.(days);
+  }, [days, onHistoryRangeChange]);
 
   useEffect(() => {
     setPriceMode("close");

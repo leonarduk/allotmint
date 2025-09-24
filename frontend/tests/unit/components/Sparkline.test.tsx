@@ -8,6 +8,7 @@ vi.mock("@/hooks/useInstrumentHistory", () => ({
     error: null,
   })),
   getCachedInstrumentHistory: vi.fn(() => null),
+  updateCachedInstrumentHistory: vi.fn(),
 }));
 import { useInstrumentHistory } from "@/hooks/useInstrumentHistory";
 const mockUseInstrumentHistory = useInstrumentHistory as unknown as vi.Mock;

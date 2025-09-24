@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useInstrumentHistory, getCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
+import { useInstrumentHistory, updateCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
 import {
   getNews,
@@ -46,11 +46,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const baseTicker = tickerParts[0] ?? "";
   const initialExchange = tickerParts.length > 1 ? tickerParts[1] ?? "" : "";
   const { tabs, disabledTabs, baseCurrency } = useConfig();
+  const [overviewHistoryDays, setOverviewHistoryDays] = useState<number>(0);
   const {
     data: detail,
     loading: detailLoading,
     error: detailError,
-  } = useInstrumentHistory(tkr, 365);
+  } = useInstrumentHistory(tkr, overviewHistoryDays);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);
@@ -95,6 +96,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     setMetadata({ name: "", sector: "", currency: "" });
     setFormValues({ name: "", sector: "", currency: "" });
     setSectorOptions([]);
+    setOverviewHistoryDays(0);
   }, [tkr, initialExchange]);
 
   useEffect(() => {
@@ -257,12 +259,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       });
       setInstrumentExchange(exchange);
       setIsEditingMetadata(false);
-      const cached = getCachedInstrumentHistory(tkr);
-      if (cached) {
+      updateCachedInstrumentHistory(tkr, (cached) => {
         cached.name = trimmedName;
         cached.sector = trimmedSector;
         cached.currency = selectedCurrency;
-      }
+      });
       if (trimmedSector) {
         setSectorOptions((prev) => {
           if (prev.some((entry) => entry.toUpperCase() === trimmedSector.toUpperCase())) {
@@ -847,6 +848,8 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             instrument_type={instrumentType}
             variant="standalone"
             hidePositions
+            initialHistoryDays={overviewHistoryDays}
+            onHistoryRangeChange={setOverviewHistoryDays}
           />
         </div>
       )}

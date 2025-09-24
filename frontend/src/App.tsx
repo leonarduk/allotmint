@@ -52,6 +52,7 @@ import Rebalance from "./pages/Rebalance";
 import PensionForecast from "./pages/PensionForecast";
 import TaxTools from "./pages/TaxTools";
 import RightRail from "./components/RightRail";
+import { sanitizeOwners } from "./utils/owners";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -267,11 +268,13 @@ export default function App({ onLogout }: AppProps) {
   useEffect(() => {
     if (!ownersReq.data) return;
 
-    setOwners(ownersReq.data);
+    const sanitizedOwners = sanitizeOwners(ownersReq.data);
+
+    setOwners(sanitizedOwners);
 
     if (!selectedOwner) return;
 
-    const match = ownersReq.data.find(
+    const match = sanitizedOwners.find(
       (o) => o.owner.toLowerCase() === selectedOwner.toLowerCase(),
     );
 

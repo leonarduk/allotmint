@@ -18,6 +18,7 @@ import SectionCard from "../components/SectionCard";
 import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 import { usePriceRefresh } from "../PriceRefreshContext";
+import { sanitizeOwners } from "../utils/owners";
 
 const TAB_KEYS = orderedTabPlugins.map((p) => p.id) as TabPluginId[];
 const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record<
@@ -58,8 +59,9 @@ export default function Support() {
   useEffect(() => {
     getOwners()
       .then((list) => {
-        setOwners(list);
-        setOwner(list[0]?.owner ?? "");
+        const sanitized = sanitizeOwners(list);
+        setOwners(sanitized);
+        setOwner(sanitized[0]?.owner ?? "");
       })
       .catch(() => setOwners([]));
   }, []);

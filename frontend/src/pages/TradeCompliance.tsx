@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { getOwners, getTransactionsWithCompliance, requestApproval } from "../api";
 import type { OwnerSummary, TransactionWithCompliance } from "../types";
 import { OwnerSelector } from "../components/OwnerSelector";
+import { sanitizeOwners } from "../utils/owners";
 
 export default function TradeCompliance() {
   const { owner: ownerParam } = useParams<{ owner?: string }>();
@@ -14,7 +15,9 @@ export default function TradeCompliance() {
   const [requested, setRequested] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    getOwners().then(setOwners).catch(() => setOwners([]));
+    getOwners()
+      .then((os) => setOwners(sanitizeOwners(os)))
+      .catch(() => setOwners([]));
   }, []);
 
   useEffect(() => {

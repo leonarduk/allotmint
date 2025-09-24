@@ -11,6 +11,7 @@ import {
 import type { Approval, OwnerSummary, UserConfig } from '../types';
 import { useAuth } from '../AuthContext';
 import { useConfig } from '../ConfigContext';
+import { sanitizeOwners } from '../utils/owners';
 
 export default function UserConfigPage() {
   const { t } = useTranslation();
@@ -30,7 +31,7 @@ export default function UserConfigPage() {
 
   useEffect(() => {
     getOwners()
-      .then(setOwners)
+      .then((os) => setOwners(sanitizeOwners(os)))
       .catch(() => {
         /* ignore */
       });

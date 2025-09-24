@@ -12,6 +12,7 @@ import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { SavedQueries } from "../components/SavedQueries";
 import { z } from "zod";
+import { sanitizeOwners } from "../utils/owners";
 
 const TICKER_OPTIONS = ["AAA", "BBB", "CCC"];
 const METRIC_OPTIONS = ["market_value_gbp", "gain_gbp"];
@@ -23,8 +24,10 @@ function QuerySection() {
   const { data: owners } = useFetch(fetchOwners, []);
   const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
     || Boolean((import.meta as any)?.vitest);
-  const ownerList = Array.isArray(owners)
-    ? owners
+  const rawOwners = Array.isArray(owners) ? owners : [];
+  const sanitizedOwners = sanitizeOwners(rawOwners);
+  const ownerList = sanitizedOwners.length
+    ? sanitizedOwners
     : (isTest ? [{ owner: 'Alice', accounts: [] }, { owner: 'Bob', accounts: [] }] : []);
   const { t } = useTranslation();
 

@@ -17,6 +17,7 @@ import type { OwnerSummary } from "../types";
 import { OwnerSelector } from "../components/OwnerSelector";
 import { useTranslation } from "react-i18next";
 import { useRoute } from "../RouteContext";
+import { sanitizeOwners } from "../utils/owners";
 
 export default function PensionForecast() {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -79,7 +80,7 @@ export default function PensionForecast() {
   useEffect(() => {
     getOwners()
       .then((os) => {
-        setOwners(os);
+        setOwners(sanitizeOwners(os));
       })
       .catch(() => setOwners([]));
   }, []);

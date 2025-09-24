@@ -109,16 +109,15 @@ def run_historical_scenario(
         horizon_map = {}
         for label, days in label_pairs:
             shocked_pf = (
-                shocked.get(label)
+                shocked.get(days)
+                or shocked.get(label)
                 or shocked.get(str(days))
-                or shocked.get(days)
                 or {}
             )
-            val = (
-                shocked_pf.get("total_value_estimate_gbp")
-                or shocked_pf.get("total_value_gbp")
-            )
-            horizon_map[label] = {
+            val = shocked_pf.get("total_value_estimate_gbp")
+            if val is None:
+                val = shocked_pf.get("total_value_gbp")
+            horizon_map[days] = {
                 "baseline_total_value_gbp": baseline,
                 "shocked_total_value_gbp": val,
             }

@@ -306,13 +306,13 @@ export const runScenario = ({
 
 export type GroupInstrumentFilters = {
   owner?: string;
-  account?: string;
+  account_type?: string;
 };
 
 const cacheKeyForGroupInstruments = (
   slug: string,
-  { owner, account }: GroupInstrumentFilters,
-) => `${slug}::${owner ?? ""}::${account ?? ""}`;
+  { owner, account_type: accountType }: GroupInstrumentFilters,
+) => `${slug}::${owner ?? ""}::${accountType ?? ""}`;
 
 type GroupInstrumentCacheEntry = {
   promise: Promise<InstrumentSummary[]>;
@@ -328,7 +328,8 @@ export const getGroupInstruments = (
 ) => {
   const params = new URLSearchParams();
   if (filters.owner) params.set("owner", filters.owner);
-  if (filters.account) params.set("account", filters.account);
+  const accountType = filters.account_type;
+  if (accountType) params.set("account_type", accountType);
   const query = params.toString();
   const url = query
     ? `${API_BASE}/portfolio-group/${slug}/instruments?${query}`

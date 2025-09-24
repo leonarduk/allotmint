@@ -179,7 +179,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     setInstrumentError(null);
     loadGroupInstruments(slug, {
       owner: ownerFilter,
-      account: accountFilter,
+      account_type: accountFilter,
     })
       .then((rows) => {
         if (cancelled) return;

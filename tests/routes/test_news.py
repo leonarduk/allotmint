@@ -66,9 +66,15 @@ def test_fetch_news_yahoo(monkeypatch):
             def json(self):
                 return {
                     "news": [
-                        {"title": "One", "link": "https://example.com/1"},
+                        {
+                            "title": "One stock update",
+                            "link": "https://example.com/1",
+                        },
                         {"title": None, "link": "https://example.com/skip"},
-                        {"title": "Two", "link": "https://example.com/2"},
+                        {
+                            "title": "Two shares story",
+                            "link": "https://example.com/2",
+                        },
                     ]
                 }
 
@@ -78,10 +84,12 @@ def test_fetch_news_yahoo(monkeypatch):
 
     items = news_module.fetch_news_yahoo("AAPL")
     assert items == [
-        {"headline": "One", "url": "https://example.com/1"},
-        {"headline": "Two", "url": "https://example.com/2"},
+        {"headline": "One stock update", "url": "https://example.com/1"},
+        {"headline": "Two shares story", "url": "https://example.com/2"},
     ]
-    assert captured["params"]["q"] == "AAPL"
+    query = captured["params"]["q"]
+    assert query.startswith("AAPL")
+    assert "stock" in query.lower()
 
 
 def test_fetch_news_google(monkeypatch):
@@ -89,7 +97,7 @@ def test_fetch_news_google(monkeypatch):
         <rss>
           <channel>
             <item>
-              <title>Story</title>
+                      <title>Story stock update</title>
               <link>https://example.com/story</link>
             </item>
             <item>
@@ -117,9 +125,11 @@ def test_fetch_news_google(monkeypatch):
 
     items = news_module.fetch_news_google("MSFT")
     assert items == [
-        {"headline": "Story", "url": "https://example.com/story"},
+        {"headline": "Story stock update", "url": "https://example.com/story"},
     ]
-    assert captured["params"]["q"] == "MSFT"
+    query = captured["params"]["q"]
+    assert query.startswith("MSFT")
+    assert "stock" in query.lower()
 
 
 def test_fetch_news_fallback(monkeypatch):

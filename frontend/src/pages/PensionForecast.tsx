@@ -16,9 +16,11 @@ import {
 import type { OwnerSummary } from "../types";
 import { OwnerSelector } from "../components/OwnerSelector";
 import { useTranslation } from "react-i18next";
+import { useRoute } from "../RouteContext";
 
 export default function PensionForecast() {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const { selectedOwner, setSelectedOwner } = useRoute();
   const [owner, setOwner] = useState("");
   const [deathAge, setDeathAge] = useState(90);
   const [statePension, setStatePension] = useState<string>("");
@@ -78,12 +80,24 @@ export default function PensionForecast() {
     getOwners()
       .then((os) => {
         setOwners(os);
-        if (os.length > 0) {
-          setOwner(os[0].owner);
-        }
       })
       .catch(() => setOwners([]));
   }, []);
+
+  useEffect(() => {
+    if (!owners.length) return;
+
+    if (selectedOwner && owners.some((o) => o.owner === selectedOwner)) {
+      setOwner(selectedOwner);
+      return;
+    }
+
+    const fallbackOwner = owners.find((o) => o.owner !== "demo") ?? owners[0];
+    if (!fallbackOwner) return;
+
+    setOwner(fallbackOwner.owner);
+    setSelectedOwner(fallbackOwner.owner);
+  }, [owners, selectedOwner, setSelectedOwner]);
 
   const careerPathOptions = [
     {
@@ -108,6 +122,11 @@ export default function PensionForecast() {
 
   const selectedCareerPath =
     careerPathOptions[careerPathIndex] ?? careerPathOptions[1];
+
+  const handleSelectOwner = (value: string) => {
+    setOwner(value);
+    setSelectedOwner(value);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,7 +333,11 @@ export default function PensionForecast() {
             </p>
           </header>
           <div className="space-y-5">
-            <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
+            <OwnerSelector
+              owners={owners}
+              selected={owner}
+              onSelect={handleSelectOwner}
+            />
             <SliderControl
               id="career-path"
               label="Career path"

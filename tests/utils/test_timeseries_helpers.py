@@ -36,6 +36,28 @@ def test_get_scaling_override_missing_file(monkeypatch):
     assert th.get_scaling_override("T", "X", None) == 1.0
 
 
+def test_get_scaling_override_nested_currency(monkeypatch):
+    monkeypatch.setattr(
+        "backend.common.instruments.get_instrument_meta",
+        lambda symbol: {"price": {"currency": "GBp"}},
+    )
+
+    assert th.get_scaling_override("TEST", "L", None) == 0.01
+
+
+def test_get_scaling_override_security_meta_fallback(monkeypatch):
+    monkeypatch.setattr(
+        "backend.common.instruments.get_instrument_meta",
+        lambda symbol: {},
+    )
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.get_security_meta",
+        lambda symbol: {"currency": "USD"},
+    )
+
+    assert th.get_scaling_override("TEST", "NYSE", None) == 1.0
+
+
 def test_handle_timeseries_response_variants(monkeypatch):
     df = pd.DataFrame({"Date": ["2024-01-01"], "Open": [1], "Close": [1], "High": [1], "Low": [1], "Volume": [0]})
 

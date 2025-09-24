@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,22 @@ def test_notify_slack_with_webhook(monkeypatch):
     cph.notify_slack("hi")
     assert captured["url"] == "http://example.com"
     assert captured["kwargs"]["json"] == {"text": "hi"}
+
+
+def test_notify_slack_failure_logs_warning(monkeypatch, caplog):
+    """Failures posting to Slack are logged as warnings instead of raising."""
+
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "http://example.com")
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cph.requests, "post", boom)
+
+    with caplog.at_level(logging.WARNING, logger="check_portfolio_health"):
+        cph.notify_slack("fail please")
+
+    assert any("Failed to send Slack notification" in record.message for record in caplog.records)
 
 
 def test_run_check_drawdown_and_missing(monkeypatch, tmp_path):
@@ -60,3 +77,20 @@ def test_run_check_drawdown_and_missing(monkeypatch, tmp_path):
 
     assert len(publish_calls) == 2
     assert len(slack_calls) == 2
+
+
+def test_main_logs_warning_and_info(monkeypatch, caplog):
+    """``main`` logs warnings at WARNING level and others at INFO."""
+
+    findings = [
+        {"level": "warning", "message": "warn message"},
+        {"level": "info", "message": "info message"},
+    ]
+
+    monkeypatch.setattr(cph, "run_check", lambda threshold: findings)
+
+    with caplog.at_level(logging.INFO, logger="check_portfolio_health"):
+        cph.main()
+
+    assert [record.levelname for record in caplog.records] == ["WARNING", "INFO"]
+    assert [record.message for record in caplog.records] == ["warn message", "info message"]

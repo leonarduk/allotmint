@@ -492,9 +492,15 @@ async def get_account(owner: str, account: str, request: Request):
         account = match
 
     holdings = data.pop("holdings", data.pop("approvals", [])) or []
+    account_type_value = data.get("account_type")
 
     data["holdings"] = holdings
-    data["account_type"] = account
+    if account_type_value is None or (
+        isinstance(account_type_value, str) and not account_type_value.strip()
+    ):
+        data["account_type"] = account
+    else:
+        data["account_type"] = account_type_value
     return data
 
 

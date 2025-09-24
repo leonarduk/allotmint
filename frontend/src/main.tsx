@@ -35,7 +35,8 @@ const SmokeTest = import.meta.env.VITE_SMOKE_TEST
   : null
 
 export function Root() {
-  const [ready, setReady] = useState(false)
+  const [configLoading, setConfigLoading] = useState(true)
+  const [configError, setConfigError] = useState<Error | null>(null)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
   const [authed, setAuthed] = useState(false)
@@ -51,15 +52,49 @@ export function Root() {
   }
 
   useEffect(() => {
+    let cancelled = false
+
+    setConfigLoading(true)
+    setConfigError(null)
+
     getConfig<Record<string, unknown>>()
       .then(cfg => {
+        if (cancelled) return
         setNeedsAuth(Boolean((cfg as any).google_auth_enabled))
         setClientId(String((cfg as any).google_client_id || ''))
       })
-      .finally(() => setReady(true))
+      .catch(err => {
+        if (cancelled) return
+        console.error('Failed to load configuration', err)
+        const error = err instanceof Error ? err : new Error(String(err))
+        setConfigError(error)
+      })
+      .finally(() => {
+        if (cancelled) return
+        setConfigLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  if (!ready) return null
+  if (configLoading) {
+    return (
+      <div className="app-loading" role="status" aria-live="polite" aria-busy="true">
+        Loading application…
+      </div>
+    )
+  }
+
+  if (configError) {
+    return (
+      <div className="app-offline" role="alert">
+        <p>We couldn&apos;t load the application configuration. Check your connection and try again.</p>
+        {configError.message ? <p className="app-offline__detail">{configError.message}</p> : null}
+      </div>
+    )
+  }
   if (needsAuth && !authed) {
     if (!clientId) {
       console.error('Google client ID is missing; login disabled')

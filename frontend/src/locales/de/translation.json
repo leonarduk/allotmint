@@ -254,6 +254,7 @@
     "alphaVsBenchmark": "Alpha vs Benchmark",
     "trackingError": "Tracking Error",
     "maxDrawdown": "Max Drawdown",
+    "maxDrawdownHelp": "Der maximale Drawdown ist der größte prozentuale Rückgang vom bisherigen Höchststand des Portfolios bis zum darauffolgenden Tief, berechnet auf Basis der rekonstruierten täglichen Schlusswerte Ihrer Positionen.",
     "timeWeightedReturn": "Zeitgewichtete Rendite",
     "xirr": "XIRR",
     "portfolioValue": "Portfoliowert",

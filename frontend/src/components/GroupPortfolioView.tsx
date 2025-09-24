@@ -392,9 +392,10 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
                 alignItems: "center",
                 gap: "0.25rem",
               }}
+              title={t("dashboard.maxDrawdownHelp")}
             >
               <Shield size={16} />
-              Max Drawdown
+              <span>{t("dashboard.maxDrawdown")}</span>
             </div>
             <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
               {percentOrNa(safeMaxDrawdown)}

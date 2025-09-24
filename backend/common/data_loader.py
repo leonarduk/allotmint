@@ -96,8 +96,6 @@ def _list_local_plots(
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
             continue
-        if not (owner_dir / "person.json").exists():
-            continue
         # When authentication is enabled (``disable_auth`` is explicitly
         # ``False``) and no user is authenticated, expose only the "demo"
         # account.  ``config.disable_auth`` defaults to ``None`` when the

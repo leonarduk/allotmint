@@ -278,3 +278,34 @@ def test_offline_mode_fetch_fallback(monkeypatch, tmp_path):
         pytest.approx(1 * 0.8),
         pytest.approx(2 * 0.8),
     ]
+
+
+def test_offline_mode_without_fx_rates_returns_empty(monkeypatch, tmp_path, caplog):
+    start = dt.date(2024, 1, 1)
+    end = dt.date(2024, 1, 2)
+
+    def fake_memoized_range(ticker, exch, s_iso, e_iso):
+        return _sample_df(start, end)
+
+    def empty_fx(*args, **kwargs):
+        return pd.DataFrame(columns=["Date", "Rate"])
+
+    monkeypatch.setattr(cache, "_memoized_range", fake_memoized_range)
+    monkeypatch.setattr(cache, "fetch_fx_rate_range", empty_fx)
+    monkeypatch.setattr(cache, "OFFLINE_MODE", True)
+    monkeypatch.setattr(cache.config, "offline_mode", True)
+    monkeypatch.setattr(cache.config, "fx_proxy_url", None)
+    monkeypatch.setattr(cache, "_CACHE_BASE", str(tmp_path))
+    monkeypatch.setattr(cache, "get_instrument_meta", lambda t: {"currency": "USD"})
+
+    sample_df = _sample_df(start, end)
+
+    with pytest.raises(ValueError):
+        cache._convert_to_base_currency(sample_df, "T", "N", start, end, "GBP")
+
+    with caplog.at_level("WARNING", logger="timeseries_cache"):
+        df = cache.load_meta_timeseries_range("T", "N", start, end)
+
+    assert any("Skipping FX conversion" in rec.message for rec in caplog.records)
+    assert df.empty
+    assert list(df.columns) == cache.EXPECTED_COLS

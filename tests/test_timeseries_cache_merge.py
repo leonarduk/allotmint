@@ -5,12 +5,43 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 from pandas.api.types import is_integer_dtype
+from pandas.testing import assert_frame_equal
 
 
 def import_cache():
     """Import ``backend.timeseries.cache`` after clearing any previous copy."""
     sys.modules.pop("backend.timeseries.cache", None)
     return importlib.import_module("backend.timeseries.cache")
+
+
+def _seed_existing_parquet(
+    cache, cache_path: str, days: int, *, include_window_end: bool = False
+) -> pd.DataFrame:
+    """Populate ``cache_path`` with deterministic sample data and return expected slice."""
+
+    base_today = datetime.today().date()
+    cutoff, window_end = cache._weekday_range(base_today - timedelta(days=1), days)
+
+    start = cutoff - timedelta(days=2)
+    end = window_end if include_window_end else max(cutoff, window_end - timedelta(days=1))
+    dates = pd.date_range(start=start, end=end, freq="D")
+    frame = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(dates),
+            "Open": [float(i) for i in range(len(dates))],
+            "High": [float(i) + 1 for i in range(len(dates))],
+            "Low": [float(i) - 1 for i in range(len(dates))],
+            "Close": [float(i) + 0.5 for i in range(len(dates))],
+            "Volume": [100 + i for i in range(len(dates))],
+            "Ticker": ["ABC"] * len(dates),
+            "Source": ["SRC"] * len(dates),
+        }
+    )
+    cache._save_parquet(frame, cache_path)
+
+    existing = cache._load_parquet(cache_path)
+    mask = existing["Date"].dt.date >= cutoff
+    return cache._ensure_schema(existing.loc[mask].reset_index(drop=True))
 
 
 def test_merge_skips_empty_frames(monkeypatch, tmp_path):
@@ -52,3 +83,53 @@ def test_merge_skips_empty_frames(monkeypatch, tmp_path):
 
     assert is_integer_dtype(result["Volume"])
     assert result["Volume"].iloc[0] == 100
+
+
+def test_rolling_cache_serves_cached_slice_on_fetch_failure(monkeypatch, tmp_path):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache, "_FAILED_FETCH_COUNT", 0, raising=False)
+
+    cache_path = cache._cache_path("foo.parquet")
+    expected = _seed_existing_parquet(cache, cache_path, days=5)
+
+    def failing_fetch(**_kwargs):
+        raise RuntimeError("network boom")
+
+    result = cache._rolling_cache(
+        failing_fetch,
+        cache_path,
+        {},
+        days=5,
+        ticker="ABC",
+        exchange="L",
+    )
+
+    assert_frame_equal(result, expected)
+    assert cache._FAILED_FETCH_COUNT == 1
+
+
+def test_rolling_cache_serves_cached_slice_on_empty_fetch(monkeypatch, tmp_path):
+    monkeypatch.setenv("TIMESERIES_CACHE_BASE", str(tmp_path))
+    cache = import_cache()
+    monkeypatch.setattr(cache, "OFFLINE_MODE", False)
+    monkeypatch.setattr(cache, "_FAILED_FETCH_COUNT", 0, raising=False)
+
+    cache_path = cache._cache_path("foo.parquet")
+    expected = _seed_existing_parquet(cache, cache_path, days=3)
+
+    def empty_fetch(**_kwargs):
+        return pd.DataFrame()
+
+    result = cache._rolling_cache(
+        empty_fetch,
+        cache_path,
+        {},
+        days=3,
+        ticker="ABC",
+        exchange="L",
+    )
+
+    assert_frame_equal(result, expected)
+    assert cache._FAILED_FETCH_COUNT == 0

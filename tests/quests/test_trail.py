@@ -1,5 +1,6 @@
-import pytest
 from datetime import date, timedelta
+
+import pytest
 
 from backend.common.storage import get_storage
 from backend.quests import trail
@@ -24,90 +25,115 @@ def memory_storage(monkeypatch):
     return data
 
 
+def _daily_ids(response):
+    return [task["id"] for task in response["tasks"] if task["type"] == "daily"]
+
+
+def _once_ids(response):
+    return [task["id"] for task in response["tasks"] if task["type"] == "once"]
+
+
 def test_get_tasks_returns_defaults(memory_storage):
-    response = trail.get_tasks("alice")
+    response = trail.get_tasks("demo")
     tasks = response["tasks"]
-    assert [t["id"] for t in tasks] == [t["id"] for t in trail.DEFAULT_TASKS]
+    assert [t["id"] for t in tasks] == [
+        "demo_allowance_isa",
+        "demo_allowance_pension",
+        "create_goal",
+        "enable_push_notifications",
+        "set_alert_threshold",
+    ]
     assert all(not t["completed"] for t in tasks)
     assert response["xp"] == 0
     assert response["streak"] == 0
+    daily_ids = _daily_ids(response)
     assert response["daily_totals"][response["today"]]["completed"] == 0
-    assert response["daily_totals"][response["today"]]["total"] == trail.DAILY_TASK_COUNT
+    assert response["daily_totals"][response["today"]]["total"] == len(daily_ids)
 
-    stored = memory_storage["alice"]
+    stored = memory_storage["demo"]
     assert stored["xp"] == 0
     assert stored["streak"] == 0
     assert stored["daily_totals"][response["today"]]["completed"] == 0
-    assert stored["daily_totals"][response["today"]]["total"] == trail.DAILY_TASK_COUNT
+    assert stored["daily_totals"][response["today"]]["total"] == len(daily_ids)
 
 
 def test_get_tasks_upgrades_legacy_records(memory_storage):
     today = date.today().isoformat()
-    memory_storage["erin"] = {"once": [], "daily": {}}
+    memory_storage["demo"] = {"once": [], "daily": {}}
+    trail._DATA["demo"] = memory_storage["demo"]
 
-    response = trail.get_tasks("erin")
+    response = trail.get_tasks("demo")
+    daily_ids = _daily_ids(response)
 
     assert response["xp"] == 0
     assert response["streak"] == 0
     assert response["daily_totals"][today]["completed"] == 0
-    assert response["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
+    assert response["daily_totals"][today]["total"] == len(daily_ids)
 
-    stored = memory_storage["erin"]
+    stored = memory_storage["demo"]
     assert stored["xp"] == 0
     assert stored["streak"] == 0
     assert stored["daily_totals"][today]["completed"] == 0
-    assert stored["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
+    assert stored["daily_totals"][today]["total"] == len(daily_ids)
 
 
 def test_get_tasks_with_completions(memory_storage):
     today = date.today().isoformat()
-    memory_storage["bob"] = {
-        "once": ["create_goal"],
-        "daily": {today: ["check_market"]},
+    baseline = trail.get_tasks("demo")
+    daily_ids = _daily_ids(baseline)
+    once_ids = _once_ids(baseline)
+    assert daily_ids and once_ids
+
+    memory_storage["demo"] = {
+        "once": [once_ids[0]],
+        "daily": {today: [daily_ids[0]]},
         "xp": trail.DAILY_XP_REWARD,
         "streak": 2,
         "last_completed_day": today,
-        "daily_totals": {today: {"completed": 1, "total": trail.DAILY_TASK_COUNT}},
+        "daily_totals": {today: {"completed": 1, "total": len(daily_ids)}},
     }
-    response = trail.get_tasks("bob")
-    completed = {t["id"]: t["completed"] for t in response["tasks"]}
-    assert completed["create_goal"] is True
-    assert completed["check_market"] is True
-    for task in trail.DEFAULT_TASKS:
-        if task["id"] not in {"create_goal", "check_market"}:
-            assert completed[task["id"]] is False
+    trail._DATA["demo"] = memory_storage["demo"]
+
+    response = trail.get_tasks("demo")
+    completed = {task["id"]: task["completed"] for task in response["tasks"]}
+    assert completed[once_ids[0]] is True
+    assert completed[daily_ids[0]] is True
+    for task_id in set(_daily_ids(response) + _once_ids(response)) - {daily_ids[0], once_ids[0]}:
+        assert completed[task_id] is False
     assert response["xp"] == trail.DAILY_XP_REWARD
     assert response["streak"] == 2
     assert response["daily_totals"][response["today"]]["completed"] == 1
-    assert response["daily_totals"][response["today"]]["total"] == trail.DAILY_TASK_COUNT
+    assert response["daily_totals"][response["today"]]["total"] == len(daily_ids)
 
 
 def test_mark_complete_records_once_and_daily(memory_storage):
-    user = "carol"
+    user = "demo"
     today = date.today().isoformat()
 
-    result = trail.mark_complete(user, "check_market")
-    assert memory_storage[user]["daily"][today] == ["check_market"]
+    available = trail.get_tasks(user)
+    daily_task = _daily_ids(available)[0]
+    once_task = _once_ids(available)[0]
+
+    result = trail.mark_complete(user, daily_task)
+    assert memory_storage[user]["daily"][today] == [daily_task]
     assert result["xp"] == trail.DAILY_XP_REWARD
     assert result["daily_totals"][today]["completed"] == 1
-    assert result["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
+    assert result["daily_totals"][today]["total"] == len(_daily_ids(result))
     assert memory_storage[user]["daily_totals"][today]["completed"] == 1
-    assert memory_storage[user]["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
+    assert memory_storage[user]["daily_totals"][today]["total"] == len(_daily_ids(result))
 
-    result = trail.mark_complete(user, "check_market")
-    assert memory_storage[user]["daily"][today] == ["check_market"]
+    result = trail.mark_complete(user, daily_task)
+    assert memory_storage[user]["daily"][today] == [daily_task]
     assert result["xp"] == trail.DAILY_XP_REWARD
 
-    result = trail.mark_complete(user, "create_goal")
-    assert memory_storage[user]["once"] == ["create_goal"]
+    result = trail.mark_complete(user, once_task)
+    assert memory_storage[user]["once"] == [once_task]
     assert result["xp"] == trail.DAILY_XP_REWARD + trail.ONCE_XP_REWARD
     assert memory_storage[user]["xp"] == trail.DAILY_XP_REWARD + trail.ONCE_XP_REWARD
-    assert (
-        memory_storage[user]["daily_totals"][today]["total"] == trail.DAILY_TASK_COUNT
-    )
+    assert memory_storage[user]["daily_totals"][today]["total"] == len(_daily_ids(result))
 
-    result = trail.mark_complete(user, "create_goal")
-    assert memory_storage[user]["once"] == ["create_goal"]
+    result = trail.mark_complete(user, once_task)
+    assert memory_storage[user]["once"] == [once_task]
     assert result["xp"] == trail.DAILY_XP_REWARD + trail.ONCE_XP_REWARD
 
     with pytest.raises(KeyError):
@@ -115,31 +141,36 @@ def test_mark_complete_records_once_and_daily(memory_storage):
 
 
 def test_mark_complete_updates_streak(memory_storage):
-    user = "dave"
+    user = "demo"
     today = date.today()
     today_str = today.isoformat()
     yesterday = (today - timedelta(days=1)).isoformat()
 
+    baseline = trail.get_tasks(user)
+    daily_ids = _daily_ids(baseline)
+    assert daily_ids
+
     memory_storage[user] = {
         "once": [],
-        "daily": {yesterday: trail.DAILY_TASK_IDS},
-        "xp": len(trail.DAILY_TASK_IDS) * trail.DAILY_XP_REWARD,
+        "daily": {yesterday: daily_ids},
+        "xp": len(daily_ids) * trail.DAILY_XP_REWARD,
         "streak": 1,
         "last_completed_day": yesterday,
         "daily_totals": {
             yesterday: {
-                "completed": trail.DAILY_TASK_COUNT,
-                "total": trail.DAILY_TASK_COUNT,
+                "completed": len(daily_ids),
+                "total": len(daily_ids),
             }
         },
     }
+    trail._DATA[user] = memory_storage[user]
 
-    for task_id in trail.DAILY_TASK_IDS:
+    for task_id in daily_ids:
         response = trail.mark_complete(user, task_id)
 
     assert response["streak"] == 2
-    assert response["xp"] == len(trail.DAILY_TASK_IDS) * trail.DAILY_XP_REWARD * 2
-    assert response["daily_totals"][today_str]["completed"] == trail.DAILY_TASK_COUNT
-    assert response["daily_totals"][today_str]["total"] == trail.DAILY_TASK_COUNT
+    assert response["xp"] == len(daily_ids) * trail.DAILY_XP_REWARD * 2
+    assert response["daily_totals"][today_str]["completed"] == len(daily_ids)
+    assert response["daily_totals"][today_str]["total"] == len(daily_ids)
     assert memory_storage[user]["streak"] == 2
-    assert memory_storage[user]["daily_totals"][today_str]["completed"] == trail.DAILY_TASK_COUNT
+    assert memory_storage[user]["daily_totals"][today_str]["completed"] == len(daily_ids)

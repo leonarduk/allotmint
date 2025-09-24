@@ -243,6 +243,10 @@ export interface InstrumentDetail {
   name?: string | null;
   sector?: string | null;
   currency?: string | null;
+  rows?: number | null;
+  from?: string | null;
+  to?: string | null;
+  base_currency?: string | null;
 }
 
 export interface Transaction {

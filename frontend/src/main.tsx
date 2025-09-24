@@ -12,9 +12,10 @@ import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
 import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
 import LoginPage from './LoginPage'
-import { UserProvider } from './UserContext'
+import { UserProvider, useUser } from './UserContext'
 import { FocusModeProvider } from './FocusModeContext'
 import ErrorBoundary from './ErrorBoundary'
+import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
 
 const storedToken = getStoredAuthToken()
 if (storedToken) setAuthToken(storedToken)
@@ -38,17 +39,27 @@ export function Root() {
   const [ready, setReady] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
-  const [authed, setAuthed] = useState(false)
+  const [authed, setAuthed] = useState(Boolean(storedToken))
   const { setUser } = useAuth()
+  const { setProfile } = useUser()
   const navigate = useNavigate()
   const location = useLocation()
 
   const logout = () => {
     apiLogout()
     setUser(null)
+    setProfile(undefined)
     setAuthed(false)
     navigate('/')
   }
+
+  useEffect(() => {
+    if (!storedToken) return
+    const existingUser = loadStoredAuthUser()
+    if (existingUser) setUser(existingUser)
+    const existingProfile = loadStoredUserProfile()
+    if (existingProfile) setProfile(existingProfile)
+  }, [setProfile, setUser, storedToken])
 
   useEffect(() => {
     getConfig<Record<string, unknown>>()

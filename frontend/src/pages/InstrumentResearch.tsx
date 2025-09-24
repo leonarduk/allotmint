@@ -107,7 +107,12 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     if (!detail) return;
     const name = normaliseOptional(detail.name);
     const sector = normaliseOptional(detail.sector);
-    const currency = normaliseUppercase(detail.currency);
+    const normalizedBaseCurrency =
+      detail && typeof detail.base_currency === "string"
+        ? normaliseUppercase(detail.base_currency)
+        : undefined;
+    const currency =
+      normalizedBaseCurrency ?? normaliseUppercase(detail?.currency ?? undefined);
     setMetadata((prev) => ({
       name: name ?? prev.name,
       sector: sector ?? prev.sector,
@@ -386,7 +391,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   }
 
   const fallbackSector = detail ? normaliseOptional(detail.sector) : undefined;
-  const fallbackCurrency = detail ? normaliseUppercase(detail.currency) : undefined;
+  const fallbackCurrency = detail
+    ? (typeof detail.base_currency === "string"
+        ? normaliseUppercase(detail.base_currency)
+        : undefined) ?? normaliseUppercase(detail.currency)
+    : undefined;
   const displayName = metadata.name || detail?.name || null;
   const displaySector = metadata.sector || fallbackSector || "";
   const displayCurrency = metadata.currency || fallbackCurrency || "";

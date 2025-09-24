@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { useEffect } from "react";
+import { MemoryRouter, Link, useLocation } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n from "@/i18n";
 
@@ -249,6 +250,92 @@ describe("App", () => {
     );
 
     expect(screen.queryByRole("link", { name: /movers/i })).toBeNull();
+  });
+
+  it("keeps unknown research owner slugs without redirecting", async () => {
+    window.history.pushState({}, "", "/research/MSFT");
+
+    const locationUpdates: string[] = [];
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
+
+    const mockGetOwners = vi
+      .fn()
+      .mockResolvedValue([{ owner: "alice", accounts: [] }]);
+    const mockGetGroups = vi.fn().mockResolvedValue([]);
+    const mockGetPortfolio = vi
+      .fn()
+      .mockRejectedValue(new Error("Owner not found"));
+    const mockGetCompliance = vi.fn().mockResolvedValue({
+      owner: "steve",
+      warnings: [],
+      trade_counts: {},
+    });
+
+    mockTradingSignals.mockResolvedValue([]);
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: mockGetGroups,
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(),
+        getGroupTrackingError: vi.fn(),
+        getGroupMaxDrawdown: vi.fn(),
+        getGroupSectorContributions: vi.fn(),
+        getGroupRegionContributions: vi.fn(),
+        getGroupMovers: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: mockGetCompliance,
+        complianceForOwner: mockGetCompliance,
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        listTimeseries: vi.fn().mockResolvedValue([]),
+        getTradingSignals: mockTradingSignals,
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    vi.doMock("@/pages/InstrumentResearch", () => ({
+      __esModule: true,
+      default: () => (
+        <div>
+          <Link to="/portfolio/steve">Steve – HSA</Link>
+        </div>
+      ),
+    }));
+
+    const { default: App } = await import("@/App");
+
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/research/MSFT"]}>
+        <LocationListener />
+        <App />
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("link", { name: /steve/i }));
+
+    await waitFor(() => expect(locationUpdates.at(-1)).toBe("/portfolio/steve"));
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("steve"));
+
+    expect(locationUpdates).not.toContain("/portfolio/alice");
+    expect(await screen.findByText(/owner not found/i)).toBeInTheDocument();
   });
 
   it("allows navigation to enabled tabs", async () => {

@@ -263,16 +263,30 @@ export default function App({ onLogout }: AppProps) {
   }, [location.pathname, location.search, tabs, navigate]);
 
   useEffect(() => {
-    if (ownersReq.data) {
-      setOwners(ownersReq.data);
-      if (
-        selectedOwner &&
-        !ownersReq.data.some((o) => o.owner === selectedOwner)
-      ) {
-        setSelectedOwner("");
+    if (!ownersReq.data) return;
+
+    setOwners(ownersReq.data);
+
+    if (!selectedOwner) return;
+
+    const match = ownersReq.data.find(
+      (o) => o.owner.toLowerCase() === selectedOwner.toLowerCase(),
+    );
+
+    if (match) {
+      if (match.owner !== selectedOwner) {
+        setSelectedOwner(match.owner);
       }
+      return;
     }
-  }, [ownersReq.data, selectedOwner, setSelectedOwner]);
+
+    const segs = location.pathname.split("/").filter(Boolean);
+    const routeSpecifiesOwner = segs[0] === "portfolio" && Boolean(segs[1]);
+
+    if (!routeSpecifiesOwner) {
+      setSelectedOwner("");
+    }
+  }, [ownersReq.data, selectedOwner, setSelectedOwner, location.pathname]);
 
   useEffect(() => {
     if (groupsReq.data) setGroups(groupsReq.data);
@@ -292,7 +306,10 @@ export default function App({ onLogout }: AppProps) {
 
   // redirect to defaults if no selection provided
   useEffect(() => {
-    if (mode === "owner" && !selectedOwner && owners.length) {
+    const segs = location.pathname.split("/").filter(Boolean);
+    const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
+
+    if (mode === "owner" && !selectedOwner && owners.length && atPortfolioRoot) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
       navigate(`/portfolio/${owner}`, { replace: true });

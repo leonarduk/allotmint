@@ -120,9 +120,21 @@ async def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) ->
         raise HTTPException(status_code=500, detail="Filesystem error") from exc
     if not exists:
         raise HTTPException(status_code=404, detail="Instrument not found")
-    if body.get("ticker") and body["ticker"] != f"{ticker}.{exchange}":
+    meta = _load_meta_for_update(exchange, ticker)
+    canonical_ticker = f"{ticker}.{exchange}"
+    if "ticker" in body and body["ticker"] != canonical_ticker:
         raise HTTPException(status_code=400, detail="Ticker mismatch")
-    save_instrument_meta(ticker, exchange, body)
+    if "exchange" in body and body["exchange"] != exchange:
+        raise HTTPException(status_code=400, detail="Exchange mismatch")
+
+    for key, value in body.items():
+        if key in {"ticker", "exchange"}:
+            continue
+        meta[key] = value
+
+    meta["ticker"] = canonical_ticker
+    meta["exchange"] = exchange
+    save_instrument_meta(ticker, exchange, meta)
     return {"status": "updated"}
 
 

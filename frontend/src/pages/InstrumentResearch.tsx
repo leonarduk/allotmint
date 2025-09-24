@@ -16,6 +16,7 @@ import { useConfig, SUPPORTED_CURRENCIES } from "../ConfigContext";
 import surfaceStyles from "../styles/surface.module.css";
 import { formatDateISO } from "../lib/date";
 import { money, percent } from "../lib/money";
+import { translateInstrumentType } from "../lib/instrumentType";
 
 function normaliseOptional(value: unknown) {
   if (typeof value !== "string") return undefined;
@@ -27,6 +28,56 @@ function normaliseUppercase(value: unknown) {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim().toUpperCase();
   return trimmed || undefined;
+}
+
+function normaliseInstrumentType(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function extractInstrumentType(
+  value: Record<string, unknown> | null | undefined,
+) {
+  if (!value) return undefined;
+  const camel = value["instrumentType"];
+  if (typeof camel === "string") {
+    const normalised = normaliseInstrumentType(camel);
+    if (normalised) return normalised;
+  }
+  const snake = value["instrument_type"];
+  if (typeof snake === "string") {
+    const normalised = normaliseInstrumentType(snake);
+    if (normalised) return normalised;
+  }
+  const assetClass = value["asset_class"];
+  if (typeof assetClass === "string") {
+    const normalised = normaliseInstrumentType(assetClass);
+    if (normalised) return normalised;
+  }
+  return undefined;
+}
+
+const DEFAULT_INSTRUMENT_TYPES = [
+  "Equity",
+  "Bond",
+  "Cash",
+  "ETF",
+  "Fund",
+  "Investment Trust",
+  "Real Estate",
+];
+
+function addInstrumentTypeOption(options: string[], value: string) {
+  const normalised = normaliseInstrumentType(value);
+  if (!normalised) return options;
+  const lower = normalised.toLowerCase();
+  if (options.some((entry) => entry.toLowerCase() === lower)) {
+    return options;
+  }
+  return [...options, normalised].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" }),
+  );
 }
 
 type InstrumentResearchProps = {
@@ -56,15 +107,22 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);
   const [instrumentExchange, setInstrumentExchange] = useState(initialExchange);
-  type MetadataState = { name: string; sector: string; currency: string };
+  type MetadataState = {
+    name: string;
+    sector: string;
+    instrumentType: string;
+    currency: string;
+  };
   const [metadata, setMetadata] = useState<MetadataState>({
     name: "",
     sector: "",
+    instrumentType: "",
     currency: "",
   });
   const [formValues, setFormValues] = useState<MetadataState>({
     name: "",
     sector: "",
+    instrumentType: "",
     currency: "",
   });
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
@@ -74,6 +132,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     { kind: "success" | "error"; text: string } | null
   >(null);
   const [sectorOptions, setSectorOptions] = useState<string[]>([]);
+  const [instrumentTypeOptions, setInstrumentTypeOptions] = useState<string[]>(
+    DEFAULT_INSTRUMENT_TYPES,
+  );
   const [inWatchlist, setInWatchlist] = useState(() => {
     const list = (localStorage.getItem("watchlistSymbols") || "")
       .split(",")
@@ -93,9 +154,15 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     setIsEditingMetadata(false);
     setMetadataSaving(false);
     setMetadataStatus(null);
-    setMetadata({ name: "", sector: "", currency: "" });
-    setFormValues({ name: "", sector: "", currency: "" });
+    setMetadata({ name: "", sector: "", instrumentType: "", currency: "" });
+    setFormValues({
+      name: "",
+      sector: "",
+      instrumentType: "",
+      currency: "",
+    });
     setSectorOptions([]);
+    setInstrumentTypeOptions(DEFAULT_INSTRUMENT_TYPES);
     setOverviewHistoryDays(0);
   }, [tkr, initialExchange]);
 
@@ -113,17 +180,29 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         : undefined;
     const currency =
       normalizedBaseCurrency ?? normaliseUppercase(detail?.currency ?? undefined);
+    const detailRecord =
+      detail && typeof detail === "object"
+        ? (detail as Record<string, unknown>)
+        : null;
+    const detailInstrumentType = extractInstrumentType(detailRecord);
     setMetadata((prev) => ({
       name: name ?? prev.name,
       sector: sector ?? prev.sector,
+      instrumentType: detailInstrumentType ?? prev.instrumentType,
       currency: currency ?? prev.currency,
     }));
     if (!isEditingMetadata) {
       setFormValues((prev) => ({
         name: name ?? prev.name,
         sector: sector ?? prev.sector,
+        instrumentType: detailInstrumentType ?? prev.instrumentType,
         currency: currency ?? prev.currency,
       }));
+    }
+    if (detailInstrumentType) {
+      setInstrumentTypeOptions((prev) =>
+        addInstrumentTypeOption(prev, detailInstrumentType),
+      );
     }
     if (!instrumentExchange) {
       const detailTicker = typeof detail.ticker === "string" ? detail.ticker : "";
@@ -142,6 +221,10 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         const catalogue = await listInstrumentMetadata();
         if (cancelled) return;
         const sectors = new Set<string>();
+        const instrumentTypes = new Map<string, string>();
+        DEFAULT_INSTRUMENT_TYPES.forEach((type) =>
+          instrumentTypes.set(type.toLowerCase(), type),
+        );
         let matched: InstrumentMetadata | null = null;
         const target = tkr.toUpperCase();
         const base = baseTicker.toUpperCase();
@@ -150,6 +233,16 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           if (typeof entry.sector === "string") {
             const trimmed = entry.sector.trim();
             if (trimmed) sectors.add(trimmed);
+          }
+          const entryInstrumentType = normaliseInstrumentType(
+            (entry as { instrumentType?: unknown }).instrumentType ??
+              (entry as { instrument_type?: unknown }).instrument_type,
+          );
+          if (entryInstrumentType) {
+            const key = entryInstrumentType.toLowerCase();
+            if (!instrumentTypes.has(key)) {
+              instrumentTypes.set(key, entryInstrumentType);
+            }
           }
           const tickerValue = typeof entry.ticker === "string" ? entry.ticker : "";
           if (!tickerValue) continue;
@@ -168,19 +261,30 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             a.localeCompare(b, undefined, { sensitivity: "base" }),
           ),
         );
+        setInstrumentTypeOptions(
+          Array.from(instrumentTypes.values()).sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: "base" }),
+          ),
+        );
         if (matched) {
           const name = normaliseOptional(matched.name) ?? matched.name;
           const sector = normaliseOptional(matched.sector);
           const currency = normaliseUppercase(matched.currency);
+          const metaInstrumentType = normaliseInstrumentType(
+            (matched as { instrumentType?: unknown }).instrumentType ??
+              (matched as { instrument_type?: unknown }).instrument_type,
+          );
           setMetadata((prev) => ({
             name: prev.name || name || "",
             sector: prev.sector || sector || "",
+            instrumentType: prev.instrumentType || metaInstrumentType || "",
             currency: prev.currency || currency || "",
           }));
           if (!isEditingMetadataRef.current) {
             setFormValues((prev) => ({
               name: prev.name || name || "",
               sector: prev.sector || sector || "",
+              instrumentType: prev.instrumentType || metaInstrumentType || "",
               currency: prev.currency || currency || "",
             }));
           }
@@ -231,6 +335,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     if (!isEditingMetadata) return;
     const trimmedName = formValues.name.trim();
     const trimmedSector = formValues.sector.trim();
+    const trimmedInstrumentType = formValues.instrumentType.trim();
     const selectedCurrency = formValues.currency.trim().toUpperCase();
     if (!selectedCurrency || !SUPPORTED_CURRENCIES.includes(selectedCurrency)) {
       setMetadataStatus({ kind: "error", text: t("instrumentDetail.metadataCurrencyError") });
@@ -250,16 +355,20 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         name: trimmedName,
         sector: trimmedSector || null,
         currency: selectedCurrency,
+        instrument_type: trimmedInstrumentType || null,
+        instrumentType: trimmedInstrumentType || null,
       };
       await updateInstrumentMetadata(baseTicker, exchange, payload);
       setMetadata({
         name: trimmedName,
         sector: trimmedSector,
+        instrumentType: trimmedInstrumentType,
         currency: selectedCurrency,
       });
       setFormValues({
         name: trimmedName,
         sector: trimmedSector,
+        instrumentType: trimmedInstrumentType,
         currency: selectedCurrency,
       });
       setInstrumentExchange(exchange);
@@ -268,6 +377,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         cached.name = trimmedName;
         cached.sector = trimmedSector;
         cached.currency = selectedCurrency;
+        cached.instrument_type = trimmedInstrumentType || null;
+        (cached as Record<string, unknown>).instrumentType =
+          trimmedInstrumentType || null;
       });
       if (trimmedSector) {
         setSectorOptions((prev) => {
@@ -278,6 +390,11 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             a.localeCompare(b, undefined, { sensitivity: "base" }),
           );
         });
+      }
+      if (trimmedInstrumentType) {
+        setInstrumentTypeOptions((prev) =>
+          addInstrumentTypeOption(prev, trimmedInstrumentType),
+        );
       }
       setMetadataStatus({ kind: "success", text: t("instrumentDetail.metadataSaveSuccess") });
     } catch (err) {
@@ -404,11 +521,27 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     displayCurrency ||
     baseCurrency ||
     "USD";
-  const instrumentType =
-    detail && typeof (detail as { instrument_type?: unknown }).instrument_type === "string"
-      ? ((detail as { instrument_type?: string }).instrument_type ?? null)
+  const detailRecordForDisplay =
+    detail && typeof detail === "object"
+      ? (detail as Record<string, unknown>)
       : null;
+  const detailInstrumentType = extractInstrumentType(detailRecordForDisplay);
+  const instrumentType = metadata.instrumentType || detailInstrumentType || null;
+  const displayInstrumentType = instrumentType || "";
   const positions = Array.isArray(detail?.positions) ? detail.positions : [];
+  const instrumentTypeSelectOptions = (() => {
+    const entries = new Map<string, string>();
+    instrumentTypeOptions.forEach((value) => {
+      const normalised = normaliseInstrumentType(value);
+      if (!normalised) return;
+      entries.set(normalised.toLowerCase(), normalised);
+    });
+    const current = normaliseInstrumentType(formValues.instrumentType);
+    if (current) entries.set(current.toLowerCase(), current);
+    return Array.from(entries.values()).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    );
+  })();
 
   const tabOptions: { id: typeof activeTab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -546,6 +679,42 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             ) : (
               <span>
                 {t("instrumentDetail.sectorLabel")}: {displaySector || "—"}
+              </span>
+            )}
+          </li>
+          <li style={{ marginBottom: "0.5rem" }}>
+            {isEditingMetadata ? (
+              <label htmlFor="instrument-type" style={{ display: "block" }}>
+                {t("instrumentDetail.instrumentTypeLabel", {
+                  defaultValue: "Instrument type",
+                })}
+                <select
+                  id="instrument-type"
+                  value={formValues.instrumentType}
+                  onChange={(e) => updateFormField("instrumentType")(e.target.value)}
+                  style={{ display: "block", marginTop: "0.25rem" }}
+                  disabled={metadataSaving}
+                >
+                  <option value="">
+                    {t("instrumentDetail.instrumentTypePlaceholder", {
+                      defaultValue: "Select a type",
+                    })}
+                  </option>
+                  {instrumentTypeSelectOptions.map((type) => (
+                    <option key={type} value={type}>
+                      {translateInstrumentType(t, type)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <span>
+                {t("instrumentDetail.instrumentTypeLabel", {
+                  defaultValue: "Instrument type",
+                })}
+                : {displayInstrumentType
+                  ? translateInstrumentType(t, displayInstrumentType)
+                  : "—"}
               </span>
             )}
           </li>

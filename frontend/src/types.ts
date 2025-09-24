@@ -243,6 +243,7 @@ export interface InstrumentDetail {
   name?: string | null;
   sector?: string | null;
   currency?: string | null;
+  instrument_type?: string | null;
   rows?: number | null;
   from?: string | null;
   to?: string | null;
@@ -312,6 +313,8 @@ export interface InstrumentMetadata {
   sector?: string | null;
   grouping?: string | null;
   currency?: string | null;
+  instrument_type?: string | null;
+  instrumentType?: string | null;
 }
 
 export interface QuoteRow {

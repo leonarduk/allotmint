@@ -235,6 +235,33 @@ async def instrument(
     sector = meta.get("sector")
     currency = meta.get("currency")
 
+    is_gbp_ticker = ticker.upper().endswith(".L") or ticker.upper().endswith(".UK")
+
+    native_currency = currency or ("GBP" if is_gbp_ticker else None)
+
+    if "Close_gbp" not in df.columns and "Close" in df.columns:
+        close_native = pd.to_numeric(df["Close"], errors="coerce")
+
+        if native_currency == "GBX":
+            df["Close_gbp"] = close_native / 100.0
+            native_currency = "GBP"
+        elif native_currency == "GBP" or native_currency is None:
+            df["Close_gbp"] = close_native
+        else:
+            start_fx = df["Date"].dt.date.min()
+            end_fx = df["Date"].dt.date.max()
+            try:
+                fx = fetch_fx_rate_range(native_currency, "GBP", start_fx, end_fx)
+                if not fx.empty:
+                    fx["Date"] = pd.to_datetime(fx["Date"])
+                    df = df.merge(fx, on="Date", how="left")
+                    df["Close_gbp"] = pd.to_numeric(df["Close"], errors="coerce") * pd.to_numeric(
+                        df["Rate"], errors="coerce"
+                    )
+                    df.drop(columns=["Rate"], inplace=True, errors="ignore")
+            except Exception:
+                pass
+
     base_currency = (
         base_currency or getattr(config, "base_currency", None) or "GBP"
     ).upper()
@@ -252,7 +279,41 @@ async def instrument(
 
     df = df[pd.notnull(df["Close"])]
 
-    last_close = float(df.iloc[-1]["Close_gbp"]) if "Close_gbp" in df.columns else None
+    last_close: float | None = None
+    if "Close_gbp" in df.columns:
+        try:
+            last_val = df.iloc[-1]["Close_gbp"]
+            last_close = float(last_val) if pd.notnull(last_val) else None
+        except (TypeError, ValueError):
+            last_close = None
+
+    if last_close is None and "Close" in df.columns:
+        try:
+            native_close = df.iloc[-1]["Close"]
+            native_close_f = float(native_close) if pd.notnull(native_close) else None
+        except (TypeError, ValueError):
+            native_close_f = None
+
+        if native_close_f is not None:
+            if native_currency in {None, "GBP"}:
+                last_close = native_close_f
+            elif native_currency == "GBX":
+                last_close = native_close_f / 100.0
+            else:
+                last_date_val = df.iloc[-1]["Date"]
+                if isinstance(last_date_val, pd.Timestamp):
+                    last_date = last_date_val.date()
+                else:
+                    last_date = pd.to_datetime(last_date_val).date()
+                try:
+                    fx_last = fetch_fx_rate_range(native_currency, "GBP", last_date, last_date)
+                    if not fx_last.empty:
+                        rate = fx_last.iloc[-1]["Rate"]
+                        rate_f = float(rate) if pd.notnull(rate) else None
+                        if rate_f:
+                            last_close = native_close_f * rate_f
+                except Exception:
+                    pass
     positions = _positions_for_ticker(ticker.upper(), last_close)
 
     if scale != 1.0:

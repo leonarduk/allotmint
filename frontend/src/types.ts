@@ -261,6 +261,11 @@ export interface Transaction {
   security_ref?: string | null;
   ticker?: string | null;
   shares?: number | null;
+  units?: number | null;
+  price_gbp?: number | null;
+  fees?: number | null;
+  comments?: string | null;
+  reason?: string | null;
 }
 
 export interface TransactionWithCompliance extends Transaction {

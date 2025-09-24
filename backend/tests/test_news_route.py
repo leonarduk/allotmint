@@ -111,3 +111,60 @@ def test_parse_alpha_time_legacy_format():
         news._parse_alpha_time("20230825T160000")
         == "2023-08-25T16:00:00Z"
     )
+
+
+def test_fallback_helpers_filter_finance_headlines(monkeypatch):
+    def fake_yahoo(url, params, timeout=10):
+        class Response:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "news": [
+                        {
+                            "title": "AAPL stock jumps on earnings",
+                            "link": "https://example.com/finance",
+                        },
+                        {
+                            "title": "Celebrity gossip unrelated to pop culture",
+                            "link": "https://example.com/gossip",
+                        },
+                    ]
+                }
+
+        return Response()
+
+    monkeypatch.setattr(news.requests, "get", fake_yahoo)
+    yahoo_items = news.fetch_news_yahoo("AAPL")
+    assert yahoo_items == [
+        {"headline": "AAPL stock jumps on earnings", "url": "https://example.com/finance"}
+    ]
+
+    def fake_google(url, params, timeout=10):
+        class Response:
+            text = """
+                <rss>
+                  <channel>
+                    <item>
+                      <title>MSFT shares slump after outlook</title>
+                      <link>https://example.com/outlook</link>
+                    </item>
+                    <item>
+                      <title>Another gadget launch unrelated to lifestyle</title>
+                      <link>https://example.com/gadget</link>
+                    </item>
+                  </channel>
+                </rss>
+            """
+
+            def raise_for_status(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(news.requests, "get", fake_google)
+    google_items = news.fetch_news_google("MSFT")
+    assert google_items == [
+        {"headline": "MSFT shares slump after outlook", "url": "https://example.com/outlook"}
+    ]

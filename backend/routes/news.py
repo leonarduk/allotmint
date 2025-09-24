@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from backend import config_module
+from backend.common.instruments import get_instrument_meta
 from backend.utils import page_cache
 
 cfg = getattr(config_module, "settings", config_module.config)
@@ -23,6 +24,25 @@ router = APIRouter(tags=["news"])
 NEWS_TTL = 900  # seconds
 BASE_URL = "https://www.alphavantage.co/query"
 COUNTER_FILE: Path = page_cache.CACHE_DIR / "news_requests.json"
+
+_FINANCE_KEYWORDS = (
+    "stock",
+    "stocks",
+    "share",
+    "shares",
+    "earnings",
+    "ipo",
+    "dividend",
+    "market",
+    "financial",
+    "finance",
+    "guidance",
+    "outlook",
+    "profit",
+    "loss",
+    "revenue",
+    "price",
+)
 
 
 
@@ -99,11 +119,71 @@ def _trim_payload(payload: Any) -> List[Dict[str, str]]:
     return trimmed
 
 
+def _lookup_instrument_name(ticker: str) -> Optional[str]:
+    """Best-effort lookup for a human friendly instrument name."""
+
+    try:
+        meta = get_instrument_meta(ticker)
+    except Exception:  # pragma: no cover - defensive logging happens upstream
+        return None
+
+    if not isinstance(meta, dict):
+        return None
+
+    for key in ("name", "instrument_name", "display_name"):
+        value = _clean_str(meta.get(key))
+        if value:
+            return value
+    return None
+
+
+def _build_fallback_query(ticker: str) -> tuple[str, Optional[str]]:
+    """Return a finance-focused query string and optional instrument name."""
+
+    tkr = ticker.strip().upper()
+    instrument_name = _lookup_instrument_name(tkr)
+
+    parts: List[str] = []
+    if tkr:
+        parts.append(tkr)
+    if instrument_name:
+        parts.append(instrument_name)
+    parts.extend(["stock", "shares"])
+
+    seen: set[str] = set()
+    deduped: List[str] = []
+    for part in parts:
+        if part and part not in seen:
+            deduped.append(part)
+            seen.add(part)
+
+    return (" ".join(deduped) if deduped else tkr), instrument_name
+
+
+def _is_finance_related(headline: str, ticker: str, instrument_name: Optional[str]) -> bool:
+    """Return True when ``headline`` appears relevant to the instrument."""
+
+    text_lower = headline.lower()
+    upper_headline = headline.upper()
+    symbol = ticker.strip().upper()
+    if symbol and symbol in upper_headline:
+        return True
+
+    if instrument_name:
+        lowered_name = instrument_name.lower()
+        if lowered_name and lowered_name in text_lower:
+            return True
+
+    return any(keyword in text_lower for keyword in _FINANCE_KEYWORDS)
+
+
 def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     """Fetch headlines from Yahoo Finance search API."""
 
     endpoint = cfg.yahoo_news_endpoint or "https://query1.finance.yahoo.com/v1/finance/search"
-    params = {"q": ticker, "quotesCount": 0, "newsCount": 10}
+    clean_ticker = ticker.strip().upper()
+    query, instrument_name = _build_fallback_query(clean_ticker)
+    params = {"q": query, "quotesCount": 0, "newsCount": 10}
     resp = requests.get(endpoint, params=params, timeout=10)
     resp.raise_for_status()
     data = resp.json()
@@ -111,7 +191,9 @@ def fetch_news_yahoo(ticker: str) -> List[Dict[str, str]]:
     out: List[Dict[str, str]] = []
     for item in items:
         news_item = _make_news_item(item.get("title"), item.get("link"))
-        if news_item is not None:
+        if news_item is not None and _is_finance_related(
+            news_item["headline"], clean_ticker, instrument_name
+        ):
             out.append(news_item)
     return out
 
@@ -120,14 +202,18 @@ def fetch_news_google(ticker: str) -> List[Dict[str, str]]:
     """Fetch headlines from Google Finance via RSS search."""
 
     endpoint = cfg.google_news_endpoint or "https://news.google.com/rss/search"
-    params = {"q": ticker, "hl": "en-US", "gl": "US", "ceid": "US:en"}
+    clean_ticker = ticker.strip().upper()
+    query, instrument_name = _build_fallback_query(clean_ticker)
+    params = {"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"}
     resp = requests.get(endpoint, params=params, timeout=10)
     resp.raise_for_status()
     root = ET.fromstring(resp.text)
     out: List[Dict[str, str]] = []
     for item in root.findall(".//item"):
         news_item = _make_news_item(item.findtext("title"), item.findtext("link"))
-        if news_item is not None:
+        if news_item is not None and _is_finance_related(
+            news_item["headline"], clean_ticker, instrument_name
+        ):
             out.append(news_item)
     return out
 

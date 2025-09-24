@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
 from backend.routes import scenario
 
@@ -28,10 +29,13 @@ def _client(monkeypatch, list_plots_return, build_map=None):
         "backend.routes.scenario.apply_price_shock",
         lambda pf, ticker, pct: {"total_value_estimate_gbp": pf["total_value_estimate_gbp"] * (1 + pct)},
     )
-    monkeypatch.setattr(
-        "backend.routes.scenario.apply_historical_event",
-        lambda pf, event_id=None, date=None, horizons=None: {h: pf for h in horizons or []},
-    )
+    def fake_historical(pf, event_id=None, date=None, horizons=None):
+        results = {}
+        for h in horizons or []:
+            results[h] = {"total_value_estimate_gbp": pf["total_value_estimate_gbp"] * (1 + h / 1000)}
+        return results
+
+    monkeypatch.setattr("backend.routes.scenario.apply_historical_event", fake_historical)
     return TestClient(app)
 
 
@@ -72,3 +76,6 @@ def test_historical_scenario_parses_tokens(monkeypatch):
         "/scenario/historical", params={"event_id": "evt", "horizons": "1d,1w"}
     )
     assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["horizons"]["1d"]["shocked_total_value_gbp"] == pytest.approx(100.1)
+    assert data[0]["horizons"]["1w"]["shocked_total_value_gbp"] == pytest.approx(100.7)

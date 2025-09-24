@@ -34,7 +34,7 @@ function deriveInitial() {
     path[0] === "scenario" ? "scenario" :
     path.length === 0 ? "group" : "movers";
   const slug = path[1] ?? "";
-  const owner = mode === "owner" ? slug : "";
+  const owner = mode === "owner" || mode === "performance" ? slug : "";
   const group =
     mode === "instrument" ? "" : params.get("group") ?? "";
   return { mode, owner, group };
@@ -157,7 +157,7 @@ export function useRouteMode(): RouteState {
       return;
     }
     setMode(newMode);
-    if (newMode === "owner") {
+    if (newMode === "owner" || newMode === "performance") {
       setSelectedOwner(segs[1] ?? "");
     } else if (newMode === "instrument") {
       const slug = segs[1] ?? "";

@@ -515,15 +515,10 @@ export function InstrumentTable({ rows }: Props) {
               </tr>
               {expanded &&
                 group.rows.map((r) => {
-                  const gainClass =
-                    r.gain_gbp >= 0 ? statusStyles.positive : statusStyles.negative;
-                  const gainPrefix = r.gain_gbp >= 0 ? '▲' : '▼';
-                  const gainPctClass =
-                    r.gain_pct != null && r.gain_pct >= 0
-                      ? statusStyles.positive
-                      : statusStyles.negative;
-                  const gainPctPrefix =
-                    r.gain_pct != null && r.gain_pct >= 0 ? '▲' : '▼';
+                  const { className: gainClass, prefix: gainPrefix } =
+                    getStatusPresentation(r.gain_gbp);
+                  const { className: gainPctClass, prefix: gainPctPrefix } =
+                    getStatusPresentation(r.gain_pct);
                   const overrideExists = Object.prototype.hasOwnProperty.call(
                     groupOverrides,
                     r.ticker,
@@ -805,22 +800,41 @@ function calculateGroupTotals(rows: RowWithCost[], label: string): GroupTotals {
   };
 }
 
+type StatusVariant = 'positive' | 'negative' | 'neutral';
+
+const STATUS_CLASS_MAP: Record<StatusVariant, string> = {
+  positive: statusStyles.positive,
+  negative: statusStyles.negative,
+  neutral: statusStyles.neutral,
+};
+
+function classifyStatus(value: number | null | undefined): StatusVariant {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) {
+    return 'neutral';
+  }
+
+  return value > 0 ? 'positive' : 'negative';
+}
+
+function getStatusPresentation(
+  value: number | null | undefined,
+): { className: string; prefix: string } {
+  const variant = classifyStatus(value);
+  const prefix = variant === 'positive' ? '▲' : variant === 'negative' ? '▼' : '';
+
+  return { className: STATUS_CLASS_MAP[variant], prefix };
+}
+
 function formatSignedMoney(value: number, currency: string): ReactNode {
-  const isPositive = value >= 0;
-  const prefix = isPositive ? '▲' : '▼';
-  const className = isPositive ? statusStyles.positive : statusStyles.negative;
-  return <span className={className}>{`${prefix}${money(value, currency)}`}</span>;
+  const { className, prefix } = getStatusPresentation(value);
+  const display = money(value, currency);
+  return <span className={className}>{`${prefix}${display}`}</span>;
 }
 
 function formatSignedPercent(value: number | null | undefined): ReactNode {
-  if (value == null || !Number.isFinite(value)) {
-    return '—';
-  }
-
-  const isPositive = value >= 0;
-  const prefix = isPositive ? '▲' : '▼';
-  const className = isPositive ? statusStyles.positive : statusStyles.negative;
-  return <span className={className}>{`${prefix}${percent(value, 1)}`}</span>;
+  const { className, prefix } = getStatusPresentation(value);
+  const display = percent(value, 1);
+  return <span className={className}>{`${prefix}${display}`}</span>;
 }
 
 type GroupOverridesMap = Record<string, string | null | undefined>;

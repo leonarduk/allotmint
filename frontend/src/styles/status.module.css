@@ -5,3 +5,7 @@
 .negative {
   color: #991b1b;
 }
+
+.neutral {
+  composes: text-gray from './responsive.css';
+}

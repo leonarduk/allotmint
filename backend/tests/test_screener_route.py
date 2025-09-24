@@ -119,12 +119,12 @@ def test_fetch_fundamentals_prefers_yahoo(monkeypatch):
 
     result = screener_module.fetch_fundamentals("aapl")
 
-    assert result.ticker == "AAPL"
+    assert result.ticker == "PFE"
     assert result.name == "Yahoo Corp"
     assert result.peg_ratio == pytest.approx(1.5)
     assert result.market_cap == 500000000
 
-    cache_key = ("AAPL", date.today().isoformat())
+    cache_key = ("PFE", date.today().isoformat())
     assert screener_module._CACHE[cache_key][1] is result
 
 
@@ -152,7 +152,7 @@ def test_fetch_fundamentals_falls_back_to_alpha(monkeypatch):
 
     def fake_get(url, params, timeout):
         alpha_calls.append((url, params))
-        assert params["symbol"] == "AAPL"
+        assert params["symbol"] == "PFE"
         return DummyResponse(
             {
                 "Name": "Alpha Co",
@@ -166,12 +166,12 @@ def test_fetch_fundamentals_falls_back_to_alpha(monkeypatch):
     monkeypatch.setattr(screener_module.yf, "Ticker", EmptyTicker)
     monkeypatch.setattr(screener_module.requests, "get", fake_get)
 
-    result = screener_module.fetch_fundamentals("AAPL")
+    result = screener_module.fetch_fundamentals("PFE")
 
-    assert ticker_calls == ["AAPL"]
+    assert ticker_calls == ["PFE"]
     assert len(alpha_calls) == 1
     assert result.name == "Alpha Co"
     assert result.market_cap == 123456
 
-    cache_key = ("AAPL", date.today().isoformat())
+    cache_key = ("PFE", date.today().isoformat())
     assert screener_module._CACHE[cache_key][1] is result

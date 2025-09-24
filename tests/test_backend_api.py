@@ -347,7 +347,7 @@ def test_instrument_detail_not_found(client):
 
 
 def test_yahoo_timeseries_html(client):
-    ticker = "AAPL"
+    ticker = "PFE"
     resp = client.get(f"/timeseries/html?ticker={ticker}&period=1y&interval=1d")
     assert resp.status_code == 200
     html = resp.text.lower()

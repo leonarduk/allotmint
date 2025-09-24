@@ -65,7 +65,7 @@ def test_per_instrument_throttling(monkeypatch):
     alerts.publish_sns_alert({"instrument": "IBM", "state": False, "message": "b"})
     assert len(alerts._RECENT_ALERTS) == 1  # throttled
 
-    alerts.publish_sns_alert({"instrument": "AAPL", "state": True, "message": "c"})
+    alerts.publish_sns_alert({"instrument": "PFE", "state": True, "message": "c"})
     assert len(alerts._RECENT_ALERTS) == 2  # different instrument
 
     DummyDatetime.current += timedelta(minutes=40)

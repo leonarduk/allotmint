@@ -9,7 +9,7 @@ vi.mock("@/api", () => ({
       {
         owner: "alex",
         account: "isa",
-        ticker: "AAPL",
+        ticker: "PFE",
         type: "BUY",
         amount_minor: 10000,
         currency: "GBP",
@@ -23,7 +23,7 @@ vi.mock("@/api", () => ({
 describe("TransactionsPage", () => {
   it("displays instrument ticker", async () => {
     render(<TransactionsPage owners={[{ owner: "alex", accounts: ["isa"] }]} />);
-    expect(await screen.findByText("AAPL")).toBeInTheDocument();
+    expect(await screen.findByText("PFE")).toBeInTheDocument();
   });
 });
 

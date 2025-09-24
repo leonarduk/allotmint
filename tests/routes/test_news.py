@@ -82,13 +82,13 @@ def test_fetch_news_yahoo(monkeypatch):
 
     monkeypatch.setattr(news_module.requests, "get", fake_get)
 
-    items = news_module.fetch_news_yahoo("AAPL")
+    items = news_module.fetch_news_yahoo("PFE")
     assert items == [
         {"headline": "One stock update", "url": "https://example.com/1"},
         {"headline": "Two shares story", "url": "https://example.com/2"},
     ]
     query = captured["params"]["q"]
-    assert query.startswith("AAPL")
+    assert query.startswith("PFE")
     assert "stock" in query.lower()
 
 

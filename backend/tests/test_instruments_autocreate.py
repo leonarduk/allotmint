@@ -33,15 +33,15 @@ def test_get_instrument_meta_auto_creates_using_yahoo(tmp_path, monkeypatch):
 
     meta = instruments.get_instrument_meta("aapl.n")
 
-    assert meta["ticker"] == "AAPL.N"
+    assert meta["ticker"] == "PFE.N"
     assert meta["name"] == fetched["name"]
     assert meta["currency"] == fetched["currency"]
-    assert calls == ["AAPL.N"]
+    assert calls == ["PFE.N"]
 
-    path = tmp_path / "N" / "AAPL.json"
+    path = tmp_path / "N" / "PFE.json"
     assert path.exists()
     saved = json.loads(path.read_text(encoding="utf-8"))
-    assert saved["ticker"] == "AAPL.N"
+    assert saved["ticker"] == "PFE.N"
     assert saved["name"] == fetched["name"]
     assert saved["currency"] == fetched["currency"]
 
@@ -81,7 +81,7 @@ def test_auto_create_requires_exchange(tmp_path, monkeypatch):
 
     monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", fake_fetch)
 
-    meta = instruments.get_instrument_meta("AAPL")
+    meta = instruments.get_instrument_meta("PFE")
     assert meta == {}
     assert calls == []
     assert not list(tmp_path.rglob("*.json"))

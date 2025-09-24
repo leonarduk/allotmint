@@ -20,7 +20,7 @@ def test_quotes_returns_502_on_yfinance_error(monkeypatch, client):
 
     monkeypatch.setattr("backend.routes.quotes.yf.Tickers", mock_tickers)
 
-    resp = client.get("/api/quotes?symbols=AAPL")
+    resp = client.get("/api/quotes?symbols=PFE")
     assert resp.status_code == 502
     assert resp.json()["detail"].startswith("Failed to fetch quotes")
 
@@ -33,17 +33,17 @@ def test_quotes_excludes_missing_regular_market_price(monkeypatch, client):
     def fake_tickers(symbols):
         return SimpleNamespace(
             tickers={
-                "AAPL": FakeTicker({"regularMarketPrice": 100.0}),
+                "PFE": FakeTicker({"regularMarketPrice": 100.0}),
                 "MSFT": FakeTicker({}),
             }
         )
 
     monkeypatch.setattr("backend.routes.quotes.yf.Tickers", fake_tickers)
 
-    resp = client.get("/api/quotes?symbols=AAPL,MSFT")
+    resp = client.get("/api/quotes?symbols=PFE,MSFT")
     assert resp.status_code == 200
     data = resp.json()
-    assert [item["symbol"] for item in data] == ["AAPL"]
+    assert [item["symbol"] for item in data] == ["PFE"]
 
 
 def test_quotes_no_symbols_returns_empty_list(client):

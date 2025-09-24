@@ -26,7 +26,7 @@ def test_custom_query_routes_fallback_to_local(monkeypatch):
         with TestClient(app) as client:
             resp = client.get("/custom-query/demo-slug")
             assert resp.status_code == 200
-            assert resp.json()["tickers"] == ["AAPL"]
+            assert resp.json()["tickers"] == ["PFE"]
 
             payload = {
                 "start": "2020-01-01",

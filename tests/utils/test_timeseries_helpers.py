@@ -113,4 +113,4 @@ def test_nearest_weekday():
 
 def test_is_isin():
     assert th._is_isin("US0378331005")
-    assert not th._is_isin("AAPL")
+    assert not th._is_isin("PFE")

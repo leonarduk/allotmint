@@ -107,7 +107,7 @@ def test_fetch_fundamentals_refreshes_expired_cache(monkeypatch, empty_yahoo_tic
     monkeypatch.setattr("backend.screener.requests.get", mock_get)
 
     first = fetch_fundamentals("aapl")
-    cache_key = ("AAPL", date.today().isoformat())
+    cache_key = ("PFE", date.today().isoformat())
     _, cached_value = screener_module._CACHE[cache_key]
     screener_module._CACHE[cache_key] = (
         datetime.now(UTC) - timedelta(seconds=screener_module._CACHE_TTL_SECONDS + 1),
@@ -225,7 +225,7 @@ def test_fetch_fundamentals_parses_values(monkeypatch, empty_yahoo_ticker):
     monkeypatch.setattr("backend.screener.requests.get", mock_get)
 
     f = fetch_fundamentals("aapl")
-    assert f.ticker == "AAPL"
+    assert f.ticker == "PFE"
     assert f.name == "Foo Corp"
     assert f.peg_ratio == 1.5
     assert f.pe_ratio == 10.2

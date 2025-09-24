@@ -2,11 +2,19 @@ import '@testing-library/jest-dom/vitest';
 // Initialize i18n for components using react-i18next
 import './i18n';
 // Add accessibility matchers for Vitest using jest-axe's matcher
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { toHaveNoViolations } from 'jest-axe';
 expect.extend(toHaveNoViolations);
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => vi.fn(),
+  };
+});
 
 // Ensure React Testing Library cleans up between tests to avoid cross-test DOM leakage
 afterEach(() => cleanup());

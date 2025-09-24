@@ -62,12 +62,12 @@ def _example_for_type(typ: Any) -> Any:
 
 
 MANUAL_BODIES: dict[tuple[str, str], Any] = {
-    ("POST", "/accounts/{owner}/approval-requests"): {"ticker": "AAPL"},
+    ("POST", "/accounts/{owner}/approval-requests"): {"ticker": "PFE"},
     ("POST", "/accounts/{owner}/approvals"): {
-        "ticker": "AAPL",
+        "ticker": "PFE",
         "approved_on": "1970-01-01",
     },
-    ("DELETE", "/accounts/{owner}/approvals"): {"ticker": "AAPL"},
+    ("DELETE", "/accounts/{owner}/approvals"): {"ticker": "PFE"},
     ("POST", "/compliance/validate"): {"owner": "demo"},
     ("POST", "/user-config/{owner}"): {},
     (
@@ -95,8 +95,8 @@ SAMPLE_QUERY_VALUES: dict[str, str] = {
     "user": "user@example.com",
     "email": "user@example.com",
     "exchange": "NASDAQ",
-    "ticker": "AAPL",
-    "tickers": "AAPL",
+    "ticker": "PFE",
+    "tickers": "PFE",
     "id": "1",
     "vp_id": "1",
     "quest_id": "check-in",
@@ -125,7 +125,7 @@ def _example_for_query_param(name: str, ann: Any) -> str:
     if "date" in k:
         return "1970-01-01"
     if "ticker" in k:
-        return "AAPL"
+        return "PFE"
     return str(_example_for_type(ann))
 
 
@@ -186,7 +186,7 @@ def main() -> None:
         "  slug: 'demo-slug',\n"
         "  name: 'demo',\n"
         "  exchange: 'NASDAQ',\n"
-        "  ticker: 'AAPL',\n"
+        "  ticker: 'PFE',\n"
         "};\n"
         "\nexport function fillPath(path: string): string {\n"
         "  return path.replace(/\\{([^}]+)\\}/g, (_, key: string) => {\n"

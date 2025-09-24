@@ -56,11 +56,11 @@ def test_save_quotes_filters_none(monkeypatch):
     resource.Table.return_value = table
     monkeypatch.setattr(quotes.boto3, "resource", lambda _service: resource)
 
-    item = {"symbol": "AAPL", "price": Decimal("1"), "volume": None, "time": "t"}
+    item = {"symbol": "PFE", "price": Decimal("1"), "volume": None, "time": "t"}
     quotes.save_quotes([item], table_name="T")
 
     resource.Table.assert_called_once_with("T")
-    table.put_item.assert_called_once_with(Item={"symbol": "AAPL", "price": Decimal("1"), "time": "t"})
+    table.put_item.assert_called_once_with(Item={"symbol": "PFE", "price": Decimal("1"), "time": "t"})
 
 
 def test_lambda_handler_uses_event_symbols(monkeypatch):
@@ -79,10 +79,10 @@ def test_lambda_handler_uses_event_symbols(monkeypatch):
     monkeypatch.setattr(quotes, "fetch_quote", fake_fetch)
     monkeypatch.setattr(quotes, "save_quotes", fake_save)
 
-    result = quotes.lambda_handler({"symbols": ["AAPL", "MSFT"]}, None)
+    result = quotes.lambda_handler({"symbols": ["PFE", "MSFT"]}, None)
     assert result == {"count": 2}
-    assert fetched == ["AAPL", "MSFT"]
-    assert saved == [{"symbol": "AAPL"}, {"symbol": "MSFT"}]
+    assert fetched == ["PFE", "MSFT"]
+    assert saved == [{"symbol": "PFE"}, {"symbol": "MSFT"}]
 
 
 def test_lambda_handler_reads_env_symbols(monkeypatch):

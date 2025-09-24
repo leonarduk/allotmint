@@ -24,10 +24,10 @@ def test_intraday_route(monkeypatch):
     app = FastAPI()
     app.include_router(instrument.router)
     client = TestClient(app)
-    resp = client.get("/instrument/intraday?ticker=AAPL")
+    resp = client.get("/instrument/intraday?ticker=PFE")
     assert resp.status_code == 200
-    assert captured["ticker"] == "AAPL"
+    assert captured["ticker"] == "PFE"
     data = resp.json()
-    assert data["ticker"] == "AAPL"
+    assert data["ticker"] == "PFE"
     assert len(data["prices"]) == 3
     assert all("timestamp" in p and "close" in p for p in data["prices"])

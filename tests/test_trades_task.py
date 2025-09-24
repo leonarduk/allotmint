@@ -5,7 +5,7 @@ from backend.tasks import trades
 
 
 def test_persist_trades_writes_combined_csv(monkeypatch, tmp_path):
-    existing = [{"date": "2024-01-01", "ticker": "AAPL", "units": "5"}]
+    existing = [{"date": "2024-01-01", "ticker": "PFE", "units": "5"}]
     new_trades = [{"date": "2024-01-02", "ticker": "MSFT", "units": "3"}]
 
     monkeypatch.setattr(trades, "load_trades", lambda owner: existing)
@@ -22,7 +22,7 @@ def test_persist_trades_writes_combined_csv(monkeypatch, tmp_path):
 
 def test_lambda_handler_saves_and_alerts(monkeypatch, tmp_path):
     sample = [
-        {"date": "2024-01-02", "ticker": "AAPL", "units": "5"},
+        {"date": "2024-01-02", "ticker": "PFE", "units": "5"},
         {"date": "2024-01-03", "ticker": "MSFT", "units": "2"},
     ]
 

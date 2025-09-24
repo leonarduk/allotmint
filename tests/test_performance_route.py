@@ -198,7 +198,7 @@ def test_owner_performance_not_found(monkeypatch):
 
 def test_owner_holdings_success(monkeypatch):
     expected_rows = [
-        {"ticker": "AAPL", "value": 1234.56},
+        {"ticker": "PFE", "value": 1234.56},
         {"ticker": "TSLA", "value": 789.01},
     ]
 

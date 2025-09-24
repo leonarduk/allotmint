@@ -13,7 +13,7 @@ def _valid_payload(**overrides):
     payload = {
         "owner": "alice",
         "account": "ISA",
-        "ticker": "AAPL",
+        "ticker": "PFE",
         "date": "2024-05-01",
         "price_gbp": 10.5,
         "units": 2,
@@ -73,13 +73,13 @@ def test_dividends_endpoint(tmp_path, monkeypatch):
         "owner": "alice",
         "account_type": "ISA",
         "transactions": [
-            {"date": "2024-01-02", "type": "DIVIDEND", "amount_minor": 500, "ticker": "AAPL"},
+            {"date": "2024-01-02", "type": "DIVIDEND", "amount_minor": 500, "ticker": "PFE"},
             {
                 "date": "2024-01-03",
                 "type": "BUY",
                 "price_gbp": 10,
                 "units": 1,
-                "ticker": "AAPL",
+                "ticker": "PFE",
                 "reason": "t",
             },
         ],
@@ -90,7 +90,7 @@ def test_dividends_endpoint(tmp_path, monkeypatch):
     assert resp.status_code == 200
     divs = resp.json()
     assert len(divs) == 1
-    assert divs[0]["ticker"] == "AAPL"
+    assert divs[0]["ticker"] == "PFE"
     assert divs[0]["amount_minor"] == 500
 
     resp2 = client.get("/transactions?type=DIVIDEND")
@@ -120,7 +120,7 @@ def test_load_all_transactions_skips_malformed_json(tmp_path, monkeypatch):
         "owner": "bob",
         "account_type": "GIA",
         "transactions": [
-            {"date": "2024-01-01", "type": "BUY", "ticker": "AAPL", "price": 10.0},
+            {"date": "2024-01-01", "type": "BUY", "ticker": "PFE", "price": 10.0},
         ],
     }
     (good_dir / "GIA_transactions.json").write_text(json.dumps(good_payload))
@@ -140,7 +140,7 @@ def test_load_all_transactions_normalises_names(tmp_path, monkeypatch):
         "owner": "ALICE",
         "account_type": "ISA",
         "transactions": [
-            {"date": "2024-01-02", "type": "BUY", "ticker": "AAPL", "account": "SHOULD_NOT_APPEAR"}
+            {"date": "2024-01-02", "type": "BUY", "ticker": "PFE", "account": "SHOULD_NOT_APPEAR"}
         ],
     }
     (alice_dir / "ISA_transactions.json").write_text(json.dumps(alice_payload))
@@ -239,10 +239,10 @@ def test_create_transaction_requires_units(tmp_path, monkeypatch):
 def test_transactions_compliance_filters(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
     sample = [
-        transactions.Transaction(owner="alice", account="isa", date="2024-01-03", ticker="AAPL"),
-        transactions.Transaction(owner="alice", account="isa", date="2024-01-01", ticker="AAPL"),
+        transactions.Transaction(owner="alice", account="isa", date="2024-01-03", ticker="PFE"),
+        transactions.Transaction(owner="alice", account="isa", date="2024-01-01", ticker="PFE"),
         transactions.Transaction(owner="alice", account="gia", date="2024-01-02", ticker="MSFT"),
-        transactions.Transaction(owner="bob", account="isa", date="2024-01-02", ticker="AAPL"),
+        transactions.Transaction(owner="bob", account="isa", date="2024-01-02", ticker="PFE"),
     ]
     monkeypatch.setattr(transactions, "_load_all_transactions", lambda: sample)
 
@@ -258,7 +258,7 @@ def test_transactions_compliance_filters(tmp_path, monkeypatch):
 
     resp = client.get(
         "/transactions/compliance",
-        params={"owner": "alice", "account": "ISA", "ticker": "AAPL"},
+        params={"owner": "alice", "account": "ISA", "ticker": "PFE"},
     )
     assert resp.status_code == 200
     assert captured["owner"] == "alice"
@@ -269,7 +269,7 @@ def test_transactions_compliance_filters(tmp_path, monkeypatch):
 
 def test_import_transactions_success(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
-    sample = [transactions.Transaction(owner="alice", account="isa", ticker="AAPL")]
+    sample = [transactions.Transaction(owner="alice", account="isa", ticker="PFE")]
 
     captured = {}
 
@@ -363,9 +363,9 @@ def test_transactions_and_dividends_filters(tmp_path, monkeypatch):
             "owner": "alice",
             "account_type": "ISA",
             "transactions": [
-                {"date": "2024-01-01", "type": "BUY", "ticker": "AAPL"},
+                {"date": "2024-01-01", "type": "BUY", "ticker": "PFE"},
                 {"date": "2024-01-05", "type": "BUY", "ticker": "MSFT"},
-                {"date": "2024-01-10", "type": "DIVIDEND", "ticker": "AAPL", "amount_minor": 500},
+                {"date": "2024-01-10", "type": "DIVIDEND", "ticker": "PFE", "amount_minor": 500},
                 {"date": "2024-01-20", "type": "DIVIDEND", "ticker": "MSFT", "amount_minor": 400},
             ],
         },
@@ -390,7 +390,7 @@ def test_transactions_and_dividends_filters(tmp_path, monkeypatch):
             "owner": "bob",
             "account_type": "ISA",
             "transactions": [
-                {"date": "2024-01-05", "type": "DIVIDEND", "ticker": "AAPL", "amount_minor": 999},
+                {"date": "2024-01-05", "type": "DIVIDEND", "ticker": "PFE", "amount_minor": 999},
             ],
         },
     )
@@ -424,4 +424,4 @@ def test_transactions_and_dividends_filters(tmp_path, monkeypatch):
     dividends = resp_div.json()
     assert len(dividends) == 1
     assert dividends[0]["amount_minor"] == 500
-    assert dividends[0]["ticker"] == "AAPL"
+    assert dividends[0]["ticker"] == "PFE"

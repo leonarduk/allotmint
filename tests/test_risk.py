@@ -56,14 +56,14 @@ def test_compute_portfolio_var_accepts_percentage(mock_perf):
             [
                 {"ticker": "CASH.GBP", "contribution": 1000.0},
                 {"ticker": "VOD.L", "contribution": 150.0},
-                {"ticker": "AAPL.US", "contribution": 15.0},
+                {"ticker": "PFE.US", "contribution": 15.0},
             ],
         ),
         (
             False,
             [
                 {"ticker": "VOD.L", "contribution": 150.0},
-                {"ticker": "AAPL.US", "contribution": 15.0},
+                {"ticker": "PFE.US", "contribution": 15.0},
             ],
         ),
     ],
@@ -77,7 +77,7 @@ def test_compute_portfolio_var_breakdown_deterministic(monkeypatch, include_cash
             "currency": "GBP",
             "units": 100,
         },
-        {"ticker": "AAPL.US", "market_value_gbp": 1500.0, "currency": "USD"},
+        {"ticker": "PFE.US", "market_value_gbp": 1500.0, "currency": "USD"},
     ]
 
     monkeypatch.setattr(
@@ -94,9 +94,9 @@ def test_compute_portfolio_var_breakdown_deterministic(monkeypatch, include_cash
     closes_map = {
         "CASH.GBP": [1.0, 1.0, 1.0],
         "VOD.L": [9.0, 10.0],
-        "AAPL.US": [198.0, 200.0],
+        "PFE.US": [198.0, 200.0],
     }
-    var_map = {"CASH.GBP": 0.5, "VOD.L": 1.5, "AAPL.US": 2.0}
+    var_map = {"CASH.GBP": 0.5, "VOD.L": 1.5, "PFE.US": 2.0}
 
     def fake_load_meta_timeseries(symbol, exchange, days):
         key = f"{symbol}.{exchange}"

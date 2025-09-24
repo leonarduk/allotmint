@@ -3,7 +3,7 @@ from __future__ import annotations
 """Pydantic models used by the trading agent."""
 
 from pydantic import BaseModel, ConfigDict
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 
 class TradingSignal(BaseModel):
@@ -15,6 +15,8 @@ class TradingSignal(BaseModel):
         reason: Human readable description of why the signal was generated.
         confidence: Optional confidence score between 0 and 1.
         rationale: Optional detailed explanation of the signal.
+        factors: Optional list of plain-English statements describing the
+            indicators that support the recommendation.
     """
 
     ticker: str
@@ -22,5 +24,6 @@ class TradingSignal(BaseModel):
     reason: str
     confidence: Optional[float] = None
     rationale: Optional[str] = None
+    factors: Optional[List[str]] = None
 
     model_config = ConfigDict(extra="ignore")

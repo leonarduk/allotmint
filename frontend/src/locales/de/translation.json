@@ -15,7 +15,7 @@
     "modes": {
       "group": "Gruppe",
       "instrument": "Instrument",
-      "owner": "Mitglied",
+      "owner": "Portfolio",
       "performance": "Leistung",
       "transactions": "Transaktionen",
       "trading": "Handel",
@@ -29,19 +29,33 @@
       "instrumentadmin": "Instrumentverwaltung",
       "dataadmin": "Datenverwaltung",
       "settings": "Benutzereinstellungen",
-      "profile": "Profil",
       "pension": "Rentenprognose",
+      "taxtools": "Steuer-Tools",
       "trail": "Trail",
       "reports": "Berichte",
-      "alertsettings": "Alert Settings",
-      "support": "Support",
-      "scenario": "Szenario-Tester",
-    "logs": "Protokolle"
+  "alertsettings": "Alert Settings",
+  "compliance": "Compliance-Warnungen",
+  "trade-compliance": "Handels-Compliance",
+  "support": "Support",
+      "scenario": "Szenario-Tester"
+    },
+    "logs": {
+      "title": "Protokolle",
+      "refresh": "Protokolle aktualisieren",
+      "empty": "Keine Protokolle verfügbar.",
+      "error": "Protokolle konnten nicht geladen werden."
     }
   },
   "trail": {
-    "daily": "Daily",
-    "once": "Once"
+    "title": "Trail-Fortschritt",
+    "daily": "Täglich",
+    "once": "Einmalig",
+    "progressLabel": "Täglicher Fortschritt: {{completed}} / {{total}} ({{percent}}%)",
+    "xpLabel": "XP: {{xp}}",
+    "streakLabel": "Serie: {{count}} Tag",
+    "streakLabel_plural": "Serie: {{count}} Tage",
+    "dailyComplete": "Tägliche Aufgaben erledigt! Weiter so.",
+    "allDone": "Alle Trail-Aufgaben erledigt – großartig!"
   },
   "common": {
     "error": "Fehler",
@@ -66,6 +80,7 @@
   "instrumentTable": {
     "noInstruments": "Keine Instrumente.",
     "ungrouped": "Ohne Gruppe",
+    "exchangesLabel": "Börsen:",
     "groupTotals": {
       "market": "Marktwert",
       "gain": "Gewinn",
@@ -185,7 +200,42 @@
     "retirementAge": "Renteneintrittsalter: {{age}}",
     "pensionPot": "Pensionsvermögen",
     "growthAssumption": "Wachstumsannahme (%):",
-    "monthlyContribution": "Monatlicher Beitrag (£):"
+    "monthlyContribution": "Monatlicher Beitrag (£):",
+    "incomeBreakdownHeading": "Retirement income breakdown",
+    "incomeSources": {
+      "state": "State pension",
+      "definedBenefit": "Defined benefit",
+      "definedContribution": "Defined contribution"
+    },
+    "incomeTable": {
+      "source": "Source",
+      "annual": "Annual (£)",
+      "monthly": "Monthly (£)",
+      "share": "Share"
+    },
+    "totalAnnualIncome": "Total annual income",
+    "totalMonthlyIncome": "Total monthly income",
+    "prediction": {
+      "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
+      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} from age {{age}}.",
+      "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
+      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
+      "earliest": "Estimated earliest retirement age: {{age}}",
+      "noBreakdown": "No income breakdown available."
+    },
+    "employerContributionLabel": "Arbeitgeberbeitrag",
+    "header": {
+      "kicker": "Ihr Rentenüberblick",
+      "heading": "Behalten Sie Ihre Beiträge im Blick",
+      "pensionPot": "Aktueller Rententopf",
+      "employeeContribution": "Ihr monatlicher Beitrag",
+      "employerContribution": "Arbeitgeberbeitrag",
+      "totalContribution": "Gesamte monatliche Beiträge: {{total}}",
+      "addAnother": "Weitere Rente hinzufügen",
+      "additionalPensions_one": "{{count}} weiterer Rentenvertrag verknüpft",
+      "additionalPensions_other": "{{count}} weitere Rentenverträge verknüpft",
+      "notAvailable": "Nicht verfügbar"
+    }
   },
   "group": {
     "select": "Wählen Sie eine Gruppe."
@@ -204,6 +254,7 @@
     "alphaVsBenchmark": "Alpha vs Benchmark",
     "trackingError": "Tracking Error",
     "maxDrawdown": "Max Drawdown",
+    "maxDrawdownHelp": "Der maximale Drawdown ist der größte prozentuale Rückgang vom bisherigen Höchststand des Portfolios bis zum darauffolgenden Tief, berechnet auf Basis der rekonstruierten täglichen Schlusswerte Ihrer Positionen.",
     "timeWeightedReturn": "Zeitgewichtete Rendite",
     "xirr": "XIRR",
     "portfolioValue": "Portfoliowert",
@@ -379,16 +430,16 @@
     "grouping": "Gruppierung",
     "actions": "Actions",
     "add": "Add Instrument",
-  "save": "Save",
-  "saveSuccess": "Saved",
-  "saveError": "Error saving",
-  "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required",
-    "grouping": "Grouping is required"
-  }
-},
+    "save": "Save",
+    "saveSuccess": "Saved",
+    "saveError": "Error saving",
+    "searchPlaceholder": "Filter instruments…",
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required",
+      "grouping": "Grouping is required"
+    }
+  },
   "var": {
     "title": "Value at Risk",
     "details": "Details zur historischen Simulation",

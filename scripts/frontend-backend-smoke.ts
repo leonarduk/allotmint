@@ -9,14 +9,14 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/accounts/{owner}/approval-requests",
     "body": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
     "method": "DELETE",
     "path": "/accounts/{owner}/approvals",
     "body": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -27,7 +27,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/accounts/{owner}/approvals",
     "body": {
-      "ticker": "AAPL",
+      "ticker": "PFE",
       "approved_on": "1970-01-01"
     }
   },
@@ -174,17 +174,19 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/holdings/import",
     "body": {
-      "owner": "test",
-      "account": "test",
-      "provider": "test",
-      "file": {}
+      "__form__": {
+        "owner": "demo",
+        "account": "isa",
+        "provider": "test",
+        "file": "__file__"
+      }
     }
   },
   {
     "method": "GET",
     "path": "/instrument/",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -235,7 +237,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/instrument/intraday",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -258,14 +260,14 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/movers",
     "query": {
-      "tickers": "AAPL"
+      "tickers": "PFE"
     }
   },
   {
     "method": "GET",
     "path": "/news",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -397,7 +399,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/scenario",
     "query": {
-      "ticker": "AAPL",
+      "ticker": "PFE",
       "pct": "0"
     }
   },
@@ -412,7 +414,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/screener/",
     "query": {
-      "tickers": "AAPL"
+      "tickers": "PFE"
     }
   },
   {
@@ -459,28 +461,28 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/timeseries/edit",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
     "method": "POST",
     "path": "/timeseries/edit",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
     "method": "GET",
     "path": "/timeseries/html",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
     "method": "GET",
     "path": "/timeseries/meta",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -593,7 +595,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
 const SAMPLE_PATH_VALUES: Record<string, string> = {
   owner: 'demo',
   account: 'isa',
-  user: 'user@example.com',
+  user: 'demo',
   email: 'user@example.com',
   id: '1',
   vp_id: '1',
@@ -601,7 +603,7 @@ const SAMPLE_PATH_VALUES: Record<string, string> = {
   slug: 'demo-slug',
   name: 'demo',
   exchange: 'NASDAQ',
-  ticker: 'AAPL',
+  ticker: 'PFE',
 };
 
 export function fillPath(path: string): string {

@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef, memo, useId } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Lightbulb } from "lucide-react";
 import { searchInstruments } from "../api";
 import {
   Collapsible,
@@ -31,11 +33,13 @@ const SECTORS = [
 const REGIONS = ["Africa", "Asia", "Europe", "North America", "South America", "Oceania", "UK", "US"];
 
 interface InstrumentSearchBarProps {
+  id?: string;
   onClose?: () => void;
   onNavigate?: () => void;
 }
 
 function InstrumentSearchBarComponent({
+  id,
   onClose,
   onNavigate,
 }: InstrumentSearchBarProps) {
@@ -102,7 +106,7 @@ function InstrumentSearchBarComponent({
   };
 
   return (
-    <div style={{ position: "relative", marginLeft: "1rem" }}>
+    <div id={id} style={{ position: "relative", marginLeft: "1rem" }}>
       <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
 
         <input
@@ -212,6 +216,8 @@ const InstrumentSearchBar = memo(InstrumentSearchBarComponent);
 export function InstrumentSearchBarToggle() {
   const [open, setOpen] = useState(false);
   const contentId = useId();
+  const { t } = useTranslation();
+  const researchLabel = t("app.research");
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} style={{ marginLeft: "1rem" }}>
@@ -219,16 +225,20 @@ export function InstrumentSearchBarToggle() {
         type="button"
         aria-controls={contentId}
         aria-expanded={open}
+        aria-label={researchLabel}
         style={{
-          padding: "0.25rem 0.75rem",
+          padding: "0.25rem",
           borderRadius: "0.25rem",
           border: "1px solid #ccc",
           background: open ? "#eee" : "#fff",
           color: "#213547",
           cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        Research
+        <Lightbulb aria-hidden="true" size={18} />
       </CollapsibleTrigger>
       <CollapsibleContent
         id={contentId}
@@ -244,22 +254,6 @@ export function InstrumentSearchBarToggle() {
           }}
         >
           <InstrumentSearchBar onNavigate={() => setOpen(false)} />
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Close search"
-            style={{
-              padding: "0.25rem 0.5rem",
-              borderRadius: "0.25rem",
-              border: "1px solid #ccc",
-              background: "#f5f5f5",
-              color: "#213547",
-              cursor: "pointer",
-              alignSelf: "center",
-            }}
-          >
-            Close
-          </button>
         </div>
       </CollapsibleContent>
     </Collapsible>

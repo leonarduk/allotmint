@@ -153,7 +153,7 @@ export function Screener() {
               type="text"
               value={tickers}
               onChange={(e) => setTickers(e.target.value)}
-              placeholder="AAPL,MSFT,…"
+              placeholder="PFE,MSFT,…"
               style={{ marginLeft: "0.25rem" }}
             />
           </label>

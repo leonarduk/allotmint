@@ -1,11 +1,11 @@
 // src/components/GroupPortfolioView.tsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 import type {
   GroupPortfolio,
-  Account,
   SectorContribution,
   RegionContribution,
+  InstrumentSummary,
 } from "../types";
 import {
   getGroupPortfolio,
@@ -14,9 +14,10 @@ import {
   getGroupMaxDrawdown,
   getGroupSectorContributions,
   getGroupRegionContributions,
+  getGroupInstruments,
 } from "../api";
-import { HoldingsTable } from "./HoldingsTable";
-import { InstrumentDetail } from "./InstrumentDetail";
+import * as api from "../api";
+import { InstrumentTable } from "./InstrumentTable";
 import { TopMoversSummary } from "./TopMoversSummary";
 import { money, percent, percentOrNa } from "../lib/money";
 import PortfolioSummary, { computePortfolioTotals } from "./PortfolioSummary";
@@ -52,11 +53,6 @@ const PIE_COLORS = [
   "#ffc0cb",
 ];
 
-type SelectedInstrument = {
-  ticker: string;
-  name: string;
-};
-
 type Props = {
   slug: string;
   /** when clicking an owner you may want to jump to the member tab */
@@ -88,26 +84,121 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     !!slug
   );
 
-  const [selected, setSelected] = useState<SelectedInstrument | null>(null);
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency } = useConfig();
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [contribTab, setContribTab] = useState<"sector" | "region">("sector");
+  const [activeOwner, setActiveOwner] = useState<string | null>(null);
+  const [activeAccountType, setActiveAccountType] = useState<string | null>(null);
+  const [instrumentRows, setInstrumentRows] = useState<InstrumentSummary[] | null>(null);
+  const [instrumentLoading, setInstrumentLoading] = useState(false);
+  const [instrumentError, setInstrumentError] = useState<Error | null>(null);
+  const instrumentKeyRef = useRef<string | null>(null);
 
-  // helper to derive a stable key for each account
-  const accountKey = (acct: Account, idx: number) =>
-    `${acct.owner ?? "owner"}-${acct.account_type}-${idx}`;
+  const loadGroupInstruments =
+    api.getCachedGroupInstruments ?? getGroupInstruments;
 
-  // when portfolio changes, select all accounts by default
   useEffect(() => {
-    if (portfolio?.accounts) {
-      setSelectedAccounts(portfolio.accounts.map(accountKey));
+    setActiveOwner(null);
+  }, [slug]);
+
+  const ownerTabs = useMemo<
+    { value: string; label: string; accountTypes: string[] }[]
+  >(
+    () => {
+      if (!portfolio?.accounts?.length) return [];
+      const entries: {
+        value: string;
+        label: string;
+        accountTypes: Set<string>;
+      }[] = [];
+      const index = new Map<string, (typeof entries)[number]>();
+      for (const acct of portfolio.accounts) {
+        if (!acct.owner) continue;
+        let entry = index.get(acct.owner);
+        if (!entry) {
+          entry = {
+            value: acct.owner,
+            label: acct.owner,
+            accountTypes: new Set<string>(),
+          };
+          index.set(acct.owner, entry);
+          entries.push(entry);
+        }
+        entry.accountTypes.add(acct.account_type);
+      }
+      return entries.map(({ value, label, accountTypes }) => ({
+        value,
+        label,
+        accountTypes: Array.from(accountTypes),
+      }));
+    },
+    [portfolio],
+  );
+
+  useEffect(() => {
+    if (activeOwner && !ownerTabs.some((tab) => tab.value === activeOwner)) {
+      setActiveOwner(null);
     }
-  }, [portfolio]);
+  }, [activeOwner, ownerTabs]);
+
+  useEffect(() => {
+    setActiveAccountType(null);
+  }, [activeOwner]);
+
+  useEffect(() => {
+    if (!activeOwner) return;
+    const owner = ownerTabs.find((tab) => tab.value === activeOwner);
+    if (!owner) return;
+    if (activeAccountType && !owner.accountTypes.includes(activeAccountType)) {
+      setActiveAccountType(null);
+    }
+  }, [activeOwner, activeAccountType, ownerTabs]);
+
+  const ownerFilter = activeOwner ?? undefined;
+  const accountFilter =
+    activeOwner && activeAccountType ? activeAccountType : undefined;
+
+  useEffect(() => {
+    if (!slug) {
+      setInstrumentRows(null);
+      setInstrumentLoading(false);
+      setInstrumentError(null);
+      return;
+    }
+    const key = `${slug}::${ownerFilter ?? ""}::${accountFilter ?? ""}`;
+    if (instrumentKeyRef.current !== key) {
+      instrumentKeyRef.current = key;
+      setInstrumentRows(null);
+    }
+    let cancelled = false;
+    setInstrumentLoading(true);
+    setInstrumentError(null);
+    loadGroupInstruments(slug, {
+      owner: ownerFilter,
+      account_type: accountFilter,
+    })
+      .then((rows) => {
+        if (cancelled) return;
+        setInstrumentRows(rows);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setInstrumentError(
+          err instanceof Error ? err : new Error(String(err)),
+        );
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setInstrumentLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, ownerFilter, accountFilter, loadGroupInstruments]);
 
   useEffect(() => {
     const tickers = portfolio?.accounts?.flatMap((acct) =>
@@ -166,18 +257,12 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   > = {};
   const perType: Record<string, number> = {};
 
-  const activeKeys = selectedAccounts.length
-    ? new Set(selectedAccounts)
-    : new Set(portfolio.accounts?.map(accountKey));
+  const accounts = portfolio.accounts ?? [];
 
-  const activeAccounts = (portfolio.accounts ?? []).filter((acct, idx) =>
-    activeKeys.has(accountKey(acct, idx))
-  );
-
-  const totals = computePortfolioTotals(activeAccounts);
+  const totals = computePortfolioTotals(accounts);
   const { totalValue } = totals;
 
-  for (const acct of activeAccounts) {
+  for (const acct of accounts) {
     const owner = acct.owner ?? "—";
     const entry =
       perOwner[owner] || (perOwner[owner] = { value: 0, dayChange: 0, gain: 0, cost: 0 });
@@ -232,6 +317,8 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
       ? maxDrawdown / 100
       : maxDrawdown;
 
+  const isAllPositions = activeOwner === null;
+
   /* ── render ────────────────────────────────────────────── */
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -246,79 +333,84 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         <RelativeViewToggle />
       </div>
 
-      {!relativeViewEnabled && <PortfolioSummary totals={totals} />}
+      {!relativeViewEnabled && isAllPositions && (
+        <PortfolioSummary totals={totals} />
+      )}
 
-      <div
-        style={{
-          display: "flex",
-          gap: "2rem",
-          marginBottom: "1rem",
-          padding: "0.75rem 1rem",
-          backgroundColor: "#222",
-          border: "1px solid #444",
-          borderRadius: "6px",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: "0.9rem",
-              color: "#aaa",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            <BadgeCheck size={16} />
-            Alpha vs Benchmark
+      {isAllPositions && (
+        <div
+          style={{
+            display: "flex",
+            gap: "2rem",
+            marginBottom: "1rem",
+            padding: "0.75rem 1rem",
+            backgroundColor: "#222",
+            border: "1px solid #444",
+            borderRadius: "6px",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: "0.9rem",
+                color: "#aaa",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.25rem",
+              }}
+            >
+              <BadgeCheck size={16} />
+              Alpha vs Benchmark
+            </div>
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+              {percentOrNa(safeAlpha)}
+            </div>
           </div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(safeAlpha)}
+          <div>
+            <div
+              style={{
+                fontSize: "0.9rem",
+                color: "#aaa",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.25rem",
+              }}
+            >
+              <LineChart size={16} />
+              Tracking Error
+            </div>
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+              {percentOrNa(safeTrackingError)}
+            </div>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: "0.9rem",
+                color: "#aaa",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.25rem",
+              }}
+              title={t("dashboard.maxDrawdownHelp")}
+            >
+              <Shield size={16} />
+              <span>{t("dashboard.maxDrawdown")}</span>
+            </div>
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+              {percentOrNa(safeMaxDrawdown)}
+            </div>
           </div>
         </div>
-        <div>
-          <div
-            style={{
-              fontSize: "0.9rem",
-              color: "#aaa",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            <LineChart size={16} />
-            Tracking Error
-          </div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(safeTrackingError)}
-          </div>
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: "0.9rem",
-              color: "#aaa",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            <Shield size={16} />
-            Max Drawdown
-          </div>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-            {percentOrNa(safeMaxDrawdown)}
-          </div>
-        </div>
-      </div>
+      )}
 
-      {error && (
+      {isAllPositions && error && (
         <p style={{ color: "red" }}>
           {t("common.error")}: {error.message}
         </p>
       )}
 
-      {typeRows.length > 0 && (
+      {isAllPositions && typeRows.length > 0 && (
         <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>
           <ResponsiveContainer>
             <PieChart>
@@ -346,7 +438,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         </div>
       )}
 
-      {(sectorContrib?.length || regionContrib?.length) && (
+      {isAllPositions && (sectorContrib?.length || regionContrib?.length) && (
         <div style={{ width: "100%", height: 300, margin: "1rem 0" }}>
           <div style={{ marginBottom: "0.5rem" }}>
             <button
@@ -389,133 +481,206 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         </div>
       )}
 
-      <TopMoversSummary slug={slug} />
+      {isAllPositions && <TopMoversSummary slug={slug} />}
 
-      {/* Per-owner summary */}
-      <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
-        <thead>
-          <tr>
-            <th className={tableStyles.cell}>Owner</th>
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
-              {relativeViewEnabled ? "Portfolio %" : "Total Value"}
-            </th>
-            {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Day Change</th>
-            )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Day Change %</th>
-            {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Gain</th>
-            )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>Total Gain %</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ownerRows.map((row) => (
-            <tr key={row.owner}>
-              <td
-                className={`${tableStyles.cell} ${
-                  onSelectMember ? tableStyles.clickable : ""
-                }`}
-                onClick={
-                  onSelectMember ? () => onSelectMember(row.owner) : undefined
-                }
-              >
-                {row.owner}
-              </td>
-              <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                {relativeViewEnabled
-                  ? percent(row.valuePct)
-                  : money(row.value, baseCurrency)}
-              </td>
+      {isAllPositions && (
+        <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
+          <thead>
+            <tr>
+              <th className={tableStyles.cell}>Owner</th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {relativeViewEnabled ? "Portfolio %" : "Total Value"}
+              </th>
               {!relativeViewEnabled && (
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  Day Change
+                </th>
+              )}
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                Day Change %
+              </th>
+              {!relativeViewEnabled && (
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  Total Gain
+                </th>
+              )}
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                Total Gain %
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {ownerRows.map((row) => (
+              <tr key={row.owner}>
+                <td
+                  className={`${tableStyles.cell} ${
+                    onSelectMember ? tableStyles.clickable : ""
+                  }`}
+                  onClick={
+                    onSelectMember ? () => onSelectMember(row.owner) : undefined
+                  }
+                >
+                  {row.owner}
+                </td>
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {relativeViewEnabled
+                    ? percent(row.valuePct)
+                    : money(row.value, baseCurrency)}
+                </td>
+                {!relativeViewEnabled && (
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right}`}
+                    style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
+                  >
+                    {money(row.dayChange, baseCurrency)}
+                  </td>
+                )}
                 <td
                   className={`${tableStyles.cell} ${tableStyles.right}`}
                   style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
                 >
-                  {money(row.dayChange, baseCurrency)}
+                  {percent(row.dayChangePct)}
                 </td>
-              )}
-              <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
-              >
-                {percent(row.dayChangePct)}
-              </td>
-              {!relativeViewEnabled && (
+                {!relativeViewEnabled && (
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right}`}
+                    style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+                  >
+                    {money(row.gain, baseCurrency)}
+                  </td>
+                )}
                 <td
                   className={`${tableStyles.cell} ${tableStyles.right}`}
                   style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
                 >
-                  {money(row.gain, baseCurrency)}
+                  {percent(row.gainPct)}
                 </td>
-              )}
-              <td
-                className={`${tableStyles.cell} ${tableStyles.right}`}
-                style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <div
+        role="tablist"
+        aria-label="Owners"
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          marginBottom: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeOwner === null}
+          onClick={() => setActiveOwner(null)}
+          style={{
+            padding: "0.5rem 0.75rem",
+            borderRadius: "4px",
+            border: "1px solid #444",
+            backgroundColor: activeOwner === null ? "#333" : "transparent",
+            color: "inherit",
+            cursor: "pointer",
+          }}
+        >
+          All positions
+        </button>
+        {ownerTabs.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={activeOwner === tab.value}
+            onClick={() => setActiveOwner(tab.value)}
+            style={{
+              padding: "0.5rem 0.75rem",
+              borderRadius: "4px",
+              border: "1px solid #444",
+              backgroundColor:
+                activeOwner === tab.value ? "#333" : "transparent",
+              color: "inherit",
+              cursor: "pointer",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeOwner && (
+        <div
+          role="tablist"
+          aria-label={`${activeOwner} accounts`}
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            marginBottom: "1rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeAccountType === null}
+            onClick={() => setActiveAccountType(null)}
+            style={{
+              padding: "0.5rem 0.75rem",
+              borderRadius: "4px",
+              border: "1px solid #444",
+              backgroundColor:
+                activeAccountType === null ? "#333" : "transparent",
+              color: "inherit",
+              cursor: "pointer",
+            }}
+          >
+            All accounts
+          </button>
+          {ownerTabs
+            .find((tab) => tab.value === activeOwner)
+            ?.accountTypes.map((type) => (
+              <button
+                key={type}
+                type="button"
+                role="tab"
+                aria-selected={activeAccountType === type}
+                onClick={() => setActiveAccountType(type)}
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "4px",
+                  border: "1px solid #444",
+                  backgroundColor:
+                    activeAccountType === type ? "#333" : "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                }}
               >
-                {percent(row.gainPct)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                {type}
+              </button>
+            ))}
+        </div>
+      )}
 
-      {/* Account breakdown */}
-      {portfolio.accounts?.map((acct, idx) => {
-        const key = accountKey(acct, idx);
-        const checked = activeKeys.has(key);
-        return (
-          <div key={key} style={{ marginBottom: "1.5rem" }}>
-            <h3>
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() =>
-                  setSelectedAccounts((prev) =>
-                    prev.includes(key)
-                      ? prev.filter((k) => k !== key)
-                      : [...prev, key]
-                  )
-                }
-                aria-label={`${acct.owner ?? "—"} ${acct.account_type}`}
-                style={{ marginRight: "0.5rem" }}
-              />
-              {onSelectMember ? (
-                <span
-                  className={tableStyles.clickable}
-                  onClick={() => onSelectMember(acct.owner ?? "—")}
-                >
-                  {acct.owner ?? "—"}
-                </span>
-              ) : (
-                <>{acct.owner ?? "—"}</>
-              )}{" "}
-              • {acct.account_type} —
-              {money(
-                acct.value_estimate_gbp,
-                acct.value_estimate_currency || baseCurrency,
-              )}
-            </h3>
-
-            {checked && (
-              <HoldingsTable
-                holdings={acct.holdings ?? []}
-                onSelectInstrument={(ticker, name) =>
-                  setSelected({ ticker, name })
-                }
-              />
-            )}
-          </div>
-        );
-      })}
-
-      {/* Slide-in instrument detail panel */}
-      {selected && (
-        <InstrumentDetail
-          ticker={selected.ticker}
-          name={selected.name}
-          onClose={() => setSelected(null)}
-        />
+      {instrumentError && (
+        <p style={{ color: "red" }}>
+          {t("common.error")}: {instrumentError.message}
+        </p>
+      )}
+      {instrumentLoading && !instrumentRows && (
+        <p>{t("common.loading")}</p>
+      )}
+      {instrumentRows && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            width: "100%",
+          }}
+        >
+          <InstrumentTable rows={instrumentRows} />
+        </div>
       )}
     </div>
   );

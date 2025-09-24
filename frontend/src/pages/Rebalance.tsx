@@ -7,7 +7,7 @@ type Row = { ticker: string; current: string; target: string };
 
 export default function Rebalance() {
   const [rows, setRows] = useState<Row[]>([
-    { ticker: 'AAPL', current: '4000', target: '0.4' },
+    { ticker: 'PFE', current: '4000', target: '0.4' },
     { ticker: 'MSFT', current: '3000', target: '0.4' },
     { ticker: 'CASH', current: '3000', target: '0' },
     { ticker: 'GOOG', current: '0', target: '0.2' },

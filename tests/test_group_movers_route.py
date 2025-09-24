@@ -63,6 +63,51 @@ def test_group_movers_endpoint_empty(monkeypatch):
     assert resp.status_code == 200
     assert resp.json() == {"gainers": [], "losers": []}
 
+
+def test_group_movers_invalid_days():
+    client = _auth_client()
+    resp = client.get("/portfolio-group/demo/movers?days=2")
+    assert resp.status_code == 400
+
+
+def test_group_movers_instrument_summaries_failure(monkeypatch):
+    def fake_summaries(slug: str):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(ia, "instrument_summaries_for_group", fake_summaries)
+
+    client = _auth_client()
+    resp = client.get("/portfolio-group/demo/movers")
+    assert resp.status_code == 404
+
+
+def test_group_movers_equal_weight_when_market_values_zero(monkeypatch):
+    def fake_summaries(slug: str):
+        return [
+            {"ticker": "AAA", "market_value_gbp": 0.0},
+            {"ticker": "BBB", "market_value_gbp": 0.0},
+            {"ticker": "CCC", "market_value_gbp": 0.0},
+        ]
+
+    def fake_top_movers(tickers, days, limit, *, min_weight, weights):
+        assert list(weights.keys()) == ["AAA", "BBB", "CCC"]
+        assert all(w == pytest.approx(100.0 / 3) for w in weights.values())
+        return {
+            "gainers": [{"ticker": "AAA", "name": "AAA", "change_pct": 1.0}],
+            "losers": [{"ticker": "BBB", "name": "BBB", "change_pct": -1.0}],
+        }
+
+    monkeypatch.setattr(ia, "instrument_summaries_for_group", fake_summaries)
+    monkeypatch.setattr(ia, "top_movers", fake_top_movers)
+
+    client = _auth_client()
+    resp = client.get("/portfolio-group/demo/movers")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["gainers"][0]["market_value_gbp"] == 0.0
+    assert data["losers"][0]["market_value_gbp"] == 0.0
+
+
 def test_group_movers_limit_too_high():
     client = _auth_client()
     resp = client.get("/portfolio-group/demo/movers?limit=101")

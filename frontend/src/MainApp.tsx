@@ -10,7 +10,6 @@ import type {
 } from "./types";
 
 import { OwnerSelector } from "./components/OwnerSelector";
-import { GroupSelector } from "./components/GroupSelector";
 import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
@@ -28,18 +27,19 @@ import InstallPwaPrompt from "./components/InstallPwaPrompt";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import lazyWithDelay from "./utils/lazyWithDelay";
 import PortfolioDashboardSkeleton from "./components/skeletons/PortfolioDashboardSkeleton";
+import { sanitizeOwners } from "./utils/owners";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
   import("./pages/TimeseriesEdit").then((m) => ({ default: m.TimeseriesEdit })),
 );
 const Watchlist = lazy(() => import("./pages/Watchlist"));
+const MarketOverview = lazy(() => import("./pages/MarketOverview"));
 const TopMovers = lazy(() => import("./pages/TopMovers"));
 const DataAdmin = lazy(() => import("./pages/DataAdmin"));
 const InstrumentAdmin = lazy(() => import("./pages/InstrumentAdmin"));
 const ScenarioTester = lazy(() => import("./pages/ScenarioTester"));
 const SupportPage = lazy(() => import("./pages/Support"));
-const LogsPage = lazy(() => import("./pages/Logs"));
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -85,10 +85,11 @@ export default function MainApp() {
 
   useEffect(() => {
     if (ownersReq.data) {
-      setOwners(ownersReq.data);
+      const sanitizedOwners = sanitizeOwners(ownersReq.data);
+      setOwners(sanitizedOwners);
       if (
         selectedOwner &&
-        !ownersReq.data.some((o) => o.owner === selectedOwner)
+        !sanitizedOwners.some((o) => o.owner === selectedOwner)
       ) {
         setSelectedOwner("");
       }
@@ -123,7 +124,7 @@ export default function MainApp() {
     if (mode === "owner" && !selectedOwner && owners.length) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
-      navigate(`/member/${owner}`, { replace: true });
+      navigate(`/portfolio/${owner}`, { replace: true });
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
@@ -241,11 +242,6 @@ export default function MainApp() {
       {/* GROUP VIEW */}
       {mode === "group" && groups.length > 0 && (
         <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
           <ComplianceWarnings
             owners={
               groups.find((g) => g.slug === selectedGroup)?.members ?? []
@@ -256,7 +252,7 @@ export default function MainApp() {
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);
-              navigate(`/member/${owner}`);
+              navigate(`/portfolio/${owner}`);
             }}
             onTradeInfo={(info) =>
               setTradeInfo(
@@ -275,11 +271,6 @@ export default function MainApp() {
       {/* INSTRUMENT VIEW */}
       {mode === "instrument" && groups.length > 0 && (
         <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
           {err && <p style={{ color: "red" }}>{err}</p>}
           {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
         </>
@@ -307,8 +298,8 @@ export default function MainApp() {
       {mode === "dataadmin" && <DataAdmin />}
       {mode === "watchlist" && <Watchlist />}
       {mode === "support" && <SupportPage />}
+      {mode === "market" && <MarketOverview />}
       {mode === "movers" && <TopMovers />}
-      {mode === "logs" && <LogsPage />}
       {mode === "scenario" && <ScenarioTester />}
     </>
   );

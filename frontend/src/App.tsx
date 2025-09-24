@@ -16,7 +16,6 @@ import type {
 } from "./types";
 
 import { OwnerSelector } from "./components/OwnerSelector";
-import { GroupSelector } from "./components/GroupSelector";
 import { PortfolioView } from "./components/PortfolioView";
 import { GroupPortfolioView } from "./components/GroupPortfolioView";
 import { InstrumentTable } from "./components/InstrumentTable";
@@ -42,22 +41,23 @@ import Support from "./pages/Support";
 import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
-import ProfilePage from "./pages/Profile";
 import Reports from "./pages/Reports";
 import { orderedTabPlugins } from "./tabPlugins";
-import { InstrumentSearchBar } from "./components/InstrumentSearchBar";
+import InstrumentSearchBarToggle from "./components/InstrumentSearchBar";
 import UserAvatar from "./components/UserAvatar";
-import Logs from "./pages/Logs";
 import AllocationCharts from "./pages/AllocationCharts";
 import InstrumentAdmin from "./pages/InstrumentAdmin";
 import Menu from "./components/Menu";
 import Rebalance from "./pages/Rebalance";
 import PensionForecast from "./pages/PensionForecast";
-import TaxHarvest from "./pages/TaxHarvest";
-import TaxAllowances from "./pages/TaxAllowances";
+import TaxTools from "./pages/TaxTools";
 import RightRail from "./components/RightRail";
+import { sanitizeOwners } from "./utils/owners";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
+);
+const InstrumentResearch = lazyWithDelay(
+  () => import("./pages/InstrumentResearch"),
 );
 
 interface AppProps {
@@ -66,15 +66,15 @@ interface AppProps {
 
 type Mode =
   | (typeof orderedTabPlugins)[number]["id"]
-  | "profile"
   | "pension"
   | "market"
-  | "rebalance";
+  | "rebalance"
+  | "research";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
 const initialMode: Mode =
-  path[0] === "member"
+  path[0] === "portfolio"
     ? "owner"
     : path[0] === "instrument"
     ? "instrument"
@@ -102,22 +102,18 @@ const initialMode: Mode =
     ? "instrumentadmin"
     : path[0] === "dataadmin"
     ? "dataadmin"
-    : path[0] === "profile"
-    ? "profile"
     : path[0] === "support"
     ? "support"
-    : path[0] === "tax-harvest"
-    ? "taxharvest"
-    : path[0] === "tax-allowances"
-    ? "taxallowances"
+    : path[0] === "tax-tools"
+    ? "taxtools"
     : path[0] === "settings"
     ? "settings"
     : path[0] === "reports"
     ? "reports"
     : path[0] === "scenario"
     ? "scenario"
-    : path[0] === "logs"
-    ? "logs"
+    : path[0] === "research"
+    ? "research"
     : path[0] === "pension"
     ? "pension"
     : path.length === 0
@@ -136,10 +132,16 @@ export default function App({ onLogout }: AppProps) {
   const params = new URLSearchParams(location.search);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
-    initialMode === "owner" ? initialSlug : ""
+    initialMode === "owner" || initialMode === "performance"
+      ? initialSlug
+      : "",
   );
   const [selectedGroup, setSelectedGroup] = useState(
     initialMode === "instrument" ? initialSlug : params.get("group") ?? ""
+  );
+
+  const [researchTicker, setResearchTicker] = useState(
+    initialMode === "research" ? decodeURIComponent(initialSlug) : ""
   );
 
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -153,7 +155,6 @@ export default function App({ onLogout }: AppProps) {
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
 
   const handleRetry = useCallback(() => {
     setRetryNonce((n) => n + 1);
@@ -175,11 +176,8 @@ export default function App({ onLogout }: AppProps) {
     const params = new URLSearchParams(location.search);
     let newMode: Mode;
     switch (segs[0]) {
-      case "member":
+      case "portfolio":
         newMode = "owner";
-        break;
-      case "profile":
-        newMode = "profile";
         break;
       case "instrument":
         newMode = "instrument";
@@ -223,17 +221,14 @@ export default function App({ onLogout }: AppProps) {
       case "support":
         newMode = "support";
         break;
-      case "logs":
-        newMode = "logs";
+      case "research":
+        newMode = "research";
         break;
       case "pension":
         newMode = "pension";
         break;
-      case "tax-harvest":
-        newMode = "taxharvest";
-        break;
-      case "tax-allowances":
-        newMode = "taxallowances";
+      case "tax-tools":
+        newMode = "taxtools";
         break;
       case "settings":
         newMode = "settings";
@@ -259,26 +254,44 @@ export default function App({ onLogout }: AppProps) {
       return;
     }
     setMode(newMode);
-    if (newMode === "owner") {
+    if (newMode === "owner" || newMode === "performance") {
       setSelectedOwner(segs[1] ?? "");
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
       setSelectedGroup(params.get("group") ?? "");
+    } else if (newMode === "research") {
+      setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? "") : "");
     }
   }, [location.pathname, location.search, tabs, navigate]);
 
   useEffect(() => {
-    if (ownersReq.data) {
-      setOwners(ownersReq.data);
-      if (
-        selectedOwner &&
-        !ownersReq.data.some((o) => o.owner === selectedOwner)
-      ) {
-        setSelectedOwner("");
+    if (!ownersReq.data) return;
+
+    const sanitizedOwners = sanitizeOwners(ownersReq.data);
+
+    setOwners(sanitizedOwners);
+
+    if (!selectedOwner) return;
+
+    const match = sanitizedOwners.find(
+      (o) => o.owner.toLowerCase() === selectedOwner.toLowerCase(),
+    );
+
+    if (match) {
+      if (match.owner !== selectedOwner) {
+        setSelectedOwner(match.owner);
       }
+      return;
     }
-  }, [ownersReq.data, selectedOwner, setSelectedOwner]);
+
+    const segs = location.pathname.split("/").filter(Boolean);
+    const routeSpecifiesOwner = segs[0] === "portfolio" && Boolean(segs[1]);
+
+    if (!routeSpecifiesOwner) {
+      setSelectedOwner("");
+    }
+  }, [ownersReq.data, selectedOwner, setSelectedOwner, location.pathname]);
 
   useEffect(() => {
     if (groupsReq.data) setGroups(groupsReq.data);
@@ -298,10 +311,13 @@ export default function App({ onLogout }: AppProps) {
 
   // redirect to defaults if no selection provided
   useEffect(() => {
-    if (mode === "owner" && !selectedOwner && owners.length) {
+    const segs = location.pathname.split("/").filter(Boolean);
+    const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
+
+    if (mode === "owner" && !selectedOwner && owners.length && atPortfolioRoot) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
-      navigate(`/member/${owner}`, { replace: true });
+      navigate(`/portfolio/${owner}`, { replace: true });
     }
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
@@ -360,25 +376,7 @@ export default function App({ onLogout }: AppProps) {
           onLogout={onLogout}
           style={{ margin: 0 }}
         />
-        {showSearch ? (
-          <InstrumentSearchBar onClose={() => setShowSearch(false)} />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowSearch(true)}
-            style={{
-              marginLeft: "1rem",
-              padding: "0.25rem 0.5rem",
-              borderRadius: "0.25rem",
-              border: "1px solid #ccc",
-              background: "#fff",
-              color: "#213547",
-              cursor: "pointer",
-            }}
-          >
-            {t("app.research")}
-          </button>
-        )}
+        <InstrumentSearchBarToggle />
         {mode === "owner" && (
           <OwnerSelector
             owners={owners}
@@ -432,13 +430,8 @@ export default function App({ onLogout }: AppProps) {
       )}
 
       {/* GROUP VIEW */}
-      {mode === "group" && groups.length > 0 && (
+      {mode === "group" && selectedGroup && (
         <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
           <ComplianceWarnings
             owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
           />
@@ -447,7 +440,7 @@ export default function App({ onLogout }: AppProps) {
             onSelectMember={(owner) => {
               setMode("owner");
               setSelectedOwner(owner);
-              navigate(`/member/${owner}`);
+              navigate(`/portfolio/${owner}`);
             }}
           />
         </>
@@ -456,11 +449,6 @@ export default function App({ onLogout }: AppProps) {
       {/* INSTRUMENT VIEW */}
       {mode === "instrument" && groups.length > 0 && (
         <>
-          <GroupSelector
-            groups={groups}
-            selected={selectedGroup}
-            onSelect={setSelectedGroup}
-          />
           {err && <p style={{ color: "red" }}>{err}</p>}
           {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
         </>
@@ -494,13 +482,15 @@ export default function App({ onLogout }: AppProps) {
       {mode === "market" && <MarketOverview />}
       {mode === "movers" && <TopMovers />}
       {mode === "reports" && <Reports />}
-      {mode === "taxharvest" && <TaxHarvest />}
-      {mode === "taxallowances" && <TaxAllowances />}
+      {mode === "taxtools" && <TaxTools />}
       {mode === "support" && <Support />}
-      {mode === "profile" && <ProfilePage />}
       {mode === "settings" && <UserConfigPage />}
-      {mode === "logs" && <Logs />}
       {mode === "scenario" && <ScenarioTester />}
+      {mode === "research" && (
+        <Suspense fallback={<p>{t("app.loading")}</p>}>
+          <InstrumentResearch ticker={researchTicker} />
+        </Suspense>
+      )}
       {mode === "pension" && <PensionForecast />}
       </main>
       <Defer>

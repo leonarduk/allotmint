@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -18,6 +18,7 @@ import SectionCard from "../components/SectionCard";
 import type { OwnerSummary } from "../types";
 import { orderedTabPlugins, type TabPluginId } from "../tabPlugins";
 import { usePriceRefresh } from "../PriceRefreshContext";
+import { sanitizeOwners } from "../utils/owners";
 
 const TAB_KEYS = orderedTabPlugins.map((p) => p.id) as TabPluginId[];
 const EMPTY_TABS = Object.fromEntries(TAB_KEYS.map((k) => [k, false])) as Record<
@@ -47,6 +48,9 @@ export default function Support() {
   const [healthRunning, setHealthRunning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [logs, setLogs] = useState("");
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
   const { lastRefresh, setLastRefresh } = usePriceRefresh();
 
   const envEntries = Object.entries(import.meta.env).sort();
@@ -55,8 +59,9 @@ export default function Support() {
   useEffect(() => {
     getOwners()
       .then((list) => {
-        setOwners(list);
-        setOwner(list[0]?.owner ?? "");
+        const sanitized = sanitizeOwners(list);
+        setOwners(sanitized);
+        setOwner(sanitized[0]?.owner ?? "");
       })
       .catch(() => setOwners([]));
   }, []);
@@ -148,6 +153,28 @@ export default function Support() {
       setRefreshing(false);
     }
   }
+
+  const loadLogs = useCallback(async () => {
+    setLogsLoading(true);
+    setLogsError(null);
+    try {
+      const res = await fetch(`${API_BASE}/logs`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      setLogs(text);
+    } catch {
+      setLogs("");
+      setLogsError(t("support.logs.error"));
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    loadLogs().catch(() => {
+      /* error handled in loadLogs */
+    });
+  }, [loadLogs]);
 
   async function saveConfig(e: React.FormEvent) {
     e.preventDefault();
@@ -330,6 +357,31 @@ export default function Support() {
             })}
           </tbody>
         </table>
+      </SectionCard>
+
+      <SectionCard title={t("support.logs.title")}>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              loadLogs().catch(() => {
+                /* error handled in loadLogs */
+              });
+            }}
+            disabled={logsLoading}
+            className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {logsLoading ? t("common.loading") : t("support.logs.refresh")}
+          </button>
+          {logsError && (
+            <span className="text-sm text-red-600" role="status">
+              {logsError}
+            </span>
+          )}
+        </div>
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded bg-black/5 p-3 text-xs">
+          {logs ? logs : t("support.logs.empty")}
+        </pre>
       </SectionCard>
 
       <SectionCard title={t("support.priceRefresh")}> 

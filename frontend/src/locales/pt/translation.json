@@ -15,7 +15,7 @@
     "modes": {
       "group": "Grupo",
       "instrument": "Instrumento",
-      "owner": "Membro",
+      "owner": "Portfólio",
       "performance": "Desempenho",
       "transactions": "Transações",
       "trading": "Negociação",
@@ -29,19 +29,33 @@
       "instrumentadmin": "Administração de instrumentos",
       "dataadmin": "Administração de dados",
       "settings": "Configurações do usuário",
-      "profile": "Perfil",
       "pension": "Previsão de pensão",
+      "taxtools": "Ferramentas fiscais",
       "trail": "Trail",
       "reports": "Relatórios",
-      "alertsettings": "Alert Settings",
-      "support": "Suporte",
-      "scenario": "Testador de Cenários",
-    "logs": "Registros"
+  "alertsettings": "Alert Settings",
+  "compliance": "Alertas de conformidade",
+  "trade-compliance": "Conformidade de negociações",
+  "support": "Suporte",
+      "scenario": "Testador de Cenários"
+    },
+    "logs": {
+      "title": "Registros",
+      "refresh": "Atualizar registros",
+      "empty": "Nenhum registro disponível.",
+      "error": "Não foi possível carregar os registros."
     }
   },
   "trail": {
-    "daily": "Daily",
-    "once": "Once"
+    "title": "Progresso do Trail",
+    "daily": "Diário",
+    "once": "Única vez",
+    "progressLabel": "Progresso diário: {{completed}} / {{total}} ({{percent}}%)",
+    "xpLabel": "XP: {{xp}}",
+    "streakLabel": "Sequência: {{count}} dia",
+    "streakLabel_plural": "Sequência: {{count}} dias",
+    "dailyComplete": "Tarefas diárias concluídas! Continue a sequência.",
+    "allDone": "Todas as tarefas do Trail estão concluídas — trabalho incrível!"
   },
   "common": {
     "error": "Erro",
@@ -66,6 +80,7 @@
   "instrumentTable": {
     "noInstruments": "Sem instrumentos.",
     "ungrouped": "Sem grupo",
+    "exchangesLabel": "Bolsas:",
     "groupTotals": {
       "market": "Mercado",
       "gain": "Ganho",
@@ -185,7 +200,42 @@
     "retirementAge": "Idade de aposentadoria: {{age}}",
     "pensionPot": "Fundo de pensão",
     "growthAssumption": "Suposição de crescimento (%):",
-    "monthlyContribution": "Contribuição mensal (£):"
+    "monthlyContribution": "Contribuição mensal (£):",
+    "incomeBreakdownHeading": "Retirement income breakdown",
+    "incomeSources": {
+      "state": "State pension",
+      "definedBenefit": "Defined benefit",
+      "definedContribution": "Defined contribution"
+    },
+    "incomeTable": {
+      "source": "Source",
+      "annual": "Annual (£)",
+      "monthly": "Monthly (£)",
+      "share": "Share"
+    },
+    "totalAnnualIncome": "Total annual income",
+    "totalMonthlyIncome": "Total monthly income",
+    "prediction": {
+      "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
+      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} from age {{age}}.",
+      "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
+      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
+      "earliest": "Estimated earliest retirement age: {{age}}",
+      "noBreakdown": "No income breakdown available."
+    },
+    "employerContributionLabel": "Contribuição do empregador",
+    "header": {
+      "kicker": "Visão geral da sua aposentadoria",
+      "heading": "Acompanhe suas contribuições de relance",
+      "pensionPot": "Fundo de aposentadoria atual",
+      "employeeContribution": "Sua contribuição mensal",
+      "employerContribution": "Contribuição do empregador",
+      "totalContribution": "Contribuições mensais totais: {{total}}",
+      "addAnother": "Adicionar outra aposentadoria",
+      "additionalPensions_one": "{{count}} aposentadoria adicional vinculada",
+      "additionalPensions_other": "{{count}} aposentadorias adicionais vinculadas",
+      "notAvailable": "Não disponível"
+    }
   },
   "group": {
     "select": "Selecione um grupo."
@@ -379,16 +429,16 @@
     "grouping": "Agrupamento",
     "actions": "Ações",
     "add": "Adicionar instrumento",
-  "save": "Salvar",
-  "saveSuccess": "Salvo",
-  "saveError": "Erro ao salvar",
-  "searchPlaceholder": "Filtrar instrumentos…",
-  "validation": {
-    "ticker": "Ticker é obrigatório",
-    "name": "Nome é obrigatório",
-    "grouping": "Agrupamento é obrigatório"
-  }
-},
+    "save": "Salvar",
+    "saveSuccess": "Salvo",
+    "saveError": "Erro ao salvar",
+    "searchPlaceholder": "Filtrar instrumentos…",
+    "validation": {
+      "ticker": "Ticker é obrigatório",
+      "name": "Nome é obrigatório",
+      "grouping": "Agrupamento é obrigatório"
+    }
+  },
   "var": {
     "title": "Valor em Risco",
     "details": "Detalhes da simulação histórica",

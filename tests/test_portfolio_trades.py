@@ -9,7 +9,7 @@ def test_load_trades_aws_success(monkeypatch):
     monkeypatch.setenv("DATA_BUCKET", "bucket")
     monkeypatch.setattr(portfolio.config, "app_env", "aws", raising=False)
 
-    body_bytes = b"date,ticker,units\n2024-02-01,AAPL,5\n"
+    body_bytes = b"date,ticker,units\n2024-02-01,PFE,5\n"
 
     class FakeBody:
         def read(self):
@@ -27,7 +27,7 @@ def test_load_trades_aws_success(monkeypatch):
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     trades = portfolio.load_trades("alice")
-    assert trades == [{"date": "2024-02-01", "ticker": "AAPL", "units": "5"}]
+    assert trades == [{"date": "2024-02-01", "ticker": "PFE", "units": "5"}]
 
 
 def test_load_trades_aws_missing(monkeypatch, caplog):

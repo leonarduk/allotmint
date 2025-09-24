@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getInstrumentDetail, getInstrumentIntraday } from "../api";
@@ -8,7 +8,7 @@ import tableStyles from "../styles/table.module.css";
 import i18n from "../i18n";
 import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
-import type { TradingSignal } from "../types";
+import type { InstrumentPosition, TradingSignal } from "../types";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import {
@@ -20,13 +20,19 @@ import {
   Tooltip,
 } from "recharts";
 
+type Variant = "drawer" | "standalone";
+
 type Props = {
   ticker: string;
   name: string;
   currency?: string;
   instrument_type?: string | null;
   signal?: TradingSignal;
-  onClose: () => void;
+  onClose?: () => void;
+  variant?: Variant;
+  hidePositions?: boolean;
+  initialHistoryDays?: number;
+  onHistoryRangeChange?: (days: number) => void;
 };
 
 type Price = {
@@ -35,13 +41,19 @@ type Price = {
   close?: number | null | undefined;
 };
 
-type Position = {
-  owner: string;
-  account: string;
-  units: number | null | undefined;
-  market_value_gbp: number | null | undefined;
-  unrealised_gain_gbp: number | null | undefined;
+type Position = InstrumentPosition & {
+  market_value_gbp?: number | null | undefined;
+  unrealised_gain_gbp?: number | null | undefined;
   gain_pct?: number | null | undefined;
+};
+
+type PositionsTableProps = {
+  positions: Position[];
+  loading: boolean;
+  positiveColor?: string;
+  negativeColor?: string;
+  linkColor?: string;
+  mutedColor?: string;
 };
 
 // ───────────────── helpers ─────────────────
@@ -58,6 +70,121 @@ const fixed = (v: unknown, dp = 2): string => {
     : "—";
 };
 
+export function InstrumentPositionsTable({
+  positions,
+  loading,
+  positiveColor = "lightgreen",
+  negativeColor = "red",
+  linkColor = "#00d8ff",
+  mutedColor = "#888",
+}: PositionsTableProps) {
+  const { t } = useTranslation();
+  const { baseCurrency, relativeViewEnabled } = useConfig();
+  const colorForValue = (value: unknown) => {
+    const n = toNum(value);
+    if (!Number.isFinite(n) || n === 0) {
+      return mutedColor;
+    }
+
+    return n > 0 ? positiveColor : negativeColor;
+  };
+
+  return (
+    <table
+      className={tableStyles.table}
+      style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
+    >
+      <thead>
+        <tr>
+          <th className={tableStyles.cell}>{t("instrumentDetail.columns.account")}</th>
+          {!relativeViewEnabled && (
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t("instrumentDetail.columns.units")}
+            </th>
+          )}
+          {!relativeViewEnabled && (
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t("instrumentDetail.columns.market")}
+            </th>
+          )}
+          {!relativeViewEnabled && (
+            <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+              {t("instrumentDetail.columns.gain")}
+            </th>
+          )}
+          <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+            {t("instrumentDetail.columns.gainPct")}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {loading ? (
+          <tr>
+            <td
+              colSpan={relativeViewEnabled ? 2 : 5}
+              className={`${tableStyles.cell} ${tableStyles.center}`}
+              style={{ color: mutedColor }}
+            >
+              {t("app.loading")}
+            </td>
+          </tr>
+        ) : positions.length ? (
+          positions.map((pos, i) => (
+            <tr key={`${pos.owner}-${pos.account}-${i}`}>
+              <td className={tableStyles.cell}>
+                <Link
+                  to={`/portfolio/${encodeURIComponent(pos.owner ?? "")}`}
+                  style={{ color: linkColor, textDecoration: "none" }}
+                >
+                  {pos.owner} – {pos.account}
+                </Link>
+              </td>
+              {!relativeViewEnabled && (
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {fixed(pos.units, 4)}
+                </td>
+              )}
+              {!relativeViewEnabled && (
+                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                  {money(pos.market_value_gbp, baseCurrency)}
+                </td>
+              )}
+              {!relativeViewEnabled && (
+                <td
+                  className={`${tableStyles.cell} ${tableStyles.right}`}
+                  style={{
+                    color: colorForValue(pos.unrealised_gain_gbp),
+                  }}
+                >
+                  {money(pos.unrealised_gain_gbp, baseCurrency)}
+                </td>
+              )}
+              <td
+                className={`${tableStyles.cell} ${tableStyles.right}`}
+                style={{
+                  color: colorForValue(pos.gain_pct),
+                }}
+              >
+                {percent(pos.gain_pct, 1)}
+              </td>
+            </tr>
+          ))
+        ) : (
+          <tr>
+            <td
+              colSpan={relativeViewEnabled ? 2 : 5}
+              className={`${tableStyles.cell} ${tableStyles.center}`}
+              style={{ color: mutedColor }}
+            >
+              {t("instrumentDetail.noPositions")}
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
 export function InstrumentDetail({
   ticker,
   name,
@@ -65,9 +192,50 @@ export function InstrumentDetail({
   instrument_type, // ← comes from props now
   signal,
   onClose,
+  variant = "drawer",
+  hidePositions = false,
+  initialHistoryDays,
+  onHistoryRangeChange,
 }: Props) {
   const { t } = useTranslation();
-  const { relativeViewEnabled, baseCurrency } = useConfig();
+  const { baseCurrency } = useConfig();
+  const palette = useMemo(
+    () => ({
+      background: variant === "drawer" ? "#111" : "transparent",
+      text: variant === "drawer" ? "#eee" : "inherit",
+      muted: variant === "drawer" ? "#aaa" : "#555",
+      link: variant === "drawer" ? "#00d8ff" : "#1a73e8",
+      positive: variant === "drawer" ? "lightgreen" : "#137333",
+      negative: variant === "drawer" ? "red" : "#b3261e",
+      accentBorder: variant === "drawer" ? "#222" : "#ddd",
+    }),
+    [variant],
+  );
+  const containerStyle = useMemo(
+    () =>
+      variant === "drawer"
+        ? {
+            position: "fixed" as const,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: "420px",
+            background: palette.background,
+            color: palette.text,
+            padding: "1rem",
+            overflowY: "auto" as const,
+            boxShadow: "-4px 0 8px rgba(0,0,0,0.5)",
+          }
+        : {
+            position: "relative" as const,
+            width: "100%",
+            maxWidth: "100%",
+            background: palette.background,
+            color: palette.text === "inherit" ? undefined : palette.text,
+            padding: 0,
+          },
+    [palette.background, palette.text, variant],
+  );
   const [data, setData] = useState<{
     prices: Price[];
     positions: Position[];
@@ -81,8 +249,9 @@ export function InstrumentDetail({
   const [showMA20, setShowMA20] = useState(false);
   const [showMA50, setShowMA50] = useState(false);
   const [showMA200, setShowMA200] = useState(false);
+  const resolvedInitialDays = initialHistoryDays ?? 365;
   const [showRSI, setShowRSI] = useState(false);
-  const [days, setDays] = useState<number>(365);
+  const [days, setDays] = useState<number>(resolvedInitialDays);
   const [priceMode, setPriceMode] = useState<"close" | "intraday">("close");
   const [intradayPrices, setIntradayPrices] = useState<{ timestamp: string; close: number }[]>([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
@@ -107,6 +276,14 @@ export function InstrumentDetail({
       .catch((e: Error) => setErr(e.message))
       .finally(() => setLoading(false));
   }, [ticker, days]);
+
+  useEffect(() => {
+    setDays(resolvedInitialDays);
+  }, [ticker, resolvedInitialDays]);
+
+  useEffect(() => {
+    onHistoryRangeChange?.(days);
+  }, [days, onHistoryRangeChange]);
 
   useEffect(() => {
     setPriceMode("close");
@@ -238,30 +415,35 @@ export function InstrumentDetail({
   const positions = data?.positions ?? [];
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: "420px",
-        background: "#111",
-        color: "#eee",
-        padding: "1rem",
-        overflowY: "auto",
-        boxShadow: "-4px 0 8px rgba(0,0,0,0.5)",
-      }}
-    >
-      <button onClick={onClose} style={{ float: "right" }}>
-        ✕
-      </button>
+    <div style={containerStyle}>
+      {onClose && variant === "drawer" && (
+        <button onClick={onClose} style={{ float: "right" }}>
+          ✕
+        </button>
+      )}
       {signal && (
         <div style={{ marginBottom: "0.5rem" }}>
           <strong>{signal.action.toUpperCase()}</strong> – {signal.reason}
           {signal.confidence != null && (
-            <div>Confidence: {(signal.confidence * 100).toFixed(0)}%</div>
+            <div>
+              Signal strength:{" "}
+              {signal.confidence >= 0.75
+                ? "Strong"
+                : signal.confidence >= 0.5
+                  ? "Moderate"
+                  : "Weak"}
+              {` (${Math.round(signal.confidence * 100)}%)`}
+            </div>
           )}
-          {signal.rationale && <div>{signal.rationale}</div>}
+          {signal.factors && signal.factors.length ? (
+            <ul style={{ margin: "0.25rem 0 0 1.1rem" }}>
+              {signal.factors.map((factor, idx) => (
+                <li key={idx}>{factor}</li>
+              ))}
+            </ul>
+          ) : (
+            signal.rationale && <div>{signal.rationale}</div>
+          )}
         </div>
       )}
       <div
@@ -275,9 +457,9 @@ export function InstrumentDetail({
         <h2 style={{ marginBottom: 0 }}>{name}</h2>
         <RelativeViewToggle />
       </div>
-      <div style={{ fontSize: "0.85rem", color: "#aaa" }}>
+      <div style={{ fontSize: "0.85rem", color: palette.muted }}>
         {ticker} • {displayCurrency} • {translateInstrumentType(t, instrument_type)} • {" "}
-        <Link to={editLink} style={{ color: "#00d8ff", textDecoration: "none" }}>
+        <Link to={editLink} style={{ color: palette.link, textDecoration: "none" }}>
           {t("instrumentDetail.edit")}
         </Link>
       </div>
@@ -286,8 +468,8 @@ export function InstrumentDetail({
           style={{
             color: Number.isFinite(change7dPct)
               ? change7dPct >= 0
-                ? "lightgreen"
-                : "red"
+                ? palette.positive
+                : palette.negative
               : undefined,
           }}
         >
@@ -298,15 +480,15 @@ export function InstrumentDetail({
           style={{
             color: Number.isFinite(change30dPct)
               ? change30dPct >= 0
-                ? "lightgreen"
-                : "red"
+                ? palette.positive
+                : palette.negative
               : undefined,
           }}
         >
           {t("instrumentDetail.change30d")} {loading ? t("app.loading") : percent(change30dPct, 1)}
         </span>
       </div>
-      {err && <p style={{ color: "red" }}>{err}</p>}
+      {err && <p style={{ color: palette.negative }}>{err}</p>}
 
       {/* Chart */}
       <div style={{ marginBottom: "0.5rem" }}>
@@ -382,7 +564,7 @@ export function InstrumentDetail({
         </label>
       </div>
       {intradayError && (
-        <div style={{ color: "red", marginBottom: "0.5rem" }}>
+        <div style={{ color: palette.negative, marginBottom: "0.5rem" }}>
           {t("instrumentDetail.intradayUnavailable")}
         </div>
       )}
@@ -503,92 +685,20 @@ export function InstrumentDetail({
         </ResponsiveContainer>
       )}
 
-      {/* Positions */}
-      <h3 style={{ marginTop: "1.5rem" }}>{t("instrumentDetail.positions")}</h3>
-      <table
-        className={tableStyles.table}
-        style={{ fontSize: "0.85rem", marginBottom: "1rem" }}
-      >
-        <thead>
-          <tr>
-            <th className={tableStyles.cell}>{t("instrumentDetail.columns.account")}</th>
-            {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.units")}</th>
-            )}
-            {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.market")}</th>
-            )}
-            {!relativeViewEnabled && (
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.gain")}</th>
-            )}
-            <th className={`${tableStyles.cell} ${tableStyles.right}`}>{t("instrumentDetail.columns.gainPct")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <tr>
-              <td
-                colSpan={relativeViewEnabled ? 2 : 5}
-                className={`${tableStyles.cell} ${tableStyles.center}`}
-                style={{ color: "#888" }}
-              >
-                {t("app.loading")}
-              </td>
-            </tr>
-          ) : positions.length ? (
-            positions.map((pos, i) => (
-              <tr key={`${pos.owner}-${pos.account}-${i}`}>
-                <td className={tableStyles.cell}>
-                  <Link
-                    to={`/member/${encodeURIComponent(pos.owner)}`}
-                    style={{ color: "#00d8ff", textDecoration: "none" }}
-                  >
-                    {pos.owner} – {pos.account}
-                  </Link>
-                </td>
-                {!relativeViewEnabled && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {fixed(pos.units, 4)}
-                  </td>
-                )}
-                {!relativeViewEnabled && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                    {money(pos.market_value_gbp, baseCurrency)}
-                  </td>
-                )}
-                {!relativeViewEnabled && (
-                  <td
-                    className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{
-                      color: toNum(pos.unrealised_gain_gbp) >= 0
-                        ? "lightgreen"
-                        : "red",
-                    }}
-                  >
-                    {money(pos.unrealised_gain_gbp, baseCurrency)}
-                  </td>
-                )}
-                <td
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  style={{ color: toNum(pos.gain_pct) >= 0 ? "lightgreen" : "red" }}
-                >
-                  {percent(pos.gain_pct, 1)}
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td
-                colSpan={relativeViewEnabled ? 2 : 5}
-                className={`${tableStyles.cell} ${tableStyles.center}`}
-                style={{ color: "#888" }}
-              >
-                {t("instrumentDetail.noPositions")}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+      {!hidePositions && (
+        <>
+          {/* Positions */}
+          <h3 style={{ marginTop: "1.5rem" }}>{t("instrumentDetail.positions")}</h3>
+          <InstrumentPositionsTable
+            positions={positions}
+            loading={loading}
+            positiveColor={palette.positive}
+            negativeColor={palette.negative}
+            linkColor={palette.link}
+            mutedColor={palette.muted}
+          />
+        </>
+      )}
 
       {/* Recent Prices */}
       <h3>{t("instrumentDetail.recentPrices")}</h3>
@@ -610,7 +720,7 @@ export function InstrumentDetail({
               <td
                 colSpan={4}
                 className={`${tableStyles.cell} ${tableStyles.center}`}
-                style={{ color: "#888" }}
+                style={{ color: palette.muted }}
               >
                 {t("app.loading")}
               </td>
@@ -622,8 +732,8 @@ export function InstrumentDetail({
               .map((p) => {
                 const colour = Number.isFinite(p.change_gbp)
                   ? p.change_gbp >= 0
-                    ? "lightgreen"
-                    : "red"
+                    ? palette.positive
+                    : palette.negative
                   : undefined;
                 return (
                   <tr key={p.date}>
@@ -672,7 +782,7 @@ export function InstrumentDetail({
               <td
                 colSpan={4}
                 className={`${tableStyles.cell} ${tableStyles.center}`}
-                style={{ color: "#888" }}
+                style={{ color: palette.muted }}
               >
                 {t("instrumentDetail.noPriceData")}
               </td>

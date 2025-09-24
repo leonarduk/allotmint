@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import inspect
 import logging
 from datetime import date, timedelta
 from typing import Any, Dict, Optional
@@ -256,6 +257,7 @@ def _get_price_for_date_scaled(
 def get_effective_cost_basis_gbp(
     h: Dict[str, Any],
     price_cache: dict[str, float],
+    price_hint: float | None = None,
 ) -> float:
     """
     If booked cost exists, use it. Otherwise derive:
@@ -264,14 +266,6 @@ def get_effective_cost_basis_gbp(
     units = float(h.get(UNITS) or 0.0)
     if units <= 0:
         return 0.0
-
-    booked_raw = h.get(COST_BASIS_GBP)
-    try:
-        booked = float(booked_raw) if booked_raw is not None else 0.0
-    except (TypeError, ValueError):
-        booked = 0.0
-    if booked > 0:
-        return round(booked, 2)
 
     from backend.common import instrument_api
 
@@ -284,6 +278,31 @@ def get_effective_cost_basis_gbp(
     else:
         exchange = "L"
         logger.debug("Could not resolve exchange for %s; defaulting to L", full)
+    scale = get_scaling_override(ticker, exchange, None)
+    booked_raw = h.get(COST_BASIS_GBP)
+    try:
+        booked_total = float(booked_raw) if booked_raw is not None else 0.0
+    except (TypeError, ValueError):
+        booked_total = 0.0
+
+    if booked_total > 0:
+        unscaled_total = round(booked_total, 2)
+        scaled_total = None
+        if scale not in (None, 0, 1):
+            scaled_total = round(booked_total * scale, 2)
+
+        chosen_total = unscaled_total
+        if scaled_total is not None:
+            if price_hint is not None and units > 0:
+                expected_total = round(units * price_hint, 2)
+                if abs(scaled_total - expected_total) < abs(unscaled_total - expected_total):
+                    chosen_total = scaled_total
+            else:
+                chosen_total = scaled_total
+
+        h[COST_BASIS_GBP] = chosen_total
+        return chosen_total
+
     acq = _parse_date(h.get(ACQUIRED_DATE))
 
     close_px = None
@@ -456,13 +475,6 @@ def enrich_holding(
 
     out["sell_eligible"] = bool(eligible and (approved or not needs_approval))
 
-    # Effective cost basis (always computed)
-    ecb = get_effective_cost_basis_gbp(out, price_cache)
-    out[EFFECTIVE_COST_BASIS_GBP] = ecb
-
-    # Choose cost for gains: prefer booked cost if present, else effective
-    cost_for_gain = float(out.get(EFFECTIVE_COST_BASIS_GBP) or 0.0) or ecb
-
     units = float(out.get(UNITS, 0) or 0)
 
     px = px_source = prev_px = None
@@ -495,6 +507,37 @@ def enrich_holding(
     out["latest_source"] = px_source
     out["last_price_time"] = last_price_time
     out["is_stale"] = is_stale
+
+    helper = get_effective_cost_basis_gbp
+    pass_price_hint = False
+    try:
+        signature = inspect.signature(helper)
+    except (TypeError, ValueError):
+        signature = None
+
+    if signature is not None:
+        params = signature.parameters
+        if "price_hint" in params:
+            pass_price_hint = True
+        else:
+            pass_price_hint = any(
+                param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values()
+            )
+    if pass_price_hint:
+        ecb = helper(out, price_cache, price_hint=px)
+    else:
+        try:
+            ecb = helper(out, price_cache, price_hint=px)
+        except TypeError:
+            ecb = helper(out, price_cache)
+    out[EFFECTIVE_COST_BASIS_GBP] = ecb
+
+    try:
+        cost_for_gain = float(out.get(COST_BASIS_GBP) or 0.0)
+    except (TypeError, ValueError):
+        cost_for_gain = 0.0
+    if cost_for_gain <= 0:
+        cost_for_gain = ecb
 
     if px is not None:
         mv = round(units * float(px), 2)

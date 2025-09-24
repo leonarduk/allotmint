@@ -8,7 +8,7 @@ import re
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from backend.config import config
 
@@ -40,6 +40,8 @@ _VALID_RE = re.compile(r"^[A-Z0-9-]+$")
 
 METADATA_BUCKET_ENV = "METADATA_BUCKET"
 METADATA_PREFIX_ENV = "METADATA_PREFIX"
+
+_AUTO_CREATE_FAILURES: set[str] = set()
 
 
 @lru_cache(maxsize=1)
@@ -148,7 +150,8 @@ def get_instrument_meta(ticker: str) -> Dict[str, Any]:
         with path.open("r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        return {}
+        created = _auto_create_instrument_meta(ticker)
+        return created or {}
     except json.JSONDecodeError as exc:
         logger.warning("Invalid instrument JSON %s: %s", path, exc)
         return {}
@@ -222,6 +225,148 @@ def save_instrument_meta(
 
     get_instrument_meta.cache_clear()
     return path
+
+
+def _clean_str(value: Any, *, upper: bool = False) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+    else:
+        text = str(value).strip()
+    if not text:
+        return None
+    return text.upper() if upper else text
+
+
+def _asset_class_from_quote_type(quote_type: Optional[str]) -> Optional[str]:
+    if not quote_type:
+        return None
+    mapping = {
+        "EQUITY": "Equity",
+        "ETF": "Fund",
+        "MUTUALFUND": "Fund",
+        "INDEX": "Index",
+        "CURRENCY": "Currency",
+        "CRYPTOCURRENCY": "Crypto",
+        "FUTURE": "Derivative",
+        "OPTION": "Derivative",
+        "BOND": "Bond",
+        "MONEYMARKET": "Cash",
+    }
+    key = quote_type.upper()
+    if key in mapping:
+        return mapping[key]
+    return quote_type.replace("_", " ").title()
+
+
+def _fetch_metadata_from_yahoo(full_ticker: str) -> Optional[Dict[str, Any]]:
+    try:
+        import yfinance as yf  # type: ignore
+    except Exception as exc:  # pragma: no cover - optional dependency missing
+        logger.debug("yfinance unavailable; cannot fetch metadata for %s: %s", full_ticker, exc)
+        return None
+
+    try:
+        stock = yf.Ticker(full_ticker)
+    except Exception as exc:  # pragma: no cover - network/IO errors
+        logger.warning("Failed to initialise yfinance for %s: %s", full_ticker, exc)
+        return None
+
+    info: Dict[str, Any] = {}
+    try:
+        fetched = stock.get_info()
+        if isinstance(fetched, dict):
+            info = fetched
+    except Exception as exc:  # pragma: no cover - best effort fallback
+        logger.debug("yfinance get_info failed for %s: %s", full_ticker, exc)
+        try:
+            fetched_attr = getattr(stock, "info", None)
+            if isinstance(fetched_attr, dict):
+                info = fetched_attr
+        except Exception as exc_attr:  # pragma: no cover - best effort fallback
+            logger.debug("yfinance info attribute failed for %s: %s", full_ticker, exc_attr)
+
+    name = _clean_str(
+        info.get("shortName")
+        or info.get("longName")
+        or info.get("displayName")
+        or info.get("name")
+        or full_ticker,
+    )
+
+    currency = _clean_str(info.get("currency"), upper=True)
+    if not currency:
+        try:
+            fast = getattr(stock, "fast_info", None)
+            if fast is not None:
+                if isinstance(fast, dict):
+                    currency = _clean_str(fast.get("currency"), upper=True)
+                else:
+                    currency = _clean_str(getattr(fast, "currency", None), upper=True)
+        except Exception:  # pragma: no cover - best effort fallback
+            currency = None
+
+    sector = _clean_str(info.get("sector") or info.get("category"))
+    industry = _clean_str(info.get("industry") or info.get("industryDisp"))
+    region = _clean_str(info.get("region") or info.get("country") or info.get("market"))
+    quote_type = _clean_str(info.get("quoteType"), upper=True)
+    asset_class = _asset_class_from_quote_type(quote_type) if quote_type else None
+
+    metadata: Dict[str, Any] = {
+        "name": name or full_ticker,
+        "currency": currency,
+        "sector": sector,
+        "region": region,
+        "asset_class": asset_class,
+        "industry": industry,
+    }
+    if quote_type:
+        metadata["instrument_type"] = quote_type
+
+    return {k: v for k, v in metadata.items() if v is not None}
+
+
+_ORIGINAL_FETCH_METADATA = _fetch_metadata_from_yahoo
+
+
+def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
+    canonical = (ticker or "").strip().upper()
+    if not canonical or canonical in _AUTO_CREATE_FAILURES:
+        return None
+
+    sym, exch = (canonical.split(".", 1) + [None])[:2]
+    if not exch or not sym or sym == "CASH":
+        return None
+
+    # Avoid triggering live lookups when the application is running in offline
+    # mode.  Tests exercise the auto-create behaviour by monkeypatching
+    # ``_fetch_metadata_from_yahoo``; allow those callers through even when the
+    # real configuration is offline by checking that the helper has been
+    # replaced.
+    if config.offline_mode and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA:
+        return None
+
+    full = f"{sym}.{exch}"
+    fetched = _fetch_metadata_from_yahoo(full)
+    if not fetched:
+        _AUTO_CREATE_FAILURES.add(full)
+        return None
+
+    payload: Dict[str, Any] = {
+        "ticker": full,
+        "exchange": exch,
+        **fetched,
+    }
+
+    try:
+        save_instrument_meta(sym, exch, payload)
+    except Exception as exc:  # pragma: no cover - filesystem errors are rare
+        logger.warning("Failed to persist auto-created metadata for %s: %s", full, exc)
+    else:
+        logger.info("Auto-created instrument metadata for %s from Yahoo Finance", full)
+
+    return payload
 
 
 def delete_instrument_meta(ticker: str, exchange: str) -> None:

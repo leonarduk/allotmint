@@ -72,7 +72,7 @@ def get_timeseries(
     Return a CSV (streamed), JSON, or HTML time-series for *ticker*.
 
     Example:
-        /timeseries/AAPL?period=5y&interval=1wk&fmt=html
+        /timeseries/PFE?period=5y&interval=1wk&fmt=html
     """
     try:
         df = _fetch_yahoo(ticker, period, interval)

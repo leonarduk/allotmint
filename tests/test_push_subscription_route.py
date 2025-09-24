@@ -22,7 +22,7 @@ def client(tmp_path, monkeypatch):
         alert_utils.config.sns_topic_arn = original_arn
 
 
-def test_push_subscription_owner_validation(client):
+def test_push_subscription_owner_validation(client, tmp_path):
     owners = client.get("/owners").json()
     assert any(o["owner"] == "demo" for o in owners)
     owner = "demo"
@@ -35,6 +35,26 @@ def test_push_subscription_owner_validation(client):
     resp_bad = client.post("/alerts/push-subscription/unknown", json=payload)
     assert resp_bad.status_code == 404
 
+    client.app.state.accounts_root = tmp_path / "does-not-exist"
     resp_del = client.delete(f"/alerts/push-subscription/{owner}")
     assert resp_del.status_code == 200
     assert alert_utils.get_user_push_subscription(owner) is None
+
+
+def test_delete_unknown_owner_is_idempotent(client):
+    resp = client.delete("/alerts/push-subscription/unknown")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "deleted"}
+
+
+def test_push_subscription_falls_back_to_default_dataset(client, tmp_path):
+    owner = "demo"
+    payload = {"endpoint": "https://ex", "keys": {"p256dh": "a", "auth": "b"}}
+
+    custom_root = tmp_path / "alt-root"
+    custom_root.mkdir()
+    client.app.state.accounts_root = custom_root
+
+    resp = client.post(f"/alerts/push-subscription/{owner}", json=payload)
+    assert resp.status_code == 200
+    assert alert_utils.get_user_push_subscription(owner) == payload

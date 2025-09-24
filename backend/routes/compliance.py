@@ -1,23 +1,36 @@
 import logging
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
-from backend.common import compliance
+from backend.common import compliance, data_loader
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 
 router = APIRouter(tags=["compliance"])
 logger = logging.getLogger(__name__)
 
 
+def _known_owners(accounts_root) -> set[str]:
+    """Return a lower-cased set of known owners for the configured root."""
+
+    return {
+        (entry.get("owner") or "").lower()
+        for entry in data_loader.list_plots(accounts_root)
+    }
+
+
 @router.get("/compliance/{owner}")
 @handle_owner_not_found
 async def compliance_for_owner(owner: str, request: Request):
     """Return compliance warnings and status for an owner."""
+    accounts_root = request.app.state.accounts_root
+    owners = _known_owners(accounts_root)
+    if owner.lower() not in owners:
+        raise_owner_not_found()
     try:
         # ``check_owner`` now returns additional fields such as
         # ``hold_countdowns`` and ``trades_remaining`` which are
         # forwarded directly to the client.
-        return compliance.check_owner(owner, request.app.state.accounts_root)
+        return compliance.check_owner(owner, accounts_root)
     except FileNotFoundError as exc:
         logger.warning("accounts for %s not found: %s", owner, exc)
         raise_owner_not_found()
@@ -35,8 +48,12 @@ async def validate_trade(request: Request):
     trade = await request.json()
     if "owner" not in trade:
         raise HTTPException(status_code=422, detail="owner is required")
+    accounts_root = request.app.state.accounts_root
+    owners = _known_owners(accounts_root)
+    if trade.get("owner", "").lower() not in owners:
+        raise_owner_not_found()
     try:
-        return compliance.check_trade(trade, request.app.state.accounts_root)
+        return compliance.check_trade(trade, accounts_root)
     except FileNotFoundError:
         raise_owner_not_found()
     except ValueError as exc:

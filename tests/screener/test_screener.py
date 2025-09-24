@@ -11,6 +11,14 @@ from backend.screener import (
 )
 
 
+@pytest.fixture
+def empty_yahoo_ticker(monkeypatch):
+    class _EmptyTicker:
+        info = {}
+
+    monkeypatch.setattr("backend.screener.yf.Ticker", lambda *_args, **_kwargs: _EmptyTicker())
+
+
 def test_parse_float():
     assert _parse_float("1.23") == 1.23
     assert _parse_float("None") is None
@@ -28,7 +36,7 @@ def test_parse_int():
     assert _parse_int("abc") is None
 
 
-def test_fetch_fundamentals_caching_and_ttl(monkeypatch):
+def test_fetch_fundamentals_caching_and_ttl(monkeypatch, empty_yahoo_ticker):
     sample = {"Name": "Foo", "PERatio": "10.2"}
     call_count = {"n": 0}
 

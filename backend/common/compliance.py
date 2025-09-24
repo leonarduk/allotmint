@@ -13,6 +13,59 @@ from backend.common.instruments import get_instrument_meta
 from backend.common.user_config import load_user_config
 from backend.config import config
 
+logger = logging.getLogger("compliance")
+
+
+def _default_settings_payload() -> Dict[str, Any]:
+    """Build default settings for newly created owners."""
+
+    payload: Dict[str, Any] = {}
+    if config.hold_days_min is not None:
+        payload["hold_days_min"] = config.hold_days_min
+    else:
+        payload["hold_days_min"] = 0
+
+    if config.max_trades_per_month is not None:
+        payload["max_trades_per_month"] = config.max_trades_per_month
+    else:
+        payload["max_trades_per_month"] = 0
+
+    if config.approval_exempt_types:
+        payload["approval_exempt_types"] = config.approval_exempt_types
+    else:
+        payload["approval_exempt_types"] = []
+
+    if config.approval_exempt_tickers:
+        payload["approval_exempt_tickers"] = config.approval_exempt_tickers
+    else:
+        payload["approval_exempt_tickers"] = []
+
+    return payload
+
+
+def _ensure_owner_scaffold(owner: str, owner_dir: Path) -> None:
+    """Create the default directory and files for ``owner`` if absent."""
+
+    owner_dir.mkdir(parents=True, exist_ok=True)
+
+    defaults: Dict[str, Dict[str, Any]] = {
+        "settings.json": _default_settings_payload(),
+        "approvals.json": {"approvals": []},
+        f"{owner}_transactions.json": {
+            "account_type": "brokerage",
+            "transactions": [],
+        },
+    }
+
+    for filename, payload in defaults.items():
+        path = owner_dir / filename
+        if path.exists():
+            continue
+        try:
+            path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+        except OSError as exc:
+            logger.warning("failed to create default %s for %s: %s", filename, owner, exc)
+
 
 def _parse_date(val: str | None) -> date | None:
     if not val:
@@ -26,16 +79,15 @@ def _parse_date(val: str | None) -> date | None:
 def load_transactions(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Load all transactions for ``owner`` sorted by date.
 
-    Raises
-    ------
-    FileNotFoundError
-        If the owner's directory does not exist.
+    Missing owners are initialised with an empty compliance scaffold, ensuring
+    downstream callers always receive a list (possibly empty) without needing to
+    catch :class:`FileNotFoundError`.
     """
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owner_dir = root / owner
     if not owner_dir.exists():
-        raise FileNotFoundError(owner)
+        _ensure_owner_scaffold(owner, owner_dir)
 
     results: List[Dict[str, Any]] = []
     for path in owner_dir.glob("*_transactions.json"):
@@ -63,7 +115,6 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
     ucfg = load_user_config(owner, accounts_root)
     exempt_tickers = {t.upper() for t in (ucfg.approval_exempt_tickers or [])}
     exempt_types = {t.upper() for t in (ucfg.approval_exempt_types or [])}
-    logger = logging.getLogger("compliance")
 
     today = date.today()
 

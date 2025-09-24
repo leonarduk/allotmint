@@ -9,9 +9,14 @@ import {
   removeApproval,
 } from '../api';
 import type { Approval, OwnerSummary, UserConfig } from '../types';
+import { useAuth } from '../AuthContext';
+import { useConfig } from '../ConfigContext';
+import { sanitizeOwners } from '../utils/owners';
 
 export default function UserConfigPage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const { theme } = useConfig();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [owner, setOwner] = useState('');
   const [cfg, setCfg] = useState<UserConfig>({});
@@ -21,9 +26,12 @@ export default function UserConfigPage() {
   const [newDate, setNewDate] = useState('');
   const [approvalsError, setApprovalsError] = useState<string | null>(null);
 
+  const placeholder =
+    'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y&s=192';
+
   useEffect(() => {
     getOwners()
-      .then(setOwners)
+      .then((os) => setOwners(sanitizeOwners(os)))
       .catch(() => {
         /* ignore */
       });
@@ -107,6 +115,34 @@ export default function UserConfigPage() {
       <h1 className="text-2xl md:text-4xl">
         {t('userConfig.title', 'User Settings')}
       </h1>
+      {user && (
+        <section className="flex flex-col items-center space-y-4 rounded-lg border p-4">
+          {user.picture ? (
+            <img
+              src={user.picture}
+              alt={user.name || user.email || 'user avatar'}
+              width={96}
+              height={96}
+              className="h-24 w-24 rounded-full"
+            />
+          ) : (
+            <img
+              src={placeholder}
+              width={96}
+              height={96}
+              alt="user avatar"
+              className="h-24 w-24 rounded-full"
+            />
+          )}
+          {user.name && <div className="text-xl">{user.name}</div>}
+          {user.email && (
+            <div className="text-gray-800 dark:text-gray-200">{user.email}</div>
+          )}
+          <p className="text-gray-800 dark:text-gray-200">
+            Preferred theme: {theme}
+          </p>
+        </section>
+      )}
       <select
         className="w-full border p-2"
         value={owner}

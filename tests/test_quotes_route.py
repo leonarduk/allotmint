@@ -13,6 +13,6 @@ def test_quotes_returns_502_on_yfinance_error(monkeypatch):
     client = TestClient(app)
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
     client.headers.update({"Authorization": f"Bearer {token}"})
-    resp = client.get("/api/quotes?symbols=AAPL")
+    resp = client.get("/api/quotes?symbols=PFE")
     assert resp.status_code == 502
     assert resp.json()["detail"].startswith("Failed to fetch quotes")

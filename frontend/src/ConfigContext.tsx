@@ -33,11 +33,9 @@ export interface TabsConfig {
   pension: boolean;
   trail: boolean;
   alertsettings: boolean;
-  taxharvest: boolean;
-  taxallowances: boolean;
+  taxtools: boolean;
   reports: boolean;
   scenario: boolean;
-  logs: boolean;
 }
 
 export interface AppConfig {
@@ -83,11 +81,9 @@ const defaultTabs: TabsConfig = {
   pension: true,
   trail: true,
   alertsettings: true,
-  taxharvest: true,
-  taxallowances: true,
+  taxtools: true,
   reports: true,
   scenario: true,
-  logs: true,
 };
 
 export interface ConfigContextValue extends AppConfig {
@@ -192,9 +188,18 @@ export function useConfig() {
   return useContext(configContext);
 }
 
+export const SUPPORTED_CURRENCIES = [
+  "GBP",
+  "USD",
+  "EUR",
+  "CHF",
+  "JPY",
+  "CAD",
+];
+
 export function BaseCurrencySelector() {
   const { baseCurrency, setBaseCurrency } = useConfig();
-  const currencies = ["GBP", "USD", "EUR", "CHF", "JPY", "CAD"];
+  const currencies = SUPPORTED_CURRENCIES;
   return (
     <select
       value={baseCurrency}

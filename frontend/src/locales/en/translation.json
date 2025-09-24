@@ -15,7 +15,7 @@
     "modes": {
       "group": "Group",
       "instrument": "Instrument",
-      "owner": "Member",
+      "owner": "Portfolio",
       "performance": "Performance",
       "transactions": "Transactions",
       "trading": "Trading",
@@ -29,21 +29,27 @@
       "instrumentadmin": "Instrument Admin",
       "dataadmin": "Data Admin",
       "settings": "User Settings",
-      "profile": "Profile",
       "pension": "Pension Forecast",
-      "taxharvest": "Tax Harvest",
-      "taxallowances": "Tax Allowances",
+      "taxtools": "Tax Tools",
       "trail": "Trail",
       "reports": "Reports",
-      "alertsettings": "Alert Settings",
-      "support": "Support",
-      "scenario": "Scenario Tester",
-      "logs": "Logs"
+  "alertsettings": "Alert Settings",
+  "compliance": "Compliance warnings",
+  "trade-compliance": "Trade compliance",
+  "support": "Support",
+      "scenario": "Scenario Tester"
     }
   },
   "trail": {
+    "title": "Trail progress",
     "daily": "Daily",
-    "once": "Once"
+    "once": "Once",
+    "progressLabel": "Daily progress: {{completed}} / {{total}} ({{percent}}%)",
+    "xpLabel": "XP: {{xp}}",
+    "streakLabel": "Streak: {{count}} day",
+    "streakLabel_plural": "Streak: {{count}} days",
+    "dailyComplete": "Daily tasks complete! Keep the streak going.",
+    "allDone": "All Trail tasks are complete — fantastic work!"
   },
   "common": {
     "error": "Error",
@@ -68,6 +74,7 @@
   "instrumentTable": {
     "noInstruments": "No instruments.",
     "ungrouped": "Ungrouped",
+    "exchangesLabel": "Exchanges:",
     "groupTotals": {
       "market": "Market",
       "gain": "Gain",
@@ -142,6 +149,18 @@
   },
   "instrumentDetail": {
     "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "infoHeading": "Instrument info",
+    "nameLabel": "Name",
+    "sectorLabel": "Sector",
+    "currencyLabel": "Currency",
+    "currencyPlaceholder": "Select a currency",
+    "metadataSaveSuccess": "Instrument details updated.",
+    "metadataSaveError": "Unable to save instrument details.",
+    "metadataLoadError": "Unable to load the instrument catalogue.",
+    "metadataCurrencyError": "Select a supported currency before saving.",
+    "metadataMissingExchange": "Instrument exchange is unknown; try reloading.",
     "change7d": "7d",
     "change30d": "30d",
     "range": "Range:",
@@ -187,7 +206,42 @@
     "retirementAge": "Retirement age: {{age}}",
     "pensionPot": "Pension pot",
     "growthAssumption": "Growth assumption (%):",
-    "monthlyContribution": "Monthly Contribution (£):"
+    "monthlyContribution": "Monthly Contribution (£):",
+    "incomeBreakdownHeading": "Retirement income breakdown",
+    "incomeSources": {
+      "state": "State pension",
+      "definedBenefit": "Defined benefit",
+      "definedContribution": "Defined contribution"
+    },
+    "incomeTable": {
+      "source": "Source",
+      "annual": "Annual (£)",
+      "monthly": "Monthly (£)",
+      "share": "Share"
+    },
+    "totalAnnualIncome": "Total annual income",
+    "totalMonthlyIncome": "Total monthly income",
+    "prediction": {
+      "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
+      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} from age {{age}}.",
+      "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
+      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
+      "earliest": "Estimated earliest retirement age: {{age}}",
+      "noBreakdown": "No income breakdown available."
+    },
+    "employerContributionLabel": "Employer contribution",
+    "header": {
+      "kicker": "Your pension snapshot",
+      "heading": "Track your contributions at a glance",
+      "pensionPot": "Current pension pot",
+      "employeeContribution": "Your monthly contribution",
+      "employerContribution": "Employer contribution",
+      "totalContribution": "Total monthly contributions: {{total}}",
+      "addAnother": "Add another pension",
+      "additionalPensions_one": "{{count}} additional pension linked",
+      "additionalPensions_other": "{{count}} additional pensions linked",
+      "notAvailable": "Not available"
+    }
   },
   "group": {
     "select": "Select a group."
@@ -206,6 +260,7 @@
     "alphaVsBenchmark": "Alpha vs Benchmark",
     "trackingError": "Tracking Error",
     "maxDrawdown": "Max Drawdown",
+    "maxDrawdownHelp": "Max drawdown is the largest percentage drop from any portfolio peak to the lowest closing value that follows, calculated from the rebuilt daily totals of your holdings.",
     "timeWeightedReturn": "Time-Weighted Return",
     "xirr": "XIRR",
     "portfolioValue": "Portfolio Value",
@@ -247,6 +302,12 @@
       "otherSwitches": "Other Switches",
       "otherParams": "Other parameters",
       "save": "Save"
+    },
+    "logs": {
+      "title": "Logs",
+      "refresh": "Refresh logs",
+      "empty": "No logs available.",
+      "error": "Failed to load logs."
     }
   },
   "alertSettings": {
@@ -384,16 +445,16 @@
     "grouping": "Grouping",
     "actions": "Actions",
     "add": "Add Instrument",
-  "save": "Save",
-  "saveSuccess": "Saved",
-  "saveError": "Error saving",
-  "searchPlaceholder": "Filter instruments…",
-  "validation": {
-    "ticker": "Ticker is required",
-    "name": "Name is required",
-    "grouping": "Grouping is required"
-  }
-},
+    "save": "Save",
+    "saveSuccess": "Saved",
+    "saveError": "Error saving",
+    "searchPlaceholder": "Filter instruments…",
+    "validation": {
+      "ticker": "Ticker is required",
+      "name": "Name is required",
+      "grouping": "Grouping is required"
+    }
+  },
   "var": {
     "title": "Value at Risk",
     "details": "Historical simulation details",

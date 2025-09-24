@@ -66,9 +66,15 @@ def test_fetch_news_yahoo(monkeypatch):
             def json(self):
                 return {
                     "news": [
-                        {"title": "One", "link": "https://example.com/1"},
+                        {
+                            "title": "One stock update",
+                            "link": "https://example.com/1",
+                        },
                         {"title": None, "link": "https://example.com/skip"},
-                        {"title": "Two", "link": "https://example.com/2"},
+                        {
+                            "title": "Two shares story",
+                            "link": "https://example.com/2",
+                        },
                     ]
                 }
 
@@ -76,12 +82,14 @@ def test_fetch_news_yahoo(monkeypatch):
 
     monkeypatch.setattr(news_module.requests, "get", fake_get)
 
-    items = news_module.fetch_news_yahoo("AAPL")
+    items = news_module.fetch_news_yahoo("PFE")
     assert items == [
-        {"headline": "One", "url": "https://example.com/1"},
-        {"headline": "Two", "url": "https://example.com/2"},
+        {"headline": "One stock update", "url": "https://example.com/1"},
+        {"headline": "Two shares story", "url": "https://example.com/2"},
     ]
-    assert captured["params"]["q"] == "AAPL"
+    query = captured["params"]["q"]
+    assert query.startswith("PFE")
+    assert "stock" in query.lower()
 
 
 def test_fetch_news_google(monkeypatch):
@@ -89,7 +97,7 @@ def test_fetch_news_google(monkeypatch):
         <rss>
           <channel>
             <item>
-              <title>Story</title>
+                      <title>Story stock update</title>
               <link>https://example.com/story</link>
             </item>
             <item>
@@ -117,9 +125,11 @@ def test_fetch_news_google(monkeypatch):
 
     items = news_module.fetch_news_google("MSFT")
     assert items == [
-        {"headline": "Story", "url": "https://example.com/story"},
+        {"headline": "Story stock update", "url": "https://example.com/story"},
     ]
-    assert captured["params"]["q"] == "MSFT"
+    query = captured["params"]["q"]
+    assert query.startswith("MSFT")
+    assert "stock" in query.lower()
 
 
 def test_fetch_news_fallback(monkeypatch):
@@ -238,3 +248,45 @@ def test_get_news_quota_and_cache(monkeypatch, tmp_path):
             {"headline": "ABC headline", "url": "https://example.com/abc"}
         ]
         assert calls["alpha"] == 2
+
+
+def test_get_cached_news_cold_cache_fetches_once(monkeypatch):
+    cache: Dict[str, List[Dict[str, str]]] = {}
+
+    def load_cache(page: str):
+        return cache.get(page)
+
+    def save_cache(page: str, data: List[Dict[str, str]]):
+        cache[page] = data
+
+    def is_stale(page: str, ttl: int) -> bool:
+        return page not in cache
+
+    monkeypatch.setattr(page_cache, "load_cache", load_cache)
+    monkeypatch.setattr(page_cache, "save_cache", save_cache)
+    monkeypatch.setattr(page_cache, "is_stale", is_stale)
+    monkeypatch.setattr(page_cache, "schedule_refresh", lambda *a, **k: None)
+
+    fetch_calls = {"count": 0}
+    quota_calls = {"count": 0}
+
+    def fake_fetch(ticker: str) -> List[Dict[str, str]]:
+        fetch_calls["count"] += 1
+        return [{"headline": f"{ticker} headline", "url": "https://example.com"}]
+
+    def fake_quota() -> bool:
+        quota_calls["count"] += 1
+        return True
+
+    monkeypatch.setattr(news_module, "_fetch_news", fake_fetch)
+    monkeypatch.setattr(news_module, "_try_consume_quota", fake_quota)
+
+    first = news_module.get_cached_news("cold")
+    assert first == [{"headline": "COLD headline", "url": "https://example.com"}]
+    assert fetch_calls["count"] == 1
+    assert quota_calls["count"] == 1
+
+    second = news_module.get_cached_news("cold")
+    assert second == first
+    assert fetch_calls["count"] == 1
+    assert quota_calls["count"] == 1

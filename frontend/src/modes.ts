@@ -7,15 +7,14 @@ export type Mode =
   | "screener"
   | "timeseries"
   | "watchlist"
+  | "market"
   | "movers"
   | "instrumentadmin"
   | "dataadmin"
   | "settings"
-  | "profile"
   | "trail"
   | "support"
-  | "scenario"
-  | "logs";
+  | "scenario";
 
 export const MODES: Mode[] = [
   "group",
@@ -27,12 +26,11 @@ export const MODES: Mode[] = [
   "screener",
   "timeseries",
   "watchlist",
+  "market",
   "instrumentadmin",
   "dataadmin",
   "settings",
-  "profile",
   "trail",
   "support",
   "scenario",
-  "logs",
 ];

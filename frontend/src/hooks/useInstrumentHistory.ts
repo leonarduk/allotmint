@@ -2,16 +2,48 @@ import { useEffect, useState } from "react";
 import type { InstrumentDetail } from "../types";
 
 // Cache full instrument detail (including metadata like name, sector and
-// currency) per ticker to reuse for history and positions
-const cache = new Map<string, InstrumentDetail>();
+// currency) per ticker and history range to reuse for history and positions.
+const cache = new Map<string, Map<number, InstrumentDetail>>();
 
-export function getCachedInstrumentHistory(ticker: string) {
-  return cache.get(ticker) ?? null;
+function getTickerCache(ticker: string) {
+  let byTicker = cache.get(ticker);
+  if (!byTicker) {
+    byTicker = new Map<number, InstrumentDetail>();
+    cache.set(ticker, byTicker);
+  }
+  return byTicker;
+}
+
+export function getCachedInstrumentHistory(ticker: string, days?: number) {
+  const byTicker = cache.get(ticker);
+  if (!byTicker) return null;
+  if (typeof days === "number") {
+    return byTicker.get(days) ?? null;
+  }
+  const first = byTicker.values().next();
+  return first.done ? null : first.value;
+}
+
+export function updateCachedInstrumentHistory(
+  ticker: string,
+  updater: (detail: InstrumentDetail) => void,
+  days?: number,
+) {
+  const byTicker = cache.get(ticker);
+  if (!byTicker) return;
+  if (typeof days === "number") {
+    const entry = byTicker.get(days);
+    if (entry) updater(entry);
+    return;
+  }
+  for (const entry of byTicker.values()) {
+    updater(entry);
+  }
 }
 
 export async function preloadInstrumentHistory(
   tickers: string[],
-  _days: number,
+  days: number,
   concurrency = 5,
 ) {
   const unique = Array.from(new Set(tickers));
@@ -23,11 +55,12 @@ export async function preloadInstrumentHistory(
         while (queue.length) {
           const ticker = queue.shift();
           if (!ticker) break;
-          if (cache.has(ticker)) continue;
+          const byTicker = cache.get(ticker);
+          if (byTicker?.has(days)) continue;
           try {
             const api = await import("../api");
-            const res = await api.fetchInstrumentDetailWithRetry(ticker, 365);
-            cache.set(ticker, res);
+            const res = await api.fetchInstrumentDetailWithRetry(ticker, days);
+            getTickerCache(ticker).set(days, res);
           } catch {
             // ignore errors during preloading
           }
@@ -39,22 +72,19 @@ export async function preloadInstrumentHistory(
 
 /**
  * Retrieve instrument detail (including mini price history and positions) and
- * cache responses per ticker to avoid duplicate fetches. The `days` parameter
- * is kept for API compatibility but only affects which slice of the cached
- * history consumers might read; the underlying fetch always requests 365 days
- * to cover all use cases.
+ * cache responses per ticker to avoid duplicate fetches.
  */
-export function useInstrumentHistory(ticker: string, _days: number) {
-  // console.debug('useInstrumentHistory invoked with', ticker);
+export function useInstrumentHistory(ticker: string, days: number) {
+  // console.debug('useInstrumentHistory invoked with', ticker, days);
   const [data, setData] = useState<InstrumentDetail | null>(
-    () => cache.get(ticker) ?? null,
+    () => cache.get(ticker)?.get(days) ?? null,
   );
-  const [loading, setLoading] = useState(!cache.has(ticker));
+  const [loading, setLoading] = useState(!cache.get(ticker)?.has(days));
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let active = true;
-    const cached = cache.get(ticker);
+    const cached = cache.get(ticker)?.get(days) ?? null;
     if (cached) {
       setData(cached);
       setLoading(false);
@@ -68,9 +98,9 @@ export function useInstrumentHistory(ticker: string, _days: number) {
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
           const api = await import("../api");
-          const res = await api.fetchInstrumentDetailWithRetry(ticker, 365);
+          const res = await api.fetchInstrumentDetailWithRetry(ticker, days);
           if (!active) return;
-          cache.set(ticker, res);
+          getTickerCache(ticker).set(days, res);
           setData(res);
           return;
         } catch (e) {
@@ -117,7 +147,7 @@ export function useInstrumentHistory(ticker: string, _days: number) {
     return () => {
       active = false;
     };
-  }, [ticker]);
+  }, [ticker, days]);
 
   return { data, loading, error };
 }

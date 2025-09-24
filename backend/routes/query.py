@@ -14,7 +14,7 @@ from typing import List, Optional
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from backend.common.portfolio_loader import list_portfolios
 from backend.common.portfolio_utils import compute_var, get_security_meta
@@ -24,6 +24,9 @@ from backend.timeseries.cache import load_meta_timeseries_range
 router = APIRouter(prefix="/custom-query", tags=["query"])
 
 QUERIES_DIR = config.data_root / "queries"
+REPO_QUERIES_DIR = (
+    (config.repo_root or Path(__file__).resolve().parents[2]) / "data" / "queries"
+)
 DATA_BUCKET_ENV = "DATA_BUCKET"
 QUERIES_PREFIX = "queries/"
 
@@ -42,12 +45,6 @@ class CustomQuery(BaseModel):
     name: Optional[str] = None
     format: Optional[str] = Field("json", pattern="^(json|csv|xlsx)$")
 
-    @model_validator(mode="after")
-    def _check_targets(self):
-        if not self.owners and not self.tickers:
-            raise ValueError("owners or tickers must be supplied")
-        return self
-
 
 def _slugify(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
@@ -57,16 +54,18 @@ def _resolve_tickers(q: CustomQuery) -> List[str]:
     tickers: set[str] = set()
     if q.tickers:
         tickers.update(t.upper() for t in q.tickers)
-    if q.owners:
-        owners = {o.lower() for o in q.owners}
-        for pf in list_portfolios():
-            if pf.get("owner", "").lower() not in owners:
-                continue
-            for acct in pf.get("accounts", []):
-                for h in acct.get("holdings", []):
-                    t = (h.get("ticker") or "").upper()
-                    if t:
-                        tickers.add(t)
+
+    owners_filter = {o.lower() for o in q.owners} if q.owners else None
+    for pf in list_portfolios():
+        owner_slug = (pf.get("owner") or "").lower()
+        if owners_filter is not None and owner_slug not in owners_filter:
+            continue
+        for acct in pf.get("accounts", []):
+            for h in acct.get("holdings", []):
+                t = (h.get("ticker") or "").upper()
+                if t:
+                    tickers.add(t)
+
     return sorted(tickers)
 
 
@@ -74,6 +73,19 @@ def _save_query_local(slug: str, q: CustomQuery) -> None:
     """Persist a query to the local filesystem."""
     QUERIES_DIR.mkdir(parents=True, exist_ok=True)
     (QUERIES_DIR / f"{slug}.json").write_text(json.dumps(q.model_dump(), default=str))
+
+
+def _load_query_local(slug: str) -> dict:
+    """Load a query from the local filesystem."""
+    path = QUERIES_DIR / f"{slug}.json"
+    if path.exists():
+        return json.loads(path.read_text())
+
+    fallback_path = REPO_QUERIES_DIR / f"{slug}.json"
+    if fallback_path.exists():
+        return json.loads(fallback_path.read_text())
+
+    raise HTTPException(404, "Query not found")
 
 
 def _save_query_s3(slug: str, q: CustomQuery) -> None:
@@ -145,15 +157,27 @@ def _load_query_s3(slug: str) -> dict:
 async def run_query(q: CustomQuery):
     tickers = _resolve_tickers(q)
     if not tickers:
-        raise HTTPException(400, "No tickers found for query")
+        return {"results": []}
+
+    needs_timeseries = Metric.VAR in q.metrics
 
     rows = []
     for t in tickers:
         sym, exch = (t.split(".", 1) + ["L"])[:2]
-        df = load_meta_timeseries_range(sym, exch, start_date=q.start, end_date=q.end)
+        df = None
+        if needs_timeseries:
+            df = load_meta_timeseries_range(
+                sym,
+                exch,
+                start_date=q.start,
+                end_date=q.end,
+            )
         row = {"ticker": t}
-        if Metric.VAR in q.metrics:
-            row[Metric.VAR.value] = compute_var(df)
+        if needs_timeseries:
+            if df is not None:
+                row[Metric.VAR.value] = compute_var(df)
+            else:
+                row[Metric.VAR.value] = None
         if Metric.META in q.metrics:
             meta = get_security_meta(t) or {}
             row.update(meta)
@@ -162,7 +186,10 @@ async def run_query(q: CustomQuery):
     if q.name:
         slug = _slugify(q.name)
         if config.app_env == "aws":
-            _save_query_s3(slug, q)
+            try:
+                _save_query_s3(slug, q)
+            except HTTPException:
+                _save_query_local(slug, q)
         else:
             _save_query_local(slug, q)
 
@@ -193,19 +220,22 @@ async def list_saved_queries():
 @router.get("/{slug}")
 async def load_query(slug: str):
     if config.app_env == "aws":
-        return _load_query_s3(slug)
-    path = QUERIES_DIR / f"{slug}.json"
-    if not path.exists():
-        raise HTTPException(404, "Query not found")
-    return json.loads(path.read_text())
+        try:
+            return _load_query_s3(slug)
+        except HTTPException:
+            pass
+    return _load_query_local(slug)
 
 
 @router.post("/{slug}")
 async def save_query(slug: str, q: CustomQuery):
     if config.app_env == "aws":
-        _save_query_s3(slug, q)
-        return {"saved": slug}
-    QUERIES_DIR.mkdir(parents=True, exist_ok=True)
-    path = QUERIES_DIR / f"{slug}.json"
-    path.write_text(json.dumps(q.model_dump(), default=str))
+        try:
+            _save_query_s3(slug, q)
+        except HTTPException:
+            _save_query_local(slug, q)
+        else:
+            return {"saved": slug}
+    else:
+        _save_query_local(slug, q)
     return {"saved": slug}

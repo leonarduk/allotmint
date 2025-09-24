@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { API_BASE, getOwners } from "../api";
 import type { OwnerSummary } from "../types";
 import { OwnerSelector } from "../components/OwnerSelector";
+import { sanitizeOwners } from "../utils/owners";
 
 export default function Reports() {
   const { t } = useTranslation();
@@ -14,7 +15,7 @@ export default function Reports() {
 
   useEffect(() => {
     getOwners()
-      .then(setOwners)
+      .then((os) => setOwners(sanitizeOwners(os)))
       .catch(() => setOwners([]))
       .finally(() => setOwnersLoaded(true));
   }, []);

@@ -2,6 +2,7 @@ import logging
 from datetime import date, timedelta
 
 import pandas as pd
+from pandas.api import types as pd_types
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
@@ -83,6 +84,11 @@ async def get_meta_timeseries(
 
     # ── JSON output ───────────────────────────────────────────
     if format == "json":
+        datetime_columns = [
+            col for col in df.columns if pd_types.is_datetime64_any_dtype(df[col])
+        ]
+        for col in datetime_columns:
+            df[col] = df[col].map(lambda x: x.isoformat() if pd.notnull(x) else None)
         return JSONResponse(
             content={
                 "ticker": f"{ticker}.{exchange}",

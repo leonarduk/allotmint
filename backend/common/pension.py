@@ -192,8 +192,37 @@ def forecast_pension(
                 continue
         forecast.append({"age": age, "income": income})
 
+    desired_income_value = (
+        float(desired_income_annual) if desired_income_annual is not None else None
+    )
+    state_income = float(state_pension_annual or 0.0)
+    db_income_retirement = 0.0
+    for pension in pensions:
+        try:
+            start = int(pension.get("normal_retirement_age", retirement_age))
+        except Exception:
+            continue
+        if retirement_age >= start:
+            try:
+                db_income_retirement += float(pension.get("annual_income_gbp", 0.0))
+            except Exception:
+                continue
+    dc_income_retirement = pot_at_retirement / annuity_multiple if annuity_multiple else 0.0
+    breakdown = {
+        "state_pension_annual": state_income,
+        "defined_benefit_annual": db_income_retirement,
+        "defined_contribution_annual": float(dc_income_retirement),
+    }
+    total_income = float(sum(breakdown.values()))
+
     return {
         "forecast": forecast,
-        "projected_pot_gbp": pot_at_retirement,
+        "projected_pot_gbp": float(pot_at_retirement),
         "earliest_retirement_age": earliest_age,
+        "retirement_income_breakdown": breakdown,
+        "retirement_income_total_annual": total_income,
+        "state_pension_annual": state_income,
+        "contribution_annual": float(contribution_annual),
+        "desired_income_annual": desired_income_value,
+        "annuity_multiple_used": float(annuity_multiple),
     }

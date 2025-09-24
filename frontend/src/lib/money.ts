@@ -6,9 +6,10 @@ export const money = (
     locale: string = i18n.language,
 ): string => {
     if (typeof v !== "number" || !Number.isFinite(v)) return "—";
+    const displayCurrency = currency === "GBX" ? "GBP" : currency;
     return new Intl.NumberFormat(locale, {
         style: "currency",
-        currency,
+        currency: displayCurrency,
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     }).format(v);

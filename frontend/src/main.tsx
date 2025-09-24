@@ -12,9 +12,10 @@ import { PriceRefreshProvider } from './PriceRefreshContext'
 import { AuthProvider, useAuth } from './AuthContext'
 import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
 import LoginPage from './LoginPage'
-import { UserProvider } from './UserContext'
+import { UserProvider, useUser } from './UserContext'
 import { FocusModeProvider } from './FocusModeContext'
 import ErrorBoundary from './ErrorBoundary'
+import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
 
 const storedToken = getStoredAuthToken()
 if (storedToken) setAuthToken(storedToken)
@@ -24,8 +25,6 @@ const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))
 const Support = lazy(() => import('./pages/Support'))
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
 const TradeCompliance = lazy(() => import('./pages/TradeCompliance'))
-const InstrumentResearch = lazy(() => import('./pages/InstrumentResearch'))
-const Profile = lazy(() => import('./pages/Profile'))
 const Alerts = lazy(() => import('./pages/Alerts'))
 const Goals = lazy(() => import('./pages/Goals'))
 const Trail = lazy(() => import('./pages/Trail'))
@@ -37,31 +36,65 @@ const SmokeTest = import.meta.env.VITE_SMOKE_TEST
   : null
 
 export function Root() {
-  const [ready, setReady] = useState(false)
+  const [configLoading, setConfigLoading] = useState(true)
+  const [configError, setConfigError] = useState<Error | null>(null)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
-  const [authed, setAuthed] = useState(false)
+  const [authed, setAuthed] = useState(Boolean(storedToken))
   const { setUser } = useAuth()
+  const { setProfile } = useUser()
   const navigate = useNavigate()
   const location = useLocation()
 
   const logout = () => {
     apiLogout()
     setUser(null)
+    setProfile(undefined)
     setAuthed(false)
     navigate('/')
   }
 
   useEffect(() => {
+    if (!storedToken) return
+    const existingUser = loadStoredAuthUser()
+    if (existingUser) setUser(existingUser)
+    const existingProfile = loadStoredUserProfile()
+    if (existingProfile) setProfile(existingProfile)
+  }, [setProfile, setUser, storedToken])
+
+  useEffect(() => {
+    setConfigLoading(true)
+    setConfigError(null)
     getConfig<Record<string, unknown>>()
       .then(cfg => {
         setNeedsAuth(Boolean((cfg as any).google_auth_enabled))
         setClientId(String((cfg as any).google_client_id || ''))
       })
-      .finally(() => setReady(true))
+      .catch(err => {
+        console.error('Failed to load configuration', err)
+        setConfigError(err instanceof Error ? err : new Error(String(err)))
+      })
+      .finally(() => {
+        setConfigLoading(false)
+      })
   }, [])
 
-  if (!ready) return null
+  if (configLoading) {
+    return (
+      <div role="status" className="app-loading">
+        Loading configuration...
+      </div>
+    )
+  }
+
+  if (configError) {
+    return (
+      <div role="alert" className="app-offline">
+        <p>Unable to load configuration.</p>
+        <p>Please check your connection and try again.</p>
+      </div>
+    )
+  }
   if (needsAuth && !authed) {
     if (!clientId) {
       console.error('Google client ID is missing; login disabled')
@@ -80,8 +113,6 @@ export function Root() {
           <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
           <Route path="/trade-compliance" element={<TradeCompliance />} />
           <Route path="/trade-compliance/:owner" element={<TradeCompliance />} />
-          <Route path="/research/:ticker" element={<InstrumentResearch />} />
-          <Route path="/profile" element={<Profile />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/alert-settings" element={<AlertSettings />} />
           <Route path="/goals" element={<Goals />} />

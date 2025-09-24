@@ -204,3 +204,85 @@ def test_fetch_meta_timeseries_min_coverage_threshold():
     stooq_mock.assert_not_called()
     ft_mock.assert_not_called()
 
+
+def test_fetch_meta_timeseries_isin_returns_ft_without_other_sources():
+    start = date(2024, 1, 1)
+    end = date(2024, 1, 3)
+    ft_df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]).date,
+            "Open": [10.0, 10.5, 11.0],
+            "High": [10.0, 10.5, 11.0],
+            "Low": [10.0, 10.5, 11.0],
+            "Close": [10.0, 10.5, 11.0],
+            "Volume": [100, 110, 120],
+            "Ticker": ["US1234567890"] * 3,
+            "Source": ["FT"] * 3,
+        }
+    )
+
+    import backend.timeseries.fetch_meta_timeseries as meta
+
+    with patch.object(meta, "is_valid_ticker", return_value=True), \
+        patch.object(meta, "_is_isin", return_value=True) as isin_mock, \
+        patch.object(meta, "fetch_ft_df", return_value=ft_df) as ft_mock, \
+        patch.object(meta, "fetch_yahoo_timeseries_range") as yahoo_mock, \
+        patch.object(meta, "fetch_stooq_timeseries_range") as stooq_mock, \
+        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=True)):
+        df = meta.fetch_meta_timeseries(
+            "US1234567890", start_date=start, end_date=end
+        )
+
+    assert df.equals(ft_df)
+    isin_mock.assert_called_once()
+    ft_mock.assert_called_once_with("US1234567890", end, start)
+    yahoo_mock.assert_not_called()
+    stooq_mock.assert_not_called()
+
+
+def test_fetch_meta_timeseries_alpha_vantage_rate_limit(monkeypatch):
+    start = date(2024, 1, 1)
+    end = date(2024, 1, 4)
+    fallback_df = _make_df([
+        "2024-01-01",
+        "2024-01-02",
+        "2024-01-03",
+        "2024-01-04",
+    ], "FT")
+
+    import backend.timeseries.fetch_meta_timeseries as meta
+
+    sleep_calls = []
+
+    def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr(meta.time, "sleep", fake_sleep)
+
+    with patch.object(meta, "is_valid_ticker", return_value=True), \
+        patch.object(
+            meta,
+            "fetch_yahoo_timeseries_range",
+            return_value=pd.DataFrame(columns=STANDARD_COLUMNS),
+        ) as yahoo_mock, \
+        patch.object(
+            meta,
+            "fetch_stooq_timeseries_range",
+            return_value=pd.DataFrame(columns=STANDARD_COLUMNS),
+        ) as stooq_mock, \
+        patch.object(
+            meta,
+            "fetch_alphavantage_timeseries_range",
+            side_effect=meta.AlphaVantageRateLimitError("limit", retry_after=5),
+        ) as av_mock, \
+        patch.object(meta, "fetch_ft_df", return_value=fallback_df) as ft_mock, \
+        patch.object(meta, "config", SimpleNamespace(alpha_vantage_enabled=True)):
+        df = meta.fetch_meta_timeseries("ABC", "L", start_date=start, end_date=end)
+
+    assert df.equals(fallback_df)
+    assert sleep_calls == [5]
+    yahoo_mock.assert_called_once()
+    stooq_mock.assert_called_once()
+    av_mock.assert_called_once()
+    ft_mock.assert_called_once()
+

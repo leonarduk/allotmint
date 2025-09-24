@@ -90,6 +90,7 @@ export type InstrumentSummary = {
   ticker: string;
   name: string;
   grouping?: string | null;
+  exchange?: string | null;
   currency?: string | null;
   units: number;
   market_value_gbp: number;
@@ -205,6 +206,8 @@ export interface InstrumentDetailMini {
 export interface NewsItem {
   headline: string;
   url: string;
+  source?: string | null;
+  published_at?: string | null;
 }
 
 export interface SectorPerformance {
@@ -226,16 +229,25 @@ export interface MarketOverview {
 export interface InstrumentPosition {
   owner: string;
   account: string;
-  units: number;
+  units: number | null;
+  market_value_gbp?: number | null;
+  unrealised_gain_gbp?: number | null;
+  gain_pct?: number | null;
 }
 
 export interface InstrumentDetail {
+  ticker?: string | null;
   prices: unknown;
   positions: InstrumentPosition[];
   mini?: InstrumentDetailMini;
   name?: string | null;
   sector?: string | null;
   currency?: string | null;
+  instrument_type?: string | null;
+  rows?: number | null;
+  from?: string | null;
+  to?: string | null;
+  base_currency?: string | null;
 }
 
 export interface Transaction {
@@ -249,6 +261,11 @@ export interface Transaction {
   security_ref?: string | null;
   ticker?: string | null;
   shares?: number | null;
+  units?: number | null;
+  price_gbp?: number | null;
+  fees?: number | null;
+  comments?: string | null;
+  reason?: string | null;
 }
 
 export interface TransactionWithCompliance extends Transaction {
@@ -300,6 +317,9 @@ export interface InstrumentMetadata {
   region?: string | null;
   sector?: string | null;
   grouping?: string | null;
+  currency?: string | null;
+  instrument_type?: string | null;
+  instrumentType?: string | null;
 }
 
 export interface QuoteRow {
@@ -410,12 +430,13 @@ export interface VirtualPortfolio {
 export interface TradingSignal {
   ticker: string;
   name: string;
-  action: 'buy' | 'sell';
+  action: 'buy' | 'sell' | 'BUY' | 'SELL';
   reason: string;
   confidence?: number;
   rationale?: string;
   currency?: string | null;
   instrument_type?: string | null;
+  factors?: string[];
 }
 
 export interface CustomQuery {
@@ -459,6 +480,15 @@ export interface TrailTask {
   completed: boolean;
 }
 
+export interface TrailCompletionTotals {
+  completed: number;
+  total: number;
+}
+
 export interface TrailResponse {
   tasks: TrailTask[];
+  xp: number;
+  streak: number;
+  daily_totals: Record<string, TrailCompletionTotals>;
+  today: string;
 }

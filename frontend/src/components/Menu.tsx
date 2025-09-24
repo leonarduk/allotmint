@@ -44,58 +44,74 @@ export default function Menu({
     };
   }, [open]);
 
-  const mode: TabPluginId =
-    path[0] === 'member'
-      ? 'owner'
-      : path[0] === 'instrument'
-        ? 'instrument'
-        : path[0] === 'transactions'
-          ? 'transactions'
-          : path[0] === 'trading'
-            ? 'trading'
-            : path[0] === 'performance'
-              ? 'performance'
-              : path[0] === 'screener'
-                ? 'screener'
-                : path[0] === 'timeseries'
-                  ? 'timeseries'
-                  : path[0] === 'watchlist'
-                    ? 'watchlist'
-                    : path[0] === 'allocation'
-                      ? 'allocation'
-                      : path[0] === 'market'
-                        ? 'market'
-                        : path[0] === 'movers'
-                          ? 'movers'
-                        : path[0] === 'instrumentadmin'
-                          ? 'instrumentadmin'
-                          : path[0] === 'dataadmin'
-                            ? 'dataadmin'
-      : path[0] === 'profile'
-        ? 'profile'
-        : path[0] === 'virtual'
-          ? 'virtual'
-          : path[0] === 'reports'
-            ? 'reports'
-            : path[0] === 'alert-settings'
-              ? 'alertsettings'
-              : path[0] === 'pension'
-                ? 'pension'
-                : path[0] === 'tax-harvest'
-                  ? 'taxharvest'
-                  : path[0] === 'tax-allowances'
-                    ? 'taxallowances'
-                    : path[0] === 'support'
-                      ? 'support'
-                      : path[0] === 'settings'
-                        ? 'settings'
-                        : path[0] === 'scenario'
-                          ? 'scenario'
-                          : path[0] === 'logs'
-                            ? 'logs'
-                            : path.length === 0
-                              ? 'group'
-                              : 'movers';
+  let mode: TabPluginId;
+  switch (path[0]) {
+    case 'portfolio':
+      mode = 'owner';
+      break;
+    case 'instrument':
+      mode = 'instrument';
+      break;
+    case 'transactions':
+      mode = 'transactions';
+      break;
+    case 'trading':
+      mode = 'trading';
+      break;
+    case 'performance':
+      mode = 'performance';
+      break;
+    case 'screener':
+      mode = 'screener';
+      break;
+    case 'timeseries':
+      mode = 'timeseries';
+      break;
+    case 'watchlist':
+      mode = 'watchlist';
+      break;
+    case 'allocation':
+      mode = 'allocation';
+      break;
+    case 'market':
+      mode = 'market';
+      break;
+    case 'movers':
+      mode = 'movers';
+      break;
+    case 'instrumentadmin':
+      mode = 'instrumentadmin';
+      break;
+    case 'dataadmin':
+      mode = 'dataadmin';
+      break;
+    case 'virtual':
+      mode = 'virtual';
+      break;
+    case 'reports':
+      mode = 'reports';
+      break;
+    case 'alert-settings':
+      mode = 'alertsettings';
+      break;
+    case 'pension':
+      mode = 'pension';
+      break;
+    case 'tax-tools':
+      mode = 'taxtools';
+      break;
+    case 'support':
+      mode = 'support';
+      break;
+    case 'settings':
+      mode = 'settings';
+      break;
+    case 'scenario':
+      mode = 'scenario';
+      break;
+    default:
+      mode = path.length === 0 ? 'group' : 'movers';
+  }
 
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
   const inSupport = mode === 'support';
@@ -108,7 +124,7 @@ export default function Menu({
       case 'instrument':
         return selectedGroup ? `/instrument/${selectedGroup}` : '/instrument';
       case 'owner':
-        return selectedOwner ? `/member/${selectedOwner}` : '/member';
+        return selectedOwner ? `/portfolio/${selectedOwner}` : '/portfolio';
       case 'performance':
         return selectedOwner ? `/performance/${selectedOwner}` : '/performance';
       case 'movers':
@@ -123,22 +139,16 @@ export default function Menu({
         return '/alert-settings';
       case 'settings':
         return '/settings';
-      case 'logs':
-        return '/logs';
       case 'allocation':
         return '/allocation';
       case 'rebalance':
         return '/rebalance';
       case 'instrumentadmin':
         return '/instrumentadmin';
-      case 'profile':
-        return '/profile';
       case 'pension':
         return '/pension/forecast';
-      case 'taxharvest':
-        return '/tax-harvest';
-      case 'taxallowances':
-        return '/tax-allowances';
+      case 'taxtools':
+        return '/tax-tools';
       default:
         return `/${m}`;
     }
@@ -173,11 +183,7 @@ export default function Menu({
           style={style}
         >
           {orderedTabPlugins
-            .filter(
-              (p) =>
-                p.section === (isSupportMode ? 'support' : 'user') ||
-                (supportEnabled && p.id === 'logs'),
-            )
+            .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
             .slice()
             .sort((a, b) => a.priority - b.priority)
             .filter((p) => {

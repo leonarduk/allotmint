@@ -36,6 +36,20 @@ def _auth_client():
             "max_drawdown",
             -5.0,
         ),
+        (
+            "/performance/alice/twr?days=90",
+            "compute_time_weighted_return",
+            ("alice", 90),
+            "time_weighted_return",
+            0.12,
+        ),
+        (
+            "/performance/alice/xirr?days=180",
+            "compute_xirr",
+            ("alice", 180),
+            "xirr",
+            0.34,
+        ),
     ],
 )
 def test_owner_metrics_success(path, func_name, expected_args, result_key, return_value, monkeypatch):
@@ -64,6 +78,8 @@ def test_owner_metrics_success(path, func_name, expected_args, result_key, retur
             ("missing", "VWRL.L", 365),
         ),
         ("/performance/missing/max-drawdown", "compute_max_drawdown", ("missing", 365)),
+        ("/performance/missing/twr", "compute_time_weighted_return", ("missing", 365)),
+        ("/performance/missing/xirr", "compute_xirr", ("missing", 365)),
     ],
 )
 def test_owner_metrics_not_found(path, func_name, expected_args, monkeypatch):
@@ -176,5 +192,72 @@ def test_owner_performance_not_found(monkeypatch):
     monkeypatch.setattr(portfolio_utils, "compute_owner_performance", fake)
     client = _auth_client()
     resp = client.get("/performance/missing")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Owner not found"
+
+
+def test_owner_holdings_success(monkeypatch):
+    expected_rows = [
+        {"ticker": "PFE", "value": 1234.56},
+        {"ticker": "TSLA", "value": 789.01},
+    ]
+
+    def fake(owner, date):
+        assert owner == "alice"
+        assert date == "2024-01-31"
+        return expected_rows
+
+    monkeypatch.setattr(portfolio_utils, "portfolio_value_breakdown", fake)
+    client = _auth_client()
+    resp = client.get("/performance/alice/holdings", params={"date": "2024-01-31"})
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "owner": "alice",
+        "date": "2024-01-31",
+        "holdings": expected_rows,
+    }
+
+
+def test_owner_holdings_bad_request(monkeypatch):
+    def fake(owner, date):
+        assert owner == "alice"
+        assert date == "2024-01-31"
+        raise ValueError("Invalid date")
+
+    monkeypatch.setattr(portfolio_utils, "portfolio_value_breakdown", fake)
+    client = _auth_client()
+    resp = client.get("/performance/alice/holdings", params={"date": "2024-01-31"})
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "Invalid date"}
+
+
+def test_returns_compare_success(monkeypatch):
+    def fake_cagr(owner, days):
+        assert owner == "alice"
+        assert days == 180
+        return 0.11
+
+    def fake_cash(owner, days):
+        assert owner == "alice"
+        assert days == 180
+        return 0.03
+
+    monkeypatch.setattr(portfolio_utils, "compute_cagr", fake_cagr)
+    monkeypatch.setattr(portfolio_utils, "compute_cash_apy", fake_cash)
+    client = _auth_client()
+    resp = client.get("/returns/compare", params={"owner": "alice", "days": 180})
+    assert resp.status_code == 200
+    assert resp.json() == {"owner": "alice", "cagr": 0.11, "cash_apy": 0.03}
+
+
+def test_returns_compare_not_found(monkeypatch):
+    def fake(owner, days):
+        assert owner == "missing"
+        raise FileNotFoundError
+
+    monkeypatch.setattr(portfolio_utils, "compute_cagr", fake)
+    monkeypatch.setattr(portfolio_utils, "compute_cash_apy", fake)
+    client = _auth_client()
+    resp = client.get("/returns/compare", params={"owner": "missing"})
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Owner not found"

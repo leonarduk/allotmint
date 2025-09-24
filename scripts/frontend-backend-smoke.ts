@@ -174,10 +174,12 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/holdings/import",
     "body": {
-      "owner": "test",
-      "account": "test",
-      "provider": "test",
-      "file": {}
+      "__form__": {
+        "owner": "demo",
+        "account": "isa",
+        "provider": "test",
+        "file": "__file__"
+      }
     }
   },
   {

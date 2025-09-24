@@ -190,3 +190,59 @@ def test_portfolio_value_breakdown_invalid_date(monkeypatch):
     assert str(excinfo.value) == "Invalid date: not-a-date"
     assert called is False
 
+
+def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": "FLAG.L", "units": 1},
+                    {"ticker": "NORM.L", "units": 1},
+                    {"ticker": "CASH.GBP", "units": 1},
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(pu.portfolio_mod, "build_owner_portfolio", lambda owner: portfolio)
+    monkeypatch.setattr(
+        pu,
+        "_PRICE_SNAPSHOT",
+        {
+            "FLAG.L": {"flagged": True},
+            "NORM.L": {"flagged": False},
+            "CASH.GBP": {"flagged": False},
+        },
+        raising=False,
+    )
+
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda ticker, snapshot: tuple(ticker.split(".", 1)) if "." in ticker else (ticker, None),
+    )
+
+    dates = pd.date_range("2024-01-01", periods=2, freq="D")
+    frames = {
+        ("FLAG", "L"): pd.DataFrame({"Date": dates, "Close": [5.0, 6.0]}),
+        ("NORM", "L"): pd.DataFrame({"Date": dates, "Close": [10.0, 11.0]}),
+        ("CASH", "GBP"): pd.DataFrame({"Date": dates, "Close": [2.0, 2.0]}),
+    }
+
+    def fake_load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
+        return frames.get((ticker, exchange), pd.DataFrame()).copy()
+
+    monkeypatch.setattr(pu, "load_meta_timeseries", fake_load_meta_timeseries)
+
+    excluded = pu.compute_owner_performance("owner", days=10, include_flagged=False, include_cash=False)
+    included_flagged = pu.compute_owner_performance(
+        "owner", days=10, include_flagged=True, include_cash=False
+    )
+    included_cash = pu.compute_owner_performance(
+        "owner", days=10, include_flagged=False, include_cash=True
+    )
+
+    assert [row["value"] for row in excluded["history"]] == [10.0, 11.0]
+    assert [row["value"] for row in included_flagged["history"]] == [15.0, 17.0]
+    assert [row["value"] for row in included_cash["history"]] == [12.0, 13.0]
+

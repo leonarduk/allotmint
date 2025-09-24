@@ -196,6 +196,39 @@ def test_intraday_route(monkeypatch):
     data = resp.json()
     assert data["prices"][0]["close"] == pytest.approx(10.0)
 
+
+def test_intraday_route_history_error(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+
+    class FakeTicker:
+        def history(self, period: str, interval: str):
+            raise RuntimeError("history boom")
+
+    with patch("backend.routes.instrument.yf.Ticker", return_value=FakeTicker()):
+        client = _auth_client(app)
+        resp = client.get("/instrument/intraday?ticker=ABC.L")
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "history boom"
+
+
+def test_intraday_route_history_empty(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+
+    class FakeTicker:
+        def history(self, period: str, interval: str):
+            return pd.DataFrame()
+
+    with patch("backend.routes.instrument.yf.Ticker", return_value=FakeTicker()):
+        client = _auth_client(app)
+        resp = client.get("/instrument/intraday?ticker=ABC.L")
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "No intraday data for ABC.L"
+
+
 def test_base_currency_param_gbp_to_usd(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()

@@ -1,5 +1,7 @@
-import pytest
+import json
 from datetime import date as real_date, datetime as real_datetime
+
+import pytest
 
 from backend.common import compliance
 from backend.common.user_config import UserConfig
@@ -51,6 +53,36 @@ def stubbed_env(monkeypatch):
     monkeypatch.setattr(compliance, "is_approval_valid", lambda approval, asof: False)
     monkeypatch.setattr(compliance, "date", FixedDate)
     monkeypatch.setattr(compliance, "datetime", FixedDateTime)
+
+
+def test_load_transactions_bootstraps_missing_owner(tmp_path):
+    accounts_root = tmp_path / "accounts"
+    owner = "alex"
+
+    records = compliance.load_transactions(owner, accounts_root=accounts_root)
+
+    assert records == []
+
+    owner_dir = accounts_root / owner
+    assert owner_dir.is_dir()
+
+    settings_path = owner_dir / "settings.json"
+    approvals_path = owner_dir / "approvals.json"
+    tx_path = owner_dir / f"{owner}_transactions.json"
+
+    assert settings_path.exists()
+    assert approvals_path.exists()
+    assert tx_path.exists()
+
+    settings = json.loads(settings_path.read_text())
+    approvals = json.loads(approvals_path.read_text())
+    transactions = json.loads(tx_path.read_text())
+
+    assert approvals == {"approvals": []}
+    assert transactions.get("transactions") == []
+    assert transactions.get("account_type") == "brokerage"
+    assert "hold_days_min" in settings
+    assert "max_trades_per_month" in settings
 
 
 def test_check_trade_requires_owner(monkeypatch):

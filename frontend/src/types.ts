@@ -430,12 +430,13 @@ export interface VirtualPortfolio {
 export interface TradingSignal {
   ticker: string;
   name: string;
-  action: 'buy' | 'sell';
+  action: 'buy' | 'sell' | 'BUY' | 'SELL';
   reason: string;
   confidence?: number;
   rationale?: string;
   currency?: string | null;
   instrument_type?: string | null;
+  factors?: string[];
 }
 
 export interface CustomQuery {

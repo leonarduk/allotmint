@@ -40,6 +40,8 @@ data/*
 !data/instruments/**
 !data/scaling_overrides.json
 !data/events.json
+!data/queries/
+!data/queries/**
 
 # Logs
 backend.log

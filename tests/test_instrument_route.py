@@ -317,3 +317,97 @@ def test_base_currency_from_config(monkeypatch):
     prices = data["prices"]
     assert prices[-1]["close_usd"] == pytest.approx(11.0 / 0.8)
     assert data["base_currency"] == "USD"
+
+
+def test_missing_history_returns_404(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    empty = pd.DataFrame()
+    with patch(
+        "backend.routes.instrument.load_meta_timeseries_range", return_value=empty
+    ), patch("backend.routes.instrument.get_security_meta", return_value={}), patch(
+        "backend.routes.instrument.list_portfolios", return_value=[]
+    ):
+        client = _auth_client(app)
+        resp = client.get("/instrument?ticker=ABC.L&days=1&format=json")
+    assert resp.status_code == 404
+
+
+def test_gbx_prices_scaled_and_cost_basis_fallback(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = pd.DataFrame(
+        {
+            "Date": pd.date_range("2020-01-01", periods=2, freq="D"),
+            "Close": [100.0, 120.0],
+        }
+    )
+
+    monkeypatch.setattr(
+        "backend.routes.instrument.load_meta_timeseries_range", lambda *args, **kwargs: df
+    )
+    monkeypatch.setattr(
+        "backend.routes.instrument.get_security_meta", lambda ticker: {"currency": "GBX"}
+    )
+    monkeypatch.setattr(
+        "backend.routes.instrument.list_portfolios",
+        lambda: [
+            {
+                "owner": "alex",
+                "accounts": [
+                    {
+                        "account_type": "isa",
+                        "holdings": [
+                            {
+                                "ticker": "ABC.L",
+                                "quantity": 10,
+                                "effective_cost_basis_gbp": 10.0,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    )
+
+    client = _auth_client(app)
+    resp = client.get("/instrument?ticker=ABC.L&days=1&format=json")
+    assert resp.status_code == 200
+    payload = resp.json()
+
+    prices = payload["prices"]
+    assert prices[-1]["close"] == pytest.approx(120.0)
+    assert prices[-1]["close_gbp"] == pytest.approx(1.2)
+
+    position = payload["positions"][0]
+    assert position["market_value_gbp"] == pytest.approx(12.0)
+    assert position["unrealised_gain_gbp"] == pytest.approx(2.0)
+    assert position["gain_pct"] == pytest.approx(20.0)
+
+
+def test_base_currency_fetch_failure_is_resilient(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    app = create_app()
+    df = _make_df()
+
+    monkeypatch.setattr(
+        "backend.routes.instrument.load_meta_timeseries_range", lambda *args, **kwargs: df
+    )
+    monkeypatch.setattr(
+        "backend.routes.instrument.get_security_meta", lambda ticker: {"currency": "GBP"}
+    )
+    monkeypatch.setattr("backend.routes.instrument.list_portfolios", lambda: [])
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("backend.routes.instrument.fetch_fx_rate_range", _boom)
+
+    client = _auth_client(app)
+    resp = client.get("/instrument?ticker=ABC.L&days=1&format=json&base_currency=USD")
+    assert resp.status_code == 200
+    payload = resp.json()
+
+    last_price = payload["prices"][-1]
+    assert "close_usd" not in last_price
+    assert payload.get("fx", {}) == {}

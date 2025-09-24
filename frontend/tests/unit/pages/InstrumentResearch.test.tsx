@@ -15,6 +15,7 @@ import { configContext, type ConfigContextValue } from "@/ConfigContext";
 const mockGetNews = vi.spyOn(api, "getNews");
 const mockListInstrumentMetadata = vi.spyOn(api, "listInstrumentMetadata");
 const mockUpdateInstrumentMetadata = vi.spyOn(api, "updateInstrumentMetadata");
+const mockGetScreener = vi.spyOn(api, "getScreener");
 const mockUseInstrumentHistory = vi.mocked(useInstrumentHistory);
 
 const defaultConfig: ConfigContextValue = {
@@ -93,8 +94,41 @@ describe("InstrumentResearch page", () => {
     } as any);
     mockListInstrumentMetadata.mockReset();
     mockUpdateInstrumentMetadata.mockReset();
+    mockGetScreener.mockReset();
     mockGetNews.mockReset();
     mockGetNews.mockResolvedValue([]);
+    mockGetScreener.mockResolvedValue([
+      {
+        rank: 1,
+        ticker: "AAA.L",
+        name: "Acme Corp",
+        peg_ratio: 1.5,
+        pe_ratio: 15.2,
+        de_ratio: 0.5,
+        lt_de_ratio: 0.3,
+        interest_coverage: 12.5,
+        current_ratio: 1.8,
+        quick_ratio: 1.1,
+        fcf: 250000000,
+        eps: 5.25,
+        gross_margin: 0.56,
+        operating_margin: 0.32,
+        net_margin: 0.24,
+        ebitda_margin: 0.35,
+        roa: 0.18,
+        roe: 0.22,
+        roi: 0.2,
+        dividend_yield: 0.015,
+        dividend_payout_ratio: 0.4,
+        beta: 1.05,
+        shares_outstanding: 1000000000,
+        float_shares: 850000000,
+        market_cap: 550000000000,
+        high_52w: 320,
+        low_52w: 210,
+        avg_volume: 12500000,
+      } as any,
+    ]);
     const catalogue: InstrumentMetadata[] = [
       {
         ticker: "AAA.L",
@@ -173,14 +207,38 @@ describe("InstrumentResearch page", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows placeholder when fundamentals tab is selected", async () => {
+  it("loads fundamentals when tab is selected", async () => {
     renderPage();
     const fundamentalsTab = screen.getByRole("button", {
       name: /Fundamentals/i,
     });
+    expect(mockGetScreener).not.toHaveBeenCalled();
     await userEvent.click(fundamentalsTab);
+    expect(mockGetScreener).toHaveBeenCalled();
+    const [tickers, criteria, signal] = mockGetScreener.mock.calls[0] ?? [];
+    expect(tickers).toEqual(["AAA"]);
+    expect(criteria).toEqual({});
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(await screen.findByRole("heading", { name: "Fundamentals" })).toBeInTheDocument();
+    const peRow = await screen.findByText("P/E Ratio");
+    const peValue = within(peRow.closest("tr") as HTMLElement).getByText("15.20");
+    expect(peValue).toBeInTheDocument();
+    const netMarginRow = await screen.findByText("Net Margin");
     expect(
-      await screen.findByText(/Fundamentals data is not available/i),
+      within(netMarginRow.closest("tr") as HTMLElement).getByText("24.00%"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows fundamentals error messages", async () => {
+    mockGetScreener.mockRejectedValueOnce(new Error("fundamentals fail"));
+
+    renderPage();
+
+    const tab = screen.getByRole("button", { name: /Fundamentals/i });
+    await userEvent.click(tab);
+
+    expect(
+      await screen.findByText(/Unable to load fundamentals: fundamentals fail/),
     ).toBeInTheDocument();
   });
 

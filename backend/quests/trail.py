@@ -180,7 +180,7 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
     tasks: List[TaskDefinition] = []
 
     # Encourage the user to model a goal if they have not already done so.
-    if not load_goals(user) and "create_goal" not in user_data.get("once", []):
+    if not load_goals(user):
         tasks.append(
             TaskDefinition(
                 id="create_goal",
@@ -192,7 +192,7 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
 
     # Configure price-drift alerts to catch meaningful moves.
     thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
-    if user not in thresholds and "set_alert_threshold" not in user_data.get("once", []):
+    if user not in thresholds:
         # ``alerts.get_user_threshold`` falls back to the default without
         # indicating whether the user explicitly configured the value.  The
         # private ``_USER_THRESHOLDS`` cache records explicit overrides, so a
@@ -208,10 +208,15 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
 
     # Push notifications require an explicit subscription – remind the user
     # when none is configured.
-    if (
-        alerts.get_user_push_subscription(user) is None
-        and "enable_push_notifications" not in user_data.get("once", [])
-    ):
+    subscription = alerts.get_user_push_subscription(user)
+    if subscription:
+        try:
+            persisted = alerts._SUBSCRIPTIONS_STORAGE.load()  # type: ignore[attr-defined]
+        except Exception:
+            persisted = {}
+        if not isinstance(persisted, dict) or persisted.get(user) is None:
+            subscription = None
+    if not subscription:
         tasks.append(
             TaskDefinition(
                 id="enable_push_notifications",

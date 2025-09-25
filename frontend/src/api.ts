@@ -38,11 +38,15 @@ import type {
   RegionContribution,
   UserConfig,
   InstrumentMetadata,
+  InstrumentGroupDefinition,
   ApprovalsResponse,
   NewsItem,
   Nudge,
   HoldingValue,
   MarketOverview,
+  AnalyticsEventPayload,
+  AnalyticsFunnelSummary,
+  AnalyticsSource,
 } from "./types";
 
 const cleanOptionalString = (value: unknown): string | null => {
@@ -745,6 +749,9 @@ export const listInstrumentMetadata = () =>
 export const listInstrumentGroups = () =>
   fetchJson<string[]>(`${API_BASE}/instrument/admin/groups`);
 
+export const listInstrumentGroupingDefinitions = () =>
+  fetchJson<InstrumentGroupDefinition[]>(`${API_BASE}/instrument/admin/groupings`);
+
 type InstrumentGroupMutationResponse = {
   status: string;
   group: string;
@@ -839,6 +846,18 @@ export const createTransaction = (payload: CreateTransactionPayload) =>
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+
+export const updateTransaction = (id: string, payload: CreateTransactionPayload) =>
+  fetchJson<Transaction>(`${API_BASE}/transactions/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+export const deleteTransaction = (id: string) =>
+  fetchJson<{ status: string }>(`${API_BASE}/transactions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
   });
 
 export const getDividends = (params?: {
@@ -1291,6 +1310,17 @@ export const completeTrailTask = (id: string) =>
   fetchJson<TrailResponse>(`${API_BASE}/trail/${encodeURIComponent(id)}/complete`, {
     method: "POST",
   });
+
+// ───────────── Analytics ─────────────
+export const logAnalyticsEvent = (payload: AnalyticsEventPayload) =>
+  fetchJson<{ status: string }>(`${API_BASE}/analytics/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then(() => undefined);
+
+export const getAnalyticsFunnel = (source: AnalyticsSource) =>
+  fetchJson<AnalyticsFunnelSummary>(`${API_BASE}/analytics/funnels/${source}`);
 
 // ───────────── Support tools ─────────────
 export interface Finding {

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ ticker }} - No price data</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    table{ border-collapse:collapse;margin:.5rem 0 }
+    th,td{ padding:.25rem .5rem;border:1px solid #ccc; }
+    th{background:#f5f5f5}
+  </style>
+</head>
+<body>
+  <h1>{{ ticker }}</h1>
+  {% if name %}
+    <p>{{ name }}</p>
+  {% endif %}
+  <p>No price data is available for this instrument.</p>
+  {% if window_days %}
+    <p>Requested window: {{ window_days }} days.</p>
+  {% endif %}
+  {% if positions_table %}
+    <section>
+      <h2>Portfolio positions</h2>
+      {{ positions_table|safe }}
+    </section>
+  {% endif %}
+  <footer>Generated {{ today }}</footer>
+</body>
+</html>

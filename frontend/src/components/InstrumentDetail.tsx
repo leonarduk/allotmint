@@ -425,9 +425,25 @@ export function InstrumentDetail({
         <div style={{ marginBottom: "0.5rem" }}>
           <strong>{signal.action.toUpperCase()}</strong> – {signal.reason}
           {signal.confidence != null && (
-            <div>Confidence: {(signal.confidence * 100).toFixed(0)}%</div>
+            <div>
+              Signal strength:{" "}
+              {signal.confidence >= 0.75
+                ? "Strong"
+                : signal.confidence >= 0.5
+                  ? "Moderate"
+                  : "Weak"}
+              {` (${Math.round(signal.confidence * 100)}%)`}
+            </div>
           )}
-          {signal.rationale && <div>{signal.rationale}</div>}
+          {signal.factors && signal.factors.length ? (
+            <ul style={{ margin: "0.25rem 0 0 1.1rem" }}>
+              {signal.factors.map((factor, idx) => (
+                <li key={idx}>{factor}</li>
+              ))}
+            </ul>
+          ) : (
+            signal.rationale && <div>{signal.rationale}</div>
+          )}
         </div>
       )}
       <div

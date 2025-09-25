@@ -42,7 +42,7 @@ curl -X POST https://api.example.com/transactions \
   -d '{
         "owner": "alex",
         "account": "isa",
-        "ticker": "AAPL",
+        "ticker": "PFE",
         "type": "BUY",
         "shares": 10,
         "amount_minor": 170000,
@@ -62,7 +62,7 @@ adjustment. Fetch it again using `GET /portfolio/alex` to verify:
 {
   "owner": "alex",
   "account": "isa",
-  "ticker": "AAPL",
+  "ticker": "PFE",
   "type": "BUY",
   "shares": 10,
   "amount_minor": 170000,

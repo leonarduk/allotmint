@@ -35,6 +35,7 @@ from backend.common.portfolio_utils import (
     refresh_snapshot_async,
     refresh_snapshot_in_memory,
 )
+from backend.common.transaction_reconciliation import reconcile_transactions_with_holdings
 from backend.config import reload_config
 from backend import config_module
 
@@ -54,6 +55,7 @@ from backend.routes.models import router as models_router
 from backend.routes.nudges import router as nudges_router
 from backend.routes.news import router as news_router
 from backend.routes.market import router as market_router
+from backend.routes.analytics import router as analytics_router
 from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
 from backend.routes.opportunities import router as opportunities_router
@@ -185,6 +187,10 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     paths = resolve_paths(cfg.repo_root, cfg.accounts_root)
+    try:
+        reconcile_transactions_with_holdings(paths.accounts_root)
+    except Exception:
+        logger.exception("Failed to reconcile holdings with transactions")
     app.state.repo_root = paths.repo_root
     app.state.accounts_root = paths.accounts_root
     app.state.virtual_pf_root = paths.virtual_pf_root
@@ -255,6 +261,7 @@ def create_app() -> FastAPI:
     app.include_router(query_router, dependencies=protected)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)
+    app.include_router(analytics_router, dependencies=protected)
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(config_router)

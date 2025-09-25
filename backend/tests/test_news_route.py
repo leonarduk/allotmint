@@ -123,7 +123,7 @@ def test_fallback_helpers_filter_finance_headlines(monkeypatch):
                 return {
                     "news": [
                         {
-                            "title": "AAPL stock jumps on earnings",
+                            "title": "PFE stock jumps on earnings",
                             "link": "https://example.com/finance",
                         },
                         {
@@ -136,9 +136,9 @@ def test_fallback_helpers_filter_finance_headlines(monkeypatch):
         return Response()
 
     monkeypatch.setattr(news.requests, "get", fake_yahoo)
-    yahoo_items = news.fetch_news_yahoo("AAPL")
+    yahoo_items = news.fetch_news_yahoo("PFE")
     assert yahoo_items == [
-        {"headline": "AAPL stock jumps on earnings", "url": "https://example.com/finance"}
+        {"headline": "PFE stock jumps on earnings", "url": "https://example.com/finance"}
     ]
 
     def fake_google(url, params, timeout=10):

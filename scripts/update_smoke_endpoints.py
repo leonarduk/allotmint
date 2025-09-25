@@ -62,13 +62,14 @@ def _example_for_type(typ: Any) -> Any:
 
 
 MANUAL_BODIES: dict[tuple[str, str], Any] = {
-    ("POST", "/accounts/{owner}/approval-requests"): {"ticker": "AAPL"},
+    ("POST", "/accounts/{owner}/approval-requests"): {"ticker": "PFE"},
     ("POST", "/accounts/{owner}/approvals"): {
-        "ticker": "AAPL",
+        "ticker": "PFE",
         "approved_on": "1970-01-01",
     },
-    ("DELETE", "/accounts/{owner}/approvals"): {"ticker": "AAPL"},
+    ("DELETE", "/accounts/{owner}/approvals"): {"ticker": "PFE"},
     ("POST", "/compliance/validate"): {"owner": "demo"},
+    ("POST", "/instrument/admin/groups"): {"name": "demo"},
     ("POST", "/user-config/{owner}"): {},
     (
         "POST",
@@ -95,8 +96,8 @@ SAMPLE_QUERY_VALUES: dict[str, str] = {
     "user": "user@example.com",
     "email": "user@example.com",
     "exchange": "NASDAQ",
-    "ticker": "AAPL",
-    "tickers": "AAPL",
+    "ticker": "PFE",
+    "tickers": "PFE",
     "id": "1",
     "vp_id": "1",
     "quest_id": "check-in",
@@ -125,7 +126,7 @@ def _example_for_query_param(name: str, ann: Any) -> str:
     if "date" in k:
         return "1970-01-01"
     if "ticker" in k:
-        return "AAPL"
+        return "PFE"
     return str(_example_for_type(ann))
 
 
@@ -186,7 +187,7 @@ def main() -> None:
         "  slug: 'demo-slug',\n"
         "  name: 'demo',\n"
         "  exchange: 'NASDAQ',\n"
-        "  ticker: 'AAPL',\n"
+        "  ticker: 'PFE',\n"
         "};\n"
         "\nexport function fillPath(path: string): string {\n"
         "  return path.replace(/\\{([^}]+)\\}/g, (_, key: string) => {\n"
@@ -240,10 +241,23 @@ def main() -> None:
         "      throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);\n"
         "    }\n"
         "\n    // Allow 401/403 for endpoints that require roles; they still prove the route exists\n"
-        "    if (res.status >= 400 && res.status !== 401 && res.status !== 403) {\n"
+        "    // Allow 409 for endpoints where we try to create data that may already exist.\n"
+        "    if (\n"
+        "      res.status >= 400 &&\n"
+        "      res.status !== 401 &&\n"
+        "      res.status !== 403 &&\n"
+        "      res.status !== 409\n"
+        "    ) {\n"
         "      throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);\n"
         "    }\n"
-        "    const tag = res.ok ? \"✓\" : (res.status === 401 || res.status === 403) ? \"○\" : \"•\";\n"
+        "    const tag =\n"
+        "      res.ok\n"
+        "        ? \"✓\"\n"
+        "        : res.status === 401 || res.status === 403\n"
+        "          ? \"○\"\n"
+        "          : res.status === 409\n"
+        "            ? \"△\"\n"
+        "            : \"•\";\n"
         "    console.log(`${tag} ${ep.method} ${ep.path} (${res.status})`);\n"
         "\n  }\n"
         "}\n"

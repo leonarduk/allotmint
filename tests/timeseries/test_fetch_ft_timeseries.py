@@ -13,7 +13,7 @@ def test_build_ft_ticker_valid_isin():
 
 
 def test_build_ft_ticker_non_isin_returns_none():
-    assert _build_ft_ticker("AAPL") is None
+    assert _build_ft_ticker("PFE") is None
 
 
 def test_fetch_ft_timeseries_range_cookie_banner(monkeypatch):
@@ -123,6 +123,6 @@ def test_fetch_ft_timeseries_range_find_element_failure(monkeypatch):
 
 
 def test_fetch_ft_timeseries_non_isin_returns_empty_df():
-    df = fetch_ft_timeseries("AAPL")
+    df = fetch_ft_timeseries("PFE")
     assert df.empty
 

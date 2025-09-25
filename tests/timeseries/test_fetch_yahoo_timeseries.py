@@ -34,7 +34,7 @@ def test_get_yahoo_suffix_unsupported():
 
 def test_build_full_ticker_appends_suffix():
     assert _build_full_ticker("xdev", "l") == "XDEV.L"
-    assert _build_full_ticker("AAPL", "NASDAQ") == "AAPL"
+    assert _build_full_ticker("PFE", "NASDAQ") == "PFE"
 
 
 def test_build_full_ticker_no_duplicate():

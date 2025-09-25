@@ -29,10 +29,10 @@ def test_post_approval_request_falls_back_to_default_accounts_root(tmp_path, mon
     app.state.accounts_root = primary_root
     client = TestClient(app)
 
-    resp = client.post("/accounts/demo/approval-requests", json={"ticker": "AAPL"})
+    resp = client.post("/accounts/demo/approval-requests", json={"ticker": "PFE"})
     assert resp.status_code == 200
 
     saved = owner_dir / "approval_requests.json"
     assert saved.exists()
     data = json.loads(saved.read_text())
-    assert data["requests"][0]["ticker"] == "AAPL"
+    assert data["requests"][0]["ticker"] == "PFE"

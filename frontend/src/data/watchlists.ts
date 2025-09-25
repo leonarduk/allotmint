@@ -398,7 +398,7 @@ export const SP500 = [
   "AON",
   "APA",
   "APO",
-  "AAPL",
+  "PFE",
   "AMAT",
   "APTV",
   "ACGL",

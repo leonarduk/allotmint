@@ -9,14 +9,14 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/accounts/{owner}/approval-requests",
     "body": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
     "method": "DELETE",
     "path": "/accounts/{owner}/approvals",
     "body": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -27,7 +27,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/accounts/{owner}/approvals",
     "body": {
-      "ticker": "AAPL",
+      "ticker": "PFE",
       "approved_on": "1970-01-01"
     }
   },
@@ -186,7 +186,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/instrument/",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -204,7 +204,9 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "POST",
     "path": "/instrument/admin/groups",
-    "body": {}
+    "body": {
+      "name": "demo"
+    }
   },
   {
     "method": "DELETE",
@@ -237,7 +239,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/instrument/intraday",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -260,14 +262,14 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/movers",
     "query": {
-      "tickers": "AAPL"
+      "tickers": "PFE"
     }
   },
   {
     "method": "GET",
     "path": "/news",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -399,7 +401,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/scenario",
     "query": {
-      "ticker": "AAPL",
+      "ticker": "PFE",
       "pct": "0"
     }
   },
@@ -414,7 +416,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/screener/",
     "query": {
-      "tickers": "AAPL"
+      "tickers": "PFE"
     }
   },
   {
@@ -461,28 +463,28 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/timeseries/edit",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
     "method": "POST",
     "path": "/timeseries/edit",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
     "method": "GET",
     "path": "/timeseries/html",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
     "method": "GET",
     "path": "/timeseries/meta",
     "query": {
-      "ticker": "AAPL"
+      "ticker": "PFE"
     }
   },
   {
@@ -603,7 +605,7 @@ const SAMPLE_PATH_VALUES: Record<string, string> = {
   slug: 'demo-slug',
   name: 'demo',
   exchange: 'NASDAQ',
-  ticker: 'AAPL',
+  ticker: 'PFE',
 };
 
 export function fillPath(path: string): string {
@@ -662,10 +664,23 @@ export async function runSmoke(base: string) {
     }
 
     // Allow 401/403 for endpoints that require roles; they still prove the route exists
-    if (res.status >= 400 && res.status !== 401 && res.status !== 403) {
+    // Allow 409 for endpoints where we try to create data that may already exist.
+    if (
+      res.status >= 400 &&
+      res.status !== 401 &&
+      res.status !== 403 &&
+      res.status !== 409
+    ) {
       throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
     }
-    const tag = res.ok ? "✓" : (res.status === 401 || res.status === 403) ? "○" : "•";
+    const tag =
+      res.ok
+        ? "✓"
+        : res.status === 401 || res.status === 403
+          ? "○"
+          : res.status === 409
+            ? "△"
+            : "•";
     console.log(`${tag} ${ep.method} ${ep.path} (${res.status})`);
 
   }

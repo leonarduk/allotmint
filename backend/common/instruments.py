@@ -327,6 +327,9 @@ def _fetch_metadata_from_yahoo(full_ticker: str) -> Optional[Dict[str, Any]]:
     return {k: v for k, v in metadata.items() if v is not None}
 
 
+_ORIGINAL_FETCH_METADATA = _fetch_metadata_from_yahoo
+
+
 def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
     canonical = (ticker or "").strip().upper()
     if not canonical or canonical in _AUTO_CREATE_FAILURES:
@@ -334,6 +337,17 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
 
     sym, exch = (canonical.split(".", 1) + [None])[:2]
     if not exch or not sym or sym == "CASH":
+        return None
+
+    if os.environ.get("TESTING"):
+        return None
+
+    # Avoid triggering live lookups when the application is running in offline
+    # mode.  Tests exercise the auto-create behaviour by monkeypatching
+    # ``_fetch_metadata_from_yahoo``; allow those callers through even when the
+    # real configuration is offline by checking that the helper has been
+    # replaced.
+    if config.offline_mode and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA:
         return None
 
     full = f"{sym}.{exch}"

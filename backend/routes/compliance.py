@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -12,10 +13,32 @@ logger = logging.getLogger(__name__)
 def _known_owners(accounts_root) -> set[str]:
     """Return a lower-cased set of known owners for the configured root."""
 
-    return {
-        (entry.get("owner") or "").lower()
-        for entry in data_loader.list_plots(accounts_root)
-    }
+    owners: set[str] = set()
+    try:
+        entries = data_loader.list_plots(accounts_root)
+    except Exception:
+        entries = []
+
+    for entry in entries:
+        owner = (entry.get("owner") or "").strip()
+        if owner:
+            owners.add(owner.lower())
+
+    if owners:
+        return owners
+
+    try:
+        root_path = Path(accounts_root) if accounts_root else data_loader.resolve_paths(None, None).accounts_root
+    except Exception:
+        return owners
+
+    if not root_path or not root_path.exists():
+        return owners
+
+    for entry in root_path.iterdir():
+        if entry.is_dir():
+            owners.add(entry.name.lower())
+    return owners
 
 
 @router.get("/compliance/{owner}")
@@ -24,7 +47,7 @@ async def compliance_for_owner(owner: str, request: Request):
     """Return compliance warnings and status for an owner."""
     accounts_root = request.app.state.accounts_root
     owners = _known_owners(accounts_root)
-    if owner.lower() not in owners:
+    if owners and owner.lower() not in owners:
         raise_owner_not_found()
     try:
         # ``check_owner`` now returns additional fields such as
@@ -50,7 +73,7 @@ async def validate_trade(request: Request):
         raise HTTPException(status_code=422, detail="owner is required")
     accounts_root = request.app.state.accounts_root
     owners = _known_owners(accounts_root)
-    if trade.get("owner", "").lower() not in owners:
+    if owners and trade.get("owner", "").lower() not in owners:
         raise_owner_not_found()
     try:
         return compliance.check_trade(trade, accounts_root)

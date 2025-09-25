@@ -7,10 +7,11 @@ import json
 import logging
 import math
 import os
+from collections import defaultdict
 from dataclasses import asdict
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
 import pandas as pd
 
@@ -107,6 +108,28 @@ def _price_column(df: pd.DataFrame) -> Optional[str]:
     return None
 
 
+def _join_with_and(items: Sequence[str]) -> str:
+    """Return a human friendly phrase that joins ``items`` with commas and ``and``."""
+
+    items = [item for item in items if item]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
+def _average_confidence(entries: Sequence[Dict[str, Any]]) -> Optional[float]:
+    """Return the arithmetic mean of the ``confidence`` values in ``entries``."""
+
+    values = [entry.get("confidence") for entry in entries if entry.get("confidence") is not None]
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
 def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
     """Create trade signals from a price snapshot.
 
@@ -134,173 +157,216 @@ def generate_signals(snapshot: Dict[str, Dict]) -> List[Dict]:
         ):
             continue
 
+        action_details: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+        def add_reason(
+            action: str,
+            indicator: str,
+            summary: str,
+            detail: str,
+            confidence: float,
+        ) -> None:
+            action_details[action].append(
+                {
+                    "indicator": indicator,
+                    "summary": summary,
+                    "detail": detail,
+                    "confidence": confidence,
+                }
+            )
+
         # price momentum
         change = info.get("change_7d_pct")
         if change is not None:
             if change <= PRICE_DROP_THRESHOLD:
                 confidence = min(1.0, abs(change) / abs(PRICE_DROP_THRESHOLD))
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "SELL",
-                        "reason": f"Price dropped {change:.2f}% in last 7d",
-                        "confidence": confidence,
-                        "rationale": (
-                            f"7-day price change of {change:.2f}% is below the"
-                            f" threshold of {PRICE_DROP_THRESHOLD}%, indicating"
-                            " bearish momentum."
-                        ),
-                    }
+                add_reason(
+                    "SELL",
+                    "7-day price momentum",
+                    "Price has fallen sharply over the last week.",
+                    (
+                        f"The price dropped {abs(change):.2f}% in the last 7 days,"
+                        f" breaching the {abs(PRICE_DROP_THRESHOLD):.0f}% downside"
+                        " momentum threshold."
+                    ),
+                    confidence,
                 )
-                continue
-            if change >= PRICE_GAIN_THRESHOLD:
+            elif change >= PRICE_GAIN_THRESHOLD:
                 confidence = min(1.0, abs(change) / PRICE_GAIN_THRESHOLD)
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "BUY",
-                        "reason": f"Price gained {change:.2f}% in last 7d",
-                        "confidence": confidence,
-                        "rationale": (
-                            f"7-day price change of {change:.2f}% exceeds"
-                            f" the threshold of {PRICE_GAIN_THRESHOLD}% and"
-                            " suggests upward momentum."
-                        ),
-                    }
+                add_reason(
+                    "BUY",
+                    "7-day price momentum",
+                    "Price has gained strongly over the last week.",
+                    (
+                        f"The price gained {change:.2f}% in the last 7 days,"
+                        f" exceeding the {PRICE_GAIN_THRESHOLD:.0f}% momentum"
+                        " trigger."
+                    ),
+                    confidence,
                 )
-                continue
 
         rsi = info.get("rsi")
         ma_short = info.get("ma_short")
         ma_long = info.get("ma_long")
 
         if rsi is not None:
+            indicator_name = f"{cfg.rsi_window}-day RSI"
             if cfg.rsi_buy is not None and rsi <= cfg.rsi_buy:
                 diff = cfg.rsi_buy - rsi
                 confidence = min(1.0, diff / 10)  # 10 point diff -> max confidence
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "BUY",
-                        "reason": f"RSI {rsi:.2f} <= {cfg.rsi_buy}",
-                        "confidence": confidence,
-                        "rationale": (
-                            f"RSI of {rsi:.2f} is below the buy threshold"
-                            f" of {cfg.rsi_buy}, signalling potential"
-                            " oversold conditions."
-                        ),
-                    }
+                add_reason(
+                    "BUY",
+                    indicator_name,
+                    "RSI suggests the instrument is oversold.",
+                    (
+                        f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, below"
+                        f" the buy threshold of {cfg.rsi_buy:.0f}."
+                    ),
+                    confidence,
                 )
-                continue
-            if cfg.rsi_sell is not None and rsi >= cfg.rsi_sell:
+            elif cfg.rsi_sell is not None and rsi >= cfg.rsi_sell:
                 diff = rsi - cfg.rsi_sell
                 confidence = min(1.0, diff / 10)
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "SELL",
-                        "reason": f"RSI {rsi:.2f} >= {cfg.rsi_sell}",
-                        "confidence": confidence,
-                        "rationale": (
-                            f"RSI of {rsi:.2f} is above the sell threshold"
-                            f" of {cfg.rsi_sell}, suggesting overbought"
-                            " conditions."
-                        ),
-                    }
+                add_reason(
+                    "SELL",
+                    indicator_name,
+                    "RSI points to overbought conditions.",
+                    (
+                        f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, above"
+                        f" the sell threshold of {cfg.rsi_sell:.0f}."
+                    ),
+                    confidence,
                 )
-                continue
-        if rsi is not None:
-            if rsi > 70:
-                confidence = min(1.0, (rsi - 70) / 10)
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "SELL",
-                        "reason": f"RSI {rsi:.2f} above 70",
-                        "confidence": confidence,
-                        "rationale": (
-                            f"RSI reading of {rsi:.2f} exceeds the typical"
-                            " overbought level of 70."
-                        ),
-                    }
-                )
-                continue
-            if rsi < 30:
+            elif rsi < 30:
                 confidence = min(1.0, (30 - rsi) / 10)
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "BUY",
-                        "reason": f"RSI {rsi:.2f} below 30",
-                        "confidence": confidence,
-                        "rationale": (
-                            f"RSI reading of {rsi:.2f} is below the"
-                            " commonly used oversold level of 30."
-                        ),
-                    }
+                add_reason(
+                    "BUY",
+                    indicator_name,
+                    "RSI indicates the price may be oversold.",
+                    (
+                        f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, below"
+                        " the commonly used oversold level of 30."
+                    ),
+                    confidence,
                 )
-                continue
+            elif rsi > 70:
+                confidence = min(1.0, (rsi - 70) / 10)
+                add_reason(
+                    "SELL",
+                    indicator_name,
+                    "RSI indicates the price may be overbought.",
+                    (
+                        f"The {cfg.rsi_window}-day RSI is {rsi:.2f}, above"
+                        " the typical overbought level of 70."
+                    ),
+                    confidence,
+                )
 
         if ma_short is not None and ma_long is not None:
+            indicator_name = (
+                f"{cfg.ma_short_window}- vs {cfg.ma_long_window}-day MA crossover"
+            )
             if ma_short > ma_long:
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "BUY",
-                        "reason": f"MA{cfg.ma_short_window}>{cfg.ma_long_window}",
-                        "confidence": 0.6,
-                        "rationale": (
-                            f"Short moving average {ma_short:.2f} is above"
-                            f" long moving average {ma_long:.2f},"
-                            " indicating bullish momentum."
-                        ),
-                    }
+                add_reason(
+                    "BUY",
+                    indicator_name,
+                    "Short-term trend is above the longer-term trend.",
+                    (
+                        f"The {cfg.ma_short_window}-day moving average {ma_short:.2f}"
+                        f" is above the {cfg.ma_long_window}-day average"
+                        f" {ma_long:.2f}, signalling bullish momentum."
+                    ),
+                    0.6,
                 )
             elif ma_short < ma_long:
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "SELL",
-                        "reason": f"MA{cfg.ma_short_window}<{cfg.ma_long_window}",
-                        "confidence": 0.6,
-                        "rationale": (
-                            f"Short moving average {ma_short:.2f} is below"
-                            f" long moving average {ma_long:.2f},"
-                            " signalling bearish momentum."
-                        ),
-                    }
+                add_reason(
+                    "SELL",
+                    indicator_name,
+                    "Short-term trend is below the longer-term trend.",
+                    (
+                        f"The {cfg.ma_short_window}-day moving average {ma_short:.2f}"
+                        f" is below the {cfg.ma_long_window}-day average"
+                        f" {ma_long:.2f}, signalling bearish momentum."
+                    ),
+                    0.6,
                 )
+
         short_ma = info.get("sma_50")
         long_ma = info.get("sma_200")
         if short_ma is not None and long_ma is not None:
+            indicator_name = "50-day vs 200-day MA crossover"
             if short_ma > long_ma:
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "BUY",
-                        "reason": f"50d MA {short_ma:.2f} above 200d MA {long_ma:.2f}",
-                        "confidence": 0.6,
-                        "rationale": (
-                            f"50-day moving average {short_ma:.2f} is above"
-                            f" the 200-day moving average {long_ma:.2f},"
-                            " a traditional bullish indicator."
-                        ),
-                    }
+                add_reason(
+                    "BUY",
+                    indicator_name,
+                    "Medium-term trend is bullish.",
+                    (
+                        f"The 50-day moving average {short_ma:.2f} is above"
+                        f" the 200-day moving average {long_ma:.2f},"
+                        " a classic bullish signal."
+                    ),
+                    0.6,
                 )
             elif short_ma < long_ma:
-                signals.append(
-                    {
-                        "ticker": ticker,
-                        "action": "SELL",
-                        "reason": f"50d MA {short_ma:.2f} below 200d MA {long_ma:.2f}",
-                        "confidence": 0.6,
-                        "rationale": (
-                            f"50-day moving average {short_ma:.2f} is below"
-                            f" the 200-day moving average {long_ma:.2f},"
-                            " suggesting a bearish trend."
-                        ),
-                    }
+                add_reason(
+                    "SELL",
+                    indicator_name,
+                    "Medium-term trend is bearish.",
+                    (
+                        f"The 50-day moving average {short_ma:.2f} is below"
+                        f" the 200-day moving average {long_ma:.2f},"
+                        " suggesting a bearish trend."
+                    ),
+                    0.6,
                 )
+
+        best_action: Optional[str] = None
+        best_reasons: List[Dict[str, Any]] = []
+        best_score: tuple[int, float] = (0, 0.0)
+        best_confidence: Optional[float] = None
+
+        for action, reasons in action_details.items():
+            if not reasons:
+                continue
+            avg_conf = _average_confidence(reasons)
+            score = (len(reasons), avg_conf or 0.0)
+            if score > best_score:
+                best_action = action
+                best_reasons = reasons
+                best_score = score
+                best_confidence = avg_conf
+
+        if not best_action or not best_reasons:
+            continue
+
+        indicator_names = [reason.get("indicator", "") for reason in best_reasons]
+        indicator_phrase = _join_with_and(indicator_names)
+        count = len(best_reasons)
+        if count == 1:
+            reason_text = (
+                f"{indicator_phrase or 'Indicator'} supports a"
+                f" {best_action.lower()} opportunity."
+            )
+        else:
+            reason_text = (
+                f"{count} indicators ({indicator_phrase}) support a"
+                f" {best_action.lower()} opportunity."
+            )
+        factor_details = [reason["detail"] for reason in best_reasons if reason.get("detail")]
+        rationale_text = " ".join(factor_details).strip()
+
+        entry = {
+            "ticker": ticker,
+            "action": best_action,
+            "reason": reason_text,
+            "confidence": best_confidence,
+            "rationale": rationale_text or None,
+        }
+        if len(factor_details) > 1:
+            entry["factors"] = factor_details
+
+        signals.append(entry)
+
     return signals
 
 

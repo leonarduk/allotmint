@@ -74,7 +74,7 @@ def test_fx_to_base_falls_back_to_default_rate(monkeypatch):
 
 
 def test_load_snapshot_from_s3(monkeypatch):
-    data = {"AAPL": {"price": 123}}
+    data = {"PFE": {"price": 123}}
     timestamp = datetime(2024, 1, 1, tzinfo=UTC)
 
     class FakeBody:

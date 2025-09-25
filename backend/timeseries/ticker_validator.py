@@ -20,7 +20,16 @@ def is_valid_ticker(ticker: str, exchange: str) -> bool:
     ex = exchange.upper()
     full = f"{base}.{ex}"
     meta = get_instrument_meta(full)
-    return bool(meta)
+    if not meta:
+        return False
+    informative_keys = {
+        key
+        for key, value in meta.items()
+        if value not in (None, "")
+    }
+    if informative_keys <= {"ticker", "exchange", "name"}:
+        return False
+    return True
 
 
 def record_skipped_ticker(ticker: str, exchange: str, *, reason: str = "") -> None:

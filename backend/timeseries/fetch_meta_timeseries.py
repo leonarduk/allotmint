@@ -289,7 +289,8 @@ def run_all_tickers(
             time.sleep(delay)
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
-        loader_exchange = ex if ex else ""
+        has_explicit_exchange = bool(exchange) or bool(re.search(r"[._]", t))
+        loader_exchange = ex if has_explicit_exchange else ""
         try:
             if not load_meta_timeseries(sym, loader_exchange, days).empty:
                 ok.append(t)

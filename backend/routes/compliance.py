@@ -47,7 +47,7 @@ async def compliance_for_owner(owner: str, request: Request):
     """Return compliance warnings and status for an owner."""
     accounts_root = request.app.state.accounts_root
     owners = _known_owners(accounts_root)
-    if owner.lower() not in owners:
+    if owners and owner.lower() not in owners:
         raise_owner_not_found()
     try:
         # ``check_owner`` now returns additional fields such as
@@ -73,7 +73,7 @@ async def validate_trade(request: Request):
         raise HTTPException(status_code=422, detail="owner is required")
     accounts_root = request.app.state.accounts_root
     owners = _known_owners(accounts_root)
-    if trade.get("owner", "").lower() not in owners:
+    if owners and trade.get("owner", "").lower() not in owners:
         raise_owner_not_found()
     try:
         return compliance.check_trade(trade, accounts_root)

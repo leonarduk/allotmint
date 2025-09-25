@@ -109,3 +109,18 @@ def test_validate_trade_missing_owner(tmp_path):
     with TestClient(app) as client:
         resp = client.post("/compliance/validate", json={})
         assert resp.status_code == 422
+
+
+def test_validate_trade_when_owner_discovery_fails(tmp_path):
+    app = _setup_app(tmp_path)
+    # Point the app to a non-existent accounts directory so owner discovery
+    # yields an empty set. The endpoint should still accept the request and
+    # fall back to scaffolding the owner on demand instead of returning a 404.
+    missing_root = tmp_path / "missing"
+    app.state.accounts_root = missing_root
+
+    with TestClient(app) as client:
+        resp = client.post("/compliance/validate", json={"owner": "demo"})
+        assert resp.status_code == 200
+        scaffold = missing_root / "demo" / "demo_transactions.json"
+        assert scaffold.exists()

@@ -39,6 +39,8 @@ const backendArgs = targetBase
   ? [tsxCliPath, 'scripts/frontend-backend-smoke.ts', targetBase]
   : [tsxCliPath, 'scripts/frontend-backend-smoke.ts'];
 
+const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+
 const commands: Command[] = [
   {
     command: process.execPath,
@@ -46,7 +48,7 @@ const commands: Command[] = [
     label: 'backend smoke suite',
   },
   {
-    command: 'npm',
+    command: npmCommand,
     args: ['--prefix', 'frontend', 'run', 'smoke:frontend'],
     label: 'frontend smoke suite',
   },

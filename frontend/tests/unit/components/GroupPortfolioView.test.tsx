@@ -115,7 +115,9 @@ const mockAllFetches = (
     if (url.includes("/portfolio-group/") && url.includes("/instruments")) {
       const parsed = new URL(url);
       const owner = parsed.searchParams.get("owner");
-      const account = parsed.searchParams.get("account");
+      const account =
+        parsed.searchParams.get("account") ??
+        parsed.searchParams.get("account_type");
       const key = instrumentKey(owner, account);
       const rows = instruments[key] ?? defaultInstrumentRows;
       return Promise.resolve({
@@ -377,7 +379,7 @@ describe("GroupPortfolioView", () => {
       expect(
         fetchMock.mock.calls.some(([input]) =>
           toUrlString(input as RequestInfo | URL).includes("owner=alice") &&
-          toUrlString(input as RequestInfo | URL).includes("account=isa"),
+          toUrlString(input as RequestInfo | URL).includes("account_type=isa"),
         ),
       ).toBe(true),
     );
@@ -390,6 +392,52 @@ describe("GroupPortfolioView", () => {
           toUrlString(input as RequestInfo | URL).includes("owner=bob"),
         ),
       ).toBe(true),
+    );
+  });
+
+  it("toggles account breakdown when owner clicked", async () => {
+    const mockPortfolio = {
+      name: "All owners combined",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [],
+        },
+        {
+          owner: "alice",
+          account_type: "general",
+          value_estimate_gbp: 150,
+          holdings: [],
+        },
+      ],
+    };
+
+    mockAllFetches(mockPortfolio);
+
+    render(<GroupPortfolioView slug="all" />);
+
+    const summaryTable = (await screen.findAllByRole("table")).find((table) =>
+      within(table).queryByText("Owner"),
+    );
+    expect(summaryTable).toBeTruthy();
+
+    expect(within(summaryTable!).queryByText("Account")).not.toBeInTheDocument();
+
+    const ownerButton = within(summaryTable!).getByRole("button", { name: "alice" });
+
+    await userEvent.click(ownerButton);
+
+    await waitFor(() =>
+      expect(within(summaryTable!).getByText("Account")).toBeInTheDocument(),
+    );
+    expect(within(summaryTable!).getByText("isa")).toBeInTheDocument();
+    expect(within(summaryTable!).getByText("general")).toBeInTheDocument();
+
+    await userEvent.click(ownerButton);
+    await waitFor(() =>
+      expect(within(summaryTable!).queryByText("Account")).not.toBeInTheDocument(),
     );
   });
 
@@ -506,7 +554,9 @@ describe("GroupPortfolioView", () => {
     const teLabel = await screen.findByText("Tracking Error");
     within(teLabel.parentElement!).getByText("N/A");
     const mdLabel = await screen.findByText("Max Drawdown");
-    within(mdLabel.parentElement!).getByText("N/A");
+    const mdValue = mdLabel.parentElement?.nextElementSibling;
+    expect(mdValue).not.toBeNull();
+    expect(mdValue).toHaveTextContent("N/A");
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
   });

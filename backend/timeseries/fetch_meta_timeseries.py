@@ -290,7 +290,12 @@ def run_all_tickers(
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
         has_explicit_exchange = bool(exchange) or bool(re.search(r"[._]", t))
-        loader_exchange = ex if has_explicit_exchange else ""
+        # When the exchange is derived from metadata we still want to hand it to
+        # the loader so cached parquet files are looked up using the fully
+        # qualified symbol.  Previously we only forwarded the exchange when it
+        # was supplied explicitly which caused cache misses for bare symbols
+        # like "GSK" even though metadata contained the correct suffix.
+        loader_exchange = ex if (ex or has_explicit_exchange) else ""
         try:
             if not load_meta_timeseries(sym, loader_exchange, days).empty:
                 ok.append(t)

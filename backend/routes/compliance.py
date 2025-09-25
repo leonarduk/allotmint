@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -12,10 +13,23 @@ logger = logging.getLogger(__name__)
 def _known_owners(accounts_root) -> set[str]:
     """Return a lower-cased set of known owners for the configured root."""
 
-    return {
-        (entry.get("owner") or "").lower()
-        for entry in data_loader.list_plots(accounts_root)
-    }
+    owners: set[str] = set()
+    try:
+        root_path = Path(accounts_root) if accounts_root else data_loader.resolve_paths(None, None).accounts_root
+    except Exception:
+        root_path = None
+    else:
+        if not root_path.exists():
+            root_path = None
+
+    for entry in data_loader.list_plots(accounts_root):
+        owner = (entry.get("owner") or "").strip()
+        if not owner:
+            continue
+        if root_path and not (root_path / owner / "person.json").exists():
+            continue
+        owners.add(owner.lower())
+    return owners
 
 
 @router.get("/compliance/{owner}")

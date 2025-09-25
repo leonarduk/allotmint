@@ -59,6 +59,8 @@ def test_create_transaction_success(monkeypatch, tmp_path):
     assert file_path.exists()
     saved = json.loads(file_path.read_text())
     assert saved["transactions"][0]["ticker"] == "ABC"
+    stored_id = saved["transactions"][0]["id"]
+    assert transactions._TOKEN_RE.fullmatch(stored_id)
     assert transactions._PORTFOLIO_IMPACT["bob"] == pytest.approx(3.0)
 
 

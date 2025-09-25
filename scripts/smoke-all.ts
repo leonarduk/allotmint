@@ -53,16 +53,27 @@ const commands: Command[] = [
 ];
 
 async function runSequentially() {
+  const failures: { label: string; exitCode: number | null }[] = [];
+
   for (const { command, args, label } of commands) {
     console.log(`\n▶ Running ${label}...`);
     const exitCode = await runCommand(command, args);
 
     if (exitCode !== 0) {
       console.error(`✖ ${label} failed with exit code ${exitCode ?? 'null'}.`);
-      process.exit(exitCode ?? 1);
+      failures.push({ label, exitCode });
+    } else {
+      console.log(`✔ ${label} completed successfully.`);
+    }
+  }
+
+  if (failures.length > 0) {
+    console.error('\nSmoke suites completed with failures:');
+    for (const { label, exitCode } of failures) {
+      console.error(`  • ${label} (exit code: ${exitCode ?? 'null'})`);
     }
 
-    console.log(`✔ ${label} completed successfully.`);
+    process.exit(1);
   }
 
   console.log('\nAll smoke suites completed successfully.');

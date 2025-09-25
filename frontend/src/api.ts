@@ -43,6 +43,9 @@ import type {
   Nudge,
   HoldingValue,
   MarketOverview,
+  AnalyticsEventPayload,
+  AnalyticsFunnelSummary,
+  AnalyticsSource,
 } from "./types";
 
 const cleanOptionalString = (value: unknown): string | null => {
@@ -1261,6 +1264,17 @@ export const completeTrailTask = (id: string) =>
   fetchJson<TrailResponse>(`${API_BASE}/trail/${encodeURIComponent(id)}/complete`, {
     method: "POST",
   });
+
+// ───────────── Analytics ─────────────
+export const logAnalyticsEvent = (payload: AnalyticsEventPayload) =>
+  fetchJson<{ status: string }>(`${API_BASE}/analytics/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then(() => undefined);
+
+export const getAnalyticsFunnel = (source: AnalyticsSource) =>
+  fetchJson<AnalyticsFunnelSummary>(`${API_BASE}/analytics/funnels/${source}`);
 
 // ───────────── Support tools ─────────────
 export interface Finding {

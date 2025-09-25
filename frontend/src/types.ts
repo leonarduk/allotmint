@@ -438,6 +438,42 @@ export interface VirtualPortfolio {
   holdings: SyntheticHolding[];
 }
 
+export type TrailAnalyticsEvent = "view" | "task_started" | "task_completed";
+export type VirtualPortfolioAnalyticsEvent =
+  | "view"
+  | "create"
+  | "update"
+  | "delete"
+  | "select";
+
+export type AnalyticsSource = "trail" | "virtual_portfolio";
+export type AnalyticsEventName =
+  | TrailAnalyticsEvent
+  | VirtualPortfolioAnalyticsEvent;
+
+export interface AnalyticsEventPayload {
+  source: AnalyticsSource;
+  event: AnalyticsEventName;
+  metadata?: Record<string, unknown>;
+  occurred_at?: string;
+  user?: string | null;
+}
+
+export interface AnalyticsFunnelStep {
+  event: string;
+  count: number;
+}
+
+export interface AnalyticsFunnelSummary {
+  source: AnalyticsSource;
+  total_events: number;
+  unique_users: number;
+  first_event_at: string | null;
+  last_event_at: string | null;
+  steps: AnalyticsFunnelStep[];
+  other_events?: Record<string, number> | null;
+}
+
 export interface TradingSignal {
   ticker: string;
   name: string;

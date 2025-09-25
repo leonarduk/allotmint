@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { getTrailTasks, completeTrailTask } from "../api";
+import { getTrailTasks, completeTrailTask, logAnalyticsEvent } from "../api";
 import type { TrailResponse } from "../types";
 
 export default function Trail() {
@@ -10,13 +10,27 @@ export default function Trail() {
 
   useEffect(() => {
     getTrailTasks()
-      .then(setData)
+      .then((payload) => {
+        setData(payload);
+        logAnalyticsEvent({
+          source: "trail",
+          event: "view",
+          metadata: { task_count: payload.tasks.length },
+        }).catch(() => undefined);
+      })
       .catch((e) => setError(String(e)));
   }, []);
 
   const handleToggle = (id: string) => {
     completeTrailTask(id)
-      .then(setData)
+      .then((payload) => {
+        setData(payload);
+        logAnalyticsEvent({
+          source: "trail",
+          event: "task_completed",
+          metadata: { task_id: id },
+        }).catch(() => undefined);
+      })
       .catch((e) => setError(String(e)));
   };
 

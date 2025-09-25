@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { InstrumentSummary } from '../types';
+import type { InstrumentGroupDefinition, InstrumentSummary } from '../types';
 import { useFilterableTable } from '../hooks/useFilterableTable';
 import { money, percent } from '../lib/money';
 import { translateInstrumentType } from '../lib/instrumentType';
@@ -17,6 +17,7 @@ import {
   clearInstrumentGroup,
   createInstrumentGroup,
   listInstrumentGroups,
+  listInstrumentGroupingDefinitions,
 } from '../api';
 import { useNavigate } from 'react-router-dom';
 
@@ -47,6 +48,8 @@ type GroupedRows = {
   totals: GroupTotals;
 };
 
+type GroupingMode = 'group' | 'flat' | 'category';
+
 const UNGROUPED_KEY = '__ungrouped__';
 const GROUP_SUMMARY_SORT_MAP: Partial<Record<keyof RowWithCost, keyof GroupTotals>> = {
   ticker: 'labelValue',
@@ -76,6 +79,8 @@ export function InstrumentTable({ rows }: Props) {
   const [groupOverrides, setGroupOverrides] = useState<Record<string, string | null | undefined>>({});
   const [pendingGroupTicker, setPendingGroupTicker] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
+  const [groupDefinitions, setGroupDefinitions] = useState<InstrumentGroupDefinition[]>([]);
+  const [groupingMode, setGroupingMode] = useState<GroupingMode>('group');
   const navigate = useNavigate();
 
   const exchanges = useMemo(() => {
@@ -176,6 +181,55 @@ export function InstrumentTable({ rows }: Props) {
     [filteredRows],
   );
 
+  const categoryLookup = useMemo(
+    () => {
+      const byGroup = new Map<string, { key: string; label: string }>();
+      const categories = new Map<string, string>();
+
+      for (const definition of groupDefinitions) {
+        const rawCategory =
+          typeof definition.category === 'string' ? definition.category.trim() : '';
+        if (!rawCategory) continue;
+        const categoryKey = rawCategory.toLocaleLowerCase();
+        const categoryLabel =
+          typeof definition.category_name === 'string' && definition.category_name.trim()
+            ? definition.category_name.trim()
+            : formatCategoryLabel(rawCategory);
+        if (!categories.has(categoryKey)) {
+          categories.set(categoryKey, categoryLabel);
+        }
+
+        const aliasValues: string[] = [];
+        if (typeof definition.id === 'string') {
+          aliasValues.push(definition.id);
+        }
+        if (typeof definition.name === 'string') {
+          aliasValues.push(definition.name);
+        }
+        if (Array.isArray(definition.aliases)) {
+          for (const alias of definition.aliases) {
+            if (typeof alias === 'string') {
+              aliasValues.push(alias);
+            }
+          }
+        }
+
+        for (const alias of aliasValues) {
+          const trimmed = alias.trim();
+          if (!trimmed) continue;
+          const key = trimmed.toLocaleLowerCase();
+          if (!key) continue;
+          if (!byGroup.has(key)) {
+            byGroup.set(key, { key: categoryKey, label: categoryLabel });
+          }
+        }
+      }
+
+      return { byGroup, categories };
+    },
+    [groupDefinitions],
+  );
+
   const cashFirstComparator = useCallback(
     (
       a: RowWithCost,
@@ -206,10 +260,53 @@ export function InstrumentTable({ rows }: Props) {
   const ungroupedLabel = t('instrumentTable.ungrouped', {
     defaultValue: 'Ungrouped',
   });
-  const groups = useMemo<ReadonlyArray<GroupedRows>>(
-    () => createGroupedRows(sorted, ungroupedLabel, sortKey, asc),
-    [sorted, ungroupedLabel, sortKey, asc],
-  );
+  const uncategorisedLabel = t('instrumentTable.uncategorised', {
+    defaultValue: 'Uncategorised',
+  });
+  const groups = useMemo<ReadonlyArray<GroupedRows>>(() => {
+    if (!sorted.length) {
+      return [];
+    }
+    if (groupingMode === 'flat') {
+      return createGroupedRows(sorted, sortKey, asc, {
+        ungroupedLabel: '',
+        getGroupKey: () => 'all',
+        getGroupLabel: () => '',
+      });
+    }
+    if (groupingMode === 'category') {
+      return createGroupedRows(sorted, sortKey, asc, {
+        ungroupedLabel: uncategorisedLabel,
+        getGroupKey: (row) => {
+          const base = row.grouping?.trim();
+          if (!base) return null;
+          const entry = categoryLookup.byGroup.get(base.toLocaleLowerCase());
+          return entry?.key ?? null;
+        },
+        getGroupLabel: ({ key }) =>
+          categoryLookup.categories.get(key) ?? formatCategoryLabel(key),
+      });
+    }
+    return createGroupedRows(sorted, sortKey, asc, {
+      ungroupedLabel,
+      getGroupKey: (row) => row.grouping ?? null,
+      getGroupLabel: ({ raw }) => raw,
+    });
+  }, [asc, categoryLookup, groupingMode, sorted, sortKey, uncategorisedLabel, ungroupedLabel]);
+
+  const hasCategories = categoryLookup.categories.size > 0;
+
+  useEffect(() => {
+    if (groupingMode === 'category' && !hasCategories) {
+      setGroupingMode('group');
+    }
+  }, [groupingMode, hasCategories]);
+
+  const handleGroupingModeChange = (value: string) => {
+    if (value === 'group' || value === 'flat' || value === 'category') {
+      setGroupingMode(value);
+    }
+  };
 
   const totalLabel = t('holdingsTable.totalRowLabel');
 
@@ -235,9 +332,46 @@ export function InstrumentTable({ rows }: Props) {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    listInstrumentGroupingDefinitions()
+      .then((fetched) => {
+        if (cancelled) return;
+        setGroupDefinitions(fetched);
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('Failed to load instrument group definitions', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     setGroupOverrides({});
     setGroupOptions((prev) => mergeGroupOptions(prev, rows.map((r) => r.grouping ?? null)));
   }, [rows]);
+
+  useEffect(() => {
+    if (!groupDefinitions.length) {
+      return;
+    }
+    const names = groupDefinitions
+      .map((definition) => {
+        if (typeof definition.name === 'string' && definition.name.trim()) {
+          return definition.name;
+        }
+        if (typeof definition.id === 'string' && definition.id.trim()) {
+          return definition.id;
+        }
+        return null;
+      })
+      .filter((value): value is string => value !== null);
+    if (!names.length) {
+      return;
+    }
+    setGroupOptions((prev) => mergeGroupOptions(prev, names));
+  }, [groupDefinitions]);
 
   if (!rows.length) {
     return <p>{t('instrumentTable.noInstruments')}</p>;
@@ -264,6 +398,18 @@ export function InstrumentTable({ rows }: Props) {
   const promptLabel = t('instrumentTable.groupActions.prompt', {
     defaultValue: 'Enter new group name',
   });
+  const showGroupHeaders = groupingMode !== 'flat';
+  const viewModeLabel = t('instrumentTable.viewModeLabel', { defaultValue: 'View:' });
+  const groupedOptionLabel = t('instrumentTable.viewMode.grouped', {
+    defaultValue: 'Group totals',
+  });
+  const categoryOptionLabel = t('instrumentTable.viewMode.category', {
+    defaultValue: 'By category',
+  });
+  const flatOptionLabel = t('instrumentTable.viewMode.flat', {
+    defaultValue: 'Flat list',
+  });
+  const showCategoryOption = hasCategories;
 
   return (
     <>
@@ -295,6 +441,20 @@ export function InstrumentTable({ rows }: Props) {
           })}
         </fieldset>
       )}
+      <div style={{ marginBottom: '0.5rem' }}>
+        {viewModeLabel}
+        <select
+          value={groupingMode}
+          onChange={(event) => handleGroupingModeChange(event.target.value)}
+          style={{ marginLeft: '0.5rem' }}
+        >
+          <option value="group">{groupedOptionLabel}</option>
+          {showCategoryOption && (
+            <option value="category">{categoryOptionLabel}</option>
+          )}
+          <option value="flat">{flatOptionLabel}</option>
+        </select>
+      </div>
       <div style={{ marginBottom: '0.5rem' }}>
         Columns:
         {columnLabels.map(([key, label]) => (
@@ -423,7 +583,7 @@ export function InstrumentTable({ rows }: Props) {
           </tr>
         </thead>
         {groups.map((group) => {
-          const expanded = expandedGroups.has(group.key);
+          const expanded = showGroupHeaders ? expandedGroups.has(group.key) : true;
           const toggleLabel = t('instrumentTable.groupToggle', {
             group: group.label,
             defaultValue: `Toggle ${group.label}`,
@@ -431,91 +591,93 @@ export function InstrumentTable({ rows }: Props) {
           const groupDomId = `group-${sanitizeGroupKey(group.key)}`;
           return (
             <tbody key={group.key} id={groupDomId} className={tableStyles.groupSection}>
-              <tr className={tableStyles.groupRow}>
-                <th
-                  scope="row"
-                  className={`${tableStyles.cell} ${tableStyles.groupCell}`}
-                  colSpan={2}
-                >
-                  <button
-                    type="button"
-                    className={tableStyles.groupToggle}
-                    onClick={() =>
-                      setExpandedGroups((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(group.key)) {
-                          next.delete(group.key);
-                        } else {
-                          next.add(group.key);
-                        }
-                        return next;
-                      })
-                    }
-                    aria-expanded={expanded}
-                    aria-controls={groupDomId}
-                    aria-label={toggleLabel}
+              {showGroupHeaders && (
+                <tr className={tableStyles.groupRow}>
+                  <th
+                    scope="row"
+                    className={`${tableStyles.cell} ${tableStyles.groupCell}`}
+                    colSpan={2}
                   >
-                    <span aria-hidden="true" className={tableStyles.groupToggleIcon}>
-                      {expanded ? '−' : '+'}
-                    </span>
-                    <span>{group.label}</span>
-                    <span className={tableStyles.groupCount}>
-                      ({group.rows.length})
-                    </span>
-                  </button>
-                </th>
-                <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
-                <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
-                {!relativeViewEnabled && visibleColumns.units && (
-                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {Number.isFinite(group.totals.units)
-                      ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
-                      : '—'}
-                  </td>
-                )}
-                {!relativeViewEnabled && visibleColumns.cost && (
-                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {Number.isFinite(group.totals.cost)
-                      ? money(group.totals.cost, baseCurrency)
-                      : '—'}
-                  </td>
-                )}
-                {!relativeViewEnabled && visibleColumns.market && (
-                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {Number.isFinite(group.totals.marketValue)
-                      ? money(group.totals.marketValue, baseCurrency)
-                      : '—'}
-                  </td>
-                )}
-                {!relativeViewEnabled && visibleColumns.gain && (
-                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {Number.isFinite(group.totals.gain)
-                      ? formatSignedMoney(group.totals.gain, baseCurrency)
-                      : '—'}
-                  </td>
-                )}
-                {visibleColumns.gain_pct && (
-                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {formatSignedPercent(group.totals.gainPct)}
-                  </td>
-                )}
-                {!relativeViewEnabled && (
+                    <button
+                      type="button"
+                      className={tableStyles.groupToggle}
+                      onClick={() =>
+                        setExpandedGroups((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(group.key)) {
+                            next.delete(group.key);
+                          } else {
+                            next.add(group.key);
+                          }
+                          return next;
+                        })
+                      }
+                      aria-expanded={expanded}
+                      aria-controls={groupDomId}
+                      aria-label={toggleLabel}
+                    >
+                      <span aria-hidden="true" className={tableStyles.groupToggleIcon}>
+                        {expanded ? '−' : '+'}
+                      </span>
+                      <span>{group.label}</span>
+                      <span className={tableStyles.groupCount}>
+                        ({group.rows.length})
+                      </span>
+                    </button>
+                  </th>
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
+                  {!relativeViewEnabled && visibleColumns.units && (
+                    <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                      {Number.isFinite(group.totals.units)
+                        ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
+                        : '—'}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && visibleColumns.cost && (
+                    <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                      {Number.isFinite(group.totals.cost)
+                        ? money(group.totals.cost, baseCurrency)
+                        : '—'}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && visibleColumns.market && (
+                    <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                      {Number.isFinite(group.totals.marketValue)
+                        ? money(group.totals.marketValue, baseCurrency)
+                        : '—'}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && visibleColumns.gain && (
+                    <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                      {Number.isFinite(group.totals.gain)
+                        ? formatSignedMoney(group.totals.gain, baseCurrency)
+                        : '—'}
+                    </td>
+                  )}
+                  {visibleColumns.gain_pct && (
+                    <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                      {formatSignedPercent(group.totals.gainPct)}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && (
+                    <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                      —
+                    </td>
+                  )}
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
                     —
                   </td>
-                )}
-                <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                  —
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                  {formatSignedPercent(group.totals.change7dPct)}
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                  {formatSignedPercent(group.totals.change30dPct)}
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
-              </tr>
-              {expanded &&
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    {formatSignedPercent(group.totals.change7dPct)}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
+                    {formatSignedPercent(group.totals.change30dPct)}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
+                </tr>
+              )}
+              {(showGroupHeaders ? expanded : true) &&
                 group.rows.map((r) => {
                   const { className: gainClass, prefix: gainPrefix } =
                     getStatusPresentation(r.gain_gbp);
@@ -685,63 +847,65 @@ export function InstrumentTable({ rows }: Props) {
                     </tr>
                   );
                 })}
-              <tr>
-                <td
-                  className={`${tableStyles.cell} font-semibold`}
-                  colSpan={4}
-                >
-                  {totalLabel}
-                  {group.label ? ` — ${group.label}` : ''}
-                </td>
-                {!relativeViewEnabled && visibleColumns.units && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                    {Number.isFinite(group.totals.units)
-                      ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
-                      : '—'}
+              {showGroupHeaders && (
+                <tr>
+                  <td
+                    className={`${tableStyles.cell} font-semibold`}
+                    colSpan={4}
+                  >
+                    {totalLabel}
+                    {group.label ? ` — ${group.label}` : ''}
                   </td>
-                )}
-                {!relativeViewEnabled && visibleColumns.cost && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                    {Number.isFinite(group.totals.cost)
-                      ? money(group.totals.cost, baseCurrency)
-                      : '—'}
-                  </td>
-                )}
-                {!relativeViewEnabled && visibleColumns.market && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                    {Number.isFinite(group.totals.marketValue)
-                      ? money(group.totals.marketValue, baseCurrency)
-                      : '—'}
-                  </td>
-                )}
-                {!relativeViewEnabled && visibleColumns.gain && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                    {Number.isFinite(group.totals.gain)
-                      ? formatSignedMoney(group.totals.gain, baseCurrency)
-                      : '—'}
-                  </td>
-                )}
-                {visibleColumns.gain_pct && (
-                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                    {formatSignedPercent(group.totals.gainPct)}
-                  </td>
-                )}
-                {!relativeViewEnabled && (
+                  {!relativeViewEnabled && visibleColumns.units && (
+                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                      {Number.isFinite(group.totals.units)
+                        ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
+                        : '—'}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && visibleColumns.cost && (
+                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                      {Number.isFinite(group.totals.cost)
+                        ? money(group.totals.cost, baseCurrency)
+                        : '—'}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && visibleColumns.market && (
+                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                      {Number.isFinite(group.totals.marketValue)
+                        ? money(group.totals.marketValue, baseCurrency)
+                        : '—'}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && visibleColumns.gain && (
+                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                      {Number.isFinite(group.totals.gain)
+                        ? formatSignedMoney(group.totals.gain, baseCurrency)
+                        : '—'}
+                    </td>
+                  )}
+                  {visibleColumns.gain_pct && (
+                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                      {formatSignedPercent(group.totals.gainPct)}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && (
+                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                      —
+                    </td>
+                  )}
                   <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
                     —
                   </td>
-                )}
-                <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                  —
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                  {formatSignedPercent(group.totals.change7dPct)}
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                  {formatSignedPercent(group.totals.change30dPct)}
-                </td>
-                <td className={`${tableStyles.cell} font-semibold`}>—</td>
-              </tr>
+                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                    {formatSignedPercent(group.totals.change7dPct)}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                    {formatSignedPercent(group.totals.change30dPct)}
+                  </td>
+                  <td className={`${tableStyles.cell} font-semibold`}>—</td>
+                </tr>
+              )}
             </tbody>
           );
         })}
@@ -807,11 +971,20 @@ export function InstrumentTable({ rows }: Props) {
   );
 }
 
+type GroupingOptions = {
+  ungroupedLabel: string;
+  getGroupKey: (row: RowWithCost) => string | null | undefined;
+  getGroupLabel?: (input: { key: string; raw: string; row: RowWithCost }) =>
+    | string
+    | null
+    | undefined;
+};
+
 function createGroupedRows(
   rows: RowWithCost[],
-  ungroupedLabel: string,
   sortKey: keyof RowWithCost,
   asc: boolean,
+  options: GroupingOptions,
 ): GroupedRows[] {
   if (!rows.length) {
     return [];
@@ -821,13 +994,22 @@ function createGroupedRows(
   const ordered: { key: string; label: string; rows: RowWithCost[] }[] = [];
 
   for (const row of rows) {
-    const normalized = row.grouping?.trim();
-    const key = normalized ? normalized : UNGROUPED_KEY;
+    const rawKey = options.getGroupKey(row);
+    const trimmed = typeof rawKey === 'string' ? rawKey.trim() : '';
+    const key = trimmed ? trimmed.toLocaleLowerCase() : UNGROUPED_KEY;
     let group = map.get(key);
     if (!group) {
+      const label =
+        key === UNGROUPED_KEY
+          ? options.ungroupedLabel
+          : options.getGroupLabel?.({
+                key,
+                raw: trimmed,
+                row,
+              }) ?? trimmed || options.ungroupedLabel;
       group = {
         key,
-        label: key === UNGROUPED_KEY ? ungroupedLabel : normalized ?? ungroupedLabel,
+        label,
         rows: [],
       };
       map.set(key, group);
@@ -869,6 +1051,18 @@ function createGroupedRows(
   }
 
   return groups;
+}
+
+function formatCategoryLabel(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed
+    .split(/[^A-Za-z0-9]+/u)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toLocaleUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function sanitizeGroupKey(key: string): string {

@@ -37,6 +37,7 @@ import type {
   RegionContribution,
   UserConfig,
   InstrumentMetadata,
+  InstrumentGroupDefinition,
   ApprovalsResponse,
   NewsItem,
   Nudge,
@@ -698,6 +699,9 @@ export const listInstrumentMetadata = () =>
 
 export const listInstrumentGroups = () =>
   fetchJson<string[]>(`${API_BASE}/instrument/admin/groups`);
+
+export const listInstrumentGroupingDefinitions = () =>
+  fetchJson<InstrumentGroupDefinition[]>(`${API_BASE}/instrument/admin/groupings`);
 
 type InstrumentGroupMutationResponse = {
   status: string;

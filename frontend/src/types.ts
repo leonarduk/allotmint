@@ -476,7 +476,7 @@ export interface AnalyticsFunnelSummary {
 
 export interface TradingSignal {
   ticker: string;
-  name: string;
+  name?: string;
   action: 'buy' | 'sell' | 'BUY' | 'SELL';
   reason: string;
   confidence?: number;
@@ -484,6 +484,11 @@ export interface TradingSignal {
   currency?: string | null;
   instrument_type?: string | null;
   factors?: string[];
+}
+
+export interface OpportunityEntry extends MoverRow {
+  side: 'gainers' | 'losers';
+  signal?: TradingSignal | null;
 }
 
 export interface CustomQuery {

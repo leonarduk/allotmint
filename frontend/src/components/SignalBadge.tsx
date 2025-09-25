@@ -1,4 +1,4 @@
-type Action = "buy" | "sell";
+type Action = "buy" | "sell" | "BUY" | "SELL";
 type Props = {
   action: Action;
   reason?: string;
@@ -8,7 +8,7 @@ type Props = {
 };
 
 export function SignalBadge({ action, reason, confidence, rationale, onClick }: Props) {
-  const isBuy = action === "buy";
+  const isBuy = action.toLowerCase() === "buy";
   const color = isBuy ? "#bbf7d0" : "#fecaca"; // tailwind: green-200 / red-200
   const details = [
     reason,

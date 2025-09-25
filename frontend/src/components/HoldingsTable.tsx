@@ -3,7 +3,6 @@ import {
   useEffect,
   useRef,
   useMemo,
-  useReducer,
   type MouseEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,8 +24,6 @@ import { ResponsiveContainer, LineChart, Line } from "recharts";
 import Sparkline from "./Sparkline";
 import { getGrowthStage } from "../utils/growthStage";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
-
-declare const sparks: Record<string, Record<string, any[]>>;
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 
@@ -166,6 +163,27 @@ export function HoldingsTable({
   // sort
   const { sorted: sortedRows, sortKey, asc, handleSort } = useSortableTable(filtered, "ticker");
 
+  const totals = useMemo(
+    () => {
+      const aggregates = sortedRows.reduce(
+        (acc, row) => {
+          return {
+            cost: acc.cost + (row.cost ?? 0),
+            market: acc.market + (row.market ?? 0),
+            gain: acc.gain + (row.gain ?? 0),
+            units: acc.units + (row.units ?? 0),
+          };
+        },
+        { cost: 0, market: 0, gain: 0, units: 0 },
+      );
+
+      const gainPct = aggregates.cost ? (aggregates.gain / aggregates.cost) * 100 : 0;
+
+      return { ...aggregates, gain_pct: gainPct };
+    },
+    [sortedRows],
+  );
+
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", t("holdingsTable.columns.units")],
     ["cost", t("holdingsTable.columns.cost")],
@@ -184,8 +202,9 @@ export function HoldingsTable({
     }
   }, []);
 
+  const totalsRowIndex = sortedRows.length;
   const rowVirtualizer = useVirtualizer({
-    count: sortedRows.length,
+    count: sortedRows.length + 1,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => 40,
     overscan: 5,
@@ -198,7 +217,11 @@ export function HoldingsTable({
     : 0;
   const items = virtualRows.length
     ? virtualRows
-    : sortedRows.map((_, index) => ({ index, start: index * 40, end: (index + 1) * 40 }));
+    : Array.from({ length: sortedRows.length + 1 }, (_, index) => ({
+        index,
+        start: index * 40,
+        end: (index + 1) * 40,
+      }));
 
   return (
     <>
@@ -405,6 +428,66 @@ export function HoldingsTable({
             </tr>
           )}
           {items.map((virtualRow) => {
+            if (virtualRow.index === totalsRowIndex) {
+              return (
+                <tr key="totals" className={tableStyles.totalsRow}>
+                  <td className={`${tableStyles.cell} ${tableStyles.totalsCell}`}>—</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.totalsCell}`}>
+                    {t("holdingsTable.totals")}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.totalsCell}`}>—</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.totalsCell}`}>—</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.totalsCell}`}>—</td>
+                  {!relativeViewEnabled && visibleColumns.units && (
+                    <td className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.totalsCell}`}>
+                      {totals.units
+                        ? new Intl.NumberFormat(i18n.language).format(totals.units)
+                        : "—"}
+                    </td>
+                  )}
+                  <td className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.totalsCell}`}>
+                    —
+                  </td>
+                  {!relativeViewEnabled && visibleColumns.cost && (
+                    <td className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.totalsCell}`}>
+                      {money(totals.cost, baseCurrency)}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && visibleColumns.market && (
+                    <td className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.totalsCell}`}>
+                      {money(totals.market, baseCurrency)}
+                    </td>
+                  )}
+                  {!relativeViewEnabled && visibleColumns.gain && (
+                    <td
+                      className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.totalsCell} ${getPerformanceClass(totals.gain)}`}
+                    >
+                      {money(totals.gain, baseCurrency)}
+                    </td>
+                  )}
+                  {visibleColumns.gain_pct && (
+                    <td
+                      className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.totalsCell} ${getPerformanceClass(totals.gain_pct)}`}
+                    >
+                      {percent(totals.gain_pct, 1)}
+                    </td>
+                  )}
+                  <td className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.totalsCell}`}>
+                    {sortedRows.length ? percent(100, 1) : percent(0, 1)}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.totalsCell}`}>—</td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.totalsCell}`}>
+                    —
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.center} ${tableStyles.totalsCell}`}>
+                    —
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.center} ${tableStyles.totalsCell}`}>
+                    —
+                  </td>
+                </tr>
+              );
+            }
             const h = sortedRows[virtualRow.index];
             const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
               event.preventDefault();

@@ -145,7 +145,8 @@
     "source": "Source:",
     "actualPurchaseCost": "Actual purchase cost",
     "inferredCost": "Inferred from price on acquisition date",
-    "eligible": "Eligible"
+    "eligible": "Eligible",
+    "totals": "Totals"
   },
   "instrumentDetail": {
     "edit": "Edit",

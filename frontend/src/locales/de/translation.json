@@ -151,7 +151,8 @@
     "source": "Quelle:",
     "actualPurchaseCost": "Tatsächliche Anschaffungskosten",
     "inferredCost": "Abgeleitet vom Preis am Erwerbsdatum",
-    "eligible": "Berechtigt"
+    "eligible": "Berechtigt",
+    "totals": "Summen"
   },
   "instrumentDetail": {
     "edit": "Bearbeiten",

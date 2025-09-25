@@ -151,7 +151,8 @@
     "source": "Source :",
     "actualPurchaseCost": "Coût d'achat réel",
     "inferredCost": "Déduit du prix à la date d'acquisition",
-    "eligible": "Éligible"
+    "eligible": "Éligible",
+    "totals": "Totaux"
   },
   "instrumentDetail": {
     "edit": "Modifier",

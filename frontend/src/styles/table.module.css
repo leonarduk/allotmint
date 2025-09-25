@@ -82,6 +82,15 @@
   color: rgba(0, 0, 0, 0.6);
 }
 
+.totalsRow {
+  border-top: 2px solid rgba(0, 0, 0, 0.12);
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.totalsCell {
+  font-weight: 600;
+}
+
 @media (max-width: 768px) {
   .cell {
     padding: 2px 4px;

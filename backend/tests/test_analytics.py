@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -10,20 +12,35 @@ from backend.common import analytics_store
 from backend.routes.analytics import router as analytics_router
 
 
-def create_app(tmp_path: Path) -> TestClient:
+
+@pytest.fixture
+def analytics_client(tmp_path: Path):
     cfg = config_module.config
+    original_repo_root = cfg.repo_root
+    original_accounts_root = cfg.accounts_root
+    original_disable_auth = cfg.disable_auth
+
     cfg.repo_root = tmp_path
     cfg.accounts_root = tmp_path / "data" / "accounts"
     cfg.disable_auth = True
     (tmp_path / "data" / "accounts").mkdir(parents=True, exist_ok=True)
+
     app = FastAPI()
     app.include_router(analytics_router)
     analytics_store.clear_events()
-    return TestClient(app)
+    client = TestClient(app)
+
+    try:
+        yield client, tmp_path
+    finally:
+        analytics_store.clear_events()
+        cfg.repo_root = original_repo_root
+        cfg.accounts_root = original_accounts_root
+        cfg.disable_auth = original_disable_auth
 
 
-def test_log_event_persists_and_summarises(tmp_path: Path) -> None:
-    client = create_app(tmp_path)
+def test_log_event_persists_and_summarises(analytics_client) -> None:
+    client, tmp_path = analytics_client
 
     payloads = [
         {"source": "trail", "event": "view", "user": "alice"},
@@ -69,8 +86,8 @@ def test_log_event_persists_and_summarises(tmp_path: Path) -> None:
     assert len(contents) == len(payloads)
 
 
-def test_rejects_unknown_events(tmp_path: Path) -> None:
-    client = create_app(tmp_path)
+def test_rejects_unknown_events(analytics_client) -> None:
+    client, _ = analytics_client
 
     res = client.post(
         "/analytics/events",

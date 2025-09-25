@@ -795,6 +795,18 @@ export const createTransaction = (payload: CreateTransactionPayload) =>
     body: JSON.stringify(payload),
   });
 
+export const updateTransaction = (id: string, payload: CreateTransactionPayload) =>
+  fetchJson<Transaction>(`${API_BASE}/transactions/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+export const deleteTransaction = (id: string) =>
+  fetchJson<{ status: string }>(`${API_BASE}/transactions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+
 export const getDividends = (params?: {
   owner?: string;
   account?: string;

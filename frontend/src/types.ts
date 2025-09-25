@@ -253,6 +253,7 @@ export interface InstrumentDetail {
 export interface Transaction {
   owner: string;
   account: string;
+  id?: string;
   date?: string;
   kind?: string;
   type?: string | null;

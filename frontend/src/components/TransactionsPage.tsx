@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import type { ChangeEventHandler, FormEvent } from "react";
 import type { OwnerSummary, Transaction } from "../types";
-import { createTransaction, getTransactions } from "../api";
+import {
+  createTransaction,
+  deleteTransaction,
+  getTransactions,
+  updateTransaction,
+} from "../api";
 import { Selector } from "./Selector";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
@@ -32,8 +37,22 @@ export function TransactionsPage({ owners }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [pageSize, setPageSize] = useState(20);
+  const [currentPage, setCurrentPage] = useState(0);
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
+  const pageSizeOptions = [10, 20, 50, 100];
+
+  const resetForm = useCallback(() => {
+    setNewTicker("");
+    setNewPrice("");
+    setNewUnits("");
+    setNewFees("");
+    setNewComments("");
+    setNewReason("");
+    setNewDate("");
+  }, []);
   const fetchTransactions = useCallback(
     () =>
       getTransactions({
@@ -48,6 +67,47 @@ export function TransactionsPage({ owners }: Props) {
     fetchTransactions,
     [owner, account, start, end, refreshKey]
   );
+
+  const totalTransactions = transactions?.length ?? 0;
+  const maxPageIndex = Math.max(Math.ceil(totalTransactions / pageSize) - 1, 0);
+  const clampedPage = Math.min(currentPage, maxPageIndex);
+  const totalPages = totalTransactions === 0 ? 1 : Math.ceil(totalTransactions / pageSize);
+
+  useEffect(() => {
+    if (currentPage !== clampedPage) {
+      setCurrentPage(clampedPage);
+    }
+  }, [clampedPage, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [owner, account, start, end]);
+
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [pageSize]);
+
+  const paginatedTransactions = useMemo(() => {
+    if (!transactions) {
+      return [];
+    }
+    const startIndex = clampedPage * pageSize;
+    return transactions.slice(startIndex, startIndex + pageSize);
+  }, [transactions, clampedPage, pageSize]);
+
+  const pageStart = totalTransactions === 0 ? 0 : clampedPage * pageSize + 1;
+  const pageEnd =
+    totalTransactions === 0
+      ? 0
+      : Math.min(totalTransactions, (clampedPage + 1) * pageSize);
+  const isFirstPage = clampedPage === 0;
+  const isLastPage = totalTransactions === 0 || clampedPage >= maxPageIndex;
+  const currentPageDisplay = totalTransactions === 0 ? 0 : clampedPage + 1;
+  const showingRangeLabel =
+    totalTransactions === 0
+      ? "Showing 0 of 0"
+      : `Showing ${pageStart}-${pageEnd} of ${totalTransactions}`;
+  const totalPagesDisplay = totalTransactions === 0 ? 0 : totalPages;
 
   const accountOptions = useMemo(() => {
     if (owner) {
@@ -113,6 +173,95 @@ export function TransactionsPage({ owners }: Props) {
     [],
   );
 
+  const handlePageSizeChange = useCallback<ChangeEventHandler<HTMLSelectElement>>(
+    (event) => {
+      setPageSize(Number(event.target.value));
+    },
+    [],
+  );
+
+  const handlePreviousPage = useCallback(() => {
+    setCurrentPage((page) => Math.max(page - 1, 0));
+  }, []);
+
+  const handleNextPage = useCallback(() => {
+    setCurrentPage((page) => page + 1);
+  }, []);
+
+  const handleEdit = useCallback(
+    (tx: Transaction) => {
+      if (!tx.id) {
+        return;
+      }
+      setEditingId(tx.id);
+      setNewOwner(tx.owner);
+      setNewAccount(tx.account);
+      setNewDate(tx.date ? tx.date.slice(0, 10) : "");
+      const tickerValue = (tx.ticker ?? tx.security_ref ?? "").toUpperCase();
+      setNewTicker(tickerValue);
+      const unitsValue = tx.units ?? tx.shares ?? null;
+      const numericUnits =
+        typeof unitsValue === "number"
+          ? unitsValue
+          : unitsValue != null
+          ? Number(unitsValue)
+          : null;
+      setNewUnits(numericUnits != null ? String(numericUnits) : "");
+      const priceValue =
+        tx.price_gbp != null
+          ? tx.price_gbp
+          : tx.amount_minor != null && numericUnits
+          ? tx.amount_minor / 100 / numericUnits
+          : null;
+      setNewPrice(
+        priceValue != null && Number.isFinite(priceValue)
+          ? String(priceValue)
+          : "",
+      );
+      setNewFees(tx.fees != null ? String(tx.fees) : "");
+      setNewComments(tx.comments ?? "");
+      setNewReason(tx.reason ?? tx.reason_to_buy ?? "");
+      setFormError(null);
+      setFormSuccess(null);
+    },
+    [],
+  );
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null);
+    resetForm();
+    setFormError(null);
+    setFormSuccess(null);
+  }, [resetForm]);
+
+  const handleDelete = useCallback(
+    async (tx: Transaction) => {
+      if (!tx.id) {
+        return;
+      }
+      if (typeof window !== "undefined" && !window.confirm("Delete this transaction?")) {
+        return;
+      }
+      setFormError(null);
+      setFormSuccess(null);
+      try {
+        await deleteTransaction(tx.id);
+        if (editingId === tx.id) {
+          setEditingId(null);
+          resetForm();
+        }
+        setFormSuccess("Transaction deleted successfully.");
+        setFilterOwnerAndAccount(tx.owner, tx.account ?? "");
+        setRefreshKey((key) => key + 1);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to delete transaction.";
+        setFormError(message);
+      }
+    },
+    [editingId, resetForm, setFilterOwnerAndAccount],
+  );
+
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -149,7 +298,7 @@ export function TransactionsPage({ owners }: Props) {
 
       setSubmitting(true);
       try {
-        await createTransaction({
+        const payload = {
           owner: newOwner,
           account: newAccount,
           date: newDate,
@@ -159,20 +308,25 @@ export function TransactionsPage({ owners }: Props) {
           reason,
           fees,
           comments: comments || undefined,
-        });
-        setFormSuccess("Transaction created successfully.");
+        };
+        if (editingId) {
+          await updateTransaction(editingId, payload);
+          setFormSuccess("Transaction updated successfully.");
+          setEditingId(null);
+        } else {
+          await createTransaction(payload);
+          setFormSuccess("Transaction created successfully.");
+        }
         setFilterOwnerAndAccount(newOwner, newAccount);
-        setNewTicker("");
-        setNewPrice("");
-        setNewUnits("");
-        setNewFees("");
-        setNewComments("");
-        setNewReason("");
-        setNewDate("");
+        resetForm();
         setRefreshKey((key) => key + 1);
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Failed to create transaction.";
+          err instanceof Error
+            ? err.message
+            : editingId
+            ? "Failed to update transaction."
+            : "Failed to create transaction.";
         setFormError(message);
       } finally {
         setSubmitting(false);
@@ -189,6 +343,9 @@ export function TransactionsPage({ owners }: Props) {
       newFees,
       newComments,
       setFilterOwnerAndAccount,
+      editingId,
+      resetForm,
+      setRefreshKey,
     ],
   );
 
@@ -319,9 +476,29 @@ export function TransactionsPage({ owners }: Props) {
           />
         </label>
         <button type="submit" disabled={submitting} style={{ height: "2.3rem" }}>
-          {submitting ? "Saving..." : "Add transaction"}
+          {submitting
+            ? editingId
+              ? "Updating..."
+              : "Saving..."
+            : editingId
+            ? "Update transaction"
+            : "Add transaction"}
         </button>
+        {editingId && (
+          <button
+            type="button"
+            onClick={handleCancelEdit}
+            disabled={submitting}
+            style={{ height: "2.3rem" }}
+          >
+            Cancel
+          </button>
+        )}
       </form>
+
+      {editingId && (
+        <p style={{ color: "#ffd24d" }}>Editing existing transaction. Save or cancel to finish.</p>
+      )}
 
       {formError && <p style={{ color: "red" }}>{formError}</p>}
       {formSuccess && <p style={{ color: "limegreen" }}>{formSuccess}</p>}
@@ -330,42 +507,115 @@ export function TransactionsPage({ owners }: Props) {
       {loading ? (
         <p>{t("common.loading")}</p>
       ) : (
-        <table className={tableStyles.table}>
-          <thead>
-            <tr>
-              <th className={tableStyles.cell}>Date</th>
-              <th className={tableStyles.cell}>Owner</th>
-              <th className={tableStyles.cell}>Account</th>
-              <th className={tableStyles.cell}>Instrument</th>
-              <th className={tableStyles.cell}>Type</th>
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Amount</th>
-              <th className={`${tableStyles.cell} ${tableStyles.right}`}>Shares</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(transactions ?? []).map((t, i) => (
-              <tr key={i}>
-                <td className={tableStyles.cell}>
-                {t.date ? formatDateISO(new Date(t.date)) : ""}
-                </td>
-                <td className={tableStyles.cell}>{t.owner}</td>
-                <td className={tableStyles.cell}>{t.account}</td>
-                <td className={tableStyles.cell}>{t.ticker || t.security_ref || ""}</td>
-                <td className={tableStyles.cell}>{t.type || t.kind}</td>
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {t.amount_minor != null
-                    ? money(t.amount_minor / 100, t.currency ?? baseCurrency)
-                    : t.price_gbp != null && t.units != null
-                    ? money(t.price_gbp * t.units, baseCurrency)
-                    : ""}
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {t.shares ?? t.units ?? ""}
-                </td>
+        <>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "0.5rem",
+              flexWrap: "wrap",
+              gap: "0.75rem",
+            }}
+          >
+            <label>
+              Rows per page:
+              <select
+                value={pageSize}
+                onChange={handlePageSizeChange}
+                style={{ marginLeft: "0.5rem" }}
+              >
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span>{showingRangeLabel}</span>
+              <button type="button" onClick={handlePreviousPage} disabled={isFirstPage}>
+                Previous
+              </button>
+              <span>
+                Page {currentPageDisplay} of {totalPagesDisplay}
+              </span>
+              <button type="button" onClick={handleNextPage} disabled={isLastPage}>
+                Next
+              </button>
+            </div>
+          </div>
+          <table className={tableStyles.table}>
+            <thead>
+              <tr>
+                <th className={tableStyles.cell}>Date</th>
+                <th className={tableStyles.cell}>Owner</th>
+                <th className={tableStyles.cell}>Account</th>
+                <th className={tableStyles.cell}>Instrument</th>
+                <th className={tableStyles.cell}>Type</th>
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>Amount</th>
+                <th className={`${tableStyles.cell} ${tableStyles.right}`}>Shares</th>
+                <th className={tableStyles.cell}>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {paginatedTransactions.length === 0 ? (
+                <tr>
+                  <td
+                    className={tableStyles.cell}
+                    colSpan={8}
+                    style={{ textAlign: "center" }}
+                  >
+                    No transactions found.
+                  </td>
+                </tr>
+              ) : (
+                paginatedTransactions.map((t, i) => {
+                  const key = t.id ?? `${t.owner}-${t.date ?? ""}-${i}`;
+                  return (
+                    <tr key={key}>
+                      <td className={tableStyles.cell}>
+                        {t.date ? formatDateISO(new Date(t.date)) : ""}
+                      </td>
+                      <td className={tableStyles.cell}>{t.owner}</td>
+                      <td className={tableStyles.cell}>{t.account}</td>
+                      <td className={tableStyles.cell}>{t.ticker || t.security_ref || ""}</td>
+                      <td className={tableStyles.cell}>{t.type || t.kind}</td>
+                      <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                        {t.amount_minor != null
+                          ? money(t.amount_minor / 100, t.currency ?? baseCurrency)
+                          : t.price_gbp != null && t.units != null
+                          ? money(t.price_gbp * t.units, baseCurrency)
+                          : ""}
+                      </td>
+                      <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                        {t.shares ?? t.units ?? ""}
+                      </td>
+                      <td className={tableStyles.cell}>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(t)}
+                            disabled={!t.id}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(t)}
+                            disabled={!t.id}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </>
       )}
     </div>
   );

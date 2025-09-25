@@ -205,7 +205,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/instrument/admin/groups",
     "body": {
-      "name": "SmokeTest"
+      "name": "demo"
     }
   },
   {
@@ -664,10 +664,23 @@ export async function runSmoke(base: string) {
     }
 
     // Allow 401/403 for endpoints that require roles; they still prove the route exists
-    if (res.status >= 400 && res.status !== 401 && res.status !== 403) {
+    // Allow 409 for endpoints where we try to create data that may already exist.
+    if (
+      res.status >= 400 &&
+      res.status !== 401 &&
+      res.status !== 403 &&
+      res.status !== 409
+    ) {
       throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
     }
-    const tag = res.ok ? "✓" : (res.status === 401 || res.status === 403) ? "○" : "•";
+    const tag =
+      res.ok
+        ? "✓"
+        : res.status === 401 || res.status === 403
+          ? "○"
+          : res.status === 409
+            ? "△"
+            : "•";
     console.log(`${tag} ${ep.method} ${ep.path} (${res.status})`);
 
   }

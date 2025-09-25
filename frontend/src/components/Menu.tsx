@@ -117,6 +117,71 @@ export default function Menu({
   const inSupport = mode === 'support';
   const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
 
+  type TabDefinition = (typeof orderedTabPlugins)[number];
+
+  type MenuCategory = {
+    id: string;
+    titleKey: string;
+    tabIds: TabPluginId[];
+  };
+
+  type CategorizedMenu = MenuCategory & {
+    tabs: TabDefinition[];
+  };
+
+  const USER_MENU_CATEGORIES: MenuCategory[] = [
+    { id: 'overview', titleKey: 'overview', tabIds: ['group', 'market', 'movers'] },
+    {
+      id: 'portfolio',
+      titleKey: 'portfolio',
+      tabIds: ['owner', 'performance', 'transactions', 'trading', 'allocation', 'rebalance', 'trail'],
+    },
+    {
+      id: 'research',
+      titleKey: 'research',
+      tabIds: ['instrument', 'screener', 'timeseries', 'watchlist', 'scenario'],
+    },
+    { id: 'reporting', titleKey: 'reporting', tabIds: ['reports', 'tradecompliance'] },
+    { id: 'planning', titleKey: 'planning', tabIds: ['pension', 'taxtools'] },
+    { id: 'settings', titleKey: 'settings', tabIds: ['settings'] },
+  ];
+
+  const SUPPORT_MENU_CATEGORIES: MenuCategory[] = [
+    { id: 'supportTools', titleKey: 'supportTools', tabIds: ['instrumentadmin', 'dataadmin'] },
+  ];
+
+  const availableTabs = orderedTabPlugins
+    .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
+    .slice()
+    .sort((a, b) => a.priority - b.priority)
+    .filter((p) => {
+      if (p.id === 'support') return false;
+      if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
+      const enabled = (tabs as Record<string, boolean | undefined>)[p.id] === true;
+      return enabled && !disabledTabs?.includes(p.id);
+    });
+
+  const categoryDefinitions = isSupportMode ? SUPPORT_MENU_CATEGORIES : USER_MENU_CATEGORIES;
+  const categorizedTabIds = new Set(categoryDefinitions.flatMap((category) => category.tabIds));
+
+  const categoriesToRender: CategorizedMenu[] = categoryDefinitions
+    .map((category) => ({
+      ...category,
+      tabs: availableTabs.filter((tab) => category.tabIds.includes(tab.id)),
+    }))
+    .filter((category) => category.tabs.length > 0);
+
+  const uncategorizedTabs = availableTabs.filter((tab) => !categorizedTabIds.has(tab.id));
+
+  if (uncategorizedTabs.length > 0) {
+    categoriesToRender.push({
+      id: 'other',
+      titleKey: 'other',
+      tabIds: uncategorizedTabs.map((tab) => tab.id),
+      tabs: uncategorizedTabs,
+    });
+  }
+
   function pathFor(m: any) {
     switch (m) {
       case 'group':
@@ -182,27 +247,24 @@ export default function Menu({
           className={`${open ? 'flex md:flex' : 'hidden'} flex-col gap-2 md:flex-row md:flex-wrap`}
           style={style}
         >
-          {orderedTabPlugins
-            .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
-            .slice()
-            .sort((a, b) => a.priority - b.priority)
-            .filter((p) => {
-              if (p.id === 'support') return false;
-              if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
-              const enabled = (tabs as Record<string, boolean | undefined>)[p.id] === true;
-              return enabled && !disabledTabs?.includes(p.id);
-            })
-            .map((p) => (
-              <Link
-                key={p.id}
-                to={pathFor(p.id as string)}
-                className={`mr-4 ${mode === p.id ? 'font-bold' : ''} break-words`}
-                style={{ fontWeight: mode === p.id ? 'bold' as const : undefined }}
-                onClick={() => setOpen(false)}
-              >
-                {t(`app.modes.${p.id}`)}
-              </Link>
-            ))}
+          {categoriesToRender.map((category) => (
+            <div key={category.id} className="mr-4 flex flex-col">
+              <span className="font-semibold">{t(`app.menuCategories.${category.titleKey}`)}</span>
+              <div className="mt-1 flex flex-col gap-1">
+                {category.tabs.map((tab) => (
+                  <Link
+                    key={tab.id}
+                    to={pathFor(tab.id as string)}
+                    className={`${mode === tab.id ? 'font-bold' : ''} break-words`}
+                    style={{ fontWeight: mode === tab.id ? 'bold' as const : undefined }}
+                    onClick={() => setOpen(false)}
+                  >
+                    {t(`app.modes.${tab.id}`)}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
           {supportEnabled && (
             <Link
               to={inSupport ? '/' : '/support'}

@@ -10,6 +10,16 @@
     "research": "Pesquisa",
     "logout": "Sair",
     "menu": "Menu",
+    "menuCategories": {
+      "overview": "Visão geral",
+      "portfolio": "Gestão de portfólio",
+      "research": "Pesquisa e análise",
+      "reporting": "Relatórios e conformidade",
+      "planning": "Planejamento e ferramentas",
+      "settings": "Configurações",
+      "supportTools": "Ferramentas de suporte",
+      "other": "Outros"
+    },
     "focusMode": "Modo de foco",
     "exitFocusMode": "Sair do modo de foco",
     "modes": {

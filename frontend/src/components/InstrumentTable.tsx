@@ -222,6 +222,13 @@ export function InstrumentTable({ rows }: Props) {
     [sorted, ungroupedLabel, sortKey, asc],
   );
 
+  const totalLabel = t('holdingsTable.totalRowLabel');
+
+  const overallTotals = useMemo(
+    () => calculateGroupTotals(rowsWithCost, totalLabel),
+    [rowsWithCost, totalLabel],
+  );
+
   useEffect(() => {
     let cancelled = false;
     listInstrumentGroups()
@@ -472,24 +479,30 @@ export function InstrumentTable({ rows }: Props) {
                 <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                 {!relativeViewEnabled && visibleColumns.units && (
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {group.totals.units
+                    {Number.isFinite(group.totals.units)
                       ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
                       : '—'}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.cost && (
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {group.totals.cost ? money(group.totals.cost, baseCurrency) : '—'}
+                    {Number.isFinite(group.totals.cost)
+                      ? money(group.totals.cost, baseCurrency)
+                      : '—'}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.market && (
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {money(group.totals.marketValue, baseCurrency)}
+                    {Number.isFinite(group.totals.marketValue)
+                      ? money(group.totals.marketValue, baseCurrency)
+                      : '—'}
                   </td>
                 )}
                 {!relativeViewEnabled && visibleColumns.gain && (
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {formatSignedMoney(group.totals.gain, baseCurrency)}
+                    {Number.isFinite(group.totals.gain)
+                      ? formatSignedMoney(group.totals.gain, baseCurrency)
+                      : '—'}
                   </td>
                 )}
                 {visibleColumns.gain_pct && (
@@ -683,9 +696,121 @@ export function InstrumentTable({ rows }: Props) {
                     </tr>
                   );
                 })}
+              <tr>
+                <td
+                  className={`${tableStyles.cell} font-semibold`}
+                  colSpan={4}
+                >
+                  {totalLabel}
+                  {group.label ? ` — ${group.label}` : ''}
+                </td>
+                {!relativeViewEnabled && visibleColumns.units && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                    {Number.isFinite(group.totals.units)
+                      ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
+                      : '—'}
+                  </td>
+                )}
+                {!relativeViewEnabled && visibleColumns.cost && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                    {Number.isFinite(group.totals.cost)
+                      ? money(group.totals.cost, baseCurrency)
+                      : '—'}
+                  </td>
+                )}
+                {!relativeViewEnabled && visibleColumns.market && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                    {Number.isFinite(group.totals.marketValue)
+                      ? money(group.totals.marketValue, baseCurrency)
+                      : '—'}
+                  </td>
+                )}
+                {!relativeViewEnabled && visibleColumns.gain && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                    {Number.isFinite(group.totals.gain)
+                      ? formatSignedMoney(group.totals.gain, baseCurrency)
+                      : '—'}
+                  </td>
+                )}
+                {visibleColumns.gain_pct && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                    {formatSignedPercent(group.totals.gainPct)}
+                  </td>
+                )}
+                {!relativeViewEnabled && (
+                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                    —
+                  </td>
+                )}
+                <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                  —
+                </td>
+                <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                  {formatSignedPercent(group.totals.change7dPct)}
+                </td>
+                <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                  {formatSignedPercent(group.totals.change30dPct)}
+                </td>
+                <td className={`${tableStyles.cell} font-semibold`}>—</td>
+              </tr>
             </tbody>
           );
         })}
+        <tfoot>
+          <tr>
+            <td className={`${tableStyles.cell} font-semibold`} colSpan={4}>
+              {totalLabel}
+            </td>
+            {!relativeViewEnabled && visibleColumns.units && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                {Number.isFinite(overallTotals.units)
+                  ? new Intl.NumberFormat(i18n.language).format(overallTotals.units)
+                  : '—'}
+              </td>
+            )}
+            {!relativeViewEnabled && visibleColumns.cost && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                {Number.isFinite(overallTotals.cost)
+                  ? money(overallTotals.cost, baseCurrency)
+                  : '—'}
+              </td>
+            )}
+            {!relativeViewEnabled && visibleColumns.market && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                {Number.isFinite(overallTotals.marketValue)
+                  ? money(overallTotals.marketValue, baseCurrency)
+                  : '—'}
+              </td>
+            )}
+            {!relativeViewEnabled && visibleColumns.gain && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                {Number.isFinite(overallTotals.gain)
+                  ? formatSignedMoney(overallTotals.gain, baseCurrency)
+                  : '—'}
+              </td>
+            )}
+            {visibleColumns.gain_pct && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                {formatSignedPercent(overallTotals.gainPct)}
+              </td>
+            )}
+            {!relativeViewEnabled && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                —
+              </td>
+            )}
+            <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+              —
+            </td>
+            <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+              {formatSignedPercent(overallTotals.change7dPct)}
+            </td>
+            <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+              {formatSignedPercent(overallTotals.change30dPct)}
+            </td>
+            <td className={`${tableStyles.cell} font-semibold`}>—</td>
+          </tr>
+        </tfoot>
         </table>
       )}
 

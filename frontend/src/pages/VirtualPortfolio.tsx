@@ -6,12 +6,14 @@ import {
   updateVirtualPortfolio,
   deleteVirtualPortfolio,
   getOwners,
+  logAnalyticsEvent,
 } from "../api";
 import errorToast from "../utils/errorToast";
 import type {
   SyntheticHolding,
   VirtualPortfolio as VP,
   OwnerSummary,
+  VirtualPortfolioAnalyticsEvent,
 } from "../types";
 import { sanitizeOwners } from "../utils/owners";
 
@@ -25,6 +27,17 @@ export function VirtualPortfolio() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const track = (
+    event: VirtualPortfolioAnalyticsEvent,
+    metadata?: Record<string, unknown>,
+  ) => {
+    logAnalyticsEvent({
+      source: "virtual_portfolio",
+      event,
+      metadata,
+    }).catch(() => undefined);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +58,7 @@ export function VirtualPortfolio() {
         if (!cancelled) {
           setPortfolios(ps);
           setOwners(sanitizeOwners(os));
+          track("view", { portfolio_count: ps.length });
         }
       } catch (e) {
         if (!cancelled) {
@@ -72,6 +86,7 @@ export function VirtualPortfolio() {
       setName(vp.name);
       setAccounts(vp.accounts);
       setHoldings(vp.holdings || []);
+      track("select", { portfolio_id: id });
     } catch (e) {
       const err = e instanceof Error ? e.message : String(e);
       setError(err);
@@ -112,9 +127,14 @@ export function VirtualPortfolio() {
     try {
       if (selected != null) {
         await updateVirtualPortfolio(selected, payload);
+        track("update", { portfolio_id: selected, holding_count: holdings.length });
       } else {
         const created = await createVirtualPortfolio(payload);
         setSelected(created.id ?? null);
+        track("create", {
+          portfolio_id: created.id ?? null,
+          holding_count: holdings.length,
+        });
       }
       setMessage("Saved");
       setPortfolios(await getVirtualPortfolios());
@@ -129,6 +149,7 @@ export function VirtualPortfolio() {
     if (selected == null) return;
     try {
       await deleteVirtualPortfolio(selected);
+      track("delete", { portfolio_id: selected });
       setSelected(null);
       setName("");
       setAccounts([]);

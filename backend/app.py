@@ -54,6 +54,7 @@ from backend.routes.models import router as models_router
 from backend.routes.nudges import router as nudges_router
 from backend.routes.news import router as news_router
 from backend.routes.market import router as market_router
+from backend.routes.analytics import router as analytics_router
 from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
 from backend.routes.portfolio import public_router as public_portfolio_router
@@ -253,6 +254,7 @@ def create_app() -> FastAPI:
     app.include_router(query_router, dependencies=protected)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)
+    app.include_router(analytics_router, dependencies=protected)
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(config_router)

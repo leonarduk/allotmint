@@ -1,11 +1,4 @@
-import {
-  useState,
-  useEffect,
-  useRef,
-  useMemo,
-  useReducer,
-  type MouseEvent,
-} from "react";
+import { useState, useEffect, useRef, useMemo, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { Holding } from "../types";
 import { money, percent } from "../lib/money";
@@ -25,8 +18,6 @@ import { ResponsiveContainer, LineChart, Line } from "recharts";
 import Sparkline from "./Sparkline";
 import { getGrowthStage } from "../utils/growthStage";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
-
-declare const sparks: Record<string, Record<string, any[]>>;
 
 const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 
@@ -165,6 +156,21 @@ export function HoldingsTable({
 
   // sort
   const { sorted: sortedRows, sortKey, asc, handleSort } = useSortableTable(filtered, "ticker");
+
+  const totals = useMemo(
+    () =>
+      sortedRows.reduce(
+        (acc, h) => ({
+          cost: acc.cost + (h.cost ?? 0),
+          market: acc.market + (h.market ?? 0),
+          gain: acc.gain + (h.gain ?? 0),
+          weight: acc.weight + (h.weight_pct ?? 0),
+        }),
+        { cost: 0, market: 0, gain: 0, weight: 0 },
+      ),
+    [sortedRows],
+  );
+  const totalGainPct = totals.cost ? (totals.gain / totals.cost) * 100 : 0;
 
   const columnLabels: [keyof typeof visibleColumns, string][] = [
     ["units", t("holdingsTable.columns.units")],
@@ -579,6 +585,48 @@ export function HoldingsTable({
             </tr>
           )}
         </tbody>
+        <tfoot>
+          <tr>
+            <td className={`${tableStyles.cell} font-semibold`} colSpan={5}>
+              {t("holdingsTable.totalRowLabel")}
+            </td>
+            {!relativeViewEnabled && visibleColumns.units && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>
+            )}
+            <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>
+            {!relativeViewEnabled && visibleColumns.cost && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                {money(totals.cost, baseCurrency)}
+              </td>
+            )}
+            {!relativeViewEnabled && visibleColumns.market && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+                {money(totals.market, baseCurrency)}
+              </td>
+            )}
+            {!relativeViewEnabled && visibleColumns.gain && (
+              <td
+                className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${getPerformanceClass(totals.gain)}`}
+              >
+                {money(totals.gain, baseCurrency)}
+              </td>
+            )}
+            {visibleColumns.gain_pct && (
+              <td
+                className={`${tableStyles.cell} ${tableStyles.right} font-semibold ${getPerformanceClass(totalGainPct)}`}
+              >
+                {percent(totalGainPct, 1)}
+              </td>
+            )}
+            <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
+              {percent(totals.weight, 1)}
+            </td>
+            <td className={tableStyles.cell}></td>
+            <td className={`${tableStyles.cell} ${tableStyles.right}`}></td>
+            <td className={tableStyles.cell}></td>
+            <td className={`${tableStyles.cell} ${tableStyles.center}`}></td>
+          </tr>
+        </tfoot>
         </table>
         </div>
       ) : (

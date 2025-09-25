@@ -10,6 +10,16 @@
     "research": "Research",
     "logout": "Logout",
     "menu": "Menu",
+    "menuCategories": {
+      "overview": "Overview",
+      "portfolio": "Portfolio Management",
+      "research": "Research & Analysis",
+      "reporting": "Reporting & Compliance",
+      "planning": "Planning & Tools",
+      "settings": "Settings",
+      "supportTools": "Support Tools",
+      "other": "Other"
+    },
     "focusMode": "Focus Mode",
     "exitFocusMode": "Exit Focus Mode",
     "modes": {

@@ -10,6 +10,16 @@
     "research": "Recherche",
     "logout": "Déconnexion",
     "menu": "Menu",
+    "menuCategories": {
+      "overview": "Vue d'ensemble",
+      "portfolio": "Gestion de portefeuille",
+      "research": "Recherche et analyse",
+      "reporting": "Rapports et conformité",
+      "planning": "Planification et outils",
+      "settings": "Paramètres",
+      "supportTools": "Outils d'assistance",
+      "other": "Autres"
+    },
     "focusMode": "Mode concentration",
     "exitFocusMode": "Quitter le mode concentration",
     "modes": {

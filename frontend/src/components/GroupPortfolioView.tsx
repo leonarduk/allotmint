@@ -1,5 +1,12 @@
 // src/components/GroupPortfolioView.tsx
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  Fragment,
+} from "react";
 
 import type {
   GroupPortfolio,
@@ -55,15 +62,13 @@ const PIE_COLORS = [
 
 type Props = {
   slug: string;
-  /** when clicking an owner you may want to jump to the member tab */
-  onSelectMember?: (owner: string) => void;
   onTradeInfo?: (info: { trades_this_month?: number; trades_remaining?: number } | null) => void;
 };
 
 /* ────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────── */
-export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props) {
+export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
   const fetchPortfolio = useCallback(() => getGroupPortfolio(slug), [slug]);
   const {
     data: portfolio,
@@ -97,6 +102,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [instrumentError, setInstrumentError] = useState<Error | null>(null);
   const instrumentKeyRef = useRef<string | null>(null);
+  const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
 
   const loadGroupInstruments =
     api.getCachedGroupInstruments ?? getGroupInstruments;
@@ -256,17 +262,51 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
   );
 
   const { ownerRows, typeRows } = useMemo(() => {
-    const perOwner: Record<
-      string,
-      { value: number; dayChange: number; gain: number; cost: number }
-    > = {};
+    type OwnerAggregate = {
+      value: number;
+      dayChange: number;
+      gain: number;
+      cost: number;
+      accounts: {
+        key: string;
+        label: string;
+        value: number;
+        dayChange: number;
+        gain: number;
+        cost: number;
+      }[];
+    };
+    const perOwner: Record<string, OwnerAggregate> = {};
     const perType: Record<string, number> = {};
 
     for (const acct of filteredAccounts) {
       const owner = acct.owner ?? "—";
       const entry =
         perOwner[owner] ||
-        (perOwner[owner] = { value: 0, dayChange: 0, gain: 0, cost: 0 });
+        (perOwner[owner] = {
+          value: 0,
+          dayChange: 0,
+          gain: 0,
+          cost: 0,
+          accounts: [],
+        });
+
+      const accountLabel = acct.account_type
+        ? acct.currency
+          ? `${acct.account_type} (${acct.currency})`
+          : acct.account_type
+        : acct.currency ?? "—";
+
+      const accountEntry = {
+        key: `${owner}-${entry.accounts.length}`,
+        label: accountLabel,
+        value: acct.value_estimate_gbp ?? 0,
+        dayChange: 0,
+        gain: 0,
+        cost: 0,
+      };
+
+      entry.accounts.push(accountEntry);
 
       entry.value += acct.value_estimate_gbp ?? 0;
 
@@ -288,6 +328,9 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         entry.cost += cost;
         entry.gain += gain;
         entry.dayChange += dayChg;
+        accountEntry.cost += cost;
+        accountEntry.gain += gain;
+        accountEntry.dayChange += dayChg;
       }
     }
 
@@ -300,7 +343,22 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
           ? (data.dayChange / (data.value - data.dayChange)) * 100
           : 0;
       const valuePct = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
-      return { owner, ...data, gainPct, dayChangePct, valuePct };
+      const accounts = data.accounts.map((acct) => {
+        const accountGainPct = acct.cost > 0 ? (acct.gain / acct.cost) * 100 : 0;
+        const accountDayChangePct =
+          acct.value - acct.dayChange !== 0
+            ? (acct.dayChange / (acct.value - acct.dayChange)) * 100
+            : 0;
+        const accountValuePct =
+          totalValue > 0 ? (acct.value / totalValue) * 100 : 0;
+        return {
+          ...acct,
+          gainPct: accountGainPct,
+          dayChangePct: accountDayChangePct,
+          valuePct: accountValuePct,
+        };
+      });
+      return { owner, ...data, gainPct, dayChangePct, valuePct, accounts };
     });
 
     const typeRows = Object.entries(perType).map(([type, value]) => ({
@@ -311,6 +369,27 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
 
     return { ownerRows, typeRows };
   }, [filteredAccounts, t, totals.totalValue]);
+
+  useEffect(() => {
+    setExpandedOwners((prev) => {
+      const validOwners = new Set(ownerRows.map((row) => row.owner));
+      const filtered = [...prev].filter((owner) => validOwners.has(owner));
+      if (filtered.length === prev.size) return prev;
+      return new Set(filtered);
+    });
+  }, [ownerRows]);
+
+  const toggleOwnerExpansion = useCallback((owner: string) => {
+    setExpandedOwners((prev) => {
+      const next = new Set(prev);
+      if (next.has(owner)) {
+        next.delete(owner);
+      } else {
+        next.add(owner);
+      }
+      return next;
+    });
+  }, []);
 
   /* ── early-return states ───────────────────────────────── */
   if (!slug) return <p>{t("group.select")}</p>;
@@ -544,53 +623,114 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
             </tr>
           </thead>
           <tbody>
-            {ownerRows.map((row) => (
-              <tr key={row.owner}>
-                <td
-                  className={`${tableStyles.cell} ${
-                    onSelectMember ? tableStyles.clickable : ""
-                  }`}
-                  onClick={
-                    onSelectMember ? () => onSelectMember(row.owner) : undefined
-                  }
-                >
-                  {row.owner}
-                </td>
-                <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                  {relativeViewEnabled
-                    ? percent(row.valuePct)
-                    : money(row.value, baseCurrency)}
-                </td>
-                {!relativeViewEnabled && (
-                  <td
-                    className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
+            {ownerRows.map((row) => {
+              const hasAccounts = row.accounts.length > 0;
+              const isExpanded = hasAccounts && expandedOwners.has(row.owner);
+              return (
+                <Fragment key={row.owner}>
+                  <tr
+                    onClick={() => hasAccounts && toggleOwnerExpansion(row.owner)}
+                    className={hasAccounts ? tableStyles.clickable : undefined}
                   >
-                    {money(row.dayChange, baseCurrency)}
-                  </td>
-                )}
-                <td
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  style={{ color: row.dayChange >= 0 ? "lightgreen" : "red" }}
-                >
-                  {percent(row.dayChangePct)}
-                </td>
-                {!relativeViewEnabled && (
-                  <td
-                    className={`${tableStyles.cell} ${tableStyles.right}`}
-                    style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
-                  >
-                    {money(row.gain, baseCurrency)}
-                  </td>
-                )}
-                <td
-                  className={`${tableStyles.cell} ${tableStyles.right}`}
-                  style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
-                >
-                  {percent(row.gainPct)}
-                </td>
-              </tr>
-            ))}
+                    <td className={tableStyles.cell}>
+                      {hasAccounts && (
+                        <span style={{ marginRight: "0.5rem" }}>
+                          {isExpanded ? "▾" : "▸"}
+                        </span>
+                      )}
+                      {row.owner}
+                    </td>
+                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                      {relativeViewEnabled
+                        ? percent(row.valuePct)
+                        : money(row.value, baseCurrency)}
+                    </td>
+                    {!relativeViewEnabled && (
+                      <td
+                        className={`${tableStyles.cell} ${tableStyles.right}`}
+                        style={{
+                          color: row.dayChange >= 0 ? "lightgreen" : "red",
+                        }}
+                      >
+                        {money(row.dayChange, baseCurrency)}
+                      </td>
+                    )}
+                    <td
+                      className={`${tableStyles.cell} ${tableStyles.right}`}
+                      style={{
+                        color: row.dayChange >= 0 ? "lightgreen" : "red",
+                      }}
+                    >
+                      {percent(row.dayChangePct)}
+                    </td>
+                    {!relativeViewEnabled && (
+                      <td
+                        className={`${tableStyles.cell} ${tableStyles.right}`}
+                        style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+                      >
+                        {money(row.gain, baseCurrency)}
+                      </td>
+                    )}
+                    <td
+                      className={`${tableStyles.cell} ${tableStyles.right}`}
+                      style={{ color: row.gain >= 0 ? "lightgreen" : "red" }}
+                    >
+                      {percent(row.gainPct)}
+                    </td>
+                  </tr>
+                  {isExpanded &&
+                    row.accounts.map((acct) => (
+                      <tr key={acct.key}>
+                        <td
+                          className={tableStyles.cell}
+                          style={{ paddingLeft: "1.75rem", fontSize: "0.9rem" }}
+                        >
+                          {acct.label}
+                        </td>
+                        <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                          {relativeViewEnabled
+                            ? percent(acct.valuePct)
+                            : money(acct.value, baseCurrency)}
+                        </td>
+                        {!relativeViewEnabled && (
+                          <td
+                            className={`${tableStyles.cell} ${tableStyles.right}`}
+                            style={{
+                              color: acct.dayChange >= 0 ? "lightgreen" : "red",
+                            }}
+                          >
+                            {money(acct.dayChange, baseCurrency)}
+                          </td>
+                        )}
+                        <td
+                          className={`${tableStyles.cell} ${tableStyles.right}`}
+                          style={{
+                            color: acct.dayChange >= 0 ? "lightgreen" : "red",
+                          }}
+                        >
+                          {percent(acct.dayChangePct)}
+                        </td>
+                        {!relativeViewEnabled && (
+                          <td
+                            className={`${tableStyles.cell} ${tableStyles.right}`}
+                            style={{
+                              color: acct.gain >= 0 ? "lightgreen" : "red",
+                            }}
+                          >
+                            {money(acct.gain, baseCurrency)}
+                          </td>
+                        )}
+                        <td
+                          className={`${tableStyles.cell} ${tableStyles.right}`}
+                          style={{ color: acct.gain >= 0 ? "lightgreen" : "red" }}
+                        >
+                          {percent(acct.gainPct)}
+                        </td>
+                      </tr>
+                    ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       )}

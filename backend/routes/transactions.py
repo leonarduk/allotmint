@@ -7,6 +7,7 @@ import logging
 import os
 import platform
 import re
+import uuid
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import date, datetime
@@ -73,8 +74,9 @@ _PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
 
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _ID_RE = re.compile(
-    r"^(?P<owner>[A-Za-z0-9_-]+):(?P<account>[A-Za-z0-9_-]+):(?P<index>\d+)$"
+    r"^(?P<owner>[A-Za-z0-9_-]+):(?P<account>[A-Za-z0-9_-]+):(?P<token>[A-Za-z0-9_-]+)$"
 )
+_TOKEN_RE = re.compile(r"^[a-f0-9]{32}$")
 
 
 def _lock_file(f) -> None:
@@ -111,19 +113,40 @@ class TransactionUpdate(TransactionCreate):
     pass
 
 
-def _build_transaction_id(owner: str, account: str, index: int) -> str:
-    return f"{owner}:{account}:{index}"
+def _generate_transaction_token() -> str:
+    return uuid.uuid4().hex
 
 
-def _parse_transaction_id(tx_id: str) -> Tuple[str, str, int]:
+def _build_transaction_id(owner: str, account: str, token: str) -> str:
+    return f"{owner}:{account}:{token}"
+
+
+def _parse_transaction_id(tx_id: str) -> Tuple[str, str, str]:
     match = _ID_RE.fullmatch(tx_id)
     if not match:
         raise HTTPException(status_code=400, detail="Invalid transaction id")
     return (
         match.group("owner"),
         match.group("account"),
-        int(match.group("index")),
+        match.group("token"),
     )
+
+
+def _normalise_entry_token(raw: object) -> Optional[str]:
+    if isinstance(raw, str) and raw:
+        candidate = raw.split(":")[-1]
+        if _TOKEN_RE.fullmatch(candidate):
+            return candidate
+    return None
+
+
+def _ensure_entry_token(entry: dict, *, fallback: Optional[str] = None) -> str:
+    token = _normalise_entry_token(entry.get("id"))
+    if token is None:
+        candidate = fallback if (fallback and _TOKEN_RE.fullmatch(fallback)) else None
+        token = candidate or _generate_transaction_token()
+    entry["id"] = token
+    return token
 
 
 def _calculate_portfolio_impact(tx: Mapping[str, object]) -> float:
@@ -144,7 +167,6 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
     for key, value in update.items():
         if value is not None:
             updated[key] = value
-    updated.pop("id", None)
     return updated
 
 
@@ -170,11 +192,16 @@ def _load_all_transactions() -> List[Transaction]:
         for idx, t in enumerate(transactions):
             t = dict(t)
             t.pop("account", None)
+            raw_token = t.pop("id", None)
+            if raw_token is None:
+                token = str(idx)
+            else:
+                token = _normalise_entry_token(raw_token) or str(raw_token)
             results.append(
                 Transaction(
                     owner=owner,
                     account=account,
-                    id=_build_transaction_id(owner, account_raw, idx),
+                    id=_build_transaction_id(owner, account_raw, token),
                     **t,
                 )
             )
@@ -298,6 +325,8 @@ async def create_transaction(tx: TransactionCreate) -> dict:
         raise HTTPException(status_code=400, detail="price_gbp and units are required")
     impact = float(price) * float(units_val)
     _PORTFOLIO_IMPACT[owner] += impact
+    token = _normalise_entry_token(tx_data.get("id")) or _generate_transaction_token()
+    tx_data["id"] = token
     _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
 
     with _locked_transactions_data(owner, account) as (data, _file):
@@ -305,12 +334,13 @@ async def create_transaction(tx: TransactionCreate) -> dict:
         transactions.append(tx_data)
         data["owner"] = owner
         data["account_type"] = account
-        new_index = len(transactions) - 1
 
     _rebuild_portfolio(owner, account)
 
-    tx_id = _build_transaction_id(owner, account, new_index)
-    return {"owner": owner, "account": account.lower(), "id": tx_id, **tx_data}
+    tx_id = _build_transaction_id(owner, account, token)
+    response = dict(tx_data)
+    response.update({"owner": owner, "account": account.lower(), "id": tx_id})
+    return response
 
 
 @router.put("/transactions/{tx_id}")
@@ -318,7 +348,7 @@ async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
     if not config.accounts_root:
         raise HTTPException(status_code=400, detail="Accounts root not configured")
 
-    original_owner, original_account_raw, index = _parse_transaction_id(tx_id)
+    original_owner, original_account_raw, token = _parse_transaction_id(tx_id)
     original_owner = _validate_component(original_owner, "owner")
     original_account = _validate_component(original_account_raw, "account")
 
@@ -340,35 +370,48 @@ async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
 
     with _locked_transactions_data(original_owner, original_account_canonical) as (data, _):
         transactions = data.setdefault("transactions", [])
-        if index >= len(transactions) or index < 0:
+        target_index: Optional[int] = None
+        for idx, entry in enumerate(transactions):
+            entry_token = _normalise_entry_token(entry.get("id"))
+            if entry_token is None:
+                entry_token = str(idx)
+            if entry_token == token:
+                target_index = idx
+                break
+        if target_index is None:
             raise HTTPException(status_code=404, detail="Transaction not found")
-        existing = transactions[index]
+
+        for entry in transactions:
+            _ensure_entry_token(entry)
+
+        existing = transactions[target_index]
+        _ensure_entry_token(existing, fallback=token)
         old_impact = _calculate_portfolio_impact(existing)
 
         if same_location:
             updated_entry = _prepare_updated_transaction(existing, tx_data)
-            transactions[index] = updated_entry
+            transactions[target_index] = updated_entry
             data["owner"] = new_owner
             data["account_type"] = new_account
             new_entry = updated_entry
         else:
-            removed_entry = transactions.pop(index)
+            removed_entry = transactions.pop(target_index)
             data["owner"] = original_owner
             data["account_type"] = original_account_canonical
             pending_entry = _prepare_updated_transaction(removed_entry, tx_data)
             new_entry = pending_entry
-
-    new_index = index
 
     if not same_location:
         if pending_entry is None:
             raise HTTPException(status_code=500, detail="Failed to update transaction")
         with _locked_transactions_data(new_owner, new_account) as (data, _):
             transactions = data.setdefault("transactions", [])
+            for entry in transactions:
+                _ensure_entry_token(entry)
             transactions.append(pending_entry)
             data["owner"] = new_owner
             data["account_type"] = new_account
-            new_index = len(transactions) - 1
+            _ensure_entry_token(pending_entry, fallback=token)
 
     new_impact = _calculate_portfolio_impact(new_entry)
 
@@ -385,9 +428,12 @@ async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
     for owner_val, account_val in affected:
         _rebuild_portfolio(owner_val, account_val)
 
-    new_id = _build_transaction_id(new_owner, new_account, new_index)
+    new_token = _ensure_entry_token(new_entry, fallback=token)
+    new_id = _build_transaction_id(new_owner, new_account, new_token)
     account_response = new_account.lower()
-    return {"owner": new_owner, "account": account_response, "id": new_id, **new_entry}
+    response = dict(new_entry)
+    response.update({"owner": new_owner, "account": account_response, "id": new_id})
+    return response
 
 
 @router.delete("/transactions/{tx_id}")
@@ -395,7 +441,7 @@ async def delete_transaction(tx_id: str) -> dict:
     if not config.accounts_root:
         raise HTTPException(status_code=400, detail="Accounts root not configured")
 
-    owner, account_raw, index = _parse_transaction_id(tx_id)
+    owner, account_raw, token = _parse_transaction_id(tx_id)
     owner = _validate_component(owner, "owner")
     account = _validate_component(account_raw, "account")
 
@@ -405,9 +451,19 @@ async def delete_transaction(tx_id: str) -> dict:
 
     with _locked_transactions_data(owner, account_canonical) as (data, _):
         transactions = data.setdefault("transactions", [])
-        if index >= len(transactions) or index < 0:
+        target_index: Optional[int] = None
+        for idx, entry in enumerate(transactions):
+            entry_token = _normalise_entry_token(entry.get("id"))
+            if entry_token is None:
+                entry_token = str(idx)
+            if entry_token == token:
+                target_index = idx
+                break
+        if target_index is None:
             raise HTTPException(status_code=404, detail="Transaction not found")
-        removed_entry = transactions.pop(index)
+        for entry in transactions:
+            _ensure_entry_token(entry)
+        removed_entry = transactions.pop(target_index)
         data["owner"] = owner
         data["account_type"] = account_canonical
 

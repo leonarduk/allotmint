@@ -349,58 +349,75 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
             borderRadius: "6px",
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: "0.9rem",
-                color: "#aaa",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.25rem",
-              }}
-            >
-              <BadgeCheck size={16} />
-              Alpha vs Benchmark
-            </div>
-            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-              {percentOrNa(safeAlpha)}
-            </div>
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: "0.9rem",
-                color: "#aaa",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.25rem",
-              }}
-            >
-              <LineChart size={16} />
-              Tracking Error
-            </div>
-            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-              {percentOrNa(safeTrackingError)}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <BadgeCheck size={16} />
+            <div>
+              <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+                Alpha vs Benchmark
+              </div>
+              <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+                {percentOrNa(safeAlpha)}
+              </div>
             </div>
           </div>
-          <div>
-            <div
-              style={{
-                fontSize: "0.9rem",
-                color: "#aaa",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.25rem",
-              }}
-              title={t("dashboard.maxDrawdownHelp")}
-            >
-              <Shield size={16} />
-              <span>{t("dashboard.maxDrawdown")}</span>
-            </div>
-            <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
-              {percentOrNa(safeMaxDrawdown)}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <LineChart size={16} />
+            <div>
+              <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+                Tracking Error
+              </div>
+              <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+                {percentOrNa(safeTrackingError)}
+              </div>
             </div>
           </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <Shield size={16} />
+            <div>
+              <div
+                style={{ fontSize: "0.9rem", color: "#aaa" }}
+                title={t("dashboard.maxDrawdownHelp")}
+              >
+                {t("dashboard.maxDrawdown")}
+              </div>
+              <div style={{ fontSize: "1.2rem", fontWeight: "bold" }}>
+                {percentOrNa(safeMaxDrawdown)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAllPositions && (
+        <div style={{ marginBottom: "1rem" }}>
+          <a
+            href="/metrics-explained"
+            style={{
+              color: "#60a5fa",
+              fontSize: "0.85rem",
+              textDecoration: "underline",
+            }}
+          >
+            {t("dashboard.metricsExplanationLink")}
+          </a>
         </div>
       )}
 

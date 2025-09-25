@@ -261,10 +261,50 @@
     "trackingError": "Tracking Error",
     "maxDrawdown": "Max Drawdown",
     "maxDrawdownHelp": "Max drawdown is the largest percentage drop from any portfolio peak to the lowest closing value that follows, calculated from the rebuilt daily totals of your holdings.",
+    "metricsExplanationLink": "How are these calculated?",
     "timeWeightedReturn": "Time-Weighted Return",
     "xirr": "XIRR",
     "portfolioValue": "Portfolio Value",
     "cumulativeReturn": "Cumulative Return"
+  },
+  "metricsExplanation": {
+    "title": "Performance Metrics Explained",
+    "intro": "These metrics summarise how the combined portfolio performs relative to its benchmark. Each value is derived from the same daily return series that powers the dashboard tiles.",
+    "backLink": "Back to portfolio dashboard",
+    "calculationHeading": "How we calculate it",
+    "notesHeading": "Things to know",
+    "dataHeading": "Data inputs",
+    "dataBody": "We rebuild daily market values for every holding using the latest price data and any recorded corporate actions. Cash flows, trades and benchmark levels are normalised to UTC trading days. Metrics refresh whenever new prices are ingested.",
+    "disclaimer": "These statistics are provided for information only and may differ from figures reported by your broker if their pricing or benchmark selection differs.",
+    "sections": {
+      "alpha": {
+        "title": "Alpha vs Benchmark",
+        "summary": "Alpha measures the portfolio's excess return after matching the benchmark over the same date range.",
+        "calculation": "We compute time-weighted cumulative returns for both the portfolio and the configured benchmark. Alpha is simply the portfolio return minus the benchmark return, expressed in percentage points.",
+        "notes": [
+          "Positive alpha means the portfolio outperformed the benchmark over the selected period.",
+          "If either return series is unavailable for the full span we fall back to the overlapping dates only."
+        ]
+      },
+      "trackingError": {
+        "title": "Tracking Error",
+        "summary": "Tracking error captures the variability of active returns—how much the portfolio's daily returns diverge from the benchmark.",
+        "calculation": "For each trading day we take the portfolio return minus the benchmark return, producing an active return series. Tracking error is the annualised standard deviation of those active returns (daily standard deviation multiplied by √252).",
+        "notes": [
+          "Higher tracking error indicates looser alignment with the benchmark.",
+          "We require at least 30 overlapping daily returns to display this metric."
+        ]
+      },
+      "maxDrawdown": {
+        "title": "Max Drawdown",
+        "summary": "Max drawdown identifies the worst peak-to-trough decline in portfolio value over the measurement window.",
+        "calculation": "We scan the time-weighted return curve, track each new peak, and record the largest subsequent drop before a new peak is reached. The deepest percentage loss becomes the max drawdown.",
+        "notes": [
+          "Drawdown is calculated on portfolio returns only; the benchmark is not considered here.",
+          "A -100% drawdown would mean the portfolio value reached zero after a prior peak."
+        ]
+      }
+    }
   },
   "support": {
     "title": "Support",

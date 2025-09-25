@@ -11,6 +11,7 @@ import i18n from '../i18n';
 import { useConfig } from '../ConfigContext';
 import { isSupportedFx } from '../lib/fx';
 import { RelativeViewToggle } from './RelativeViewToggle';
+import { isCashInstrument } from '../lib/instruments';
 import {
   assignInstrumentGroup,
   clearInstrumentGroup,
@@ -60,18 +61,6 @@ const GROUP_SUMMARY_SORT_MAP: Partial<Record<keyof RowWithCost, keyof GroupTotal
   change_30d_pct: 'change30dPct',
   gain_pct: 'gainPct',
 };
-
-export function isCashInstrument(
-  instrument: Pick<InstrumentSummary, 'instrument_type' | 'ticker'>,
-): boolean {
-  const type = instrument.instrument_type?.toLowerCase();
-  if (type === 'cash') {
-    return true;
-  }
-
-  const ticker = instrument.ticker?.toUpperCase();
-  return ticker?.startsWith('CASH') ?? false;
-}
 
 export function InstrumentTable({ rows }: Props) {
   const { t } = useTranslation();

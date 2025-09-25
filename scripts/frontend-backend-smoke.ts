@@ -204,7 +204,9 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "POST",
     "path": "/instrument/admin/groups",
-    "body": {}
+    "body": {
+      "name": "demo"
+    }
   },
   {
     "method": "DELETE",

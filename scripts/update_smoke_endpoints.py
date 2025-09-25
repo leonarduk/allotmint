@@ -69,6 +69,7 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
     },
     ("DELETE", "/accounts/{owner}/approvals"): {"ticker": "PFE"},
     ("POST", "/compliance/validate"): {"owner": "demo"},
+    ("POST", "/instrument/admin/groups"): {"name": "demo"},
     ("POST", "/user-config/{owner}"): {},
     (
         "POST",

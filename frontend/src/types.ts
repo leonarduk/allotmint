@@ -108,6 +108,16 @@ export type InstrumentSummary = {
   change_30d_pct?: number | null;
 };
 
+export interface InstrumentGroupDefinition {
+  id: string;
+  name: string;
+  aliases?: string[] | null;
+  category?: string | null;
+  category_name?: string | null;
+  description?: string | null;
+  [key: string]: unknown;
+}
+
 export type SectorContribution = {
   sector: string;
   market_value_gbp: number;

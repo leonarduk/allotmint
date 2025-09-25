@@ -35,6 +35,7 @@ import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
+import { isCashInstrument } from "../lib/instruments";
 import {
   PieChart,
   Pie,
@@ -267,6 +268,8 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
       dayChange: number;
       gain: number;
       cost: number;
+      stock: number;
+      cash: number;
       accounts: {
         key: string;
         label: string;
@@ -274,6 +277,8 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
         dayChange: number;
         gain: number;
         cost: number;
+        stock: number;
+        cash: number;
       }[];
     };
     const perOwner: Record<string, OwnerAggregate> = {};
@@ -288,6 +293,8 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
           dayChange: 0,
           gain: 0,
           cost: 0,
+          stock: 0,
+          cash: 0,
           accounts: [],
         });
 
@@ -304,6 +311,8 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
         dayChange: 0,
         gain: 0,
         cost: 0,
+        stock: 0,
+        cash: 0,
       };
 
       entry.accounts.push(accountEntry);
@@ -331,6 +340,18 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
         accountEntry.cost += cost;
         accountEntry.gain += gain;
         accountEntry.dayChange += dayChg;
+
+        const isCash = isCashInstrument({
+          instrument_type: h.instrument_type,
+          ticker: h.ticker,
+        });
+        if (isCash) {
+          entry.cash += market;
+          accountEntry.cash += market;
+        } else {
+          entry.stock += market;
+          accountEntry.stock += market;
+        }
       }
     }
 
@@ -343,6 +364,8 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
           ? (data.dayChange / (data.value - data.dayChange)) * 100
           : 0;
       const valuePct = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
+      const stockPct = totalValue > 0 ? (data.stock / totalValue) * 100 : 0;
+      const cashPct = totalValue > 0 ? (data.cash / totalValue) * 100 : 0;
       const accounts = data.accounts.map((acct) => {
         const accountGainPct = acct.cost > 0 ? (acct.gain / acct.cost) * 100 : 0;
         const accountDayChangePct =
@@ -351,14 +374,29 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
             : 0;
         const accountValuePct =
           totalValue > 0 ? (acct.value / totalValue) * 100 : 0;
+        const accountStockPct =
+          totalValue > 0 ? (acct.stock / totalValue) * 100 : 0;
+        const accountCashPct =
+          totalValue > 0 ? (acct.cash / totalValue) * 100 : 0;
         return {
           ...acct,
           gainPct: accountGainPct,
           dayChangePct: accountDayChangePct,
           valuePct: accountValuePct,
+          stockPct: accountStockPct,
+          cashPct: accountCashPct,
         };
       });
-      return { owner, ...data, gainPct, dayChangePct, valuePct, accounts };
+      return {
+        owner,
+        ...data,
+        gainPct,
+        dayChangePct,
+        valuePct,
+        stockPct,
+        cashPct,
+        accounts,
+      };
     });
 
     const typeRows = Object.entries(perType).map(([type, value]) => ({
@@ -604,6 +642,12 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
               <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                 {relativeViewEnabled ? "Portfolio %" : "Total Value"}
               </th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {relativeViewEnabled ? "Stock %" : "Stock Value"}
+              </th>
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}>
+                {relativeViewEnabled ? "Cash %" : "Cash Value"}
+              </th>
               {!relativeViewEnabled && (
                 <th className={`${tableStyles.cell} ${tableStyles.right}`}>
                   Day Change
@@ -640,16 +684,26 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
                       )}
                       {row.owner}
                     </td>
-                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                      {relativeViewEnabled
-                        ? percent(row.valuePct)
-                        : money(row.value, baseCurrency)}
-                    </td>
-                    {!relativeViewEnabled && (
-                      <td
-                        className={`${tableStyles.cell} ${tableStyles.right}`}
-                        style={{
-                          color: row.dayChange >= 0 ? "lightgreen" : "red",
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {relativeViewEnabled
+                      ? percent(row.valuePct)
+                      : money(row.value, baseCurrency)}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {relativeViewEnabled
+                      ? percent(row.stockPct)
+                      : money(row.stock, baseCurrency)}
+                  </td>
+                  <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                    {relativeViewEnabled
+                      ? percent(row.cashPct)
+                      : money(row.cash, baseCurrency)}
+                  </td>
+                  {!relativeViewEnabled && (
+                    <td
+                      className={`${tableStyles.cell} ${tableStyles.right}`}
+                      style={{
+                        color: row.dayChange >= 0 ? "lightgreen" : "red",
                         }}
                       >
                         {money(row.dayChange, baseCurrency)}
@@ -687,16 +741,26 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
                         >
                           {acct.label}
                         </td>
-                        <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          {relativeViewEnabled
-                            ? percent(acct.valuePct)
-                            : money(acct.value, baseCurrency)}
-                        </td>
-                        {!relativeViewEnabled && (
-                          <td
-                            className={`${tableStyles.cell} ${tableStyles.right}`}
-                            style={{
-                              color: acct.dayChange >= 0 ? "lightgreen" : "red",
+                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                      {relativeViewEnabled
+                        ? percent(acct.valuePct)
+                        : money(acct.value, baseCurrency)}
+                    </td>
+                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                      {relativeViewEnabled
+                        ? percent(acct.stockPct)
+                        : money(acct.stock, baseCurrency)}
+                    </td>
+                    <td className={`${tableStyles.cell} ${tableStyles.right}`}>
+                      {relativeViewEnabled
+                        ? percent(acct.cashPct)
+                        : money(acct.cash, baseCurrency)}
+                    </td>
+                    {!relativeViewEnabled && (
+                      <td
+                        className={`${tableStyles.cell} ${tableStyles.right}`}
+                        style={{
+                          color: acct.dayChange >= 0 ? "lightgreen" : "red",
                             }}
                           >
                             {money(acct.dayChange, baseCurrency)}

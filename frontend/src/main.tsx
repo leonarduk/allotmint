@@ -31,6 +31,7 @@ const Trail = lazy(() => import('./pages/Trail'))
 const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'))
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'))
 const AlertSettings = lazy(() => import('./pages/AlertSettings'))
+const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'))
 const SmokeTest = import.meta.env.VITE_SMOKE_TEST
   ? lazy(() => import('./pages/SmokeTest'))
   : null
@@ -122,6 +123,7 @@ export function Root() {
           )}
           <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
           <Route path="/returns/compare" element={<ReturnComparison />} />
+          <Route path="/metrics-explained" element={<MetricsExplanation />} />
           <Route path="/*" element={<App onLogout={logout} />} />
         </Routes>
       </Suspense>

@@ -205,11 +205,6 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
                 commentary="Fine-tune drift alerts so significant moves surface quickly.",
             )
         )
-    elif "set_alert_threshold" not in user_data["once"]:
-        # Ensure users who configured a threshold outside of the quest flow do
-        # not repeatedly see the reminder task.  Recording the completion keeps
-        # the task catalogue stable while reflecting the user's state.
-        user_data["once"].append("set_alert_threshold")
 
     # Push notifications require an explicit subscription – remind the user
     # when none is configured.
@@ -230,8 +225,6 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
                 commentary="Stay informed about nudges and alerts without opening the app.",
             )
         )
-    elif "enable_push_notifications" not in user_data["once"]:
-        user_data["once"].append("enable_push_notifications")
 
     return tasks
 

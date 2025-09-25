@@ -56,6 +56,7 @@ from backend.routes.news import router as news_router
 from backend.routes.market import router as market_router
 from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
+from backend.routes.opportunities import router as opportunities_router
 from backend.routes.portfolio import public_router as public_portfolio_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.query import router as query_router
@@ -233,6 +234,7 @@ def create_app() -> FastAPI:
     app.include_router(public_portfolio_router)
     app.include_router(portfolio_router, dependencies=protected)
     app.include_router(performance_router, dependencies=protected)
+    app.include_router(opportunities_router)
     app.include_router(instrument_router)
     # Administrative endpoints for editing instrument definitions. Authentication
     # is applied at include-time so `cfg.disable_auth` can skip it during

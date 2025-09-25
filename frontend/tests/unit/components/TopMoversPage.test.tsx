@@ -3,75 +3,118 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TopMoversPage } from "@/components/TopMoversPage";
-import type { MoverRow } from "@/types";
+import type { OpportunityEntry, TradingSignal } from "@/types";
 
 vi.mock("@/data/watchlists", () => ({
   WATCHLISTS: { "FTSE 100": ["AAA", "BBB"] },
 }));
 
-const mockGetTopMovers = vi.fn(() =>
-  Promise.resolve({
-    gainers: [{ ticker: "AAA", name: "AAA", change_pct: 5 } as MoverRow],
-    losers: [{ ticker: "BBB", name: "BBB", change_pct: -2 } as MoverRow],
-  }),
-);
-const mockGetGroupMovers = vi.fn(() =>
-  Promise.resolve({
+const signal: TradingSignal = {
+  ticker: "AAA",
+  action: "BUY",
+  reason: "go long",
+};
 
-  gainers: [
-      {
-        ticker: "AAA",
-        name: "AAA",
-        change_pct: 5,
-        market_value_gbp: 100,
-      } as MoverRow,
-    ],
-    losers: [
-      {
-        ticker: "BBB",
-        name: "BBB",
-        change_pct: -2,
-        market_value_gbp: 50,
-      } as MoverRow,
-    ],
-  }),
-);
+const groupEntries: OpportunityEntry[] = [
+  {
+    ticker: "AAA",
+    name: "AAA",
+    change_pct: 5,
+    market_value_gbp: 100,
+    side: "gainers",
+    signal,
+  },
+  {
+    ticker: "BBB",
+    name: "BBB",
+    change_pct: -2,
+    market_value_gbp: 50,
+    side: "losers",
+  },
+];
+
+const watchlistEntries: OpportunityEntry[] = [
+  {
+    ticker: "AAA",
+    name: "AAA",
+    change_pct: 5,
+    side: "gainers",
+  },
+  {
+    ticker: "BBB",
+    name: "BBB",
+    change_pct: -2,
+    side: "losers",
+  },
+];
+
+const mockGetOpportunities = vi.fn((opts: { group?: string; tickers?: string[] }) => {
+  if (opts.group === "all") {
+    return Promise.resolve({
+      entries: groupEntries,
+      signals: [signal],
+      context: { source: "group", group: "all", days: 1, anomalies: [] },
+    });
+  }
+  return Promise.resolve({
+    entries: watchlistEntries,
+    signals: [],
+    context: { source: "watchlist", tickers: opts.tickers ?? [], days: 1, anomalies: [] },
+  });
+});
+
 const mockGetGroupInstruments = vi.fn(() =>
   Promise.resolve([
     {
-      ticker: "CCC",
-      name: "CCC",
-      currency: null,
-      units: 0,
-      market_value_gbp: 0,
+      ticker: "AAA",
+      name: "AAA",
+      market_value_gbp: 100,
       gain_gbp: 0,
+      units: 1,
+      currency: "GBP",
     },
-  ]),
-);
-const mockGetTradingSignals = vi.fn(() =>
-  Promise.resolve([
-    { ticker: "AAA", name: "AAA", action: "buy", reason: "go long" },
+    {
+      ticker: "BBB",
+      name: "BBB",
+      market_value_gbp: 50,
+      gain_gbp: 0,
+      units: 1,
+      currency: "GBP",
+    },
   ]),
 );
 
 vi.mock("@/api", () => ({
-  getTopMovers: (
-    ...args: Parameters<typeof mockGetTopMovers>
-  ) => mockGetTopMovers(...args),
+  getOpportunities: (
+    ...args: Parameters<typeof mockGetOpportunities>
+  ) => mockGetOpportunities(...args),
   getGroupInstruments: (
     ...args: Parameters<typeof mockGetGroupInstruments>
   ) => mockGetGroupInstruments(...args),
-  getGroupMovers: (
-    ...args: Parameters<typeof mockGetGroupMovers>
-  ) => mockGetGroupMovers(...args),
-  getTradingSignals: (
-    ...args: Parameters<typeof mockGetTradingSignals>
-  ) => mockGetTradingSignals(...args),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
+  mockGetOpportunities.mockImplementation((opts) => {
+    if (opts.group === "all") {
+      return Promise.resolve({
+        entries: groupEntries,
+        signals: [signal],
+        context: { source: "group", group: "all", days: 1, anomalies: [] },
+      });
+    }
+    return Promise.resolve({
+      entries: watchlistEntries,
+      signals: [],
+      context: {
+        source: "watchlist",
+        tickers: opts.tickers ?? [],
+        days: 1,
+        anomalies: [],
+      },
+    });
+  });
 });
 
 vi.mock("@/components/InstrumentDetail", () => ({
@@ -81,7 +124,7 @@ vi.mock("@/components/InstrumentDetail", () => ({
     onClose,
   }: {
     ticker: string;
-    signal?: { action: string; reason: string };
+    signal?: { action: string; reason: string } | null;
     onClose: () => void;
   }) => (
     <div data-testid="detail">
@@ -104,12 +147,15 @@ describe("TopMoversPage", () => {
       </MemoryRouter>,
     );
 
-      await waitFor(() =>
-        expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"),
-      );
-      await waitFor(() =>
-        expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
-      );
+    await waitFor(() => expect(mockGetGroupInstruments).toHaveBeenCalledWith("all"));
+    await waitFor(() =>
+      expect(mockGetOpportunities).toHaveBeenCalledWith({
+        group: "all",
+        days: 1,
+        limit: 10,
+        minWeight: 0,
+      }),
+    );
     expect((await screen.findAllByText("AAA")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("BBB")).length).toBeGreaterThan(0);
 
@@ -118,11 +164,16 @@ describe("TopMoversPage", () => {
     await userEvent.selectOptions(periodSelect, "1w");
     await waitFor(() => expect(periodSelect).toHaveValue("1w"));
     await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 7, 10, 0),
+      expect(mockGetOpportunities).toHaveBeenLastCalledWith({
+        group: "all",
+        days: 7,
+        limit: 10,
+        minWeight: 0,
+      }),
     );
   });
 
-  it("fetches watchlist instruments when selecting FTSE 100", async () => {
+  it("fetches watchlist opportunities when selecting FTSE 100", async () => {
     render(
       <MemoryRouter>
         <TopMoversPage />
@@ -130,16 +181,25 @@ describe("TopMoversPage", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
+      expect(mockGetOpportunities).toHaveBeenCalledWith({
+        group: "all",
+        days: 1,
+        limit: 10,
+        minWeight: 0,
+      }),
     );
 
     const selects = await screen.findAllByRole("combobox");
     const watchlistSelect = selects[0] as HTMLSelectElement;
     await userEvent.selectOptions(watchlistSelect, "FTSE 100");
-    await waitFor(() => {
-      expect(watchlistSelect).toHaveValue("FTSE 100");
-      expect(mockGetTopMovers).toHaveBeenLastCalledWith(["AAA", "BBB"], 1);
-    });
+    await waitFor(() => expect(watchlistSelect).toHaveValue("FTSE 100"));
+    await waitFor(() =>
+      expect(mockGetOpportunities).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tickers: ["AAA", "BBB"],
+        }),
+      ),
+    );
   });
 
   it("mounts InstrumentDetail with signal when ticker clicked", async () => {
@@ -149,13 +209,13 @@ describe("TopMoversPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("go long");
+    await screen.findByText(/go long/i);
 
     const button = await screen.findByRole("button", { name: "AAA" });
     fireEvent.click(button);
     const detail = await screen.findByTestId("detail");
     expect(detail).toHaveTextContent("AAA");
-    expect(detail).toHaveTextContent(/buy/i);
+    expect(detail).toHaveTextContent(/BUY/i);
     expect(detail).toHaveTextContent("go long");
   });
 
@@ -181,7 +241,6 @@ describe("TopMoversPage", () => {
         <TopMoversPage />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(mockGetTradingSignals).toHaveBeenCalled());
     const tickerBtn = await screen.findByRole("button", { name: "AAA" });
     const row = tickerBtn.closest("tr");
     expect(row).not.toBeNull();
@@ -190,14 +249,14 @@ describe("TopMoversPage", () => {
     fireEvent.click(badge);
     const detail = await screen.findByTestId("detail");
     expect(detail).toHaveTextContent("AAA");
-    expect(detail).toHaveTextContent(/buy/i);
+    expect(detail).toHaveTextContent(/BUY/i);
     expect(detail).toHaveTextContent("go long");
   });
 
   it("shows HTTP status when fetch fails", async () => {
-    mockGetGroupMovers.mockRejectedValueOnce(
-      new Error("HTTP 401 – Unauthorized"),
-    );
+    mockGetOpportunities.mockImplementationOnce(() => {
+      throw new Error("HTTP 401 – Unauthorized");
+    });
     render(
       <MemoryRouter>
         <TopMoversPage />
@@ -207,9 +266,10 @@ describe("TopMoversPage", () => {
   });
 
   it("falls back to FTSE 100 and prompts login on 401", async () => {
-    mockGetGroupMovers.mockRejectedValueOnce(
-      new Error("HTTP 401 – Unauthorized"),
-    );
+    mockGetOpportunities.mockImplementationOnce(() => {
+      const err = new Error("HTTP 401 – Unauthorized");
+      return Promise.reject(err);
+    });
     render(
       <MemoryRouter>
         <TopMoversPage />
@@ -217,7 +277,11 @@ describe("TopMoversPage", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetTopMovers).toHaveBeenCalledWith(["AAA", "BBB"], 1),
+      expect(mockGetOpportunities).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tickers: ["AAA", "BBB"],
+        }),
+      ),
     );
 
     const selects = await screen.findAllByRole("combobox");
@@ -237,14 +301,24 @@ describe("TopMoversPage", () => {
     );
 
     await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenCalledWith("all", 1, 10, 0),
+      expect(mockGetOpportunities).toHaveBeenCalledWith({
+        group: "all",
+        days: 1,
+        limit: 10,
+        minWeight: 0,
+      }),
     );
 
     const checkbox = screen.getByLabelText(/Exclude positions/i);
     fireEvent.click(checkbox);
 
     await waitFor(() =>
-      expect(mockGetGroupMovers).toHaveBeenLastCalledWith("all", 1, 10, 0.5),
+      expect(mockGetOpportunities).toHaveBeenLastCalledWith({
+        group: "all",
+        days: 1,
+        limit: 10,
+        minWeight: 0.5,
+      }),
     );
   });
 });

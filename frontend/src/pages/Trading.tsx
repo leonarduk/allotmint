@@ -57,7 +57,7 @@ export default function Trading() {
       {selected && (
         <InstrumentDetail
           ticker={selected.ticker}
-          name={selected.name}
+          name={selected.name ?? selected.ticker}
           currency={selected.currency ?? undefined}
           instrument_type={selected.instrument_type}
           signal={selected}

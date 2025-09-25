@@ -429,13 +429,18 @@ export interface VirtualPortfolio {
 
 export interface TradingSignal {
   ticker: string;
-  name: string;
-  action: 'buy' | 'sell';
+  name?: string;
+  action: 'buy' | 'sell' | 'BUY' | 'SELL';
   reason: string;
   confidence?: number;
   rationale?: string;
   currency?: string | null;
   instrument_type?: string | null;
+}
+
+export interface OpportunityEntry extends MoverRow {
+  side: 'gainers' | 'losers';
+  signal?: TradingSignal | null;
 }
 
 export interface CustomQuery {

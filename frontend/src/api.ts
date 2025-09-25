@@ -25,6 +25,7 @@ import type {
   SavedQuery,
   QuoteRow,
   TradingSignal,
+  OpportunityEntry,
   ComplianceResult,
   MoverRow,
   TimeseriesSummary,
@@ -266,6 +267,51 @@ export const getTopMovers = (
   if (limit) params.set("limit", String(limit));
   return fetchJson<{ gainers: MoverRow[]; losers: MoverRow[] }>(
     `${API_BASE}/movers?${params.toString()}`,
+  );
+};
+
+export type OpportunitiesResponse = {
+  entries: OpportunityEntry[];
+  signals: TradingSignal[];
+  context: {
+    source: "group" | "watchlist";
+    group?: string | null;
+    tickers?: string[];
+    days: number;
+    anomalies?: string[];
+  };
+};
+
+export const getOpportunities = ({
+  group,
+  tickers,
+  days = 1,
+  limit = 10,
+  minWeight = 0,
+}: {
+  group?: string;
+  tickers?: string[];
+  days?: number;
+  limit?: number;
+  minWeight?: number;
+}) => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (limit) params.set("limit", String(limit));
+  if (minWeight) params.set("min_weight", String(minWeight));
+
+  if (group && tickers?.length) {
+    throw new Error("Specify either group or tickers, not both");
+  }
+  if (group) {
+    params.set("group", group);
+  } else if (tickers?.length) {
+    params.set("tickers", tickers.join(","));
+  } else {
+    throw new Error("Either group or tickers must be provided");
+  }
+
+  return fetchJson<OpportunitiesResponse>(
+    `${API_BASE}/opportunities?${params.toString()}`,
   );
 };
 

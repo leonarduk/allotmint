@@ -2,13 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import {
-  getTopMovers,
-  getGroupInstruments,
-  getTradingSignals,
-  getGroupMovers,
-} from "../api";
-import type { MoverRow, TradingSignal } from "../types";
+import { getOpportunities, getGroupInstruments } from "../api";
+import type { OpportunityEntry } from "../types";
 import { WATCHLISTS, type WatchlistName } from "../data/watchlists";
 import { InstrumentDetail } from "./InstrumentDetail";
 import { SignalBadge } from "./SignalBadge";
@@ -35,13 +30,10 @@ export function TopMoversPage() {
     loadJSON<PeriodKey>("topMovers.period", "1d"),
   );
   const [selected, setSelected] = useState<
-    { row: MoverRow; signal?: TradingSignal } | null
+    { row: OpportunityEntry } | null
   >(null);
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [signals, setSignals] = useState<TradingSignal[]>([]);
-  const [signalsLoading, setSignalsLoading] = useState(true);
-  const [signalsError, setSignalsError] = useState<string | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
   const [portfolioTotal, setPortfolioTotal] = useState<number | null>(null);
   const [excludeSmall, setExcludeSmall] = useState(() =>
@@ -76,43 +68,54 @@ export function TopMoversPage() {
           setNeedsLogin(true);
           setWatchlist("FTSE 100");
           setPortfolioTotal(null);
-          return getTopMovers(WATCHLISTS["FTSE 100"], PERIODS[period]);
+          return getOpportunities({
+            tickers: WATCHLISTS["FTSE 100"],
+            days: PERIODS[period],
+            limit: 10,
+          });
         }
         throw e;
       }
 
       try {
         setFallbackError(null);
-        return await getGroupMovers(
-          "all",
-          PERIODS[period],
-          10,
-          excludeSmall ? MIN_WEIGHT : 0,
-        );
+        return await getOpportunities({
+          group: "all",
+          days: PERIODS[period],
+          limit: 10,
+          minWeight: excludeSmall ? MIN_WEIGHT : 0,
+        });
       } catch (e) {
         if (e instanceof Error && /^HTTP 401/.test(e.message)) {
           setNeedsLogin(true);
           setWatchlist("FTSE 100");
           setPortfolioTotal(null);
           setFallbackError(e.message);
-          return getTopMovers(WATCHLISTS["FTSE 100"], PERIODS[period]);
+          return getOpportunities({
+            tickers: WATCHLISTS["FTSE 100"],
+            days: PERIODS[period],
+            limit: 10,
+          });
         }
         throw e;
       }
     }
     setPortfolioTotal(null);
-    return getTopMovers(WATCHLISTS[watchlist], PERIODS[period]);
+    return getOpportunities({
+      tickers: WATCHLISTS[watchlist],
+      days: PERIODS[period],
+      limit: 10,
+    });
   }, [watchlist, period, excludeSmall]);
   const { data, loading, error } = useFetch(fetchMovers, [watchlist, period, excludeSmall]);
-  type ExtendedMoverRow = MoverRow & {
+  type ExtendedMoverRow = OpportunityEntry & {
     delta_gbp?: number | null;
     pct_portfolio?: number | null;
   };
   const rows: ExtendedMoverRow[] = useMemo(() => {
-    if (!data) return [];
-    const combined = [...data.gainers, ...data.losers];
+    const entries = data?.entries ?? [];
     if (watchlist === "Portfolio") {
-      return combined.map((r) => ({
+      return entries.map((r) => ({
         ...r,
         delta_gbp:
           r.market_value_gbp != null
@@ -124,28 +127,13 @@ export function TopMoversPage() {
             : null,
       }));
     }
-    return combined;
+    return entries;
   }, [data, watchlist, portfolioTotal]);
 
   const { sorted, handleSort } = useSortableTable<ExtendedMoverRow>(
     rows,
     "change_pct",
   );
-
-  useEffect(() => {
-    getTradingSignals()
-      .then(setSignals)
-      .catch((e) =>
-        setSignalsError(e instanceof Error ? e.message : String(e)),
-      )
-      .finally(() => setSignalsLoading(false));
-  }, []);
-
-  const signalMap = useMemo(() => {
-    const map = new Map<string, TradingSignal>();
-    for (const s of signals ?? []) map.set(s.ticker, s);
-    return map;
-  }, [signals]);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
@@ -303,9 +291,7 @@ export function TopMoversPage() {
                 <td className={tableStyles.cell}>
                   <button
                     type="button"
-                    onClick={() =>
-                      setSelected({ row: r, signal: signalMap.get(r.ticker) })
-                    }
+                    onClick={() => setSelected({ row: r })}
                     style={{
                       color: "dodgerblue",
                       textDecoration: "underline",
@@ -321,18 +307,15 @@ export function TopMoversPage() {
                 </td>
                 <td className={tableStyles.cell}>{r.name}</td>
                 <td className={tableStyles.cell}>
-                  {(() => {
-                    const s = signalMap.get(r.ticker);
-                    return s ? (
-                      <SignalBadge
-                        action={s.action}
-                        reason={s.reason}
-                        confidence={s.confidence}
-                        rationale={s.rationale}
-                        onClick={() => setSelected({ row: r, signal: s })}
-                      />
-                    ) : null;
-                  })()}
+                  {r.signal ? (
+                    <SignalBadge
+                      action={r.signal.action}
+                      reason={r.signal.reason}
+                      confidence={r.signal.confidence}
+                      rationale={r.signal.rationale}
+                      onClick={() => setSelected({ row: r })}
+                    />
+                  ) : null}
                 </td>
                 <td
                   className={`${tableStyles.cell} ${tableStyles.right}`}
@@ -363,11 +346,9 @@ export function TopMoversPage() {
         </tbody>
       </table>
       </div>
-      {signalsLoading ? (
+      {!data ? (
         <p>{t("common.loading")}</p>
-      ) : signalsError ? (
-        <p style={{ color: "red" }}>{signalsError}</p>
-      ) : signals.length === 0 ? (
+      ) : data.signals.length === 0 ? (
         <p>{t("trading.noSignals")}</p>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
@@ -379,7 +360,7 @@ export function TopMoversPage() {
             </tr>
           </thead>
           <tbody>
-            {signals.map((s) => (
+            {data.signals.map((s) => (
               <tr key={s.ticker}>
                 <td style={{ padding: "4px" }}>
                   <a
@@ -404,7 +385,7 @@ export function TopMoversPage() {
         <InstrumentDetail
           ticker={selected.row.ticker}
           name={selected.row.name}
-          signal={selected.signal}
+          signal={selected.row.signal ?? undefined}
           onClose={() => setSelected(null)}
         />
       )}

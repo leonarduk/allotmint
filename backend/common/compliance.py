@@ -51,6 +51,11 @@ def _ensure_owner_scaffold(owner: str, owner_dir: Path) -> None:
     defaults: Dict[str, Dict[str, Any]] = {
         "settings.json": _default_settings_payload(),
         "approvals.json": {"approvals": []},
+        "person.json": {
+            "owner": owner,
+            "holdings": [],
+            "viewers": [],
+        },
         f"{owner}_transactions.json": {
             "account_type": "brokerage",
             "transactions": [],
@@ -86,8 +91,7 @@ def load_transactions(owner: str, accounts_root: Optional[Path] = None) -> List[
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owner_dir = root / owner
-    if not owner_dir.exists():
-        _ensure_owner_scaffold(owner, owner_dir)
+    _ensure_owner_scaffold(owner, owner_dir)
 
     results: List[Dict[str, Any]] = []
     for path in owner_dir.glob("*_transactions.json"):

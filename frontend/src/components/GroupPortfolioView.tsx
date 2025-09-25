@@ -241,6 +241,77 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
     }
   }, [portfolio, onTradeInfo]);
 
+  const filteredAccounts = useMemo(() => {
+    const source = portfolio?.accounts ?? [];
+    return source.filter((acct) => {
+      if (activeOwner && acct.owner !== activeOwner) return false;
+      if (activeAccountType && acct.account_type !== activeAccountType) return false;
+      return true;
+    });
+  }, [portfolio, activeOwner, activeAccountType]);
+
+  const totals = useMemo(
+    () => computePortfolioTotals(filteredAccounts),
+    [filteredAccounts],
+  );
+
+  const { ownerRows, typeRows } = useMemo(() => {
+    const perOwner: Record<
+      string,
+      { value: number; dayChange: number; gain: number; cost: number }
+    > = {};
+    const perType: Record<string, number> = {};
+
+    for (const acct of filteredAccounts) {
+      const owner = acct.owner ?? "—";
+      const entry =
+        perOwner[owner] ||
+        (perOwner[owner] = { value: 0, dayChange: 0, gain: 0, cost: 0 });
+
+      entry.value += acct.value_estimate_gbp ?? 0;
+
+      for (const h of acct.holdings ?? []) {
+        const cost =
+          h.cost_basis_gbp && h.cost_basis_gbp > 0
+            ? h.cost_basis_gbp
+            : h.effective_cost_basis_gbp ?? 0;
+        const market = h.market_value_gbp ?? 0;
+        const gain =
+          h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
+            ? h.gain_gbp
+            : market - cost;
+        const dayChg = h.day_change_gbp ?? 0;
+
+        const typeKey = (h.instrument_type ?? "other").toLowerCase();
+        perType[typeKey] = (perType[typeKey] || 0) + market;
+
+        entry.cost += cost;
+        entry.gain += gain;
+        entry.dayChange += dayChg;
+      }
+    }
+
+    const totalValue = totals.totalValue;
+
+    const ownerRows = Object.entries(perOwner).map(([owner, data]) => {
+      const gainPct = data.cost > 0 ? (data.gain / data.cost) * 100 : 0;
+      const dayChangePct =
+        data.value - data.dayChange !== 0
+          ? (data.dayChange / (data.value - data.dayChange)) * 100
+          : 0;
+      const valuePct = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
+      return { owner, ...data, gainPct, dayChangePct, valuePct };
+    });
+
+    const typeRows = Object.entries(perType).map(([type, value]) => ({
+      name: translateInstrumentType(t, type),
+      value,
+      pct: totalValue > 0 ? (value / totalValue) * 100 : 0,
+    }));
+
+    return { ownerRows, typeRows };
+  }, [filteredAccounts, t, totals.totalValue]);
+
   /* ── early-return states ───────────────────────────────── */
   if (!slug) return <p>{t("group.select")}</p>;
   if (portfolioError)
@@ -250,61 +321,6 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
       </p>
     );
   if (loading || !portfolio) return <p>{t("common.loading")}</p>;
-
-  const perOwner: Record<
-    string,
-    { value: number; dayChange: number; gain: number; cost: number }
-  > = {};
-  const perType: Record<string, number> = {};
-
-  const accounts = portfolio.accounts ?? [];
-
-  const totals = computePortfolioTotals(accounts);
-  const { totalValue } = totals;
-
-  for (const acct of accounts) {
-    const owner = acct.owner ?? "—";
-    const entry =
-      perOwner[owner] || (perOwner[owner] = { value: 0, dayChange: 0, gain: 0, cost: 0 });
-
-    entry.value += acct.value_estimate_gbp ?? 0;
-
-    for (const h of acct.holdings ?? []) {
-      const cost =
-        h.cost_basis_gbp && h.cost_basis_gbp > 0
-          ? h.cost_basis_gbp
-          : h.effective_cost_basis_gbp ?? 0;
-      const market = h.market_value_gbp ?? 0;
-      const gain =
-        h.gain_gbp !== undefined && h.gain_gbp !== null && h.gain_gbp !== 0
-          ? h.gain_gbp
-          : market - cost;
-      const dayChg = h.day_change_gbp ?? 0;
-
-      const typeKey = (h.instrument_type ?? "other").toLowerCase();
-      perType[typeKey] = (perType[typeKey] || 0) + market;
-
-      entry.cost += cost;
-      entry.gain += gain;
-      entry.dayChange += dayChg;
-    }
-  }
-
-  const ownerRows = Object.entries(perOwner).map(([owner, data]) => {
-    const gainPct = data.cost > 0 ? (data.gain / data.cost) * 100 : 0;
-    const dayChangePct =
-      data.value - data.dayChange !== 0
-        ? (data.dayChange / (data.value - data.dayChange)) * 100
-        : 0;
-    const valuePct = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
-    return { owner, ...data, gainPct, dayChangePct, valuePct };
-  });
-
-  const typeRows = Object.entries(perType).map(([type, value]) => ({
-    name: translateInstrumentType(t, type),
-    value,
-    pct: totalValue > 0 ? (value / totalValue) * 100 : 0,
-  }));
 
   const safeAlpha =
     alpha != null && Math.abs(alpha) > 1 ? alpha / 100 : alpha;
@@ -318,6 +334,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
       : maxDrawdown;
 
   const isAllPositions = activeOwner === null;
+  const hasFilteredAccounts = filteredAccounts.length > 0;
 
   /* ── render ────────────────────────────────────────────── */
   return (
@@ -333,7 +350,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         <RelativeViewToggle />
       </div>
 
-      {!relativeViewEnabled && isAllPositions && (
+      {!relativeViewEnabled && hasFilteredAccounts && (
         <PortfolioSummary totals={totals} />
       )}
 
@@ -410,7 +427,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
         </p>
       )}
 
-      {isAllPositions && typeRows.length > 0 && (
+      {typeRows.length > 0 && (
         <div style={{ width: "100%", height: 240, margin: "1rem 0" }}>
           <ResponsiveContainer>
             <PieChart>
@@ -483,7 +500,7 @@ export function GroupPortfolioView({ slug, onSelectMember, onTradeInfo }: Props)
 
       {isAllPositions && <TopMoversSummary slug={slug} />}
 
-      {isAllPositions && (
+      {ownerRows.length > 0 && (
         <table className={tableStyles.table} style={{ marginBottom: "1rem" }}>
           <thead>
             <tr>

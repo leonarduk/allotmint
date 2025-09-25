@@ -1,9 +1,11 @@
 import json
 from datetime import date
+from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.common import compliance
+from backend.routes import compliance as compliance_routes
 
 
 def _setup_app(tmp_path):
@@ -109,3 +111,22 @@ def test_validate_trade_missing_owner(tmp_path):
     with TestClient(app) as client:
         resp = client.post("/compliance/validate", json={})
         assert resp.status_code == 422
+
+
+def test_known_owners_accepts_string_accounts_root(tmp_path, monkeypatch):
+    accounts_root = tmp_path / "alt-accounts"
+    owner_dir = accounts_root / "Demo"
+    owner_dir.mkdir(parents=True)
+
+    captured: dict[str, Path] = {}
+
+    def fake_list_plots(root):
+        captured["root"] = root
+        return [{"owner": "Demo"}]
+
+    with monkeypatch.context() as m:
+        m.setattr(compliance_routes.data_loader, "list_plots", fake_list_plots)
+        owners = compliance_routes._known_owners(str(accounts_root))
+
+    assert owners == {"demo"}
+    assert isinstance(captured["root"], Path)

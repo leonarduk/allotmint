@@ -1006,7 +1006,7 @@ function createGroupedRows(
                 key,
                 raw: trimmed,
                 row,
-              }) ?? trimmed || options.ungroupedLabel;
+              }) ?? (trimmed || options.ungroupedLabel);
       group = {
         key,
         label,

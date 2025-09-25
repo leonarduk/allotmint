@@ -15,20 +15,29 @@ def _known_owners(accounts_root) -> set[str]:
 
     owners: set[str] = set()
     try:
+        entries = data_loader.list_plots(accounts_root)
+    except Exception:
+        entries = []
+
+    for entry in entries:
+        owner = (entry.get("owner") or "").strip()
+        if owner:
+            owners.add(owner.lower())
+
+    if owners:
+        return owners
+
+    try:
         root_path = Path(accounts_root) if accounts_root else data_loader.resolve_paths(None, None).accounts_root
     except Exception:
-        root_path = None
-    else:
-        if not root_path.exists():
-            root_path = None
+        return owners
 
-    for entry in data_loader.list_plots(accounts_root):
-        owner = (entry.get("owner") or "").strip()
-        if not owner:
-            continue
-        if root_path and not (root_path / owner / "person.json").exists():
-            continue
-        owners.add(owner.lower())
+    if not root_path or not root_path.exists():
+        return owners
+
+    for entry in root_path.iterdir():
+        if entry.is_dir():
+            owners.add(entry.name.lower())
     return owners
 
 

@@ -310,7 +310,7 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     _rebuild_portfolio(owner, account)
 
     tx_id = _build_transaction_id(owner, account, new_index)
-    return {"owner": owner, "account": account.lower(), "id": tx_id, **tx_data}
+    return {"owner": owner, "account": account, "id": tx_id, **tx_data}
 
 
 @router.put("/transactions/{tx_id}")

@@ -76,17 +76,24 @@ def _parse_date(val: str | None) -> date | None:
         return None
 
 
-def load_transactions(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
+def load_transactions(
+    owner: str,
+    accounts_root: Optional[Path] = None,
+    *,
+    scaffold_missing: bool = False,
+) -> List[Dict[str, Any]]:
     """Load all transactions for ``owner`` sorted by date.
 
-    Missing owners are initialised with an empty compliance scaffold, ensuring
-    downstream callers always receive a list (possibly empty) without needing to
-    catch :class:`FileNotFoundError`.
+    By default the function now raises :class:`FileNotFoundError` when the owner
+    directory is absent.  Administrative callers that want to bootstrap a new
+    owner can opt-in to scaffolding by passing ``scaffold_missing=True``.
     """
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owner_dir = root / owner
     if not owner_dir.exists():
+        if not scaffold_missing:
+            raise FileNotFoundError(f"owner data for '{owner}' not found at {owner_dir}")
         _ensure_owner_scaffold(owner, owner_dir)
 
     results: List[Dict[str, Any]] = []
@@ -224,13 +231,25 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
     }
 
 
-def check_owner(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, Any]:
+def check_owner(
+    owner: str,
+    accounts_root: Optional[Path] = None,
+    *,
+    scaffold_missing: bool = False,
+) -> Dict[str, Any]:
     """Return compliance warnings for an owner."""
-    txs = load_transactions(owner, accounts_root)
+    txs = load_transactions(
+        owner, accounts_root, scaffold_missing=scaffold_missing
+    )
     return _check_transactions(owner, txs, accounts_root)
 
 
-def check_trade(trade: Dict[str, Any], accounts_root: Optional[Path] = None) -> Dict[str, Any]:
+def check_trade(
+    trade: Dict[str, Any],
+    accounts_root: Optional[Path] = None,
+    *,
+    scaffold_missing: bool = False,
+) -> Dict[str, Any]:
     """Validate a proposed trade for compliance issues.
 
     The trade is evaluated in the context of the owner's existing transactions.
@@ -239,7 +258,9 @@ def check_trade(trade: Dict[str, Any], accounts_root: Optional[Path] = None) -> 
     owner = trade.get("owner")
     if not owner:
         raise ValueError("owner is required")
-    txs = load_transactions(owner, accounts_root)
+    txs = load_transactions(
+        owner, accounts_root, scaffold_missing=scaffold_missing
+    )
     txs.append(trade)
     return _check_transactions(owner, txs, accounts_root)
 

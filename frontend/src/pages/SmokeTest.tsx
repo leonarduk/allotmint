@@ -32,7 +32,7 @@ export default function SmokeTest() {
   return (
     <div style={{ padding: '1rem' }}>
       <h1>Smoke test</h1>
-      <ul>
+      <ul aria-label="Smoke test results">
         {results.map((r) => (
           <li key={r.path} style={{ color: r.ok ? 'green' : 'red' }}>
             {r.path}: {r.ok ? 'ok' : 'failed'}{' '}

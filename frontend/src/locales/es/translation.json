@@ -12,10 +12,9 @@
     "menu": "Menú",
     "menuCategories": {
       "overview": "Resumen",
-      "portfolio": "Gestión de carteras",
-      "research": "Investigación y análisis",
-      "reporting": "Informes y cumplimiento",
-      "planning": "Planificación y herramientas",
+      "portfolio": "Portfolio",
+      "research": "Research",
+      "planning": "Planning",
       "settings": "Configuración",
       "supportTools": "Herramientas de soporte",
       "other": "Otros"

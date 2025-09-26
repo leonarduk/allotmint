@@ -82,6 +82,20 @@
   color: rgba(0, 0, 0, 0.6);
 }
 
+.groupAction {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.groupActionSelect {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
 @media (max-width: 768px) {
   .cell {
     padding: 2px 4px;

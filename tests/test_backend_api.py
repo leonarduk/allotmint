@@ -181,8 +181,18 @@ def test_valid_portfolio(client):
     assert resp.status_code == 200
 
 
-def test_invalid_portfolio(client):
-    resp = client.get("/portfolio/noone")
+def test_invalid_portfolio(client, monkeypatch):
+    groups = _get_groups(client)
+    owner = groups[0]["members"][0]
+
+    def _missing(owner_name, accounts_root=None):
+        raise FileNotFoundError(f"missing data for {owner_name}")
+
+    monkeypatch.setattr(
+        "backend.common.portfolio.build_owner_portfolio", _missing
+    )
+
+    resp = client.get(f"/portfolio/{owner}")
     assert resp.status_code == 404
 
 
@@ -313,8 +323,21 @@ def test_compliance_endpoint(client):
     assert "warnings" in data and isinstance(data["warnings"], list)
 
 
-def test_compliance_invalid_owner(client):
-    resp = client.get("/compliance/noone")
+def test_compliance_invalid_owner(client, monkeypatch):
+    owners = _get_owners(client)
+    owner = owners[0]["owner"]
+
+    monkeypatch.setattr(
+        "backend.routes.compliance._known_owners",
+        lambda accounts_root: {owner.lower()},
+    )
+
+    def _missing(owner_name, accounts_root=None, *, scaffold_missing=False):
+        raise FileNotFoundError(f"missing data for {owner_name}")
+
+    monkeypatch.setattr("backend.common.compliance.check_owner", _missing)
+
+    resp = client.get(f"/compliance/{owner}")
     assert resp.status_code == 404
 
 

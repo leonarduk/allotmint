@@ -219,24 +219,31 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
     # ``_USER_THRESHOLDS`` cache only records explicit overrides, so the
     # presence of ``user`` indicates the threshold was customised.
     thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
-    has_custom_threshold = False
+    normalised_threshold: float | None = None
+    default_threshold = float(getattr(alerts, "DEFAULT_THRESHOLD_PCT", 0.0))
     if isinstance(thresholds, dict):
         raw_threshold = thresholds.get(user)
         try:
-            threshold_val = float(raw_threshold)
+            candidate = float(raw_threshold)
         except (TypeError, ValueError):
-            threshold_val = None
-        if threshold_val is not None:
-            # Treat values equal to the default as still requiring action.  The
-            # stored cache may include defaults from initialisation or test
-            # fixtures which should not mark the task as complete until the
-            # user explicitly chooses a different threshold.
-            has_custom_threshold = not math.isclose(
-                threshold_val,
-                float(getattr(alerts, "DEFAULT_THRESHOLD_PCT", 0.0)),
-                rel_tol=1e-9,
-                abs_tol=1e-9,
-            )
+            candidate = None
+        if candidate is not None and math.isfinite(candidate):
+            # Some persisted values store percentages as whole numbers (e.g. 5
+            # to represent 5%) – normalise those to fractional form before
+            # comparison.  Treat zero/negative sentinels as equivalent to the
+            # default, leaving ``normalised_threshold`` unset.
+            if candidate > 0:
+                normalised_threshold = candidate / 100.0 if candidate >= 1 else candidate
+
+    has_custom_threshold = bool(
+        normalised_threshold is not None
+        and not math.isclose(
+            normalised_threshold,
+            default_threshold,
+            rel_tol=1e-9,
+            abs_tol=1e-9,
+        )
+    )
     _sync_once_completion(user_data, "set_alert_threshold", has_custom_threshold)
     tasks.append(
         TaskDefinition(

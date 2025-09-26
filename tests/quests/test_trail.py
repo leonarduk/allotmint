@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from backend import alerts
 from backend.common.storage import get_storage
 from backend.quests import trail
 
@@ -174,3 +175,25 @@ def test_mark_complete_updates_streak(memory_storage):
     assert response["daily_totals"][today_str]["total"] == len(daily_ids)
     assert memory_storage[user]["streak"] == 2
     assert memory_storage[user]["daily_totals"][today_str]["completed"] == len(daily_ids)
+
+
+def test_threshold_once_task_ignores_seeded_default(memory_storage, monkeypatch):
+    monkeypatch.setattr(alerts, "_USER_THRESHOLDS", {"demo": 5})
+
+    response = trail.get_tasks("demo")
+    threshold_task = next(
+        task for task in response["tasks"] if task["id"] == "set_alert_threshold"
+    )
+
+    assert threshold_task["completed"] is False
+
+
+def test_threshold_once_task_marks_custom_value(memory_storage, monkeypatch):
+    monkeypatch.setattr(alerts, "_USER_THRESHOLDS", {"demo": 10})
+
+    response = trail.get_tasks("demo")
+    threshold_task = next(
+        task for task in response["tasks"] if task["id"] == "set_alert_threshold"
+    )
+
+    assert threshold_task["completed"] is True

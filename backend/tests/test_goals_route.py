@@ -1,4 +1,5 @@
 from datetime import date
+import importlib
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -6,20 +7,21 @@ from fastapi.testclient import TestClient
 import backend.routes as routes_pkg
 from backend.common import goals as goals_mod
 from backend.common.storage import get_storage
-from backend.routes import get_active_user
 from backend.routes import goals as goals_route
+from backend.auth import get_current_user
 
 
 def _app(tmp_path, monkeypatch, *, active_user: str | None = "alice", disable_auth: bool = False):
     storage = get_storage(f"file://{tmp_path / 'goals.json'}")
     storage.save({})
     monkeypatch.setattr(goals_mod, "_STORAGE", storage)
-    monkeypatch.setattr(goals_route, "DEMO_OWNER", "demo", raising=False)
     monkeypatch.setattr(routes_pkg.app_config, "disable_auth", disable_auth)
+    module = importlib.reload(goals_route)
+    monkeypatch.setattr(module, "DEMO_OWNER", "demo", raising=False)
     app = FastAPI()
-    app.include_router(goals_route.router)
+    app.include_router(module.router)
     if active_user is not None:
-        app.dependency_overrides[get_active_user] = lambda: active_user
+        app.dependency_overrides[get_current_user] = lambda: active_user
     return TestClient(app)
 
 

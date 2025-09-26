@@ -114,6 +114,28 @@ def test_validate_trade_missing_owner(tmp_path):
 
 def test_validate_trade_unknown_owner_returns_404_without_scaffold(tmp_path):
     app = _setup_app(tmp_path)
+    accounts_root = tmp_path / "accounts"
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/compliance/validate",
+            json={
+                "owner": " demo ",
+                "account": "brokerage",
+                "date": "2024-03-01",
+                "type": "buy",
+                "ticker": "XYZ",
+            },
+        )
+        assert resp.status_code == 404
+    assert not any(accounts_root.rglob("demo"))
+
+
+def test_validate_trade_when_owner_discovery_fails(tmp_path):
+    app = _setup_app(tmp_path)
+    # Point the app to a non-existent accounts directory so owner discovery
+    # yields an empty set. The endpoint should still accept the request and
+    # fall back to scaffolding the owner on demand instead of returning a 404.
     missing_root = tmp_path / "missing"
     app.state.accounts_root = missing_root
 
@@ -128,8 +150,12 @@ def test_validate_trade_unknown_owner_returns_404_without_scaffold(tmp_path):
                 "ticker": "XYZ",
             },
         )
-        assert resp.status_code == 404
-    assert not any(missing_root.rglob("demo"))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["owner"] == "demo"
+        assert data["warnings"] == []
+    scaffold = missing_root / "demo" / "demo_transactions.json"
+    assert scaffold.exists()
 
 
 def test_compliance_unknown_owner_does_not_create_directory(tmp_path):

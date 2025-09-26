@@ -92,7 +92,10 @@ async def validate_trade(request: Request):
     else:
         if owners:
             raise_owner_not_found()
-        trade["owner"] = owner_value
+        owner_dir = compliance.ensure_owner_scaffold(owner_value, accounts_root)
+        accounts_root = owner_dir.parent
+        request.app.state.accounts_root = accounts_root
+        trade["owner"] = owner_dir.name
     try:
         return compliance.check_trade(trade, accounts_root)
     except FileNotFoundError:

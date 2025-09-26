@@ -28,9 +28,8 @@ def resolve_accounts_root(request: Request) -> Path:
         except (OSError, RuntimeError, ValueError, TypeError):
             resolved_candidate = None
         else:
-            if resolved_candidate.exists():
-                request.app.state.accounts_root = resolved_candidate
-                return resolved_candidate
+            request.app.state.accounts_root = resolved_candidate
+            return resolved_candidate
 
     paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
     root = paths.accounts_root

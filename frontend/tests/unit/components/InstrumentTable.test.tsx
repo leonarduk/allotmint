@@ -4,6 +4,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { useState } from "react";
 import type { InstrumentSummary } from "@/types";
 import { configContext, type AppConfig } from "@/ConfigContext";
+import { MemoryRouter } from "react-router-dom";
 
 const defaultConfig: AppConfig = {
     relativeViewEnabled: false,
@@ -51,7 +52,12 @@ const TestProvider = ({ children }: { children: React.ReactNode }) => {
     );
 };
 
-const renderWithConfig = (ui: React.ReactElement) => render(<TestProvider>{ui}</TestProvider>);
+const renderWithConfig = (ui: React.ReactElement) =>
+    render(
+        <MemoryRouter>
+            <TestProvider>{ui}</TestProvider>
+        </MemoryRouter>,
+    );
 
 const {
     listInstrumentGroupsMock,
@@ -225,7 +231,7 @@ describe("InstrumentTable", () => {
     };
 
     it("renders groups collapsed by default with aggregated totals", () => {
-        render(<InstrumentTable rows={rows} />);
+        renderWithConfig(<InstrumentTable rows={rows} />);
         const table = screen.getByRole("table");
         expect(table).toBeInTheDocument();
 
@@ -256,7 +262,7 @@ describe("InstrumentTable", () => {
     });
 
     it("filters rows by exchange selection", async () => {
-        render(<InstrumentTable rows={rows} />);
+        renderWithConfig(<InstrumentTable rows={rows} />);
         expect(screen.getByText("Exchanges:")).toBeInTheDocument();
 
         const lCheckbox = screen.getByLabelText("L");
@@ -298,7 +304,7 @@ describe("InstrumentTable", () => {
     });
 
     it("navigates to research for a ticker when clicked", () => {
-        render(<InstrumentTable rows={rows} />);
+        renderWithConfig(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         expect(screen.getByText("GBP")).toBeInTheDocument();
         fireEvent.click(screen.getByText("ABC"));
@@ -308,7 +314,7 @@ describe("InstrumentTable", () => {
 
     it("creates FX pair ticker buttons and skips GBX", () => {
         navigateMock.mockClear();
-        render(<InstrumentTable rows={rows} />);
+        renderWithConfig(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         openGroup("Group B");
         openGroup("Ungrouped");
@@ -319,7 +325,7 @@ describe("InstrumentTable", () => {
     });
 
     it("sorts by ticker when header clicked", () => {
-        render(<InstrumentTable rows={rows} />);
+        renderWithConfig(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         // initial sort is ticker ascending => ABC first
         let tickers = getGroupTickers("Group A");
@@ -371,7 +377,7 @@ describe("InstrumentTable", () => {
             },
         ];
 
-        render(<InstrumentTable rows={mixedRows} />);
+        renderWithConfig(<InstrumentTable rows={mixedRows} />);
         openGroup("Ungrouped");
 
         const table = screen.getByRole("table");
@@ -387,7 +393,7 @@ describe("InstrumentTable", () => {
     });
 
     it("allows toggling columns", () => {
-        render(<InstrumentTable rows={rows} />);
+        renderWithConfig(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         const table = screen.getByRole('table');
         expect(within(table).getByRole('columnheader', {name: /Gain %/})).toBeInTheDocument();
@@ -397,7 +403,7 @@ describe("InstrumentTable", () => {
     });
 
     it("shows absolute columns when relative view disabled", () => {
-        render(<InstrumentTable rows={rows} />);
+        renderWithConfig(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         const table = screen.getByRole('table');
         expect(within(table).getByRole('columnheader', { name: 'Units' })).toBeInTheDocument();

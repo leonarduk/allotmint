@@ -40,9 +40,11 @@ def test_run_all_tickers_resolves_exchange_from_metadata():
         calls.append((sym, ex, days))
         return pd.DataFrame({"Date": [1], "Close": [2]})
 
-    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+    with patch("backend.timeseries.fetch_meta_timeseries._resolve_exchange_from_metadata", return_value="L") as meta, \
+         patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
         out = run_all_tickers(["GSK"], days=3)
 
     assert out == ["GSK"]
     assert calls == [("GSK", "L", 3)]
+    meta.assert_called_once_with("GSK")
 

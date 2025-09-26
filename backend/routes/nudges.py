@@ -10,9 +10,14 @@ from backend.common.errors import OWNER_NOT_FOUND
 router = APIRouter(prefix="/nudges", tags=["nudges"])
 
 
-def _validate_owner(user: str, request: Request) -> None:
+def _validate_owner(
+    user: str,
+    request: Request,
+    *,
+    allow_unknown: bool = False,
+) -> None:
     owners = {o["owner"] for o in data_loader.list_plots(request.app.state.accounts_root)}
-    if user not in owners:
+    if user not in owners and not allow_unknown:
         raise HTTPException(status_code=404, detail=OWNER_NOT_FOUND)
 
 
@@ -24,7 +29,7 @@ class SubscribePayload(BaseModel):
 
 @router.post("/subscribe")
 async def subscribe(payload: SubscribePayload, request: Request):
-    _validate_owner(payload.user, request)
+    _validate_owner(payload.user, request, allow_unknown=True)
     nudge_utils.set_user_nudge(payload.user, payload.frequency, payload.snooze_until)
     return {"status": "ok"}
 
@@ -36,7 +41,7 @@ class SnoozePayload(BaseModel):
 
 @router.post("/snooze")
 async def snooze(payload: SnoozePayload, request: Request):
-    _validate_owner(payload.user, request)
+    _validate_owner(payload.user, request, allow_unknown=True)
     nudge_utils.snooze_user(payload.user, payload.days)
     return {"status": "ok"}
 

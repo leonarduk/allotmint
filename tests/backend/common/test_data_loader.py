@@ -146,7 +146,7 @@ class TestListLocalPlots:
         monkeypatch.setattr("backend.common.data_loader.config", cfg)
         monkeypatch.delenv(DATA_BUCKET_ENV, raising=False)
 
-    def test_authentication_required_exposes_only_demo(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_authentication_required_skips_special_accounts(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
         self._configure(monkeypatch, tmp_path, data_root, disable_auth=False)
 
@@ -155,7 +155,7 @@ class TestListLocalPlots:
 
         result = _list_local_plots(data_root=data_root, current_user=None)
 
-        assert result == [{"owner": "demo", "accounts": ["demo1"]}]
+        assert result == []
 
     def test_enforces_viewer_permissions(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
@@ -169,7 +169,6 @@ class TestListLocalPlots:
 
         assert result == [
             {"owner": "alice", "accounts": ["alpha"]},
-            {"owner": "demo", "accounts": ["demo1"]},
         ]
 
     def test_accepts_contextvar_current_user(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -188,7 +187,6 @@ class TestListLocalPlots:
 
         assert result == [
             {"owner": "alice", "accounts": ["alpha"]},
-            {"owner": "demo", "accounts": ["demo1"]},
         ]
 
     def test_authentication_disabled_allows_anonymous_access(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -202,5 +200,4 @@ class TestListLocalPlots:
 
         assert result == [
             {"owner": "carol", "accounts": ["gamma"]},
-            {"owner": "demo", "accounts": ["demo1"]},
         ]

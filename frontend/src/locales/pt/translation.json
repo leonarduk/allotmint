@@ -11,12 +11,12 @@
     "logout": "Sair",
     "menu": "Menu",
     "menuCategories": {
-      "overview": "Visão geral",
-      "portfolio": "Portfolio",
-      "research": "Research",
-      "planning": "Planning",
-      "settings": "Configurações",
-      "supportTools": "Ferramentas de suporte",
+      "dashboard": "Painel",
+      "holdings": "Participações",
+      "tradeTools": "Ferramentas de negociação",
+      "goals": "Objetivos",
+      "preferences": "Preferências",
+      "operations": "Operações",
       "other": "Outros"
     },
     "modes": {

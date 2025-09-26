@@ -112,33 +112,35 @@ export default function Menu({
   };
 
   const USER_MENU_CATEGORIES: MenuCategory[] = [
-    { id: 'overview', titleKey: 'overview', tabIds: ['group', 'market', 'movers'] },
+    { id: 'dashboard', titleKey: 'dashboard', tabIds: ['group', 'market', 'movers'] },
     {
-      id: 'portfolio',
-      titleKey: 'portfolio',
+      id: 'holdings',
+      titleKey: 'holdings',
+      tabIds: ['owner', 'performance', 'allocation', 'transactions', 'reports'],
+    },
+    {
+      id: 'tradeTools',
+      titleKey: 'tradeTools',
       tabIds: [
-        'owner',
-        'performance',
-        'transactions',
+        'instrument',
+        'screener',
+        'watchlist',
+        'scenario',
         'trading',
-        'allocation',
         'rebalance',
-        'trail',
-        'reports',
         'tradecompliance',
       ],
     },
-    {
-      id: 'research',
-      titleKey: 'research',
-      tabIds: ['instrument', 'screener', 'timeseries', 'watchlist', 'scenario'],
-    },
-    { id: 'planning', titleKey: 'planning', tabIds: ['pension', 'taxtools'] },
-    { id: 'settings', titleKey: 'settings', tabIds: ['alertsettings', 'settings'] },
+    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail'] },
+    { id: 'preferences', titleKey: 'preferences', tabIds: ['alertsettings', 'settings'] },
   ];
 
   const SUPPORT_MENU_CATEGORIES: MenuCategory[] = [
-    { id: 'supportTools', titleKey: 'supportTools', tabIds: ['instrumentadmin', 'dataadmin'] },
+    {
+      id: 'operations',
+      titleKey: 'operations',
+      tabIds: ['instrumentadmin', 'dataadmin', 'timeseries', 'support'],
+    },
   ];
 
   const availableTabs = useMemo(

@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 
 import pytest
 from fastapi import HTTPException
@@ -22,6 +23,13 @@ def client(mock_google_verify):
 
     # allow alerts to operate without SNS configuration
     alerts.config.sns_topic_arn = None
+
+    # Some tests rely on the absence of an owner directory to verify 404
+    # responses. Ensure the fixture starts from a clean slate in case a
+    # previous test run or developer environment left behind the scaffold.
+    missing_owner = Path(client.app.state.accounts_root) / "noone"
+    if missing_owner.exists():
+        shutil.rmtree(missing_owner)
     try:
         yield client
     finally:

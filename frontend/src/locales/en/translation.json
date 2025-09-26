@@ -11,12 +11,12 @@
     "logout": "Logout",
     "menu": "Menu",
     "menuCategories": {
-      "overview": "Overview",
-      "portfolio": "Portfolio",
-      "research": "Research",
-      "planning": "Planning",
-      "settings": "Settings",
-      "supportTools": "Support Tools",
+      "dashboard": "Dashboard",
+      "holdings": "Holdings",
+      "tradeTools": "Trade Tools",
+      "goals": "Goals",
+      "preferences": "Preferences",
+      "operations": "Operations",
       "other": "Other"
     },
     "modes": {

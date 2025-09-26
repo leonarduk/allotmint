@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from backend.common import compliance, data_loader
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
+from backend.routes._accounts import resolve_accounts_root
 
 router = APIRouter(tags=["compliance"])
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ def _known_owners(accounts_root) -> set[str]:
 @handle_owner_not_found
 async def compliance_for_owner(owner: str, request: Request):
     """Return compliance warnings and status for an owner."""
-    accounts_root = request.app.state.accounts_root
+    accounts_root = resolve_accounts_root(request)
     owners = _known_owners(accounts_root)
     if owners and owner.lower() not in owners:
         raise_owner_not_found()
@@ -71,7 +72,7 @@ async def validate_trade(request: Request):
     trade = await request.json()
     if "owner" not in trade:
         raise HTTPException(status_code=422, detail="owner is required")
-    accounts_root = request.app.state.accounts_root
+    accounts_root = resolve_accounts_root(request)
     owners = _known_owners(accounts_root)
     if owners and trade.get("owner", "").lower() not in owners:
         raise_owner_not_found()

@@ -228,48 +228,53 @@ export default function Menu({
       <div
         hidden={!open}
         aria-hidden={!open}
-        className={`${open ? 'flex md:flex' : 'hidden'} flex-col gap-2 md:flex-row md:flex-wrap`}
+        className={`${open ? 'flex' : 'hidden'} flex-col gap-6`}
         style={style}
       >
         {categoriesToRender.map((category) => (
-          <div key={category.id} className="mr-4 flex flex-col">
-            <span className="font-semibold">{t(`app.menuCategories.${category.titleKey}`)}</span>
-            <div className="mt-1 flex flex-col gap-1">
+          <section key={category.id} className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+              {t(`app.menuCategories.${category.titleKey}`)}
+            </h3>
+            <ul className="flex flex-col gap-1">
               {category.tabs.map((tab) => (
-                <Link
-                  key={tab.id}
-                  to={pathFor(tab.id as string)}
-                  className={`${mode === tab.id ? 'font-bold' : ''} break-words`}
-                  style={{ fontWeight: mode === tab.id ? 'bold' as const : undefined }}
-                  onClick={() => setOpen(false)}
-                >
-                  {t(`app.modes.${tab.id}`)}
-                </Link>
+                <li key={tab.id}>
+                  <Link
+                    to={pathFor(tab.id as string)}
+                    className={`${mode === tab.id ? 'font-bold' : ''} break-words`}
+                    style={{ fontWeight: mode === tab.id ? 'bold' as const : undefined }}
+                    onClick={() => setOpen(false)}
+                  >
+                    {t(`app.modes.${tab.id}`)}
+                  </Link>
+                </li>
               ))}
-            </div>
-          </div>
+            </ul>
+          </section>
         ))}
-        {supportEnabled && (
-          <Link
-            to={inSupport ? '/' : '/support'}
-            className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
-            onClick={() => setOpen(false)}
-          >
-            {t('app.supportLink')}
-          </Link>
-        )}
-        {onLogout && (
-          <button
-            type="button"
-            onClick={() => {
-              onLogout();
-              setOpen(false);
-            }}
-            className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
-          >
-            {t('app.logout')}
-          </button>
-        )}
+        <div className="flex flex-col gap-2 border-t border-gray-200 pt-4">
+          {supportEnabled && (
+            <Link
+              to={inSupport ? '/' : '/support'}
+              className={`${inSupport ? 'font-bold' : ''} break-words`}
+              onClick={() => setOpen(false)}
+            >
+              {t('app.supportLink')}
+            </Link>
+          )}
+          {onLogout && (
+            <button
+              type="button"
+              onClick={() => {
+                onLogout();
+                setOpen(false);
+              }}
+              className="bg-transparent border-0 p-0 text-left cursor-pointer"
+            >
+              {t('app.logout')}
+            </button>
+          )}
+        </div>
       </div>
     </nav>
   );

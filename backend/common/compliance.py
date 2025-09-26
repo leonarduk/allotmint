@@ -94,16 +94,6 @@ def ensure_owner_scaffold(owner: str, accounts_root: Optional[Path] = None) -> P
     return owner_dir
 
 
-def load_transactions(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
-    """Load all transactions for ``owner`` sorted by date.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the owner's accounts directory does not exist. Call
-        :func:`ensure_owner_scaffold` beforehand when deliberate bootstrapping
-        is required.
-
 def load_transactions(
     owner: str,
     accounts_root: Optional[Path] = None,

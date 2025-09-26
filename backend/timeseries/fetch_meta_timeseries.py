@@ -110,12 +110,19 @@ def _resolve_loader_exchange(
     """
 
     parts = re.split(r"[._]", ticker, 1)
-    suffix = parts[1].upper() if len(parts) == 2 else ""
-    provided = (exchange_arg or "").upper()
-    # When a suffix or explicit exchange is provided, ``resolved_exchange`` will
-    # already reflect that input. Otherwise it captures any metadata-derived
-    # fallback, which we now want to respect for loader calls as well.
-    return resolved_exchange
+    suffix = parts[1].strip().upper() if len(parts) == 2 else ""
+    provided = (exchange_arg or "").strip()
+
+    if provided:
+        # ``resolved_exchange`` already respects explicit overrides, but we
+        # normalise again defensively in case the caller passed a lowercase
+        # string and resolution fell back to metadata.
+        return (resolved_exchange or provided.upper()).upper()
+
+    if suffix:
+        return (resolved_exchange or suffix).upper()
+
+    return ""
 
 
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:

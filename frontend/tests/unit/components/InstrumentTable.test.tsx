@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, afterEach, type Mock } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { useState } from "react";
 import type { InstrumentSummary } from "@/types";
 import { configContext, type AppConfig } from "@/ConfigContext";
@@ -58,6 +58,7 @@ const {
     assignInstrumentGroupMock,
     createInstrumentGroupMock,
     clearInstrumentGroupMock,
+    listInstrumentGroupingDefinitionsMock,
 } = vi.hoisted(() => ({
     listInstrumentGroupsMock: vi.fn(async () => ["Group A", "Group B"]),
     assignInstrumentGroupMock: vi.fn(async () => ({
@@ -71,6 +72,7 @@ const {
         groups: ["Group A", "Group B", "New Group"],
     })),
     clearInstrumentGroupMock: vi.fn(async () => ({ status: "cleared" })),
+    listInstrumentGroupingDefinitionsMock: vi.fn(async () => []),
 }));
 
 vi.mock("@/api", () => ({
@@ -78,14 +80,24 @@ vi.mock("@/api", () => ({
     assignInstrumentGroup: assignInstrumentGroupMock,
     createInstrumentGroup: createInstrumentGroupMock,
     clearInstrumentGroup: clearInstrumentGroupMock,
+    listInstrumentGroupingDefinitions: listInstrumentGroupingDefinitionsMock,
 }));
+
+const navigateMock = vi.hoisted(() => vi.fn());
+
+vi.mock("react-router-dom", async () => {
+    const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+    return {
+        ...actual,
+        useNavigate: () => navigateMock,
+    };
+});
 
 vi.mock("@/components/InstrumentDetail", () => ({
     InstrumentDetail: vi.fn(() => <div data-testid="instrument-detail" />),
 }));
 
 import { InstrumentTable } from "@/components/InstrumentTable";
-import { InstrumentDetail } from "@/components/InstrumentDetail";
 afterEach(() => {
     vi.clearAllMocks();
 });
@@ -230,6 +242,19 @@ describe("InstrumentTable", () => {
         expect(screen.getByText("ABC")).toBeInTheDocument();
     });
 
+    it("hides group totals when showGroupTotals is false", () => {
+        render(<InstrumentTable rows={rows} showGroupTotals={false} />);
+
+        const groupASummary = getSummaryRow("Group A");
+        expect(within(groupASummary).queryByText("£1,500.00")).toBeNull();
+        expect(within(groupASummary).queryByText("▲£50.00")).toBeNull();
+        expect(within(groupASummary).queryByText("▲3.4%")).toBeNull();
+        expect(within(groupASummary).queryByText("▲0.3%")).toBeNull();
+        expect(within(groupASummary).queryByText("▲0.7%")).toBeNull();
+
+        expect(screen.queryByText(/Total — Group A/i)).toBeNull();
+    });
+
     it("filters rows by exchange selection", async () => {
         render(<InstrumentTable rows={rows} />);
         expect(screen.getByText("Exchanges:")).toBeInTheDocument();
@@ -272,32 +297,23 @@ describe("InstrumentTable", () => {
         await waitFor(() => expect(screen.getByText("ABC")).toBeInTheDocument());
     });
 
-    it("passes ticker and name to InstrumentDetail", () => {
+    it("navigates to research for a ticker when clicked", () => {
         render(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         expect(screen.getByText("GBP")).toBeInTheDocument();
         fireEvent.click(screen.getByText("ABC"));
 
-        const mock = InstrumentDetail as unknown as Mock;
-        expect(mock).toHaveBeenCalled();
-        type DetailProps = Parameters<typeof InstrumentDetail>[0];
-        const props = mock.mock.calls[0][0] as DetailProps;
-        expect(props.ticker).toBe("ABC");
-        expect(props.name).toBe("ABC Corp");
+        expect(navigateMock).toHaveBeenCalledWith("/research/ABC");
     });
 
     it("creates FX pair ticker buttons and skips GBX", () => {
-        const mock = InstrumentDetail as unknown as Mock;
-        mock.mockClear();
+        navigateMock.mockClear();
         render(<InstrumentTable rows={rows} />);
         openGroup("Group A");
         openGroup("Group B");
         openGroup("Ungrouped");
         fireEvent.click(screen.getByRole('button', { name: 'USD' }));
-        expect(mock).toHaveBeenCalled();
-        type DetailProps = Parameters<typeof InstrumentDetail>[0];
-        const props = mock.mock.calls[0][0] as DetailProps;
-        expect(props.ticker).toBe('USDGBP.FX');
+        expect(navigateMock).toHaveBeenCalledWith("/research/USDGBP.FX");
         expect(screen.queryByRole('button', { name: 'GBX' })).toBeNull();
         expect(screen.getByRole('button', { name: 'CAD' })).toBeInTheDocument();
     });

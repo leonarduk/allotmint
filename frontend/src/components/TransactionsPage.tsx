@@ -40,6 +40,7 @@ export function TransactionsPage({ owners }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
   const pageSizeOptions = [10, 20, 50, 100];
@@ -94,6 +95,41 @@ export function TransactionsPage({ owners }: Props) {
     const startIndex = clampedPage * pageSize;
     return transactions.slice(startIndex, startIndex + pageSize);
   }, [transactions, clampedPage, pageSize]);
+
+  const transactionById = useMemo(() => {
+    const map = new Map<string, Transaction>();
+    transactions?.forEach((tx) => {
+      if (tx.id) {
+        map.set(tx.id, tx);
+      }
+    });
+    return map;
+  }, [transactions]);
+
+  const selectedCount = selectedIds.length;
+  const hasSelection = selectedCount > 0;
+  const allPageIds = useMemo(
+    () =>
+      paginatedTransactions
+        .map((tx) => tx.id)
+        .filter((id): id is string => Boolean(id)),
+    [paginatedTransactions],
+  );
+  const isAllPageSelected =
+    allPageIds.length > 0 && allPageIds.every((id) => selectedIds.includes(id));
+
+  useEffect(() => {
+    if (!transactions || transactions.length === 0) {
+      if (selectedIds.length > 0) {
+        setSelectedIds([]);
+      }
+      return;
+    }
+    const validIds = new Set(
+      transactions.map((tx) => tx.id).filter((id): id is string => Boolean(id)),
+    );
+    setSelectedIds((prev) => prev.filter((id) => validIds.has(id)));
+  }, [transactions]);
 
   const pageStart = totalTransactions === 0 ? 0 : clampedPage * pageSize + 1;
   const pageEnd =
@@ -171,6 +207,33 @@ export function TransactionsPage({ owners }: Props) {
       setAccount(nextAccount);
     },
     [],
+  );
+
+  const handleToggleSelect = useCallback((txId: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      if (checked) {
+        if (prev.includes(txId)) {
+          return prev;
+        }
+        return [...prev, txId];
+      }
+      return prev.filter((id) => id !== txId);
+    });
+  }, []);
+
+  const handleToggleSelectAllOnPage = useCallback(
+    (checked: boolean) => {
+      if (!checked) {
+        setSelectedIds((prev) => prev.filter((id) => !allPageIds.includes(id)));
+        return;
+      }
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        allPageIds.forEach((id) => next.add(id));
+        return Array.from(next);
+      });
+    },
+    [allPageIds],
   );
 
   const handlePageSizeChange = useCallback<ChangeEventHandler<HTMLSelectElement>>(
@@ -262,62 +325,183 @@ export function TransactionsPage({ owners }: Props) {
     [editingId, resetForm, setFilterOwnerAndAccount],
   );
 
+  const buildPayload = useCallback(() => {
+    const price = Number.parseFloat(newPrice);
+    const units = Number.parseFloat(newUnits);
+    const fees = newFees ? Number.parseFloat(newFees) : undefined;
+    const ticker = newTicker.trim().toUpperCase();
+    const reason = newReason.trim();
+    const comments = newComments.trim();
+
+    if (!newOwner || !newAccount || !newDate || !ticker || !reason) {
+      setFormError("Please complete all required fields.");
+      return null;
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      setFormError("Enter a valid price.");
+      return null;
+    }
+    if (!Number.isFinite(units) || units <= 0) {
+      setFormError("Enter a valid number of units.");
+      return null;
+    }
+    if (newFees && (fees == null || Number.isNaN(fees))) {
+      setFormError("Enter a valid fee or leave it blank.");
+      return null;
+    }
+    if (fees != null && fees < 0) {
+      setFormError("Fees cannot be negative.");
+      return null;
+    }
+
+    return {
+      payload: {
+        owner: newOwner,
+        account: newAccount,
+        date: newDate,
+        ticker,
+        price_gbp: price,
+        units,
+        reason,
+        fees,
+        comments: comments || undefined,
+      },
+    } as const;
+  }, [
+    newOwner,
+    newAccount,
+    newDate,
+    newTicker,
+    newPrice,
+    newUnits,
+    newReason,
+    newFees,
+    newComments,
+    setFormError,
+  ]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (!hasSelection) {
+      return;
+    }
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Delete ${selectedCount} selected transaction${selectedCount === 1 ? "" : "s"}?`,
+      )
+    ) {
+      return;
+    }
+    setFormError(null);
+    setFormSuccess(null);
+    try {
+      await Promise.all(selectedIds.map((id) => deleteTransaction(id)));
+      if (editingId && selectedIds.includes(editingId)) {
+        setEditingId(null);
+        resetForm();
+      }
+      const firstSelected = selectedIds[0]
+        ? transactionById.get(selectedIds[0])
+        : null;
+      if (firstSelected) {
+        setFilterOwnerAndAccount(firstSelected.owner, firstSelected.account ?? "");
+      }
+      setSelectedIds([]);
+      setFormSuccess(
+        `Deleted ${selectedCount} transaction${selectedCount === 1 ? "" : "s"} successfully.`,
+      );
+      setRefreshKey((key) => key + 1);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete selected transactions.";
+      setFormError(message);
+    }
+  }, [
+    editingId,
+    hasSelection,
+    resetForm,
+    selectedCount,
+    selectedIds,
+    setFilterOwnerAndAccount,
+    transactionById,
+    setFormError,
+    setFormSuccess,
+    setRefreshKey,
+    setSelectedIds,
+  ]);
+
+  const handleApplyToSelected = useCallback(async () => {
+    if (!hasSelection) {
+      return;
+    }
+    const result = buildPayload();
+    if (!result) {
+      return;
+    }
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        `Update ${selectedCount} selected transaction${selectedCount === 1 ? "" : "s"}?`,
+      )
+    ) {
+      return;
+    }
+    setFormError(null);
+    setFormSuccess(null);
+    setSubmitting(true);
+    try {
+      await Promise.all(selectedIds.map((id) => updateTransaction(id, result.payload)));
+      if (editingId && selectedIds.includes(editingId)) {
+        setEditingId(null);
+      }
+      setFilterOwnerAndAccount(result.payload.owner, result.payload.account);
+      setSelectedIds([]);
+      setFormSuccess(
+        `Updated ${selectedCount} transaction${selectedCount === 1 ? "" : "s"} successfully.`,
+      );
+      setRefreshKey((key) => key + 1);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to update selected transactions.";
+      setFormError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [
+    buildPayload,
+    editingId,
+    hasSelection,
+    selectedCount,
+    selectedIds,
+    setFilterOwnerAndAccount,
+    setFormError,
+    setFormSuccess,
+    setRefreshKey,
+    setSelectedIds,
+    setSubmitting,
+  ]);
+
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setFormError(null);
       setFormSuccess(null);
 
-      const price = Number.parseFloat(newPrice);
-      const units = Number.parseFloat(newUnits);
-      const fees = newFees ? Number.parseFloat(newFees) : undefined;
-      const ticker = newTicker.trim().toUpperCase();
-      const reason = newReason.trim();
-      const comments = newComments.trim();
-
-      if (!newOwner || !newAccount || !newDate || !ticker || !reason) {
-        setFormError("Please complete all required fields.");
+      const result = buildPayload();
+      if (!result) {
         return;
       }
-      if (!Number.isFinite(price) || price <= 0) {
-        setFormError("Enter a valid price.");
-        return;
-      }
-      if (!Number.isFinite(units) || units <= 0) {
-        setFormError("Enter a valid number of units.");
-        return;
-      }
-      if (newFees && (fees == null || Number.isNaN(fees))) {
-        setFormError("Enter a valid fee or leave it blank.");
-        return;
-      }
-      if (fees != null && fees < 0) {
-        setFormError("Fees cannot be negative.");
-        return;
-      }
-
       setSubmitting(true);
       try {
-        const payload = {
-          owner: newOwner,
-          account: newAccount,
-          date: newDate,
-          ticker,
-          price_gbp: price,
-          units,
-          reason,
-          fees,
-          comments: comments || undefined,
-        };
         if (editingId) {
-          await updateTransaction(editingId, payload);
+          await updateTransaction(editingId, result.payload);
           setFormSuccess("Transaction updated successfully.");
           setEditingId(null);
         } else {
-          await createTransaction(payload);
+          await createTransaction(result.payload);
           setFormSuccess("Transaction created successfully.");
         }
-        setFilterOwnerAndAccount(newOwner, newAccount);
+        setFilterOwnerAndAccount(result.payload.owner, result.payload.account);
         resetForm();
         setRefreshKey((key) => key + 1);
       } catch (err) {
@@ -332,21 +516,7 @@ export function TransactionsPage({ owners }: Props) {
         setSubmitting(false);
       }
     },
-    [
-      newOwner,
-      newAccount,
-      newDate,
-      newTicker,
-      newPrice,
-      newUnits,
-      newReason,
-      newFees,
-      newComments,
-      setFilterOwnerAndAccount,
-      editingId,
-      resetForm,
-      setRefreshKey,
-    ],
+    [buildPayload, setFilterOwnerAndAccount, editingId, resetForm, setRefreshKey],
   );
 
   return (
@@ -494,6 +664,14 @@ export function TransactionsPage({ owners }: Props) {
             Cancel
           </button>
         )}
+        <button
+          type="button"
+          onClick={handleApplyToSelected}
+          disabled={!hasSelection || submitting}
+          style={{ height: "2.3rem" }}
+        >
+          Apply to selected{hasSelection ? ` (${selectedCount})` : ""}
+        </button>
       </form>
 
       {editingId && (
@@ -532,6 +710,13 @@ export function TransactionsPage({ owners }: Props) {
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={!hasSelection}
+            >
+              Delete selected{hasSelection ? ` (${selectedCount})` : ""}
+            </button>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <span>{showingRangeLabel}</span>
               <button type="button" onClick={handlePreviousPage} disabled={isFirstPage}>
@@ -548,6 +733,15 @@ export function TransactionsPage({ owners }: Props) {
           <table className={tableStyles.table}>
             <thead>
               <tr>
+                <th className={tableStyles.cell}>
+                  <input
+                    type="checkbox"
+                    checked={isAllPageSelected && allPageIds.length > 0}
+                    disabled={allPageIds.length === 0}
+                    onChange={(e) => handleToggleSelectAllOnPage(e.target.checked)}
+                    aria-label="Select all transactions on this page"
+                  />
+                </th>
                 <th className={tableStyles.cell}>Date</th>
                 <th className={tableStyles.cell}>Owner</th>
                 <th className={tableStyles.cell}>Account</th>
@@ -563,7 +757,7 @@ export function TransactionsPage({ owners }: Props) {
                 <tr>
                   <td
                     className={tableStyles.cell}
-                    colSpan={8}
+                    colSpan={9}
                     style={{ textAlign: "center" }}
                   >
                     No transactions found.
@@ -574,6 +768,17 @@ export function TransactionsPage({ owners }: Props) {
                   const key = t.id ?? `${t.owner}-${t.date ?? ""}-${i}`;
                   return (
                     <tr key={key}>
+                      <td className={tableStyles.cell}>
+                        <input
+                          type="checkbox"
+                          disabled={!t.id}
+                          checked={t.id ? selectedIds.includes(t.id) : false}
+                          onChange={(e) =>
+                            t.id && handleToggleSelect(t.id, e.target.checked)
+                          }
+                          aria-label={`Select transaction ${t.id ?? key}`}
+                        />
+                      </td>
                       <td className={tableStyles.cell}>
                         {t.date ? formatDateISO(new Date(t.date)) : ""}
                       </td>

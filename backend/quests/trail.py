@@ -205,15 +205,14 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
     # Encourage the user to model a goal if they have not already done so.
     has_goal = bool(load_goals(user))
     _sync_once_completion(user_data, "create_goal", has_goal)
-    if not has_goal:
-        tasks.append(
-            TaskDefinition(
-                id="create_goal",
-                title="Create your first savings goal",
-                type="once",
-                commentary="Goals help quantify long-term plans and progress.",
-            )
+    tasks.append(
+        TaskDefinition(
+            id="create_goal",
+            title="Create your first savings goal",
+            type="once",
+            commentary="Goals help quantify long-term plans and progress.",
         )
+    )
 
     # Configure price-drift alerts to catch meaningful moves.  The
     # ``_USER_THRESHOLDS`` cache only records explicit overrides, so the

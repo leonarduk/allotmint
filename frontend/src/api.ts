@@ -1004,8 +1004,8 @@ export const deleteVirtualPortfolio = (id: number | string) =>
   });
 
 /** Retrieve backend configuration. */
-export const getConfig = <T = Record<string, unknown>>() =>
-  fetchJson<T>(`${API_BASE}/config`);
+export const getConfig = <T = Record<string, unknown>>(init?: RequestInit) =>
+  fetchJson<T>(`${API_BASE}/config`, init);
 
 /** Persist configuration changes. */
 export const updateConfig = (cfg: Record<string, unknown>) =>

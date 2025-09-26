@@ -63,20 +63,41 @@ export function Root() {
   }, [setProfile, setUser, storedToken])
 
   useEffect(() => {
+    let isMounted = true
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => {
+      controller.abort()
+    }, 10000)
+
     setConfigLoading(true)
     setConfigError(null)
-    getConfig<Record<string, unknown>>()
+    getConfig<Record<string, unknown>>({ signal: controller.signal })
       .then(cfg => {
+        if (!isMounted) return
         setNeedsAuth(Boolean((cfg as any).google_auth_enabled))
         setClientId(String((cfg as any).google_client_id || ''))
       })
       .catch(err => {
+        if (!isMounted) return
         console.error('Failed to load configuration', err)
-        setConfigError(err instanceof Error ? err : new Error(String(err)))
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          setConfigError(new Error('Request timed out while loading configuration.'))
+        } else {
+          setConfigError(err instanceof Error ? err : new Error(String(err)))
+        }
       })
       .finally(() => {
-        setConfigLoading(false)
+        clearTimeout(timeoutId)
+        if (isMounted) {
+          setConfigLoading(false)
+        }
       })
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [])
 
   if (configLoading) {

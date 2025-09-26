@@ -236,7 +236,7 @@ describe("PensionForecast page", () => {
     expect(routeState.setSelectedOwner).not.toHaveBeenCalled();
   });
 
-  it("defaults to first non-demo owner when no active selection", async () => {
+  it("defaults to first available owner when no active selection", async () => {
     routeState.selectedOwner = "";
     mockGetOwners.mockResolvedValue([
       { owner: "demo", accounts: [] },

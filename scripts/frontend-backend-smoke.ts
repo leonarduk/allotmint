@@ -246,7 +246,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/instrument/search"
+    "path": "/instrument/search",
+    "query": {
+      "q": "demo"
+    }
   },
   {
     "method": "GET",

@@ -62,6 +62,29 @@ def test_create_transaction_success(monkeypatch, tmp_path):
     assert transactions._PORTFOLIO_IMPACT["bob"] == pytest.approx(3.0)
 
 
+def test_transaction_instrument_name(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    data = {
+        "owner": "bob",
+        "account": "isa",
+        "ticker": "VWRL.L",
+        "date": "2024-01-01",
+        "price_gbp": 1.5,
+        "units": 2,
+        "reason": "why",
+    }
+
+    resp = client.post("/transactions", json=data)
+    assert resp.status_code == 201
+    payload = resp.json()
+    assert payload["instrument_name"] == "Vanguard FTSE All-World UCITS ETF"
+
+    list_resp = client.get("/transactions")
+    assert list_resp.status_code == 200
+    results = list_resp.json()
+    assert results[0]["instrument_name"] == "Vanguard FTSE All-World UCITS ETF"
+
+
 def test_create_transaction_missing_reason(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     data = {

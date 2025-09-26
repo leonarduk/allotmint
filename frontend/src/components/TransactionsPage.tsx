@@ -552,6 +552,7 @@ export function TransactionsPage({ owners }: Props) {
                 <th className={tableStyles.cell}>Owner</th>
                 <th className={tableStyles.cell}>Account</th>
                 <th className={tableStyles.cell}>Instrument</th>
+                <th className={tableStyles.cell}>Instrument name</th>
                 <th className={tableStyles.cell}>Type</th>
                 <th className={`${tableStyles.cell} ${tableStyles.right}`}>Amount</th>
                 <th className={`${tableStyles.cell} ${tableStyles.right}`}>Shares</th>
@@ -563,7 +564,7 @@ export function TransactionsPage({ owners }: Props) {
                 <tr>
                   <td
                     className={tableStyles.cell}
-                    colSpan={8}
+                    colSpan={9}
                     style={{ textAlign: "center" }}
                   >
                     No transactions found.
@@ -580,6 +581,7 @@ export function TransactionsPage({ owners }: Props) {
                       <td className={tableStyles.cell}>{t.owner}</td>
                       <td className={tableStyles.cell}>{t.account}</td>
                       <td className={tableStyles.cell}>{t.ticker || t.security_ref || ""}</td>
+                      <td className={tableStyles.cell}>{t.instrument_name || ""}</td>
                       <td className={tableStyles.cell}>{t.type || t.kind}</td>
                       <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                         {t.amount_minor != null

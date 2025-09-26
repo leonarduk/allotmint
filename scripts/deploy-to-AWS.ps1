@@ -5,33 +5,91 @@ Param(
 
 $ErrorActionPreference = 'Stop'
 
-# Ensure Python is available by validating the command actually executes.
-$pythonCandidates = @('python', 'py', 'python3')
+# Ensure Python is available by validating the command actually executes and can import aws_cdk.
+$pythonCandidates = @(
+  @{ Name = 'python';   VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');            ResolveArgs = @() },
+  @{ Name = 'python3';  VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');            ResolveArgs = @() },
+  @{ Name = 'py';       VersionArgs = @('-3', '--version'); ModuleArgs = @('-3', '-c', 'import aws_cdk');      ResolveArgs = @('-3', '-c', 'import sys; print(sys.executable)') }
+)
+
 $PYTHON = $null
+$selectedPythonVersion = $null
+$missingModuleCandidates = @()
 foreach ($candidate in $pythonCandidates) {
-  $pythonCmd = Get-Command $candidate -ErrorAction SilentlyContinue
+  $pythonCmd = Get-Command $candidate.Name -ErrorAction SilentlyContinue
   if (-not $pythonCmd) {
     continue
   }
+
   try {
-    $versionProcess = Start-Process -FilePath $pythonCmd.Path -ArgumentList '--version' -NoNewWindow -PassThru -Wait -ErrorAction Stop
-    if ($versionProcess.ExitCode -eq 0) {
-      $PYTHON = $pythonCmd.Path
-      break
+    $versionOutput = & $pythonCmd.Path @($candidate.VersionArgs) 2>&1
+    if ($LASTEXITCODE -ne 0) {
+      continue
     }
   } catch {
-    # Ignore and try the next candidate; Windows may surface the Microsoft Store shim.
     continue
   }
+
+  try {
+    & $pythonCmd.Path @($candidate.ModuleArgs) 2>$null | Out-Null
+    $moduleExit = $LASTEXITCODE
+  } catch {
+    $moduleExit = 1
+  }
+  if ($moduleExit -ne 0) {
+    $missingModuleCandidates += $pythonCmd.Path
+    continue
+  }
+
+  $resolvedPath = $pythonCmd.Path
+  if ($candidate.ResolveArgs.Count -gt 0) {
+    try {
+      $resolvedOutput = & $pythonCmd.Path @($candidate.ResolveArgs)
+      if ($LASTEXITCODE -eq 0 -and $resolvedOutput) {
+        $resolvedCandidate = ($resolvedOutput | Select-Object -First 1).Trim()
+        if ($resolvedCandidate -and (Test-Path $resolvedCandidate)) {
+          $resolvedPath = $resolvedCandidate
+        }
+      }
+    } catch {
+      # Fall back to the command path when resolution fails.
+    }
+  }
+
+  $PYTHON = $resolvedPath
+  $selectedPythonVersion = $versionOutput
+  break
 }
 if (-not $PYTHON) {
-  Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
-  Write-Host 'If you recently installed Python, ensure the "App execution aliases" for python.exe are disabled in Windows settings.' -ForegroundColor Yellow
+  if ($missingModuleCandidates.Count -gt 0) {
+    Write-Host 'Found Python installations but aws_cdk is unavailable. Install dependencies with:' -ForegroundColor Red
+    Write-Host '  pip install -r cdk/requirements.txt' -ForegroundColor Yellow
+    Write-Host "Checked interpreters:
+$(($missingModuleCandidates | Sort-Object -Unique) -join [Environment]::NewLine)" -ForegroundColor Yellow
+  } else {
+    Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
+    Write-Host 'If you recently installed Python, ensure the "App execution aliases" for python.exe are disabled in Windows settings.' -ForegroundColor Yellow
+  }
   exit 1
 }
 
-# Hint the CDK CLI to use the discovered interpreter instead of the Microsoft Store shim.
+# Ensure downstream CDK commands pick up the detected interpreter.
 $env:CDK_PYTHON = $PYTHON
+if ($selectedPythonVersion) {
+  $selectedPythonVersion | ForEach-Object { Write-Host $_ }
+}
+Write-Host "Using Python interpreter: $PYTHON" -ForegroundColor Cyan
+
+# Provide a temporary shim so child processes can invoke `python3` on Windows.
+$pythonShimDir = Join-Path ([System.IO.Path]::GetTempPath()) ("allotmint-cdk-python-" + [System.Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $pythonShimDir -Force | Out-Null
+$pythonShimPath = Join-Path $pythonShimDir 'python3.cmd'
+$shimScript = "@echo off`r`n""{0}"" %*`r`n" -f $PYTHON
+Set-Content -Path $pythonShimPath -Value $shimScript -Encoding ASCII
+$originalPath = $env:PATH
+$env:PATH = "$pythonShimDir;$originalPath"
+
+try {
 
 # Determine repository root and key paths
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -74,31 +132,45 @@ if ($Backend) {
       Pop-Location
     }
   }
-  Set-Location $CDK_DIR
-  Write-Host 'Deploying backend and frontend stacks to AWS...' -ForegroundColor Green
-  $env:DEPLOY_BACKEND = 'true'
-  $cdkCmd = Get-Command cdk -ErrorAction SilentlyContinue
-  if (-not $cdkCmd) {
-    Write-Host 'AWS CDK CLI not found. Install via `npm install -g aws-cdk` or use an existing installation.' -ForegroundColor Red
-    exit 1
+  Push-Location $CDK_DIR
+  try {
+    Write-Host 'Deploying backend and frontend stacks to AWS...' -ForegroundColor Green
+    $env:DEPLOY_BACKEND = 'true'
+    $cdkCmd = Get-Command cdk -ErrorAction SilentlyContinue
+    if (-not $cdkCmd) {
+      Write-Host 'AWS CDK CLI not found. Install via `npm install -g aws-cdk` or use an existing installation.' -ForegroundColor Red
+      exit 1
+    }
+    $effectiveBucket = if ($env:DATA_BUCKET) { $env:DATA_BUCKET } elseif ($DataBucket) { $DataBucket } else { $null }
+    if (-not $effectiveBucket) {
+      Write-Host 'DATA_BUCKET is required for backend deployment. Provide via -DataBucket or DATA_BUCKET env var.' -ForegroundColor Red
+      exit 1
+    }
+    & $cdkCmd.Path deploy BackendLambdaStack StaticSiteStack -c "data_bucket=$effectiveBucket"
+  } finally {
+    Pop-Location
   }
-  $effectiveBucket = if ($env:DATA_BUCKET) { $env:DATA_BUCKET } elseif ($DataBucket) { $DataBucket } else { $null }
-  if (-not $effectiveBucket) {
-    Write-Host 'DATA_BUCKET is required for backend deployment. Provide via -DataBucket or DATA_BUCKET env var.' -ForegroundColor Red
-    exit 1
-  }
-  & $cdkCmd.Path deploy BackendLambdaStack StaticSiteStack -c "data_bucket=$effectiveBucket"
 } else {
-  Set-Location $CDK_DIR
-  Write-Host 'Deploying frontend stack to AWS...' -ForegroundColor Green
-  $env:DEPLOY_BACKEND = 'false'
-  $cdkCmd = Get-Command cdk -ErrorAction SilentlyContinue
-  if (-not $cdkCmd) {
-    Write-Host 'AWS CDK CLI not found. Install via `npm install -g aws-cdk` or use an existing installation.' -ForegroundColor Red
-    exit 1
+  Push-Location $CDK_DIR
+  try {
+    Write-Host 'Deploying frontend stack to AWS...' -ForegroundColor Green
+    $env:DEPLOY_BACKEND = 'false'
+    $cdkCmd = Get-Command cdk -ErrorAction SilentlyContinue
+    if (-not $cdkCmd) {
+      Write-Host 'AWS CDK CLI not found. Install via `npm install -g aws-cdk` or use an existing installation.' -ForegroundColor Red
+      exit 1
+    }
+    # Provide a context value for data_bucket so the app can instantiate BackendLambdaStack
+    $effectiveBucket = if ($env:DATA_BUCKET) { $env:DATA_BUCKET } elseif ($DataBucket) { $DataBucket } else { 'placeholder-bucket' }
+    & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket"
+  } finally {
+    Pop-Location
   }
-  # Provide a context value for data_bucket so the app can instantiate BackendLambdaStack
-  $effectiveBucket = if ($env:DATA_BUCKET) { $env:DATA_BUCKET } elseif ($DataBucket) { $DataBucket } else { 'placeholder-bucket' }
-  & $cdkCmd.Path deploy StaticSiteStack -c "data_bucket=$effectiveBucket"
 
+}
+} finally {
+  $env:PATH = $originalPath
+  if (Test-Path $pythonShimDir) {
+    Remove-Item -Path $pythonShimDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
 }

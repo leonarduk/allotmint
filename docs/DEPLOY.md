@@ -104,10 +104,10 @@ repository root that is ignored by git.
 
 ```powershell
 # Deploy backend and frontend stacks
-./deploy-to-AWS.ps1 -Backend -DataBucket my-bucket
+./scripts/deploy-to-AWS.ps1 -Backend -DataBucket my-bucket
 
 # Deploy only the frontend stack
-./deploy-to-AWS.ps1
+./scripts/deploy-to-AWS.ps1
 ```
 
 The script changes into the `cdk/` directory, runs `cdk bootstrap` if
@@ -134,3 +134,4 @@ If static files are updated without redeploying the stack, invalidate the distri
 ```bash
 aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/*"
 ```
+

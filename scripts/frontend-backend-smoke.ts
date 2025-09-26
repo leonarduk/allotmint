@@ -254,14 +254,20 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "DELETE",
     "path": "/instrument/admin/{exchange}/{ticker}"
   },
-  {
-    "method": "GET",
-    "path": "/instrument/admin/{exchange}/{ticker}"
-  },
+  // Call the POST before any GET that could trigger `_auto_create_instrument_meta`
+  // via the admin endpoint; otherwise the POST would fail with a conflict. Seed
+  // minimal metadata so the subsequent GET reads a non-empty payload.
   {
     "method": "POST",
     "path": "/instrument/admin/{exchange}/{ticker}",
-    "body": {}
+    "body": {
+      "ticker": "PFE.NASDAQ",
+      "exchange": "NASDAQ"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/instrument/admin/{exchange}/{ticker}"
   },
   {
     "method": "PUT",

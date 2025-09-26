@@ -8,9 +8,12 @@ by FastAPI.
 """
 
 import asyncio
+import shutil
 import logging
 import os
+import tempfile
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -125,6 +128,8 @@ def create_app() -> FastAPI:
     # logic is handled via a lifespan context manager to ensure all background
     # tasks are registered and later cleaned up.
 
+    temp_dirs: list[Path] = []
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if not cfg.skip_snapshot_warm:
@@ -163,6 +168,9 @@ def create_app() -> FastAPI:
                 pass
         logging.shutdown()
 
+        for temp_dir in temp_dirs:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
     app = FastAPI(
         title="Allotmint API",
         version="1.0",
@@ -187,12 +195,35 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     paths = resolve_paths(cfg.repo_root, cfg.accounts_root)
+    accounts_root = paths.accounts_root
+    original_accounts_root = accounts_root
+
+    if os.getenv("TESTING"):
+        try:
+            accounts_root.relative_to(paths.repo_root)
+        except ValueError:
+            pass
+        else:
+            try:
+                temp_root = Path(tempfile.mkdtemp(prefix="allotmint-accounts-"))
+                isolated_root = temp_root / accounts_root.name
+                shutil.copytree(accounts_root, isolated_root, dirs_exist_ok=True)
+            except Exception as exc:  # pragma: no cover - best effort cleanup
+                logger.warning("Failed to isolate accounts root for tests: %s", exc)
+            else:
+                temp_dirs.append(temp_root)
+                accounts_root = isolated_root
+                cfg.accounts_root = accounts_root
+                tx_output = getattr(cfg, "transactions_output_root", None)
+                if tx_output and Path(tx_output) == original_accounts_root:
+                    cfg.transactions_output_root = accounts_root
+
     try:
-        reconcile_transactions_with_holdings(paths.accounts_root)
+        reconcile_transactions_with_holdings(accounts_root)
     except Exception:
         logger.exception("Failed to reconcile holdings with transactions")
     app.state.repo_root = paths.repo_root
-    app.state.accounts_root = paths.accounts_root
+    app.state.accounts_root = accounts_root
     app.state.virtual_pf_root = paths.virtual_pf_root
 
     # ───────────────────────────── CORS ─────────────────────────────

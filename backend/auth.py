@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 import secrets
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Optional, Set
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from google.auth.transport import requests
 from google.oauth2 import id_token
@@ -202,7 +203,9 @@ async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
     return _user_from_token(token)
 
 
-async def get_active_user(token: str | None = Depends(oauth2_scheme)) -> str | None:
+async def get_active_user(
+    request: Request, token: str | None = Depends(oauth2_scheme)
+) -> str | None:
     """Return the active user when authentication is enabled.
 
     When ``config.disable_auth`` is truthy the API allows unauthenticated
@@ -210,7 +213,20 @@ async def get_active_user(token: str | None = Depends(oauth2_scheme)) -> str | N
     shared demo identity.  If a token is supplied while auth is disabled it is
     still validated to support mixed environments where some requests provide
     credentials.
+
+    Tests override :func:`get_current_user` to bypass authentication entirely.
+    FastAPI's dependency override mechanism does not automatically propagate to
+    helpers such as this one, so we honour any override manually when present
+    on the application.  This keeps the production behaviour while ensuring the
+    router can be exercised easily in unit tests.
     """
+
+    override = request.app.dependency_overrides.get(get_current_user)
+    if override:
+        result = override()
+        if inspect.isawaitable(result):
+            result = await result
+        return result
 
     if config.disable_auth:
         if token:

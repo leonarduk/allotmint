@@ -120,7 +120,19 @@ def test_validate_trade_when_owner_discovery_fails(tmp_path):
     app.state.accounts_root = missing_root
 
     with TestClient(app) as client:
-        resp = client.post("/compliance/validate", json={"owner": "demo"})
+        resp = client.post(
+            "/compliance/validate",
+            json={
+                "owner": " demo ",
+                "account": "brokerage",
+                "date": "2024-03-01",
+                "type": "buy",
+                "ticker": "XYZ",
+            },
+        )
         assert resp.status_code == 200
+        data = resp.json()
+        assert data["owner"] == "demo"
+        assert data["warnings"] == []
         scaffold = missing_root / "demo" / "demo_transactions.json"
         assert scaffold.exists()

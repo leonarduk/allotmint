@@ -3,6 +3,7 @@ from __future__ import annotations
 """Data loading helpers for AllotMint."""
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
@@ -10,6 +11,9 @@ from typing import Any, Dict, List, Optional
 
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config
+
+
+logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------
@@ -281,7 +285,7 @@ def load_account(
             import boto3  # type: ignore
 
             obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
-        except Exception as exc:  # pragma: no cover - exercised via tests
+        except Exception as exc:
             raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
         body = obj.get("Body")
         txt = body.read().decode("utf-8-sig").strip() if body else ""
@@ -309,8 +313,8 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             if key in data:
                 meta[key] = data[key]
         if "viewers" not in meta:
-          # Preserve account access viewers if present
-          meta["viewers"] = data.get("viewers", [])
+            # Preserve account access viewers if present
+            meta["viewers"] = data.get("viewers", [])
         return meta
 
     if config.app_env == "aws" or os.getenv(DATA_BUCKET_ENV):
@@ -328,8 +332,16 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                 return {}
             data = json.loads(txt)
             return _extract(data)
-        except Exception:
-            return {}
+        except Exception as exc:
+            logger.warning(
+                "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
+                bucket,
+                key,
+                exc,
+                exc_info=True,
+            )
+            if config.app_env == "aws" and data_root is None:
+                return {}
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = data_root or paths.accounts_root
     path = root / owner / "person.json"

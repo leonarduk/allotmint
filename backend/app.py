@@ -8,9 +8,12 @@ by FastAPI.
 """
 
 import asyncio
+import shutil
 import logging
 import os
+import tempfile
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -35,6 +38,7 @@ from backend.common.portfolio_utils import (
     refresh_snapshot_async,
     refresh_snapshot_in_memory,
 )
+from backend.common.transaction_reconciliation import reconcile_transactions_with_holdings
 from backend.config import reload_config
 from backend import config_module
 
@@ -54,8 +58,10 @@ from backend.routes.models import router as models_router
 from backend.routes.nudges import router as nudges_router
 from backend.routes.news import router as news_router
 from backend.routes.market import router as market_router
+from backend.routes.analytics import router as analytics_router
 from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
+from backend.routes.opportunities import router as opportunities_router
 from backend.routes.portfolio import public_router as public_portfolio_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.query import router as query_router
@@ -122,6 +128,8 @@ def create_app() -> FastAPI:
     # logic is handled via a lifespan context manager to ensure all background
     # tasks are registered and later cleaned up.
 
+    temp_dirs: list[Path] = []
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if not cfg.skip_snapshot_warm:
@@ -160,6 +168,9 @@ def create_app() -> FastAPI:
                 pass
         logging.shutdown()
 
+        for temp_dir in temp_dirs:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
     app = FastAPI(
         title="Allotmint API",
         version="1.0",
@@ -184,8 +195,35 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     paths = resolve_paths(cfg.repo_root, cfg.accounts_root)
+    accounts_root = paths.accounts_root
+    original_accounts_root = accounts_root
+
+    if os.getenv("TESTING"):
+        try:
+            accounts_root.relative_to(paths.repo_root)
+        except ValueError:
+            pass
+        else:
+            try:
+                temp_root = Path(tempfile.mkdtemp(prefix="allotmint-accounts-"))
+                isolated_root = temp_root / accounts_root.name
+                shutil.copytree(accounts_root, isolated_root, dirs_exist_ok=True)
+            except Exception as exc:  # pragma: no cover - best effort cleanup
+                logger.warning("Failed to isolate accounts root for tests: %s", exc)
+            else:
+                temp_dirs.append(temp_root)
+                accounts_root = isolated_root
+                cfg.accounts_root = accounts_root
+                tx_output = getattr(cfg, "transactions_output_root", None)
+                if tx_output and Path(tx_output) == original_accounts_root:
+                    cfg.transactions_output_root = accounts_root
+
+    try:
+        reconcile_transactions_with_holdings(accounts_root)
+    except Exception:
+        logger.exception("Failed to reconcile holdings with transactions")
     app.state.repo_root = paths.repo_root
-    app.state.accounts_root = paths.accounts_root
+    app.state.accounts_root = accounts_root
     app.state.virtual_pf_root = paths.virtual_pf_root
 
     # ───────────────────────────── CORS ─────────────────────────────
@@ -233,6 +271,7 @@ def create_app() -> FastAPI:
     app.include_router(public_portfolio_router)
     app.include_router(portfolio_router, dependencies=protected)
     app.include_router(performance_router, dependencies=protected)
+    app.include_router(opportunities_router)
     app.include_router(instrument_router)
     # Administrative endpoints for editing instrument definitions. Authentication
     # is applied at include-time so `cfg.disable_auth` can skip it during
@@ -253,6 +292,7 @@ def create_app() -> FastAPI:
     app.include_router(query_router, dependencies=protected)
     app.include_router(virtual_portfolio_router, dependencies=protected)
     app.include_router(metrics_router)
+    app.include_router(analytics_router, dependencies=protected)
     app.include_router(agent_router)
     app.include_router(trading_agent_router, dependencies=protected)
     app.include_router(config_router)

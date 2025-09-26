@@ -1,5 +1,47 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 // Auto-generated via backend route metadata
 export interface SmokeEndpoint { method: string; path: string; query?: Record<string, string>; body?: any }
+
+const DEFAULT_DEATH_AGE = '90';
+
+function statePensionAgeUk(dob: string): number {
+  const birth = new Date(`${dob}T00:00:00Z`);
+  if (Number.isNaN(birth.getTime())) {
+    throw new Error('Invalid dob');
+  }
+
+  if (birth < new Date('1954-10-06T00:00:00Z')) return 65;
+  if (birth < new Date('1960-04-06T00:00:00Z')) return 66;
+  if (birth < new Date('1977-04-06T00:00:00Z')) return 67;
+  return 68;
+}
+
+function computeDemoDeathAge(): string {
+  const accountsRoot = process.env.ACCOUNTS_ROOT ?? path.resolve(__dirname, '../data/accounts');
+  const personPath = path.join(accountsRoot, 'demo', 'person.json');
+
+  try {
+    const meta = JSON.parse(fs.readFileSync(personPath, 'utf8')) as { dob?: unknown };
+    const dob = typeof meta.dob === 'string' ? meta.dob : null;
+    if (!dob) {
+      return DEFAULT_DEATH_AGE;
+    }
+    const retirementAge = statePensionAgeUk(dob);
+    return String(retirementAge + 20);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.warn(`Falling back to default pension death age: ${error.message}`);
+    } else {
+      console.warn('Falling back to default pension death age due to unknown error');
+    }
+    return DEFAULT_DEATH_AGE;
+  }
+}
+
+const demoPensionDeathAge = computeDemoDeathAge();
+
 export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "GET",
@@ -143,10 +185,6 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
-    "method": "DELETE",
-    "path": "/goals/{name}"
-  },
-  {
     "method": "GET",
     "path": "/goals/{name}",
     "query": {
@@ -161,6 +199,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
       "target_amount": 0,
       "target_date": "1970-01-01"
     }
+  },
+  {
+    "method": "DELETE",
+    "path": "/goals/{name}"
   },
   {
     "method": "GET",
@@ -204,20 +246,28 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "POST",
     "path": "/instrument/admin/groups",
-    "body": {}
+    "body": {
+      "name": "demo"
+    }
   },
   {
     "method": "DELETE",
     "path": "/instrument/admin/{exchange}/{ticker}"
   },
-  {
-    "method": "GET",
-    "path": "/instrument/admin/{exchange}/{ticker}"
-  },
+  // Call the POST before any GET that could trigger `_auto_create_instrument_meta`
+  // via the admin endpoint; otherwise the POST would fail with a conflict. Seed
+  // minimal metadata so the subsequent GET reads a non-empty payload.
   {
     "method": "POST",
     "path": "/instrument/admin/{exchange}/{ticker}",
-    "body": {}
+    "body": {
+      "ticker": "PFE.NASDAQ",
+      "exchange": "NASDAQ"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/instrument/admin/{exchange}/{ticker}"
   },
   {
     "method": "PUT",
@@ -231,7 +281,9 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "POST",
     "path": "/instrument/admin/{exchange}/{ticker}/group",
-    "body": {}
+    "body": {
+      "group": "demo"
+    }
   },
   {
     "method": "GET",
@@ -242,7 +294,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/instrument/search"
+    "path": "/instrument/search",
+    "query": {
+      "q": "demo"
+    }
   },
   {
     "method": "GET",
@@ -298,7 +353,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/pension/forecast",
     "query": {
       "owner": "demo",
-      "death_age": "90"
+      "death_age": demoPensionDeathAge
     }
   },
   {
@@ -601,7 +656,7 @@ const SAMPLE_PATH_VALUES: Record<string, string> = {
   vp_id: '1',
   quest_id: 'check-in',
   slug: 'demo-slug',
-  name: 'demo',
+  name: 'test',
   exchange: 'NASDAQ',
   ticker: 'PFE',
 };
@@ -662,10 +717,23 @@ export async function runSmoke(base: string) {
     }
 
     // Allow 401/403 for endpoints that require roles; they still prove the route exists
-    if (res.status >= 400 && res.status !== 401 && res.status !== 403) {
+    // Allow 409 for endpoints where we try to create data that may already exist.
+    if (
+      res.status >= 400 &&
+      res.status !== 401 &&
+      res.status !== 403 &&
+      res.status !== 409
+    ) {
       throw new Error(`${ep.method} ${ep.path} -> ${res.status}`);
     }
-    const tag = res.ok ? "✓" : (res.status === 401 || res.status === 403) ? "○" : "•";
+    const tag =
+      res.ok
+        ? "✓"
+        : res.status === 401 || res.status === 403
+          ? "○"
+          : res.status === 409
+            ? "△"
+            : "•";
     console.log(`${tag} ${ep.method} ${ep.path} (${res.status})`);
 
   }

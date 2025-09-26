@@ -10,8 +10,15 @@
     "research": "Recherche",
     "logout": "Déconnexion",
     "menu": "Menu",
-    "focusMode": "Mode concentration",
-    "exitFocusMode": "Quitter le mode concentration",
+    "menuCategories": {
+      "dashboard": "Tableau de bord",
+      "holdings": "Positions",
+      "tradeTools": "Outils de trading",
+      "goals": "Objectifs",
+      "preferences": "Préférences",
+      "operations": "Opérations",
+      "other": "Autres"
+    },
     "modes": {
       "group": "Groupe",
       "instrument": "Instrument",
@@ -151,7 +158,8 @@
     "source": "Source :",
     "actualPurchaseCost": "Coût d'achat réel",
     "inferredCost": "Déduit du prix à la date d'acquisition",
-    "eligible": "Éligible"
+    "eligible": "Éligible",
+    "totalRowLabel": "Total"
   },
   "instrumentDetail": {
     "edit": "Modifier",

@@ -44,12 +44,14 @@ def test_resolve_accounts_root_falls_back_to_global_directory(
     from backend.common import data_loader
     from backend.config import config
 
-    missing_from_state = tmp_path / "missing-from-state"
+    cached_path = tmp_path / "cached"
+    cached_path.mkdir()
     missing_from_config = tmp_path / "missing-from-config"
     fallback_root = tmp_path / "fallback"
     fallback_root.mkdir()
 
-    state = SimpleNamespace(accounts_root=missing_from_state)
+    # Store the cached path as a string to mirror common serialization behaviour.
+    state = SimpleNamespace(accounts_root=str(cached_path))
     request = _make_request(state)
 
     monkeypatch.setattr(config, "repo_root", Path("/configured/root"))
@@ -67,9 +69,17 @@ def test_resolve_accounts_root_falls_back_to_global_directory(
 
     monkeypatch.setattr(data_loader, "resolve_paths", fake_resolve_paths)
 
+    cached_resolved = resolve_accounts_root(request)
+
+    assert cached_resolved == cached_path.resolve()
+    assert request.app.state.accounts_root == cached_path.resolve()
+    assert calls == []
+
+    cached_path.rmdir()
+
     resolved = resolve_accounts_root(request)
 
-    assert resolved == fallback_root
+    assert resolved == fallback_root.resolve()
     assert request.app.state.accounts_root == fallback_root.resolve()
     assert calls == [
         (config.repo_root, config.accounts_root),

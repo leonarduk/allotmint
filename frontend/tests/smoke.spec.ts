@@ -14,9 +14,13 @@ test.describe('smoke test page', () => {
     }
 
     await page.goto(smokePath);
-    await page.waitForSelector('ul li');
 
-    const items = page.getByRole('listitem');
+    const list = page.getByRole('list', { name: 'Smoke test results' });
+    await expect(list).toBeVisible();
+
+    const items = list.getByRole('listitem');
+    await expect(items.first()).toBeVisible();
+
     const count = await items.count();
     expect(count).toBeGreaterThan(0);
 

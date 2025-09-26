@@ -51,6 +51,11 @@ def _ensure_owner_scaffold(owner: str, owner_dir: Path) -> None:
     defaults: Dict[str, Dict[str, Any]] = {
         "settings.json": _default_settings_payload(),
         "approvals.json": {"approvals": []},
+        "person.json": {
+            "owner": owner,
+            "holdings": [],
+            "viewers": [],
+        },
         f"{owner}_transactions.json": {
             "account_type": "brokerage",
             "transactions": [],
@@ -76,6 +81,19 @@ def _parse_date(val: str | None) -> date | None:
         return None
 
 
+def ensure_owner_scaffold(owner: str, accounts_root: Optional[Path] = None) -> Path:
+    """Create the default compliance scaffold for ``owner`` if needed.
+
+    Returns the resolved owner directory after ensuring the default files are
+    present.
+    """
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
+    owner_dir = root / owner
+    _ensure_owner_scaffold(owner, owner_dir)
+    return owner_dir
+
+
 def load_transactions(
     owner: str,
     accounts_root: Optional[Path] = None,
@@ -87,14 +105,14 @@ def load_transactions(
     By default the function now raises :class:`FileNotFoundError` when the owner
     directory is absent.  Administrative callers that want to bootstrap a new
     owner can opt-in to scaffolding by passing ``scaffold_missing=True``.
+
     """
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owner_dir = root / owner
     if not owner_dir.exists():
-        if not scaffold_missing:
-            raise FileNotFoundError(f"owner data for '{owner}' not found at {owner_dir}")
-        _ensure_owner_scaffold(owner, owner_dir)
+        raise FileNotFoundError(owner_dir)
+    _ensure_owner_scaffold(owner, owner_dir)
 
     results: List[Dict[str, Any]] = []
     for path in owner_dir.glob("*_transactions.json"):

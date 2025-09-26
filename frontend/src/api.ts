@@ -25,6 +25,7 @@ import type {
   SavedQuery,
   QuoteRow,
   TradingSignal,
+  OpportunityEntry,
   ComplianceResult,
   MoverRow,
   TimeseriesSummary,
@@ -37,11 +38,15 @@ import type {
   RegionContribution,
   UserConfig,
   InstrumentMetadata,
+  InstrumentGroupDefinition,
   ApprovalsResponse,
   NewsItem,
   Nudge,
   HoldingValue,
   MarketOverview,
+  AnalyticsEventPayload,
+  AnalyticsFunnelSummary,
+  AnalyticsSource,
 } from "./types";
 
 const cleanOptionalString = (value: unknown): string | null => {
@@ -266,6 +271,51 @@ export const getTopMovers = (
   if (limit) params.set("limit", String(limit));
   return fetchJson<{ gainers: MoverRow[]; losers: MoverRow[] }>(
     `${API_BASE}/movers?${params.toString()}`,
+  );
+};
+
+export type OpportunitiesResponse = {
+  entries: OpportunityEntry[];
+  signals: TradingSignal[];
+  context: {
+    source: "group" | "watchlist";
+    group?: string | null;
+    tickers?: string[];
+    days: number;
+    anomalies?: string[];
+  };
+};
+
+export const getOpportunities = ({
+  group,
+  tickers,
+  days = 1,
+  limit = 10,
+  minWeight = 0,
+}: {
+  group?: string;
+  tickers?: string[];
+  days?: number;
+  limit?: number;
+  minWeight?: number;
+}) => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (limit) params.set("limit", String(limit));
+  if (minWeight) params.set("min_weight", String(minWeight));
+
+  if (group && tickers?.length) {
+    throw new Error("Specify either group or tickers, not both");
+  }
+  if (group) {
+    params.set("group", group);
+  } else if (tickers?.length) {
+    params.set("tickers", tickers.join(","));
+  } else {
+    throw new Error("Either group or tickers must be provided");
+  }
+
+  return fetchJson<OpportunitiesResponse>(
+    `${API_BASE}/opportunities?${params.toString()}`,
   );
 };
 
@@ -699,6 +749,9 @@ export const listInstrumentMetadata = () =>
 export const listInstrumentGroups = () =>
   fetchJson<string[]>(`${API_BASE}/instrument/admin/groups`);
 
+export const listInstrumentGroupingDefinitions = () =>
+  fetchJson<InstrumentGroupDefinition[]>(`${API_BASE}/instrument/admin/groupings`);
+
 type InstrumentGroupMutationResponse = {
   status: string;
   group: string;
@@ -793,6 +846,18 @@ export const createTransaction = (payload: CreateTransactionPayload) =>
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+
+export const updateTransaction = (id: string, payload: CreateTransactionPayload) =>
+  fetchJson<Transaction>(`${API_BASE}/transactions/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+export const deleteTransaction = (id: string) =>
+  fetchJson<{ status: string }>(`${API_BASE}/transactions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
   });
 
 export const getDividends = (params?: {
@@ -939,8 +1004,8 @@ export const deleteVirtualPortfolio = (id: number | string) =>
   });
 
 /** Retrieve backend configuration. */
-export const getConfig = <T = Record<string, unknown>>() =>
-  fetchJson<T>(`${API_BASE}/config`);
+export const getConfig = <T = Record<string, unknown>>(init?: RequestInit) =>
+  fetchJson<T>(`${API_BASE}/config`, init);
 
 /** Persist configuration changes. */
 export const updateConfig = (cfg: Record<string, unknown>) =>
@@ -1245,6 +1310,17 @@ export const completeTrailTask = (id: string) =>
   fetchJson<TrailResponse>(`${API_BASE}/trail/${encodeURIComponent(id)}/complete`, {
     method: "POST",
   });
+
+// ───────────── Analytics ─────────────
+export const logAnalyticsEvent = (payload: AnalyticsEventPayload) =>
+  fetchJson<{ status: string }>(`${API_BASE}/analytics/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then(() => undefined);
+
+export const getAnalyticsFunnel = (source: AnalyticsSource) =>
+  fetchJson<AnalyticsFunnelSummary>(`${API_BASE}/analytics/funnels/${source}`);
 
 // ───────────── Support tools ─────────────
 export interface Finding {

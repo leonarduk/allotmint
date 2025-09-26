@@ -5,16 +5,33 @@ Param(
 
 $ErrorActionPreference = 'Stop'
 
-# Ensure Python is available (try `python` then `py`)
-$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-if (-not $pythonCmd) {
-  $pythonCmd = Get-Command py -ErrorAction SilentlyContinue
+# Ensure Python is available by validating the command actually executes.
+$pythonCandidates = @('python', 'py', 'python3')
+$PYTHON = $null
+foreach ($candidate in $pythonCandidates) {
+  $pythonCmd = Get-Command $candidate -ErrorAction SilentlyContinue
+  if (-not $pythonCmd) {
+    continue
+  }
+  try {
+    $versionProcess = Start-Process -FilePath $pythonCmd.Path -ArgumentList '--version' -NoNewWindow -PassThru -Wait -ErrorAction Stop
+    if ($versionProcess.ExitCode -eq 0) {
+      $PYTHON = $pythonCmd.Path
+      break
+    }
+  } catch {
+    # Ignore and try the next candidate; Windows may surface the Microsoft Store shim.
+    continue
+  }
 }
-if (-not $pythonCmd) {
+if (-not $PYTHON) {
   Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
+  Write-Host 'If you recently installed Python, ensure the "App execution aliases" for python.exe are disabled in Windows settings.' -ForegroundColor Yellow
   exit 1
 }
-$PYTHON = $pythonCmd.Name
+
+# Hint the CDK CLI to use the discovered interpreter instead of the Microsoft Store shim.
+$env:CDK_PYTHON = $PYTHON
 
 # Determine repository root and key paths
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path

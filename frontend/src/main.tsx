@@ -13,7 +13,6 @@ import { AuthProvider, useAuth } from './AuthContext'
 import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import { UserProvider, useUser } from './UserContext'
-import { FocusModeProvider } from './FocusModeContext'
 import ErrorBoundary from './ErrorBoundary'
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
 
@@ -31,9 +30,8 @@ const Trail = lazy(() => import('./pages/Trail'))
 const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'))
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'))
 const AlertSettings = lazy(() => import('./pages/AlertSettings'))
-const SmokeTest = import.meta.env.VITE_SMOKE_TEST
-  ? lazy(() => import('./pages/SmokeTest'))
-  : null
+const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'))
+const SmokeTest = lazy(() => import('./pages/SmokeTest'))
 
 export function Root() {
   const [configLoading, setConfigLoading] = useState(true)
@@ -63,20 +61,41 @@ export function Root() {
   }, [setProfile, setUser, storedToken])
 
   useEffect(() => {
+    let isMounted = true
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => {
+      controller.abort()
+    }, 10000)
+
     setConfigLoading(true)
     setConfigError(null)
-    getConfig<Record<string, unknown>>()
+    getConfig<Record<string, unknown>>({ signal: controller.signal })
       .then(cfg => {
+        if (!isMounted) return
         setNeedsAuth(Boolean((cfg as any).google_auth_enabled))
         setClientId(String((cfg as any).google_client_id || ''))
       })
       .catch(err => {
+        if (!isMounted) return
         console.error('Failed to load configuration', err)
-        setConfigError(err instanceof Error ? err : new Error(String(err)))
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          setConfigError(new Error('Request timed out while loading configuration.'))
+        } else {
+          setConfigError(err instanceof Error ? err : new Error(String(err)))
+        }
       })
       .finally(() => {
-        setConfigLoading(false)
+        clearTimeout(timeoutId)
+        if (isMounted) {
+          setConfigLoading(false)
+        }
       })
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [])
 
   if (configLoading) {
@@ -117,11 +136,10 @@ export function Root() {
           <Route path="/alert-settings" element={<AlertSettings />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/trail" element={<Trail />} />
-          {import.meta.env.VITE_SMOKE_TEST && SmokeTest && (
-            <Route path="/smoke-test" element={<SmokeTest />} />
-          )}
+          <Route path="/smoke-test" element={<SmokeTest />} />
           <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
           <Route path="/returns/compare" element={<ReturnComparison />} />
+          <Route path="/metrics-explained" element={<MetricsExplanation />} />
           <Route path="/*" element={<App onLogout={logout} />} />
         </Routes>
       </Suspense>
@@ -138,12 +156,10 @@ createRoot(rootEl).render(
         <PriceRefreshProvider>
           <AuthProvider>
             <UserProvider>
-              <FocusModeProvider>
-                <BrowserRouter>
-                  <Root />
-                </BrowserRouter>
-                <ToastContainer autoClose={5000} />
-              </FocusModeProvider>
+              <BrowserRouter>
+                <Root />
+              </BrowserRouter>
+              <ToastContainer autoClose={5000} />
             </UserProvider>
           </AuthProvider>
         </PriceRefreshProvider>

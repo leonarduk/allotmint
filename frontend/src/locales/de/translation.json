@@ -10,8 +10,15 @@
     "research": "Recherche",
     "logout": "Abmelden",
     "menu": "Menü",
-    "focusMode": "Fokusmodus",
-    "exitFocusMode": "Fokusmodus verlassen",
+    "menuCategories": {
+      "dashboard": "Dashboard",
+      "holdings": "Bestände",
+      "tradeTools": "Handelstools",
+      "goals": "Ziele",
+      "preferences": "Präferenzen",
+      "operations": "Operationen",
+      "other": "Weitere"
+    },
     "modes": {
       "group": "Gruppe",
       "instrument": "Instrument",
@@ -151,7 +158,8 @@
     "source": "Quelle:",
     "actualPurchaseCost": "Tatsächliche Anschaffungskosten",
     "inferredCost": "Abgeleitet vom Preis am Erwerbsdatum",
-    "eligible": "Berechtigt"
+    "eligible": "Berechtigt",
+    "totalRowLabel": "Gesamt"
   },
   "instrumentDetail": {
     "edit": "Bearbeiten",
@@ -255,10 +263,50 @@
     "trackingError": "Tracking Error",
     "maxDrawdown": "Max Drawdown",
     "maxDrawdownHelp": "Der maximale Drawdown ist der größte prozentuale Rückgang vom bisherigen Höchststand des Portfolios bis zum darauffolgenden Tief, berechnet auf Basis der rekonstruierten täglichen Schlusswerte Ihrer Positionen.",
+    "metricsExplanationLink": "Wie werden diese Werte berechnet?",
     "timeWeightedReturn": "Zeitgewichtete Rendite",
     "xirr": "XIRR",
     "portfolioValue": "Portfoliowert",
     "cumulativeReturn": "Kumulierte Rendite"
+  },
+  "metricsExplanation": {
+    "title": "Performancekennzahlen erklärt",
+    "intro": "Diese Kennzahlen fassen zusammen, wie sich das kombinierte Portfolio im Vergleich zu seinem Benchmark entwickelt. Jede Zahl basiert auf denselben täglichen Renditereihen wie die Kacheln im Dashboard.",
+    "backLink": "Zurück zum Portfolio-Dashboard",
+    "calculationHeading": "So berechnen wir das",
+    "notesHeading": "Wissenswertes",
+    "dataHeading": "Datengrundlage",
+    "dataBody": "Wir rekonstruieren tägliche Marktwerte für jede Position mithilfe der neuesten Kursdaten und erfasster Kapitalmaßnahmen. Cashflows, Trades und Benchmark-Stände werden auf UTC-Handelstage normalisiert. Kennzahlen werden aktualisiert, sobald neue Preise vorliegen.",
+    "disclaimer": "Diese Statistiken dienen nur zur Information und können von den Angaben Ihres Brokers abweichen, wenn sich Preisquellen oder Benchmark-Auswahl unterscheiden.",
+    "sections": {
+      "alpha": {
+        "title": "Alpha vs Benchmark",
+        "summary": "Alpha misst die Überrendite des Portfolios gegenüber dem Benchmark im gleichen Zeitraum.",
+        "calculation": "Wir berechnen zeitgewichtete kumulierte Renditen für Portfolio und Benchmark. Alpha ist einfach die Portfoliorendite minus der Benchmark-Rendite in Prozentpunkten.",
+        "notes": [
+          "Positives Alpha bedeutet, dass das Portfolio den Benchmark im betrachteten Zeitraum geschlagen hat.",
+          "Wenn für einen Teil des Zeitraums keine Daten vorliegen, verwenden wir nur die überlappenden Handelstage."
+        ]
+      },
+      "trackingError": {
+        "title": "Tracking Error",
+        "summary": "Der Tracking Error zeigt, wie stark die täglichen Portfoliorenditen vom Benchmark abweichen.",
+        "calculation": "Für jeden Handelstag ziehen wir die Benchmark-Rendite von der Portfoliorendite ab und erhalten so eine Active-Return-Reihe. Der Tracking Error ist die annualisierte Standardabweichung dieser Werte (tägliche Standardabweichung multipliziert mit √252).",
+        "notes": [
+          "Ein höherer Tracking Error deutet auf eine geringere Kopplung an den Benchmark hin.",
+          "Für die Anzeige benötigen wir mindestens 30 überlappende Tagesrenditen."
+        ]
+      },
+      "maxDrawdown": {
+        "title": "Max Drawdown",
+        "summary": "Der maximale Drawdown identifiziert den größten Rückgang vom Höchststand zum Tiefpunkt innerhalb des Beobachtungszeitraums.",
+        "calculation": "Wir verfolgen die zeitgewichtete Renditekurve, merken uns jedes neue Hoch und protokollieren den größten folgenden Rückgang, bevor ein neues Hoch erreicht wird. Der tiefste Verlust in Prozent ist der maximale Drawdown.",
+        "notes": [
+          "Der Drawdown basiert nur auf Portfoliorenditen; der Benchmark fließt hier nicht ein.",
+          "Ein Drawdown von -100 % bedeutet, dass der Portfoliowert nach einem vorherigen Hoch auf null gefallen ist."
+        ]
+      }
+    }
   },
   "support": {
     "title": "Support",

@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import logging
+import json
+import logging
 import os
 import platform
 import re
 from collections import defaultdict
+from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, Iterator, List, Mapping, Optional, Tuple, TextIO
 
 try:  # Unix-like systems
     import fcntl  # type: ignore
@@ -27,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
+from backend.common.ticker_utils import normalise_filter_ticker
 from backend.common import compliance
 from backend.config import config
 from backend import importers
@@ -41,20 +45,26 @@ class Transaction(BaseModel):
 
     owner: str
     account: str
+    id: str | None = None
     date: str | None = None
     ticker: str | None = None
     type: str | None = None
+    kind: str | None = None
     amount_minor: float | None = None
+    currency: str | None = None
+    security_ref: str | None = None
+    price_gbp: float | None = None
     price: float | None = None
+    shares: float | None = None
     units: float | None = None
     fees: float | None = None
     comments: str | None = None
+    reason: str | None = None
     reason_to_buy: str | None = None
+    synthetic: bool = False
 
     model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["transactions"])
 
@@ -62,6 +72,9 @@ _POSTED_TRANSACTIONS: List[dict] = []
 _PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
 
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+_ID_RE = re.compile(
+    r"^(?P<owner>[A-Za-z0-9_-]+):(?P<account>[A-Za-z0-9_-]+):(?P<index>\d+)$"
+)
 
 
 def _lock_file(f) -> None:
@@ -94,6 +107,47 @@ class TransactionCreate(BaseModel):
     reason: Optional[str] = None
 
 
+class TransactionUpdate(TransactionCreate):
+    pass
+
+
+def _build_transaction_id(owner: str, account: str, index: int) -> str:
+    return f"{owner}:{account}:{index}"
+
+
+def _parse_transaction_id(tx_id: str) -> Tuple[str, str, int]:
+    match = _ID_RE.fullmatch(tx_id)
+    if not match:
+        raise HTTPException(status_code=400, detail="Invalid transaction id")
+    return (
+        match.group("owner"),
+        match.group("account"),
+        int(match.group("index")),
+    )
+
+
+def _calculate_portfolio_impact(tx: Mapping[str, object]) -> float:
+    try:
+        price = float(tx.get("price_gbp") or 0.0)
+        units = float(tx.get("units") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    return price * units
+
+
+def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping[str, object]) -> Dict[str, object]:
+    managed_fields = {"ticker", "date", "price_gbp", "units", "fees", "comments", "reason"}
+    updated = dict(existing)
+    for field in managed_fields:
+        if field not in update or update.get(field) is None:
+            updated.pop(field, None)
+    for key, value in update.items():
+        if value is not None:
+            updated[key] = value
+    updated.pop("id", None)
+    return updated
+
+
 def _load_all_transactions() -> List[Transaction]:
     results: List[Transaction] = []
     if not config.accounts_root:
@@ -110,15 +164,73 @@ def _load_all_transactions() -> List[Transaction]:
         except (OSError, json.JSONDecodeError):
             continue
         owner = data.get("owner", path.parent.name)
-        account = (
-            data.get("account_type")
-            or path.stem.replace("_transactions", "")
-        ).lower()
-        for t in data.get("transactions", []):
+        account_raw = data.get("account_type") or path.stem.replace("_transactions", "")
+        account = account_raw.lower()
+        transactions = data.get("transactions", []) or []
+        for idx, t in enumerate(transactions):
             t = dict(t)
             t.pop("account", None)
-            results.append(Transaction(owner=owner, account=account, **t))
+            results.append(
+                Transaction(
+                    owner=owner,
+                    account=account,
+                    id=_build_transaction_id(owner, account_raw, idx),
+                    **t,
+                )
+            )
     return results
+
+
+def _find_transaction_file(owner: str, account: str) -> Tuple[Path, str]:
+    if not config.accounts_root:
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
+
+    owner_dir = Path(config.accounts_root) / owner
+    if not owner_dir.exists():
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    account_lower = account.lower()
+    for candidate in owner_dir.glob("*_transactions.json"):
+        candidate_account = candidate.stem.replace("_transactions", "")
+        if candidate_account.lower() == account_lower:
+            return candidate, candidate_account
+    raise HTTPException(status_code=404, detail="Transaction not found")
+
+
+@contextmanager
+def _locked_transactions_data(owner: str, account: str) -> Iterator[Tuple[dict, TextIO]]:
+    owner_dir = Path(config.accounts_root) / owner
+    owner_dir.mkdir(parents=True, exist_ok=True)
+    file_path = owner_dir / f"{account}_transactions.json"
+    mode = "r+" if file_path.exists() else "w+"
+    with file_path.open(mode, encoding="utf-8") as f:
+        _lock_file(f)
+        f.seek(0)
+        try:
+            data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {"owner": owner, "account_type": account, "transactions": []}
+        else:
+            data.setdefault("owner", owner)
+            data.setdefault("account_type", account)
+            data.setdefault("transactions", [])
+        yield data, f
+        f.seek(0)
+        f.truncate()
+        json.dump(data, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+        _unlock_file(f)
+
+
+def _rebuild_portfolio(owner: str, account: str) -> None:
+    try:
+        accounts_root = Path(config.accounts_root)
+        if not config.offline_mode:
+            portfolio_loader.rebuild_account_holdings(owner, account, accounts_root)
+        portfolio_mod.build_owner_portfolio(owner, accounts_root)
+    except FileNotFoundError as exc:
+        log.warning("Portfolio rebuild failed: %s", exc)
 
 
 @router.get("/transactions/compliance")
@@ -137,8 +249,13 @@ async def transactions_with_compliance(
             for t in txs
             if (t.get("account") or "").lower() == account.lower()
         ]
-    if ticker:
-        txs = [t for t in txs if (t.get("ticker") or "").upper() == ticker.upper()]
+    norm_ticker = normalise_filter_ticker(
+        ticker,
+        offline_mode=bool(config.offline_mode),
+        fallback=getattr(config, "offline_fundamentals_ticker", None),
+    )
+    if norm_ticker:
+        txs = [t for t in txs if (t.get("ticker") or "").upper() == norm_ticker]
     txs.sort(key=lambda t: _parse_date(t.get("date")) or date.min)
     evaluated = compliance.evaluate_trades(owner, txs, request.app.state.accounts_root)
     return {"transactions": evaluated}
@@ -183,43 +300,126 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     _PORTFOLIO_IMPACT[owner] += impact
     _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
 
-    owner_dir = Path(config.accounts_root) / owner
-    owner_dir.mkdir(parents=True, exist_ok=True)
-    file_path = owner_dir / f"{account}_transactions.json"
-
-    with file_path.open("a+", encoding="utf-8") as f:
-        _lock_file(f)
-        f.seek(0)
-        try:
-            data = json.load(f)
-        except json.JSONDecodeError as exc:
-            log.warning("Failed to parse existing transactions file %s: %s", file_path, exc)
-            data = {"owner": owner, "account_type": account, "transactions": []}
-        except OSError as exc:
-            log.warning("Failed to read transactions file %s: %s", file_path, exc)
-            data = {"owner": owner, "account_type": account, "transactions": []}
-
+    with _locked_transactions_data(owner, account) as (data, _file):
         transactions = data.setdefault("transactions", [])
         transactions.append(tx_data)
         data["owner"] = owner
         data["account_type"] = account
+        new_index = len(transactions) - 1
 
-        f.seek(0)
-        f.truncate()
-        json.dump(data, f, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-        _unlock_file(f)
+    _rebuild_portfolio(owner, account)
 
-    try:
-        accounts_root = Path(config.accounts_root)
-        if not config.offline_mode:
-            portfolio_loader.rebuild_account_holdings(owner, account, accounts_root)
-        portfolio_mod.build_owner_portfolio(owner, accounts_root)
-    except FileNotFoundError as exc:
-        log.warning("Portfolio rebuild failed: %s", exc)
+    tx_id = _build_transaction_id(owner, account, new_index)
+    return {"owner": owner, "account": account, "id": tx_id, **tx_data}
 
-    return {"owner": owner, "account": account, **tx_data}
+
+@router.put("/transactions/{tx_id}")
+async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
+    if not config.accounts_root:
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
+
+    original_owner, original_account_raw, index = _parse_transaction_id(tx_id)
+    original_owner = _validate_component(original_owner, "owner")
+    original_account = _validate_component(original_account_raw, "account")
+
+    tx_data = tx.model_dump(mode="json")
+    new_owner = _validate_component(tx_data.pop("owner"), "owner")
+    new_account = _validate_component(tx_data.pop("account"), "account")
+    if not tx_data.get("reason"):
+        raise HTTPException(status_code=400, detail="reason is required")
+
+    _, original_account_canonical = _find_transaction_file(original_owner, original_account)
+
+    same_owner = new_owner.lower() == original_owner.lower()
+    same_account = new_account.lower() == original_account_canonical.lower()
+    same_location = same_owner and same_account
+
+    old_impact = 0.0
+    new_entry: Dict[str, object]
+    pending_entry: Optional[Dict[str, object]] = None
+
+    with _locked_transactions_data(original_owner, original_account_canonical) as (data, _):
+        transactions = data.setdefault("transactions", [])
+        if index >= len(transactions) or index < 0:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        existing = transactions[index]
+        old_impact = _calculate_portfolio_impact(existing)
+
+        if same_location:
+            updated_entry = _prepare_updated_transaction(existing, tx_data)
+            transactions[index] = updated_entry
+            data["owner"] = new_owner
+            data["account_type"] = new_account
+            new_entry = updated_entry
+        else:
+            removed_entry = transactions.pop(index)
+            data["owner"] = original_owner
+            data["account_type"] = original_account_canonical
+            pending_entry = _prepare_updated_transaction(removed_entry, tx_data)
+            new_entry = pending_entry
+
+    new_index = index
+
+    if not same_location:
+        if pending_entry is None:
+            raise HTTPException(status_code=500, detail="Failed to update transaction")
+        with _locked_transactions_data(new_owner, new_account) as (data, _):
+            transactions = data.setdefault("transactions", [])
+            transactions.append(pending_entry)
+            data["owner"] = new_owner
+            data["account_type"] = new_account
+            new_index = len(transactions) - 1
+
+    new_impact = _calculate_portfolio_impact(new_entry)
+
+    if same_location:
+        _PORTFOLIO_IMPACT[new_owner] += new_impact - old_impact
+    else:
+        _PORTFOLIO_IMPACT[original_owner] -= old_impact
+        _PORTFOLIO_IMPACT[new_owner] += new_impact
+
+    affected: List[Tuple[str, str]] = [(new_owner, new_account)]
+    if not same_location:
+        affected.append((original_owner, original_account_canonical))
+
+    for owner_val, account_val in affected:
+        _rebuild_portfolio(owner_val, account_val)
+
+    new_id = _build_transaction_id(new_owner, new_account, new_index)
+    account_response = new_account.lower()
+    return {"owner": new_owner, "account": account_response, "id": new_id, **new_entry}
+
+
+@router.delete("/transactions/{tx_id}")
+async def delete_transaction(tx_id: str) -> dict:
+    if not config.accounts_root:
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
+
+    owner, account_raw, index = _parse_transaction_id(tx_id)
+    owner = _validate_component(owner, "owner")
+    account = _validate_component(account_raw, "account")
+
+    _, account_canonical = _find_transaction_file(owner, account)
+
+    removed_entry: Optional[Mapping[str, object]] = None
+
+    with _locked_transactions_data(owner, account_canonical) as (data, _):
+        transactions = data.setdefault("transactions", [])
+        if index >= len(transactions) or index < 0:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        removed_entry = transactions.pop(index)
+        data["owner"] = owner
+        data["account_type"] = account_canonical
+
+    if removed_entry is None:
+        raise HTTPException(status_code=500, detail="Failed to delete transaction")
+
+    impact = _calculate_portfolio_impact(removed_entry)
+    _PORTFOLIO_IMPACT[owner] -= impact
+
+    _rebuild_portfolio(owner, account_canonical)
+
+    return {"status": "deleted"}
 
 
 @router.post("/transactions/import", response_model=List[Transaction])
@@ -306,6 +506,11 @@ async def list_dividends(
 
     start_d = _parse_date(start)
     end_d = _parse_date(end)
+    norm_ticker = normalise_filter_ticker(
+        ticker,
+        offline_mode=bool(config.offline_mode),
+        fallback=getattr(config, "offline_fundamentals_ticker", None),
+    )
 
     txs: List[Transaction] = []
     for t in _load_all_transactions():
@@ -316,7 +521,7 @@ async def list_dividends(
             continue
         if account and t.account.lower() != account.lower():
             continue
-        if ticker and (t.ticker or "").lower() != ticker.lower():
+        if norm_ticker and (t.ticker or "").upper() != norm_ticker:
             continue
         tx_date = _parse_date(t.date)
         if start_d and (not tx_date or tx_date < start_d):

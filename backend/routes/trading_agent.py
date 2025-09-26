@@ -19,7 +19,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/trading-agent", tags=["trading-agent"])
 
 
-@router.get("/signals", response_model=List[TradingSignal])
+@router.get(
+    "/signals",
+    response_model=List[TradingSignal],
+    response_model_exclude_none=True,
+)
 async def signals(
     notify_email: bool = False, notify_telegram: bool = False
 ) -> List[TradingSignal]:

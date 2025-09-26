@@ -57,7 +57,7 @@ def stubbed_env(monkeypatch):
     monkeypatch.setattr(compliance, "datetime", FixedDateTime)
 
 
-def test_load_transactions_bootstraps_missing_owner(tmp_path):
+def test_load_transactions_missing_owner_raises(tmp_path):
     accounts_root = tmp_path / "accounts"
     owner = "alex"
 
@@ -68,9 +68,16 @@ def test_load_transactions_bootstraps_missing_owner(tmp_path):
         owner, accounts_root=accounts_root, scaffold_missing=True
     )
 
-    assert records == []
+    assert not (accounts_root / owner).exists()
 
-    owner_dir = accounts_root / owner
+
+def test_ensure_owner_scaffold_creates_defaults(tmp_path):
+    accounts_root = tmp_path / "accounts"
+    owner = "alex"
+
+    owner_dir = compliance.ensure_owner_scaffold(owner, accounts_root=accounts_root)
+
+    assert owner_dir == accounts_root / owner
     assert owner_dir.is_dir()
 
     settings_path = owner_dir / "settings.json"

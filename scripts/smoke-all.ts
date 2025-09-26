@@ -39,30 +39,49 @@ const backendArgs = targetBase
   ? [tsxCliPath, 'scripts/frontend-backend-smoke.ts', targetBase]
   : [tsxCliPath, 'scripts/frontend-backend-smoke.ts'];
 
+const npmExecPath = env.npm_execpath;
+
 const commands: Command[] = [
   {
     command: process.execPath,
     args: backendArgs,
     label: 'backend smoke suite',
   },
-  {
-    command: 'npm',
-    args: ['--prefix', 'frontend', 'run', 'smoke:frontend'],
-    label: 'frontend smoke suite',
-  },
+  npmExecPath
+    ? {
+        command: process.execPath,
+        args: [npmExecPath, '--prefix', 'frontend', 'run', 'smoke:frontend'],
+        label: 'frontend smoke suite',
+      }
+    : {
+        command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+        args: ['--prefix', 'frontend', 'run', 'smoke:frontend'],
+        label: 'frontend smoke suite',
+      },
 ];
 
 async function runSequentially() {
+  const failures: { label: string; exitCode: number | null }[] = [];
+
   for (const { command, args, label } of commands) {
     console.log(`\n▶ Running ${label}...`);
     const exitCode = await runCommand(command, args);
 
     if (exitCode !== 0) {
       console.error(`✖ ${label} failed with exit code ${exitCode ?? 'null'}.`);
-      process.exit(exitCode ?? 1);
+      failures.push({ label, exitCode });
+    } else {
+      console.log(`✔ ${label} completed successfully.`);
+    }
+  }
+
+  if (failures.length > 0) {
+    console.error('\nSmoke suites completed with failures:');
+    for (const { label, exitCode } of failures) {
+      console.error(`  • ${label} (exit code: ${exitCode ?? 'null'})`);
     }
 
-    console.log(`✔ ${label} completed successfully.`);
+    process.exit(1);
   }
 
   console.log('\nAll smoke suites completed successfully.');
@@ -70,10 +89,18 @@ async function runSequentially() {
 
 function runCommand(command: string, args: string[]): Promise<number | null> {
   return new Promise((resolve) => {
-    const child = spawn(command, args, {
-      stdio: 'inherit',
-      env,
-    });
+    let child: ReturnType<typeof spawn>;
+
+    try {
+      child = spawn(command, args, {
+        stdio: 'inherit',
+        env,
+      });
+    } catch (error) {
+      console.error(`Failed to start command "${command}":`, error);
+      resolve(1);
+      return;
+    }
 
     child.on('close', (code) => {
       resolve(code);

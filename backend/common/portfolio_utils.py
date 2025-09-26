@@ -439,6 +439,21 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
         "instrument_meta_currency",
     }
 
+    FIELD_SOURCE_PRIORITY = {"holding": 3, "security_meta": 2, "instrument_meta": 1}
+
+    def _update_row_field(row: dict, field: str, value: Any, source: str) -> None:
+        if not isinstance(value, str):
+            return
+        candidate = value.strip()
+        if not candidate:
+            return
+        current_source = row.get(f"_{field}_source") or ""
+        current_priority = FIELD_SOURCE_PRIORITY.get(current_source, 0)
+        priority = FIELD_SOURCE_PRIORITY.get(source, 0)
+        if priority >= current_priority:
+            row[field] = candidate
+            row[f"_{field}_source"] = source
+
     for account in portfolio.get("accounts", []):
         for h in account.get("holdings", []):
             tkr = (h.get("ticker") or "").upper()
@@ -490,9 +505,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     "ticker": full_tkr,
                     "exchange": exch,
                     "name": instrument_meta.get("name") or h.get("name", full_tkr),
-                    "currency": h.get("currency") or instrument_meta.get("currency"),
-                    "sector": h.get("sector") or instrument_meta.get("sector"),
-                    "region": h.get("region") or instrument_meta.get("region"),
+                    "currency": None,
+                    "sector": None,
+                    "region": None,
                     "grouping": initial_grouping,
                     "grouping_id": _first_nonempty_str(
                         h.get("grouping_id"),
@@ -520,19 +535,26 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             )
             row["exchange"] = exch
             row.setdefault("_grouping_from_fallback", False)
+            row.setdefault("_currency_source", None)
+            row.setdefault("_sector_source", None)
+            row.setdefault("_region_source", None)
 
             # accumulate units from the holding
             row["units"] += _safe_num(h.get("units"))
 
+            _update_row_field(row, "currency", h.get("currency"), "holding")
+            _update_row_field(row, "sector", h.get("sector"), "holding")
+            _update_row_field(row, "region", h.get("region"), "holding")
+            _update_row_field(row, "currency", instrument_meta.get("currency"), "instrument_meta")
+            _update_row_field(row, "sector", instrument_meta.get("sector"), "instrument_meta")
+            _update_row_field(row, "region", instrument_meta.get("region"), "instrument_meta")
+
             security_meta: Dict[str, Any] | None = None
             if row.get("currency") is None or row.get("sector") is None or row.get("region") is None:
                 security_meta = get_security_meta(full_tkr) or {}
-                if row.get("currency") is None and security_meta.get("currency"):
-                    row["currency"] = security_meta["currency"]
-                if row.get("sector") is None and security_meta.get("sector"):
-                    row["sector"] = security_meta["sector"]
-                if row.get("region") is None and security_meta.get("region"):
-                    row["region"] = security_meta["region"]
+                _update_row_field(row, "currency", security_meta.get("currency"), "security_meta")
+                _update_row_field(row, "sector", security_meta.get("sector"), "security_meta")
+                _update_row_field(row, "region", security_meta.get("region"), "security_meta")
                 if security_meta:
                     grouping_pairs: List[tuple[str, Any]] = []
                     if not row.get("_grouping_from_fallback", False):
@@ -701,8 +723,16 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_cur
     """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
     rows = aggregate_by_ticker(portfolio, base_currency)
     groups: Dict[str, dict] = {}
+    source_priority = {"holding": 3, "security_meta": 2, "instrument_meta": 1}
     for r in rows:
-        key = r.get(field) or "Unknown"
+        key_value = r.get(field)
+        key = key_value.strip() if isinstance(key_value, str) else None
+        source = r.get(f"_{field}_source") or ""
+        priority = source_priority.get(source, 0)
+        if not key:
+            key = "Unknown"
+        elif priority < 2:
+            key = "Unknown"
         g = groups.setdefault(
             key,
             {

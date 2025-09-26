@@ -11,6 +11,7 @@ state continues to be stored in a JSON document using the
 while deployments may swap in other backends.
 """
 
+import math
 import os
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -176,47 +177,116 @@ def _build_compliance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
     return tasks
 
 
+_AUTO_ONCE_KEY = "_auto_once"
+
+
+def _sync_once_completion(user_data: Dict, task_id: str, should_complete: bool) -> None:
+    """Ensure ``task_id`` reflects ``should_complete`` within ``user_data``."""
+
+    once_list = user_data.setdefault("once", [])
+    auto_list = user_data.setdefault(_AUTO_ONCE_KEY, [])
+
+    if should_complete:
+        if task_id not in auto_list:
+            auto_list.append(task_id)
+    else:
+        if task_id in auto_list:
+            auto_list = [tid for tid in auto_list if tid != task_id]
+            user_data[_AUTO_ONCE_KEY] = auto_list
+
+    # ``once`` records manual completions – keep it unchanged so that marking a
+    # task complete persists even if the underlying signal (e.g. alert settings)
+    # later disappears.
+
+
 def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
     tasks: List[TaskDefinition] = []
 
     # Encourage the user to model a goal if they have not already done so.
-    if not load_goals(user):
-        tasks.append(
-            TaskDefinition(
-                id="create_goal",
-                title="Create your first savings goal",
-                type="once",
-                commentary="Goals help quantify long-term plans and progress.",
-            )
+    has_goal = bool(load_goals(user))
+    _sync_once_completion(user_data, "create_goal", has_goal)
+    tasks.append(
+        TaskDefinition(
+            id="create_goal",
+            title="Create your first savings goal",
+            type="once",
+            commentary="Goals help quantify long-term plans and progress.",
         )
+    )
 
-    # Configure price-drift alerts to catch meaningful moves.
+    # Configure price-drift alerts to catch meaningful moves.  The
+    # ``_USER_THRESHOLDS`` cache only records explicit overrides, so the
+    # presence of ``user`` indicates the threshold was customised.
     thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
-    if user not in thresholds:
-        # ``alerts.get_user_threshold`` falls back to the default without
-        # indicating whether the user explicitly configured the value.  The
-        # private ``_USER_THRESHOLDS`` cache records explicit overrides, so a
-        # missing entry means the threshold still lives at the default.
-        tasks.append(
-            TaskDefinition(
-                id="set_alert_threshold",
-                title="Adjust your alert threshold",
-                type="once",
-                commentary="Fine-tune drift alerts so significant moves surface quickly.",
-            )
+    normalised_threshold: float | None = None
+    default_threshold = float(getattr(alerts, "DEFAULT_THRESHOLD_PCT", 0.0))
+    if isinstance(thresholds, dict):
+        raw_threshold = thresholds.get(user)
+        try:
+            candidate = float(raw_threshold)
+        except (TypeError, ValueError):
+            candidate = None
+        if candidate is not None and math.isfinite(candidate):
+            # Some persisted values store percentages as whole numbers (e.g. 5
+            # to represent 5%) – normalise those to fractional form before
+            # comparison.  Treat zero/negative sentinels as equivalent to the
+            # default, leaving ``normalised_threshold`` unset.
+            if candidate > 0:
+                normalised_threshold = candidate / 100.0 if candidate >= 1 else candidate
+
+    has_custom_threshold = bool(
+        normalised_threshold is not None
+        and not math.isclose(
+            normalised_threshold,
+            default_threshold,
+            rel_tol=1e-9,
+            abs_tol=1e-9,
         )
+    )
+    _sync_once_completion(user_data, "set_alert_threshold", has_custom_threshold)
+    tasks.append(
+        TaskDefinition(
+            id="set_alert_threshold",
+            title="Adjust your alert threshold",
+            type="once",
+            commentary="Fine-tune drift alerts so significant moves surface quickly.",
+        )
+    )
 
     # Push notifications require an explicit subscription – remind the user
-    # when none is configured.
-    if alerts.get_user_push_subscription(user) is None:
-        tasks.append(
-            TaskDefinition(
-                id="enable_push_notifications",
-                title="Enable push notifications",
-                type="once",
-                commentary="Stay informed about nudges and alerts without opening the app.",
-            )
+    # when none is configured.  When a subscription exists ensure the once
+    # state is marked as complete so the task renders as finished instead of
+    # disappearing entirely, keeping history consistent.
+    subscription = alerts.get_user_push_subscription(user)
+    if subscription:
+        try:
+            persisted = alerts._SUBSCRIPTIONS_STORAGE.load()  # type: ignore[attr-defined]
+        except Exception:
+            persisted = {}
+        if not isinstance(persisted, dict) or persisted.get(user) is None:
+            subscription = None
+
+    has_push_subscription = False
+    if isinstance(subscription, dict):
+        endpoint = subscription.get("endpoint")
+        keys = subscription.get("keys")
+        has_push_subscription = bool(
+            isinstance(endpoint, str)
+            and endpoint.strip()
+            and isinstance(keys, dict)
+            and keys.get("p256dh")
+            and keys.get("auth")
         )
+
+    _sync_once_completion(user_data, "enable_push_notifications", has_push_subscription)
+    tasks.append(
+        TaskDefinition(
+            id="enable_push_notifications",
+            title="Enable push notifications",
+            type="once",
+            commentary="Stay informed about nudges and alerts without opening the app.",
+        )
+    )
 
     return tasks
 
@@ -302,6 +372,9 @@ def _ensure_user_data(user: str, *, persist: bool = False) -> Dict:
     if "daily_totals" not in user_data:
         user_data["daily_totals"] = {}
         changed = True
+    if _AUTO_ONCE_KEY not in user_data:
+        user_data[_AUTO_ONCE_KEY] = []
+        changed = True
 
     if persist and changed:
         _save()
@@ -351,9 +424,10 @@ def get_tasks(user: str) -> Dict:
         task_id for task_id in user_data["daily"].get(today, []) if task_id in daily_task_ids
     }
     user_data["daily"][today] = sorted(daily_completed)
-    once_completed = {
-        task_id for task_id in user_data.get("once", []) if task_id in once_task_ids
-    }
+    manual_once = [task_id for task_id in user_data.get("once", []) if task_id in once_task_ids]
+    auto_once = [task_id for task_id in user_data.get(_AUTO_ONCE_KEY, []) if task_id in once_task_ids]
+    once_completed = set(manual_once) | set(auto_once)
+    user_data[_AUTO_ONCE_KEY] = auto_once
 
     tasks: List[Dict[str, object]] = []
     for task in task_defs:

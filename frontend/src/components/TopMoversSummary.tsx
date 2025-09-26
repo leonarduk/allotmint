@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { MoverRow, TradingSignal } from "../types";
-import { getGroupMovers, getTradingSignals } from "../api";
+import { useCallback, useMemo, useState } from "react";
+import type { OpportunityEntry } from "../types";
+import { getOpportunities } from "../api";
 import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import moversPlugin from "../plugins/movers";
@@ -16,40 +16,26 @@ interface Props {
 }
 
 export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
-  const fetchMovers = useCallback(async () => {
-    if (!slug) return { gainers: [], losers: [] };
+  const fetchOpportunities = useCallback(async () => {
+    if (!slug) return null;
     try {
-      return await getGroupMovers(slug, days, limit, 0);
+      return await getOpportunities({ group: slug, days, limit });
     } catch (e) {
       console.error(e);
-      return { gainers: [], losers: [] };
+      return null;
     }
   }, [slug, days, limit]);
-  const { data, loading, error } = useFetch(fetchMovers, [slug, days, limit], !!slug);
+  const { data, loading, error } = useFetch(
+    fetchOpportunities,
+    [slug, days, limit],
+    !!slug,
+  );
 
-  const [signals, setSignals] = useState<TradingSignal[]>([]);
-  const [selected, setSelected] = useState<{ ticker: string; name: string } | null>(null);
-
-  useEffect(() => {
-    if (!slug) return;
-    getTradingSignals()
-      .then(setSignals)
-      .catch((e) => {
-        console.error(e);
-        setSignals([]);
-      });
-  }, [slug]);
-
-  const signalMap = useMemo(() => {
-    const map = new Map<string, TradingSignal>();
-    for (const s of signals ?? []) map.set(s.ticker, s);
-    return map;
-  }, [signals]);
+  const [selected, setSelected] = useState<{ ticker: string; name: string; signal?: OpportunityEntry['signal'] } | null>(null);
 
   const rows = useMemo(() => {
-    if (!data || !Array.isArray(data.gainers) || !Array.isArray(data.losers))
-      return [];
-    return [...data.gainers, ...data.losers]
+    if (!data || !Array.isArray(data.entries)) return [];
+    return [...data.entries]
       .sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct))
       .slice(0, limit);
   }, [data, limit]);
@@ -71,12 +57,14 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r: MoverRow) => (
+          {rows.map((r: OpportunityEntry) => (
             <tr key={r.ticker}>
               <td className={tableStyles.cell}>
                 <button
                   type="button"
-                  onClick={() => setSelected({ ticker: r.ticker, name: r.name })}
+                  onClick={() =>
+                    setSelected({ ticker: r.ticker, name: r.name, signal: r.signal ?? undefined })
+                  }
                   style={{
                     color: "dodgerblue",
                     textDecoration: "underline",
@@ -93,18 +81,17 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
               </td>
               <td className={tableStyles.cell}>{r.name}</td>
               <td className={tableStyles.cell}>
-                {(() => {
-                  const s = signalMap.get(r.ticker);
-                  return s ? (
-                    <SignalBadge
-                      action={s.action}
-                      reason={s.reason}
-                      confidence={s.confidence}
-                      rationale={s.rationale}
-                      onClick={() => setSelected({ ticker: r.ticker, name: r.name })}
-                    />
-                  ) : null;
-                })()}
+                {r.signal ? (
+                  <SignalBadge
+                    action={r.signal.action}
+                    reason={r.signal.reason}
+                    confidence={r.signal.confidence}
+                    rationale={r.signal.rationale}
+                    onClick={() =>
+                      setSelected({ ticker: r.ticker, name: r.name, signal: r.signal ?? undefined })
+                    }
+                  />
+                ) : null}
               </td>
               <td
                 className={`${tableStyles.cell} ${tableStyles.right}`}
@@ -123,6 +110,7 @@ export function TopMoversSummary({ slug, days = 1, limit = 5 }: Props) {
         <InstrumentDetail
           ticker={selected.ticker}
           name={selected.name}
+          signal={selected.signal ?? undefined}
           onClose={() => setSelected(null)}
         />
       )}

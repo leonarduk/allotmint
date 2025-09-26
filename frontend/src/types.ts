@@ -108,6 +108,16 @@ export type InstrumentSummary = {
   change_30d_pct?: number | null;
 };
 
+export interface InstrumentGroupDefinition {
+  id: string;
+  name: string;
+  aliases?: string[] | null;
+  category?: string | null;
+  category_name?: string | null;
+  description?: string | null;
+  [key: string]: unknown;
+}
+
 export type SectorContribution = {
   sector: string;
   market_value_gbp: number;
@@ -253,6 +263,7 @@ export interface InstrumentDetail {
 export interface Transaction {
   owner: string;
   account: string;
+  id?: string;
   date?: string;
   kind?: string;
   type?: string | null;
@@ -427,9 +438,45 @@ export interface VirtualPortfolio {
   holdings: SyntheticHolding[];
 }
 
+export type TrailAnalyticsEvent = "view" | "task_started" | "task_completed";
+export type VirtualPortfolioAnalyticsEvent =
+  | "view"
+  | "create"
+  | "update"
+  | "delete"
+  | "select";
+
+export type AnalyticsSource = "trail" | "virtual_portfolio";
+export type AnalyticsEventName =
+  | TrailAnalyticsEvent
+  | VirtualPortfolioAnalyticsEvent;
+
+export interface AnalyticsEventPayload {
+  source: AnalyticsSource;
+  event: AnalyticsEventName;
+  metadata?: Record<string, unknown>;
+  occurred_at?: string;
+  user?: string | null;
+}
+
+export interface AnalyticsFunnelStep {
+  event: string;
+  count: number;
+}
+
+export interface AnalyticsFunnelSummary {
+  source: AnalyticsSource;
+  total_events: number;
+  unique_users: number;
+  first_event_at: string | null;
+  last_event_at: string | null;
+  steps: AnalyticsFunnelStep[];
+  other_events?: Record<string, number> | null;
+}
+
 export interface TradingSignal {
   ticker: string;
-  name: string;
+  name?: string;
   action: 'buy' | 'sell' | 'BUY' | 'SELL';
   reason: string;
   confidence?: number;
@@ -437,6 +484,11 @@ export interface TradingSignal {
   currency?: string | null;
   instrument_type?: string | null;
   factors?: string[];
+}
+
+export interface OpportunityEntry extends MoverRow {
+  side: 'gainers' | 'losers';
+  signal?: TradingSignal | null;
 }
 
 export interface CustomQuery {

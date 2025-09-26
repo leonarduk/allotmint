@@ -30,7 +30,7 @@ from backend.common import (
 )
 from backend.common import portfolio as portfolio_mod
 from backend.config import config
-from backend.routes._accounts import resolve_accounts_root
+from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -146,8 +146,12 @@ async def portfolio(owner: str, request: Request):
     the owner's holdings.
     """
 
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
     try:
-        return portfolio_mod.build_owner_portfolio(owner, request.app.state.accounts_root)
+        return portfolio_mod.build_owner_portfolio(owner, accounts_root)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
 
@@ -491,16 +495,21 @@ async def get_account(owner: str, account: str, request: Request):
         data = data_loader.load_account(owner, match, search_root)
         account = match
 
+    original_account_field = data.get("account")
     holdings = data.pop("holdings", data.pop("approvals", [])) or []
     account_type_value = data.get("account_type")
 
     data["holdings"] = holdings
-    if account_type_value is None or (
-        isinstance(account_type_value, str) and not account_type_value.strip()
-    ):
+    display_type: str | None = None
+    if isinstance(account_type_value, str) and account_type_value.strip():
+        display_type = account_type_value.strip()
+
+    if display_type and display_type.lower() != account.lower() and original_account_field is None:
+        data["account_display_type"] = display_type
         data["account_type"] = account
     else:
-        data["account_type"] = account_type_value
+        data["account_type"] = display_type or account
+
     return data
 
 

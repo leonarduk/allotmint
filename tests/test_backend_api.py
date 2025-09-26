@@ -1,3 +1,6 @@
+from pathlib import Path
+import shutil
+
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -20,6 +23,13 @@ def client(mock_google_verify):
 
     # allow alerts to operate without SNS configuration
     alerts.config.sns_topic_arn = None
+
+    # Some tests rely on the absence of an owner directory to verify 404
+    # responses. Ensure the fixture starts from a clean slate in case a
+    # previous test run or developer environment left behind the scaffold.
+    missing_owner = Path(client.app.state.accounts_root) / "noone"
+    if missing_owner.exists():
+        shutil.rmtree(missing_owner)
     try:
         yield client
     finally:
@@ -181,19 +191,15 @@ def test_valid_portfolio(client):
     assert resp.status_code == 200
 
 
-def test_invalid_portfolio(client, monkeypatch):
-    groups = _get_groups(client)
-    owner = groups[0]["members"][0]
+def test_invalid_portfolio(client):
+    missing_owner = "noone"
+    accounts_root = Path(client.app.state.accounts_root)
+    missing_dir = accounts_root / missing_owner
+    assert not missing_dir.exists()
+    resp = client.get(f"/portfolio/{missing_owner}")
 
-    def _missing(owner_name, accounts_root=None):
-        raise FileNotFoundError(f"missing data for {owner_name}")
-
-    monkeypatch.setattr(
-        "backend.common.portfolio.build_owner_portfolio", _missing
-    )
-
-    resp = client.get(f"/portfolio/{owner}")
     assert resp.status_code == 404
+    assert not missing_dir.exists()
 
 
 def test_valid_account(client):
@@ -323,22 +329,15 @@ def test_compliance_endpoint(client):
     assert "warnings" in data and isinstance(data["warnings"], list)
 
 
-def test_compliance_invalid_owner(client, monkeypatch):
-    owners = _get_owners(client)
-    owner = owners[0]["owner"]
+def test_compliance_invalid_owner(client):
+    missing_owner = "noone"
+    accounts_root = Path(client.app.state.accounts_root)
+    missing_dir = accounts_root / missing_owner
+    assert not missing_dir.exists()
+    resp = client.get(f"/compliance/{missing_owner}")
 
-    monkeypatch.setattr(
-        "backend.routes.compliance._known_owners",
-        lambda accounts_root: {owner.lower()},
-    )
-
-    def _missing(owner_name, accounts_root=None, *, scaffold_missing=False):
-        raise FileNotFoundError(f"missing data for {owner_name}")
-
-    monkeypatch.setattr("backend.common.compliance.check_owner", _missing)
-
-    resp = client.get(f"/compliance/{owner}")
     assert resp.status_code == 404
+    assert not missing_dir.exists()
 
 
 def test_instrument_detail_valid(client):

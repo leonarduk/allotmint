@@ -1,7 +1,12 @@
+import sys
+from types import SimpleNamespace
+
+import backend.common.data_loader as dl
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.common.pension import state_pension_age_uk
+from backend.config import config
 
 
 def test_pension_route_uses_owner_metadata(monkeypatch):
@@ -137,3 +142,47 @@ def test_pension_route_propagates_missing_portfolio(monkeypatch):
         )
     assert resp.status_code == 404
     assert resp.json() == {"detail": "no portfolio for owner"}
+
+
+def test_pension_route_falls_back_to_local_metadata(tmp_path, monkeypatch):
+    owner = "demo"
+    owner_dir = tmp_path / owner
+    owner_dir.mkdir()
+    (owner_dir / "person.json").write_text('{"dob": "1980-01-01"}', encoding="utf-8")
+
+    monkeypatch.setattr(config, "accounts_root", tmp_path)
+    monkeypatch.setattr(config, "repo_root", tmp_path)
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", True)
+
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    def raising_client(name):
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=raising_client))
+
+    def fake_portfolio(owner: str, root=None):  # pragma: no cover - signature match
+        return {"accounts": [{"account_type": "sipp", "value_estimate_gbp": 100.0}]}
+
+    captured: dict[str, object] = {}
+
+    def fake_forecast(**kwargs):  # pragma: no cover - signature match
+        captured.update(kwargs)
+        return {"forecast": []}
+
+    monkeypatch.setattr("backend.routes.pension.build_owner_portfolio", fake_portfolio)
+    monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
+
+    app = create_app()
+    app.state.accounts_root = tmp_path
+
+    with TestClient(app) as client:
+        resp = client.get(
+            "/pension/forecast", params={"owner": owner, "death_age": 90}
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["dob"] == "1980-01-01"
+    assert captured.get("dob") == "1980-01-01"

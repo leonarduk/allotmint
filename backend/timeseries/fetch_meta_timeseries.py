@@ -55,20 +55,50 @@ _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:[-\.][A-Z]{1,3})?$")
 INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
 
 
+def _instrument_dirs() -> list[Path]:
+    """Return candidate directories that may contain instrument metadata."""
+
+    candidates: list[Path] = []
+    data_root = getattr(config, "data_root", None)
+    if data_root:
+        candidates.append(Path(data_root) / "instruments")
+    candidates.append(INSTRUMENTS_DIR)
+
+    seen: set[Path] = set()
+    resolved: list[Path] = []
+    for candidate in candidates:
+        try:
+            resolved_path = Path(candidate).expanduser().resolve()
+        except OSError:
+            continue
+        if resolved_path in seen:
+            continue
+        seen.add(resolved_path)
+        try:
+            if resolved_path.is_dir():
+                resolved.append(resolved_path)
+        except OSError:
+            continue
+    return resolved
+
+
 @lru_cache(maxsize=2048)
 def _resolve_exchange_from_metadata(symbol: str) -> str:
     """Return exchange code for *symbol* using instrument metadata if possible."""
+
     sym = symbol.upper()
-    if not INSTRUMENTS_DIR.exists():
-        return ""
-    try:
-        for ex_dir in INSTRUMENTS_DIR.iterdir():
-            if not ex_dir.is_dir() or ex_dir.name.lower() == "cash":
-                continue
-            if (ex_dir / f"{sym}.json").exists():
-                return ex_dir.name.upper()
-    except OSError:
-        return ""
+    for root in _instrument_dirs():
+        try:
+            for ex_dir in root.iterdir():
+                if not ex_dir.is_dir() or ex_dir.name.lower() == "cash":
+                    continue
+                try:
+                    if (ex_dir / f"{sym}.json").is_file():
+                        return ex_dir.name.upper()
+                except OSError:
+                    continue
+        except OSError:
+            continue
     return ""
 
 
@@ -97,6 +127,32 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, st
     elif not ex:
         logger.debug("No exchange information for %s; continuing without exchange", sym)
     return sym.upper(), ex.upper()
+
+
+def _resolve_loader_exchange(
+    ticker: str, exchange_arg: str | None, symbol: str, resolved_exchange: str
+) -> str:
+    """Return the exchange to use when fetching cached data.
+
+    Explicit suffixes and ``exchange`` arguments take priority, otherwise fall
+    back to the previously resolved exchange (which may come from metadata).
+    """
+
+    parts = re.split(r"[._]", ticker, 1)
+    suffix = parts[1].strip().upper() if len(parts) == 2 else ""
+    provided = (exchange_arg or "").strip().upper()
+    resolved = (resolved_exchange or "").strip().upper()
+
+    if provided:
+        # ``resolved_exchange`` already respects explicit overrides, but we
+        # normalise again defensively in case the caller passed a lowercase
+        # string and resolution fell back to metadata.
+        return resolved or provided
+
+    if suffix:
+        return resolved or suffix
+
+    return resolved
 
 
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
@@ -289,7 +345,7 @@ def run_all_tickers(
             time.sleep(delay)
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
-        loader_exchange = ex or ""
+        loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
         try:
             if not load_meta_timeseries(sym, loader_exchange, days).empty:
                 ok.append(t)
@@ -310,8 +366,9 @@ def load_timeseries_data(
     for t in tickers:
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
+        loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
         try:
-            df = load_meta_timeseries(sym, ex, days)
+            df = load_meta_timeseries(sym, loader_exchange, days)
             if not df.empty:
                 out[t] = df
         except Exception as exc:

@@ -32,8 +32,24 @@ def test_run_all_tickers_filters_and_delays(monkeypatch, caplog):
     assert "CCC" in caplog.text
 
 
-def test_load_timeseries_data_filters_and_warnings(monkeypatch, caplog):
+def test_run_all_tickers_uses_suffix_and_argument_exchanges():
+    calls = []
+
     def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["AAA.N", "BBB"], exchange="L", days=7)
+
+    assert calls == [("AAA", "N", 7), ("BBB", "L", 7)]
+
+
+def test_load_timeseries_data_filters_and_warnings(monkeypatch, caplog):
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
         if sym == "AAA":
             return _df()
         if sym == "BBB":
@@ -45,4 +61,18 @@ def test_load_timeseries_data_filters_and_warnings(monkeypatch, caplog):
             out = fmt.load_timeseries_data(["AAA", "BBB", "CCC"], days=5)
 
     assert list(out.keys()) == ["AAA"]
+    assert calls == [("AAA", "", 5), ("BBB", "", 5), ("CCC", "", 5)]
     assert "CCC" in caplog.text
+
+
+def test_load_timeseries_data_uses_suffix_and_argument_exchanges():
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.load_timeseries_data(["AAA.N", "BBB"], exchange="L", days=3)
+
+    assert calls == [("AAA", "N", 3), ("BBB", "L", 3)]

@@ -6,6 +6,7 @@ import i18n from "@/i18n";
 import { configContext, type AppConfig } from "@/ConfigContext";
 import { useState } from "react";
 import * as api from "@/api";
+import { MemoryRouter } from "react-router-dom";
 vi.mock("@/components/TopMoversSummary", () => ({
   TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
@@ -75,7 +76,12 @@ const TestProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-const renderWithConfig = (ui: React.ReactElement) => render(<TestProvider>{ui}</TestProvider>);
+const renderWithConfig = (ui: React.ReactElement) =>
+  render(
+    <MemoryRouter>
+      <TestProvider>{ui}</TestProvider>
+    </MemoryRouter>
+  );
 
 const instrumentKey = (owner?: string | null, account?: string | null) =>
   `${owner ?? ""}::${account ?? ""}`;
@@ -272,7 +278,7 @@ describe("GroupPortfolioView", () => {
 
     mockAllFetches(mockPortfolio);
 
-    render(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" />);
 
     await waitFor(() => {
       const containers = document.querySelectorAll(
@@ -409,7 +415,7 @@ describe("GroupPortfolioView", () => {
     mockAllFetches(mockPortfolio);
 
     const handler = vi.fn();
-    render(<GroupPortfolioView slug="all" onSelectMember={handler} />);
+    renderWithConfig(<GroupPortfolioView slug="all" onSelectMember={handler} />);
 
     const summaryTable = (await screen.findAllByRole("table")).find((table) =>
       within(table).queryByText("Owner"),
@@ -431,7 +437,7 @@ describe("GroupPortfolioView", () => {
     await act(async () => {
       await i18n.changeLanguage(lng);
     });
-    render(<GroupPortfolioView slug="" />);
+    renderWithConfig(<GroupPortfolioView slug="" />);
     expect(await screen.findByText(i18n.t("group.select"))).toBeInTheDocument();
   });
 
@@ -440,7 +446,7 @@ describe("GroupPortfolioView", () => {
       await i18n.changeLanguage(lng);
     });
     vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("boom"));
-    render(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" />);
     await waitFor(() =>
       screen.getByText(`${i18n.t("common.error")}: boom`)
     );
@@ -453,7 +459,7 @@ describe("GroupPortfolioView", () => {
     vi.spyOn(global, "fetch").mockImplementation(
       () => new Promise(() => {})
     );
-    render(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" />);
     expect(screen.getByText(i18n.t("common.loading"))).toBeInTheDocument();
   });
 

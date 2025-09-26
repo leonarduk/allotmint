@@ -36,7 +36,7 @@ export const orderedTabPlugins = [
   { id: "transactions", priority: 50, section: "user" },
   { id: "trading", priority: 55, section: "user" },
   { id: "screener", priority: 60, section: "user" },
-  { id: "timeseries", priority: 70, section: "user" },
+  { id: "timeseries", priority: 70, section: "support" },
   { id: "watchlist", priority: 80, section: "user" },
   { id: "allocation", priority: 85, section: "user" },
   { id: "rebalance", priority: 86, section: "user" },

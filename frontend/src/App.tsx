@@ -437,11 +437,6 @@ export default function App({ onLogout }: AppProps) {
           />
           <GroupPortfolioView
             slug={selectedGroup}
-            onSelectMember={(owner) => {
-              setMode("owner");
-              setSelectedOwner(owner);
-              navigate(`/portfolio/${owner}`);
-            }}
           />
         </>
       )}

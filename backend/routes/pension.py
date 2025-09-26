@@ -7,6 +7,7 @@ from backend.common.pension import (
     state_pension_age_uk,
 )
 from backend.common.portfolio import build_owner_portfolio
+from backend.routes._accounts import resolve_accounts_root
 
 router = APIRouter(tags=["pension"])
 
@@ -24,7 +25,9 @@ def pension_forecast(
     investment_growth_pct: float = Query(5.0),
     desired_income_annual: float | None = Query(None, ge=0),
 ):
-    meta = load_person_meta(owner, request.app.state.accounts_root)
+    accounts_root = resolve_accounts_root(request)
+
+    meta = load_person_meta(owner, accounts_root)
     dob = meta.get("dob")
     current_age = _age_from_dob(dob)
     if current_age is None:
@@ -37,7 +40,7 @@ def pension_forecast(
         )
 
     try:
-        portfolio = build_owner_portfolio(owner, request.app.state.accounts_root)
+        portfolio = build_owner_portfolio(owner, accounts_root)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     pension_pot = sum(

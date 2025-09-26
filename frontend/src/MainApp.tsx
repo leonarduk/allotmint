@@ -249,11 +249,6 @@ export default function MainApp() {
           />
           <GroupPortfolioView
             slug={selectedGroup}
-            onSelectMember={(owner) => {
-              setMode("owner");
-              setSelectedOwner(owner);
-              navigate(`/portfolio/${owner}`);
-            }}
             onTradeInfo={(info) =>
               setTradeInfo(
                 info

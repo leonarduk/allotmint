@@ -74,4 +74,40 @@ describe('Root config states', () => {
       consoleError.mockRestore()
     }
   })
+
+  it('shows an offline message when configuration request times out', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn((_init?: RequestInit) =>
+          Promise.reject(new DOMException('Aborted', 'AbortError'))
+        ),
+        getStoredAuthToken: vi.fn()
+      }
+    })
+
+    document.body.innerHTML = '<div id="root"></div>'
+    const { Root } = await import('@/main')
+
+    try {
+      render(
+        <BrowserRouter>
+          <Root />
+        </BrowserRouter>,
+      )
+
+      expect(
+        await screen.findByText(/unable to load configuration/i),
+      ).toBeInTheDocument()
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
 })

@@ -233,7 +233,9 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "POST",
     "path": "/instrument/admin/{exchange}/{ticker}/group",
-    "body": {}
+    "body": {
+      "group": "demo"
+    }
   },
   {
     "method": "GET",

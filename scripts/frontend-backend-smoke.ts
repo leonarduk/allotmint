@@ -185,10 +185,6 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
-    "method": "DELETE",
-    "path": "/goals/{name}"
-  },
-  {
     "method": "GET",
     "path": "/goals/{name}",
     "query": {
@@ -203,6 +199,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
       "target_amount": 0,
       "target_date": "1970-01-01"
     }
+  },
+  {
+    "method": "DELETE",
+    "path": "/goals/{name}"
   },
   {
     "method": "GET",
@@ -656,7 +656,7 @@ const SAMPLE_PATH_VALUES: Record<string, string> = {
   vp_id: '1',
   quest_id: 'check-in',
   slug: 'demo-slug',
-  name: 'demo',
+  name: 'test',
   exchange: 'NASDAQ',
   ticker: 'PFE',
 };

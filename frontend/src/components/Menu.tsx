@@ -179,7 +179,7 @@ export default function Menu({
         <div
           hidden={!open}
           aria-hidden={!open}
-          className={`${open ? 'flex md:flex' : 'hidden'} flex-col gap-2 md:flex-row md:flex-wrap`}
+          className={`${open ? 'flex md:flex' : 'hidden'} flex-col gap-2 md:flex-row md:flex-nowrap overflow-x-auto`}
           style={style}
         >
           {orderedTabPlugins

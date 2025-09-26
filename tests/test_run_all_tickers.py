@@ -34,15 +34,11 @@ def test_run_all_tickers_handles_underscore_and_dot():
 
 
 def test_run_all_tickers_resolves_exchange_from_metadata():
-    calls = []
+    with patch("backend.timeseries.cache.load_meta_timeseries") as mock_load:
+        mock_load.return_value = pd.DataFrame({"Date": [1], "Close": [2]})
 
-    def fake_load(sym, ex, days):
-        calls.append((sym, ex, days))
-        return pd.DataFrame({"Date": [1], "Close": [2]})
-
-    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
         out = run_all_tickers(["GSK"], days=3)
 
     assert out == ["GSK"]
-    assert calls == [("GSK", "L", 3)]
+    mock_load.assert_called_once_with("GSK", "L", 3)
 

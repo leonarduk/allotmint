@@ -1,5 +1,47 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 // Auto-generated via backend route metadata
 export interface SmokeEndpoint { method: string; path: string; query?: Record<string, string>; body?: any }
+
+const DEFAULT_DEATH_AGE = '90';
+
+function statePensionAgeUk(dob: string): number {
+  const birth = new Date(`${dob}T00:00:00Z`);
+  if (Number.isNaN(birth.getTime())) {
+    throw new Error('Invalid dob');
+  }
+
+  if (birth < new Date('1954-10-06T00:00:00Z')) return 65;
+  if (birth < new Date('1960-04-06T00:00:00Z')) return 66;
+  if (birth < new Date('1977-04-06T00:00:00Z')) return 67;
+  return 68;
+}
+
+function computeDemoDeathAge(): string {
+  const accountsRoot = process.env.ACCOUNTS_ROOT ?? path.resolve(__dirname, '../data/accounts');
+  const personPath = path.join(accountsRoot, 'demo', 'person.json');
+
+  try {
+    const meta = JSON.parse(fs.readFileSync(personPath, 'utf8')) as { dob?: unknown };
+    const dob = typeof meta.dob === 'string' ? meta.dob : null;
+    if (!dob) {
+      return DEFAULT_DEATH_AGE;
+    }
+    const retirementAge = statePensionAgeUk(dob);
+    return String(retirementAge + 20);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.warn(`Falling back to default pension death age: ${error.message}`);
+    } else {
+      console.warn('Falling back to default pension death age due to unknown error');
+    }
+    return DEFAULT_DEATH_AGE;
+  }
+}
+
+const demoPensionDeathAge = computeDemoDeathAge();
+
 export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "GET",
@@ -305,7 +347,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/pension/forecast",
     "query": {
       "owner": "demo",
-      "death_age": "90"
+      "death_age": demoPensionDeathAge
     }
   },
   {

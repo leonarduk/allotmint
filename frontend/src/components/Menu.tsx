@@ -1,5 +1,5 @@
 // src/components/Menu.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
@@ -184,27 +184,38 @@ export default function Menu({
     return categories;
   }, [availableTabs, categorizedTabIds, categoryDefinitions]);
 
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const firstLinkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
+  const previousModeRef = useRef<TabPluginId | null>(mode);
 
   useEffect(() => {
+    if (openCategory) return;
+    if (categoriesToRender.length === 0) return;
+
     const containingCategory = categoriesToRender.find((category) =>
       category.tabs.some((tab) => tab.id === mode),
     );
+
     if (containingCategory) {
-      setActiveCategory((current) => current ?? containingCategory.id);
-    } else if (!activeCategory && categoriesToRender.length > 0) {
-      setActiveCategory(categoriesToRender[0].id);
+      setOpenCategory(containingCategory.id);
+    } else {
+      setOpenCategory(categoriesToRender[0].id);
     }
-  }, [activeCategory, categoriesToRender, mode]);
+  }, [categoriesToRender, mode, openCategory]);
 
   useEffect(() => {
+    if (previousModeRef.current === mode) return;
+
     const containingCategory = categoriesToRender.find((category) =>
       category.tabs.some((tab) => tab.id === mode),
     );
-    if (containingCategory && containingCategory.id !== activeCategory) {
-      setActiveCategory(containingCategory.id);
+
+    if (containingCategory) {
+      setOpenCategory(containingCategory.id);
     }
-  }, [categoriesToRender, mode, activeCategory]);
+
+    previousModeRef.current = mode;
+  }, [categoriesToRender, mode]);
 
   function pathFor(m: any) {
     switch (m) {
@@ -243,55 +254,100 @@ export default function Menu({
     }
   }
 
-  const activeCategoryDefinition = categoriesToRender.find(
-    (category) => category.id === activeCategory,
-  );
-
   return (
     <nav className="mb-4" style={style}>
-      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-2">
+      <ul className="flex flex-col gap-4 border-b border-gray-200 pb-4 sm:flex-row sm:flex-wrap sm:items-start">
         {categoriesToRender.map((category) => {
-          const isActive = category.id === activeCategory;
+          const isOpen = category.id === openCategory;
+          const containsActiveTab = category.tabs.some((tab) => tab.id === mode);
+          const buttonId = `menu-trigger-${category.id}`;
+          const panelId = `menu-panel-${category.id}`;
+
           return (
-            <button
-              key={category.id}
-              type="button"
-              className={`rounded-t px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring ${
-                isActive
-                  ? 'bg-gray-100 text-gray-900'
-                  : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              }`}
-              onClick={() => setActiveCategory(category.id)}
-            >
-              {t(`app.menuCategories.${category.titleKey}`)}
-            </button>
+            <li key={category.id} className="relative w-full sm:w-auto">
+              <button
+                id={buttonId}
+                type="button"
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                className={`flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring sm:min-w-[10rem] ${
+                  isOpen || containsActiveTab
+                    ? 'bg-gray-100 text-gray-900'
+                    : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}
+                onClick={() =>
+                  setOpenCategory((current) => (current === category.id ? null : category.id))
+                }
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    if (!isOpen) {
+                      setOpenCategory(category.id);
+                    }
+                    setTimeout(() => {
+                      firstLinkRefs.current[category.id]?.focus();
+                    }, 0);
+                  } else if (event.key === 'Escape' && isOpen) {
+                    event.preventDefault();
+                    setOpenCategory(null);
+                  }
+                }}
+              >
+                <span className="truncate">
+                  {t(`app.menuCategories.${category.titleKey}`)}
+                </span>
+                <span aria-hidden="true" className="text-xs">
+                  {isOpen ? '▴' : '▾'}
+                </span>
+              </button>
+
+              <div
+                id={panelId}
+                role="menu"
+                aria-labelledby={buttonId}
+                aria-hidden={!isOpen}
+                className={`mt-2 rounded-md border border-gray-200 bg-white p-3 shadow-lg transition-[opacity,transform] duration-150 sm:absolute sm:left-0 sm:right-auto sm:top-full sm:z-20 sm:w-max sm:min-w-[12rem] sm:translate-y-1 ${
+                  isOpen ? 'block opacity-100' : 'hidden opacity-0'
+                }`}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setOpenCategory(null);
+                  }
+                }}
+              >
+                <h3 className="pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {t(`app.menuCategories.${category.titleKey}`)}
+                </h3>
+                <ul className="flex flex-col gap-1">
+                  {category.tabs.map((tab, index) => (
+                    <li key={tab.id}>
+                      <Link
+                        ref={
+                          index === 0
+                            ? (element) => {
+                                firstLinkRefs.current[category.id] = element;
+                              }
+                            : undefined
+                        }
+                        role="menuitem"
+                        to={pathFor(tab.id as string)}
+                        className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
+                          mode === tab.id
+                            ? 'font-semibold text-gray-900'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                      >
+                        {t(`app.modes.${tab.id}`)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </li>
           );
         })}
-      </div>
-
-      {activeCategoryDefinition && (
-        <div className="mt-4 flex flex-col gap-6">
-          <section className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
-              {t(`app.menuCategories.${activeCategoryDefinition.titleKey}`)}
-            </h3>
-            <ul className="flex flex-wrap gap-3">
-              {activeCategoryDefinition.tabs.map((tab) => (
-                <li key={tab.id}>
-                  <Link
-                    to={pathFor(tab.id as string)}
-                    className={`text-sm transition-colors duration-150 ${
-                      mode === tab.id ? 'font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    {t(`app.modes.${tab.id}`)}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
-      )}
+      </ul>
 
       <div className="mt-6 flex flex-col gap-2 border-t border-gray-200 pt-4">
         {supportEnabled && (

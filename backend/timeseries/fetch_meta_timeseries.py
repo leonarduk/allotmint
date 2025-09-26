@@ -289,13 +289,7 @@ def run_all_tickers(
             time.sleep(delay)
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
-        has_explicit_exchange = bool(exchange) or bool(re.search(r"[._]", t))
-        # Only forward the exchange to the loader when the caller explicitly
-        # provided one (either via the ``exchange`` argument or within the
-        # ticker itself).  Allowing metadata-derived exchanges to pass through
-        # caused tests relying on the legacy behaviour to fail and introduced
-        # surprising differences between cached and uncached symbols.
-        loader_exchange = ex if has_explicit_exchange else ""
+        loader_exchange = ex
         try:
             if not load_meta_timeseries(sym, loader_exchange, days).empty:
                 ok.append(t)

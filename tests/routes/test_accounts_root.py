@@ -50,7 +50,8 @@ def test_resolve_accounts_root_falls_back_to_global_directory(
     fallback_root = tmp_path / "fallback"
     fallback_root.mkdir()
 
-    state = SimpleNamespace(accounts_root=cached_path)
+    # Store the cached path as a string to mirror common serialization behaviour.
+    state = SimpleNamespace(accounts_root=str(cached_path))
     request = _make_request(state)
 
     monkeypatch.setattr(config, "repo_root", Path("/configured/root"))

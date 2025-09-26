@@ -23,6 +23,7 @@ import { useNavigate } from 'react-router-dom';
 
 type Props = {
   rows: InstrumentSummary[];
+  showGroupTotals?: boolean;
 };
 
 type RowWithCost = InstrumentSummary & {
@@ -65,7 +66,7 @@ const GROUP_SUMMARY_SORT_MAP: Partial<Record<keyof RowWithCost, keyof GroupTotal
   gain_pct: 'gainPct',
 };
 
-export function InstrumentTable({ rows }: Props) {
+export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency } = useConfig();
   const [visibleColumns, setVisibleColumns] = useState({
@@ -629,35 +630,35 @@ export function InstrumentTable({ rows }: Props) {
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                   {!relativeViewEnabled && visibleColumns.units && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                      {Number.isFinite(group.totals.units)
+                      {showGroupTotals && Number.isFinite(group.totals.units)
                         ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
                         : '—'}
                     </td>
                   )}
                   {!relativeViewEnabled && visibleColumns.cost && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                      {Number.isFinite(group.totals.cost)
+                      {showGroupTotals && Number.isFinite(group.totals.cost)
                         ? money(group.totals.cost, baseCurrency)
                         : '—'}
                     </td>
                   )}
                   {!relativeViewEnabled && visibleColumns.market && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                      {Number.isFinite(group.totals.marketValue)
+                      {showGroupTotals && Number.isFinite(group.totals.marketValue)
                         ? money(group.totals.marketValue, baseCurrency)
                         : '—'}
                     </td>
                   )}
                   {!relativeViewEnabled && visibleColumns.gain && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                      {Number.isFinite(group.totals.gain)
+                      {showGroupTotals && Number.isFinite(group.totals.gain)
                         ? formatSignedMoney(group.totals.gain, baseCurrency)
                         : '—'}
                     </td>
                   )}
                   {visibleColumns.gain_pct && (
                     <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                      {formatSignedPercent(group.totals.gainPct)}
+                      {showGroupTotals ? formatSignedPercent(group.totals.gainPct) : '—'}
                     </td>
                   )}
                   {!relativeViewEnabled && (
@@ -669,10 +670,10 @@ export function InstrumentTable({ rows }: Props) {
                     —
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {formatSignedPercent(group.totals.change7dPct)}
+                    {showGroupTotals ? formatSignedPercent(group.totals.change7dPct) : '—'}
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell} ${tableStyles.right}`}>
-                    {formatSignedPercent(group.totals.change30dPct)}
+                    {showGroupTotals ? formatSignedPercent(group.totals.change30dPct) : '—'}
                   </td>
                   <td className={`${tableStyles.cell} ${tableStyles.groupCell}`}>—</td>
                 </tr>
@@ -847,7 +848,7 @@ export function InstrumentTable({ rows }: Props) {
                     </tr>
                   );
                 })}
-              {showGroupHeaders && (
+              {showGroupTotals && showGroupHeaders && (
                 <tr>
                   <td
                     className={`${tableStyles.cell} font-semibold`}

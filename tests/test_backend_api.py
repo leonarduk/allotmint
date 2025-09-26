@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -182,8 +184,13 @@ def test_valid_portfolio(client):
 
 
 def test_invalid_portfolio(client):
-    resp = client.get("/portfolio/noone")
+    missing_owner = "noone"
+    accounts_root = Path(client.app.state.accounts_root)
+    missing_dir = accounts_root / missing_owner
+    assert not missing_dir.exists()
+    resp = client.get(f"/portfolio/{missing_owner}")
     assert resp.status_code == 404
+    assert not missing_dir.exists()
 
 
 def test_valid_account(client):
@@ -314,8 +321,13 @@ def test_compliance_endpoint(client):
 
 
 def test_compliance_invalid_owner(client):
-    resp = client.get("/compliance/noone")
+    missing_owner = "noone"
+    accounts_root = Path(client.app.state.accounts_root)
+    missing_dir = accounts_root / missing_owner
+    assert not missing_dir.exists()
+    resp = client.get(f"/compliance/{missing_owner}")
     assert resp.status_code == 404
+    assert not missing_dir.exists()
 
 
 def test_instrument_detail_valid(client):

@@ -93,7 +93,7 @@ export default function PensionForecast() {
       return;
     }
 
-    const fallbackOwner = owners.find((o) => o.owner !== "demo") ?? owners[0];
+    const fallbackOwner = owners[0];
     if (!fallbackOwner) return;
 
     setOwner(fallbackOwner.owner);

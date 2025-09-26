@@ -30,6 +30,9 @@ if (-not $PYTHON) {
   exit 1
 }
 
+# Hint the CDK CLI to use the discovered interpreter instead of the Microsoft Store shim.
+$env:CDK_PYTHON = $PYTHON
+
 # Determine repository root and key paths
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT  = (Resolve-Path (Join-Path $SCRIPT_DIR '..')).Path

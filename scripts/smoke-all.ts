@@ -39,7 +39,7 @@ const backendArgs = targetBase
   ? [tsxCliPath, 'scripts/frontend-backend-smoke.ts', targetBase]
   : [tsxCliPath, 'scripts/frontend-backend-smoke.ts'];
 
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const npmExecPath = env.npm_execpath;
 
 const commands: Command[] = [
   {
@@ -47,11 +47,17 @@ const commands: Command[] = [
     args: backendArgs,
     label: 'backend smoke suite',
   },
-  {
-    command: npmCommand,
-    args: ['--prefix', 'frontend', 'run', 'smoke:frontend'],
-    label: 'frontend smoke suite',
-  },
+  npmExecPath
+    ? {
+        command: process.execPath,
+        args: [npmExecPath, '--prefix', 'frontend', 'run', 'smoke:frontend'],
+        label: 'frontend smoke suite',
+      }
+    : {
+        command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+        args: ['--prefix', 'frontend', 'run', 'smoke:frontend'],
+        label: 'frontend smoke suite',
+      },
 ];
 
 async function runSequentially() {
@@ -83,10 +89,18 @@ async function runSequentially() {
 
 function runCommand(command: string, args: string[]): Promise<number | null> {
   return new Promise((resolve) => {
-    const child = spawn(command, args, {
-      stdio: 'inherit',
-      env,
-    });
+    let child: ReturnType<typeof spawn>;
+
+    try {
+      child = spawn(command, args, {
+        stdio: 'inherit',
+        env,
+      });
+    } catch (error) {
+      console.error(`Failed to start command "${command}":`, error);
+      resolve(1);
+      return;
+    }
 
     child.on('close', (code) => {
       resolve(code);

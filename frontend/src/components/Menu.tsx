@@ -1,5 +1,5 @@
 // src/components/Menu.tsx
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
@@ -186,36 +186,6 @@ export default function Menu({
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const firstLinkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
-  const previousModeRef = useRef<TabPluginId | null>(mode);
-
-  useEffect(() => {
-    if (openCategory) return;
-    if (categoriesToRender.length === 0) return;
-
-    const containingCategory = categoriesToRender.find((category) =>
-      category.tabs.some((tab) => tab.id === mode),
-    );
-
-    if (containingCategory) {
-      setOpenCategory(containingCategory.id);
-    } else {
-      setOpenCategory(categoriesToRender[0].id);
-    }
-  }, [categoriesToRender, mode, openCategory]);
-
-  useEffect(() => {
-    if (previousModeRef.current === mode) return;
-
-    const containingCategory = categoriesToRender.find((category) =>
-      category.tabs.some((tab) => tab.id === mode),
-    );
-
-    if (containingCategory) {
-      setOpenCategory(containingCategory.id);
-    }
-
-    previousModeRef.current = mode;
-  }, [categoriesToRender, mode]);
 
   function pathFor(m: any) {
     switch (m) {
@@ -256,7 +226,7 @@ export default function Menu({
 
   return (
     <nav className="mb-4" style={style}>
-      <ul className="flex flex-col gap-4 border-b border-gray-200 pb-4 sm:flex-row sm:flex-wrap sm:items-start">
+      <ul className="flex flex-wrap items-center gap-4 border-b border-gray-200 pb-4">
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
           const containsActiveTab = category.tabs.some((tab) => tab.id === mode);
@@ -264,13 +234,13 @@ export default function Menu({
           const panelId = `menu-panel-${category.id}`;
 
           return (
-            <li key={category.id} className="relative w-full sm:w-auto">
+            <li key={category.id} className="relative">
               <button
                 id={buttonId}
                 type="button"
                 aria-expanded={isOpen}
                 aria-controls={panelId}
-                className={`flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring sm:min-w-[10rem] ${
+                className={`flex min-w-[8rem] items-center justify-between gap-2 rounded px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring ${
                   isOpen || containsActiveTab
                     ? 'bg-gray-100 text-gray-900'
                     : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -306,7 +276,7 @@ export default function Menu({
                 role="menu"
                 aria-labelledby={buttonId}
                 aria-hidden={!isOpen}
-                className={`mt-2 rounded-md border border-gray-200 bg-white p-3 shadow-lg transition-[opacity,transform] duration-150 sm:absolute sm:left-0 sm:right-auto sm:top-full sm:z-20 sm:w-max sm:min-w-[12rem] sm:translate-y-1 ${
+                className={`absolute left-0 right-auto top-full z-20 mt-2 w-max min-w-[12rem] rounded-md border border-gray-200 bg-white p-3 shadow-lg transition-[opacity,transform] duration-150 ${
                   isOpen ? 'block opacity-100' : 'hidden opacity-0'
                 }`}
                 onKeyDown={(event) => {
@@ -316,9 +286,6 @@ export default function Menu({
                   }
                 }}
               >
-                <h3 className="pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  {t(`app.menuCategories.${category.titleKey}`)}
-                </h3>
                 <ul className="flex flex-col gap-1">
                   {category.tabs.map((tab, index) => (
                     <li key={tab.id}>

@@ -176,14 +176,26 @@ def _build_compliance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
     return tasks
 
 
+_AUTO_ONCE_KEY = "_auto_once"
+
+
 def _sync_once_completion(user_data: Dict, task_id: str, should_complete: bool) -> None:
     """Ensure ``task_id`` reflects ``should_complete`` within ``user_data``."""
 
     once_list = user_data.setdefault("once", [])
-    if should_complete and task_id not in once_list:
-        once_list.append(task_id)
-    elif not should_complete and task_id in once_list:
-        user_data["once"] = [tid for tid in once_list if tid != task_id]
+    auto_list = user_data.setdefault(_AUTO_ONCE_KEY, [])
+
+    if should_complete:
+        if task_id not in auto_list:
+            auto_list.append(task_id)
+    else:
+        if task_id in auto_list:
+            auto_list = [tid for tid in auto_list if tid != task_id]
+            user_data[_AUTO_ONCE_KEY] = auto_list
+
+    # ``once`` records manual completions – keep it unchanged so that marking a
+    # task complete persists even if the underlying signal (e.g. alert settings)
+    # later disappears.
 
 
 def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
@@ -323,6 +335,9 @@ def _ensure_user_data(user: str, *, persist: bool = False) -> Dict:
     if "daily_totals" not in user_data:
         user_data["daily_totals"] = {}
         changed = True
+    if _AUTO_ONCE_KEY not in user_data:
+        user_data[_AUTO_ONCE_KEY] = []
+        changed = True
 
     if persist and changed:
         _save()
@@ -372,9 +387,10 @@ def get_tasks(user: str) -> Dict:
         task_id for task_id in user_data["daily"].get(today, []) if task_id in daily_task_ids
     }
     user_data["daily"][today] = sorted(daily_completed)
-    once_completed = {
-        task_id for task_id in user_data.get("once", []) if task_id in once_task_ids
-    }
+    manual_once = [task_id for task_id in user_data.get("once", []) if task_id in once_task_ids]
+    auto_once = [task_id for task_id in user_data.get(_AUTO_ONCE_KEY, []) if task_id in once_task_ids]
+    once_completed = set(manual_once) | set(auto_once)
+    user_data[_AUTO_ONCE_KEY] = auto_once
 
     tasks: List[Dict[str, object]] = []
     for task in task_defs:

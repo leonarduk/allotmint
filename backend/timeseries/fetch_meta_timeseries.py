@@ -99,6 +99,31 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, st
     return sym.upper(), ex.upper()
 
 
+def _resolve_loader_exchange(
+    ticker: str, exchange_arg: str | None, symbol: str, resolved_exchange: str
+) -> str:
+    """Return the exchange to use when fetching cached data.
+
+    When the exchange originates solely from instrument metadata (i.e. neither
+    the ticker suffix nor the ``exchange`` argument provided a value) we return
+    an empty string so that the cache loader can apply its own defaults.  This
+    preserves the historical behaviour expected by the warm-up utilities and
+    associated tests.
+    """
+
+    parts = re.split(r"[._]", ticker, 1)
+    suffix = parts[1].upper() if len(parts) == 2 else ""
+    provided = (exchange_arg or "").upper()
+    if (
+        resolved_exchange
+        and not suffix
+        and not provided
+        and resolved_exchange == _resolve_exchange_from_metadata(symbol)
+    ):
+        return ""
+    return resolved_exchange
+
+
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
     if not sources:
         return pd.DataFrame(columns=STANDARD_COLUMNS)
@@ -289,7 +314,7 @@ def run_all_tickers(
             time.sleep(delay)
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
-        loader_exchange = ex
+        loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
         try:
             if not load_meta_timeseries(sym, loader_exchange, days).empty:
                 ok.append(t)
@@ -310,8 +335,9 @@ def load_timeseries_data(
     for t in tickers:
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
+        loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
         try:
-            df = load_meta_timeseries(sym, ex, days)
+            df = load_meta_timeseries(sym, loader_exchange, days)
             if not df.empty:
                 out[t] = df
         except Exception as exc:

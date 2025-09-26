@@ -81,20 +81,34 @@ def _parse_date(val: str | None) -> date | None:
         return None
 
 
+def ensure_owner_scaffold(owner: str, accounts_root: Optional[Path] = None) -> Path:
+    """Create the default compliance scaffold for ``owner`` if needed.
+
+    Returns the resolved owner directory after ensuring the default files are
+    present.
+    """
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    root = Path(accounts_root) if accounts_root else paths.accounts_root
+    owner_dir = root / owner
+    _ensure_owner_scaffold(owner, owner_dir)
+    return owner_dir
+
+
 def load_transactions(owner: str, accounts_root: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Load all transactions for ``owner`` sorted by date.
 
-    Missing owners are initialised with an empty compliance scaffold, ensuring
-    downstream callers always receive a list (possibly empty) without needing to
-    catch :class:`FileNotFoundError`.
+    Raises
+    ------
+    FileNotFoundError
+        If the owner's accounts directory does not exist. Call
+        :func:`ensure_owner_scaffold` beforehand when deliberate bootstrapping
+        is required.
     """
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owner_dir = root / owner
     if not owner_dir.exists():
-        _ensure_owner_scaffold(owner, owner_dir)
-        # Newly scaffolded owners have no transactions yet.
-        return []
+        raise FileNotFoundError(owner_dir)
     _ensure_owner_scaffold(owner, owner_dir)
 
     results: List[Dict[str, Any]] = []

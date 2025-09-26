@@ -92,7 +92,9 @@ def load_transactions(owner: str, accounts_root: Optional[Path] = None) -> List[
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owner_dir = root / owner
     if not owner_dir.exists():
-        raise FileNotFoundError(f"No compliance data for owner '{owner}'")
+        _ensure_owner_scaffold(owner, owner_dir)
+        # Newly scaffolded owners have no transactions yet.
+        return []
     _ensure_owner_scaffold(owner, owner_dir)
 
     results: List[Dict[str, Any]] = []

@@ -1,5 +1,5 @@
 // src/components/Menu.tsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
@@ -25,20 +25,6 @@ export default function Menu({
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const path = location.pathname.split('/').filter(Boolean);
-
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function handleFocus(e: FocusEvent) {
-      if (open && containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener('focusin', handleFocus);
-    return () => {
-      document.removeEventListener('focusin', handleFocus);
-    };
-  }, [open]);
 
   let mode: TabPluginId;
   switch (path[0]) {
@@ -146,37 +132,70 @@ export default function Menu({
     { id: 'supportTools', titleKey: 'supportTools', tabIds: ['instrumentadmin', 'dataadmin'] },
   ];
 
-  const availableTabs = orderedTabPlugins
-    .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
-    .slice()
-    .sort((a, b) => a.priority - b.priority)
-    .filter((p) => {
-      if (p.id === 'support') return false;
-      if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
-      const enabled = (tabs as Record<string, boolean | undefined>)[p.id] === true;
-      return enabled && !disabledTabs?.includes(p.id);
-    });
+  const availableTabs = useMemo(
+    () =>
+      orderedTabPlugins
+        .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
+        .slice()
+        .sort((a, b) => a.priority - b.priority)
+        .filter((p) => {
+          if (p.id === 'support') return false;
+          if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
+          const enabled = (tabs as Record<string, boolean | undefined>)[p.id] === true;
+          return enabled && !disabledTabs?.includes(p.id);
+        }),
+    [disabledTabs, inSupport, isSupportMode, tabs],
+  );
 
   const categoryDefinitions = isSupportMode ? SUPPORT_MENU_CATEGORIES : USER_MENU_CATEGORIES;
-  const categorizedTabIds = new Set(categoryDefinitions.flatMap((category) => category.tabIds));
+  const categorizedTabIds = useMemo(
+    () => new Set(categoryDefinitions.flatMap((category) => category.tabIds)),
+    [categoryDefinitions],
+  );
 
-  const categoriesToRender: CategorizedMenu[] = categoryDefinitions
-    .map((category) => ({
-      ...category,
-      tabs: availableTabs.filter((tab) => category.tabIds.includes(tab.id)),
-    }))
-    .filter((category) => category.tabs.length > 0);
+  const categoriesToRender: CategorizedMenu[] = useMemo(() => {
+    const categories = categoryDefinitions
+      .map((category) => ({
+        ...category,
+        tabs: availableTabs.filter((tab) => category.tabIds.includes(tab.id)),
+      }))
+      .filter((category) => category.tabs.length > 0);
 
-  const uncategorizedTabs = availableTabs.filter((tab) => !categorizedTabIds.has(tab.id));
+    const uncategorizedTabs = availableTabs.filter((tab) => !categorizedTabIds.has(tab.id));
 
-  if (uncategorizedTabs.length > 0) {
-    categoriesToRender.push({
-      id: 'other',
-      titleKey: 'other',
-      tabIds: uncategorizedTabs.map((tab) => tab.id),
-      tabs: uncategorizedTabs,
-    });
-  }
+    if (uncategorizedTabs.length > 0) {
+      categories.push({
+        id: 'other',
+        titleKey: 'other',
+        tabIds: uncategorizedTabs.map((tab) => tab.id),
+        tabs: uncategorizedTabs,
+      });
+    }
+
+    return categories;
+  }, [availableTabs, categorizedTabIds, categoryDefinitions]);
+
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    const containingCategory = categoriesToRender.find((category) =>
+      category.tabs.some((tab) => tab.id === mode),
+    );
+    if (containingCategory) {
+      setActiveCategory((current) => current ?? containingCategory.id);
+    } else if (!activeCategory && categoriesToRender.length > 0) {
+      setActiveCategory(categoriesToRender[0].id);
+    }
+  }, [activeCategory, categoriesToRender, mode]);
+
+  useEffect(() => {
+    const containingCategory = categoriesToRender.find((category) =>
+      category.tabs.some((tab) => tab.id === mode),
+    );
+    if (containingCategory && containingCategory.id !== activeCategory) {
+      setActiveCategory(containingCategory.id);
+    }
+  }, [categoriesToRender, mode, activeCategory]);
 
   function pathFor(m: any) {
     switch (m) {
@@ -215,35 +234,46 @@ export default function Menu({
     }
   }
 
+  const activeCategoryDefinition = categoriesToRender.find(
+    (category) => category.id === activeCategory,
+  );
+
   return (
-    <nav className="mb-4" ref={containerRef}>
-      <button
-        aria-expanded={open}
-        aria-label={t('app.menu')}
-        className="mb-2 p-2 border rounded"
-        onClick={() => setOpen((o) => !o)}
-      >
-        ☰
-      </button>
-      <div
-        hidden={!open}
-        aria-hidden={!open}
-        className={`${open ? 'flex' : 'hidden'} flex-col gap-6`}
-        style={style}
-      >
-        {categoriesToRender.map((category) => (
-          <section key={category.id} className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+    <nav className="mb-4" style={style}>
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-2">
+        {categoriesToRender.map((category) => {
+          const isActive = category.id === activeCategory;
+          return (
+            <button
+              key={category.id}
+              type="button"
+              className={`rounded-t px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring ${
+                isActive
+                  ? 'bg-gray-100 text-gray-900'
+                  : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              onClick={() => setActiveCategory(category.id)}
+            >
               {t(`app.menuCategories.${category.titleKey}`)}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeCategoryDefinition && (
+        <div className="mt-4 flex flex-col gap-6">
+          <section className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+              {t(`app.menuCategories.${activeCategoryDefinition.titleKey}`)}
             </h3>
-            <ul className="flex flex-col gap-1">
-              {category.tabs.map((tab) => (
+            <ul className="flex flex-wrap gap-3">
+              {activeCategoryDefinition.tabs.map((tab) => (
                 <li key={tab.id}>
                   <Link
                     to={pathFor(tab.id as string)}
-                    className={`${mode === tab.id ? 'font-bold' : ''} break-words`}
-                    style={{ fontWeight: mode === tab.id ? 'bold' as const : undefined }}
-                    onClick={() => setOpen(false)}
+                    className={`text-sm transition-colors duration-150 ${
+                      mode === tab.id ? 'font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'
+                    }`}
                   >
                     {t(`app.modes.${tab.id}`)}
                   </Link>
@@ -251,30 +281,29 @@ export default function Menu({
               ))}
             </ul>
           </section>
-        ))}
-        <div className="flex flex-col gap-2 border-t border-gray-200 pt-4">
-          {supportEnabled && (
-            <Link
-              to={inSupport ? '/' : '/support'}
-              className={`${inSupport ? 'font-bold' : ''} break-words`}
-              onClick={() => setOpen(false)}
-            >
-              {t('app.supportLink')}
-            </Link>
-          )}
-          {onLogout && (
-            <button
-              type="button"
-              onClick={() => {
-                onLogout();
-                setOpen(false);
-              }}
-              className="bg-transparent border-0 p-0 text-left cursor-pointer"
-            >
-              {t('app.logout')}
-            </button>
-          )}
         </div>
+      )}
+
+      <div className="mt-6 flex flex-col gap-2 border-t border-gray-200 pt-4">
+        {supportEnabled && (
+          <Link
+            to={inSupport ? '/' : '/support'}
+            className={`${inSupport ? 'font-bold' : ''} break-words text-sm text-gray-600 hover:text-gray-900`}
+          >
+            {t('app.supportLink')}
+          </Link>
+        )}
+        {onLogout && (
+          <button
+            type="button"
+            onClick={() => {
+              onLogout();
+            }}
+            className="bg-transparent border-0 p-0 text-left text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
+          >
+            {t('app.logout')}
+          </button>
+        )}
       </div>
     </nav>
   );

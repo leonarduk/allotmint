@@ -278,8 +278,8 @@ export default function Menu({
                 role="menu"
                 aria-labelledby={buttonId}
                 aria-hidden={!isOpen}
-                className={`absolute left-0 right-auto top-full z-20 mt-2 w-max min-w-[12rem] rounded-md border border-gray-200 bg-white p-3 shadow-lg transition-[opacity,transform] duration-150 ${
-                  isOpen ? 'block opacity-100' : 'hidden opacity-0'
+                className={`absolute left-0 right-auto top-full z-20 mt-2 w-max min-w-[12rem] rounded-md border border-[var(--drawer-border-color)] bg-[var(--drawer-bg)] p-3 text-[var(--drawer-text-color)] shadow-lg transition-[opacity,transform] duration-150 opacity-100 ${
+                  isOpen ? 'block' : 'hidden'
                 }`}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') {

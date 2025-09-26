@@ -104,18 +104,17 @@ def _resolve_loader_exchange(
 ) -> str:
     """Return the exchange to use when fetching cached data.
 
-    The loader should prefer explicit suffixes or query parameters but fall
-    back to instrument metadata when neither is provided.  Returning the
-    metadata value ensures downstream caches warm using the correct market
-    identifier instead of silently defaulting to an empty exchange.
+    The loader should prefer explicit suffixes or query parameters. When
+    neither is provided we deliberately ignore metadata-derived exchanges so
+    the cache lookup matches the unsuffixed request that triggered it.
     """
 
     parts = re.split(r"[._]", ticker, 1)
     suffix = parts[1].upper() if len(parts) == 2 else ""
     provided = (exchange_arg or "").upper()
-    if not resolved_exchange:
-        return ""
-    return resolved_exchange
+    if suffix or provided:
+        return resolved_exchange
+    return ""
 
 
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:

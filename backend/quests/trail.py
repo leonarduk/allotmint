@@ -11,6 +11,7 @@ state continues to be stored in a JSON document using the
 while deployments may swap in other backends.
 """
 
+import math
 import os
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -218,7 +219,24 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
     # ``_USER_THRESHOLDS`` cache only records explicit overrides, so the
     # presence of ``user`` indicates the threshold was customised.
     thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
-    has_custom_threshold = isinstance(thresholds, dict) and user in thresholds
+    has_custom_threshold = False
+    if isinstance(thresholds, dict):
+        raw_threshold = thresholds.get(user)
+        try:
+            threshold_val = float(raw_threshold)
+        except (TypeError, ValueError):
+            threshold_val = None
+        if threshold_val is not None:
+            # Treat values equal to the default as still requiring action.  The
+            # stored cache may include defaults from initialisation or test
+            # fixtures which should not mark the task as complete until the
+            # user explicitly chooses a different threshold.
+            has_custom_threshold = not math.isclose(
+                threshold_val,
+                float(getattr(alerts, "DEFAULT_THRESHOLD_PCT", 0.0)),
+                rel_tol=1e-9,
+                abs_tol=1e-9,
+            )
     _sync_once_completion(user_data, "set_alert_threshold", has_custom_threshold)
     tasks.append(
         TaskDefinition(
@@ -241,7 +259,20 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
             persisted = {}
         if not isinstance(persisted, dict) or persisted.get(user) is None:
             subscription = None
-    _sync_once_completion(user_data, "enable_push_notifications", bool(subscription))
+
+    has_push_subscription = False
+    if isinstance(subscription, dict):
+        endpoint = subscription.get("endpoint")
+        keys = subscription.get("keys")
+        has_push_subscription = bool(
+            isinstance(endpoint, str)
+            and endpoint.strip()
+            and isinstance(keys, dict)
+            and keys.get("p256dh")
+            and keys.get("auth")
+        )
+
+    _sync_once_completion(user_data, "enable_push_notifications", has_push_subscription)
     tasks.append(
         TaskDefinition(
             id="enable_push_notifications",

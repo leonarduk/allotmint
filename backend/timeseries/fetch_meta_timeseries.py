@@ -104,22 +104,16 @@ def _resolve_loader_exchange(
 ) -> str:
     """Return the exchange to use when fetching cached data.
 
-    When the exchange originates solely from instrument metadata (i.e. neither
-    the ticker suffix nor the ``exchange`` argument provided a value) we return
-    an empty string so that the cache loader can apply its own defaults.  This
-    preserves the historical behaviour expected by the warm-up utilities and
-    associated tests.
+    The loader should prefer explicit suffixes or query parameters but fall
+    back to instrument metadata when neither is provided.  Returning the
+    metadata value ensures downstream caches warm using the correct market
+    identifier instead of silently defaulting to an empty exchange.
     """
 
     parts = re.split(r"[._]", ticker, 1)
     suffix = parts[1].upper() if len(parts) == 2 else ""
     provided = (exchange_arg or "").upper()
-    if (
-        resolved_exchange
-        and not suffix
-        and not provided
-        and resolved_exchange == _resolve_exchange_from_metadata(symbol)
-    ):
+    if not resolved_exchange:
         return ""
     return resolved_exchange
 

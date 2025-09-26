@@ -146,8 +146,9 @@ async def portfolio(owner: str, request: Request):
     the owner's holdings.
     """
 
+    accounts_root = resolve_accounts_root(request)
     try:
-        return portfolio_mod.build_owner_portfolio(owner, request.app.state.accounts_root)
+        return portfolio_mod.build_owner_portfolio(owner, accounts_root)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
 

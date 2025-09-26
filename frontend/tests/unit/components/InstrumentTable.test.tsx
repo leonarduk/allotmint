@@ -242,6 +242,8 @@ describe("InstrumentTable", () => {
         expect(within(groupASummary).getByText("▲0.3%")).toBeInTheDocument();
         expect(within(groupASummary).getByText("▲0.7%")).toBeInTheDocument();
 
+        expect(screen.queryByText(/Total — Group A/i)).toBeNull();
+
         expect(screen.queryByText("ABC")).toBeNull();
 
         openGroup("Group A");

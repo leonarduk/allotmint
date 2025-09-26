@@ -848,65 +848,6 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
                     </tr>
                   );
                 })}
-              {showGroupTotals && showGroupHeaders && (
-                <tr>
-                  <td
-                    className={`${tableStyles.cell} font-semibold`}
-                    colSpan={4}
-                  >
-                    {totalLabel}
-                    {group.label ? ` — ${group.label}` : ''}
-                  </td>
-                  {!relativeViewEnabled && visibleColumns.units && (
-                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                      {Number.isFinite(group.totals.units)
-                        ? new Intl.NumberFormat(i18n.language).format(group.totals.units)
-                        : '—'}
-                    </td>
-                  )}
-                  {!relativeViewEnabled && visibleColumns.cost && (
-                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                      {Number.isFinite(group.totals.cost)
-                        ? money(group.totals.cost, baseCurrency)
-                        : '—'}
-                    </td>
-                  )}
-                  {!relativeViewEnabled && visibleColumns.market && (
-                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                      {Number.isFinite(group.totals.marketValue)
-                        ? money(group.totals.marketValue, baseCurrency)
-                        : '—'}
-                    </td>
-                  )}
-                  {!relativeViewEnabled && visibleColumns.gain && (
-                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                      {Number.isFinite(group.totals.gain)
-                        ? formatSignedMoney(group.totals.gain, baseCurrency)
-                        : '—'}
-                    </td>
-                  )}
-                  {visibleColumns.gain_pct && (
-                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                      {formatSignedPercent(group.totals.gainPct)}
-                    </td>
-                  )}
-                  {!relativeViewEnabled && (
-                    <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                      —
-                    </td>
-                  )}
-                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                    —
-                  </td>
-                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                    {formatSignedPercent(group.totals.change7dPct)}
-                  </td>
-                  <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
-                    {formatSignedPercent(group.totals.change30dPct)}
-                  </td>
-                  <td className={`${tableStyles.cell} font-semibold`}>—</td>
-                </tr>
-              )}
             </tbody>
           );
         })}

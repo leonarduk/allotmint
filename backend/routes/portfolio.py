@@ -30,7 +30,7 @@ from backend.common import (
 )
 from backend.common import portfolio as portfolio_mod
 from backend.config import config
-from backend.routes._accounts import resolve_accounts_root
+from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -147,6 +147,10 @@ async def portfolio(owner: str, request: Request):
     """
 
     accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if not owner_dir:
+        raise HTTPException(status_code=404, detail="Owner not found")
+    owner = owner_dir.name
     try:
         return portfolio_mod.build_owner_portfolio(owner, accounts_root)
     except FileNotFoundError:

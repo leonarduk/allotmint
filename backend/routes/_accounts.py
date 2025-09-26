@@ -31,6 +31,10 @@ def resolve_accounts_root(request: Request) -> Path:
             request.app.state.accounts_root = resolved_candidate
             return resolved_candidate
 
+        # The cached path is no longer valid; clear it so the fallback logic
+        # can determine a new directory.
+        request.app.state.accounts_root = None
+
     paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
     root = paths.accounts_root
     if not root.exists():

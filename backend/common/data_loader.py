@@ -69,6 +69,7 @@ PLOTS_PREFIX = "accounts/"
 # Local discovery
 # ------------------------------------------------------------------
 _METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
+_SKIP_OWNERS = {".idea", "demo"}
 
 
 def _list_local_plots(
@@ -100,21 +101,21 @@ def _list_local_plots(
     for owner_dir in sorted(root.iterdir()):
         if not owner_dir.is_dir():
             continue
+        if owner_dir.name in _SKIP_OWNERS:
+            continue
         # When authentication is enabled (``disable_auth`` is explicitly
-        # ``False``) and no user is authenticated, expose only the "demo"
-        # account.  ``config.disable_auth`` defaults to ``None`` when the
-        # configuration file cannot be loaded, which previously triggered this
-        # condition unintentionally.  Be explicit about the check so that a
-        # missing config behaves the same as auth being disabled.
-        if config.disable_auth is False and user is None and owner_dir.name != "demo":
+        # ``False``) and no user is authenticated, do not expose any accounts.
+        # ``config.disable_auth`` defaults to ``None`` when the configuration
+        # file cannot be loaded, which previously triggered this condition
+        # unintentionally.  Be explicit about the check so that a missing config
+        # behaves the same as auth being disabled.
+        if config.disable_auth is False and user is None:
             continue
 
         owner = owner_dir.name
         meta = load_person_meta(owner, root)
         viewers = meta.get("viewers", [])
-        # Always expose the "demo" owner, even if ``current_user`` is not a
-        # listed viewer. For all other owners, enforce viewer permissions.
-        if owner != "demo" and user and user != owner and user not in viewers:
+        if user and user != owner and user not in viewers:
             continue
 
         acct_names: List[str] = []
@@ -158,8 +159,8 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     objects are expected under ``accounts/<owner>/<account>.json``. Metadata
     files like ``person.json`` are ignored and account names are de-duplicated
     case-insensitively. When authentication is enabled and no user is
-    authenticated only the ``demo`` owner is returned, mirroring the behaviour
-    of the local loader.
+    authenticated, no owners are exposed, mirroring the behaviour of the local
+    loader.
     """
 
     bucket = os.getenv(DATA_BUCKET_ENV)
@@ -202,17 +203,19 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
         else:
             break
 
+    for skip_owner in _SKIP_OWNERS:
+        owners.pop(skip_owner, None)
+
     user = current_user.get(None) if hasattr(current_user, "get") else current_user
     results: List[Dict[str, Any]] = []
     for owner, accounts in sorted(owners.items()):
         # When authentication is enabled (``disable_auth`` explicitly ``False``)
-        # and no user is authenticated, expose only the "demo" account.  If the
+        # and no user is authenticated, do not expose any accounts.  If the
         # configuration failed to load ``disable_auth`` will be ``None``;
         # treating that as "auth disabled" avoids filtering everything.
         if (
             config.disable_auth is False
             and current_user is None
-            and owner != "demo"
         ):
             continue
         if current_user and current_user != owner:

@@ -197,6 +197,7 @@ def test_invalid_portfolio(client):
     missing_dir = accounts_root / missing_owner
     assert not missing_dir.exists()
     resp = client.get(f"/portfolio/{missing_owner}")
+
     assert resp.status_code == 404
     assert not missing_dir.exists()
 
@@ -334,6 +335,7 @@ def test_compliance_invalid_owner(client):
     missing_dir = accounts_root / missing_owner
     assert not missing_dir.exists()
     resp = client.get(f"/compliance/{missing_owner}")
+
     assert resp.status_code == 404
     assert not missing_dir.exists()
 

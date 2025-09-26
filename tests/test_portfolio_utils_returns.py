@@ -24,7 +24,11 @@ def sample_transactions():
 
 def test_compute_time_weighted_return_with_cashflows(monkeypatch, portfolio_series, sample_transactions):
     monkeypatch.setattr(pu, "_portfolio_value_series", lambda owner, days=365: portfolio_series)
-    monkeypatch.setattr(pu, "load_transactions", lambda owner: sample_transactions)
+    monkeypatch.setattr(
+        pu,
+        "load_transactions",
+        lambda owner, *, scaffold_missing=False: sample_transactions,
+    )
 
     result = pu.compute_time_weighted_return("owner")
 
@@ -35,7 +39,9 @@ def test_compute_time_weighted_return_requires_two_points(monkeypatch):
     idx = pd.Index([date(2024, 1, 1)])
     series = pd.Series([1000.0], index=idx)
     monkeypatch.setattr(pu, "_portfolio_value_series", lambda owner, days=365: series)
-    monkeypatch.setattr(pu, "load_transactions", lambda owner: [])
+    monkeypatch.setattr(
+        pu, "load_transactions", lambda owner, *, scaffold_missing=False: []
+    )
 
     assert pu.compute_time_weighted_return("owner") is None
 
@@ -55,7 +61,9 @@ def test_compute_xirr_simple_contribution(monkeypatch, one_year_series):
         {"date": "2023-12-01", "type": "deposit", "amount_minor": 1000},
         {"date": "2025-02-01", "kind": "WITHDRAWAL", "amount_minor": 1000},
     ]
-    monkeypatch.setattr(pu, "load_transactions", lambda owner: transactions)
+    monkeypatch.setattr(
+        pu, "load_transactions", lambda owner, *, scaffold_missing=False: transactions
+    )
 
     result = pu.compute_xirr("owner")
 
@@ -64,7 +72,9 @@ def test_compute_xirr_simple_contribution(monkeypatch, one_year_series):
 
 def test_compute_xirr_requires_cashflows(monkeypatch, one_year_series):
     monkeypatch.setattr(pu, "_portfolio_value_series", lambda owner, days=365: one_year_series)
-    monkeypatch.setattr(pu, "load_transactions", lambda owner: [])
+    monkeypatch.setattr(
+        pu, "load_transactions", lambda owner, *, scaffold_missing=False: []
+    )
 
     assert pu.compute_xirr("owner") is None
 

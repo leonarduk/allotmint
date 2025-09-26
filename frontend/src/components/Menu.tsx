@@ -287,6 +287,7 @@ export default function Menu({
                     setOpenCategory(null);
                   }
                 }}
+
               >
                 <ul className="flex flex-col gap-1">
                   {category.tabs.map((tab, index) => (

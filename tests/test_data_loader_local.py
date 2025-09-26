@@ -9,19 +9,23 @@ def test_load_account_local(tmp_path):
     assert data == {"balance": 5}
 
 
-def test_list_local_plots_unauthenticated(tmp_path, monkeypatch):
+def test_list_local_plots_filters_special_directories(tmp_path, monkeypatch):
     demo = tmp_path / "demo"
     demo.mkdir()
     (demo / "demo.json").write_text("{}")
+
+    idea = tmp_path / ".idea"
+    idea.mkdir()
+    (idea / "junk.json").write_text("{}")
 
     alice = tmp_path / "alice"
     alice.mkdir()
     (alice / "isa.json").write_text("{}")
 
-    monkeypatch.setattr(dl.config, "disable_auth", False, raising=False)
+    monkeypatch.setattr(dl.config, "disable_auth", True, raising=False)
 
     owners = dl._list_local_plots(data_root=tmp_path, current_user=None)
-    assert owners == [{"owner": "demo", "accounts": ["demo"]}]
+    assert owners == [{"owner": "alice", "accounts": ["isa"]}]
 
 
 def test_list_local_plots_authenticated(tmp_path, monkeypatch):
@@ -52,5 +56,4 @@ def test_list_local_plots_authenticated(tmp_path, monkeypatch):
     assert owners == [
         {"owner": "alice", "accounts": ["isa"]},
         {"owner": "bob", "accounts": ["gia"]},
-        {"owner": "demo", "accounts": ["demo"]},
     ]

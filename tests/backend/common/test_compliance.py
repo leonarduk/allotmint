@@ -33,7 +33,9 @@ def stubbed_env(monkeypatch):
     )
 
     monkeypatch.setattr(
-        compliance, "load_transactions", lambda owner, accounts_root=None: []
+        compliance,
+        "load_transactions",
+        lambda owner, accounts_root=None, scaffold_missing=False: [],
     )
     monkeypatch.setattr(compliance, "load_approvals", lambda owner, accounts_root=None: {})
     monkeypatch.setattr(
@@ -61,6 +63,10 @@ def test_load_transactions_missing_owner_raises(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         compliance.load_transactions(owner, accounts_root=accounts_root)
+
+    records = compliance.load_transactions(
+        owner, accounts_root=accounts_root, scaffold_missing=True
+    )
 
     assert not (accounts_root / owner).exists()
 
@@ -96,7 +102,7 @@ def test_ensure_owner_scaffold_creates_defaults(tmp_path):
 def test_check_trade_requires_owner(monkeypatch):
     called = False
 
-    def fake_load_transactions(owner, accounts_root=None):
+    def fake_load_transactions(owner, accounts_root=None, scaffold_missing=False):
         nonlocal called
         called = True
         return []

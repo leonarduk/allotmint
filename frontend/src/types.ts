@@ -271,6 +271,7 @@ export interface Transaction {
   currency?: string | null;
   security_ref?: string | null;
   ticker?: string | null;
+  instrument_name?: string | null;
   shares?: number | null;
   units?: number | null;
   price_gbp?: number | null;

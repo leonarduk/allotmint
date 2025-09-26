@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import json
-import logging
 import os
 import platform
 import re
@@ -11,7 +9,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
-from typing import Dict, Iterator, List, Mapping, Optional, Tuple, TextIO
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, TextIO
 
 try:  # Unix-like systems
     import fcntl  # type: ignore
@@ -32,6 +30,7 @@ from backend.common import portfolio as portfolio_mod
 from backend.common import portfolio_loader
 from backend.common.ticker_utils import normalise_filter_ticker
 from backend.common import compliance
+from backend.common.instruments import get_instrument_meta
 from backend.config import config
 from backend import importers
 from backend.utils import update_holdings_from_csv
@@ -62,11 +61,10 @@ class Transaction(BaseModel):
     reason: str | None = None
     reason_to_buy: str | None = None
     synthetic: bool = False
+    instrument_name: str | None = None
 
     model_config = ConfigDict(extra="ignore", allow_inf_nan=True)
 
-
-router = APIRouter(tags=["transactions"])
 
 _POSTED_TRANSACTIONS: List[dict] = []
 _PORTFOLIO_IMPACT: defaultdict[str, float] = defaultdict(float)
@@ -135,6 +133,53 @@ def _calculate_portfolio_impact(tx: Mapping[str, object]) -> float:
     return price * units
 
 
+def _as_non_empty_str(value: object) -> str | None:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped:
+            return stripped
+    return None
+
+
+def _instrument_name_from_entry(entry: Mapping[str, Any]) -> str | None:
+    for key in ("instrument_name", "name", "display_name"):
+        existing = _as_non_empty_str(entry.get(key))
+        if existing:
+            return existing
+
+    ticker_value = entry.get("ticker") or entry.get("security_ref")
+    ticker = _as_non_empty_str(ticker_value)
+    if not ticker:
+        return None
+
+    try:
+        meta = get_instrument_meta(ticker.upper())
+    except ValueError:
+        return None
+    except Exception:  # pragma: no cover - unexpected lookup failure
+        log.debug("Failed to load instrument metadata for ticker %s", ticker)
+        return None
+
+    for key in ("name", "instrument_name", "display_name"):
+        meta_name = _as_non_empty_str(meta.get(key))
+        if meta_name:
+            return meta_name
+    return None
+
+
+def _format_transaction_response(
+    owner: str, account: str, tx_data: Mapping[str, Any], tx_id: Optional[str] = None
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {"owner": owner, "account": account, **tx_data}
+    if tx_id is not None:
+        payload["id"] = tx_id
+
+    name = _instrument_name_from_entry(payload)
+    if name:
+        payload["instrument_name"] = name
+    return payload
+
+
 def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping[str, object]) -> Dict[str, object]:
     managed_fields = {"ticker", "date", "price_gbp", "units", "fees", "comments", "reason"}
     updated = dict(existing)
@@ -170,6 +215,9 @@ def _load_all_transactions() -> List[Transaction]:
         for idx, t in enumerate(transactions):
             t = dict(t)
             t.pop("account", None)
+            instrument_name = _instrument_name_from_entry(t)
+            if instrument_name:
+                t["instrument_name"] = instrument_name
             results.append(
                 Transaction(
                     owner=owner,
@@ -310,7 +358,7 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     _rebuild_portfolio(owner, account)
 
     tx_id = _build_transaction_id(owner, account, new_index)
-    return {"owner": owner, "account": account, "id": tx_id, **tx_data}
+    return _format_transaction_response(owner, account, tx_data, tx_id)
 
 
 @router.put("/transactions/{tx_id}")
@@ -387,7 +435,7 @@ async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
 
     new_id = _build_transaction_id(new_owner, new_account, new_index)
     account_response = new_account.lower()
-    return {"owner": new_owner, "account": account_response, "id": new_id, **new_entry}
+    return _format_transaction_response(new_owner, account_response, new_entry, new_id)
 
 
 @router.delete("/transactions/{tx_id}")

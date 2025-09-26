@@ -917,7 +917,7 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
             width: "100%",
           }}
         >
-          <InstrumentTable rows={instrumentRows} showGroupTotals={false} />
+          <InstrumentTable rows={instrumentRows} />
         </div>
       )}
     </div>

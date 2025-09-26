@@ -5,8 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
 import type { TabPluginId } from '../tabPlugins';
 import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
-import PomodoroTimer from './PomodoroTimer';
-import { useFocusMode } from '../FocusModeContext';
 
 const SUPPORT_ONLY_TABS: TabPluginId[] = [];
 
@@ -27,8 +25,6 @@ export default function Menu({
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const path = location.pathname.split('/').filter(Boolean);
-
-  const { focusMode, setFocusMode } = useFocusMode();
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -229,72 +225,52 @@ export default function Menu({
       >
         ☰
       </button>
-      {focusMode ? (
-        <div className="flex flex-col" style={style}>
-          <PomodoroTimer />
-          <button
-            type="button"
-            onClick={() => setFocusMode(false)}
-            className="mt-2 mr-4 bg-transparent border-0 p-0 cursor-pointer self-start"
-          >
-            {t('app.exitFocusMode')}
-          </button>
-        </div>
-      ) : (
-        <div
-          hidden={!open}
-          aria-hidden={!open}
-          className={`${open ? 'flex md:flex' : 'hidden'} flex-col gap-2 md:flex-row md:flex-wrap`}
-          style={style}
-        >
-          {categoriesToRender.map((category) => (
-            <div key={category.id} className="mr-4 flex flex-col">
-              <span className="font-semibold">{t(`app.menuCategories.${category.titleKey}`)}</span>
-              <div className="mt-1 flex flex-col gap-1">
-                {category.tabs.map((tab) => (
-                  <Link
-                    key={tab.id}
-                    to={pathFor(tab.id as string)}
-                    className={`${mode === tab.id ? 'font-bold' : ''} break-words`}
-                    style={{ fontWeight: mode === tab.id ? 'bold' as const : undefined }}
-                    onClick={() => setOpen(false)}
-                  >
-                    {t(`app.modes.${tab.id}`)}
-                  </Link>
-                ))}
-              </div>
+      <div
+        hidden={!open}
+        aria-hidden={!open}
+        className={`${open ? 'flex md:flex' : 'hidden'} flex-col gap-2 md:flex-row md:flex-wrap`}
+        style={style}
+      >
+        {categoriesToRender.map((category) => (
+          <div key={category.id} className="mr-4 flex flex-col">
+            <span className="font-semibold">{t(`app.menuCategories.${category.titleKey}`)}</span>
+            <div className="mt-1 flex flex-col gap-1">
+              {category.tabs.map((tab) => (
+                <Link
+                  key={tab.id}
+                  to={pathFor(tab.id as string)}
+                  className={`${mode === tab.id ? 'font-bold' : ''} break-words`}
+                  style={{ fontWeight: mode === tab.id ? 'bold' as const : undefined }}
+                  onClick={() => setOpen(false)}
+                >
+                  {t(`app.modes.${tab.id}`)}
+                </Link>
+              ))}
             </div>
-          ))}
-          {supportEnabled && (
-            <Link
-              to={inSupport ? '/' : '/support'}
-              className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
-              onClick={() => setOpen(false)}
-            >
-              {t('app.supportLink')}
-            </Link>
-          )}
-          {onLogout && (
-            <button
-              type="button"
-              onClick={() => {
-                onLogout();
-                setOpen(false);
-              }}
-              className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
-            >
-              {t('app.logout')}
-            </button>
-          )}
+          </div>
+        ))}
+        {supportEnabled && (
+          <Link
+            to={inSupport ? '/' : '/support'}
+            className={`mr-4 ${inSupport ? 'font-bold' : ''} break-words`}
+            onClick={() => setOpen(false)}
+          >
+            {t('app.supportLink')}
+          </Link>
+        )}
+        {onLogout && (
           <button
             type="button"
-            onClick={() => setFocusMode(true)}
+            onClick={() => {
+              onLogout();
+              setOpen(false);
+            }}
             className="mr-4 bg-transparent border-0 p-0 cursor-pointer"
           >
-            {t('app.focusMode')}
+            {t('app.logout')}
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </nav>
   );
 }

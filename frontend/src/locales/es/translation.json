@@ -20,8 +20,6 @@
       "supportTools": "Herramientas de soporte",
       "other": "Otros"
     },
-    "focusMode": "Modo de enfoque",
-    "exitFocusMode": "Salir del modo de enfoque",
     "modes": {
       "group": "Grupo",
       "instrument": "Instrumento",

@@ -24,8 +24,9 @@ def resolve_accounts_root(request: Request) -> Path:
     if accounts_root_value:
         candidate = Path(accounts_root_value).expanduser()
         resolved_candidate = candidate.resolve(strict=False)
-        request.app.state.accounts_root = resolved_candidate
-        return resolved_candidate
+        if resolved_candidate.exists():
+            request.app.state.accounts_root = resolved_candidate
+            return resolved_candidate
 
     paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
     root = paths.accounts_root

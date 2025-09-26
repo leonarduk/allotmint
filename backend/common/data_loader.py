@@ -337,6 +337,8 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                 exc,
                 exc_info=True,
             )
+            if config.app_env == "aws" and data_root is None:
+                return {}
     paths = resolve_paths(config.repo_root, config.accounts_root)
     root = data_root or paths.accounts_root
     path = root / owner / "person.json"

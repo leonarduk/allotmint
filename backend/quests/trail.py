@@ -176,11 +176,23 @@ def _build_compliance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
     return tasks
 
 
+def _sync_once_completion(user_data: Dict, task_id: str, should_complete: bool) -> None:
+    """Ensure ``task_id`` reflects ``should_complete`` within ``user_data``."""
+
+    once_list = user_data.setdefault("once", [])
+    if should_complete and task_id not in once_list:
+        once_list.append(task_id)
+    elif not should_complete and task_id in once_list:
+        user_data["once"] = [tid for tid in once_list if tid != task_id]
+
+
 def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
     tasks: List[TaskDefinition] = []
 
     # Encourage the user to model a goal if they have not already done so.
-    if not load_goals(user):
+    has_goal = bool(load_goals(user))
+    _sync_once_completion(user_data, "create_goal", has_goal)
+    if not has_goal:
         tasks.append(
             TaskDefinition(
                 id="create_goal",
@@ -190,24 +202,25 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
             )
         )
 
-    # Configure price-drift alerts to catch meaningful moves.
+    # Configure price-drift alerts to catch meaningful moves.  The
+    # ``_USER_THRESHOLDS`` cache only records explicit overrides, so the
+    # presence of ``user`` indicates the threshold was customised.
     thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
-    if user not in thresholds:
-        # ``alerts.get_user_threshold`` falls back to the default without
-        # indicating whether the user explicitly configured the value.  The
-        # private ``_USER_THRESHOLDS`` cache records explicit overrides, so a
-        # missing entry means the threshold still lives at the default.
-        tasks.append(
-            TaskDefinition(
-                id="set_alert_threshold",
-                title="Adjust your alert threshold",
-                type="once",
-                commentary="Fine-tune drift alerts so significant moves surface quickly.",
-            )
+    has_custom_threshold = isinstance(thresholds, dict) and user in thresholds
+    _sync_once_completion(user_data, "set_alert_threshold", has_custom_threshold)
+    tasks.append(
+        TaskDefinition(
+            id="set_alert_threshold",
+            title="Adjust your alert threshold",
+            type="once",
+            commentary="Fine-tune drift alerts so significant moves surface quickly.",
         )
+    )
 
     # Push notifications require an explicit subscription – remind the user
-    # when none is configured.
+    # when none is configured.  When a subscription exists ensure the once
+    # state is marked as complete so the task renders as finished instead of
+    # disappearing entirely, keeping history consistent.
     subscription = alerts.get_user_push_subscription(user)
     if subscription:
         try:
@@ -216,15 +229,15 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
             persisted = {}
         if not isinstance(persisted, dict) or persisted.get(user) is None:
             subscription = None
-    if not subscription:
-        tasks.append(
-            TaskDefinition(
-                id="enable_push_notifications",
-                title="Enable push notifications",
-                type="once",
-                commentary="Stay informed about nudges and alerts without opening the app.",
-            )
+    _sync_once_completion(user_data, "enable_push_notifications", bool(subscription))
+    tasks.append(
+        TaskDefinition(
+            id="enable_push_notifications",
+            title="Enable push notifications",
+            type="once",
+            commentary="Stay informed about nudges and alerts without opening the app.",
         )
+    )
 
     return tasks
 

@@ -634,9 +634,10 @@ export function InstrumentTable({ rows }: Props) {
                           : percent(r.change_30d_pct, 1)}
                       </td>
                       <td className={tableStyles.cell}>
-                        <div className="flex flex-col gap-1">
-                          <span>{currentGrouping ?? '—'}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="shrink-0">{currentGrouping ?? '—'}</span>
                           <select
+                            className="flex-1 min-w-[10rem] max-w-full"
                             aria-label={t('instrumentTable.groupActions.ariaLabel', {
                               ticker: r.ticker,
                               defaultValue: `Change group for ${r.ticker}`,

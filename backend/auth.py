@@ -52,7 +52,7 @@ if not SECRET_KEY:
         raise RuntimeError("JWT_SECRET environment variable is required")
 ALGORITHM = "HS256"
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # Context variable storing the username of the authenticated user.
 # This allows downstream helpers to detect whether a request is
@@ -181,7 +181,12 @@ def decode_token(token: str) -> Optional[str]:
         return None
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
+def _user_from_token(token: str | None) -> str:
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        )
     email = decode_token(token)
     if not email:
         raise HTTPException(
@@ -189,6 +194,29 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
             detail="Invalid authentication credentials",
         )
     return email
+
+
+async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
+    """Return the authenticated user extracted from the bearer token."""
+
+    return _user_from_token(token)
+
+
+async def get_active_user(token: str | None = Depends(oauth2_scheme)) -> str | None:
+    """Return the active user when authentication is enabled.
+
+    When ``config.disable_auth`` is truthy the API allows unauthenticated
+    access and this helper returns ``None`` so callers can fall back to a
+    shared demo identity.  If a token is supplied while auth is disabled it is
+    still validated to support mixed environments where some requests provide
+    credentials.
+    """
+
+    if config.disable_auth:
+        if token:
+            return _user_from_token(token)
+        return None
+    return _user_from_token(token)
 
 
 def verify_google_token(token: str) -> str:

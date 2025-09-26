@@ -112,9 +112,10 @@ def _resolve_loader_exchange(
     parts = re.split(r"[._]", ticker, 1)
     suffix = parts[1].upper() if len(parts) == 2 else ""
     provided = (exchange_arg or "").upper()
-    if suffix or provided:
-        return resolved_exchange
-    return ""
+    # When a suffix or explicit exchange is provided, ``resolved_exchange`` will
+    # already reflect that input. Otherwise it captures any metadata-derived
+    # fallback, which we now want to respect for loader calls as well.
+    return resolved_exchange
 
 
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:

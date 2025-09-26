@@ -116,16 +116,25 @@ export default function Menu({
     {
       id: 'portfolio',
       titleKey: 'portfolio',
-      tabIds: ['owner', 'performance', 'transactions', 'trading', 'allocation', 'rebalance', 'trail'],
+      tabIds: [
+        'owner',
+        'performance',
+        'transactions',
+        'trading',
+        'allocation',
+        'rebalance',
+        'trail',
+        'reports',
+        'tradecompliance',
+      ],
     },
     {
       id: 'research',
       titleKey: 'research',
       tabIds: ['instrument', 'screener', 'timeseries', 'watchlist', 'scenario'],
     },
-    { id: 'reporting', titleKey: 'reporting', tabIds: ['reports', 'tradecompliance'] },
     { id: 'planning', titleKey: 'planning', tabIds: ['pension', 'taxtools'] },
-    { id: 'settings', titleKey: 'settings', tabIds: ['settings'] },
+    { id: 'settings', titleKey: 'settings', tabIds: ['alertsettings', 'settings'] },
   ];
 
   const SUPPORT_MENU_CATEGORIES: MenuCategory[] = [

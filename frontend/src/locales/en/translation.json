@@ -12,10 +12,9 @@
     "menu": "Menu",
     "menuCategories": {
       "overview": "Overview",
-      "portfolio": "Portfolio Management",
-      "research": "Research & Analysis",
-      "reporting": "Reporting & Compliance",
-      "planning": "Planning & Tools",
+      "portfolio": "Portfolio",
+      "research": "Research",
+      "planning": "Planning",
       "settings": "Settings",
       "supportTools": "Support Tools",
       "other": "Other"

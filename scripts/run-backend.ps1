@@ -325,8 +325,19 @@ try {
 } catch {}
 if (-not $uvicornAvailable) {
   if ($offline) {
-    Write-Host 'uvicorn is not installed and Offline mode is enabled. Install dependencies (pip install -r requirements.txt) or run without -Offline.' -ForegroundColor Red
-    exit 1
+    Write-Host 'uvicorn not found; attempting to install using existing pip cache...' -ForegroundColor Yellow
+    try {
+      & $PYTHON -m pip install -r .\requirements.txt
+      if ($LASTEXITCODE -eq 0) {
+        & $PYTHON -c "import uvicorn" 2>$null
+        if ($LASTEXITCODE -eq 0) { $uvicornAvailable = $true }
+      }
+    } catch {}
+
+    if (-not $uvicornAvailable) {
+      Write-Host 'uvicorn is not installed and Offline mode is enabled. Install dependencies (pip install -r requirements.txt) or run without -Offline.' -ForegroundColor Red
+      exit 1
+    }
   } else {
     Write-Host 'Installing uvicorn...' -ForegroundColor Yellow
     & $PYTHON -m pip install uvicorn

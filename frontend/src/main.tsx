@@ -13,7 +13,6 @@ import { AuthProvider, useAuth } from './AuthContext'
 import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
 import LoginPage from './LoginPage'
 import { UserProvider, useUser } from './UserContext'
-import { FocusModeProvider } from './FocusModeContext'
 import ErrorBoundary from './ErrorBoundary'
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
 
@@ -140,12 +139,10 @@ createRoot(rootEl).render(
         <PriceRefreshProvider>
           <AuthProvider>
             <UserProvider>
-              <FocusModeProvider>
-                <BrowserRouter>
-                  <Root />
-                </BrowserRouter>
-                <ToastContainer autoClose={5000} />
-              </FocusModeProvider>
+              <BrowserRouter>
+                <Root />
+              </BrowserRouter>
+              <ToastContainer autoClose={5000} />
             </UserProvider>
           </AuthProvider>
         </PriceRefreshProvider>

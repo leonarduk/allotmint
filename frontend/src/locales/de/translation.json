@@ -20,8 +20,6 @@
       "supportTools": "Support-Tools",
       "other": "Weitere"
     },
-    "focusMode": "Fokusmodus",
-    "exitFocusMode": "Fokusmodus verlassen",
     "modes": {
       "group": "Gruppe",
       "instrument": "Instrument",

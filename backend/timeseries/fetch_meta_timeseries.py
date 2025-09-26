@@ -104,25 +104,25 @@ def _resolve_loader_exchange(
 ) -> str:
     """Return the exchange to use when fetching cached data.
 
-    The loader should prefer explicit suffixes or query parameters. When
-    neither is provided we deliberately ignore metadata-derived exchanges so
-    the cache lookup matches the unsuffixed request that triggered it.
+    Explicit suffixes and ``exchange`` arguments take priority, otherwise fall
+    back to the previously resolved exchange (which may come from metadata).
     """
 
     parts = re.split(r"[._]", ticker, 1)
     suffix = parts[1].strip().upper() if len(parts) == 2 else ""
-    provided = (exchange_arg or "").strip()
+    provided = (exchange_arg or "").strip().upper()
+    resolved = (resolved_exchange or "").strip().upper()
 
     if provided:
         # ``resolved_exchange`` already respects explicit overrides, but we
         # normalise again defensively in case the caller passed a lowercase
         # string and resolution fell back to metadata.
-        return (resolved_exchange or provided.upper()).upper()
+        return resolved or provided
 
     if suffix:
-        return (resolved_exchange or suffix).upper()
+        return resolved or suffix
 
-    return ""
+    return resolved
 
 
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:

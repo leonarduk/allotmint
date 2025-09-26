@@ -298,7 +298,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/pension/forecast",
     "query": {
       "owner": "demo",
-      "death_age": "0"
+      "death_age": "90"
     }
   },
   {

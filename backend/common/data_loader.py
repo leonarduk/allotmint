@@ -216,9 +216,13 @@ def _list_local_plots(
     except OSError:
         same_root = False
 
+    used_fallback_results = False
+
     if not results:
         fallback_results = _discover(fallback_root, include_demo=True)
-        results.extend(fallback_results)
+        if fallback_results:
+            used_fallback_results = True
+            results.extend(fallback_results)
 
     owners_index = {
         str(entry.get("owner", "")).lower(): entry for entry in results
@@ -228,7 +232,7 @@ def _list_local_plots(
     if "demo" in owners_index:
         _merge_accounts(owners_index["demo"], fallback_demo)
     else:
-        if fallback_demo:
+        if fallback_demo and (used_fallback_results or include_demo_primary):
             results.append(fallback_demo)
             owners_index["demo"] = fallback_demo
         elif include_demo_primary:
@@ -239,11 +243,6 @@ def _list_local_plots(
 
     if same_root:
         return results
-
-    if "demo" not in owners_index:
-        primary_demo = _load_demo_owner(primary_root)
-        if primary_demo:
-            results.append(primary_demo)
 
     return results
 

@@ -11,15 +11,35 @@ router = APIRouter(tags=["compliance"])
 logger = logging.getLogger(__name__)
 
 
-def _known_owners(accounts_root) -> set[str]:
-    """Return a lower-cased set of known owners for the configured root."""
+def _known_owners(accounts_root) -> tuple[set[str], bool]:
+    """Return a set of known owners and whether discovery succeeded.
+
+    The second return value indicates whether discovery produced a non-empty
+    result for the active ``accounts_root``. Callers can use this to avoid
+    blocking requests when discovery failed outright (for example, when the
+    configured root no longer exists).
+    """
 
     owners: set[str] = set()
 
-    def _ensure_demo_owner(owner_set: set[str]) -> None:
+    try:
+        active_root = Path(accounts_root) if accounts_root else data_loader.resolve_paths(None, None).accounts_root
+    except Exception:
+        active_root = None
+
+    active_root_exists = False
+    if active_root is not None:
+        try:
+            active_root_exists = active_root.exists()
+        except Exception:
+            active_root_exists = False
+
+    discovery_failed = False
+
+    def _ensure_demo_owner(owner_set: set[str], *, allow_fallback: bool) -> None:
         """Ensure the bundled demo owner remains discoverable."""
 
-        if not owner_set or "demo" in owner_set:
+        if not allow_fallback or not owner_set or "demo" in owner_set:
             return
 
         try:
@@ -42,31 +62,35 @@ def _known_owners(accounts_root) -> set[str]:
         entries = data_loader.list_plots(accounts_root)
     except Exception:
         entries = []
+        discovery_failed = True
+
+    has_discovered_owner = False
 
     for entry in entries:
         owner = (entry.get("owner") or "").strip()
         if owner:
             owners.add(owner.lower())
+            if active_root_exists:
+                has_discovered_owner = True
 
-    _ensure_demo_owner(owners)
+    allow_demo = not discovery_failed and active_root_exists
+    _ensure_demo_owner(owners, allow_fallback=allow_demo)
 
-    if owners:
-        return owners
+    if has_discovered_owner:
+        return owners, True
+
+    if not active_root_exists:
+        return owners, False
 
     try:
-        root_path = Path(accounts_root) if accounts_root else data_loader.resolve_paths(None, None).accounts_root
+        for entry in active_root.iterdir():
+            if entry.is_dir():
+                owners.add(entry.name.lower())
     except Exception:
-        return owners
+        return owners, False
 
-    if not root_path or not root_path.exists():
-        return owners
-
-    for entry in root_path.iterdir():
-        if entry.is_dir():
-            owners.add(entry.name.lower())
-
-    _ensure_demo_owner(owners)
-    return owners
+    _ensure_demo_owner(owners, allow_fallback=allow_demo)
+    return owners, False
 
 
 @router.get("/compliance/{owner}")
@@ -78,7 +102,7 @@ async def compliance_for_owner(owner: str, request: Request):
     if not owner_dir:
         raise_owner_not_found()
     owner = owner_dir.name
-    owners = _known_owners(accounts_root)
+    owners, _ = _known_owners(accounts_root)
     if owners and owner.lower() not in owners:
         raise_owner_not_found()
     try:
@@ -109,17 +133,17 @@ async def validate_trade(request: Request):
     if not owner_value:
         raise_owner_not_found()
 
-    owners = _known_owners(accounts_root)
+    owners, discovery_success = _known_owners(accounts_root)
     owner_dir = resolve_owner_directory(accounts_root, owner_value)
     scaffold_missing = owner_dir is None
 
     if owner_dir:
         canonical_owner = owner_dir.name
-        if owners and canonical_owner.lower() not in owners:
+        if discovery_success and owners and canonical_owner.lower() not in owners:
             raise_owner_not_found()
         trade["owner"] = canonical_owner
     else:
-        if owners:
+        if discovery_success and owners:
             raise_owner_not_found()
         trade["owner"] = owner_value
     try:

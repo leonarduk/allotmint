@@ -811,6 +811,36 @@ export const updateInstrumentMetadata = (
     },
   );
 
+export type InstrumentMetadataRefreshResponse = {
+  status: string;
+  metadata: InstrumentMetadata & Record<string, unknown>;
+  changes: Record<string, { from: unknown; to: unknown }>;
+};
+
+export const refreshInstrumentMetadata = (
+  ticker: string,
+  exchange: string,
+) =>
+  fetchJson<InstrumentMetadataRefreshResponse>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}/refresh`,
+    {
+      method: "POST",
+    },
+  );
+
+export const confirmInstrumentMetadata = (
+  ticker: string,
+  exchange: string,
+) =>
+  fetchJson<InstrumentMetadataRefreshResponse>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}/refresh`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preview: false }),
+    },
+  );
+
 
 export const getTransactions = (params: {
   owner?: string;

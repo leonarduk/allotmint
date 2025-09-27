@@ -213,14 +213,12 @@ def _list_local_plots(
 
     fallback_paths = resolve_paths(None, None)
     fallback_root = fallback_paths.accounts_root
-    include_demo_primary = False
-    if data_root is None:
+    include_demo_primary = bool(config.disable_auth)
+    if data_root is None and not include_demo_primary:
         try:
             include_demo_primary = primary_root.resolve() == fallback_root.resolve()
         except Exception:
             include_demo_primary = False
-        if config.disable_auth:
-            include_demo_primary = True
 
     results = _discover(primary_root, include_demo=include_demo_primary)
 

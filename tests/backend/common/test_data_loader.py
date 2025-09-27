@@ -13,6 +13,7 @@ from backend.common.data_loader import (
     load_virtual_portfolio,
     resolve_paths,
     save_virtual_portfolio,
+    list_plots,
 )
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import Config
@@ -210,6 +211,23 @@ class TestListLocalPlots:
 
         assert result == [
             {"owner": "carol", "accounts": ["gamma"]},
+            {"owner": "demo", "accounts": ["demo1"]},
+        ]
+
+    def test_list_plots_with_explicit_root_includes_demo(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        self._configure(monkeypatch, tmp_path, data_root, disable_auth=True)
+
+        _write_owner(data_root, "demo", ["demo1"], viewers=[])
+        _write_owner(data_root, "carol", ["gamma"], viewers=["other"])
+
+        result = list_plots(data_root=data_root, current_user=None)
+
+        assert result == [
+            {"owner": "carol", "accounts": ["gamma"]},
+            {"owner": "demo", "accounts": ["demo1"]},
         ]
 
     def test_allows_access_when_user_matches_owner_email(

@@ -53,6 +53,10 @@ import PensionForecast from "./pages/PensionForecast";
 import TaxTools from "./pages/TaxTools";
 import RightRail from "./components/RightRail";
 import { sanitizeOwners } from "./utils/owners";
+import {
+  isDefaultGroupSlug,
+  normaliseGroupSlug,
+} from "./utils/groups";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -137,7 +141,9 @@ export default function App({ onLogout }: AppProps) {
       : "",
   );
   const [selectedGroup, setSelectedGroup] = useState(
-    initialMode === "instrument" ? initialSlug : params.get("group") ?? ""
+    initialMode === "instrument"
+      ? initialSlug
+      : normaliseGroupSlug(params.get("group"))
   );
 
   const [researchTicker, setResearchTicker] = useState(
@@ -259,7 +265,11 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
-      setSelectedGroup(params.get("group") ?? "");
+      const groupParam = params.get("group");
+      setSelectedGroup(normaliseGroupSlug(groupParam));
+      if (groupParam && isDefaultGroupSlug(groupParam) && location.search) {
+        navigate("/", { replace: true });
+      }
     } else if (newMode === "research") {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? "") : "");
     }
@@ -324,12 +334,27 @@ export default function App({ onLogout }: AppProps) {
       setSelectedGroup(slug);
       navigate(`/instrument/${slug}`, { replace: true });
     }
-    if (mode === "group" && !selectedGroup && groups.length) {
-      const slug = groups[0].slug;
-      setSelectedGroup(slug);
-      navigate(`/?group=${slug}`, { replace: true });
+    if (mode === "group" && groups.length) {
+      const hasSelection = groups.some((g) => g.slug === selectedGroup);
+      if (!hasSelection) {
+        const slug = groups[0].slug;
+        setSelectedGroup(slug);
+        if (isDefaultGroupSlug(slug)) {
+          if (location.search) navigate("/", { replace: true });
+        } else {
+          navigate(`/?group=${slug}`, { replace: true });
+        }
+      }
     }
-  }, [mode, selectedOwner, selectedGroup, owners, groups, navigate]);
+  }, [
+    mode,
+    selectedOwner,
+    selectedGroup,
+    owners,
+    groups,
+    navigate,
+    location.search,
+  ]);
 
   // data fetching based on route
   useEffect(() => {

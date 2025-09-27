@@ -29,10 +29,7 @@ export default function MetricsExplanation() {
   return (
     <main className="container mx-auto max-w-3xl space-y-10 p-4">
       <header className="space-y-2">
-        <Link
-          to="/?group=all"
-          className="inline-block text-blue-500 hover:underline"
-        >
+        <Link to="/" className="inline-block text-blue-500 hover:underline">
           {t("metricsExplanation.backLink")}
         </Link>
         <h1 className="text-3xl font-bold">

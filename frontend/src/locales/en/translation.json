@@ -261,7 +261,8 @@
     }
   },
   "group": {
-    "select": "Select a group."
+    "select": "Select a group.",
+    "atAGlance": "At a glance"
   },
   "dashboard": {
     "selectMember": "Select a member.",

@@ -17,7 +17,7 @@ def test_list_groups_returns_expected_defaults():
     assert groups == [
         {
             "slug": "all",
-            "name": "All owners combined",
+            "name": "At a glance",
             "members": ["Alex", "Joe", "Lucy", "Steve"],
         },
         {"slug": "adults", "name": "Adults", "members": ["Lucy", "Steve"]},

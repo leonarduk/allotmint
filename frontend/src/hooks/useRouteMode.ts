@@ -4,6 +4,10 @@ import { useConfig } from "../ConfigContext";
 import type { Mode } from "../modes";
 import useFetch from "./useFetch";
 import { getGroups } from "../api";
+import {
+  isDefaultGroupSlug,
+  normaliseGroupSlug,
+} from "../utils/groups";
 
 interface RouteState {
   mode: Mode;
@@ -80,7 +84,7 @@ function deriveInitial() {
   const slug = path[1] ?? "";
   const owner = mode === "owner" || mode === "performance" ? slug : "";
   const group =
-    mode === "instrument" ? "" : params.get("group") ?? "";
+    mode === "instrument" ? "" : normaliseGroupSlug(params.get("group"));
   return { mode, owner, group };
 }
 
@@ -98,7 +102,9 @@ export function useRouteMode(): RouteState {
   function pathFor(m: Mode) {
     switch (m) {
       case "group":
-        return selectedGroup ? `/?group=${selectedGroup}` : "/";
+        return selectedGroup && !isDefaultGroupSlug(selectedGroup)
+          ? `/?group=${selectedGroup}`
+          : "/";
       case "instrument":
         return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
       case "owner":
@@ -184,7 +190,11 @@ export function useRouteMode(): RouteState {
         }
       }
     } else if (newMode === "group") {
-      setSelectedGroup(params.get("group") ?? "");
+      const groupParam = params.get("group");
+      setSelectedGroup(normaliseGroupSlug(groupParam));
+      if (groupParam && isDefaultGroupSlug(groupParam) && location.search) {
+        navigate("/", { replace: true });
+      }
     }
   }, [
     location.pathname,

@@ -986,23 +986,28 @@ def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) 
     return total.sort_index()
 
 
-def _alpha_vs_benchmark(name: str, benchmark: str, days: int = 365, *, group: bool = False) -> float | None:
+def _aligned_portfolio_benchmark_returns(
+    name: str, benchmark: str, days: int = 365, *, group: bool = False
+) -> pd.DataFrame:
+    """Return aligned daily return series for a portfolio and benchmark."""
+
     total = _portfolio_value_series(name, days, group=group)
     if total.empty:
-        return None
+        return pd.DataFrame()
+
     port_ret = total.pct_change().dropna()
 
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
     df = load_meta_timeseries(bench_tkr, bench_exch, days)
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
-        return None
+        return pd.DataFrame()
     df = df[["Date", "Close"]].copy()
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
     bench_ret = df.set_index("Date")["Close"].pct_change().dropna()
 
     port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
     if port_ret.empty:
-        return None
+        return pd.DataFrame()
 
     aligned = pd.DataFrame({"portfolio": port_ret, "benchmark": bench_ret})
     aligned = aligned.replace([np.inf, -np.inf], np.nan).dropna()
@@ -1012,6 +1017,13 @@ def _alpha_vs_benchmark(name: str, benchmark: str, days: int = 365, *, group: bo
     # cumulative performance.
     max_reasonable_return = 10.0
     aligned = aligned[(aligned.abs() <= max_reasonable_return).all(axis=1)]
+    return aligned
+
+
+def _alpha_vs_benchmark(
+    name: str, benchmark: str, days: int = 365, *, group: bool = False
+) -> float | None:
+    aligned = _aligned_portfolio_benchmark_returns(name, benchmark, days, group=group)
     if aligned.empty:
         return None
 
@@ -1020,39 +1032,151 @@ def _alpha_vs_benchmark(name: str, benchmark: str, days: int = 365, *, group: bo
     return float(port_cum - bench_cum)
 
 
-def _tracking_error(name: str, benchmark: str, days: int = 365, *, group: bool = False) -> float | None:
-    total = _portfolio_value_series(name, days, group=group)
-    if total.empty:
-        return None
-    port_ret = total.pct_change().dropna()
+def _alpha_vs_benchmark_breakdown(
+    name: str, benchmark: str, days: int = 365, *, group: bool = False
+) -> dict[str, Any]:
+    aligned = _aligned_portfolio_benchmark_returns(name, benchmark, days, group=group)
+    if aligned.empty:
+        return {"alpha_vs_benchmark": None, "daily_breakdown": []}
 
-    bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
-    df = load_meta_timeseries(bench_tkr, bench_exch, days)
-    if df.empty or "Close" not in df.columns or "Date" not in df.columns:
-        return None
-    df = df[["Date", "Close"]].copy()
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
-    bench_ret = df.set_index("Date")["Close"].pct_change().dropna()
+    details = aligned.copy()
+    details["portfolio_cumulative"] = (1 + details["portfolio"]).cumprod() - 1
+    details["benchmark_cumulative"] = (1 + details["benchmark"]).cumprod() - 1
+    details["alpha"] = details["portfolio_cumulative"] - details["benchmark_cumulative"]
 
-    port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
-    if port_ret.empty:
-        return None
-    diff = port_ret - bench_ret
-    if diff.count() < 2:
-        return None
-    std = diff.std()
-    if not math.isfinite(std):
-        return None
-    return float(std)
+    series = []
+    for idx, row in details.iterrows():
+        if isinstance(idx, datetime):
+            when = idx.date()
+        else:
+            when = idx
+        if isinstance(when, datetime):
+            when = when.date()
+        iso_date = when.isoformat() if isinstance(when, date) else str(when)
+        series.append(
+            {
+                "date": iso_date,
+                "portfolio_return": float(row["portfolio"]),
+                "benchmark_return": float(row["benchmark"]),
+                "portfolio_cumulative": float(row["portfolio_cumulative"]),
+                "benchmark_cumulative": float(row["benchmark_cumulative"]),
+                "alpha": float(row["alpha"]),
+            }
+        )
+
+    alpha_val = float(details["alpha"].iloc[-1])
+    return {"alpha_vs_benchmark": alpha_val, "daily_breakdown": series}
+
+
+def _tracking_error(
+    name: str, benchmark: str, days: int = 365, *, group: bool = False
+) -> float | None:
+    breakdown = _tracking_error_breakdown(name, benchmark, days, group=group)
+    return breakdown.get("tracking_error")
+
+
+def _tracking_error_breakdown(
+    name: str, benchmark: str, days: int = 365, *, group: bool = False
+) -> dict[str, Any]:
+    aligned = _aligned_portfolio_benchmark_returns(name, benchmark, days, group=group)
+    if aligned.empty:
+        return {
+            "tracking_error": None,
+            "daily_active_returns": [],
+            "standard_deviation": None,
+        }
+
+    diff = aligned["portfolio"] - aligned["benchmark"]
+    std = diff.std() if diff.count() >= 2 else None
+    if std is not None and not math.isfinite(float(std)):
+        std = None
+
+    series = []
+    for idx, row in aligned.iterrows():
+        if isinstance(idx, datetime):
+            when = idx.date()
+        else:
+            when = idx
+        if isinstance(when, datetime):
+            when = when.date()
+        iso_date = when.isoformat() if isinstance(when, date) else str(when)
+        active = float(row["portfolio"] - row["benchmark"])
+        series.append(
+            {
+                "date": iso_date,
+                "portfolio_return": float(row["portfolio"]),
+                "benchmark_return": float(row["benchmark"]),
+                "active_return": active,
+            }
+        )
+
+    if std is None:
+        tracking_error = None
+    else:
+        tracking_error = float(std)
+
+    return {
+        "tracking_error": tracking_error,
+        "daily_active_returns": series,
+        "standard_deviation": tracking_error,
+    }
 
 
 def _max_drawdown(name: str, days: int = 365, *, group: bool = False) -> float | None:
+    breakdown = _max_drawdown_breakdown(name, days, group=group)
+    return breakdown.get("max_drawdown")
+
+
+def _max_drawdown_breakdown(
+    name: str, days: int = 365, *, group: bool = False
+) -> dict[str, Any]:
     total = _portfolio_value_series(name, days, group=group)
+    total = total.replace([np.inf, -np.inf], np.nan).dropna()
     if total.empty:
-        return None
+        return {
+            "max_drawdown": None,
+            "drawdown_path": [],
+            "peak": None,
+            "trough": None,
+        }
+
+    total = total.sort_index()
     running_max = total.cummax()
     drawdown = total / running_max - 1
-    return float(drawdown.min())
+
+    min_drawdown = float(drawdown.min())
+    trough_date = drawdown.idxmin()
+    trough_value = float(total.loc[trough_date])
+
+    peak_series = running_max.loc[:trough_date]
+    peak_value = float(peak_series.max())
+    peak_date = peak_series[peak_series == peak_value].index[0]
+    peak_value = float(total.loc[peak_date])
+
+    def _iso(val: Any) -> str:
+        if isinstance(val, datetime):
+            val = val.date()
+        return val.isoformat() if isinstance(val, date) else str(val)
+
+    series = []
+    for idx, value in total.items():
+        running = float(running_max.loc[idx])
+        dd = float(drawdown.loc[idx])
+        series.append(
+            {
+                "date": _iso(idx),
+                "portfolio_value": float(value),
+                "running_peak": running,
+                "drawdown": dd,
+            }
+        )
+
+    return {
+        "max_drawdown": min_drawdown,
+        "drawdown_path": series,
+        "peak": {"date": _iso(peak_date), "value": peak_value},
+        "trough": {"date": _iso(trough_date), "value": trough_value},
+    }
 
 
 def compute_alpha_vs_benchmark(owner: str, benchmark: str, days: int = 365) -> float | None:
@@ -1063,6 +1187,16 @@ def compute_group_alpha_vs_benchmark(slug: str, benchmark: str, days: int = 365)
     return _alpha_vs_benchmark(slug, benchmark, days, group=True)
 
 
+def alpha_vs_benchmark_breakdown(owner: str, benchmark: str, days: int = 365) -> dict[str, Any]:
+    return _alpha_vs_benchmark_breakdown(owner, benchmark, days)
+
+
+def group_alpha_vs_benchmark_breakdown(
+    slug: str, benchmark: str, days: int = 365
+) -> dict[str, Any]:
+    return _alpha_vs_benchmark_breakdown(slug, benchmark, days, group=True)
+
+
 def compute_tracking_error(owner: str, benchmark: str, days: int = 365) -> float | None:
     return _tracking_error(owner, benchmark, days)
 
@@ -1071,12 +1205,30 @@ def compute_group_tracking_error(slug: str, benchmark: str, days: int = 365) -> 
     return _tracking_error(slug, benchmark, days, group=True)
 
 
+def tracking_error_breakdown(owner: str, benchmark: str, days: int = 365) -> dict[str, Any]:
+    return _tracking_error_breakdown(owner, benchmark, days)
+
+
+def group_tracking_error_breakdown(
+    slug: str, benchmark: str, days: int = 365
+) -> dict[str, Any]:
+    return _tracking_error_breakdown(slug, benchmark, days, group=True)
+
+
 def compute_max_drawdown(owner: str, days: int = 365) -> float | None:
     return _max_drawdown(owner, days)
 
 
 def compute_group_max_drawdown(slug: str, days: int = 365) -> float | None:
     return _max_drawdown(slug, days, group=True)
+
+
+def max_drawdown_breakdown(owner: str, days: int = 365) -> dict[str, Any]:
+    return _max_drawdown_breakdown(owner, days)
+
+
+def group_max_drawdown_breakdown(slug: str, days: int = 365) -> dict[str, Any]:
+    return _max_drawdown_breakdown(slug, days, group=True)
 
 
 # ──────────────────────────────────────────────────────────────

@@ -273,6 +273,11 @@
     "title": "Performancekennzahlen erklärt",
     "intro": "Diese Kennzahlen fassen zusammen, wie sich das kombinierte Portfolio im Vergleich zu seinem Benchmark entwickelt. Jede Zahl basiert auf denselben täglichen Renditereihen wie die Kacheln im Dashboard.",
     "backLink": "Zurück zum Portfolio-Dashboard",
+    "context": "Anzeige für {{context}} über die letzten {{days}} Tage.",
+    "loading": "Aktualisierte Kennzahlen werden geladen …",
+    "error": "Die neuesten Daten konnten nicht geladen werden: {{message}}",
+    "groupLabel": "Gruppe „{{group}}“",
+    "ownerLabel": "Portfolio „{{owner}}“",
     "calculationHeading": "So berechnen wir das",
     "notesHeading": "Wissenswertes",
     "dataHeading": "Datengrundlage",
@@ -291,7 +296,7 @@
       "trackingError": {
         "title": "Tracking Error",
         "summary": "Der Tracking Error zeigt, wie stark die täglichen Portfoliorenditen vom Benchmark abweichen.",
-        "calculation": "Für jeden Handelstag ziehen wir die Benchmark-Rendite von der Portfoliorendite ab und erhalten so eine Active-Return-Reihe. Der Tracking Error ist die annualisierte Standardabweichung dieser Werte (tägliche Standardabweichung multipliziert mit √252).",
+        "calculation": "Für jeden Handelstag ziehen wir die Benchmark-Rendite von der Portfoliorendite ab und erhalten so eine Active-Return-Reihe. Der Tracking Error ist die Stichproben-Standardabweichung dieser Werte.",
         "notes": [
           "Ein höherer Tracking Error deutet auf eine geringere Kopplung an den Benchmark hin.",
           "Für die Anzeige benötigen wir mindestens 30 überlappende Tagesrenditen."

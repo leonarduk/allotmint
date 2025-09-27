@@ -13,28 +13,37 @@ def _auth_client():
 
 
 @pytest.mark.parametrize(
-    "path, func_name, expected_args, result_key, return_value",
+    "path, func_name, expected_args, result_key, payload",
     [
         (
             "/performance/alice/alpha?benchmark=SPY&days=30",
-            "compute_alpha_vs_benchmark",
+            "alpha_vs_benchmark_breakdown",
             ("alice", "SPY", 30),
             "alpha_vs_benchmark",
-            1.23,
+            {"alpha_vs_benchmark": 1.23, "daily_breakdown": []},
         ),
         (
             "/performance/alice/tracking-error?benchmark=SPY&days=30",
-            "compute_tracking_error",
+            "tracking_error_breakdown",
             ("alice", "SPY", 30),
             "tracking_error",
-            2.34,
+            {
+                "tracking_error": 2.34,
+                "daily_active_returns": [],
+                "standard_deviation": 2.34,
+            },
         ),
         (
             "/performance/alice/max-drawdown?days=30",
-            "compute_max_drawdown",
+            "max_drawdown_breakdown",
             ("alice", 30),
             "max_drawdown",
-            -5.0,
+            {
+                "max_drawdown": -5.0,
+                "drawdown_path": [],
+                "peak": None,
+                "trough": None,
+            },
         ),
         (
             "/performance/alice/twr?days=90",
@@ -52,10 +61,10 @@ def _auth_client():
         ),
     ],
 )
-def test_owner_metrics_success(path, func_name, expected_args, result_key, return_value, monkeypatch):
+def test_owner_metrics_success(path, func_name, expected_args, result_key, payload, monkeypatch):
     def fake(*args):
         assert args == expected_args
-        return return_value
+        return payload
 
     monkeypatch.setattr(portfolio_utils, func_name, fake)
     client = _auth_client()
@@ -65,19 +74,24 @@ def test_owner_metrics_success(path, func_name, expected_args, result_key, retur
     assert data["owner"] == "alice"
     if "benchmark" in data:
         assert data["benchmark"] == "SPY"
-    assert data[result_key] == pytest.approx(return_value)
+    value = payload[result_key] if isinstance(payload, dict) else payload
+    assert data[result_key] == pytest.approx(value)
 
 
 @pytest.mark.parametrize(
     "path, func_name, expected_args",
     [
-        ("/performance/missing/alpha", "compute_alpha_vs_benchmark", ("missing", "VWRL.L", 365)),
         (
-            "/performance/missing/tracking-error",
-            "compute_tracking_error",
+            "/performance/missing/alpha",
+            "alpha_vs_benchmark_breakdown",
             ("missing", "VWRL.L", 365),
         ),
-        ("/performance/missing/max-drawdown", "compute_max_drawdown", ("missing", 365)),
+        (
+            "/performance/missing/tracking-error",
+            "tracking_error_breakdown",
+            ("missing", "VWRL.L", 365),
+        ),
+        ("/performance/missing/max-drawdown", "max_drawdown_breakdown", ("missing", 365)),
         ("/performance/missing/twr", "compute_time_weighted_return", ("missing", 365)),
         ("/performance/missing/xirr", "compute_xirr", ("missing", 365)),
     ],
@@ -99,24 +113,33 @@ def test_owner_metrics_not_found(path, func_name, expected_args, monkeypatch):
     [
         (
             "/performance-group/demo/alpha?benchmark=SPY&days=30",
-            "compute_group_alpha_vs_benchmark",
+            "group_alpha_vs_benchmark_breakdown",
             ("demo", "SPY", 30),
             "alpha_vs_benchmark",
-            0.5,
+            {"alpha_vs_benchmark": 0.5, "daily_breakdown": []},
         ),
         (
             "/performance-group/demo/tracking-error?benchmark=SPY&days=30",
-            "compute_group_tracking_error",
+            "group_tracking_error_breakdown",
             ("demo", "SPY", 30),
             "tracking_error",
-            0.7,
+            {
+                "tracking_error": 0.7,
+                "daily_active_returns": [],
+                "standard_deviation": 0.7,
+            },
         ),
         (
             "/performance-group/demo/max-drawdown?days=30",
-            "compute_group_max_drawdown",
+            "group_max_drawdown_breakdown",
             ("demo", 30),
             "max_drawdown",
-            -1.0,
+            {
+                "max_drawdown": -1.0,
+                "drawdown_path": [],
+                "peak": None,
+                "trough": None,
+            },
         ),
     ],
 )
@@ -133,7 +156,8 @@ def test_group_metrics_success(path, func_name, expected_args, result_key, retur
     assert data["group"] == "demo"
     if "benchmark" in data:
         assert data["benchmark"] == "SPY"
-    assert data[result_key] == pytest.approx(return_value)
+    value = return_value[result_key] if isinstance(return_value, dict) else return_value
+    assert data[result_key] == pytest.approx(value)
 
 
 @pytest.mark.parametrize(
@@ -141,17 +165,17 @@ def test_group_metrics_success(path, func_name, expected_args, result_key, retur
     [
         (
             "/performance-group/missing/alpha",
-            "compute_group_alpha_vs_benchmark",
+            "group_alpha_vs_benchmark_breakdown",
             ("missing", "VWRL.L", 365),
         ),
         (
             "/performance-group/missing/tracking-error",
-            "compute_group_tracking_error",
+            "group_tracking_error_breakdown",
             ("missing", "VWRL.L", 365),
         ),
         (
             "/performance-group/missing/max-drawdown",
-            "compute_group_max_drawdown",
+            "group_max_drawdown_breakdown",
             ("missing", 365),
         ),
     ],

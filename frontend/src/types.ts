@@ -185,18 +185,52 @@ export interface ValueAtRiskResponse {
   sharpe_ratio?: number | null;
 }
 
+export interface AlphaBreakdownPoint {
+  date: string;
+  portfolio_return: number;
+  benchmark_return: number;
+  portfolio_cumulative: number;
+  benchmark_cumulative: number;
+  alpha: number;
+}
+
 export interface AlphaResponse {
   alpha_vs_benchmark: number | null;
   benchmark: string;
+  daily_breakdown?: AlphaBreakdownPoint[];
+}
+
+export interface TrackingErrorPoint {
+  date: string;
+  portfolio_return: number;
+  benchmark_return: number;
+  active_return: number;
 }
 
 export interface TrackingErrorResponse {
   tracking_error: number | null;
   benchmark: string;
+  daily_active_returns?: TrackingErrorPoint[];
+  standard_deviation?: number | null;
+}
+
+export interface MaxDrawdownPoint {
+  date: string;
+  portfolio_value: number;
+  running_peak: number;
+  drawdown: number;
+}
+
+export interface DrawdownExtrema {
+  date: string;
+  value: number;
 }
 
 export interface MaxDrawdownResponse {
   max_drawdown: number | null;
+  drawdown_path?: MaxDrawdownPoint[];
+  peak?: DrawdownExtrema | null;
+  trough?: DrawdownExtrema | null;
 }
 
 export interface ReturnComparisonResponse {

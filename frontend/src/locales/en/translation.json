@@ -288,6 +288,11 @@
     "title": "Performance Metrics Explained",
     "intro": "These metrics summarise how the combined portfolio performs relative to its benchmark. Each value is derived from the same daily return series that powers the dashboard tiles.",
     "backLink": "Back to portfolio dashboard",
+    "context": "Showing {{context}} over the past {{days}} days.",
+    "loading": "Loading latest measurements…",
+    "error": "We couldn't load the latest data: {{message}}",
+    "groupLabel": "group \"{{group}}\"",
+    "ownerLabel": "portfolio \"{{owner}}\"",
     "calculationHeading": "How we calculate it",
     "notesHeading": "Things to know",
     "dataHeading": "Data inputs",
@@ -306,7 +311,7 @@
       "trackingError": {
         "title": "Tracking Error",
         "summary": "Tracking error captures the variability of active returns—how much the portfolio's daily returns diverge from the benchmark.",
-        "calculation": "For each trading day we take the portfolio return minus the benchmark return, producing an active return series. Tracking error is the annualised standard deviation of those active returns (daily standard deviation multiplied by √252).",
+        "calculation": "For each trading day we take the portfolio return minus the benchmark return, producing an active return series. Tracking error is the sample standard deviation of those active returns.",
         "notes": [
           "Higher tracking error indicates looser alignment with the benchmark.",
           "We require at least 30 overlapping daily returns to display this metric."

@@ -15,8 +15,8 @@ router = APIRouter(tags=["performance"])
 async def owner_alpha(owner: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return portfolio alpha vs. benchmark for ``owner``."""
     try:
-        val = portfolio_utils.compute_alpha_vs_benchmark(owner, benchmark, days)
-        return {"owner": owner, "benchmark": benchmark, "alpha_vs_benchmark": val}
+        breakdown = portfolio_utils.alpha_vs_benchmark_breakdown(owner, benchmark, days)
+        return {"owner": owner, "benchmark": benchmark, **breakdown}
     except FileNotFoundError:
         raise_owner_not_found()
 
@@ -26,8 +26,8 @@ async def owner_alpha(owner: str, benchmark: str = "VWRL.L", days: int = 365):
 async def owner_tracking_error(owner: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return tracking error vs. benchmark for ``owner``."""
     try:
-        val = portfolio_utils.compute_tracking_error(owner, benchmark, days)
-        return {"owner": owner, "benchmark": benchmark, "tracking_error": val}
+        breakdown = portfolio_utils.tracking_error_breakdown(owner, benchmark, days)
+        return {"owner": owner, "benchmark": benchmark, **breakdown}
     except FileNotFoundError:
         raise_owner_not_found()
 
@@ -37,8 +37,8 @@ async def owner_tracking_error(owner: str, benchmark: str = "VWRL.L", days: int 
 async def owner_max_drawdown(owner: str, days: int = 365):
     """Return max drawdown for ``owner``."""
     try:
-        val = portfolio_utils.compute_max_drawdown(owner, days)
-        return {"owner": owner, "max_drawdown": val}
+        breakdown = portfolio_utils.max_drawdown_breakdown(owner, days)
+        return {"owner": owner, **breakdown}
     except FileNotFoundError:
         raise_owner_not_found()
 
@@ -82,8 +82,10 @@ async def owner_holdings(owner: str, date: str):
 async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return alpha vs. benchmark for a group portfolio."""
     try:
-        val = portfolio_utils.compute_group_alpha_vs_benchmark(slug, benchmark, days)
-        return {"group": slug, "benchmark": benchmark, "alpha_vs_benchmark": val}
+        breakdown = portfolio_utils.group_alpha_vs_benchmark_breakdown(
+            slug, benchmark, days
+        )
+        return {"group": slug, "benchmark": benchmark, **breakdown}
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
@@ -92,8 +94,10 @@ async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
 async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return tracking error vs. benchmark for a group portfolio."""
     try:
-        val = portfolio_utils.compute_group_tracking_error(slug, benchmark, days)
-        return {"group": slug, "benchmark": benchmark, "tracking_error": val}
+        breakdown = portfolio_utils.group_tracking_error_breakdown(
+            slug, benchmark, days
+        )
+        return {"group": slug, "benchmark": benchmark, **breakdown}
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
@@ -102,8 +106,8 @@ async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int =
 async def group_max_drawdown(slug: str, days: int = 365):
     """Return max drawdown for a group portfolio."""
     try:
-        val = portfolio_utils.compute_group_max_drawdown(slug, days)
-        return {"group": slug, "max_drawdown": val}
+        breakdown = portfolio_utils.group_max_drawdown_breakdown(slug, days)
+        return {"group": slug, **breakdown}
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 

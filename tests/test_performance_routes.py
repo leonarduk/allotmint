@@ -13,42 +13,56 @@ def client():
 
 
 @pytest.mark.parametrize(
-    "path, func, key, expected",
+    "path, func, key, payload",
     [
-        ("/performance/alice/alpha", "compute_alpha_vs_benchmark", "alpha_vs_benchmark", 0.1),
+        (
+            "/performance/alice/alpha",
+            "alpha_vs_benchmark_breakdown",
+            "alpha_vs_benchmark",
+            {"alpha_vs_benchmark": 0.1, "daily_breakdown": []},
+        ),
         (
             "/performance/alice/tracking-error",
-            "compute_tracking_error",
+            "tracking_error_breakdown",
             "tracking_error",
-            0.2,
+            {
+                "tracking_error": 0.2,
+                "daily_active_returns": [],
+                "standard_deviation": 0.2,
+            },
         ),
-        ("/performance/alice/max-drawdown", "compute_max_drawdown", "max_drawdown", -0.3),
+        (
+            "/performance/alice/max-drawdown",
+            "max_drawdown_breakdown",
+            "max_drawdown",
+            {
+                "max_drawdown": -0.3,
+                "drawdown_path": [],
+                "peak": None,
+                "trough": None,
+            },
+        ),
     ],
 )
-def test_owner_metrics_success(client, monkeypatch, path, func, key, expected):
+def test_owner_metrics_success(client, monkeypatch, path, func, key, payload):
     def fake(owner, *args, **kwargs):
         assert owner == "alice"
-        return expected
+        return payload
 
     monkeypatch.setattr(portfolio_utils, func, fake)
     resp = client.get(path)
     assert resp.status_code == 200
-    if key in {"alpha_vs_benchmark", "tracking_error"}:
-        assert resp.json() == {
-            "owner": "alice",
-            "benchmark": "VWRL.L",
-            key: expected,
-        }
-    else:
-        assert resp.json() == {"owner": "alice", key: expected}
+    data = resp.json()
+    assert data["owner"] == "alice"
+    assert data[key] == payload[key]
 
 
 @pytest.mark.parametrize(
     "path, func",
     [
-        ("/performance/unknown/alpha", "compute_alpha_vs_benchmark"),
-        ("/performance/unknown/tracking-error", "compute_tracking_error"),
-        ("/performance/unknown/max-drawdown", "compute_max_drawdown"),
+        ("/performance/unknown/alpha", "alpha_vs_benchmark_breakdown"),
+        ("/performance/unknown/tracking-error", "tracking_error_breakdown"),
+        ("/performance/unknown/max-drawdown", "max_drawdown_breakdown"),
     ],
 )
 def test_owner_metrics_not_found(client, monkeypatch, path, func):
@@ -62,52 +76,56 @@ def test_owner_metrics_not_found(client, monkeypatch, path, func):
 
 
 @pytest.mark.parametrize(
-    "path, func, key, expected",
+    "path, func, key, payload",
     [
         (
             "/performance-group/test-group/alpha",
-            "compute_group_alpha_vs_benchmark",
+            "group_alpha_vs_benchmark_breakdown",
             "alpha_vs_benchmark",
-            0.4,
+            {"alpha_vs_benchmark": 0.4, "daily_breakdown": []},
         ),
         (
             "/performance-group/test-group/tracking-error",
-            "compute_group_tracking_error",
+            "group_tracking_error_breakdown",
             "tracking_error",
-            0.5,
+            {
+                "tracking_error": 0.5,
+                "daily_active_returns": [],
+                "standard_deviation": 0.5,
+            },
         ),
         (
             "/performance-group/test-group/max-drawdown",
-            "compute_group_max_drawdown",
+            "group_max_drawdown_breakdown",
             "max_drawdown",
-            -0.6,
+            {
+                "max_drawdown": -0.6,
+                "drawdown_path": [],
+                "peak": None,
+                "trough": None,
+            },
         ),
     ],
 )
-def test_group_metrics_success(client, monkeypatch, path, func, key, expected):
+def test_group_metrics_success(client, monkeypatch, path, func, key, payload):
     def fake(slug, *args, **kwargs):
         assert slug == "test-group"
-        return expected
+        return payload
 
     monkeypatch.setattr(portfolio_utils, func, fake)
     resp = client.get(path)
     assert resp.status_code == 200
-    if key in {"alpha_vs_benchmark", "tracking_error"}:
-        assert resp.json() == {
-            "group": "test-group",
-            "benchmark": "VWRL.L",
-            key: expected,
-        }
-    else:
-        assert resp.json() == {"group": "test-group", key: expected}
+    data = resp.json()
+    assert data["group"] == "test-group"
+    assert data[key] == payload[key]
 
 
 @pytest.mark.parametrize(
     "path, func",
     [
-        ("/performance-group/missing/alpha", "compute_group_alpha_vs_benchmark"),
-        ("/performance-group/missing/tracking-error", "compute_group_tracking_error"),
-        ("/performance-group/missing/max-drawdown", "compute_group_max_drawdown"),
+        ("/performance-group/missing/alpha", "group_alpha_vs_benchmark_breakdown"),
+        ("/performance-group/missing/tracking-error", "group_tracking_error_breakdown"),
+        ("/performance-group/missing/max-drawdown", "group_max_drawdown_breakdown"),
     ],
 )
 def test_group_metrics_not_found(client, monkeypatch, path, func):
@@ -205,8 +223,7 @@ def test_group_alpha_handles_near_zero_benchmark(client, monkeypatch):
     resp = client.get("/performance-group/test-group/alpha")
     assert resp.status_code == 200
     body = resp.json()
-    assert body == {
-        "group": "test-group",
-        "benchmark": "VWRL.L",
-        "alpha_vs_benchmark": None,
-    }
+    assert body["group"] == "test-group"
+    assert body["benchmark"] == "VWRL.L"
+    assert body["alpha_vs_benchmark"] is None
+    assert body.get("daily_breakdown") == []

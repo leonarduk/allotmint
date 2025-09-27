@@ -220,12 +220,14 @@ def _list_local_plots(
 
     results = _discover(primary_root, include_demo=include_demo_primary)
 
+    use_fallback = data_root is None
+
     try:
         same_root = fallback_root.resolve() == primary_root.resolve()
     except OSError:
         same_root = False
 
-    if not results:
+    if use_fallback and not results:
         fallback_results = _discover(fallback_root, include_demo=True)
         results.extend(fallback_results)
 
@@ -235,28 +237,29 @@ def _list_local_plots(
 
     fallback_demo = _load_demo_owner(fallback_root)
     fallback_meta = load_person_meta("demo", fallback_root) if fallback_demo else {}
-    if "demo" in owners_index:
-        _merge_accounts(owners_index["demo"], fallback_demo)
-    else:
-        if (
-            fallback_demo
-            and not config.disable_auth
-            and _is_authorized("demo", fallback_meta)
-        ):
-            results.append(fallback_demo)
-            owners_index["demo"] = fallback_demo
-        elif include_demo_primary:
-            primary_demo = _load_demo_owner(primary_root)
-            primary_meta = (
-                load_person_meta("demo", primary_root) if primary_demo else {}
-            )
+    if use_fallback:
+        if "demo" in owners_index:
+            _merge_accounts(owners_index["demo"], fallback_demo)
+        else:
             if (
-                primary_demo
+                fallback_demo
                 and not config.disable_auth
-                and _is_authorized("demo", primary_meta)
+                and _is_authorized("demo", fallback_meta)
             ):
-                results.append(primary_demo)
-                owners_index["demo"] = primary_demo
+                results.append(fallback_demo)
+                owners_index["demo"] = fallback_demo
+    elif include_demo_primary and "demo" not in owners_index:
+        primary_demo = _load_demo_owner(primary_root)
+        primary_meta = (
+            load_person_meta("demo", primary_root) if primary_demo else {}
+        )
+        if (
+            primary_demo
+            and not config.disable_auth
+            and _is_authorized("demo", primary_meta)
+        ):
+            results.append(primary_demo)
+            owners_index["demo"] = primary_demo
 
     if same_root:
         return results

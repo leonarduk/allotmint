@@ -13,6 +13,9 @@ def memory_storage(monkeypatch):
     data = {}
     storage = get_storage("file://trail.json")
 
+    monkeypatch.setattr(alerts, "_USER_THRESHOLDS", {})
+    monkeypatch.setattr(alerts, "_PUSH_SUBSCRIPTIONS", {})
+
     def load():
         return data
 

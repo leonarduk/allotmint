@@ -1,6 +1,7 @@
 import json
 import sys
 import types
+import inspect
 from datetime import UTC, datetime
 
 import numpy as np
@@ -422,6 +423,191 @@ def test_aggregate_by_ticker_security_meta_and_default_fallback(monkeypatch):
     assert aaa_row["grouping_id"] is None
     assert aaa_row["currency"] == "GBP"
     assert aaa_row["sector"] == "Technology"
+
+
+def test_aggregate_by_ticker_backfills_default_meta_and_marks_fallback(monkeypatch):
+
+    class InstrumentApiStub:
+        def __init__(self):
+            self.grouping_rows: list[dict] = []
+
+        def _resolve_full_ticker(self, ticker: str, latest: dict | None):
+            return ticker, "L"
+
+        def _resolve_grouping_details(
+            self,
+            instrument_meta,
+            security_meta,
+            holding,
+            row,
+            current=None,
+        ):
+            self.grouping_rows.append(
+                {
+                    "current": current,
+                    "fallback_flag": row.get("_grouping_from_fallback"),
+                }
+            )
+            return current, None
+
+        def price_change_pct(self, ticker: str, days: int):
+            return None
+
+    stub = InstrumentApiStub()
+    monkeypatch.setattr(portfolio_utils, "instrument_api", stub, raising=False)
+    monkeypatch.setattr("backend.common.instrument_api", stub, raising=False)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _: {}, raising=False)
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _: {}, raising=False)
+    monkeypatch.setitem(
+        portfolio_utils._DEFAULT_META,
+        "ZZZ.L",
+        {
+            "name": "ZZZ.L",
+            "currency": "GBP",
+            "sector": "Technology",
+            "region": "Europe",
+        },
+    )
+    monkeypatch.setenv("TESTING", "1")
+
+    captured_flags: dict[str, list[bool | None]] = {}
+
+    def inspect_fx(currency: str, base_currency: str, cache: dict[str, float]) -> float:
+        frame = inspect.currentframe()
+        try:
+            caller = frame.f_back if frame else None
+            rows = caller.f_locals.get("rows") if caller else None
+            assert rows is not None
+            captured_flags["values"] = [row.get("_grouping_from_fallback") for row in rows.values()]
+        finally:
+            del frame
+        return 1.0
+
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", inspect_fx)
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "ZZZ.L",
+                        "units": 3.0,
+                        "cost_gbp": 90.0,
+                    }
+                ]
+            }
+        ]
+    }
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["currency"] == "GBP"
+    assert row["sector"] == "Technology"
+    assert row["region"] == "Europe"
+    assert row["grouping"] == "Technology"
+    assert captured_flags["values"] == [True]
+
+    monkeypatch.delenv("TESTING", raising=False)
+
+
+def test_fx_to_base_cache_reuse_and_aggregate_scaling(monkeypatch):
+
+    class InstrumentApiStub:
+        def _resolve_full_ticker(self, ticker: str, latest: dict | None):
+            return ticker, "L"
+
+        def _resolve_grouping_details(
+            self,
+            instrument_meta,
+            security_meta,
+            holding,
+            row,
+            current=None,
+        ):
+            return current, None
+
+        def price_change_pct(self, ticker: str, days: int):
+            return 0.0
+
+    stub = InstrumentApiStub()
+    monkeypatch.setattr(portfolio_utils, "instrument_api", stub, raising=False)
+    monkeypatch.setattr("backend.common.instrument_api", stub, raising=False)
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {}, raising=False)
+
+    usd_rates = pd.DataFrame({"Rate": [0.75, 0.8]})
+    eur_rates = pd.DataFrame({"Rate": [0.88, 0.9]})
+    rate_map = {
+        ("USD", "GBP"): usd_rates,
+        ("EUR", "GBP"): eur_rates,
+    }
+    calls: list[tuple[str, str]] = []
+
+    def fake_fetch(ccy: str, base: str, start, end):
+        calls.append((ccy, base))
+        return rate_map[(ccy, base)].copy()
+
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", fake_fetch)
+
+    fx_cache: dict[str, float] = {"EUR": 0.0}
+    guarded_rate = portfolio_utils._fx_to_base("USD", "EUR", fx_cache)
+    assert guarded_rate == pytest.approx(1.0)
+    assert calls == [("USD", "GBP")]
+
+    calls.clear()
+    fx_cache = {}
+    conversion = portfolio_utils._fx_to_base("USD", "EUR", fx_cache)
+    expected = usd_rates["Rate"].iloc[-1] / eur_rates["Rate"].iloc[-1]
+    assert conversion == pytest.approx(expected)
+    assert calls == [("USD", "GBP"), ("EUR", "GBP")]
+
+    calls.clear()
+    reuse = portfolio_utils._fx_to_base("USD", "EUR", fx_cache)
+    assert reuse == pytest.approx(conversion)
+    assert calls == []
+
+    monkeypatch.setattr(
+        portfolio_utils,
+        "get_instrument_meta",
+        lambda _: {"name": "AAA.L", "currency": "GBP", "sector": "Technology"},
+        raising=False,
+    )
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _: {}, raising=False)
+
+    calls.clear()
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "AAA.L",
+                        "units": 2.0,
+                        "cost_gbp": 100.0,
+                        "market_value_gbp": 120.0,
+                        "gain_gbp": 20.0,
+                    }
+                ]
+            }
+        ]
+    }
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="USD")
+
+    assert len(rows) == 1
+    row = rows[0]
+    rate_to_usd = 1 / usd_rates["Rate"].iloc[-1]
+    assert row["cost_gbp"] == pytest.approx(round(100.0 * rate_to_usd, 2))
+    assert row["market_value_gbp"] == pytest.approx(round(120.0 * rate_to_usd, 2))
+    assert row["gain_gbp"] == pytest.approx(round(20.0 * rate_to_usd, 2))
+    assert row["cost_currency"] == "USD"
+    assert row["market_value_currency"] == "USD"
+    assert row["gain_currency"] == "USD"
+    assert calls == [("USD", "GBP")]
+
+    monkeypatch.delenv("TESTING", raising=False)
 
 
 def test_list_all_unique_tickers_logs_missing_and_counts_nulls(monkeypatch, caplog):

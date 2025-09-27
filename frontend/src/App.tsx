@@ -361,6 +361,12 @@ export default function App({ onLogout }: AppProps) {
   return (
     <div className="xl:flex xl:justify-center">
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+        <div
+          data-testid="active-route-marker"
+          data-mode={mode}
+          data-pathname={location.pathname}
+          hidden
+        />
       <div
         style={{
           display: "flex",

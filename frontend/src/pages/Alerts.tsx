@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import type { Alert } from "../types";
 import EmptyState from "../components/EmptyState";
@@ -59,45 +59,61 @@ export default function Alerts() {
     ? virtualRows
     : alerts.map((_, index) => ({ index, start: index * 32, end: (index + 1) * 32 }));
 
+  const marker = <span data-testid="alerts-page-marker" hidden />;
+
   if (loading) {
     return (
-      <div role="status" aria-live="polite">
-        Loading...
-      </div>
+      <Fragment>
+        {marker}
+        <div role="status" aria-live="polite">
+          Loading...
+        </div>
+      </Fragment>
     );
   }
 
   if (error) {
     return (
-      <div role="alert" aria-live="assertive">
-        {error}
-      </div>
+      <Fragment>
+        {marker}
+        <div role="alert" aria-live="assertive">
+          {error}
+        </div>
+      </Fragment>
     );
   }
 
   if (alerts.length === 0) {
-    return <EmptyState message="No alerts." role="status" aria-live="polite" />;
+    return (
+      <Fragment>
+        {marker}
+        <EmptyState message="No alerts." role="status" aria-live="polite" />
+      </Fragment>
+    );
   }
 
   return (
-    <div
-      ref={parentRef}
-      style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "hidden" }}
-      aria-live="polite"
-    >
-      <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
-        {paddingTop > 0 && <li style={{ height: paddingTop }} />}
-        {items.map((virtualRow) => {
-          const a = alerts[virtualRow.index];
-          const key = (a as any)?.id ?? `${a.ticker}-${virtualRow.index}`;
-          return (
-            <li key={key} style={{ height: 32, display: "flex", alignItems: "center" }}>
-              <strong>{a.ticker}</strong>: {a.message}
-            </li>
-          );
-        })}
-        {paddingBottom > 0 && <li style={{ height: paddingBottom }} />}
-      </ul>
-    </div>
+    <Fragment>
+      {marker}
+      <div
+        ref={parentRef}
+        style={{ maxHeight: "60vh", overflowY: "auto", overflowX: "hidden" }}
+        aria-live="polite"
+      >
+        <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+          {paddingTop > 0 && <li style={{ height: paddingTop }} />}
+          {items.map((virtualRow) => {
+            const a = alerts[virtualRow.index];
+            const key = (a as any)?.id ?? `${a.ticker}-${virtualRow.index}`;
+            return (
+              <li key={key} style={{ height: 32, display: "flex", alignItems: "center" }}>
+                <strong>{a.ticker}</strong>: {a.message}
+              </li>
+            );
+          })}
+          {paddingBottom > 0 && <li style={{ height: paddingBottom }} />}
+        </ul>
+      </div>
+    </Fragment>
   );
 }

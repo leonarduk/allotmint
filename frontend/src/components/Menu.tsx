@@ -112,11 +112,10 @@ export default function Menu({
   };
 
   const USER_MENU_CATEGORIES: MenuCategory[] = [
-    { id: 'dashboard', titleKey: 'dashboard', tabIds: ['group', 'market', 'movers'] },
     {
-      id: 'holdings',
-      titleKey: 'holdings',
-      tabIds: ['owner', 'performance', 'allocation', 'transactions', 'reports'],
+      id: 'dashboard',
+      titleKey: 'dashboard',
+      tabIds: ['group', 'market', 'movers', 'owner', 'performance', 'allocation', 'transactions', 'reports'],
     },
     {
       id: 'tradeTools',

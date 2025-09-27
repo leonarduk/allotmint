@@ -26,13 +26,14 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi import Request, UploadFile, File, Form
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.common import portfolio as portfolio_mod
+from backend.common import data_loader, portfolio as portfolio_mod
 from backend.common import portfolio_loader
 from backend.common.ticker_utils import normalise_filter_ticker
 from backend.common import compliance
 from backend.common.instruments import get_instrument_meta
 from backend.config import config
 from backend import importers
+from backend.routes._accounts import resolve_accounts_root
 from backend.utils import update_holdings_from_csv
 
 router = APIRouter(tags=["transactions"])
@@ -91,6 +92,59 @@ def _unlock_file(f) -> None:
     else:  # pragma: no cover - Windows
         f.seek(0)
         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 0x7FFFFFFF)
+
+
+def _require_accounts_root(request: Request) -> Path:
+    state_value = getattr(request.app.state, "accounts_root", None)
+    state_is_global = getattr(request.app.state, "accounts_root_is_global", False)
+    if state_value:
+        try:
+            state_path = Path(state_value).expanduser()
+        except (TypeError, ValueError, OSError):
+            state_path = None
+        else:
+            if state_path.exists() and not state_is_global:
+                resolved_state = state_path.resolve()
+                request.app.state.accounts_root = resolved_state
+                request.app.state.accounts_root_is_global = False
+                return resolved_state
+
+    configured_root = getattr(config, "accounts_root", None)
+    if not configured_root:
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
+
+    try:
+        configured_path = Path(configured_root).expanduser()
+    except (TypeError, ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail="Accounts root not configured") from exc
+
+    if not configured_path.exists():
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
+
+    try:
+        global_root = data_loader.resolve_paths(None, None).accounts_root.resolve()
+    except Exception:
+        global_root = None
+    else:
+        try:
+            configured_resolved = configured_path.resolve()
+        except FileNotFoundError:
+            configured_resolved = configured_path
+        if global_root is not None and configured_resolved == global_root:
+            raise HTTPException(status_code=400, detail="Accounts root not configured")
+
+    try:
+        resolved = resolve_accounts_root(request)
+    except FileNotFoundError as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=400, detail="Accounts root not configured") from exc
+
+    if getattr(request.app.state, "accounts_root_is_global", False):
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
+
+    if not resolved.exists():
+        raise HTTPException(status_code=400, detail="Accounts root not configured")
+
+    return resolved
 
 
 class TransactionCreate(BaseModel):
@@ -229,11 +283,8 @@ def _load_all_transactions() -> List[Transaction]:
     return results
 
 
-def _find_transaction_file(owner: str, account: str) -> Tuple[Path, str]:
-    if not config.accounts_root:
-        raise HTTPException(status_code=400, detail="Accounts root not configured")
-
-    owner_dir = Path(config.accounts_root) / owner
+def _find_transaction_file(owner: str, account: str, accounts_root: Path) -> Tuple[Path, str]:
+    owner_dir = accounts_root / owner
     if not owner_dir.exists():
         raise HTTPException(status_code=404, detail="Transaction not found")
 
@@ -246,8 +297,10 @@ def _find_transaction_file(owner: str, account: str) -> Tuple[Path, str]:
 
 
 @contextmanager
-def _locked_transactions_data(owner: str, account: str) -> Iterator[Tuple[dict, TextIO]]:
-    owner_dir = Path(config.accounts_root) / owner
+def _locked_transactions_data(
+    owner: str, account: str, accounts_root: Path
+) -> Iterator[Tuple[dict, TextIO]]:
+    owner_dir = accounts_root / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
     file_path = owner_dir / f"{account}_transactions.json"
     mode = "r+" if file_path.exists() else "w+"
@@ -271,9 +324,8 @@ def _locked_transactions_data(owner: str, account: str) -> Iterator[Tuple[dict, 
         _unlock_file(f)
 
 
-def _rebuild_portfolio(owner: str, account: str) -> None:
+def _rebuild_portfolio(owner: str, account: str, accounts_root: Path) -> None:
     try:
-        accounts_root = Path(config.accounts_root)
         if not config.offline_mode:
             portfolio_loader.rebuild_account_holdings(owner, account, accounts_root)
         portfolio_mod.build_owner_portfolio(owner, accounts_root)
@@ -328,11 +380,10 @@ def _validate_component(value: str, field: str) -> str:
 
 
 @router.post("/transactions", status_code=201)
-async def create_transaction(tx: TransactionCreate) -> dict:
+async def create_transaction(request: Request, tx: TransactionCreate) -> dict:
     """Store a new transaction and return it."""
 
-    if not config.accounts_root:
-        raise HTTPException(status_code=400, detail="Accounts root not configured")
+    accounts_root = _require_accounts_root(request)
 
     tx_data = tx.model_dump(mode="json")
     owner = _validate_component(tx_data.pop("owner"), "owner")
@@ -348,23 +399,22 @@ async def create_transaction(tx: TransactionCreate) -> dict:
     _PORTFOLIO_IMPACT[owner] += impact
     _POSTED_TRANSACTIONS.append({"owner": owner, "account": account, **tx_data})
 
-    with _locked_transactions_data(owner, account) as (data, _file):
+    with _locked_transactions_data(owner, account, accounts_root) as (data, _file):
         transactions = data.setdefault("transactions", [])
         transactions.append(tx_data)
         data["owner"] = owner
         data["account_type"] = account
         new_index = len(transactions) - 1
 
-    _rebuild_portfolio(owner, account)
+    _rebuild_portfolio(owner, account, accounts_root)
 
     tx_id = _build_transaction_id(owner, account, new_index)
     return _format_transaction_response(owner, account, tx_data, tx_id)
 
 
 @router.put("/transactions/{tx_id}")
-async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
-    if not config.accounts_root:
-        raise HTTPException(status_code=400, detail="Accounts root not configured")
+async def update_transaction(request: Request, tx_id: str, tx: TransactionUpdate) -> dict:
+    accounts_root = _require_accounts_root(request)
 
     original_owner, original_account_raw, index = _parse_transaction_id(tx_id)
     original_owner = _validate_component(original_owner, "owner")
@@ -376,7 +426,9 @@ async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
     if not tx_data.get("reason"):
         raise HTTPException(status_code=400, detail="reason is required")
 
-    _, original_account_canonical = _find_transaction_file(original_owner, original_account)
+    _, original_account_canonical = _find_transaction_file(
+        original_owner, original_account, accounts_root
+    )
 
     same_owner = new_owner.lower() == original_owner.lower()
     same_account = new_account.lower() == original_account_canonical.lower()
@@ -386,7 +438,9 @@ async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
     new_entry: Dict[str, object]
     pending_entry: Optional[Dict[str, object]] = None
 
-    with _locked_transactions_data(original_owner, original_account_canonical) as (data, _):
+    with _locked_transactions_data(
+        original_owner, original_account_canonical, accounts_root
+    ) as (data, _):
         transactions = data.setdefault("transactions", [])
         if index >= len(transactions) or index < 0:
             raise HTTPException(status_code=404, detail="Transaction not found")
@@ -411,7 +465,7 @@ async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
     if not same_location:
         if pending_entry is None:
             raise HTTPException(status_code=500, detail="Failed to update transaction")
-        with _locked_transactions_data(new_owner, new_account) as (data, _):
+        with _locked_transactions_data(new_owner, new_account, accounts_root) as (data, _):
             transactions = data.setdefault("transactions", [])
             transactions.append(pending_entry)
             data["owner"] = new_owner
@@ -431,7 +485,7 @@ async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
         affected.append((original_owner, original_account_canonical))
 
     for owner_val, account_val in affected:
-        _rebuild_portfolio(owner_val, account_val)
+        _rebuild_portfolio(owner_val, account_val, accounts_root)
 
     new_id = _build_transaction_id(new_owner, new_account, new_index)
     account_response = new_account.lower()
@@ -439,19 +493,18 @@ async def update_transaction(tx_id: str, tx: TransactionUpdate) -> dict:
 
 
 @router.delete("/transactions/{tx_id}")
-async def delete_transaction(tx_id: str) -> dict:
-    if not config.accounts_root:
-        raise HTTPException(status_code=400, detail="Accounts root not configured")
+async def delete_transaction(request: Request, tx_id: str) -> dict:
+    accounts_root = _require_accounts_root(request)
 
     owner, account_raw, index = _parse_transaction_id(tx_id)
     owner = _validate_component(owner, "owner")
     account = _validate_component(account_raw, "account")
 
-    _, account_canonical = _find_transaction_file(owner, account)
+    _, account_canonical = _find_transaction_file(owner, account, accounts_root)
 
     removed_entry: Optional[Mapping[str, object]] = None
 
-    with _locked_transactions_data(owner, account_canonical) as (data, _):
+    with _locked_transactions_data(owner, account_canonical, accounts_root) as (data, _):
         transactions = data.setdefault("transactions", [])
         if index >= len(transactions) or index < 0:
             raise HTTPException(status_code=404, detail="Transaction not found")
@@ -465,7 +518,7 @@ async def delete_transaction(tx_id: str) -> dict:
     impact = _calculate_portfolio_impact(removed_entry)
     _PORTFOLIO_IMPACT[owner] -= impact
 
-    _rebuild_portfolio(owner, account_canonical)
+    _rebuild_portfolio(owner, account_canonical, accounts_root)
 
     return {"status": "deleted"}
 

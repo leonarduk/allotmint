@@ -87,61 +87,84 @@ def _list_local_plots(
         Username of the authenticated user or ``None`` when unauthenticated.
     """
 
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    root = data_root or paths.accounts_root
-    results: List[Dict[str, Any]] = []
-    if not root.exists():
+    def _discover(root: Path, *, include_demo: bool = False) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
+        if not root.exists():
+            return results
+
+        user = (
+            current_user.get(None)
+            if hasattr(current_user, "get")
+            else current_user
+        )
+
+        skip_owners = (
+            {owner for owner in _SKIP_OWNERS if owner != "demo"}
+            if include_demo
+            else _SKIP_OWNERS
+        )
+
+        for owner_dir in sorted(root.iterdir()):
+            if not owner_dir.is_dir():
+                continue
+            if owner_dir.name in skip_owners:
+                continue
+            if config.disable_auth is False and user is None:
+                continue
+
+            owner = owner_dir.name
+            meta = load_person_meta(owner, root)
+            viewers = meta.get("viewers", [])
+            if user and user != owner and user not in viewers:
+                continue
+
+            acct_names: List[str] = []
+            for f in sorted(owner_dir.iterdir()):
+                if not f.is_file() or f.suffix.lower() != ".json":
+                    continue
+
+                stem = f.stem
+                if stem.lower() in _METADATA_STEMS:
+                    continue
+
+                acct_names.append(stem)
+
+            seen: set[str] = set()
+            dedup: List[str] = []
+            for a in acct_names:
+                al = a.lower()
+                if al in seen:
+                    continue
+                seen.add(al)
+                dedup.append(a)
+
+            results.append({"owner": owner, "accounts": dedup})
+
         return results
 
-    # ``current_user`` may be passed in as ``None``, a simple string identifier
-    # or as a ``ContextVar`` (mirroring the AWS loader).  Normalise the value to
-    # the underlying string before applying permission checks.
-    user = current_user.get(None) if hasattr(current_user, "get") else current_user
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    primary_root = Path(data_root) if data_root else paths.accounts_root
 
-    for owner_dir in sorted(root.iterdir()):
-        if not owner_dir.is_dir():
-            continue
-        if owner_dir.name in _SKIP_OWNERS:
-            continue
-        # When authentication is enabled (``disable_auth`` is explicitly
-        # ``False``) and no user is authenticated, do not expose any accounts.
-        # ``config.disable_auth`` defaults to ``None`` when the configuration
-        # file cannot be loaded, which previously triggered this condition
-        # unintentionally.  Be explicit about the check so that a missing config
-        # behaves the same as auth being disabled.
-        if config.disable_auth is False and user is None:
-            continue
+    fallback_paths = resolve_paths(None, None)
+    fallback_root = fallback_paths.accounts_root
+    include_demo_primary = False
+    try:
+        include_demo_primary = primary_root.resolve() == fallback_root.resolve()
+    except Exception:
+        include_demo_primary = False
 
-        owner = owner_dir.name
-        meta = load_person_meta(owner, root)
-        viewers = meta.get("viewers", [])
-        if user and user != owner and user not in viewers:
-            continue
+    results = _discover(primary_root, include_demo=include_demo_primary)
+    if results:
+        return results
 
-        acct_names: List[str] = []
-        for f in sorted(owner_dir.iterdir()):
-            if not f.is_file() or f.suffix.lower() != ".json":
-                continue
+    try:
+        same_root = fallback_root.resolve() == primary_root.resolve()
+    except OSError:
+        same_root = False
+    if same_root:
+        return results
 
-            stem = f.stem
-            if stem.lower() in _METADATA_STEMS:
-                continue
-
-            acct_names.append(stem)
-
-        # Dedupe case-insensitive, preserve first occurrence order
-        seen: set[str] = set()
-        dedup: List[str] = []
-        for a in acct_names:
-            al = a.lower()
-            if al in seen:
-                continue
-            seen.add(al)
-            dedup.append(a)
-
-        results.append({"owner": owner, "accounts": dedup})
-
-    return results
+    return _discover(fallback_root, include_demo=True)
 
 
 # ------------------------------------------------------------------

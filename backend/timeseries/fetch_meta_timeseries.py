@@ -347,7 +347,7 @@ def run_all_tickers(
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
         try:
-            if not load_meta_timeseries(sym, loader_exchange, days).empty:
+            if not load_meta_timeseries(sym, loader_exchange or "", days).empty:
                 ok.append(t)
         except Exception as exc:
             logger.warning("[WARN] %s: %s", t, exc)
@@ -368,7 +368,7 @@ def load_timeseries_data(
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
         try:
-            df = load_meta_timeseries(sym, loader_exchange, days)
+            df = load_meta_timeseries(sym, loader_exchange or "", days)
             if not df.empty:
                 out[t] = df
         except Exception as exc:

@@ -178,6 +178,13 @@ def _build_compliance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
 
 
 _AUTO_ONCE_KEY = "_auto_once"
+_AUTO_ONCE_BLOCKLIST = {
+    "demo_allowance_isa",
+    "demo_allowance_pension",
+    "create_goal",
+    "enable_push_notifications",
+    "set_alert_threshold",
+}
 
 
 def _sync_once_completion(user_data: Dict, task_id: str, should_complete: bool) -> None:
@@ -187,6 +194,8 @@ def _sync_once_completion(user_data: Dict, task_id: str, should_complete: bool) 
     auto_list = user_data.setdefault(_AUTO_ONCE_KEY, [])
 
     if should_complete:
+        if task_id in _AUTO_ONCE_BLOCKLIST:
+            return
         if task_id not in auto_list:
             auto_list.append(task_id)
     else:

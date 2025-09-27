@@ -111,7 +111,12 @@ def load_transactions(
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owner_dir = root / owner
     if not owner_dir.exists():
-        raise FileNotFoundError(owner_dir)
+        if not scaffold_missing:
+            raise FileNotFoundError(owner_dir)
+        owner_dir.mkdir(parents=True, exist_ok=True)
+        _ensure_owner_scaffold(owner, owner_dir)
+        return []
+
     _ensure_owner_scaffold(owner, owner_dir)
 
     results: List[Dict[str, Any]] = []

@@ -313,6 +313,7 @@ export interface Transaction {
   fees?: number | null;
   comments?: string | null;
   reason?: string | null;
+  reason_to_buy?: string | null;
 }
 
 export interface TransactionWithCompliance extends Transaction {

@@ -1,5 +1,3 @@
-import React from "react";
-
 /** Skeleton placeholder for KPI metric grids. */
 export default function KPISkeleton() {
   return (

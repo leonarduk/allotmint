@@ -3,13 +3,17 @@ import type { PluginOption } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
-import { glob } from 'glob'
+import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import { globSync } from 'glob'
 
 const staticDir = path.resolve(__dirname, 'dist')
 const pageRoutes: string[] = []
 
+const require = createRequire(import.meta.url)
+
 // https://vite.dev/config/
-export default defineConfig(async ({ command }) => {
+export default defineConfig(({ command }) => {
   const plugins: PluginOption[] = [
     ...react(),
     ...VitePWA({
@@ -28,21 +32,51 @@ export default defineConfig(async ({ command }) => {
   ]
 
   if (command === 'build') {
-    const files = await glob('src/pages/**/*.tsx', {
+    const files = globSync('src/pages/**/*.tsx', {
       cwd: __dirname,
       ignore: ['**/*.test.tsx']
     })
     pageRoutes.push(
       ...files.map((file) => `/${path.basename(file, '.tsx').toLowerCase()}`)
     )
-    const { createRequire } = await import('node:module')
-    const require = createRequire(import.meta.url)
-    const vitePrerender = require('vite-plugin-prerender')
-    const prerenderPlugin = vitePrerender({
-      staticDir,
-      routes: ['/', ...pageRoutes]
-    })
-    plugins.push(...(Array.isArray(prerenderPlugin) ? prerenderPlugin : [prerenderPlugin]))
+    const prerenderFlag = process.env.ENABLE_PRERENDER
+    const skipPrerender = prerenderFlag === 'false'
+    const forcePrerender = prerenderFlag === 'true'
+    if (!skipPrerender) {
+      let canPrerender = true
+      if (!forcePrerender) {
+        try {
+          const puppeteer = require('puppeteer') as {
+            executablePath?: () => string
+          }
+          const executable = puppeteer.executablePath?.() ?? ''
+          if (!executable) {
+            canPrerender = false
+          } else {
+            const probe = spawnSync(executable, ['--version'], { stdio: 'ignore' })
+            if (probe.error || probe.status !== 0) {
+              canPrerender = false
+            }
+          }
+        } catch (error) {
+          canPrerender = false
+        }
+      }
+
+      if (canPrerender) {
+        const vitePrerender = require('vite-plugin-prerender')
+        const prerenderPlugin = vitePrerender({
+          staticDir,
+          routes: ['/', ...pageRoutes]
+        })
+        plugins.push(...(Array.isArray(prerenderPlugin) ? prerenderPlugin : [prerenderPlugin]))
+      } else {
+        console.warn(
+          '[vite] Skipping prerender step because Puppeteer could not be launched. '
+            + 'Set ENABLE_PRERENDER=true to force-enable if dependencies are installed.'
+        )
+      }
+    }
   }
 
   const config = {
@@ -54,7 +88,7 @@ export default defineConfig(async ({ command }) => {
     },
     build: {
       cssCodeSplit: false,
-      cssMinify: 'esbuild',
+      cssMinify: 'esbuild' as const,
       rollupOptions: {
         output: {
           assetFileNames: (assetInfo: { name?: string }) => {
@@ -71,7 +105,7 @@ export default defineConfig(async ({ command }) => {
       setupFiles: './src/setupTests.ts',
       include: ['tests/unit/**/*.test.ts?(x)'],
       coverage: {
-        provider: 'v8',
+        provider: 'v8' as const,
         reporter: ['text', 'html'],
         lines: 85,
         functions: 85,

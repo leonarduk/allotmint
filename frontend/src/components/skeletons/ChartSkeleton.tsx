@@ -1,5 +1,3 @@
-import React from "react";
-
 /** Skeleton placeholder for charts. */
 export default function ChartSkeleton() {
   return (

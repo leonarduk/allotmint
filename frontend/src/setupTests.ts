@@ -104,17 +104,19 @@ defineSize('offsetHeight', 600);
 
 // Fallback for getBoundingClientRect to return a sensible box
 if (!HTMLElement.prototype.getBoundingClientRect) {
-  HTMLElement.prototype.getBoundingClientRect = function () {
+  HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+    const width = this.offsetWidth || 800;
+    const height = this.offsetHeight || 600;
     return {
       x: 0,
       y: 0,
       top: 0,
       left: 0,
-      right: (this as any).offsetWidth || 800,
-      bottom: (this as any).offsetHeight || 600,
-      width: (this as any).offsetWidth || 800,
-      height: (this as any).offsetHeight || 600,
+      right: width,
+      bottom: height,
+      width,
+      height,
       toJSON() {},
     } as DOMRect;
-  } as any;
+  };
 }

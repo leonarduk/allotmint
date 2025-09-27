@@ -71,6 +71,27 @@ def test_auth_flags(monkeypatch):
     reload_config()
 
 
+def test_allowed_emails_loaded_lowercase():
+    cfg = reload_config()
+    assert cfg.allowed_emails == ["user@example.com"]
+
+
+def test_allowed_emails_env_override(monkeypatch):
+    monkeypatch.setenv("ALLOWED_EMAILS", "TEST@Example.com,Other@Example.com ,")
+    cfg = reload_config()
+    assert cfg.allowed_emails == ["test@example.com", "other@example.com"]
+    monkeypatch.delenv("ALLOWED_EMAILS")
+    reload_config()
+
+
+def test_reload_preserves_monkeypatched_allowed_emails(monkeypatch):
+    reload_config()
+    monkeypatch.setattr(config, "allowed_emails", ["override@example.com"], raising=False)
+    cfg = reload_config()
+    assert cfg.allowed_emails == ["override@example.com"]
+    reload_config()
+
+
 def test_google_auth_requires_client_id(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "")

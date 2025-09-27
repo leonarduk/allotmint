@@ -213,14 +213,12 @@ def _list_local_plots(
 
     fallback_paths = resolve_paths(None, None)
     fallback_root = fallback_paths.accounts_root
-    include_demo_primary = False
-    if data_root is None:
+    include_demo_primary = bool(config.disable_auth)
+    if not include_demo_primary and data_root is None:
         try:
             include_demo_primary = primary_root.resolve() == fallback_root.resolve()
         except Exception:
             include_demo_primary = False
-        if config.disable_auth:
-            include_demo_primary = True
 
     results = _discover(primary_root, include_demo=include_demo_primary)
 
@@ -230,6 +228,13 @@ def _list_local_plots(
     # data and mirrors the expectation that callers passing a custom root only
     # see data from that location.
     if data_root is not None:
+        if config.disable_auth and not any(
+            str(entry.get("owner", "")).lower() == "demo" for entry in results
+        ):
+            demo_entry = _load_demo_owner(fallback_root)
+            meta = load_person_meta("demo", fallback_root) if demo_entry else {}
+            if demo_entry and _is_authorized("demo", meta):
+                results.append(demo_entry)
         return results
 
     try:

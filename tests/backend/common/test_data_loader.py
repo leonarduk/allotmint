@@ -210,6 +210,7 @@ class TestListLocalPlots:
 
         assert result == [
             {"owner": "carol", "accounts": ["gamma"]},
+            {"owner": "demo", "accounts": ["demo1"]},
         ]
 
     def test_allows_access_when_user_matches_owner_email(

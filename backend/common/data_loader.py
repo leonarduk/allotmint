@@ -258,8 +258,30 @@ def _list_local_plots(
                 results.append(primary_demo)
                 owners_index["demo"] = primary_demo
 
+    def _lookup_meta(owner: str) -> Dict[str, Any]:
+        """Load metadata for ``owner`` from known search roots."""
+
+        # Prefer the primary root so callers overriding ``data_root`` can
+        # specify bespoke metadata for tests. Fall back to the repository data
+        # directory if the owner does not exist in the primary location.
+        for root in (primary_root, fallback_root):
+            try:
+                person_file = root / owner / "person.json"
+            except TypeError:
+                continue
+            if person_file.exists():
+                return load_person_meta(owner, root)
+        return {}
+
     if same_root:
-        return results
+        filtered_results: List[Dict[str, Any]] = []
+        for entry in results:
+            owner = str(entry.get("owner", ""))
+            if not owner:
+                continue
+            if _is_authorized(owner, _lookup_meta(owner)):
+                filtered_results.append(entry)
+        return filtered_results
 
     if "demo" not in owners_index and not config.disable_auth:
         primary_demo = _load_demo_owner(primary_root)
@@ -269,7 +291,16 @@ def _list_local_plots(
         if primary_demo and _is_authorized("demo", primary_meta):
             results.append(primary_demo)
 
-    return results
+    filtered_results: List[Dict[str, Any]] = []
+    for entry in results:
+        owner = str(entry.get("owner", ""))
+        if not owner:
+            continue
+        if not _is_authorized(owner, _lookup_meta(owner)):
+            continue
+        filtered_results.append(entry)
+
+    return filtered_results
 
 
 # ------------------------------------------------------------------

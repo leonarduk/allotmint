@@ -191,11 +191,27 @@ def _resolve_cache_exchange(
 ) -> str:
     """Return the exchange code to use when reading from the cache."""
 
-    loader_exchange = _resolve_loader_exchange(ticker, exchange_arg, symbol, resolved_exchange)
+    arg_exchange = (exchange_arg or "").strip().upper()
+    loader_exchange = _resolve_loader_exchange(
+        ticker, exchange_arg, symbol, resolved_exchange
+    )
     explicit_exchange = _explicit_exchange_from_ticker(ticker)
-    cache_exchange = metadata_exchange or explicit_exchange or loader_exchange or ""
 
-    if metadata_exchange and loader_exchange and loader_exchange != metadata_exchange:
+    prefer_metadata = bool(explicit_exchange or arg_exchange)
+
+    if prefer_metadata and metadata_exchange:
+        cache_exchange = metadata_exchange
+    else:
+        cache_exchange = explicit_exchange or loader_exchange or ""
+        if not cache_exchange and prefer_metadata and metadata_exchange:
+            cache_exchange = metadata_exchange
+
+    if (
+        prefer_metadata
+        and metadata_exchange
+        and loader_exchange
+        and loader_exchange != metadata_exchange
+    ):
         logger.debug(
             "Cache exchange mismatch for %s: loader %s vs metadata %s",
             symbol,

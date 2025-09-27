@@ -58,6 +58,34 @@ class TaskDefinition:
     commentary: str
 
 
+STATIC_DAILY_TASKS: List[TaskDefinition] = [
+    TaskDefinition(
+        id="log_in",
+        title="Log in",
+        type="daily",
+        commentary="Check in to keep your momentum going.",
+    ),
+    TaskDefinition(
+        id="check_overview",
+        title="Check overview",
+        type="daily",
+        commentary="Review your portfolio overview for any changes.",
+    ),
+    TaskDefinition(
+        id="research_new_stock",
+        title="Research a new stock",
+        type="daily",
+        commentary="Explore a new company to stay informed about opportunities.",
+    ),
+    TaskDefinition(
+        id="run_a_report",
+        title="Run a report",
+        type="daily",
+        commentary="Generate a report to track your performance over time.",
+    ),
+]
+
+
 def _owner_directories() -> Iterable[str]:
     """Return the set of owners discovered in the accounts directory."""
 
@@ -303,7 +331,7 @@ def _build_task_definitions(user: str, user_data: Dict) -> List[TaskDefinition]:
     daily_tasks.sort(key=lambda task: task.id)
     once_tasks.sort(key=lambda task: task.id)
 
-    return daily_tasks + once_tasks
+    return list(STATIC_DAILY_TASKS) + daily_tasks + once_tasks
 
 
 def _update_daily_totals(

@@ -161,7 +161,7 @@ const mockAllFetches = (
         ],
       } as Response);
     }
-    if (url.includes("alpha-vs-benchmark")) {
+    if (url.includes("/alpha")) {
       return Promise.resolve({
         ok: true,
         json: async () => ({ alpha_vs_benchmark: alpha }),
@@ -511,6 +511,50 @@ describe("GroupPortfolioView", () => {
     await waitFor(() =>
       screen.getByText(`${i18n.t("common.error")}: boom`)
     );
+  });
+
+  it("renders whole-percentage metrics returned by the API", async () => {
+    const mockPortfolio = { name: "At a glance", accounts: [] };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const fetchMock = mockAllFetches(mockPortfolio, {
+      metrics: {
+        alpha: 3.44,
+        trackingError: 2.5,
+        maxDrawdown: -12.34,
+      },
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).includes("/alpha"),
+        ),
+      ).toBe(true),
+    );
+
+    const alphaLabel = await screen.findByText("Alpha vs Benchmark");
+    await waitFor(() =>
+      expect(within(alphaLabel.parentElement!).getByText("3.44%"))
+        .toBeInTheDocument(),
+    );
+
+    const teLabel = await screen.findByText("Tracking Error");
+    await waitFor(() =>
+      expect(within(teLabel.parentElement!).getByText("2.50%"))
+        .toBeInTheDocument(),
+    );
+
+    const mdLabel = await screen.findByText("Max Drawdown");
+    await waitFor(() =>
+      expect(within(mdLabel.parentElement!).getByText("-12.34%"))
+        .toBeInTheDocument(),
+    );
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   it("shows N/A for invalid performance metrics", async () => {

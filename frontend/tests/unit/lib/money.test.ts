@@ -19,14 +19,18 @@ describe("percentOrNa", () => {
     spy.mockRestore();
   });
 
-  it("warns and returns N/A for values outside -1..1", () => {
+  it("warns and returns N/A for absurd values", () => {
     const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(percentOrNa(2)).toBe("N/A");
-    expect(spy).toHaveBeenCalledWith("Metric value out of range:", 2);
+    expect(percentOrNa(1200)).toBe("N/A");
+    expect(spy).toHaveBeenCalledWith("Metric value out of range:", 1200);
     spy.mockRestore();
   });
 
-  it("formats valid percentages", () => {
+  it("formats fractional percentages", () => {
     expect(percentOrNa(0.123)).toBe("12.30%");
+  });
+
+  it("normalises whole percentages", () => {
+    expect(percentOrNa(3.44)).toBe("3.44%");
   });
 });

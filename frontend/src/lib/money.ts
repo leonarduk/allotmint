@@ -35,11 +35,17 @@ export const percentOrNa = (
     locale: string = i18n.language,
 ): string => {
     if (typeof v !== "number" || !Number.isFinite(v)) return "N/A";
-    if (Math.abs(v) > 1) {
+    const absValue = Math.abs(v);
+    const MAX_REASONABLE_PERCENT = 1000;
+
+    if (absValue > MAX_REASONABLE_PERCENT) {
         console.warn("Metric value out of range:", v);
         return "N/A";
     }
-    return percent(v * 100, fractionDigits, locale);
+
+    const normalizedValue = absValue > 1 ? v / 100 : v;
+
+    return percent(normalizedValue * 100, fractionDigits, locale);
 };
 
 export const largeNumber = (

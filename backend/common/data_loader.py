@@ -459,14 +459,20 @@ def load_account(
     account: str,
     data_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
+    bucket = os.getenv(DATA_BUCKET_ENV)
+
+    if config.app_env == "aws":
+        if not bucket:
+            raise FileNotFoundError(
+                f"Missing {DATA_BUCKET_ENV} env var for AWS account loading"
+            )
+
     local_root: Optional[Path] = data_root
     if local_root is None:
         try:
             local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
         except Exception:  # pragma: no cover - extremely defensive
             local_root = None
-
-    bucket = os.getenv(DATA_BUCKET_ENV)
 
     if config.app_env == "aws":
         if bucket:
@@ -492,10 +498,6 @@ def load_account(
                     raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
                 data = json.loads(txt)
                 return data
-        elif not local_root:
-            raise FileNotFoundError(
-                f"Missing {DATA_BUCKET_ENV} env var for AWS account loading"
-            )
 
     if not local_root:
         raise FileNotFoundError(f"No account data available for owner '{owner}'")

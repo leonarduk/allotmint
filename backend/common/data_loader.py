@@ -213,8 +213,10 @@ def _list_local_plots(
 
     fallback_paths = resolve_paths(None, None)
     fallback_root = fallback_paths.accounts_root
+    explicit_root = data_root is not None
+
     include_demo_primary = bool(config.disable_auth)
-    if not include_demo_primary and data_root is None:
+    if not include_demo_primary:
         try:
             include_demo_primary = primary_root.resolve() == fallback_root.resolve()
         except Exception:
@@ -242,7 +244,12 @@ def _list_local_plots(
     except OSError:
         same_root = False
 
-    if not results:
+    # When an explicit ``data_root`` is provided treat it as authoritative and
+    # avoid blending in accounts from the repository fallback tree.  This keeps
+    # unit tests (which use temporary roots) isolated from the real repository
+    # data and mirrors the expectation that callers passing a custom root only
+    # see data from that location.
+    if not explicit_root and not results:
         fallback_results = _discover(fallback_root, include_demo=True)
         results.extend(fallback_results)
 
@@ -250,7 +257,7 @@ def _list_local_plots(
         str(entry.get("owner", "")).lower(): entry for entry in results
     }
 
-    allow_fallback_demo = data_root is None or not results or config.disable_auth
+    allow_fallback_demo = (not explicit_root) or not results or config.disable_auth
     if not allow_fallback_demo:
         return results
 

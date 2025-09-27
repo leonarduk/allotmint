@@ -100,7 +100,7 @@ def _extract_account_names(owner_dir: Path) -> List[str]:
     return dedup
 
 
-def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
+def _load_demo_owner(root: Path, *, user: Optional[str]) -> Optional[Dict[str, Any]]:
     """Return the bundled ``demo`` owner description if available."""
 
     try:
@@ -109,6 +109,24 @@ def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
         return None
 
     if not demo_dir.exists() or not demo_dir.is_dir():
+        return None
+
+    lowered_user = user.lower() if isinstance(user, str) else None
+    if lowered_user is None:
+        return None
+
+    meta = load_person_meta("demo", root)
+    viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
+    email = meta.get("email") if isinstance(meta, dict) else None
+
+    allowed_identities = {"demo"}
+    if isinstance(email, str) and email:
+        allowed_identities.add(email.lower())
+    allowed_identities.update(
+        viewer.lower() for viewer in viewers if isinstance(viewer, str)
+    )
+
+    if lowered_user not in allowed_identities:
         return None
 
     accounts = _extract_account_names(demo_dir)
@@ -151,16 +169,14 @@ def _list_local_plots(
         Username of the authenticated user or ``None`` when unauthenticated.
     """
 
+    user = (
+        current_user.get(None) if hasattr(current_user, "get") else current_user
+    )
+
     def _discover(root: Path, *, include_demo: bool = False) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         if not root.exists():
             return results
-
-        user = (
-            current_user.get(None)
-            if hasattr(current_user, "get")
-            else current_user
-        )
 
         skip_owners = (
             {owner for owner in _SKIP_OWNERS if owner != "demo"}
@@ -224,7 +240,7 @@ def _list_local_plots(
         str(entry.get("owner", "")).lower(): entry for entry in results
     }
 
-    fallback_demo = _load_demo_owner(fallback_root)
+    fallback_demo = _load_demo_owner(fallback_root, user=user)
     if "demo" in owners_index:
         _merge_accounts(owners_index["demo"], fallback_demo)
     else:
@@ -232,7 +248,7 @@ def _list_local_plots(
             results.append(fallback_demo)
             owners_index["demo"] = fallback_demo
         elif include_demo_primary:
-            primary_demo = _load_demo_owner(primary_root)
+            primary_demo = _load_demo_owner(primary_root, user=user)
             if primary_demo:
                 results.append(primary_demo)
                 owners_index["demo"] = primary_demo
@@ -241,7 +257,7 @@ def _list_local_plots(
         return results
 
     if "demo" not in owners_index:
-        primary_demo = _load_demo_owner(primary_root)
+        primary_demo = _load_demo_owner(primary_root, user=user)
         if primary_demo:
             results.append(primary_demo)
 

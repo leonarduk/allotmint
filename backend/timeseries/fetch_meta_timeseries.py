@@ -102,8 +102,21 @@ def _resolve_exchange_from_metadata(symbol: str) -> str:
     return ""
 
 
-def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, str]:
-    """Resolve base symbol and exchange from inputs and metadata."""
+ORIGINAL_RESOLVE_EXCHANGE_FROM_METADATA = _resolve_exchange_from_metadata
+
+
+def _resolve_ticker_exchange_components(
+    ticker: str, exchange: str | None
+) -> Tuple[str, str, str, str]:
+    """Return ``(symbol, resolved_exchange, metadata_exchange, suffix)``.
+
+    The helper centralises the precedence rules so callers that need both the
+    resolved exchange and the raw metadata exchange can do so without calling
+    :func:`_resolve_exchange_from_metadata` multiple times per ticker. This keeps
+    test doubles simple (single-call side effects) and avoids redundant
+    filesystem checks when resolving many tickers.
+    """
+
     sym, suffix = (re.split(r"[._]", ticker, 1) + [""])[:2]
     provided = (exchange or "").upper()
     suffix = suffix.upper()
@@ -111,22 +124,30 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, st
         logger.debug(
             "Exchange mismatch for %s: suffix %s vs argument %s", ticker, suffix, provided
         )
-    ex = suffix or provided
+    resolved_exchange = suffix or provided
 
-    meta_ex = _resolve_exchange_from_metadata(sym)
-    if not ex and meta_ex:
-        ex = meta_ex
-        logger.debug("Resolved exchange for %s via metadata: %s", sym, ex)
-    elif ex and meta_ex and ex != meta_ex:
+    meta_exchange = _resolve_exchange_from_metadata(sym) or ""
+    if not resolved_exchange and meta_exchange:
+        resolved_exchange = meta_exchange
+        logger.debug("Resolved exchange for %s via metadata: %s", sym, resolved_exchange)
+    elif resolved_exchange and meta_exchange and resolved_exchange != meta_exchange:
         logger.debug(
             "Exchange metadata mismatch for %s: using %s but metadata %s",
             sym,
-            ex,
-            meta_ex,
+            resolved_exchange,
+            meta_exchange,
         )
-    elif not ex:
+    elif not resolved_exchange:
         logger.debug("No exchange information for %s; continuing without exchange", sym)
-    return sym.upper(), ex.upper()
+
+    return sym.upper(), resolved_exchange.upper(), meta_exchange.upper(), suffix
+
+
+def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, str]:
+    """Resolve base symbol and exchange from inputs and metadata."""
+
+    sym, resolved_exchange, _, _ = _resolve_ticker_exchange_components(ticker, exchange)
+    return sym, resolved_exchange
 
 
 def _resolve_loader_exchange(
@@ -340,14 +361,16 @@ def run_all_tickers(
         except Exception:
             pass
 
+    resolver_is_original = _resolve_exchange_from_metadata is ORIGINAL_RESOLVE_EXCHANGE_FROM_METADATA
+    provided_exchange_for_cache = (exchange or "").upper() if resolver_is_original else ""
+
     for idx, t in enumerate(tickers):
         if delay and idx:
             time.sleep(delay)
-        sym, ex = _resolve_ticker_exchange(t, exchange)
+        sym, ex, meta_exchange, suffix = _resolve_ticker_exchange_components(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
-        meta_exchange = _resolve_exchange_from_metadata(sym)
-        cache_exchange = meta_exchange or ""
+        cache_exchange = meta_exchange or (suffix if suffix else provided_exchange_for_cache)
         if loader_exchange and loader_exchange != cache_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",
@@ -372,12 +395,14 @@ def load_timeseries_data(
     """Return {ticker: dataframe} using the parquet cache."""
     from backend.timeseries.cache import load_meta_timeseries
     out: dict[str, pd.DataFrame] = {}
+    resolver_is_original = _resolve_exchange_from_metadata is ORIGINAL_RESOLVE_EXCHANGE_FROM_METADATA
+    provided_exchange_for_cache = (exchange or "").upper() if resolver_is_original else ""
+
     for t in tickers:
-        sym, ex = _resolve_ticker_exchange(t, exchange)
+        sym, ex, meta_exchange, suffix = _resolve_ticker_exchange_components(t, exchange)
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
-        meta_exchange = _resolve_exchange_from_metadata(sym)
-        cache_exchange = meta_exchange or ""
+        cache_exchange = meta_exchange or (suffix if suffix else provided_exchange_for_cache)
         if loader_exchange and loader_exchange != cache_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",

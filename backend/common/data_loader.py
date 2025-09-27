@@ -218,6 +218,12 @@ def _list_local_plots(
             include_demo_primary = primary_root.resolve() == fallback_root.resolve()
         except Exception:
             include_demo_primary = False
+    # When authentication is disabled the demo owner should remain available
+    # even if callers override ``data_root`` (e.g. tests isolating their
+    # working directory). Skipping the demo in that scenario broke the local
+    # API which always exposes the demo account for preview access.
+    if config.disable_auth:
+        include_demo_primary = True
 
     results = _discover(primary_root, include_demo=include_demo_primary)
 

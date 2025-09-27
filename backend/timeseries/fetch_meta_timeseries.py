@@ -177,6 +177,20 @@ def _resolve_loader_exchange(
     return resolved
 
 
+def _select_cache_exchange(meta_exchange: str, loader_exchange: str) -> str:
+    """Return the exchange code to use when reading cached data.
+
+    Only prefer instrument metadata when an explicit exchange (suffix or
+    argument) was supplied for the ticker. This mirrors the historical
+    behaviour for bare symbols where callers expect the cache lookup to use an
+    empty exchange string.
+    """
+
+    if loader_exchange:
+        return meta_exchange or loader_exchange
+    return loader_exchange or ""
+
+
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
     if not sources:
         return pd.DataFrame(columns=STANDARD_COLUMNS)
@@ -368,7 +382,7 @@ def run_all_tickers(
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
-        cache_exchange = meta_exchange or loader_exchange or ""
+        cache_exchange = _select_cache_exchange(meta_exchange, loader_exchange)
         if meta_exchange and loader_exchange and loader_exchange != meta_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",
@@ -397,7 +411,7 @@ def load_timeseries_data(
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
-        cache_exchange = meta_exchange or loader_exchange or ""
+        cache_exchange = _select_cache_exchange(meta_exchange, loader_exchange)
         if meta_exchange and loader_exchange and loader_exchange != meta_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",

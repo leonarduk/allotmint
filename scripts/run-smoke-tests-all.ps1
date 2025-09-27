@@ -39,6 +39,7 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
 $repoRoot = Resolve-RepoRoot -ScriptRoot $PSScriptRoot
 
 Push-Location -Path $repoRoot
+$npmExitCode = 0
 try {
     $tsxCliGlob = Join-Path -Path $repoRoot -ChildPath 'node_modules/.bin/tsx*'
     if (-not (Test-Path -Path $tsxCliGlob)) {
@@ -52,7 +53,11 @@ try {
 
     Write-Host 'Running npm run smoke:test:all ...' -ForegroundColor Cyan
     npm run smoke:test:all
+    $npmExitCode = $LASTEXITCODE
 }
 finally {
     Pop-Location
+    if ($npmExitCode -ne 0) {
+        exit $npmExitCode
+    }
 }

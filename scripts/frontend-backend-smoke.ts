@@ -462,7 +462,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/scenario/historical",
     "query": {
-      "horizons": "['test']"
+      "event_id": "covid-2020",
+      "horizons": "1"
     }
   },
   {
@@ -524,7 +525,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/timeseries/edit",
     "query": {
       "ticker": "PFE"
-    }
+    },
+    "body": []
   },
   {
     "method": "GET",
@@ -544,7 +546,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/token",
     "body": {
-      "id_token": "test"
+      "id_token": "good"
     }
   },
   {
@@ -576,8 +578,9 @@ export const smokeEndpoints: SmokeEndpoint[] = [
       "account": "test",
       "ticker": "test",
       "date": "1970-01-01",
-      "price_gbp": 0,
-      "units": 0
+      "price_gbp": 1,
+      "units": 1,
+      "reason": "smoke"
     }
   },
   {
@@ -635,11 +638,11 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
-    "method": "DELETE",
+    "method": "GET",
     "path": "/virtual-portfolios/{vp_id}"
   },
   {
-    "method": "GET",
+    "method": "DELETE",
     "path": "/virtual-portfolios/{vp_id}"
   }
 ] as const;
@@ -653,8 +656,9 @@ const SAMPLE_PATH_VALUES: Record<string, string> = {
   user: 'demo',
   email: 'user@example.com',
   id: '1',
-  vp_id: '1',
+  vp_id: 'test',
   quest_id: 'check-in',
+  task_id: 'log_in',
   slug: 'demo-slug',
   name: 'test',
   exchange: 'NASDAQ',

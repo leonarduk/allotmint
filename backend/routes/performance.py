@@ -94,9 +94,13 @@ async def owner_holdings(owner: str, date: str):
 async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return alpha vs. benchmark for a group portfolio."""
     try:
-        val, breakdown = portfolio_utils.compute_group_alpha_vs_benchmark(
+        result = portfolio_utils.compute_group_alpha_vs_benchmark(
             slug, benchmark, days, include_breakdown=True
         )
+        if isinstance(result, tuple):
+            val, breakdown = result
+        else:
+            val, breakdown = result, {}
         response = {"group": slug, "benchmark": benchmark, "alpha_vs_benchmark": val}
         response.update(breakdown)
         return response
@@ -108,9 +112,13 @@ async def group_alpha(slug: str, benchmark: str = "VWRL.L", days: int = 365):
 async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int = 365):
     """Return tracking error vs. benchmark for a group portfolio."""
     try:
-        val, breakdown = portfolio_utils.compute_group_tracking_error(
+        result = portfolio_utils.compute_group_tracking_error(
             slug, benchmark, days, include_breakdown=True
         )
+        if isinstance(result, tuple):
+            val, breakdown = result
+        else:
+            val, breakdown = result, {}
         response = {"group": slug, "benchmark": benchmark, "tracking_error": val}
         response.update(breakdown)
         return response
@@ -122,9 +130,13 @@ async def group_tracking_error(slug: str, benchmark: str = "VWRL.L", days: int =
 async def group_max_drawdown(slug: str, days: int = 365):
     """Return max drawdown for a group portfolio."""
     try:
-        val, breakdown = portfolio_utils.compute_group_max_drawdown(
+        result = portfolio_utils.compute_group_max_drawdown(
             slug, days, include_breakdown=True
         )
+        if isinstance(result, tuple):
+            val, breakdown = result
+        else:
+            val, breakdown = result, {}
         response = {"group": slug, "max_drawdown": val}
         response.update(breakdown)
         return response

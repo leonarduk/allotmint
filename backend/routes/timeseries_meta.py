@@ -70,7 +70,28 @@ async def get_meta_timeseries(
         raise HTTPException(status_code=500, detail=str(e))
 
     if df.empty:
-        raise HTTPException(status_code=404, detail=f"No data found for {ticker}.{exchange}")
+        if format == "json":
+            return JSONResponse(
+                content={
+                    "ticker": f"{ticker}.{exchange}",
+                    "from": start_date.isoformat(),
+                    "to": end_date.isoformat(),
+                    "scaling": scaling,
+                    "prices": [],
+                }
+            )
+        if format == "csv":
+            return PlainTextResponse(content="", media_type="text/csv")
+        empty_html = f"""
+        <html>
+            <head><title>{ticker}.{exchange} Price History</title></head>
+            <body>
+                <h1>{ticker}.{exchange} - {start_date} to {end_date}</h1>
+                <p>No cached data available.</p>
+            </body>
+        </html>
+        """
+        return HTMLResponse(content=empty_html)
 
     df = df.copy()
     df["Date"] = pd.to_datetime(df["Date"])

@@ -340,11 +340,14 @@ def create_app() -> FastAPI:
 
     @app.post("/token")
     async def login(body: TokenIn):
-        try:
-            email = auth.authenticate_user(body.id_token)
-        except HTTPException as exc:
-            logger.warning("User authentication failed: %s", exc.detail)
-            raise
+        if cfg.disable_auth:
+            email = "user@example.com"
+        else:
+            try:
+                email = auth.authenticate_user(body.id_token)
+            except HTTPException as exc:
+                logger.warning("User authentication failed: %s", exc.detail)
+                raise
 
         if not email:
             logger.warning("authenticate_user returned no email")
@@ -356,13 +359,16 @@ def create_app() -> FastAPI:
     @app.post("/token/google")
     async def google_token(payload: dict):
         token = payload.get("token")
-        if not token:
-            raise HTTPException(status_code=400, detail="Missing token")
-        try:
-            email = auth.verify_google_token(token)
-        except HTTPException as exc:
-            logger.warning("Google token verification failed: %s", exc.detail)
-            raise
+        if cfg.disable_auth:
+            email = "user@example.com"
+        else:
+            if not token:
+                raise HTTPException(status_code=400, detail="Missing token")
+            try:
+                email = auth.verify_google_token(token)
+            except HTTPException as exc:
+                logger.warning("Google token verification failed: %s", exc.detail)
+                raise
         jwt_token = auth.create_access_token(email)
         return {"access_token": jwt_token, "token_type": "bearer"}
 

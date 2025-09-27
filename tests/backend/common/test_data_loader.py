@@ -200,6 +200,32 @@ class TestListLocalPlots:
             {"owner": "alice", "accounts": ["alpha"]},
         ]
 
+    def test_skips_metadata_and_transaction_exports(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        self._configure(monkeypatch, tmp_path, data_root, disable_auth=True)
+
+        _write_owner(data_root, "charlie", ["isa", "brokerage"])
+        owner_dir = data_root / "charlie"
+        for filename in [
+            "person.json",
+            "config.json",
+            "notes.json",
+            "settings.json",
+            "approvals.json",
+            "approval_requests.json",
+            "isa_transactions.json",
+            "BROKERAGE_TRANSACTIONS.json",
+        ]:
+            (owner_dir / filename).write_text("{}")
+
+        result = _list_local_plots(data_root=data_root, current_user=None)
+
+        assert result == [
+            {"owner": "charlie", "accounts": ["brokerage", "isa"]},
+        ]
+
     def test_authentication_disabled_allows_anonymous_access(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
         self._configure(monkeypatch, tmp_path, data_root, disable_auth=True)

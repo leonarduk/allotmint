@@ -32,7 +32,14 @@ def resolve_accounts_root(request: Request) -> Path:
         else:
             request.app.state.accounts_root = resolved_cached
             if hasattr(request.app.state, "accounts_root_is_global"):
-                request.app.state.accounts_root_is_global = False
+                # Preserve a previously cached "global" flag so callers can
+                # detect that the application is still operating against the
+                # fallback data directory. This is important for routes such
+                # as the transactions endpoints which require an explicitly
+                # configured accounts directory. Only clear the flag when it
+                # is not already marked as global.
+                if getattr(request.app.state, "accounts_root_is_global", None) is not True:
+                    request.app.state.accounts_root_is_global = False
             return resolved_cached
 
         request.app.state.accounts_root = None

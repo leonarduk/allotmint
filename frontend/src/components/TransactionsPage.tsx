@@ -396,7 +396,39 @@ export function TransactionsPage({ owners }: Props) {
     setFormError(null);
     setFormSuccess(null);
     try {
-      await Promise.all(selectedIds.map((id) => deleteTransaction(id)));
+      const groupedIds = new Map<string, { entries: { id: string; index: number }[] }>();
+      const fallbackIds: string[] = [];
+
+      selectedIds.forEach((id) => {
+        const [ownerPart, accountPart, indexPart] = id.split(":");
+        const parsedIndex = Number.parseInt(indexPart ?? "", 10);
+
+        if (!ownerPart || !accountPart || Number.isNaN(parsedIndex)) {
+          fallbackIds.push(id);
+          return;
+        }
+
+        const key = `${ownerPart}:${accountPart}`;
+        const group = groupedIds.get(key) ?? { entries: [] };
+        group.entries.push({ id, index: parsedIndex });
+        groupedIds.set(key, group);
+      });
+
+      const deletionOrder: string[] = [];
+
+      groupedIds.forEach((group) => {
+        group.entries
+          .sort((a, b) => b.index - a.index)
+          .forEach(({ id }) => {
+            deletionOrder.push(id);
+          });
+      });
+
+      deletionOrder.push(...fallbackIds);
+
+      for (const id of deletionOrder) {
+        await deleteTransaction(id);
+      }
       if (editingId && selectedIds.includes(editingId)) {
         setEditingId(null);
         resetForm();

@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from backend.config import config
 from backend.common import instrument_groups
 from backend.common.instruments import (
@@ -209,19 +210,23 @@ async def refresh_instrument(
 
 
 @router.delete("/admin/{exchange}/{ticker}")
-async def delete_instrument(exchange: str, ticker: str) -> dict[str, str]:
+async def delete_instrument(exchange: str, ticker: str) -> dict[str, str] | JSONResponse:
     """Remove instrument metadata from disk."""
 
     try:
-        path = instrument_meta_path(ticker, exchange)
+        meta_path = instrument_meta_path(ticker, exchange)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    try:
-        exists = path.exists()
     except OSError as exc:
         raise HTTPException(status_code=500, detail="Filesystem error") from exc
+
+    try:
+        exists = meta_path.exists()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Filesystem error") from exc
+
     if not exists:
-        return {"status": "absent"}
+        return JSONResponse({"detail": "instrument not found"}, status_code=404)
     delete_instrument_meta(ticker, exchange)
     return {"status": "deleted"}
 

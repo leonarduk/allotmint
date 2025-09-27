@@ -215,15 +215,22 @@ def _has_custom_threshold(user: str) -> bool:
         return False
     if isinstance(raw_threshold, bool):
         return bool(raw_threshold)
-    if isinstance(raw_threshold, (int, float)):
-        return math.isfinite(float(raw_threshold))
-
     try:
         candidate = float(raw_threshold)
     except (TypeError, ValueError):
         return bool(raw_threshold)
 
-    return math.isfinite(candidate)
+    if not math.isfinite(candidate):
+        return False
+
+    default_thresholds = {
+        alerts.DEFAULT_THRESHOLD_PCT,
+        alerts.DEFAULT_THRESHOLD_PCT * 100,
+    }
+    if any(math.isclose(candidate, default, rel_tol=1e-9, abs_tol=1e-9) for default in default_thresholds):
+        return False
+
+    return True
 
 
 _AUTO_ONCE_KEY = "_auto_once"

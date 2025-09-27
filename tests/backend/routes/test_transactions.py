@@ -131,6 +131,12 @@ def test_require_accounts_root_rejects_matching_global_root(monkeypatch, tmp_pat
     assert excinfo.value.status_code == 400
 
 
+def test_as_non_empty_str_trims_and_rejects_whitespace():
+    assert transactions_module._as_non_empty_str("  Valid Name  ") == "Valid Name"
+    assert transactions_module._as_non_empty_str("   ") is None
+    assert transactions_module._as_non_empty_str(None) is None
+
+
 def test_validate_component_rejects_invalid_characters():
     with pytest.raises(HTTPException) as excinfo:
         transactions_module._validate_component("invalid!", "owner")
@@ -208,6 +214,93 @@ async def test_create_transaction_requires_units(tmp_path):
 
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "price_gbp and units are required"
+
+
+def test_instrument_name_from_entry(monkeypatch):
+    entry = {
+        "instrument_name": "  Primary Name  ",
+        "name": "Secondary",
+        "display_name": "Tertiary",
+    }
+
+    resolved = transactions_module._instrument_name_from_entry(entry)
+
+    assert resolved == "Primary Name"
+
+    lookup_entry = {"security_ref": "abc"}
+
+    def fake_get_meta(ticker: str):
+        assert ticker == "ABC"
+        return {"display_name": "  Looked Up Name  "}
+
+    monkeypatch.setattr(
+        transactions_module, "get_instrument_meta", fake_get_meta
+    )
+
+    fallback_resolved = transactions_module._instrument_name_from_entry(lookup_entry)
+
+    assert fallback_resolved == "Looked Up Name"
+
+    failing_entry = {"ticker": "bad"}
+
+    def raise_value_error(_ticker: str):
+        raise ValueError("bad ticker")
+
+    monkeypatch.setattr(
+        transactions_module, "get_instrument_meta", raise_value_error
+    )
+
+    assert transactions_module._instrument_name_from_entry(failing_entry) is None
+
+    monkeypatch.setattr(
+        transactions_module, "get_instrument_meta", lambda _ticker: {}
+    )
+
+    assert transactions_module._instrument_name_from_entry(failing_entry) is None
+
+
+def test_format_transaction_response_injects_instrument_name(monkeypatch):
+    tx_data = {"ticker": "aaa", "price_gbp": 1.23}
+
+    monkeypatch.setattr(
+        transactions_module,
+        "_instrument_name_from_entry",
+        lambda payload: "Resolved Instrument",
+    )
+
+    payload = transactions_module._format_transaction_response(
+        "alice", "primary", tx_data, "tx-1"
+    )
+
+    assert payload == {
+        "owner": "alice",
+        "account": "primary",
+        "ticker": "aaa",
+        "price_gbp": 1.23,
+        "id": "tx-1",
+        "instrument_name": "Resolved Instrument",
+    }
+
+
+def test_format_transaction_response_omits_missing_instrument_name(monkeypatch):
+    tx_data = {"ticker": "aaa", "price_gbp": 1.23}
+
+    monkeypatch.setattr(
+        transactions_module,
+        "_instrument_name_from_entry",
+        lambda payload: None,
+    )
+
+    payload = transactions_module._format_transaction_response(
+        "alice", "primary", tx_data
+    )
+
+    assert payload == {
+        "owner": "alice",
+        "account": "primary",
+        "ticker": "aaa",
+        "price_gbp": 1.23,
+    }
 
 
 @pytest.mark.asyncio

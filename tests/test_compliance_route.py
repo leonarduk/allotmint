@@ -158,6 +158,38 @@ def test_validate_trade_when_owner_discovery_fails(tmp_path):
     assert scaffold.exists()
 
 
+def test_validate_trade_accepts_owner_directories_even_when_filtered(tmp_path, monkeypatch):
+    app = _setup_app(tmp_path)
+    demo_dir = tmp_path / "accounts" / "demo"
+    demo_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(
+        "backend.common.data_loader.list_plots",
+        lambda accounts_root: [{"owner": "alice"}],
+    )
+    monkeypatch.setattr(
+        "backend.common.compliance.get_instrument_meta",
+        lambda t: {"instrumentType": "ETF"},
+    )
+    monkeypatch.setattr(compliance.config, "approval_exempt_types", ["ETF"])
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/compliance/validate",
+            json={
+                "owner": "demo",
+                "account": "brokerage",
+                "date": "2024-04-01",
+                "type": "buy",
+                "ticker": "XYZ",
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["owner"] == "demo"
+
+
 def test_compliance_unknown_owner_does_not_create_directory(tmp_path):
     app = create_app()
     accounts_root = tmp_path / "accounts"

@@ -346,8 +346,17 @@ def run_all_tickers(
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
+        meta_exchange = _resolve_exchange_from_metadata(sym)
+        cache_exchange = meta_exchange or ""
+        if loader_exchange and loader_exchange != cache_exchange:
+            logger.debug(
+                "Cache exchange mismatch for %s: loader %s vs metadata %s",
+                sym,
+                loader_exchange,
+                cache_exchange or "<empty>",
+            )
         try:
-            if not load_meta_timeseries(sym, loader_exchange or "", days).empty:
+            if not load_meta_timeseries(sym, cache_exchange, days).empty:
                 ok.append(t)
         except Exception as exc:
             logger.warning("[WARN] %s: %s", t, exc)
@@ -367,8 +376,17 @@ def load_timeseries_data(
         sym, ex = _resolve_ticker_exchange(t, exchange)
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
+        meta_exchange = _resolve_exchange_from_metadata(sym)
+        cache_exchange = meta_exchange or ""
+        if loader_exchange and loader_exchange != cache_exchange:
+            logger.debug(
+                "Cache exchange mismatch for %s: loader %s vs metadata %s",
+                sym,
+                loader_exchange,
+                cache_exchange or "<empty>",
+            )
         try:
-            df = load_meta_timeseries(sym, loader_exchange or "", days)
+            df = load_meta_timeseries(sym, cache_exchange, days)
             if not df.empty:
                 out[t] = df
         except Exception as exc:

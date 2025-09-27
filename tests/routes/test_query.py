@@ -286,7 +286,7 @@ def test_saved_and_load_local(monkeypatch, tmp_path):
     }
     (tmp_path / "sample.json").write_text(json.dumps(data))
     client = make_client()
-    resp = client.get("/custom-query/saved")
+    resp = client.get("/custom-query/saved", params={"detailed": "true"})
     assert resp.status_code == 200
     saved_entries = resp.json()
     assert any(
@@ -308,7 +308,7 @@ def test_saved_and_load_aws(monkeypatch, mock_s3):
     )
     query._save_query_s3("remote", q)
     client = make_client()
-    resp = client.get("/custom-query/saved")
+    resp = client.get("/custom-query/saved", params={"detailed": "true"})
     assert resp.status_code == 200
     saved_entries = resp.json()
     expected_params = q.model_dump(mode="json")

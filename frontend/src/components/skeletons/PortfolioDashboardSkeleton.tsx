@@ -1,4 +1,3 @@
-import React from "react";
 import KPISkeleton from "./KPISkeleton";
 import ChartSkeleton from "./ChartSkeleton";
 

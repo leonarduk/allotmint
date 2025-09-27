@@ -250,7 +250,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       normalizedBaseCurrency ?? normaliseUppercase(detail?.currency ?? undefined);
     const detailRecord =
       detail && typeof detail === "object"
-        ? (detail as Record<string, unknown>)
+        ? (detail as unknown as Record<string, unknown>)
         : null;
     const detailInstrumentType = extractInstrumentType(detailRecord);
     const overrides = metadataOverridesRef.current;
@@ -495,7 +495,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         cached.sector = next.sector;
         cached.currency = next.currency;
         cached.instrument_type = next.instrumentType || null;
-        (cached as Record<string, unknown>).instrumentType =
+        (cached as unknown as Record<string, unknown>).instrumentType =
           next.instrumentType || null;
       });
       if (next.sector) {
@@ -589,7 +589,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
         cached.sector = trimmedSector;
         cached.currency = selectedCurrency;
         cached.instrument_type = trimmedInstrumentType || null;
-        (cached as Record<string, unknown>).instrumentType =
+        (cached as unknown as Record<string, unknown>).instrumentType =
           trimmedInstrumentType || null;
       });
       if (trimmedSector) {
@@ -734,7 +734,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     "USD";
   const detailRecordForDisplay =
     detail && typeof detail === "object"
-      ? (detail as Record<string, unknown>)
+      ? (detail as unknown as Record<string, unknown>)
       : null;
   const detailInstrumentType = extractInstrumentType(detailRecordForDisplay);
   const instrumentType = metadata.instrumentType || detailInstrumentType || null;

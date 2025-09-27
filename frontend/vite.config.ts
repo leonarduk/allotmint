@@ -1,18 +1,31 @@
 import { defineConfig } from 'vitest/config'
+import type { UserConfig } from 'vitest/config'
 import type { PluginOption } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
-import { glob } from 'glob'
+import { globSync } from 'glob'
+import { createRequire } from 'node:module'
 
+const require = createRequire(import.meta.url)
 const staticDir = path.resolve(__dirname, 'dist')
-const pageRoutes: string[] = []
 
 // https://vite.dev/config/
-export default defineConfig(async ({ command }) => {
-  const plugins: PluginOption[] = [
-    ...react(),
-    ...VitePWA({
+export default defineConfig(({ command }) => {
+  const plugins: PluginOption[] = []
+  const pageRoutes: string[] = []
+
+  const addPlugin = (plugin: PluginOption | PluginOption[]) => {
+    if (Array.isArray(plugin)) {
+      plugins.push(...plugin)
+    } else {
+      plugins.push(plugin)
+    }
+  }
+
+  addPlugin(react())
+  addPlugin(
+    VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['vite.svg'],
       strategies: 'injectManifest',
@@ -25,27 +38,27 @@ export default defineConfig(async ({ command }) => {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}']
       }
     })
-  ]
+  )
 
-  if (command === 'build') {
-    const files = await glob('src/pages/**/*.tsx', {
+  const shouldPrerender = process.env.ENABLE_PRERENDER === 'true'
+
+  if (command === 'build' && shouldPrerender) {
+    const files = globSync('src/pages/**/*.tsx', {
       cwd: __dirname,
       ignore: ['**/*.test.tsx']
     })
     pageRoutes.push(
       ...files.map((file) => `/${path.basename(file, '.tsx').toLowerCase()}`)
     )
-    const { createRequire } = await import('node:module')
-    const require = createRequire(import.meta.url)
     const vitePrerender = require('vite-plugin-prerender')
     const prerenderPlugin = vitePrerender({
       staticDir,
       routes: ['/', ...pageRoutes]
     })
-    plugins.push(...(Array.isArray(prerenderPlugin) ? prerenderPlugin : [prerenderPlugin]))
+    addPlugin(prerenderPlugin)
   }
 
-  const config = {
+  const config: UserConfig = {
     plugins,
     resolve: {
       alias: {
@@ -73,10 +86,12 @@ export default defineConfig(async ({ command }) => {
       coverage: {
         provider: 'v8',
         reporter: ['text', 'html'],
-        lines: 85,
-        functions: 85,
-        branches: 85,
-        statements: 85,
+        thresholds: {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85
+        },
         include: ['tests/unit/**/*.test.ts?(x)']
       }
     }

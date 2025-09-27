@@ -1,7 +1,12 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { PortfolioView } from "@/components/PortfolioView";
 import type { Portfolio } from "@/types";
+
+vi.mock("@/components/PerformanceDashboard", () => ({
+  __esModule: true,
+  default: () => <div data-testid="performance-dashboard" />,
+}));
 
 describe("PortfolioView", () => {
     const mockOwner: Portfolio = {

@@ -12,10 +12,9 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Painel",
-      "holdings": "Participações",
-      "tradeTools": "Ferramentas de negociação",
-      "goals": "Objetivos",
-      "preferences": "Preferências",
+      "insightts": "Insightts",
+      "requirements": "Requisitos",
+      "settings": "Configurações",
       "operations": "Operações",
       "other": "Outros"
     },
@@ -40,10 +39,10 @@
       "taxtools": "Ferramentas fiscais",
       "trail": "Trail",
       "reports": "Relatórios",
-  "alertsettings": "Alert Settings",
-  "compliance": "Alertas de conformidade",
-  "trade-compliance": "Conformidade de negociações",
-  "support": "Suporte",
+      "alertsettings": "Alert Settings",
+      "compliance": "Alertas de conformidade",
+      "trade-compliance": "Conformidade de negociações",
+      "support": "Suporte",
       "scenario": "Testador de Cenários"
     },
     "logs": {

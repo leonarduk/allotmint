@@ -224,6 +224,21 @@ def _list_local_plots(
 
     results = _discover(primary_root, include_demo=include_demo_primary)
 
+    # When an explicit ``data_root`` is provided treat it as authoritative and
+    # avoid blending in accounts from the repository fallback tree.  This keeps
+    # unit tests (which use temporary roots) isolated from the real repository
+    # data and mirrors the expectation that callers passing a custom root only
+    # see data from that location.
+    if data_root is not None:
+        if config.disable_auth and not any(
+            str(entry.get("owner", "")).lower() == "demo" for entry in results
+        ):
+            demo_entry = _load_demo_owner(fallback_root)
+            meta = load_person_meta("demo", fallback_root) if demo_entry else {}
+            if demo_entry and _is_authorized("demo", meta):
+                results.append(demo_entry)
+        return results
+
     try:
         same_root = fallback_root.resolve() == primary_root.resolve()
     except OSError:
@@ -422,16 +437,10 @@ def list_plots(
     """
 
     if config.app_env == "aws":
-        bucket = os.getenv(DATA_BUCKET_ENV)
-        if bucket:
-            aws_results = _list_aws_plots(current_user)
-            if aws_results or not data_root:
-                return aws_results
-        if data_root is None:
-            # Fall back to the configured repository data when no explicit root
-            # is supplied. This mirrors the non-AWS behaviour and keeps unit
-            # tests using temporary roots isolated from global data.
-            return _list_local_plots(None, current_user)
+        aws_results = _list_aws_plots(current_user)
+        if data_root is None or aws_results:
+            return aws_results
+        return _list_local_plots(data_root, current_user)
     return _list_local_plots(data_root, current_user)
 
 
@@ -456,14 +465,20 @@ def load_account(
     account: str,
     data_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
+    bucket = os.getenv(DATA_BUCKET_ENV)
+
+    if config.app_env == "aws":
+        if not bucket:
+            raise FileNotFoundError(
+                f"Missing {DATA_BUCKET_ENV} env var for AWS account loading"
+            )
+
     local_root: Optional[Path] = data_root
     if local_root is None:
         try:
             local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
         except Exception:  # pragma: no cover - extremely defensive
             local_root = None
-
-    bucket = os.getenv(DATA_BUCKET_ENV)
 
     if config.app_env == "aws":
         if bucket:
@@ -489,10 +504,6 @@ def load_account(
                     raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
                 data = json.loads(txt)
                 return data
-        elif not local_root:
-            raise FileNotFoundError(
-                f"Missing {DATA_BUCKET_ENV} env var for AWS account loading"
-            )
 
     if not local_root:
         raise FileNotFoundError(f"No account data available for owner '{owner}'")

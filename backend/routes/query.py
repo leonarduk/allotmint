@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -219,10 +219,14 @@ def _format_saved_query(slug: str, payload: dict) -> dict:
 
 
 @router.get("/saved")
-async def list_saved_queries():
+async def list_saved_queries(detailed: bool = Query(False)):
     if config.app_env == "aws":
+        slugs = _list_queries_s3()
+        if not detailed:
+            return slugs
+
         entries = []
-        for slug in _list_queries_s3():
+        for slug in slugs:
             try:
                 payload = _load_query_s3(slug)
             except HTTPException:
@@ -235,9 +239,13 @@ async def list_saved_queries():
     if not QUERIES_DIR.exists():
         return []
 
+    slugs = [path.stem for path in sorted(QUERIES_DIR.glob("*.json"))]
+    if not detailed:
+        return slugs
+
     entries = []
-    for path in sorted(QUERIES_DIR.glob("*.json")):
-        slug = path.stem
+    for slug in slugs:
+        path = QUERIES_DIR / f"{slug}.json"
         try:
             payload = json.loads(path.read_text())
         except json.JSONDecodeError:

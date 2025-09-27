@@ -230,7 +230,6 @@ def _resolve_cache_exchange(
     provided_exchange = (exchange_arg or "").strip().upper()
 
     if metadata_exchange:
-        cache_exchange = metadata_exchange
         if loader_exchange and loader_exchange != metadata_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",
@@ -238,6 +237,21 @@ def _resolve_cache_exchange(
                 loader_exchange,
                 metadata_exchange or "<empty>",
             )
+
+        if (
+            provided_exchange
+            and not explicit_exchange
+            and provided_exchange != metadata_exchange
+        ):
+            logger.debug(
+                "Cache exchange override for %s: metadata %s vs argument %s",
+                symbol,
+                metadata_exchange or "<empty>",
+                provided_exchange or "<empty>",
+            )
+            cache_exchange = provided_exchange
+        else:
+            cache_exchange = metadata_exchange
     elif explicit_exchange:
         cache_exchange = explicit_exchange
     elif provided_exchange:

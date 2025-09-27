@@ -18,6 +18,12 @@ def test_run_all_tickers_filters_and_delays(monkeypatch, caplog):
             return pd.DataFrame()
         raise Exception("boom")
 
+    monkeypatch.setattr(
+        fmt,
+        "_resolve_exchange_from_metadata",
+        lambda *_args, **_kwargs: "",
+    )
+    fmt._resolve_exchange_from_metadata_cached.cache_clear()
     monkeypatch.setattr(fmt.config, "stooq_requests_per_minute", 30, raising=False)
     sleep_calls = []
     monkeypatch.setattr(fmt.time, "sleep", lambda s: sleep_calls.append(s))
@@ -61,6 +67,12 @@ def test_load_timeseries_data_filters_and_warnings(monkeypatch, caplog):
             return pd.DataFrame()
         raise Exception("fail")
 
+    monkeypatch.setattr(
+        fmt,
+        "_resolve_exchange_from_metadata",
+        lambda *_args, **_kwargs: "",
+    )
+    fmt._resolve_exchange_from_metadata_cached.cache_clear()
     with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
         with caplog.at_level("WARNING", logger="meta_timeseries"):
             out = fmt.load_timeseries_data(["AAA", "BBB", "CCC"], days=5)
@@ -95,7 +107,8 @@ def test_load_timeseries_data_handles_stale_metadata(monkeypatch, tmp_path):
         calls.append((sym, ex, days))
         return _df()
 
-    instruments_dir = tmp_path / "instruments" / "L"
+    monkeypatch.setattr(fmt, "INSTRUMENTS_DIR", tmp_path / "instruments")
+    instruments_dir = fmt.INSTRUMENTS_DIR / "L"
     instruments_dir.mkdir(parents=True)
     (instruments_dir / "AAA.json").write_text("{}", encoding="utf-8")
 

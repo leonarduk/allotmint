@@ -167,6 +167,11 @@ def _resolve_loader_exchange(
     return resolved
 
 
+def _explicit_exchange_from_ticker(ticker: str) -> str:
+    parts = re.split(r"[._]", ticker, 1)
+    return parts[1].strip().upper() if len(parts) == 2 else ""
+
+
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
     if not sources:
         return pd.DataFrame(columns=STANDARD_COLUMNS)
@@ -358,7 +363,8 @@ def run_all_tickers(
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
-        cache_exchange = meta_exchange or loader_exchange or ""
+        explicit_exchange = _explicit_exchange_from_ticker(t)
+        cache_exchange = meta_exchange or explicit_exchange or loader_exchange or ""
         if meta_exchange and loader_exchange and loader_exchange != meta_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",
@@ -387,7 +393,8 @@ def load_timeseries_data(
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
-        cache_exchange = meta_exchange or loader_exchange or ""
+        explicit_exchange = _explicit_exchange_from_ticker(t)
+        cache_exchange = meta_exchange or explicit_exchange or loader_exchange or ""
         if meta_exchange and loader_exchange and loader_exchange != meta_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",

@@ -43,11 +43,11 @@ def test_run_all_tickers_prefers_metadata_exchange_for_cache():
         with patch.object(
             fmt,
             "_resolve_exchange_from_metadata",
-            side_effect=["L", ""],
+            side_effect=["L", "L", "", ""],
         ):
             fmt.run_all_tickers(["AAA.N", "BBB"], exchange="Q", days=7)
 
-    assert calls == [("AAA", "L", 7), ("BBB", "", 7)]
+    assert calls == [("AAA", "L", 7), ("BBB", "Q", 7)]
 
 
 def test_load_timeseries_data_filters_and_warnings(monkeypatch, caplog):
@@ -81,8 +81,8 @@ def test_load_timeseries_data_prefers_metadata_exchange_for_cache():
         with patch.object(
             fmt,
             "_resolve_exchange_from_metadata",
-            side_effect=["N", ""],
+            side_effect=["N", "N", "", ""],
         ):
             fmt.load_timeseries_data(["AAA.L", "BBB"], exchange="L", days=3)
 
-    assert calls == [("AAA", "N", 3), ("BBB", "", 3)]
+    assert calls == [("AAA", "N", 3), ("BBB", "L", 3)]

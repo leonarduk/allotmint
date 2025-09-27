@@ -347,7 +347,7 @@ def run_all_tickers(
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
         meta_exchange = _resolve_exchange_from_metadata(sym)
-        cache_exchange = meta_exchange or ""
+        cache_exchange = meta_exchange or loader_exchange or ""
         if loader_exchange and loader_exchange != cache_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",
@@ -377,7 +377,7 @@ def load_timeseries_data(
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
         loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
         meta_exchange = _resolve_exchange_from_metadata(sym)
-        cache_exchange = meta_exchange or ""
+        cache_exchange = meta_exchange or loader_exchange or ""
         if loader_exchange and loader_exchange != cache_exchange:
             logger.debug(
                 "Cache exchange mismatch for %s: loader %s vs metadata %s",

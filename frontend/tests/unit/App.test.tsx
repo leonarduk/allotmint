@@ -415,6 +415,80 @@ describe("App", () => {
     expect(await screen.findByText(/owner not found/i)).toBeInTheDocument();
   });
 
+  it("stays on /portfolio when multiple owners are available", async () => {
+    window.history.pushState({}, "", "/portfolio");
+
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
+
+    const mockGetOwners = vi.fn().mockResolvedValue([
+      { owner: "alice", accounts: [] },
+      { owner: "bob", accounts: [] },
+    ]);
+
+    const mockGetGroups = vi.fn().mockResolvedValue([]);
+
+    mockTradingSignals.mockResolvedValue([]);
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: mockGetGroups,
+        getPortfolio: vi.fn(),
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(),
+        getGroupTrackingError: vi.fn(),
+        getGroupMaxDrawdown: vi.fn(),
+        getGroupSectorContributions: vi.fn(),
+        getGroupRegionContributions: vi.fn(),
+        getGroupMovers: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: mockTradingSignals,
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio"]}>
+        <LocationListener />
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(mockGetOwners).toHaveBeenCalled());
+
+    const ownerSelects = await screen.findAllByLabelText(/owner/i);
+    expect(ownerSelects.length).toBeGreaterThan(0);
+
+    expect(locationUpdates.length).toBeGreaterThan(0);
+    expect(locationUpdates).not.toContain("/portfolio/alice");
+    expect([...new Set(locationUpdates)]).toEqual(["/portfolio"]);
+  });
+
   it("allows navigation to enabled tabs", async () => {
     window.history.pushState({}, "", "/movers");
 

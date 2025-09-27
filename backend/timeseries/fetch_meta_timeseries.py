@@ -191,25 +191,23 @@ def _resolve_cache_exchange(
 ) -> str:
     """Return the exchange code to use when reading from the cache."""
 
-    loader_exchange = _resolve_loader_exchange(ticker, exchange_arg, symbol, resolved_exchange)
+    loader_exchange = _resolve_loader_exchange(
+        ticker, exchange_arg, symbol, resolved_exchange
+    )
     explicit_exchange = _explicit_exchange_from_ticker(ticker)
-    cache_exchange = ""
+    provided_exchange = (exchange_arg or "").strip().upper()
 
-    # When the ticker explicitly encodes an exchange (either as ``.L`` or
-    # ``_L``) prefer the instrument metadata. This mirrors how the parquet
-    # cache is organised – metadata derived from the instruments directory is
-    # authoritative for full tickers. Conversely, if callers only provide an
-    # exchange via the ``exchange`` argument we should respect that override so
-    # tests can exercise scenarios where metadata is absent. Fall back to the
-    # loader exchange when nothing else is available.
-    if metadata_exchange and explicit_exchange:
-        cache_exchange = metadata_exchange
-    elif metadata_exchange and not loader_exchange:
-        cache_exchange = metadata_exchange
-    elif explicit_exchange:
+    if explicit_exchange:
         cache_exchange = explicit_exchange
+    elif provided_exchange:
+        cache_exchange = provided_exchange
     elif loader_exchange:
         cache_exchange = loader_exchange
+    elif metadata_exchange:
+        cache_exchange = metadata_exchange
+    else:
+        cache_exchange = ""
+
     if metadata_exchange and loader_exchange and loader_exchange != metadata_exchange:
         logger.debug(
             "Cache exchange mismatch for %s: loader %s vs metadata %s",

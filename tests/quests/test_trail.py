@@ -37,17 +37,16 @@ def _once_ids(response):
 def test_get_tasks_returns_defaults(memory_storage):
     response = trail.get_tasks("demo")
     tasks = response["tasks"]
-    assert [t["id"] for t in tasks] == [
-        "demo_allowance_isa",
-        "demo_allowance_pension",
-        "create_goal",
-        "enable_push_notifications",
-        "set_alert_threshold",
-    ]
+    static_ids = [task.id for task in trail.STATIC_DAILY_TASKS]
+    assert [t["id"] for t in tasks[: len(static_ids)]] == static_ids
     assert all(not t["completed"] for t in tasks)
     assert response["xp"] == 0
     assert response["streak"] == 0
     daily_ids = _daily_ids(response)
+    for static_id in static_ids:
+        assert static_id in daily_ids
+    assert "demo_allowance_isa" in daily_ids
+    assert "demo_allowance_pension" in daily_ids
     assert response["daily_totals"][response["today"]]["completed"] == 0
     assert response["daily_totals"][response["today"]]["total"] == len(daily_ids)
 
@@ -56,6 +55,24 @@ def test_get_tasks_returns_defaults(memory_storage):
     assert stored["streak"] == 0
     assert stored["daily_totals"][response["today"]]["completed"] == 0
     assert stored["daily_totals"][response["today"]]["total"] == len(daily_ids)
+
+    once_ids = _once_ids(response)
+    assert once_ids == [
+        "create_goal",
+        "enable_push_notifications",
+        "set_alert_threshold",
+    ]
+
+
+def test_get_tasks_includes_static_tasks_without_data(memory_storage, monkeypatch):
+    static_ids = [task.id for task in trail.STATIC_DAILY_TASKS]
+    monkeypatch.setattr(trail, "_owners_for_user", lambda user: [])
+
+    response = trail.get_tasks("demo")
+    daily_ids = _daily_ids(response)
+
+    assert daily_ids == static_ids
+    assert response["daily_totals"][response["today"]]["total"] == len(static_ids)
 
 
 def test_get_tasks_upgrades_legacy_records(memory_storage):

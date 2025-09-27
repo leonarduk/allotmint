@@ -253,30 +253,29 @@ def _list_local_plots(
     if not allow_fallback_demo:
         return results
 
-    fallback_demo = _load_demo_owner(fallback_root)
-    fallback_meta = load_person_meta("demo", fallback_root) if fallback_demo else {}
+    def _attach_demo_from(root: Optional[Path]) -> bool:
+        if not root:
+            return False
+        demo_entry = _load_demo_owner(root)
+        if not demo_entry:
+            return False
+        meta = load_person_meta("demo", root)
+        if not _is_authorized("demo", meta):
+            return False
+        results.append(demo_entry)
+        owners_index["demo"] = demo_entry
+        return True
+
     if "demo" in owners_index:
-        _merge_accounts(owners_index["demo"], fallback_demo)
+        if allow_fallback_demo:
+            fallback_demo = _load_demo_owner(fallback_root)
+            _merge_accounts(owners_index["demo"], fallback_demo)
     else:
-        if (
-            fallback_demo
-            and config.disable_auth
-            and _is_authorized("demo", fallback_meta)
-        ):
-            results.append(fallback_demo)
-            owners_index["demo"] = fallback_demo
-        elif include_demo_primary:
-            primary_demo = _load_demo_owner(primary_root)
-            primary_meta = (
-                load_person_meta("demo", primary_root) if primary_demo else {}
-            )
-            if (
-                primary_demo
-                and config.disable_auth
-                and _is_authorized("demo", primary_meta)
-            ):
-                results.append(primary_demo)
-                owners_index["demo"] = primary_demo
+        if allow_fallback_demo and config.disable_auth:
+            if _attach_demo_from(fallback_root):
+                allow_fallback_demo = False
+        if (config.disable_auth or include_demo_primary) and "demo" not in owners_index:
+            _attach_demo_from(primary_root if include_demo_primary else fallback_root)
 
     def _lookup_meta(owner: str) -> Dict[str, Any]:
         """Load metadata for ``owner`` from known search roots."""

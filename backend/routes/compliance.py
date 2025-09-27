@@ -123,7 +123,7 @@ async def validate_trade(request: Request):
             raise_owner_not_found()
         trade["owner"] = owner_value
     try:
-        return compliance.check_trade(
+        result = compliance.check_trade(
             trade,
             accounts_root,
             scaffold_missing=scaffold_missing,
@@ -132,3 +132,11 @@ async def validate_trade(request: Request):
         raise_owner_not_found()
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if scaffold_missing:
+        try:
+            compliance.ensure_owner_scaffold(trade["owner"], accounts_root)
+        except Exception:
+            logger.warning("failed to scaffold compliance data for %s", trade.get("owner"))
+
+    return result

@@ -240,7 +240,7 @@ def _list_local_plots(
     else:
         if (
             fallback_demo
-            and not config.disable_auth
+            and config.disable_auth
             and _is_authorized("demo", fallback_meta)
         ):
             results.append(fallback_demo)
@@ -252,7 +252,7 @@ def _list_local_plots(
             )
             if (
                 primary_demo
-                and not config.disable_auth
+                and config.disable_auth
                 and _is_authorized("demo", primary_meta)
             ):
                 results.append(primary_demo)
@@ -261,7 +261,7 @@ def _list_local_plots(
     if same_root:
         return results
 
-    if "demo" not in owners_index and not config.disable_auth:
+    if "demo" not in owners_index and config.disable_auth:
         primary_demo = _load_demo_owner(primary_root)
         primary_meta = (
             load_person_meta("demo", primary_root) if primary_demo else {}

@@ -233,6 +233,10 @@ def _list_local_plots(
         str(entry.get("owner", "")).lower(): entry for entry in results
     }
 
+    allow_fallback_demo = data_root is None or not results
+    if not allow_fallback_demo:
+        return results
+
     fallback_demo = _load_demo_owner(fallback_root)
     fallback_meta = load_person_meta("demo", fallback_root) if fallback_demo else {}
     if "demo" in owners_index:

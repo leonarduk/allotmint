@@ -113,6 +113,7 @@ class Config:
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
     google_client_id: Optional[str] = None
+    allowed_emails: Optional[List[str]] = None
     relative_view_enabled: Optional[bool] = None
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
@@ -148,6 +149,17 @@ class Config:
     tabs: TabsConfig = field(default_factory=TabsConfig)
     trading_agent: TradingAgentConfig = field(default_factory=TradingAgentConfig)
     cors_origins: Optional[List[str]] = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_allowed_emails_overridden", False)
+        object.__setattr__(self, "_initialised", True)
+
+    def __setattr__(self, name: str, value: Any) -> None:  # type: ignore[override]
+        object.__setattr__(self, name, value)
+        if name in {"_allowed_emails_overridden", "_initialised"}:
+            return
+        if name == "allowed_emails" and self.__dict__.get("_initialised", False):
+            object.__setattr__(self, "_allowed_emails_overridden", True)
 
 
 def _project_config_path() -> Path:
@@ -300,6 +312,16 @@ def load_config() -> Config:
     if isinstance(google_client_id, str):
         google_client_id = google_client_id.strip() or None
 
+    allowed_emails_raw = _parse_str_list(data.get("allowed_emails"))
+    allowed_emails = None
+    if allowed_emails_raw is not None:
+        allowed_emails = [email.lower() for email in allowed_emails_raw]
+
+    env_allowed_emails = os.getenv("ALLOWED_EMAILS")
+    if env_allowed_emails is not None:
+        env_allowed = [item.strip().lower() for item in env_allowed_emails.split(",") if item.strip()]
+        allowed_emails = env_allowed or []
+
     validate_google_auth(google_auth_enabled, google_client_id)
 
     # Optional env override for Alpha Vantage API key to avoid committing secrets
@@ -328,6 +350,7 @@ def load_config() -> Config:
         disable_auth=data.get("disable_auth"),
         google_auth_enabled=google_auth_enabled,
         google_client_id=google_client_id,
+        allowed_emails=allowed_emails,
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),
         timeseries_cache_base=timeseries_cache_base,
@@ -365,7 +388,15 @@ def reload_config() -> Config:
     load_config.cache_clear()
     new_config = load_config()
     if isinstance(config, Config):
+        allowed_override = config.allowed_emails
+        preserve_allowed = getattr(config, "_allowed_emails_overridden", False) and (
+            allowed_override != new_config.allowed_emails
+        )
         config.__dict__.update(new_config.__dict__)
+        if preserve_allowed:
+            config.allowed_emails = allowed_override
+        else:
+            object.__setattr__(config, "_allowed_emails_overridden", False)
         settings = config
         return config
     config = settings = new_config

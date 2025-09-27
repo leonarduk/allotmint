@@ -193,7 +193,16 @@ def _resolve_cache_exchange(
 
     loader_exchange = _resolve_loader_exchange(ticker, exchange_arg, symbol, resolved_exchange)
     explicit_exchange = _explicit_exchange_from_ticker(ticker)
-    cache_exchange = metadata_exchange or explicit_exchange or loader_exchange or ""
+
+    # When the caller provides an explicit exchange (via argument or ticker
+    # suffix) we honour metadata overrides, otherwise we avoid pulling the
+    # metadata exchange into cache lookups to prevent unexpected cross-market
+    # results for bare symbols.
+    has_explicit_context = bool(explicit_exchange or (exchange_arg or "").strip())
+    if has_explicit_context:
+        cache_exchange = metadata_exchange or explicit_exchange or loader_exchange or ""
+    else:
+        cache_exchange = loader_exchange or ""
 
     if metadata_exchange and loader_exchange and loader_exchange != metadata_exchange:
         logger.debug(

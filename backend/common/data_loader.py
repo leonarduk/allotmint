@@ -224,23 +224,26 @@ def _list_local_plots(
         str(entry.get("owner", "")).lower(): entry for entry in results
     }
 
-    fallback_demo = _load_demo_owner(fallback_root)
-    if "demo" in owners_index:
-        _merge_accounts(owners_index["demo"], fallback_demo)
-    else:
-        if fallback_demo:
-            results.append(fallback_demo)
-            owners_index["demo"] = fallback_demo
-        elif include_demo_primary:
-            primary_demo = _load_demo_owner(primary_root)
-            if primary_demo:
-                results.append(primary_demo)
-                owners_index["demo"] = primary_demo
+    explicit_data_root = data_root is not None
+
+    if not explicit_data_root:
+        fallback_demo = _load_demo_owner(fallback_root)
+        if "demo" in owners_index:
+            _merge_accounts(owners_index["demo"], fallback_demo)
+        else:
+            if fallback_demo:
+                results.append(fallback_demo)
+                owners_index["demo"] = fallback_demo
+            elif include_demo_primary:
+                primary_demo = _load_demo_owner(primary_root)
+                if primary_demo:
+                    results.append(primary_demo)
+                    owners_index["demo"] = primary_demo
 
     if same_root:
         return results
 
-    if "demo" not in owners_index:
+    if not explicit_data_root and "demo" not in owners_index:
         primary_demo = _load_demo_owner(primary_root)
         if primary_demo:
             results.append(primary_demo)

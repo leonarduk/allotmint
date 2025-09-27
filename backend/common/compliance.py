@@ -52,6 +52,9 @@ def _ensure_owner_scaffold(owner: str, owner_dir: Path) -> None:
         "settings.json": _default_settings_payload(),
         "approvals.json": {"approvals": []},
         "person.json": {
+            "dob": "",
+            "email": "",
+            "full_name": "",
             "owner": owner,
             "holdings": [],
             "viewers": [],

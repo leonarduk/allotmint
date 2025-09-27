@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import type { PluginOption } from 'vite'
+import type { UserConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
@@ -79,7 +80,7 @@ export default defineConfig(({ command }) => {
     }
   }
 
-  const config = {
+  const config: UserConfig = {
     plugins,
     resolve: {
       alias: {
@@ -105,13 +106,15 @@ export default defineConfig(({ command }) => {
       setupFiles: './src/setupTests.ts',
       include: ['tests/unit/**/*.test.ts?(x)'],
       coverage: {
-        provider: 'v8' as const,
+        provider: 'v8',
         reporter: ['text', 'html'],
-        lines: 85,
-        functions: 85,
-        branches: 85,
-        statements: 85,
-        include: ['tests/unit/**/*.test.ts?(x)']
+        include: ['tests/unit/**/*.test.ts?(x)'],
+        thresholds: {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85
+        }
       }
     }
   }

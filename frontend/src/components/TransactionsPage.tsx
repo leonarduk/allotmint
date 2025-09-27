@@ -283,7 +283,8 @@ export function TransactionsPage({ owners }: Props) {
       );
       setNewFees(tx.fees != null ? String(tx.fees) : "");
       setNewComments(tx.comments ?? "");
-      setNewReason(tx.reason ?? tx.reason_to_buy ?? "");
+      const legacyReason = (tx as { reason_to_buy?: string | null }).reason_to_buy;
+      setNewReason(tx.reason ?? legacyReason ?? "");
       setFormError(null);
       setFormSuccess(null);
     },

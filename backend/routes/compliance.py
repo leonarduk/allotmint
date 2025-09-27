@@ -119,6 +119,8 @@ async def validate_trade(request: Request):
             raise_owner_not_found()
         trade["owner"] = canonical_owner
     else:
+        if owners:
+            raise_owner_not_found()
         trade["owner"] = owner_value
     try:
         return compliance.check_trade(

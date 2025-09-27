@@ -25,20 +25,20 @@ def _known_owners(accounts_root) -> set[str]:
         if owner:
             owners.add(owner.lower())
 
-    if owners:
-        return owners
-
     try:
-        root_path = Path(accounts_root) if accounts_root else data_loader.resolve_paths(None, None).accounts_root
+        root_path = (
+            Path(accounts_root)
+            if accounts_root
+            else data_loader.resolve_paths(None, None).accounts_root
+        )
     except Exception:
-        return owners
+        root_path = None
 
-    if not root_path or not root_path.exists():
-        return owners
+    if root_path and root_path.exists():
+        for entry in root_path.iterdir():
+            if entry.is_dir():
+                owners.add(entry.name.lower())
 
-    for entry in root_path.iterdir():
-        if entry.is_dir():
-            owners.add(entry.name.lower())
     return owners
 
 

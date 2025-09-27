@@ -56,6 +56,59 @@ def test_run_all_tickers_prefers_metadata_exchange_for_cache():
     assert calls == [("AAA", "L", 7), ("BBB", "Q", 7)]
 
 
+def test_run_all_tickers_resets_cache_exchange_after_metadata_removed(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    monkeypatch.setattr(fmt, "INSTRUMENTS_DIR", tmp_path / "instruments")
+    instruments_dir = fmt.INSTRUMENTS_DIR / "L"
+    instruments_dir.mkdir(parents=True)
+    (instruments_dir / "AAA.json").write_text("{}", encoding="utf-8")
+
+    fmt._resolve_exchange_from_metadata_cached.cache_clear()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["AAA"], days=5)
+
+    assert calls == [("AAA", "L", 5)]
+
+    calls.clear()
+    (instruments_dir / "AAA.json").unlink()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.run_all_tickers(["AAA"], days=5)
+
+    assert calls == [("AAA", "", 5)]
+
+
+def test_run_all_tickers_drops_cached_exchange_when_metadata_blank():
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    fmt._resolve_exchange_from_metadata_cached.cache_clear()
+
+    with patch.object(fmt, "_resolve_exchange_from_metadata", return_value="L"):
+        with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+            fmt.run_all_tickers(["AAA"], days=5)
+
+    assert calls == [("AAA", "L", 5)]
+
+    calls.clear()
+    fmt._resolve_exchange_from_metadata_cached.cache_clear()
+
+    with patch.object(fmt, "_resolve_exchange_from_metadata", return_value=""):
+        with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+            fmt.run_all_tickers(["AAA"], days=5)
+
+    assert calls == [("AAA", "", 5)]
+
+
 def test_load_timeseries_data_filters_and_warnings(monkeypatch, caplog):
     calls = []
 
@@ -120,5 +173,30 @@ def test_load_timeseries_data_handles_stale_metadata(monkeypatch, tmp_path):
 
     with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
         fmt.load_timeseries_data(["AAA"], days=5)
+
+    assert calls == [("AAA", "", 5)]
+
+
+def test_load_timeseries_data_drops_cached_exchange_when_metadata_blank():
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    fmt._resolve_exchange_from_metadata_cached.cache_clear()
+
+    with patch.object(fmt, "_resolve_exchange_from_metadata", return_value="L"):
+        with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+            fmt.load_timeseries_data(["AAA"], days=5)
+
+    assert calls == [("AAA", "L", 5)]
+
+    calls.clear()
+    fmt._resolve_exchange_from_metadata_cached.cache_clear()
+
+    with patch.object(fmt, "_resolve_exchange_from_metadata", return_value=""):
+        with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+            fmt.load_timeseries_data(["AAA"], days=5)
 
     assert calls == [("AAA", "", 5)]

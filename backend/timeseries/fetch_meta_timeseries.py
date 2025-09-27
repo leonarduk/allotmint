@@ -99,22 +99,18 @@ def _resolve_exchange_from_metadata(symbol: str) -> str:
     dirs = tuple(str(path) for path in _instrument_dirs())
     exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
 
-    if exchange:
-        if source_dir:
-            # ``source_dir`` records the exact exchange directory that supplied
-            # the cached result so we can re-check that location for subsequent
-            # calls. This prevents stale metadata from leaking in when the
-            # cache is populated from a temporary test directory but another
-            # search path still contains a matching file.
-            source_path = Path(source_dir)
-            if not _metadata_entry_exists_in_directory(symbol, source_path):
-                _resolve_exchange_from_metadata_cached.cache_clear()
-                exchange, source_dir = _resolve_exchange_from_metadata_cached(
-                    symbol, dirs
-                )
-        elif not _metadata_entry_exists(symbol, exchange, dirs):
-            _resolve_exchange_from_metadata_cached.cache_clear()
-            exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
+    def _is_valid(entry_exchange: str, entry_dir: str) -> bool:
+        if not entry_exchange:
+            return False
+        if entry_dir:
+            return _metadata_entry_exists_in_directory(symbol, Path(entry_dir))
+        return _metadata_entry_exists(symbol, entry_exchange, dirs)
+
+    if exchange and not _is_valid(exchange, source_dir):
+        _resolve_exchange_from_metadata_cached.cache_clear()
+        exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
+        if exchange and not _is_valid(exchange, source_dir):
+            exchange = ""
 
     return exchange or ""
 
@@ -280,7 +276,7 @@ def _resolve_cache_exchange(
         cache_exchange = explicit_exchange
     elif provided_exchange:
         cache_exchange = provided_exchange
-    elif loader_exchange:
+    elif loader_exchange and (metadata_exchange or explicit_exchange or provided_exchange):
         cache_exchange = loader_exchange
     else:
         cache_exchange = ""

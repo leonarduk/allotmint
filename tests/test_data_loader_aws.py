@@ -43,7 +43,9 @@ def test_list_aws_plots(monkeypatch):
         {"owner": "Alice", "accounts": ["ISA"]},
         {"owner": "Bob", "accounts": ["GIA"]},
     ]
-    assert dl._list_aws_plots() == expected
+    owners = dl._list_aws_plots()
+    assert owners == expected
+    assert all("full_name" not in entry for entry in owners)
 
 
 def test_list_aws_plots_missing_boto(monkeypatch, cleanup_boto3_module):
@@ -99,7 +101,9 @@ def test_list_aws_plots_filters_without_auth(monkeypatch):
         {"owner": "Alice", "accounts": ["ISA"]},
         {"owner": "Bob", "accounts": ["GIA"]},
     ]
-    assert dl._list_aws_plots(current_user="Bob") == expected
+    owners = dl._list_aws_plots(current_user="Bob")
+    assert owners == expected
+    assert all("full_name" not in entry for entry in owners)
 
 
 def test_list_aws_plots_filters_special_directories(monkeypatch):
@@ -125,7 +129,9 @@ def test_list_aws_plots_filters_special_directories(monkeypatch):
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     expected = [{"owner": "Real", "accounts": ["GIA"]}]
-    assert dl._list_aws_plots() == expected
+    owners = dl._list_aws_plots()
+    assert owners == expected
+    assert all("full_name" not in entry for entry in owners)
 
 
 def test_list_aws_plots_pagination(monkeypatch):
@@ -182,7 +188,9 @@ def test_list_aws_plots_pagination(monkeypatch):
         {"owner": "Carol", "accounts": ["401k"]},
     ]
 
-    assert dl._list_aws_plots() == expected
+    owners = dl._list_aws_plots()
+    assert owners == expected
+    assert all("full_name" not in entry for entry in owners)
     assert len(calls) == 3
 
 

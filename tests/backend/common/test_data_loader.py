@@ -9,6 +9,7 @@ from backend.common.data_loader import (
     ResolvedPaths,
     _list_local_plots,
     _safe_json_load,
+    list_plots,
     load_person_meta,
     load_virtual_portfolio,
     resolve_paths,
@@ -207,6 +208,23 @@ class TestListLocalPlots:
         _write_owner(data_root, "carol", ["gamma"], viewers=["other"])
 
         result = _list_local_plots(data_root=data_root, current_user=None)
+
+        assert result == [
+            {"owner": "carol", "accounts": ["gamma"]},
+            {"owner": "demo", "accounts": ["demo1"]},
+        ]
+
+    def test_list_plots_with_explicit_root_keeps_demo(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        repo_root = tmp_path / "repo"
+        accounts_root = repo_root / "accounts"
+        accounts_root.mkdir(parents=True, exist_ok=True)
+        self._configure(monkeypatch, repo_root, accounts_root, disable_auth=True)
+
+        explicit_root = tmp_path / "custom_accounts"
+        _write_owner(explicit_root, "demo", ["demo1"], viewers=[])
+        _write_owner(explicit_root, "carol", ["gamma"], viewers=[])
+
+        result = list_plots(data_root=explicit_root, current_user=None)
 
         assert result == [
             {"owner": "carol", "accounts": ["gamma"]},

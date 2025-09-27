@@ -25,7 +25,10 @@ def test_list_local_plots_filters_special_directories(tmp_path, monkeypatch):
     monkeypatch.setattr(dl.config, "disable_auth", True, raising=False)
 
     owners = dl._list_local_plots(data_root=tmp_path, current_user=None)
-    assert owners == [{"owner": "alice", "accounts": ["isa"]}]
+    assert owners == [
+        {"owner": "alice", "accounts": ["isa"]},
+        {"owner": "demo", "accounts": ["demo"]},
+    ]
 
 
 def test_list_local_plots_authenticated(tmp_path, monkeypatch):

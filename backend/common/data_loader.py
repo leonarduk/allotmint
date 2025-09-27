@@ -425,7 +425,16 @@ def list_plots(
     """
 
     if config.app_env == "aws":
-        return _list_aws_plots(current_user)
+        bucket = os.getenv(DATA_BUCKET_ENV)
+        if bucket:
+            aws_results = _list_aws_plots(current_user)
+            if aws_results or not data_root:
+                return aws_results
+        if data_root is None:
+            # Fall back to the configured repository data when no explicit root
+            # is supplied. This mirrors the non-AWS behaviour and keeps unit
+            # tests using temporary roots isolated from global data.
+            return _list_local_plots(None, current_user)
     return _list_local_plots(data_root, current_user)
 
 
@@ -450,26 +459,48 @@ def load_account(
     account: str,
     data_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
-    if config.app_env == "aws":
-        bucket = os.getenv(DATA_BUCKET_ENV)
-        if not bucket:
-            raise FileNotFoundError(f"Missing {DATA_BUCKET_ENV} env var for AWS account loading")
-        key = f"{PLOTS_PREFIX}{owner}/{account}.json"
+    local_root: Optional[Path] = data_root
+    if local_root is None:
         try:
-            import boto3  # type: ignore
+            local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+        except Exception:  # pragma: no cover - extremely defensive
+            local_root = None
 
-            obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
-        except Exception as exc:
-            raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
-        body = obj.get("Body")
-        txt = body.read().decode("utf-8-sig").strip() if body else ""
-        if not txt:
-            raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
-        data = json.loads(txt)
-        return data
+    bucket = os.getenv(DATA_BUCKET_ENV)
 
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    root = data_root or paths.accounts_root
+    if config.app_env == "aws":
+        if bucket:
+            key = f"{PLOTS_PREFIX}{owner}/{account}.json"
+            try:
+                import boto3  # type: ignore
+
+                obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load account data from s3://%s/%s: %s; falling back to local file",
+                    bucket,
+                    key,
+                    exc,
+                    exc_info=True,
+                )
+                if not local_root:
+                    raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
+            else:
+                body = obj.get("Body")
+                txt = body.read().decode("utf-8-sig").strip() if body else ""
+                if not txt:
+                    raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
+                data = json.loads(txt)
+                return data
+        elif not local_root:
+            raise FileNotFoundError(
+                f"Missing {DATA_BUCKET_ENV} env var for AWS account loading"
+            )
+
+    if not local_root:
+        raise FileNotFoundError(f"No account data available for owner '{owner}'")
+
+    root = local_root
     path = root / owner / f"{account}.json"
     data = _safe_json_load(path)
     return data
@@ -491,33 +522,46 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             meta["viewers"] = data.get("viewers", [])
         return meta
 
-    if config.app_env == "aws" or os.getenv(DATA_BUCKET_ENV):
-        bucket = os.getenv(DATA_BUCKET_ENV)
-        if not bucket:
-            return {}
-        key = f"{PLOTS_PREFIX}{owner}/person.json"
+    local_root: Optional[Path] = data_root
+    if local_root is None:
         try:
-            import boto3  # type: ignore
+            local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+        except Exception:  # pragma: no cover - extremely defensive
+            local_root = None
 
-            obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
-            body = obj.get("Body")
-            txt = body.read().decode("utf-8-sig").strip() if body else ""
-            if not txt:
-                return {}
-            data = json.loads(txt)
-            return _extract(data)
-        except Exception as exc:
-            logger.warning(
-                "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
-                bucket,
-                key,
-                exc,
-                exc_info=True,
-            )
-            if config.app_env == "aws" and data_root is None:
-                return {}
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    root = data_root or paths.accounts_root
+    has_local_fallback = local_root is not None
+    bucket = os.getenv(DATA_BUCKET_ENV)
+
+    if config.app_env == "aws" or bucket:
+        if bucket:
+            key = f"{PLOTS_PREFIX}{owner}/person.json"
+            try:
+                import boto3  # type: ignore
+
+                obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+                body = obj.get("Body")
+                txt = body.read().decode("utf-8-sig").strip() if body else ""
+                if not txt:
+                    return {}
+                data = json.loads(txt)
+                return _extract(data)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
+                    bucket,
+                    key,
+                    exc,
+                    exc_info=True,
+                )
+                if config.app_env == "aws" and not has_local_fallback:
+                    return {}
+        elif config.app_env == "aws" and not has_local_fallback:
+            return {}
+
+    if not local_root:
+        return {}
+
+    root = local_root
     path = root / owner / "person.json"
     if not path.exists():
         return {}

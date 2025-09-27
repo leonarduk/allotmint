@@ -163,11 +163,7 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, st
 def _resolve_loader_exchange(
     ticker: str, exchange_arg: str | None, symbol: str, resolved_exchange: str
 ) -> str:
-    """Return the exchange to use when fetching cached data.
-
-    Explicit suffixes and ``exchange`` arguments take priority, otherwise fall
-    back to the previously resolved exchange (which may come from metadata).
-    """
+    """Return the exchange to use when fetching cached data."""
 
     parts = re.split(r"[._]", ticker, 1)
     suffix = parts[1].strip().upper() if len(parts) == 2 else ""
@@ -184,6 +180,30 @@ def _resolve_loader_exchange(
         return resolved or suffix
 
     return resolved
+
+
+def _resolve_cache_exchange(
+    ticker: str,
+    exchange_arg: str | None,
+    symbol: str,
+    resolved_exchange: str,
+    metadata_exchange: str,
+) -> str:
+    """Return the exchange code to use when reading from the cache."""
+
+    loader_exchange = _resolve_loader_exchange(ticker, exchange_arg, symbol, resolved_exchange)
+    explicit_exchange = _explicit_exchange_from_ticker(ticker)
+    cache_exchange = metadata_exchange or explicit_exchange or loader_exchange or ""
+
+    if metadata_exchange and loader_exchange and loader_exchange != metadata_exchange:
+        logger.debug(
+            "Cache exchange mismatch for %s: loader %s vs metadata %s",
+            symbol,
+            loader_exchange,
+            metadata_exchange or "<empty>",
+        )
+
+    return cache_exchange
 
 
 def _explicit_exchange_from_ticker(ticker: str) -> str:
@@ -381,16 +401,7 @@ def run_all_tickers(
             time.sleep(delay)
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
-        loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
-        explicit_exchange = _explicit_exchange_from_ticker(t)
-        cache_exchange = meta_exchange or explicit_exchange or loader_exchange or ""
-        if meta_exchange and loader_exchange and loader_exchange != meta_exchange:
-            logger.debug(
-                "Cache exchange mismatch for %s: loader %s vs metadata %s",
-                sym,
-                loader_exchange,
-                meta_exchange or "<empty>",
-            )
+        cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
             if not load_meta_timeseries(sym, cache_exchange, days).empty:
                 ok.append(t)
@@ -411,16 +422,7 @@ def load_timeseries_data(
     for t in tickers:
         sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
-        loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
-        explicit_exchange = _explicit_exchange_from_ticker(t)
-        cache_exchange = meta_exchange or explicit_exchange or loader_exchange or ""
-        if meta_exchange and loader_exchange and loader_exchange != meta_exchange:
-            logger.debug(
-                "Cache exchange mismatch for %s: loader %s vs metadata %s",
-                sym,
-                loader_exchange,
-                meta_exchange or "<empty>",
-            )
+        cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
             df = load_meta_timeseries(sym, cache_exchange, days)
             if not df.empty:

@@ -26,6 +26,7 @@ def _write_owner(
     viewers: list[str] | None = None,
     *,
     email: str | None = None,
+    full_name: str | None = None,
 ) -> None:
     owner_dir = root / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
@@ -34,6 +35,8 @@ def _write_owner(
     meta: dict[str, object] = {"viewers": viewers_data}
     if email:
         meta["email"] = email
+    if full_name:
+        meta["full_name"] = full_name
     person_path.write_text(json.dumps(meta))
     for account in accounts:
         (owner_dir / f"{account}.json").write_text("{}")
@@ -81,6 +84,16 @@ class TestLoadPersonMeta:
 
         assert meta == {}
         assert meta.get("viewers", []) == []
+
+    def test_extracts_full_name_when_present(self, tmp_path: Path) -> None:
+        owner_dir = tmp_path / "alice"
+        owner_dir.mkdir()
+        person_path = owner_dir / "person.json"
+        person_path.write_text(json.dumps({"full_name": "Alice Example", "viewers": []}))
+
+        meta = load_person_meta("alice", data_root=tmp_path)
+
+        assert meta["full_name"] == "Alice Example"
 
 
 class TestResolvePaths:
@@ -179,7 +192,7 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user="viewer")
 
         assert result == [
-            {"owner": "alice", "accounts": ["alpha"]},
+            {"owner": "alice", "full_name": "alice", "accounts": ["alpha"]},
         ]
 
     def test_accepts_contextvar_current_user(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -197,7 +210,25 @@ class TestListLocalPlots:
             user_var.reset(token)
 
         assert result == [
-            {"owner": "alice", "accounts": ["alpha"]},
+            {"owner": "alice", "full_name": "alice", "accounts": ["alpha"]},
+        ]
+
+    def test_includes_full_name_from_metadata(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        data_root = tmp_path / "accounts"
+        self._configure(monkeypatch, tmp_path, data_root, disable_auth=True)
+
+        _write_owner(
+            data_root,
+            "carol",
+            ["gamma"],
+            viewers=[],
+            full_name="Carol Example",
+        )
+
+        result = _list_local_plots(data_root=data_root, current_user=None)
+
+        assert result == [
+            {"owner": "carol", "full_name": "Carol Example", "accounts": ["gamma"]},
         ]
 
     def test_skips_metadata_and_transaction_exports(
@@ -223,7 +254,11 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user=None)
 
         assert result == [
-            {"owner": "charlie", "accounts": ["brokerage", "isa"]},
+            {
+                "owner": "charlie",
+                "full_name": "charlie",
+                "accounts": ["brokerage", "isa"],
+            },
         ]
 
     def test_authentication_disabled_allows_anonymous_access(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -236,7 +271,7 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user=None)
 
         assert result == [
-            {"owner": "carol", "accounts": ["gamma"]},
+            {"owner": "carol", "full_name": "carol", "accounts": ["gamma"]},
         ]
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
@@ -253,7 +288,7 @@ class TestListLocalPlots:
         result = list_plots(data_root=explicit_root, current_user=None)
 
         assert result == [
-            {"owner": "carol", "accounts": ["gamma"]},
+            {"owner": "carol", "full_name": "carol", "accounts": ["gamma"]},
         ]
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
@@ -275,5 +310,5 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user="alice@example.com")
 
         assert result == [
-            {"owner": "alice", "accounts": ["alpha"]},
+            {"owner": "alice", "full_name": "alice", "accounts": ["alpha"]},
         ]

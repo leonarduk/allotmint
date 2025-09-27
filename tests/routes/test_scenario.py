@@ -6,10 +6,10 @@ from backend.routes import scenario
 
 def test_run_scenario_multiple_owners_and_missing_data(monkeypatch):
     plots = [
-        {"owner": "alice", "accounts": [{"id": 1}]},
-        {"owner": "bob", "accounts": [{"id": 2}]},
-        {"owner": "carol", "accounts": []},
-        {"owner": "dave"},
+        {"owner": "alice", "full_name": "Alice Example", "accounts": [{"id": 1}]},
+        {"owner": "bob", "full_name": "Bob Example", "accounts": [{"id": 2}]},
+        {"owner": "carol", "full_name": "Carol Example", "accounts": []},
+        {"owner": "dave", "full_name": "Dave Example"},
     ]
 
     monkeypatch.setattr(scenario, "list_plots", lambda: plots)
@@ -60,7 +60,7 @@ def test_run_historical_scenario_valid_horizons(monkeypatch):
     monkeypatch.setattr(
         scenario,
         "list_plots",
-        lambda: [{"owner": "alice", "accounts": [{"id": 1}]}],
+        lambda: [{"owner": "alice", "full_name": "Alice Example", "accounts": [{"id": 1}]}],
     )
 
     def fake_build_owner_portfolio(owner):

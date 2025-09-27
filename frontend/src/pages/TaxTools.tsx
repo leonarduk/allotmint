@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAllowances, harvestTax } from "../api";
 import EmptyState from "../components/EmptyState";
+import { useRoute } from "../RouteContext";
 
 type Position = {
   ticker: string;
@@ -20,6 +21,12 @@ type AllowanceInfo = {
 };
 
 type AllowanceMap = Record<string, AllowanceInfo>;
+
+type AllowanceResponse = {
+  owner: string;
+  tax_year: string;
+  allowances: AllowanceMap;
+};
 
 interface HarvestFormState {
   ticker: string;
@@ -178,21 +185,39 @@ function TaxHarvestSection() {
   );
 }
 
+const currencyFormatter = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "GBP",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 function formatAllowanceValue(value: number) {
-  return value.toFixed(2);
+  return currencyFormatter.format(value);
 }
 
 function TaxAllowancesSection() {
-  const [data, setData] = useState<AllowanceMap | null>(null);
+  const { selectedOwner } = useRoute();
+  const [data, setData] = useState<AllowanceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
-    getAllowances()
+    if (!selectedOwner) {
+      setData(null);
+      setError(null);
+      setLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setLoading(true);
+    getAllowances(selectedOwner)
       .then((response) => {
         if (!isMounted) return;
-        setData(response.allowances);
+        setData(response);
         setError(null);
       })
       .catch(() => {
@@ -207,11 +232,44 @@ function TaxAllowancesSection() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [selectedOwner]);
+
+  if (!selectedOwner) {
+    return (
+      <section aria-labelledby="tax-allowances-heading" className="flex flex-col gap-4">
+        <div>
+          <h2 id="tax-allowances-heading" className="text-xl md:text-2xl">
+            Tax Allowances
+          </h2>
+          <p className="text-sm text-gray-500">
+            Track how much of each allowance you have used and what remains.
+          </p>
+        </div>
+        <EmptyState message="Choose a portfolio owner to see their allowance usage." />
+      </section>
+    );
+  }
 
   if (loading) return <p>Loading...</p>;
   if (error) return <p className="text-red-500">{error}</p>;
   if (!data) return <EmptyState message="No data" />;
+
+  const entries = Object.entries(data.allowances);
+  const totals = entries.reduce(
+    (acc, [, info]) => {
+      return {
+        used: acc.used + info.used,
+        limit: acc.limit + info.limit,
+        remaining: acc.remaining + Math.max(info.remaining, 0),
+      };
+    },
+    { used: 0, limit: 0, remaining: 0 },
+  );
+
+  const outstandingAllowances = entries
+    .filter(([, info]) => info.remaining > 0)
+    .map(([type, info]) => `${type.toUpperCase()} (${formatAllowanceValue(info.remaining)})`)
+    .join(", ");
 
   return (
     <section aria-labelledby="tax-allowances-heading" className="flex flex-col gap-4">
@@ -223,22 +281,67 @@ function TaxAllowancesSection() {
           Track how much of each allowance you have used and what remains.
         </p>
       </div>
+      <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+        <div className="flex flex-wrap gap-3">
+          <span>Tax year {data.tax_year}</span>
+          <span>
+            Used {formatAllowanceValue(totals.used)} of {formatAllowanceValue(totals.limit)} total
+          </span>
+          <span>
+            {totals.remaining > 0
+              ? `Outstanding: ${outstandingAllowances || formatAllowanceValue(totals.remaining)}`
+              : "All allowances fully used"}
+          </span>
+        </div>
+      </div>
       <table className="min-w-full border-collapse border border-gray-300">
         <thead>
           <tr>
             <th className="border p-2 text-left">Account</th>
+            <th className="border p-2 text-right">Limit</th>
             <th className="border p-2 text-right">Used</th>
             <th className="border p-2 text-right">Available</th>
+            <th className="border p-2 text-right">Usage</th>
           </tr>
         </thead>
         <tbody>
-          {Object.entries(data).map(([type, info]) => (
-            <tr key={type}>
-              <td className="border p-2 capitalize">{type}</td>
-              <td className="border p-2 text-right">{formatAllowanceValue(info.used)}</td>
-              <td className="border p-2 text-right">{formatAllowanceValue(info.remaining)}</td>
-            </tr>
-          ))}
+          {entries.map(([type, info]) => {
+            const percentUsed = info.limit > 0 ? (info.used / info.limit) * 100 : info.used > 0 ? 100 : 0;
+            const clampedPercent = Math.min(Math.max(percentUsed, 0), 100);
+            const roundedPercent = Math.round(percentUsed);
+            let progressColor = "bg-emerald-500";
+            let textColor = "text-emerald-600";
+            if (percentUsed >= 100) {
+              progressColor = "bg-red-500";
+              textColor = "text-red-600";
+            } else if (percentUsed >= 90) {
+              progressColor = "bg-amber-500";
+              textColor = "text-amber-600";
+            }
+
+            return (
+              <tr key={type}>
+                <td className="border p-2 capitalize">{type}</td>
+                <td className="border p-2 text-right">{formatAllowanceValue(info.limit)}</td>
+                <td className="border p-2 text-right">{formatAllowanceValue(info.used)}</td>
+                <td className="border p-2 text-right">{formatAllowanceValue(info.remaining)}</td>
+                <td className="border p-2 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <div className="h-2 w-24 rounded-full bg-gray-200" aria-hidden="true">
+                      <div
+                        className={`h-2 rounded-full ${progressColor}`}
+                        style={{ width: `${clampedPercent}%` }}
+                      />
+                    </div>
+                    <span className={`text-xs font-medium ${textColor}`}>{roundedPercent}%</span>
+                  </div>
+                  <span className="sr-only">
+                    Used {formatAllowanceValue(info.used)} of {formatAllowanceValue(info.limit)} ({roundedPercent}%)
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </section>

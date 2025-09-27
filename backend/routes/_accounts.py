@@ -31,7 +31,7 @@ def resolve_accounts_root(request: Request) -> Path:
             cached_path = None
             resolved_cached = None
         else:
-            if cached_path.exists() and cached_path.is_dir():
+            if resolved_cached is not None:
                 request.app.state.accounts_root = resolved_cached
                 if hasattr(request.app.state, "accounts_root_is_global"):
                     request.app.state.accounts_root_is_global = False

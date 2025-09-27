@@ -193,7 +193,12 @@ def _resolve_cache_exchange(
 
     loader_exchange = _resolve_loader_exchange(ticker, exchange_arg, symbol, resolved_exchange)
     explicit_exchange = _explicit_exchange_from_ticker(ticker)
-    cache_exchange = metadata_exchange or explicit_exchange or loader_exchange or ""
+    cache_exchange = (
+        explicit_exchange
+        or loader_exchange
+        or metadata_exchange
+        or ""
+    )
 
     if metadata_exchange and loader_exchange and loader_exchange != metadata_exchange:
         logger.debug(

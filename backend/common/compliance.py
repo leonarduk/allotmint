@@ -113,7 +113,8 @@ def load_transactions(
     if not owner_dir.exists():
         if not scaffold_missing:
             raise FileNotFoundError(owner_dir)
-        _ensure_owner_scaffold(owner, owner_dir)
+        if owner_dir.parent.exists():
+            _ensure_owner_scaffold(owner, owner_dir)
         return []
 
     _ensure_owner_scaffold(owner, owner_dir)

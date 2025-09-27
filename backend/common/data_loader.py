@@ -221,12 +221,28 @@ def _list_local_plots(
 
     results = _discover(primary_root, include_demo=include_demo_primary)
 
-    # When an explicit ``data_root`` is provided treat it as authoritative and
-    # avoid blending in accounts from the repository fallback tree.  This keeps
-    # unit tests (which use temporary roots) isolated from the real repository
-    # data and mirrors the expectation that callers passing a custom root only
-    # see data from that location.
+    # When an explicit ``data_root`` is provided treat it as the primary source
+    # but still merge in the bundled ``demo`` data when auth is disabled.  The
+    # demo owner is used extensively across integration tests and interactive
+    # sessions and should remain available even when callers scope discovery to
+    # a temporary root.
     if data_root is not None:
+        owners_index = {
+            str(entry.get("owner", "")).lower(): entry for entry in results
+        }
+        if config.disable_auth:
+            fallback_paths = resolve_paths(None, None)
+            fallback_root = fallback_paths.accounts_root
+            fallback_demo = _load_demo_owner(fallback_root)
+            fallback_meta = (
+                load_person_meta("demo", fallback_root) if fallback_demo else {}
+            )
+            if fallback_demo and _is_authorized("demo", fallback_meta):
+                existing = owners_index.get("demo")
+                if existing:
+                    _merge_accounts(existing, fallback_demo)
+                else:
+                    results.append(fallback_demo)
         return results
 
     try:

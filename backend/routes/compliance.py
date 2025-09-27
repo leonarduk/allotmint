@@ -119,9 +119,15 @@ async def validate_trade(request: Request):
             raise_owner_not_found()
         trade["owner"] = canonical_owner
     else:
-        if owners:
+        if owners and owner_value.lower() not in owners:
             raise_owner_not_found()
         trade["owner"] = owner_value
+    if scaffold_missing and accounts_root:
+        try:
+            Path(accounts_root).mkdir(parents=True, exist_ok=True)
+        except Exception:
+            logger.warning("Failed to create accounts root %s", accounts_root)
+
     try:
         return compliance.check_trade(
             trade,

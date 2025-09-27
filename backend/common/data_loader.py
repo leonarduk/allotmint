@@ -226,7 +226,41 @@ def _list_local_plots(
 
     explicit_root = data_root is not None
 
-    include_demo_primary = bool(config.disable_auth)
+    try:
+        explicit_matches_fallback = (
+            explicit_root
+            and Path(data_root).expanduser().resolve() == fallback_root.resolve()
+        )
+    except Exception:
+        explicit_matches_fallback = False
+
+    try:
+        explicit_matches_config = (
+            explicit_root
+            and getattr(config, "accounts_root", None)
+            and Path(config.accounts_root).expanduser().resolve()
+            == Path(data_root).expanduser().resolve()
+        )
+    except Exception:
+        explicit_matches_config = False
+
+    try:
+        config_repo_matches_fallback = (
+            getattr(config, "repo_root", None)
+            and Path(config.repo_root).expanduser().resolve()
+            == fallback_paths.repo_root.resolve()
+        )
+    except Exception:
+        config_repo_matches_fallback = False
+
+    explicit_is_global = explicit_matches_fallback or (
+        explicit_matches_config and config_repo_matches_fallback
+    )
+
+    include_demo_primary = bool(config.disable_auth) and (
+        not explicit_root or explicit_is_global
+    )
+
     if not explicit_root and not include_demo_primary:
         try:
             include_demo_primary = primary_root.resolve() == fallback_root.resolve()
@@ -253,7 +287,10 @@ def _list_local_plots(
         str(entry.get("owner", "")).lower(): entry for entry in results
     }
 
-    allow_fallback_demo = (not explicit_root) or not results or config.disable_auth
+    if explicit_root and not explicit_is_global:
+        allow_fallback_demo = False
+    else:
+        allow_fallback_demo = bool(config.disable_auth) or not results
     if not allow_fallback_demo:
         return results
 

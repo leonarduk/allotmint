@@ -59,5 +59,6 @@ def test_s3_save_load_and_list(monkeypatch):
     assert resp.json()["tickers"] == BASE_QUERY["tickers"]
 
     resp = client.get("/custom-query/saved")
-    assert slug in resp.json()
+    saved_entries = resp.json()
+    assert any(entry["id"] == slug and entry["name"] == slug for entry in saved_entries)
 

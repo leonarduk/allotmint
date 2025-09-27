@@ -53,7 +53,8 @@ def test_save_and_load_query(client, tmp_path):
     assert data["tickers"] == BASE_QUERY["tickers"]
 
     resp = client.get("/custom-query/saved")
-    assert slug in resp.json()
+    saved_entries = resp.json()
+    assert any(entry["id"] == slug and entry["name"] == slug for entry in saved_entries)
 
 
 def test_unknown_metric_rejected(client):

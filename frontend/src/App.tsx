@@ -452,9 +452,146 @@ export default function App({ onLogout }: AppProps) {
     }
   }, [mode, selectedGroup]);
 
-  if (backendUnavailable) {
-    return <BackendUnavailableCard onRetry={handleRetry} />;
-  }
+  const renderMainContent = () => {
+    if (backendUnavailable) {
+      return <BackendUnavailableCard onRetry={handleRetry} />;
+    }
+
+    return (
+      <>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            margin: "1rem 0",
+          }}
+        >
+          <LanguageSwitcher />
+          <Menu
+            selectedOwner={selectedOwner}
+            selectedGroup={selectedGroup}
+            onLogout={onLogout}
+            style={{ margin: 0 }}
+          />
+          <InstrumentSearchBarToggle />
+          {mode === "owner" && (
+            <OwnerSelector
+              owners={owners}
+              selected={selectedOwner}
+              onSelect={setSelectedOwner}
+            />
+          )}
+          {lastRefresh && (
+            <span
+              style={{
+                background: "#eee",
+                borderRadius: "1rem",
+                padding: "0.25rem 0.5rem",
+                fontSize: "0.75rem",
+              }}
+              title={t("app.last") ?? undefined}
+            >
+              {new Date(lastRefresh).toLocaleString()}
+            </span>
+          )}
+          <button
+            aria-label="notifications"
+            onClick={() => setNotificationsOpen(true)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "1.5rem",
+            }}
+          >
+            🔔
+          </button>
+          <UserAvatar />
+        </div>
+        <NotificationsDrawer
+          open={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+        />
+
+        {/* OWNER VIEW */}
+        {mode === "owner" && (
+          <>
+            <OwnerSelector
+              owners={owners}
+              selected={selectedOwner}
+              onSelect={handleOwnerSelect}
+            />
+            <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
+            <PortfolioView data={portfolio} loading={loading} error={err} />
+          </>
+        )}
+
+        {/* GROUP VIEW */}
+        {mode === "group" && selectedGroup && (
+          <>
+            <ComplianceWarnings
+              owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
+            />
+            <GroupPortfolioView slug={selectedGroup} />
+          </>
+        )}
+
+        {/* INSTRUMENT VIEW */}
+        {mode === "instrument" && groups.length > 0 && (
+          <>
+            {err && <p style={{ color: "red" }}>{err}</p>}
+            {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
+          </>
+        )}
+
+        {/* PERFORMANCE VIEW */}
+        {mode === "performance" && (
+          <>
+            <OwnerSelector
+              owners={owners}
+              selected={selectedOwner}
+              onSelect={handleOwnerSelect}
+            />
+            <Suspense fallback={<PortfolioDashboardSkeleton />}>
+              <PerformanceDashboard owner={selectedOwner} />
+            </Suspense>
+          </>
+        )}
+
+        {mode === "transactions" && <TransactionsPage owners={owners} />}
+
+        {mode === "trading" && <Trading />}
+
+        {mode === "screener" && <ScreenerQuery />}
+        {mode === "timeseries" && <TimeseriesEdit />}
+        {mode === "instrumentadmin" && <InstrumentAdmin />}
+        {mode === "dataadmin" && <DataAdmin />}
+        {mode === "watchlist" && <Watchlist />}
+        {mode === "allocation" && <AllocationCharts />}
+        {mode === "rebalance" && <Rebalance />}
+        {mode === "market" && <MarketOverview />}
+        {mode === "movers" && <TopMovers />}
+        {mode === "reports" && <Reports />}
+        {mode === "taxtools" && <TaxTools />}
+        {mode === "support" && <Support />}
+        {mode === "settings" && <UserConfigPage />}
+        {mode === "scenario" && <ScenarioTester />}
+        {mode === "research" && (
+          <Suspense fallback={<p>{t("app.loading")}</p>}>
+            <InstrumentResearch ticker={researchTicker} />
+          </Suspense>
+        )}
+        {mode === "pension" && <PensionForecast />}
+      </>
+    );
+  };
+
+  const rightRail = backendUnavailable ? null : (
+    <Defer>
+      <RightRail owner={selectedOwner} />
+    </Defer>
+  );
 
   return (
     <div className="xl:flex xl:justify-center">
@@ -465,136 +602,9 @@ export default function App({ onLogout }: AppProps) {
           data-pathname={location.pathname}
           hidden
         />
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          margin: "1rem 0",
-        }}
-      >
-        <LanguageSwitcher />
-        <Menu
-          selectedOwner={selectedOwner}
-          selectedGroup={selectedGroup}
-          onLogout={onLogout}
-          style={{ margin: 0 }}
-        />
-        <InstrumentSearchBarToggle />
-        {mode === "owner" && (
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={setSelectedOwner}
-          />
-        )}
-        {lastRefresh && (
-          <span
-            style={{
-              background: "#eee",
-              borderRadius: "1rem",
-              padding: "0.25rem 0.5rem",
-              fontSize: "0.75rem",
-            }}
-            title={t("app.last") ?? undefined}
-          >
-            {new Date(lastRefresh).toLocaleString()}
-          </span>
-        )}
-        <button
-          aria-label="notifications"
-          onClick={() => setNotificationsOpen(true)}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "1.5rem",
-          }}
-        >
-          🔔
-        </button>
-        <UserAvatar />
-      </div>
-      <NotificationsDrawer
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-      />
-
-      {/* OWNER VIEW */}
-      {mode === "owner" && (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={handleOwnerSelect}
-          />
-          <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-          <PortfolioView data={portfolio} loading={loading} error={err} />
-        </>
-      )}
-
-      {/* GROUP VIEW */}
-      {mode === "group" && selectedGroup && (
-        <>
-          <ComplianceWarnings
-            owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
-          />
-          <GroupPortfolioView
-            slug={selectedGroup}
-          />
-        </>
-      )}
-
-      {/* INSTRUMENT VIEW */}
-      {mode === "instrument" && groups.length > 0 && (
-        <>
-          {err && <p style={{ color: "red" }}>{err}</p>}
-          {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
-        </>
-      )}
-
-      {/* PERFORMANCE VIEW */}
-      {mode === "performance" && (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={handleOwnerSelect}
-          />
-          <Suspense fallback={<PortfolioDashboardSkeleton />}>
-            <PerformanceDashboard owner={selectedOwner} />
-          </Suspense>
-        </>
-      )}
-
-      {mode === "transactions" && <TransactionsPage owners={owners} />}
-
-      {mode === "trading" && <Trading />}
-
-      {mode === "screener" && <ScreenerQuery />}
-      {mode === "timeseries" && <TimeseriesEdit />}
-      {mode === "instrumentadmin" && <InstrumentAdmin />}
-      {mode === "dataadmin" && <DataAdmin />}
-      {mode === "watchlist" && <Watchlist />}
-      {mode === "allocation" && <AllocationCharts />}
-      {mode === "rebalance" && <Rebalance />}
-      {mode === "market" && <MarketOverview />}
-      {mode === "movers" && <TopMovers />}
-      {mode === "reports" && <Reports />}
-      {mode === "taxtools" && <TaxTools />}
-      {mode === "support" && <Support />}
-      {mode === "settings" && <UserConfigPage />}
-      {mode === "scenario" && <ScenarioTester />}
-      {mode === "research" && (
-        <Suspense fallback={<p>{t("app.loading")}</p>}>
-          <InstrumentResearch ticker={researchTicker} />
-        </Suspense>
-      )}
-      {mode === "pension" && <PensionForecast />}
+        {renderMainContent()}
       </main>
-      <Defer>
-        <RightRail owner={selectedOwner} />
-      </Defer>
+      {rightRail}
     </div>
   );
 }

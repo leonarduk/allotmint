@@ -162,6 +162,9 @@ def _list_local_plots(
         if not isinstance(viewers, list):
             viewers = []
 
+        if config.disable_auth:
+            return True
+
         if config.disable_auth is False and user is None:
             return False
 
@@ -185,11 +188,9 @@ def _list_local_plots(
         if not root.exists():
             return results
 
-        skip_owners = (
-            {owner for owner in _SKIP_OWNERS if owner != "demo"}
-            if include_demo
-            else _SKIP_OWNERS
-        )
+        skip_owners = set(_SKIP_OWNERS)
+        if include_demo or config.disable_auth:
+            skip_owners.discard("demo")
 
         for owner_dir in sorted(root.iterdir()):
             if not owner_dir.is_dir():

@@ -131,7 +131,9 @@ export default function MainApp() {
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
       setSelectedGroup(slug);
-      navigate(`/instrument/${slug}`, { replace: true });
+      if (slug && slug !== "all") {
+        navigate(`/instrument/${slug}`, { replace: true });
+      }
     }
     if (mode === "group" && groups.length) {
       const hasSelection = groups.some((g) => g.slug === selectedGroup);

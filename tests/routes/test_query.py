@@ -286,7 +286,7 @@ def test_saved_and_load_local(monkeypatch, tmp_path):
     }
     (tmp_path / "sample.json").write_text(json.dumps(data))
     client = make_client()
-    resp = client.get("/custom-query/saved", params={"detailed": "true"})
+    resp = client.get("/custom-query/saved")
     assert resp.status_code == 200
     saved_entries = resp.json()
     assert any(
@@ -295,6 +295,9 @@ def test_saved_and_load_local(monkeypatch, tmp_path):
         and entry.get("params") == data
         for entry in saved_entries
     )
+    resp = client.get("/custom-query/saved", params={"detailed": "0"})
+    assert resp.status_code == 200
+    assert resp.json() == ["sample"]
     resp = client.get("/custom-query/sample")
     assert resp.status_code == 200
     assert resp.json() == data
@@ -308,7 +311,7 @@ def test_saved_and_load_aws(monkeypatch, mock_s3):
     )
     query._save_query_s3("remote", q)
     client = make_client()
-    resp = client.get("/custom-query/saved", params={"detailed": "true"})
+    resp = client.get("/custom-query/saved")
     assert resp.status_code == 200
     saved_entries = resp.json()
     expected_params = q.model_dump(mode="json")
@@ -319,6 +322,9 @@ def test_saved_and_load_aws(monkeypatch, mock_s3):
         and entry.get("params") == expected_params
         for entry in saved_entries
     )
+    resp = client.get("/custom-query/saved", params={"detailed": "0"})
+    assert resp.status_code == 200
+    assert resp.json() == ["remote"]
     resp = client.get("/custom-query/remote")
     assert resp.status_code == 200
     assert resp.json()["tickers"] == ["ABC.L"]

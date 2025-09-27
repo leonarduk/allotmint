@@ -55,7 +55,7 @@ def test_save_and_load_query(client, tmp_path):
     expected_params = dict(data)
     expected_params.pop("name", None)
 
-    resp = client.get("/custom-query/saved", params={"detailed": "true"})
+    resp = client.get("/custom-query/saved")
     saved_entries = resp.json()
     matching_entry = next((entry for entry in saved_entries if entry["id"] == slug), None)
     assert matching_entry is not None

@@ -33,6 +33,7 @@ import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
+import { getGroupDisplayName } from "../utils/groups";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { isCashInstrument } from "../lib/instruments";
@@ -463,7 +464,7 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
           alignItems: "center",
         }}
       >
-        <h2>{portfolio.name}</h2>
+        <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
         <RelativeViewToggle />
       </div>
 

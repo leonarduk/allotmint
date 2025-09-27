@@ -335,7 +335,7 @@ describe("HoldingsTable", () => {
 
       it("opens InstrumentDetail without altering search params", async () => {
         const portfolio = {
-          name: "All owners combined",
+          name: "At a glance",
           accounts: [
             {
               owner: "alice",

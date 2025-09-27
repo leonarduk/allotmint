@@ -39,7 +39,7 @@ def list_groups() -> List[Dict[str, Any]]:
     return [
         {
             "slug": "all",
-            "name": "All owners combined",
+            "name": "At a glance",
             "members": owners,
         },
         {

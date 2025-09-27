@@ -226,26 +226,14 @@ def _list_local_plots(
 
     explicit_root = data_root is not None
 
-    include_demo_primary = False
-    if not explicit_root:
-        include_demo_primary = bool(config.disable_auth)
-        if not include_demo_primary:
-            try:
-                include_demo_primary = (
-                    primary_root.resolve() == fallback_root.resolve()
-                )
-            except Exception:
-                include_demo_primary = False
+    include_demo_primary = bool(config.disable_auth)
+    if not explicit_root and not include_demo_primary:
+        try:
+            include_demo_primary = primary_root.resolve() == fallback_root.resolve()
+        except Exception:
+            include_demo_primary = False
 
     results = _discover(primary_root, include_demo=include_demo_primary)
-
-    # When an explicit ``data_root`` is provided treat it as authoritative and
-    # avoid blending in accounts from the repository fallback tree.  This keeps
-    # unit tests (which use temporary roots) isolated from the real repository
-    # data and mirrors the expectation that callers passing a custom root only
-    # see data from that location.
-    if explicit_root:
-        return results
 
     try:
         same_root = fallback_root.resolve() == primary_root.resolve()

@@ -1043,7 +1043,8 @@ def _tracking_error(name: str, benchmark: str, days: int = 365, *, group: bool =
     std = diff.std()
     if not math.isfinite(std):
         return None
-    return float(std)
+    annualised = std * math.sqrt(252)
+    return float(annualised)
 
 
 def _max_drawdown(name: str, days: int = 365, *, group: bool = False) -> float | None:

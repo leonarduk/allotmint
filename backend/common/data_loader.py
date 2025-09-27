@@ -115,7 +115,17 @@ def _list_local_plots(
             owner = owner_dir.name
             meta = load_person_meta(owner, root)
             viewers = meta.get("viewers", [])
-            if user and user != owner and user not in viewers:
+            email = meta.get("email")
+            if isinstance(user, str):
+                allowed_identities = {owner.lower()}
+                if isinstance(email, str) and email:
+                    allowed_identities.add(email.lower())
+                allowed_identities.update(
+                    v.lower() for v in viewers if isinstance(v, str)
+                )
+                if user.lower() not in allowed_identities:
+                    continue
+            elif user and user != owner and user not in viewers:
                 continue
 
             acct_names: List[str] = []

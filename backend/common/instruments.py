@@ -260,17 +260,70 @@ def _asset_class_from_quote_type(quote_type: Optional[str]) -> Optional[str]:
     return quote_type.replace("_", " ").title()
 
 
-def _fetch_metadata_from_yahoo(full_ticker: str) -> Optional[Dict[str, Any]]:
+def _yahoo_suffix_for_exchange(exchange: str) -> str:
+    """Return the Yahoo Finance suffix for ``exchange``.
+
+    The mapping mirrors ``backend.timeseries.fetch_yahoo_timeseries.get_yahoo_suffix``
+    so that metadata and historical fetches remain consistent.
+    """
+
+    exchange_map = {
+        "LSE": ".L",
+        "L": ".L",
+        "UK": ".L",
+        "NASDAQ": "",
+        "NYSE": "",
+        "N": "",
+        "US": "",
+        "PARIS": ".PA",
+        "XETRA": ".DE",
+        "DE": ".DE",
+        "TSX": ".TO",
+        "TO": ".TO",
+        "ASX": ".AX",
+        "F": ".F",
+        "FX": "=X",
+    }
+    suffix = exchange_map.get(exchange.upper())
+    if suffix is None:
+        raise ValueError(f"Unsupported exchange: '{exchange}'")
+    return suffix
+
+
+def _build_yahoo_symbol(symbol: str, exchange: str) -> str:
+    """Return a Yahoo-compatible ticker for ``symbol`` on ``exchange``."""
+
+    suffix = _yahoo_suffix_for_exchange(exchange)
+    normalized = symbol.upper()
+    if suffix and normalized.endswith(suffix):
+        return normalized
+    return f"{normalized}{suffix}"
+
+
+def _fetch_metadata_from_yahoo(symbol: str, exchange: str) -> Optional[Dict[str, Any]]:
     try:
         import yfinance as yf  # type: ignore
     except Exception as exc:  # pragma: no cover - optional dependency missing
-        logger.debug("yfinance unavailable; cannot fetch metadata for %s: %s", full_ticker, exc)
+        logger.debug(
+            "yfinance unavailable; cannot fetch metadata for %s.%s: %s",
+            symbol,
+            exchange,
+            exc,
+        )
         return None
 
     try:
-        stock = yf.Ticker(full_ticker)
+        yahoo_symbol = _build_yahoo_symbol(symbol, exchange)
+    except ValueError as exc:
+        logger.debug("Unsupported exchange for Yahoo metadata %s.%s: %s", symbol, exchange, exc)
+        return None
+
+    full_ticker = f"{symbol.upper()}.{exchange.upper()}"
+
+    try:
+        stock = yf.Ticker(yahoo_symbol)
     except Exception as exc:  # pragma: no cover - network/IO errors
-        logger.warning("Failed to initialise yfinance for %s: %s", full_ticker, exc)
+        logger.warning("Failed to initialise yfinance for %s: %s", yahoo_symbol, exc)
         return None
 
     info: Dict[str, Any] = {}
@@ -351,7 +404,7 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
         return None
 
     full = f"{sym}.{exch}"
-    fetched = _fetch_metadata_from_yahoo(full)
+    fetched = _fetch_metadata_from_yahoo(sym, exch)
     if not fetched:
         _AUTO_CREATE_FAILURES.add(full)
         return None

@@ -95,6 +95,7 @@ async def validate_trade(request: Request):
         owner_dir = compliance.ensure_owner_scaffold(owner_value, accounts_root)
         accounts_root = owner_dir.parent
         request.app.state.accounts_root = accounts_root
+        request.app.state.accounts_root_is_global = False
         trade["owner"] = owner_dir.name
     try:
         return compliance.check_trade(trade, accounts_root)

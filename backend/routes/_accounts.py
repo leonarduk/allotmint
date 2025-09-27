@@ -24,26 +24,32 @@ def resolve_accounts_root(request: Request) -> Path:
     accounts_root_value = getattr(request.app.state, "accounts_root", None)
     if accounts_root_value is not None:
         try:
-            resolved_candidate = Path(accounts_root_value).expanduser().resolve(strict=False)
-        except (OSError, RuntimeError, ValueError, TypeError):
-            resolved_candidate = None
+            cached_path = Path(accounts_root_value).expanduser()
+        except (TypeError, ValueError, OSError):
+            cached_path = None
         else:
-            request.app.state.accounts_root = resolved_candidate
-            return resolved_candidate
-
-        # The cached path is no longer valid; clear it so the fallback logic
-        # can determine a new directory.
+            if cached_path.exists():
+                resolved_cached = cached_path.resolve()
+                request.app.state.accounts_root = resolved_cached
+                return resolved_cached
         request.app.state.accounts_root = None
+        if hasattr(request.app.state, "accounts_root_is_global"):
+            request.app.state.accounts_root_is_global = False
 
     paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
-    root = paths.accounts_root
-    if not root.exists():
-        fallback_paths = data_loader.resolve_paths(None, None)
-        root = fallback_paths.accounts_root
+    primary_root = paths.accounts_root
+    if primary_root.exists():
+        resolved_primary = primary_root.expanduser().resolve()
+        request.app.state.accounts_root = resolved_primary
+        request.app.state.accounts_root_is_global = False
+        return resolved_primary
 
-    resolved_root = Path(root).expanduser().resolve(strict=False)
-    request.app.state.accounts_root = resolved_root
-    return resolved_root
+    fallback_paths = data_loader.resolve_paths(None, None)
+    fallback_root = fallback_paths.accounts_root
+    resolved_fallback = fallback_root.expanduser().resolve()
+    request.app.state.accounts_root = resolved_fallback
+    request.app.state.accounts_root_is_global = True
+    return resolved_fallback
 
 
 def resolve_owner_directory(accounts_root: Optional[Path], owner: str) -> Optional[Path]:

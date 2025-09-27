@@ -194,9 +194,27 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+    configured_root = getattr(cfg, "accounts_root", None)
+    fallback_used = False
+    try:
+        if configured_root:
+            configured_path = Path(configured_root).expanduser()
+            if not configured_path.exists():
+                fallback_used = True
+        else:
+            fallback_used = True
+    except (TypeError, ValueError, OSError):
+        fallback_used = True
+
     paths = resolve_paths(cfg.repo_root, cfg.accounts_root)
     accounts_root = paths.accounts_root
     original_accounts_root = accounts_root
+
+    try:
+        global_accounts_root = resolve_paths(None, None).accounts_root.resolve()
+        fallback_used = fallback_used or accounts_root.resolve() == global_accounts_root
+    except Exception:
+        pass
 
     if os.getenv("TESTING"):
         try:
@@ -224,6 +242,7 @@ def create_app() -> FastAPI:
         logger.exception("Failed to reconcile holdings with transactions")
     app.state.repo_root = paths.repo_root
     app.state.accounts_root = accounts_root
+    app.state.accounts_root_is_global = fallback_used
     app.state.virtual_pf_root = paths.virtual_pf_root
 
     # ───────────────────────────── CORS ─────────────────────────────

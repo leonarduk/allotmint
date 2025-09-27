@@ -97,15 +97,24 @@ def _resolve_exchange_from_metadata(symbol: str) -> str:
 
     symbol = symbol.upper()
     dirs = tuple(str(path) for path in _instrument_dirs())
-    exchange = _resolve_exchange_from_metadata_cached(symbol, dirs)
+    exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
 
-    if exchange and not _metadata_entry_exists(symbol, exchange, dirs):
-        # Metadata files can be created and removed dynamically during tests.
-        # When the cache is primed against a file that has since been deleted,
-        # stale entries would previously leak into subsequent lookups. Clear the
-        # cache so the lookup can fall back to the current filesystem state.
-        _resolve_exchange_from_metadata_cached.cache_clear()
-        exchange = _resolve_exchange_from_metadata_cached(symbol, dirs)
+    if exchange:
+        if source_dir:
+            # ``source_dir`` records the exact exchange directory that supplied
+            # the cached result so we can re-check that location for subsequent
+            # calls. This prevents stale metadata from leaking in when the
+            # cache is populated from a temporary test directory but another
+            # search path still contains a matching file.
+            source_path = Path(source_dir)
+            if not _metadata_entry_exists_in_directory(symbol, source_path):
+                _resolve_exchange_from_metadata_cached.cache_clear()
+                exchange, source_dir = _resolve_exchange_from_metadata_cached(
+                    symbol, dirs
+                )
+        elif not _metadata_entry_exists(symbol, exchange, dirs):
+            _resolve_exchange_from_metadata_cached.cache_clear()
+            exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
 
     return exchange or ""
 
@@ -113,7 +122,7 @@ def _resolve_exchange_from_metadata(symbol: str) -> str:
 @lru_cache(maxsize=2048)
 def _resolve_exchange_from_metadata_cached(
     symbol: str, directories: tuple[str, ...]
-) -> str:
+) -> tuple[str, str]:
     """Cached helper that scopes lookups to the active instrument directories."""
 
     for root_str in directories:
@@ -124,12 +133,27 @@ def _resolve_exchange_from_metadata_cached(
                     continue
                 try:
                     if (ex_dir / f"{symbol}.json").is_file():
-                        return ex_dir.name.upper()
+                        return ex_dir.name.upper(), str(ex_dir)
                 except OSError:
                     continue
         except OSError:
             continue
-    return ""
+    return "", ""
+
+
+def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
+    """Return ``True`` if *symbol* metadata exists in the provided directory."""
+
+    try:
+        if not directory.is_dir():
+            return False
+    except OSError:
+        return False
+
+    try:
+        return (directory / f"{symbol}.json").is_file()
+    except OSError:
+        return False
 
 
 def _metadata_entry_exists(

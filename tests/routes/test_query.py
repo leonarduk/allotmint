@@ -288,7 +288,13 @@ def test_saved_and_load_local(monkeypatch, tmp_path):
     client = make_client()
     resp = client.get("/custom-query/saved")
     assert resp.status_code == 200
-    assert resp.json() == ["sample"]
+    assert resp.json() == [
+        {
+            "id": "sample",
+            "name": "sample",
+            "params": data,
+        }
+    ]
     resp = client.get("/custom-query/sample")
     assert resp.status_code == 200
     assert resp.json() == data
@@ -304,7 +310,21 @@ def test_saved_and_load_aws(monkeypatch, mock_s3):
     client = make_client()
     resp = client.get("/custom-query/saved")
     assert resp.status_code == 200
-    assert resp.json() == ["remote"]
+    expected_params = {
+        "start": "2020-01-01",
+        "end": "2020-01-02",
+        "owners": None,
+        "tickers": ["ABC.L"],
+        "metrics": [],
+        "format": "json",
+    }
+    assert resp.json() == [
+        {
+            "id": "remote",
+            "name": "remote",
+            "params": expected_params,
+        }
+    ]
     resp = client.get("/custom-query/remote")
     assert resp.status_code == 200
     assert resp.json()["tickers"] == ["ABC.L"]

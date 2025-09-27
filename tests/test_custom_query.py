@@ -53,7 +53,19 @@ def test_save_and_load_query(client, tmp_path):
     assert data["tickers"] == BASE_QUERY["tickers"]
 
     resp = client.get("/custom-query/saved")
-    assert slug in resp.json()
+    assert resp.status_code == 200
+    saved = resp.json()
+    entry = next((item for item in saved if item["id"] == slug), None)
+    assert entry is not None
+    expected_params = {
+        "start": BASE_QUERY["start"],
+        "end": BASE_QUERY["end"],
+        "owners": None,
+        "tickers": BASE_QUERY["tickers"],
+        "metrics": [m.value if isinstance(m, Metric) else m for m in BASE_QUERY["metrics"]],
+        "format": "json",
+    }
+    assert entry["params"] == expected_params
 
 
 def test_unknown_metric_rejected(client):

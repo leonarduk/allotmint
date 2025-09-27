@@ -233,10 +233,18 @@ export default function App({ onLogout }: AppProps) {
     setRetryNonce((n) => n + 1);
   }, []);
 
-  const handleOwnerSelect = useCallback(
+  const handleOwnerSelectPerformance = useCallback(
     (owner: string) => {
       setSelectedOwner(owner);
       navigate(`/performance/${owner}`);
+    },
+    [navigate],
+  );
+
+  const handleOwnerSelectPortfolio = useCallback(
+    (owner: string) => {
+      setSelectedOwner(owner);
+      navigate(`/portfolio/${owner}`);
     },
     [navigate],
   );
@@ -522,11 +530,13 @@ export default function App({ onLogout }: AppProps) {
         {/* OWNER VIEW */}
         {mode === "owner" && (
           <>
-            <OwnerSelector
-              owners={owners}
-              selected={selectedOwner}
-              onSelect={handleOwnerSelect}
-            />
+            <div data-testid="portfolio-owner-selector">
+              <OwnerSelector
+                owners={owners}
+                selected={selectedOwner}
+                onSelect={handleOwnerSelectPortfolio}
+              />
+            </div>
             <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
             <PortfolioView data={portfolio} loading={loading} error={err} />
           </>
@@ -556,7 +566,7 @@ export default function App({ onLogout }: AppProps) {
             <OwnerSelector
               owners={owners}
               selected={selectedOwner}
-              onSelect={handleOwnerSelect}
+              onSelect={handleOwnerSelectPerformance}
             />
             <Suspense fallback={<PortfolioDashboardSkeleton />}>
               <PerformanceDashboard owner={selectedOwner} />

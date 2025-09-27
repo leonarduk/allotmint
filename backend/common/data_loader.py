@@ -213,9 +213,9 @@ def _list_local_plots(
 
     fallback_paths = resolve_paths(None, None)
     fallback_root = fallback_paths.accounts_root
-    explicit_root = data_root is not None
 
     include_demo_primary = bool(config.disable_auth)
+    explicit_root = data_root is not None
     if not include_demo_primary:
         try:
             include_demo_primary = primary_root.resolve() == fallback_root.resolve()

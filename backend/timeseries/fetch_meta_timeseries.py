@@ -92,18 +92,27 @@ def _instrument_dirs() -> list[Path]:
     return resolved
 
 
-@lru_cache(maxsize=2048)
 def _resolve_exchange_from_metadata(symbol: str) -> str:
     """Return exchange code for *symbol* using instrument metadata if possible."""
 
-    sym = symbol.upper()
-    for root in _instrument_dirs():
+    dirs = tuple(str(path) for path in _instrument_dirs())
+    return _resolve_exchange_from_metadata_cached(symbol.upper(), dirs)
+
+
+@lru_cache(maxsize=2048)
+def _resolve_exchange_from_metadata_cached(
+    symbol: str, directories: tuple[str, ...]
+) -> str:
+    """Cached helper that scopes lookups to the active instrument directories."""
+
+    for root_str in directories:
+        root = Path(root_str)
         try:
             for ex_dir in root.iterdir():
                 if not ex_dir.is_dir() or ex_dir.name.lower() == "cash":
                     continue
                 try:
-                    if (ex_dir / f"{sym}.json").is_file():
+                    if (ex_dir / f"{symbol}.json").is_file():
                         return ex_dir.name.upper()
                 except OSError:
                     continue

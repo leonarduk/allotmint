@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TaxTools from "@/pages/TaxTools";
-import { getAllowances, getPortfolio, harvestTax } from "@/api";
+import { getAllowances, getOwners, getPortfolio, harvestTax } from "@/api";
 import { useRoute } from "@/RouteContext";
 
 vi.mock("@/api", () => ({
   harvestTax: vi.fn(),
   getAllowances: vi.fn(),
+  getOwners: vi.fn(),
   getPortfolio: vi.fn(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock("@/RouteContext", () => ({
 describe("TaxTools", () => {
   const allowancesMock = getAllowances as unknown as vi.Mock;
   const harvestMock = harvestTax as unknown as vi.Mock;
+  const ownersMock = getOwners as unknown as vi.Mock;
   const portfolioMock = getPortfolio as unknown as vi.Mock;
   const useRouteMock = useRoute as unknown as vi.Mock;
 
@@ -25,20 +27,24 @@ describe("TaxTools", () => {
     useRouteMock.mockReturnValue({
       mode: "taxtools",
       setMode: vi.fn(),
-      selectedOwner: "demo",
+      selectedOwner: "alice",
       setSelectedOwner: vi.fn(),
       selectedGroup: "",
       setSelectedGroup: vi.fn(),
     });
+    ownersMock.mockResolvedValue([
+      { owner: "alice", accounts: ["isa"] },
+      { owner: "bob", accounts: ["gpp"] },
+    ]);
     allowancesMock.mockResolvedValue({
-      owner: "demo",
+      owner: "alice",
       tax_year: "2024",
       allowances: {
         isa: { used: 1000, limit: 20000, remaining: 19000 },
       },
     });
     portfolioMock.mockResolvedValue({
-      owner: "demo",
+      owner: "alice",
       as_of: "2024-01-01",
       trades_this_month: 0,
       trades_remaining: 0,
@@ -79,9 +85,10 @@ describe("TaxTools", () => {
   it("loads the owner portfolio when an owner is selected", async () => {
     render(<TaxTools />);
 
+    await screen.findByLabelText(/portfolio owner/i);
     await screen.findByRole("checkbox", { name: /abc/i });
 
-    expect(portfolioMock).toHaveBeenCalledWith("demo");
+    expect(portfolioMock).toHaveBeenCalledWith("alice");
   });
 
   it("calls harvest API with selected holdings and shows results", async () => {
@@ -145,12 +152,12 @@ describe("TaxTools", () => {
     expect(isaRow).not.toBeNull();
     expect(isaRow).toHaveTextContent("£20,000.00");
     expect(isaRow).toHaveTextContent("£19,000.00");
-    expect(allowancesMock).toHaveBeenCalledWith("demo");
+    expect(allowancesMock).toHaveBeenCalledWith("alice");
   });
 
   it("highlights usage when over the allowance", async () => {
     allowancesMock.mockResolvedValue({
-      owner: "demo",
+      owner: "alice",
       tax_year: "2024",
       allowances: {
         isa: { used: 21000, limit: 20000, remaining: -1000 },
@@ -185,6 +192,10 @@ describe("TaxTools", () => {
       selectedGroup: "",
       setSelectedGroup: vi.fn(),
     });
+    ownersMock.mockResolvedValue([
+      { owner: "alice", accounts: ["isa"] },
+      { owner: "bob", accounts: ["gpp"] },
+    ]);
 
     render(<TaxTools />);
 

@@ -40,10 +40,11 @@
       "taxtools": "Herramientas fiscales",
       "trail": "Trail",
       "reports": "Informes",
-  "alertsettings": "Alert Settings",
-  "compliance": "Alertas de cumplimiento",
-  "trade-compliance": "Cumplimiento de operaciones",
-  "support": "Soporte",
+      "alertsettings": "Alert Settings",
+      "compliance": "Alertas de cumplimiento",
+      "tradecompliance": "Cumplimiento de operaciones",
+      "trade-compliance": "Cumplimiento de operaciones",
+      "support": "Soporte",
       "scenario": "Probador de Escenarios"
     },
     "logs": {

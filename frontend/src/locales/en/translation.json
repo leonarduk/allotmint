@@ -40,10 +40,11 @@
       "taxtools": "Tax Tools",
       "trail": "Trail",
       "reports": "Reports",
-  "alertsettings": "Alert Settings",
-  "compliance": "Compliance warnings",
-  "trade-compliance": "Trade compliance",
-  "support": "Support",
+      "alertsettings": "Alert Settings",
+      "compliance": "Compliance warnings",
+      "tradecompliance": "Trade compliance",
+      "trade-compliance": "Trade compliance",
+      "support": "Support",
       "scenario": "Scenario Tester"
     }
   },

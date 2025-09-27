@@ -50,6 +50,29 @@ async def test_optional_current_user_skips_when_auth_disabled(monkeypatch: pytes
 
 
 @pytest.mark.asyncio
+async def test_optional_current_user_uses_dependencies_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When auth is enabled the dependency chain is executed and returned."""
+
+    async def fake_oauth2_scheme(request: Request) -> str:
+        assert request.scope["type"] == "http"
+        return "forwarded-token"
+
+    async def fake_get_current_user(token: str) -> str:
+        assert token == "forwarded-token"
+        return "resolved-user"
+
+    monkeypatch.setattr(analytics, "oauth2_scheme", fake_oauth2_scheme)
+    monkeypatch.setattr(analytics, "get_current_user", fake_get_current_user)
+
+    config.disable_auth = False
+    request = Request({"type": "http"})
+
+    result = await analytics._optional_current_user(request)
+
+    assert result == "resolved-user"
+
+
+@pytest.mark.asyncio
 async def test_log_event_appends_expected_event(monkeypatch: pytest.MonkeyPatch) -> None:
     """``log_event`` stores an ``AnalyticsEvent`` matching the inbound payload."""
 

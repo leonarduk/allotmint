@@ -1,0 +1,25 @@
+{
+  "owner": "demo-owner",
+  "account_type": "SIPP",
+  "currency": "GBP",
+  "last_updated": "2024-01-01",
+  "holdings": [
+    {
+      "ticker": "CASH.GBP",
+      "units": 500,
+      "cost_basis_gbp": 500
+    },
+    {
+      "ticker": "VWRL.L",
+      "units": 5,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    },
+    {
+      "ticker": "PFE.N",
+      "units": 3,
+      "acquired_date": null,
+      "cost_basis_gbp": 0.0
+    }
+  ]
+}

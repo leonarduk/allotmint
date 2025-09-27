@@ -96,7 +96,7 @@ ui:
     rebalance: true
     instrumentadmin: true
     dataadmin: true
-    virtual: false
+    virtual: true
     support: true
     settings: true
     profile: true

@@ -13,7 +13,7 @@
     "menuCategories": {
       "dashboard": "Painel",
       "holdings": "Participações",
-      "tradeTools": "Insightts",
+      "tradeTools": "Insights",
       "goals": "Requisitos",
       "preferences": "Configurações",
       "operations": "Operações",
@@ -42,8 +42,8 @@
       "reports": "Relatórios",
       "alertsettings": "Alert Settings",
       "compliance": "Alertas de conformidade",
-      "tradecompliance": "Conformidade de negociações",
       "trade-compliance": "Conformidade de negociações",
+      "tradecompliance": "Conformidade de negociações",
       "support": "Suporte",
       "scenario": "Testador de Cenários"
     },

@@ -13,7 +13,7 @@
     "menuCategories": {
       "dashboard": "Dashboard",
       "holdings": "Posizioni",
-      "tradeTools": "Insightts",
+      "tradeTools": "Insights",
       "goals": "Requisiti",
       "preferences": "Impostazioni",
       "operations": "Operazioni",
@@ -42,8 +42,8 @@
       "reports": "Segnalazioni",
       "alertsettings": "Alert Settings",
       "compliance": "Avvisi di conformità",
-      "tradecompliance": "Conformità delle operazioni",
       "trade-compliance": "Conformità delle operazioni",
+      "tradecompliance": "Conformità delle operazioni",
       "support": "Supporto",
       "scenario": "Tester di scenario"
     },
@@ -359,7 +359,7 @@
     "loading": "Caricamento…"
   },
   "timeseriesEdit": {
-    "title": "Editor Timeseries",
+    "title": "Editor serie temporali",
     "ticker": "Ticker",
     "exchange": "Scambio",
     "load": "Carico",

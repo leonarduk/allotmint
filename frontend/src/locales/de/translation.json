@@ -13,7 +13,7 @@
     "menuCategories": {
       "dashboard": "Dashboard",
       "holdings": "Bestände",
-      "tradeTools": "Insightts",
+      "tradeTools": "Insights",
       "goals": "Anforderungen",
       "preferences": "Einstellungen",
       "operations": "Operationen",
@@ -40,10 +40,11 @@
       "taxtools": "Steuer-Tools",
       "trail": "Trail",
       "reports": "Berichte",
-  "alertsettings": "Alert Settings",
-  "compliance": "Compliance-Warnungen",
-  "trade-compliance": "Handels-Compliance",
-  "support": "Support",
+      "alertsettings": "Alert Settings",
+      "compliance": "Compliance-Warnungen",
+      "trade-compliance": "Handels-Compliance",
+      "tradecompliance": "Handelskonformität",
+      "support": "Support",
       "scenario": "Szenario-Tester"
     },
     "logs": {

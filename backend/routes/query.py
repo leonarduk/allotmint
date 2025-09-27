@@ -208,13 +208,44 @@ async def run_query(q: CustomQuery):
     return {"results": rows}
 
 
+def _format_saved_query(slug: str, payload: dict) -> dict:
+    """Normalise persisted query data into an API response."""
+
+    params = dict(payload or {})
+    name = params.pop("name", None)
+    if not isinstance(name, str) or not name.strip():
+        name = slug
+    return {"id": slug, "name": name, "params": params}
+
+
 @router.get("/saved")
 async def list_saved_queries():
     if config.app_env == "aws":
-        return _list_queries_s3()
+        entries = []
+        for slug in _list_queries_s3():
+            try:
+                payload = _load_query_s3(slug)
+            except HTTPException:
+                payload = {}
+            if not isinstance(payload, dict):
+                payload = {}
+            entries.append(_format_saved_query(slug, payload))
+        return entries
+
     if not QUERIES_DIR.exists():
         return []
-    return sorted(p.stem for p in QUERIES_DIR.glob("*.json"))
+
+    entries = []
+    for path in sorted(QUERIES_DIR.glob("*.json")):
+        slug = path.stem
+        try:
+            payload = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        entries.append(_format_saved_query(slug, payload))
+    return entries
 
 
 @router.get("/{slug}")

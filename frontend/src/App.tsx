@@ -399,7 +399,12 @@ export default function App({ onLogout }: AppProps) {
     const segs = location.pathname.split("/").filter(Boolean);
     const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
 
-    if (mode === "owner" && !selectedOwner && owners.length && atPortfolioRoot) {
+    if (
+      mode === "owner" &&
+      !selectedOwner &&
+      owners.length === 1 &&
+      atPortfolioRoot
+    ) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
       navigate(`/portfolio/${owner}`, { replace: true });

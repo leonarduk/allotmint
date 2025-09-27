@@ -419,6 +419,7 @@ describe("App", () => {
     window.history.pushState({}, "", "/portfolio/alice");
 
     const locationUpdates: string[] = [];
+
     function LocationListener() {
       const location = useLocation();
       useEffect(() => {

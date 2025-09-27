@@ -159,6 +159,26 @@ def test_owners_in_disable_auth_mode(monkeypatch):
     assert any(owner.get("owner") == "demo" for owner in owners)
 
 
+def test_demo_owner_present_with_explicit_root(monkeypatch, tmp_path):
+    """Disable auth with a custom accounts root still exposes the demo owner."""
+
+    demo_dir = tmp_path / "demo"
+    demo_dir.mkdir()
+    (demo_dir / "demo.json").write_text("{}")
+
+    monkeypatch.setattr(config_module.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(config_module.config, "skip_snapshot_warm", True, raising=False)
+    monkeypatch.setattr(config_module.config, "accounts_root", tmp_path, raising=False)
+
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/owners")
+
+    assert resp.status_code == 200
+    owners = resp.json()
+    assert any(owner.get("owner") == "demo" for owner in owners)
+
+
 def test_health(client):
     resp = client.get("/health")
     assert resp.status_code == 200

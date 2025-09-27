@@ -52,7 +52,8 @@ logger = logging.getLogger("meta_timeseries")
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:[-\.][A-Z]{1,3})?$")
 
 
-INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
+_DEFAULT_INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
+INSTRUMENTS_DIR = _DEFAULT_INSTRUMENTS_DIR
 
 
 def _instrument_dirs() -> list[Path]:
@@ -60,9 +61,18 @@ def _instrument_dirs() -> list[Path]:
 
     candidates: list[Path] = []
     data_root = getattr(config, "data_root", None)
-    if data_root:
-        candidates.append(Path(data_root) / "instruments")
-    candidates.append(INSTRUMENTS_DIR)
+
+    # When the module level ``INSTRUMENTS_DIR`` is overridden (for example in
+    # tests), treat it as authoritative and avoid falling back to the default
+    # repository metadata. This prevents unrelated fixtures on the host machine
+    # from influencing lookups while still allowing ``config.data_root`` to
+    # redirect metadata when the default location is in use.
+    if INSTRUMENTS_DIR != _DEFAULT_INSTRUMENTS_DIR:
+        candidates.append(INSTRUMENTS_DIR)
+    else:
+        if data_root:
+            candidates.append(Path(data_root) / "instruments")
+        candidates.append(INSTRUMENTS_DIR)
 
     seen: set[Path] = set()
     resolved: list[Path] = []

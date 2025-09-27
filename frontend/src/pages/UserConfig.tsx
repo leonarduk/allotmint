@@ -151,7 +151,7 @@ export default function UserConfigPage() {
         <option value="">{t('userConfig.selectOwner', 'Select owner')}</option>
         {owners.map((o) => (
           <option key={o.owner} value={o.owner}>
-            {o.owner}
+            {o.full_name?.trim() ? o.full_name : o.owner}
           </option>
         ))}
       </select>

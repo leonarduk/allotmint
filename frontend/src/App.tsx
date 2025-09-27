@@ -550,7 +550,7 @@ export default function App({ onLogout }: AppProps) {
             <ComplianceWarnings
               owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
             />
-            <GroupPortfolioView slug={selectedGroup} />
+            <GroupPortfolioView slug={selectedGroup} owners={owners} />
           </>
         )}
 

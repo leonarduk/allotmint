@@ -6,8 +6,8 @@ describe("OwnerSelector", () => {
     it("renders and triggers callback on change", () => {
         const mockOnSelect = vi.fn();
         const mockOwners = [
-            {owner: "alice", accounts: ["ISA", "SIPP"]},
-            {owner: "bob", accounts: ["ISA"]},
+            {owner: "alice", full_name: "Alice Example", accounts: ["ISA", "SIPP"]},
+            {owner: "bob", full_name: "Bob Example", accounts: ["ISA"]},
         ];
 
         render(
@@ -19,6 +19,7 @@ describe("OwnerSelector", () => {
         );
 
         const select = screen.getByRole("combobox");
+        expect(screen.getByRole("option", { name: "Alice Example" })).toBeInTheDocument();
         fireEvent.change(select, {target: {value: "bob"}});
 
         expect(mockOnSelect).toHaveBeenCalledWith("bob");

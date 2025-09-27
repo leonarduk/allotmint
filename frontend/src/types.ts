@@ -1,6 +1,7 @@
 export type OwnerSummary = {
   owner: string;
   accounts: string[];
+  full_name?: string | null;
 };
 
 export interface Holding {

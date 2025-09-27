@@ -14,6 +14,10 @@ import { money } from "../lib/money";
 import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
 import { useTranslation } from "react-i18next";
+import {
+  createOwnerDisplayLookup,
+  getOwnerDisplayName,
+} from "../utils/owners";
 
 type Props = {
   owners: OwnerSummary[];
@@ -44,6 +48,10 @@ export function TransactionsPage({ owners }: Props) {
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
   const pageSizeOptions = [10, 20, 50, 100];
+  const ownerLookup = useMemo(
+    () => createOwnerDisplayLookup(owners),
+    [owners],
+  );
 
   const resetForm = useCallback(() => {
     setNewTicker("");
@@ -561,7 +569,10 @@ export function TransactionsPage({ owners }: Props) {
           onChange={handleOwnerChange}
           options={[
             { value: "", label: "All" },
-            ...owners.map((o) => ({ value: o.owner, label: o.owner })),
+            ...owners.map((o) => ({
+              value: o.owner,
+              label: getOwnerDisplayName(ownerLookup, o.owner, o.owner),
+            })),
           ]}
         />
         <Selector
@@ -597,7 +608,10 @@ export function TransactionsPage({ owners }: Props) {
           onChange={(e) => setNewOwner(e.target.value)}
           options={[
             { value: "", label: "Select" },
-            ...owners.map((o) => ({ value: o.owner, label: o.owner })),
+            ...owners.map((o) => ({
+              value: o.owner,
+              label: getOwnerDisplayName(ownerLookup, o.owner, o.owner),
+            })),
           ]}
         />
         <Selector
@@ -816,7 +830,13 @@ export function TransactionsPage({ owners }: Props) {
                       <td className={tableStyles.cell}>
                         {t.date ? formatDateISO(new Date(t.date)) : ""}
                       </td>
-                      <td className={tableStyles.cell}>{t.owner}</td>
+                      <td className={tableStyles.cell}>
+                        {getOwnerDisplayName(
+                          ownerLookup,
+                          t.owner ?? null,
+                          t.owner ?? "—",
+                        )}
+                      </td>
                       <td className={tableStyles.cell}>{t.account}</td>
                       <td className={tableStyles.cell}>{t.ticker || t.security_ref || ""}</td>
                       <td className={tableStyles.cell}>{t.instrument_name || ""}</td>

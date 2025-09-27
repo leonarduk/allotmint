@@ -22,8 +22,13 @@ vi.mock("@/api", () => ({
 
 describe("TransactionsPage", () => {
   it("displays instrument ticker", async () => {
-    render(<TransactionsPage owners={[{ owner: "alex", accounts: ["isa"] }]} />);
+    render(
+      <TransactionsPage
+        owners={[{ owner: "alex", full_name: "Alex Example", accounts: ["isa"] }]}
+      />,
+    );
     expect(await screen.findByText("PFE")).toBeInTheDocument();
+    expect(await screen.findByText("Alex Example")).toBeInTheDocument();
   });
 });
 

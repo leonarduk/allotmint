@@ -270,6 +270,7 @@ export default function MainApp() {
           />
           <GroupPortfolioView
             slug={selectedGroup}
+            owners={owners}
             onTradeInfo={(info) =>
               setTradeInfo(
                 info

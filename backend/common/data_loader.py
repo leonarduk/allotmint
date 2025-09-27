@@ -425,16 +425,10 @@ def list_plots(
     """
 
     if config.app_env == "aws":
-        bucket = os.getenv(DATA_BUCKET_ENV)
-        if bucket:
-            aws_results = _list_aws_plots(current_user)
-            if aws_results or not data_root:
-                return aws_results
-        if data_root is None:
-            # Fall back to the configured repository data when no explicit root
-            # is supplied. This mirrors the non-AWS behaviour and keeps unit
-            # tests using temporary roots isolated from global data.
-            return _list_local_plots(None, current_user)
+        aws_results = _list_aws_plots(current_user)
+        if data_root is None or aws_results:
+            return aws_results
+        return _list_local_plots(data_root, current_user)
     return _list_local_plots(data_root, current_user)
 
 

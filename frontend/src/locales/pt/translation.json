@@ -240,9 +240,8 @@
       "employeeContribution": "Sua contribuição mensal",
       "employerContribution": "Contribuição do empregador",
       "totalContribution": "Contribuições mensais totais: {{total}}",
-      "addAnother": "Adicionar outra aposentadoria",
-      "additionalPensions_one": "{{count}} aposentadoria adicional vinculada",
-      "additionalPensions_other": "{{count}} aposentadorias adicionais vinculadas",
+      "linkedPotsHeading": "Fundos de pensão vinculados",
+      "noLinkedPots": "Ainda não há fundos de pensão vinculados para este titular.",
       "notAvailable": "Não disponível"
     }
   },

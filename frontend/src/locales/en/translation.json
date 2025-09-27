@@ -255,9 +255,8 @@
       "employeeContribution": "Your monthly contribution",
       "employerContribution": "Employer contribution",
       "totalContribution": "Total monthly contributions: {{total}}",
-      "addAnother": "Add another pension",
-      "additionalPensions_one": "{{count}} additional pension linked",
-      "additionalPensions_other": "{{count}} additional pensions linked",
+      "linkedPotsHeading": "Linked pension pots",
+      "noLinkedPots": "No pension pots linked for this owner yet.",
       "notAvailable": "Not available"
     }
   },

@@ -240,9 +240,8 @@
       "employeeContribution": "Ihr monatlicher Beitrag",
       "employerContribution": "Arbeitgeberbeitrag",
       "totalContribution": "Gesamte monatliche Beiträge: {{total}}",
-      "addAnother": "Weitere Rente hinzufügen",
-      "additionalPensions_one": "{{count}} weiterer Rentenvertrag verknüpft",
-      "additionalPensions_other": "{{count}} weitere Rentenverträge verknüpft",
+      "linkedPotsHeading": "Verknüpfte Rententöpfe",
+      "noLinkedPots": "Für diese Person sind noch keine Rententöpfe verknüpft.",
       "notAvailable": "Nicht verfügbar"
     }
   },

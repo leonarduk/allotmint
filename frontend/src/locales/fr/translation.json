@@ -240,9 +240,8 @@
       "employeeContribution": "Votre cotisation mensuelle",
       "employerContribution": "Contribution de l'employeur",
       "totalContribution": "Cotisations mensuelles totales : {{total}}",
-      "addAnother": "Ajouter une autre pension",
-      "additionalPensions_one": "{{count}} pension supplémentaire liée",
-      "additionalPensions_other": "{{count}} pensions supplémentaires liées",
+      "linkedPotsHeading": "Pots de pension associés",
+      "noLinkedPots": "Aucun pot de pension associé pour ce titulaire pour le moment.",
       "notAvailable": "Non disponible"
     }
   },

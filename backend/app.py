@@ -336,22 +336,39 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=status, content={"detail": exc.errors()})
 
     class TokenIn(BaseModel):
-        id_token: str
+        id_token: str | None = None
 
     @app.post("/token")
     async def login(body: TokenIn):
-        if cfg.disable_auth:
-            email = "user@example.com"
-        else:
+        id_token = body.id_token if body else None
+
+        email: str | None = None
+
+        if id_token:
             try:
-                email = auth.authenticate_user(body.id_token)
+                email = auth.authenticate_user(id_token)
             except HTTPException as exc:
                 logger.warning("User authentication failed: %s", exc.detail)
                 raise
+        elif cfg.disable_auth:
+            email = "user@example.com"
+        else:
+            raise HTTPException(status_code=400, detail="Missing token")
 
         if not email:
             logger.warning("authenticate_user returned no email")
             raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        allowlist_raw = getattr(cfg, "allowed_emails", None)
+        if allowlist_raw:
+            normalized = {
+                item.strip().lower()
+                for item in allowlist_raw
+                if isinstance(item, str) and item.strip()
+            }
+            if normalized and email.lower() not in normalized:
+                logger.warning("Email %s not authorized for login", email)
+                raise HTTPException(status_code=403, detail="email not authorized")
 
         token = auth.create_access_token(email)
         return {"access_token": token, "token_type": "bearer"}

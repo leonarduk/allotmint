@@ -145,6 +145,7 @@ class Config:
     approval_valid_days: Optional[int] = None
     approval_exempt_types: Optional[List[str]] = None
     approval_exempt_tickers: Optional[List[str]] = None
+    allowed_emails: Optional[List[str]] = None
     tabs: TabsConfig = field(default_factory=TabsConfig)
     trading_agent: TradingAgentConfig = field(default_factory=TradingAgentConfig)
     cors_origins: Optional[List[str]] = None
@@ -278,6 +279,13 @@ def load_config() -> Config:
 
     approval_exempt_types = _parse_str_list(data.get("approval_exempt_types"))
     approval_exempt_tickers = _parse_str_list(data.get("approval_exempt_tickers"))
+    allowed_emails = _parse_str_list(data.get("allowed_emails"))
+
+    env_allowed_emails = os.getenv("ALLOWED_EMAILS")
+    if env_allowed_emails is not None:
+        parsed_env_allowed = _parse_str_list(env_allowed_emails)
+        if parsed_env_allowed is not None:
+            allowed_emails = parsed_env_allowed
 
     google_auth_enabled = data.get("google_auth_enabled")
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
@@ -348,6 +356,7 @@ def load_config() -> Config:
         approval_valid_days=data.get("approval_valid_days"),
         approval_exempt_types=approval_exempt_types,
         approval_exempt_tickers=approval_exempt_tickers,
+        allowed_emails=allowed_emails,
         tabs=tabs,
         trading_agent=trading_agent,
         cors_origins=cors_origins,

@@ -14,25 +14,69 @@ interface RouteState {
   setSelectedGroup: (s: string) => void;
 }
 
+function segmentToMode(segment: string | undefined, segmentCount: number): Mode {
+  switch (segment) {
+    case undefined:
+      return "group";
+    case "portfolio":
+      return "owner";
+    case "instrument":
+      return "instrument";
+    case "transactions":
+      return "transactions";
+    case "trading":
+      return "trading";
+    case "performance":
+      return "performance";
+    case "screener":
+      return "screener";
+    case "timeseries":
+      return "timeseries";
+    case "watchlist":
+      return "watchlist";
+    case "allocation":
+      return "allocation";
+    case "rebalance":
+      return "rebalance";
+    case "market":
+      return "market";
+    case "movers":
+      return "movers";
+    case "instrumentadmin":
+      return "instrumentadmin";
+    case "dataadmin":
+      return "dataadmin";
+    case "virtual":
+      return "virtual";
+    case "reports":
+      return "reports";
+    case "alert-settings":
+      return "alertsettings";
+    case "trade-compliance":
+      return "tradecompliance";
+    case "trail":
+      return "trail";
+    case "support":
+      return "support";
+    case "pension":
+      return "pension";
+    case "tax-tools":
+      return "taxtools";
+    case "settings":
+      return "settings";
+    case "scenario":
+      return "scenario";
+    case "research":
+      return "research";
+    default:
+      return segmentCount === 0 ? "group" : "movers";
+  }
+}
+
 function deriveInitial() {
   const path = window.location.pathname.split("/").filter(Boolean);
   const params = new URLSearchParams(window.location.search);
-  const mode: Mode =
-    path[0] === "portfolio" ? "owner" :
-    path[0] === "instrument" ? "instrument" :
-    path[0] === "transactions" ? "transactions" :
-    path[0] === "performance" ? "performance" :
-    path[0] === "screener" ? "screener" :
-    path[0] === "timeseries" ? "timeseries" :
-    path[0] === "watchlist" ? "watchlist" :
-    path[0] === "market" ? "market" :
-    path[0] === "movers" ? "movers" :
-    path[0] === "instrumentadmin" ? "instrumentadmin" :
-    path[0] === "dataadmin" ? "dataadmin" :
-    path[0] === "trail" ? "trail" :
-    path[0] === "support" ? "support" :
-    path[0] === "scenario" ? "scenario" :
-    path.length === 0 ? "group" : "movers";
+  const mode = segmentToMode(path[0], path.length);
   const slug = path[1] ?? "";
   const owner = mode === "owner" || mode === "performance" ? slug : "";
   const group =
@@ -63,18 +107,34 @@ export function useRouteMode(): RouteState {
         return selectedOwner
           ? `/performance/${selectedOwner}`
           : "/performance";
+      case "allocation":
+        return "/allocation";
+      case "rebalance":
+        return "/rebalance";
       case "market":
         return "/market";
       case "movers":
         return "/movers";
+      case "trading":
+        return "/trading";
       case "scenario":
         return "/scenario";
+      case "reports":
+        return "/reports";
       case "settings":
         return "/settings";
+      case "alertsettings":
+        return "/alert-settings";
       case "instrumentadmin":
         return "/instrumentadmin";
+      case "tradecompliance":
+        return "/trade-compliance";
       case "trail":
         return "/trail";
+      case "taxtools":
+        return "/tax-tools";
+      case "pension":
+        return "/pension/forecast";
       default:
         return `/${m}`;
     }
@@ -83,56 +143,7 @@ export function useRouteMode(): RouteState {
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
     const params = new URLSearchParams(location.search);
-    let newMode: Mode;
-    switch (segs[0]) {
-      case "portfolio":
-        newMode = "owner";
-        break;
-      case "instrument":
-        newMode = "instrument";
-        break;
-      case "transactions":
-        newMode = "transactions";
-        break;
-      case "performance":
-        newMode = "performance";
-        break;
-      case "screener":
-        newMode = "screener";
-        break;
-      case "timeseries":
-        newMode = "timeseries";
-        break;
-      case "watchlist":
-        newMode = "watchlist";
-        break;
-      case "market":
-        newMode = "market";
-        break;
-      case "movers":
-        newMode = "movers";
-        break;
-      case "instrumentadmin":
-        newMode = "instrumentadmin";
-        break;
-      case "dataadmin":
-        newMode = "dataadmin";
-        break;
-      case "trail":
-        newMode = "trail";
-        break;
-      case "support":
-        newMode = "support";
-        break;
-      case "settings":
-        newMode = "settings";
-        break;
-      case "scenario":
-        newMode = "scenario";
-        break;
-      default:
-        newMode = segs.length === 0 ? "group" : "movers";
-    }
+    const newMode = segmentToMode(segs[0], segs.length);
 
     if (tabs[newMode] !== true || disabledTabs?.includes(newMode)) {
       const firstEnabled = Object.entries(tabs).find(

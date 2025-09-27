@@ -15,6 +15,7 @@ import LoginPage from './LoginPage'
 import { UserProvider, useUser } from './UserContext'
 import ErrorBoundary from './ErrorBoundary'
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
+import { RouteProvider } from './RouteContext'
 
 const storedToken = getStoredAuthToken()
 if (storedToken) setAuthToken(storedToken)
@@ -140,7 +141,14 @@ export function Root() {
           <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
           <Route path="/returns/compare" element={<ReturnComparison />} />
           <Route path="/metrics-explained" element={<MetricsExplanation />} />
-          <Route path="/*" element={<App onLogout={logout} />} />
+          <Route
+            path="/*"
+            element={
+              <RouteProvider>
+                <App onLogout={logout} />
+              </RouteProvider>
+            }
+          />
         </Routes>
       </Suspense>
     </ErrorBoundary>

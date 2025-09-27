@@ -228,19 +228,19 @@ def _list_local_plots(
     if "demo" in owners_index:
         _merge_accounts(owners_index["demo"], fallback_demo)
     else:
-        if fallback_demo:
+        if fallback_demo and not config.disable_auth:
             results.append(fallback_demo)
             owners_index["demo"] = fallback_demo
         elif include_demo_primary:
             primary_demo = _load_demo_owner(primary_root)
-            if primary_demo:
+            if primary_demo and not config.disable_auth:
                 results.append(primary_demo)
                 owners_index["demo"] = primary_demo
 
     if same_root:
         return results
 
-    if "demo" not in owners_index:
+    if "demo" not in owners_index and not config.disable_auth:
         primary_demo = _load_demo_owner(primary_root)
         if primary_demo:
             results.append(primary_demo)

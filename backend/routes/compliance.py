@@ -77,12 +77,14 @@ async def validate_trade(request: Request):
     if "owner" not in trade:
         raise HTTPException(status_code=422, detail="owner is required")
     accounts_root = resolve_accounts_root(request)
-    owner_value = (trade.get("owner") or "").strip()
+    raw_owner = trade.get("owner")
+    owner_value = " ".join(str(raw_owner or "").split()).strip()
     if not owner_value:
         raise_owner_not_found()
 
     owners = _known_owners(accounts_root)
     owner_dir = resolve_owner_directory(accounts_root, owner_value)
+    scaffold_missing = owner_dir is None
 
     if owner_dir:
         canonical_owner = owner_dir.name
@@ -90,15 +92,13 @@ async def validate_trade(request: Request):
             raise_owner_not_found()
         trade["owner"] = canonical_owner
     else:
-        if owners:
-            raise_owner_not_found()
-        owner_dir = compliance.ensure_owner_scaffold(owner_value, accounts_root)
-        accounts_root = owner_dir.parent
-        request.app.state.accounts_root = accounts_root
-        request.app.state.accounts_root_is_global = False
-        trade["owner"] = owner_dir.name
+        trade["owner"] = owner_value
     try:
-        return compliance.check_trade(trade, accounts_root)
+        return compliance.check_trade(
+            trade,
+            accounts_root,
+            scaffold_missing=scaffold_missing,
+        )
     except FileNotFoundError:
         raise_owner_not_found()
     except ValueError as exc:

@@ -25,13 +25,16 @@ def resolve_accounts_root(request: Request) -> Path:
     if accounts_root_value is not None:
         try:
             cached_path = Path(accounts_root_value).expanduser()
+            resolved_cached = cached_path.resolve(strict=False)
         except (TypeError, ValueError, OSError):
             cached_path = None
+            resolved_cached = None
         else:
-            if cached_path.exists():
-                resolved_cached = cached_path.resolve()
-                request.app.state.accounts_root = resolved_cached
-                return resolved_cached
+            request.app.state.accounts_root = resolved_cached
+            if hasattr(request.app.state, "accounts_root_is_global"):
+                request.app.state.accounts_root_is_global = False
+            return resolved_cached
+
         request.app.state.accounts_root = None
         if hasattr(request.app.state, "accounts_root_is_global"):
             request.app.state.accounts_root_is_global = False

@@ -26,12 +26,6 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
     active_root_has_entries = False
     allow_demo_injection = False
 
-    specified_root: Path | None
-    try:
-        specified_root = Path(accounts_root) if accounts_root is not None else None
-    except (TypeError, ValueError):
-        specified_root = None
-
     def _ensure_demo_owner(owner_set: set[str]) -> None:
         """Ensure the bundled demo owner remains discoverable."""
 
@@ -54,13 +48,6 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
         except Exception:
             return
 
-    active_root_exists = True
-    if specified_root is not None:
-        try:
-            active_root_exists = specified_root.exists()
-        except Exception:
-            active_root_exists = False
-
     list_plots_failed = False
     try:
         entries = data_loader.list_plots(accounts_root)
@@ -70,11 +57,6 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
     else:
         allow_demo_injection = True
 
-    if not active_root_exists:
-        entries = []
-        list_plots_failed = True
-        allow_demo_injection = False
-
     for entry in entries:
         owner = (entry.get("owner") or "").strip()
         if owner:
@@ -83,13 +65,15 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
     if owners:
         active_root_has_entries = True
 
-    allow_demo_injection = (
-        allow_demo_injection and active_root_exists and not list_plots_failed
-    )
+    allow_demo_injection = allow_demo_injection and not list_plots_failed
 
     if owners:
         if allow_demo_injection:
             _ensure_demo_owner(owners)
+        owners.active_root_has_entries = active_root_has_entries
+        return owners
+
+    if not list_plots_failed:
         owners.active_root_has_entries = active_root_has_entries
         return owners
 

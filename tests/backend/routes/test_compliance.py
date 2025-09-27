@@ -106,7 +106,7 @@ def test_known_owners_adds_demo_owner_when_available(tmp_path, monkeypatch):
     assert owners.active_root_has_entries is True
 
 
-def test_known_owners_skips_demo_when_root_missing(tmp_path, monkeypatch):
+def test_known_owners_uses_metadata_when_root_missing(tmp_path, monkeypatch):
     accounts_root = tmp_path / "missing"
     fallback_root = tmp_path / "fallback"
     fallback_root.mkdir()
@@ -115,7 +115,7 @@ def test_known_owners_skips_demo_when_root_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(
         compliance_module.data_loader,
         "list_plots",
-        lambda _: [{"owner": "demo"}],
+        lambda _: [{"owner": "Alice"}],
     )
     monkeypatch.setattr(
         compliance_module.data_loader,
@@ -125,8 +125,8 @@ def test_known_owners_skips_demo_when_root_missing(tmp_path, monkeypatch):
 
     owners = compliance_module._known_owners(accounts_root)
 
-    assert owners == set()
-    assert owners.active_root_has_entries is False
+    assert owners == {"alice", "demo"}
+    assert owners.active_root_has_entries is True
 
 
 def test_known_owners_skips_demo_when_metadata_lookup_fails(tmp_path, monkeypatch):

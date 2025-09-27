@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   getVirtualPortfolios,
   getVirtualPortfolio,
@@ -15,7 +15,11 @@ import type {
   OwnerSummary,
   VirtualPortfolioAnalyticsEvent,
 } from "../types";
-import { sanitizeOwners } from "../utils/owners";
+import {
+  sanitizeOwners,
+  createOwnerDisplayLookup,
+  getOwnerDisplayName,
+} from "../utils/owners";
 
 export function VirtualPortfolio() {
   const [portfolios, setPortfolios] = useState<VP[]>([]);
@@ -27,6 +31,10 @@ export function VirtualPortfolio() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const ownerLookup = useMemo(
+    () => createOwnerDisplayLookup(owners),
+    [owners],
+  );
 
   const track = (
     event: VirtualPortfolioAnalyticsEvent,
@@ -209,7 +217,7 @@ export function VirtualPortfolio() {
         <legend>Include Accounts</legend>
         {owners.map((o) => (
           <div key={o.owner} style={{ marginBottom: "0.25rem" }}>
-            <strong>{o.owner}</strong>
+            <strong>{getOwnerDisplayName(ownerLookup, o.owner, o.owner)}</strong>
             {o.accounts.map((a) => {
               const val = `${o.owner}:${a}`;
               return (

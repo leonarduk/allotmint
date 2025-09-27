@@ -1,5 +1,5 @@
 import { Screener } from "./Screener";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   API_BASE,
@@ -12,7 +12,11 @@ import { useFetch } from "../hooks/useFetch";
 import { useSortableTable } from "../hooks/useSortableTable";
 import { SavedQueries } from "../components/SavedQueries";
 import { z } from "zod";
-import { sanitizeOwners } from "../utils/owners";
+import {
+  sanitizeOwners,
+  createOwnerDisplayLookup,
+  getOwnerDisplayName,
+} from "../utils/owners";
 
 const TICKER_OPTIONS = ["AAA", "BBB", "CCC"];
 const METRIC_OPTIONS = ["market_value_gbp", "gain_gbp"];
@@ -28,7 +32,16 @@ function QuerySection() {
   const sanitizedOwners = sanitizeOwners(rawOwners);
   const ownerList = sanitizedOwners.length
     ? sanitizedOwners
-    : (isTest ? [{ owner: 'Alice', accounts: [] }, { owner: 'Bob', accounts: [] }] : []);
+    : isTest
+    ? [
+        { owner: "alice", full_name: "Alice Example", accounts: [] },
+        { owner: "bob", full_name: "Bob Example", accounts: [] },
+      ]
+    : [];
+  const ownerLookup = useMemo(
+    () => createOwnerDisplayLookup(ownerList),
+    [ownerList],
+  );
   const { t } = useTranslation();
 
   const [start, setStart] = useState("");
@@ -189,17 +202,24 @@ function QuerySection() {
         </label>
         <fieldset className="mb-4">
           <legend>{t("query.owners")}</legend>
-          {ownerList.map((o) => (
-            <label key={o.owner} className="mr-2">
-              <input
-                type="checkbox"
-                aria-label={o.owner}
-                checked={selectedOwners.includes(o.owner)}
-                onChange={() => toggle(selectedOwners, o.owner, setSelectedOwners)}
-              />
-              {o.owner}
-            </label>
-          ))}
+          {ownerList.map((o) => {
+            const label = getOwnerDisplayName(
+              ownerLookup,
+              o.owner,
+              o.owner,
+            );
+            return (
+              <label key={o.owner} className="mr-2">
+                <input
+                  type="checkbox"
+                aria-label={label}
+                  checked={selectedOwners.includes(o.owner)}
+                  onChange={() => toggle(selectedOwners, o.owner, setSelectedOwners)}
+                />
+                {label}
+              </label>
+            );
+          })}
         </fieldset>
         <fieldset className="mb-4">
           <legend>{t("query.tickers")}</legend>
@@ -264,11 +284,22 @@ function QuerySection() {
           <tbody>
             {sorted.map((r, idx) => (
               <tr key={idx}>
-                {columns.map((c) => (
-                  <td key={c as string} style={{ padding: "4px 6px" }}>
-                    {r[c] as string | number}
-                  </td>
-                ))}
+                {columns.map((c) => {
+                  const key = c as keyof ResultRow;
+                  const value =
+                    key === "owner"
+                      ? getOwnerDisplayName(
+                          ownerLookup,
+                          typeof r[key] === "string" ? (r[key] as string) : null,
+                          typeof r[key] === "string" ? (r[key] as string) : "",
+                        )
+                      : (r[key] as string | number);
+                  return (
+                    <td key={c as string} style={{ padding: "4px 6px" }}>
+                      {value}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

@@ -65,7 +65,9 @@ describe("PensionForecast page", () => {
   });
 
   it("renders owner selector", async () => {
-    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
       projected_pot_gbp: 0,
@@ -94,8 +96,8 @@ describe("PensionForecast page", () => {
 
   it("submits with selected owner", async () => {
     mockGetOwners.mockResolvedValue([
-      { owner: "alex", accounts: [] },
-      { owner: "beth", accounts: [] },
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+      { owner: "beth", full_name: "Beth Example", accounts: [] },
     ]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
@@ -118,7 +120,7 @@ describe("PensionForecast page", () => {
 
     renderWithI18n(<PensionForecast />);
 
-    await screen.findByText("beth");
+    await screen.findByText("Beth Example");
     const form = document.querySelector("form")!;
     const ownerSelect = await within(form).findByLabelText(/owner/i);
     await userEvent.selectOptions(ownerSelect, "beth");
@@ -210,8 +212,8 @@ describe("PensionForecast page", () => {
   it("uses active route owner when available", async () => {
     routeState.selectedOwner = "beth";
     mockGetOwners.mockResolvedValue([
-      { owner: "alex", accounts: [] },
-      { owner: "beth", accounts: [] },
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+      { owner: "beth", full_name: "Beth Example", accounts: [] },
     ]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
@@ -239,9 +241,9 @@ describe("PensionForecast page", () => {
   it("defaults to first available owner when no active selection", async () => {
     routeState.selectedOwner = "";
     mockGetOwners.mockResolvedValue([
-      { owner: "demo", accounts: [] },
-      { owner: "carol", accounts: [] },
-      { owner: "zoe", accounts: [] },
+      { owner: "demo", full_name: "Demo", accounts: [] },
+      { owner: "carol", full_name: "Carol Example", accounts: [] },
+      { owner: "zoe", full_name: "Zoe Example", accounts: [] },
     ]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
@@ -267,7 +269,9 @@ describe("PensionForecast page", () => {
   });
 
   it("shows shortfall insight when desired income is not met", async () => {
-    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
       projected_pot_gbp: 50,
@@ -302,7 +306,9 @@ describe("PensionForecast page", () => {
   });
 
   it("surfaces employer contribution adjustments and additional pensions", async () => {
-    mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
+    mockGetOwners.mockResolvedValue([
+      { owner: "alex", full_name: "Alex Example", accounts: [] },
+    ]);
     mockGetPensionForecast.mockResolvedValue({
       forecast: [],
       projected_pot_gbp: 0,

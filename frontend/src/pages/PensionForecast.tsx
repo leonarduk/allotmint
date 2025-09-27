@@ -295,7 +295,7 @@ export default function PensionForecast() {
             >
               {owners.map((o) => (
                 <option key={o.owner} value={o.owner}>
-                  {o.owner}
+                  {o.full_name?.trim() ? o.full_name : o.owner}
                 </option>
               ))}
             </select>

@@ -367,7 +367,10 @@ describe("HoldingsTable", () => {
         vi.stubGlobal("Tooltip", () => <div />);
         renderWithConfig(
           <MemoryRouter>
-            <GroupPortfolioView slug="all" />
+            <GroupPortfolioView
+              slug="all"
+              owners={[{ owner: "alice", full_name: "Alice Example", accounts: ["isa"] }]}
+            />
           </MemoryRouter>,
         );
         await screen.findByRole("button", { name: "AAA" });

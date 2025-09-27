@@ -205,6 +205,27 @@ def _build_compliance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
     return tasks
 
 
+def _has_custom_threshold(user: str) -> bool:
+    thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
+    if not isinstance(thresholds, dict):
+        return False
+
+    raw_threshold = thresholds.get(user)
+    if raw_threshold is None:
+        return False
+    if isinstance(raw_threshold, bool):
+        return bool(raw_threshold)
+    if isinstance(raw_threshold, (int, float)):
+        return math.isfinite(float(raw_threshold))
+
+    try:
+        candidate = float(raw_threshold)
+    except (TypeError, ValueError):
+        return bool(raw_threshold)
+
+    return math.isfinite(candidate)
+
+
 _AUTO_ONCE_KEY = "_auto_once"
 _AUTO_ONCE_BLOCKLIST = {
     "demo_allowance_isa",
@@ -251,35 +272,7 @@ def _build_once_tasks(user: str, user_data: Dict) -> List[TaskDefinition]:
         )
     )
 
-    # Configure price-drift alerts to catch meaningful moves.  The
-    # ``_USER_THRESHOLDS`` cache only records explicit overrides, so the
-    # presence of ``user`` indicates the threshold was customised.
-    thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
-    normalised_threshold: float | None = None
-    default_threshold = float(getattr(alerts, "DEFAULT_THRESHOLD_PCT", 0.0))
-    if isinstance(thresholds, dict):
-        raw_threshold = thresholds.get(user)
-        try:
-            candidate = float(raw_threshold)
-        except (TypeError, ValueError):
-            candidate = None
-        if candidate is not None and math.isfinite(candidate):
-            # Some persisted values store percentages as whole numbers (e.g. 5
-            # to represent 5%) – normalise those to fractional form before
-            # comparison.  Treat zero/negative sentinels as equivalent to the
-            # default, leaving ``normalised_threshold`` unset.
-            if candidate > 0:
-                normalised_threshold = candidate / 100.0 if candidate >= 1 else candidate
-
-    has_custom_threshold = bool(
-        normalised_threshold is not None
-        and not math.isclose(
-            normalised_threshold,
-            default_threshold,
-            rel_tol=1e-9,
-            abs_tol=1e-9,
-        )
-    )
+    has_custom_threshold = _has_custom_threshold(user)
     _sync_once_completion(user_data, "set_alert_threshold", has_custom_threshold)
     tasks.append(
         TaskDefinition(
@@ -453,6 +446,7 @@ def get_tasks(user: str) -> Dict:
     today = date.today().isoformat()
     user_data = _ensure_user_data(user, persist=True)
     task_defs = _build_task_definitions(user, user_data)
+    has_custom_threshold = _has_custom_threshold(user)
 
     daily_task_ids = [task.id for task in task_defs if task.type == "daily"]
     once_task_ids = [task.id for task in task_defs if task.type == "once"]
@@ -471,6 +465,8 @@ def get_tasks(user: str) -> Dict:
         completed = (
             task.id in once_completed if task.type == "once" else task.id in daily_completed
         )
+        if task.id == "set_alert_threshold" and has_custom_threshold:
+            completed = True
         tasks.append(
             {
                 "id": task.id,

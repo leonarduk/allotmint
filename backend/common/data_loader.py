@@ -220,6 +220,14 @@ def _list_local_plots(
 
     results = _discover(primary_root, include_demo=include_demo_primary)
 
+    # When an explicit ``data_root`` is provided treat it as authoritative and
+    # avoid blending in accounts from the repository fallback tree.  This keeps
+    # unit tests (which use temporary roots) isolated from the real repository
+    # data and mirrors the expectation that callers passing a custom root only
+    # see data from that location.
+    if data_root is not None:
+        return results
+
     try:
         same_root = fallback_root.resolve() == primary_root.resolve()
     except OSError:

@@ -208,12 +208,13 @@ def _list_local_plots(
 
         return results
 
+    include_demo_primary = bool(config.disable_auth)
+
     paths = resolve_paths(config.repo_root, config.accounts_root)
     primary_root = Path(data_root) if data_root else paths.accounts_root
 
     fallback_paths = resolve_paths(None, None)
     fallback_root = fallback_paths.accounts_root
-    include_demo_primary = bool(config.disable_auth)
     if not include_demo_primary and data_root is None:
         try:
             include_demo_primary = primary_root.resolve() == fallback_root.resolve()

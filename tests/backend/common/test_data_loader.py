@@ -9,6 +9,7 @@ from backend.common.data_loader import (
     ResolvedPaths,
     _list_local_plots,
     _safe_json_load,
+    list_plots,
     load_person_meta,
     load_virtual_portfolio,
     resolve_paths,
@@ -233,3 +234,51 @@ class TestListLocalPlots:
         assert result == [
             {"owner": "alice", "accounts": ["alpha"]},
         ]
+
+class TestListPlots:
+    def test_explicit_root_retains_demo_when_auth_disabled(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+        primary_root = repo_root / "accounts"
+        primary_root.mkdir()
+        fallback_root = tmp_path / "fallback" / "accounts"
+        fallback_root.mkdir(parents=True)
+
+        _write_owner(primary_root, "carol", ["gamma"], viewers=[])
+        _write_owner(fallback_root, "demo", ["demo1"], viewers=[])
+
+        cfg = Config()
+        cfg.repo_root = repo_root
+        cfg.accounts_root = primary_root
+        cfg.disable_auth = True
+        cfg.app_env = None
+        monkeypatch.setattr("backend.common.data_loader.config", cfg)
+        monkeypatch.delenv(DATA_BUCKET_ENV, raising=False)
+
+        def fake_resolve_paths(
+            repo_root_arg: Path | str | None = None,
+            accounts_root_arg: Path | str | None = None,
+        ) -> ResolvedPaths:
+            if repo_root_arg is None and accounts_root_arg is None:
+                virtual_root = fallback_root.parent / "virtual_portfolios"
+                return ResolvedPaths(repo_root, fallback_root, virtual_root)
+            repo_path = Path(repo_root_arg) if repo_root_arg else repo_root
+            accounts_path = (
+                Path(accounts_root_arg) if accounts_root_arg else primary_root
+            )
+            virtual_root = accounts_path.parent / "virtual_portfolios"
+            return ResolvedPaths(repo_path, accounts_path, virtual_root)
+
+        monkeypatch.setattr(
+            "backend.common.data_loader.resolve_paths", fake_resolve_paths
+        )
+
+        result = list_plots(data_root=primary_root, current_user=None)
+
+        assert result == [
+            {"owner": "carol", "accounts": ["gamma"]},
+            {"owner": "demo", "accounts": ["demo1"]},
+        ]
+

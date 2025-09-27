@@ -379,7 +379,6 @@ def load_config() -> Config:
         approval_valid_days=data.get("approval_valid_days"),
         approval_exempt_types=approval_exempt_types,
         approval_exempt_tickers=approval_exempt_tickers,
-        allowed_emails=allowed_emails,
         tabs=tabs,
         trading_agent=trading_agent,
         cors_origins=cors_origins,

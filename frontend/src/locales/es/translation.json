@@ -246,7 +246,8 @@
     }
   },
   "group": {
-    "select": "Seleccione un grupo."
+    "select": "Seleccione un grupo.",
+    "atAGlance": "De un vistazo"
   },
   "dashboard": {
     "selectMember": "Seleccione un miembro.",

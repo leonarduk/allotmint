@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
+import { isDefaultGroupSlug } from '../utils/groups';
 import type { TabPluginId } from '../tabPlugins';
 import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
 
@@ -211,7 +212,9 @@ export default function Menu({
   function pathFor(m: any) {
     switch (m) {
       case 'group':
-        return selectedGroup ? `/?group=${selectedGroup}` : '/';
+        return selectedGroup && !isDefaultGroupSlug(selectedGroup)
+          ? `/?group=${selectedGroup}`
+          : '/';
       case 'instrument':
         return selectedGroup ? `/instrument/${selectedGroup}` : '/instrument';
       case 'owner':

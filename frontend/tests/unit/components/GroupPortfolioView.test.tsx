@@ -191,7 +191,7 @@ const mockAllFetches = (
 describe("GroupPortfolioView", () => {
   it("shows per-owner totals with percentages in relative view", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [
         {
           owner: "alice",
@@ -245,7 +245,7 @@ describe("GroupPortfolioView", () => {
 
   it("renders instrument type pie chart", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [
         {
           owner: "alice",
@@ -290,7 +290,7 @@ describe("GroupPortfolioView", () => {
 
   it("switches instrument rows across owner and account tabs", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [
         {
           owner: "alice",
@@ -401,7 +401,7 @@ describe("GroupPortfolioView", () => {
 
   it("calls onSelectMember when owner name clicked", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [
         {
           owner: "alice",
@@ -465,7 +465,7 @@ describe("GroupPortfolioView", () => {
 
   it("renders metrics error message", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [],
     };
 
@@ -494,7 +494,7 @@ describe("GroupPortfolioView", () => {
   });
 
   it("shows N/A for invalid performance metrics", async () => {
-    const mockPortfolio = { name: "All owners combined", accounts: [] };
+    const mockPortfolio = { name: "At a glance", accounts: [] };
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     mockAllFetches(mockPortfolio, {

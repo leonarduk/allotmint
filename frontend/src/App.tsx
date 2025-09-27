@@ -6,10 +6,12 @@ import {
   getGroups,
   getOwners,
   getPortfolio,
+  listInstrumentMetadata,
 } from "./api";
 
 import type {
   GroupSummary,
+  InstrumentMetadata,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -53,6 +55,10 @@ import PensionForecast from "./pages/PensionForecast";
 import TaxTools from "./pages/TaxTools";
 import RightRail from "./components/RightRail";
 import { sanitizeOwners } from "./utils/owners";
+import {
+  isDefaultGroupSlug,
+  normaliseGroupSlug,
+} from "./utils/groups";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -122,6 +128,71 @@ const initialMode: Mode =
 
 const initialSlug = path[1] ?? "";
 
+type InstrumentMetadataWithSymbol = InstrumentMetadata & {
+  symbol?: string | null;
+};
+
+function metadataToInstrumentSummary(metadata: InstrumentMetadata): InstrumentSummary {
+  const metadataWithSymbol = metadata as InstrumentMetadataWithSymbol;
+  const ticker = (() => {
+    const rawTicker = typeof metadata.ticker === "string" ? metadata.ticker.trim() : "";
+    if (rawTicker) {
+      return rawTicker;
+    }
+    const symbol =
+      typeof metadataWithSymbol.symbol === "string" && metadataWithSymbol.symbol.trim()
+        ? metadataWithSymbol.symbol.trim()
+        : "";
+    if (!symbol) {
+      return metadata.name?.trim() || "UNKNOWN";
+    }
+    const exchange =
+      typeof metadata.exchange === "string" && metadata.exchange.trim()
+        ? metadata.exchange.trim()
+        : "";
+    return exchange ? `${symbol}.${exchange}` : symbol;
+  })();
+
+  const exchange =
+    typeof metadata.exchange === "string" && metadata.exchange.trim()
+      ? metadata.exchange.trim()
+      : null;
+  const currency =
+    typeof metadata.currency === "string" && metadata.currency.trim()
+      ? metadata.currency.trim()
+      : null;
+  const grouping =
+    typeof metadata.grouping === "string" && metadata.grouping.trim()
+      ? metadata.grouping.trim()
+      : null;
+  const instrumentType = (() => {
+    if (typeof metadata.instrument_type === "string" && metadata.instrument_type.trim()) {
+      return metadata.instrument_type.trim();
+    }
+    if (typeof metadata.instrumentType === "string" && metadata.instrumentType.trim()) {
+      return metadata.instrumentType.trim();
+    }
+    return null;
+  })();
+
+  const name = metadata.name?.trim() || ticker;
+
+  return {
+    ticker,
+    name,
+    grouping,
+    exchange,
+    currency,
+    units: 0,
+    market_value_gbp: 0,
+    market_value_currency: currency,
+    gain_gbp: 0,
+    gain_currency: currency,
+    gain_pct: 0,
+    instrument_type: instrumentType,
+  };
+}
+
 export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -137,7 +208,9 @@ export default function App({ onLogout }: AppProps) {
       : "",
   );
   const [selectedGroup, setSelectedGroup] = useState(
-    initialMode === "instrument" ? initialSlug : params.get("group") ?? ""
+    initialMode === "instrument"
+      ? initialSlug
+      : normaliseGroupSlug(params.get("group"))
   );
 
   const [researchTicker, setResearchTicker] = useState(
@@ -259,7 +332,11 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
-      setSelectedGroup(params.get("group") ?? "");
+      const groupParam = params.get("group");
+      setSelectedGroup(normaliseGroupSlug(groupParam));
+      if (groupParam && isDefaultGroupSlug(groupParam) && location.search) {
+        navigate("/", { replace: true });
+      }
     } else if (newMode === "research") {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? "") : "");
     }
@@ -324,12 +401,27 @@ export default function App({ onLogout }: AppProps) {
       setSelectedGroup(slug);
       navigate(`/instrument/${slug}`, { replace: true });
     }
-    if (mode === "group" && !selectedGroup && groups.length) {
-      const slug = groups[0].slug;
-      setSelectedGroup(slug);
-      navigate(`/?group=${slug}`, { replace: true });
+    if (mode === "group" && groups.length) {
+      const hasSelection = groups.some((g) => g.slug === selectedGroup);
+      if (!hasSelection) {
+        const slug = groups[0].slug;
+        setSelectedGroup(slug);
+        if (isDefaultGroupSlug(slug)) {
+          if (location.search) navigate("/", { replace: true });
+        } else {
+          navigate(`/?group=${slug}`, { replace: true });
+        }
+      }
     }
-  }, [mode, selectedOwner, selectedGroup, owners, groups, navigate]);
+  }, [
+    mode,
+    selectedOwner,
+    selectedGroup,
+    owners,
+    groups,
+    navigate,
+    location.search,
+  ]);
 
   // data fetching based on route
   useEffect(() => {
@@ -347,7 +439,13 @@ export default function App({ onLogout }: AppProps) {
     if (mode === "instrument" && selectedGroup) {
       setLoading(true);
       setErr(null);
-      getGroupInstruments(selectedGroup)
+      const fetchPromise =
+        selectedGroup === "all"
+          ? listInstrumentMetadata().then((catalogue) =>
+              catalogue.map((entry) => metadataToInstrumentSummary(entry)),
+            )
+          : getGroupInstruments(selectedGroup);
+      fetchPromise
         .then(setInstruments)
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));

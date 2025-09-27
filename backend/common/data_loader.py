@@ -74,7 +74,6 @@ _METADATA_STEMS = {
     "notes",
     "settings",
     "approvals",
-    "approval_requests",
 }  # ignore these as accounts
 _SKIP_OWNERS = {".idea", "demo"}
 

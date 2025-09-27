@@ -103,7 +103,7 @@ async def validate_trade(request: Request):
     trade = await request.json()
     if "owner" not in trade:
         raise HTTPException(status_code=422, detail="owner is required")
-    accounts_root = resolve_accounts_root(request)
+    accounts_root = resolve_accounts_root(request, allow_missing=True)
     raw_owner = trade.get("owner")
     owner_value = " ".join(str(raw_owner or "").split()).strip()
     if not owner_value:

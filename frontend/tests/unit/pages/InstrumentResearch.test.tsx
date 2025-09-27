@@ -16,6 +16,8 @@ import { configContext, type ConfigContextValue } from "@/ConfigContext";
 const mockGetNews = vi.spyOn(api, "getNews");
 const mockListInstrumentMetadata = vi.spyOn(api, "listInstrumentMetadata");
 const mockUpdateInstrumentMetadata = vi.spyOn(api, "updateInstrumentMetadata");
+const mockRefreshInstrumentMetadata = vi.spyOn(api, "refreshInstrumentMetadata");
+const mockConfirmInstrumentMetadata = vi.spyOn(api, "confirmInstrumentMetadata");
 const mockGetScreener = vi.spyOn(api, "getScreener");
 const mockUseInstrumentHistory = vi.mocked(useInstrumentHistory);
 
@@ -95,9 +97,33 @@ describe("InstrumentResearch page", () => {
     } as any);
     mockListInstrumentMetadata.mockReset();
     mockUpdateInstrumentMetadata.mockReset();
+    mockRefreshInstrumentMetadata.mockReset();
+    mockConfirmInstrumentMetadata.mockReset();
     mockGetScreener.mockReset();
     mockGetNews.mockReset();
     mockGetNews.mockResolvedValue([]);
+    mockRefreshInstrumentMetadata.mockResolvedValue({
+      status: "preview",
+      metadata: {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "USD",
+      },
+      changes: {},
+    } as any);
+    mockConfirmInstrumentMetadata.mockResolvedValue({
+      status: "updated",
+      metadata: {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp",
+        sector: "Tech",
+        currency: "USD",
+      },
+      changes: {},
+    } as any);
     mockGetScreener.mockResolvedValue([
       {
         rank: 1,
@@ -456,6 +482,94 @@ describe("InstrumentResearch page", () => {
       await screen.findByText("Unable to save instrument details. save failed"),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/Currency/i)).toBeInTheDocument();
+  });
+
+  it("refresh populates metadata fields and applies confirmed changes", async () => {
+    const user = userEvent.setup();
+    mockRefreshInstrumentMetadata.mockResolvedValue({
+      status: "preview",
+      metadata: {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp PLC",
+        sector: "Technology",
+        currency: "GBP",
+        instrument_type: "EQUITY",
+      },
+      changes: {
+        name: { from: "Acme Corp", to: "Acme Corp PLC" },
+        currency: { from: "USD", to: "GBP" },
+        instrument_type: { from: null, to: "EQUITY" },
+      },
+    } as any);
+    mockConfirmInstrumentMetadata.mockResolvedValue({
+      status: "updated",
+      metadata: {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp PLC",
+        sector: "Technology",
+        currency: "GBP",
+        instrument_type: "EQUITY",
+      },
+      changes: {},
+    } as any);
+
+    renderPage();
+
+    await screen.findByText("Instrument info");
+
+    await user.click(screen.getByRole("button", { name: /refresh/i }));
+
+    expect(mockRefreshInstrumentMetadata).toHaveBeenCalledWith("AAA", "L");
+
+    const confirmButton = await screen.findByRole("button", { name: /confirm/i });
+    expect(confirmButton).toBeInTheDocument();
+
+    const nameInput = screen.getByLabelText("Name");
+    expect(nameInput).toHaveValue("Acme Corp PLC");
+    expect(nameInput).toBeDisabled();
+
+    await user.click(confirmButton);
+
+    expect(mockConfirmInstrumentMetadata).toHaveBeenCalledWith("AAA", "L");
+
+    expect(
+      await screen.findByText("Instrument details refreshed from Yahoo Finance."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Name: Acme Corp PLC/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirm/i })).not.toBeInTheDocument();
+  });
+
+  it("cancel refresh leaves metadata unchanged", async () => {
+    const user = userEvent.setup();
+    mockRefreshInstrumentMetadata.mockResolvedValue({
+      status: "preview",
+      metadata: {
+        ticker: "AAA.L",
+        exchange: "L",
+        name: "Acme Corp PLC",
+        sector: "Technology",
+        currency: "GBP",
+        instrument_type: "EQUITY",
+      },
+      changes: {
+        name: { from: "Acme Corp", to: "Acme Corp PLC" },
+      },
+    } as any);
+
+    renderPage();
+
+    await screen.findByText("Instrument info");
+    await user.click(screen.getByRole("button", { name: /refresh/i }));
+
+    expect(await screen.findByRole("button", { name: /confirm/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(mockConfirmInstrumentMetadata).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /confirm/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Name: Acme Corp/)).toBeInTheDocument();
   });
 
   it("surfaces catalogue load failures", async () => {

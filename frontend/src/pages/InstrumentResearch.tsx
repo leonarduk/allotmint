@@ -5,10 +5,13 @@ import { useTranslation } from "react-i18next";
 import { useInstrumentHistory, updateCachedInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { InstrumentDetail, InstrumentPositionsTable } from "../components/InstrumentDetail";
 import {
+  confirmInstrumentMetadata,
   getNews,
   getScreener,
   listInstrumentMetadata,
+  refreshInstrumentMetadata,
   updateInstrumentMetadata,
+  type InstrumentMetadataRefreshResponse,
 } from "../api";
 import type { NewsItem, InstrumentMetadata, ScreenerResult } from "../types";
 import EmptyState from "../components/EmptyState";
@@ -119,6 +122,10 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
     instrumentType: boolean;
     currency: boolean;
   };
+  type RefreshPreviewState = {
+    metadata: MetadataState;
+    changes: InstrumentMetadataRefreshResponse["changes"];
+  };
   const [metadata, setMetadata] = useState<MetadataState>({
     name: "",
     sector: "",
@@ -144,6 +151,13 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [metadataStatus, setMetadataStatus] = useState<
     { kind: "success" | "error"; text: string } | null
   >(null);
+  const [refreshPreview, setRefreshPreview] = useState<RefreshPreviewState | null>(null);
+  const [refreshContext, setRefreshContext] = useState<
+    { form: MetadataState; wasEditing: boolean } | null
+  >(null);
+  const [refreshingMetadata, setRefreshingMetadata] = useState(false);
+  const [confirmingRefresh, setConfirmingRefresh] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [sectorOptions, setSectorOptions] = useState<string[]>([]);
   const [instrumentTypeOptions, setInstrumentTypeOptions] = useState<string[]>(
     DEFAULT_INSTRUMENT_TYPES,
@@ -162,11 +176,42 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   const [fundamentalsLoading, setFundamentalsLoading] = useState(false);
   const [fundamentalsError, setFundamentalsError] = useState<string | null>(null);
 
+  const metadataStateFromResponse = (
+    payload: InstrumentMetadataRefreshResponse["metadata"],
+  ): MetadataState => {
+    const record = (payload ?? {}) as Record<string, unknown>;
+    const rawName = typeof record.name === "string" ? record.name : "";
+    const rawSector = typeof record.sector === "string" ? record.sector : "";
+    const rawCurrency = typeof record.currency === "string" ? record.currency : "";
+    const instrumentTypeCandidates = [
+      record["instrumentType"],
+      record["instrument_type"],
+      record["asset_class"],
+    ];
+    const candidate = instrumentTypeCandidates.find(
+      (value): value is string => typeof value === "string",
+    );
+    const normalisedType = normaliseInstrumentType(candidate);
+    const normalisedCurrency = normaliseUppercase(rawCurrency);
+    return {
+      name: normaliseOptional(rawName) ?? rawName ?? "",
+      sector: normaliseOptional(rawSector) ?? rawSector ?? "",
+      instrumentType: normalisedType ?? (candidate ?? ""),
+      currency:
+        normalisedCurrency ?? (rawCurrency ? rawCurrency.toUpperCase() : ""),
+    };
+  };
+
   useEffect(() => {
     setInstrumentExchange(initialExchange);
     setIsEditingMetadata(false);
     setMetadataSaving(false);
     setMetadataStatus(null);
+    setRefreshPreview(null);
+    setRefreshContext(null);
+    setRefreshError(null);
+    setRefreshingMetadata(false);
+    setConfirmingRefresh(false);
     setMetadata({ name: "", sector: "", instrumentType: "", currency: "" });
     setFormValues({
       name: "",
@@ -369,15 +414,125 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
   };
 
   const handleStartEditing = () => {
+    setRefreshPreview(null);
+    setRefreshContext(null);
+    setRefreshError(null);
     setFormValues(metadata);
     setMetadataStatus(null);
     setIsEditingMetadata(true);
   };
 
   const handleCancelEditing = () => {
+    setRefreshPreview(null);
+    setRefreshContext(null);
+    setRefreshError(null);
     setFormValues(metadata);
     setIsEditingMetadata(false);
     setMetadataStatus((prev) => (prev?.kind === "success" ? prev : null));
+  };
+
+  const deriveExchangeForActions = () => {
+    const fromState = normaliseUppercase(instrumentExchange);
+    if (fromState) return fromState;
+    const initial = normaliseUppercase(initialExchange);
+    if (initial) return initial;
+    if (tkr.includes(".")) {
+      const [, exch] = tkr.split(".", 2);
+      const normalised = normaliseUppercase(exch);
+      if (normalised) return normalised;
+    }
+    return "";
+  };
+
+  const handleRefreshMetadata = async () => {
+    if (refreshingMetadata || confirmingRefresh) return;
+    const exchange = deriveExchangeForActions();
+    if (!baseTicker || !exchange) {
+      setRefreshError(t("instrumentDetail.metadataMissingExchange"));
+      return;
+    }
+    setRefreshError(null);
+    setRefreshingMetadata(true);
+    try {
+      const preview = await refreshInstrumentMetadata(baseTicker, exchange);
+      const previewMetadata = metadataStateFromResponse(preview.metadata);
+      setRefreshContext({ form: { ...formValues }, wasEditing: isEditingMetadata });
+      setFormValues(previewMetadata);
+      setRefreshPreview({ metadata: previewMetadata, changes: preview.changes || {} });
+      setIsEditingMetadata(true);
+      setMetadataStatus(null);
+    } catch (err) {
+      console.error(err);
+      const message = err instanceof Error ? err.message : String(err);
+      setRefreshError(`${t("instrumentDetail.refreshError")} ${message}`);
+    } finally {
+      setRefreshingMetadata(false);
+    }
+  };
+
+  const handleConfirmRefresh = async () => {
+    if (!refreshPreview || confirmingRefresh) return;
+    const exchange = deriveExchangeForActions();
+    if (!baseTicker || !exchange) {
+      setRefreshError(t("instrumentDetail.metadataMissingExchange"));
+      return;
+    }
+    setConfirmingRefresh(true);
+    setRefreshError(null);
+    setMetadataStatus(null);
+    try {
+      const result = await confirmInstrumentMetadata(baseTicker, exchange);
+      const next = metadataStateFromResponse(result.metadata);
+      setMetadata(next);
+      setMetadataOverrides({ name: true, sector: true, instrumentType: true, currency: true });
+      setFormValues(next);
+      setInstrumentExchange(exchange);
+      setIsEditingMetadata(false);
+      setRefreshPreview(null);
+      setRefreshContext(null);
+      updateCachedInstrumentHistory(tkr, (cached) => {
+        cached.name = next.name;
+        cached.sector = next.sector;
+        cached.currency = next.currency;
+        cached.instrument_type = next.instrumentType || null;
+        (cached as Record<string, unknown>).instrumentType =
+          next.instrumentType || null;
+      });
+      if (next.sector) {
+        setSectorOptions((prev) => {
+          if (prev.some((entry) => entry.toUpperCase() === next.sector.toUpperCase())) {
+            return prev;
+          }
+          return [...prev, next.sector].sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: "base" }),
+          );
+        });
+      }
+      if (next.instrumentType) {
+        setInstrumentTypeOptions((prev) => addInstrumentTypeOption(prev, next.instrumentType));
+      }
+      setMetadataStatus({ kind: "success", text: t("instrumentDetail.refreshSuccess") });
+    } catch (err) {
+      console.error(err);
+      const message = err instanceof Error ? err.message : String(err);
+      setRefreshError(`${t("instrumentDetail.refreshError")} ${message}`);
+    } finally {
+      setConfirmingRefresh(false);
+    }
+  };
+
+  const handleCancelRefresh = () => {
+    const previous = refreshContext;
+    if (previous) {
+      setFormValues(previous.form);
+      setIsEditingMetadata(previous.wasEditing);
+    } else {
+      setFormValues(metadata);
+      setIsEditingMetadata(false);
+    }
+    setRefreshPreview(null);
+    setRefreshContext(null);
+    setRefreshError(null);
   };
 
   const handleSaveMetadata = async (event: FormEvent<HTMLFormElement>) => {
@@ -598,6 +753,9 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
       a.localeCompare(b, undefined, { sensitivity: "base" }),
     );
   })();
+  const metadataInputsDisabled =
+    metadataSaving || refreshingMetadata || confirmingRefresh || !!refreshPreview;
+  const exchangeForActions = deriveExchangeForActions();
 
   const tabOptions: { id: typeof activeTab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -667,29 +825,72 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
           }}
         >
           <h2 style={{ margin: 0 }}>{t("instrumentDetail.infoHeading")}</h2>
-          {isEditingMetadata ? (
-            <div>
-              <button
-                type="submit"
-                disabled={metadataSaving}
-                style={{ marginRight: "0.5rem" }}
-              >
-                {t("instrumentDetail.save")}
-              </button>
-              <button
-                type="button"
-                onClick={handleCancelEditing}
-                disabled={metadataSaving}
-              >
-                {t("instrumentDetail.cancel")}
-              </button>
-            </div>
-          ) : (
-            <button type="button" onClick={handleStartEditing}>
-              {t("instrumentDetail.edit")}
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <button
+              type="button"
+              onClick={handleRefreshMetadata}
+              disabled={
+                refreshingMetadata ||
+                confirmingRefresh ||
+                metadataSaving ||
+                !!refreshPreview ||
+                !baseTicker ||
+                !exchangeForActions
+              }
+            >
+              {refreshingMetadata
+                ? `${t("instrumentDetail.refresh")}…`
+                : t("instrumentDetail.refresh")}
             </button>
-          )}
+            {refreshPreview ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleConfirmRefresh}
+                  disabled={confirmingRefresh || refreshingMetadata}
+                >
+                  {confirmingRefresh
+                    ? `${t("instrumentDetail.refreshConfirm")}…`
+                    : t("instrumentDetail.refreshConfirm")}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelRefresh}
+                  disabled={confirmingRefresh || refreshingMetadata}
+                >
+                  {t("instrumentDetail.refreshCancel")}
+                </button>
+              </>
+            ) : isEditingMetadata ? (
+              <>
+                <button type="submit" disabled={metadataSaving}>
+                  {t("instrumentDetail.save")}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelEditing}
+                  disabled={metadataSaving}
+                >
+                  {t("instrumentDetail.cancel")}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={handleStartEditing}>
+                {t("instrumentDetail.edit")}
+              </button>
+            )}
+          </div>
         </div>
+        {refreshError && (
+          <div style={{ marginBottom: "0.5rem", color: "red" }}>{refreshError}</div>
+        )}
         {metadataStatus && (
           <div
             style={{
@@ -698,6 +899,70 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
             }}
           >
             {metadataStatus.text}
+          </div>
+        )}
+        {refreshPreview && (
+          <div
+            style={{
+              marginBottom: "0.75rem",
+              padding: "0.75rem",
+              border: "1px solid #ddd",
+              borderRadius: "4px",
+              background: "#f7f9fc",
+            }}
+          >
+            <strong>{t("instrumentDetail.refreshPreviewTitle")}</strong>
+            <p style={{ margin: "0.25rem 0 0.5rem" }}>
+              {t("instrumentDetail.refreshPreviewDescription")}
+            </p>
+            {(() => {
+              const canonicalChanges = new Map<string, { from: unknown; to: unknown }>();
+              const mappings: Record<string, string> = {
+                name: "name",
+                sector: "sector",
+                currency: "currency",
+                instrument_type: "instrument_type",
+                instrumentType: "instrument_type",
+              };
+              Object.entries(refreshPreview.changes ?? {}).forEach(([key, value]) => {
+                const mapped = mappings[key];
+                if (!mapped) return;
+                canonicalChanges.set(mapped, value);
+              });
+              const entries = Array.from(canonicalChanges.entries());
+              if (!entries.length) {
+                return (
+                  <p style={{ margin: 0 }}>
+                    {t("instrumentDetail.refreshNoChanges")}
+                  </p>
+                );
+              }
+              const formatValue = (value: unknown) => {
+                if (value == null) return "—";
+                if (typeof value === "string" && !value.trim()) return "—";
+                return String(value);
+              };
+              const labelMap: Record<string, string> = {
+                name: t("instrumentDetail.nameLabel"),
+                sector: t("instrumentDetail.sectorLabel"),
+                currency: t("instrumentDetail.currencyLabel"),
+                instrument_type: t("instrumentDetail.instrumentTypeLabel", {
+                  defaultValue: "Instrument type",
+                }),
+              };
+              return (
+                <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+                  {entries.map(([field, change]) => (
+                    <li key={field} style={{ marginBottom: "0.25rem" }}>
+                      <span style={{ fontWeight: 600 }}>
+                        {labelMap[field] ?? field}:
+                      </span>{" "}
+                      {formatValue(change.from)} → {formatValue(change.to)}
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
           </div>
         )}
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -710,7 +975,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                   value={formValues.name}
                   onChange={(e) => updateFormField("name")(e.target.value)}
                   style={{ display: "block", marginTop: "0.25rem", width: "100%" }}
-                  disabled={metadataSaving}
+                  disabled={metadataInputsDisabled}
                 />
               </label>
             ) : (
@@ -729,7 +994,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                   value={formValues.sector}
                   onChange={(e) => updateFormField("sector")(e.target.value)}
                   style={{ display: "block", marginTop: "0.25rem", width: "100%" }}
-                  disabled={metadataSaving}
+                  disabled={metadataInputsDisabled}
                 />
               </label>
             ) : (
@@ -749,7 +1014,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                   value={formValues.instrumentType}
                   onChange={(e) => updateFormField("instrumentType")(e.target.value)}
                   style={{ display: "block", marginTop: "0.25rem" }}
-                  disabled={metadataSaving}
+                  disabled={metadataInputsDisabled}
                 >
                   <option value="">
                     {t("instrumentDetail.instrumentTypePlaceholder", {
@@ -783,7 +1048,7 @@ export default function InstrumentResearch({ ticker }: InstrumentResearchProps) 
                   value={formValues.currency}
                   onChange={(e) => updateFormField("currency")(e.target.value)}
                   style={{ display: "block", marginTop: "0.25rem" }}
-                  disabled={metadataSaving}
+                  disabled={metadataInputsDisabled}
                 >
                   <option value="">{t("instrumentDetail.currencyPlaceholder")}</option>
                   {SUPPORTED_CURRENCIES.map((currency) => (

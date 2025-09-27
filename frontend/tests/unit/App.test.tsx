@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { MemoryRouter, Link, useLocation } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n from "@/i18n";
+import type { InstrumentMetadata } from "@/types";
 
 const mockTradingSignals = vi.fn();
 
@@ -100,6 +101,81 @@ describe("App", () => {
     );
   });
 
+  it("includes catalogue instruments in the /instrument/all view", async () => {
+    window.history.pushState({}, "", "/instrument/all");
+
+    const mockGetGroupInstruments = vi.fn().mockResolvedValue([]);
+    const mockListInstrumentMetadata = vi.fn().mockResolvedValue([
+      {
+        ticker: "",
+        symbol: "FOO",
+        exchange: "LSE",
+        name: "Foo Plc",
+        currency: "GBP",
+        instrument_type: "equity",
+      } as InstrumentMetadata & { symbol: string },
+    ]);
+
+    vi.doMock("@/components/InstrumentTable", () => ({
+      InstrumentTable: ({ rows }: { rows: { ticker: string }[] }) => (
+        <div data-testid="instrument-table">
+          {rows.map((row) => (
+            <span key={row.ticker}>{row.ticker}</span>
+          ))}
+        </div>
+      ),
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: vi
+          .fn()
+          .mockResolvedValue([{ slug: "all", name: "All Instruments", members: [] }]),
+        getPortfolio: vi.fn(),
+        getGroupInstruments: mockGetGroupInstruments,
+        listInstrumentMetadata: mockListInstrumentMetadata,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        assignInstrumentGroup: vi.fn(),
+        clearInstrumentGroup: vi.fn(),
+        createInstrumentGroup: vi.fn(),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+        getCachedGroupInstruments: undefined,
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/instrument/all"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockListInstrumentMetadata).toHaveBeenCalledTimes(1);
+    });
+
+    const table = await screen.findByTestId("instrument-table");
+    expect(within(table).getAllByText("FOO.LSE")).toHaveLength(1);
+    expect(mockGetGroupInstruments).not.toHaveBeenCalled();
+  });
+
   it("renders timeseries editor when path is /timeseries", async () => {
     window.history.pushState({}, "", "/timeseries?ticker=ABC&exchange=L");
 
@@ -128,6 +204,7 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      searchInstruments: vi.fn().mockResolvedValue([]),
       getCachedGroupInstruments: undefined,
     }));
 

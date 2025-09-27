@@ -15,6 +15,7 @@ auth:
   google_client_id: ""                # OAuth client id for Google auth (GOOGLE_CLIENT_ID)
   allowed_emails:                     # Whitelisted emails (ALLOWED_EMAILS)
     - user@example.com
+    - lucy@example.com
 
 server:
   app_env: local                      # Runtime environment (APP_ENV)

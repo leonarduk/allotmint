@@ -5,16 +5,25 @@ Param(
 
 $ErrorActionPreference = 'Stop'
 
+$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+$REPO_ROOT  = (Resolve-Path (Join-Path $SCRIPT_DIR '..')).Path
+$CDK_DIR    = Join-Path $REPO_ROOT 'cdk'
+$requirementsFile = Join-Path $CDK_DIR 'requirements.txt'
+$requirementsAvailable = Test-Path $requirementsFile
+
 # Ensure Python is available by validating the command actually executes and can import aws_cdk.
 $pythonCandidates = @(
-  @{ Name = 'python';   VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');            ResolveArgs = @() },
-  @{ Name = 'python3';  VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');            ResolveArgs = @() },
-  @{ Name = 'py';       VersionArgs = @('-3', '--version'); ModuleArgs = @('-3', '-c', 'import aws_cdk');      ResolveArgs = @('-3', '-c', 'import sys; print(sys.executable)') }
+  @{ Name = 'python';   VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');       ResolveArgs = @();                               InstallArgs = @('-m', 'pip', 'install', '-r') },
+  @{ Name = 'python3';  VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');       ResolveArgs = @();                               InstallArgs = @('-m', 'pip', 'install', '-r') },
+  @{ Name = 'py';       VersionArgs = @('-3', '--version'); ModuleArgs = @('-3', '-c', 'import aws_cdk'); ResolveArgs = @('-3', '-c', 'import sys; print(sys.executable)'); InstallArgs = @('-3', '-m', 'pip', 'install', '-r') }
 )
 
 $PYTHON = $null
 $selectedPythonVersion = $null
+$autoInstallError = $null
+$installAttempts = @{}
 $missingModuleCandidates = @()
+
 foreach ($candidate in $pythonCandidates) {
   $pythonCmd = Get-Command $candidate.Name -ErrorAction SilentlyContinue
   if (-not $pythonCmd) {
@@ -30,12 +39,52 @@ foreach ($candidate in $pythonCandidates) {
     continue
   }
 
+  $moduleExit = 0
   try {
     & $pythonCmd.Path @($candidate.ModuleArgs) 2>$null | Out-Null
     $moduleExit = $LASTEXITCODE
   } catch {
     $moduleExit = 1
   }
+
+  if ($moduleExit -ne 0) {
+    $commandKey = $pythonCmd.Path.ToLowerInvariant()
+    if (-not $installAttempts.ContainsKey($commandKey)) {
+      $installAttempts[$commandKey] = $true
+      if ($requirementsAvailable) {
+        Write-Host 'Installing AWS CDK Python dependencies (pip install -r cdk/requirements.txt)...' -ForegroundColor Yellow
+        $installArgs = $candidate.InstallArgs + $requirementsFile
+        $pipExit = 0
+        try {
+          & $pythonCmd.Path @installArgs
+          $pipExit = $LASTEXITCODE
+        } catch {
+          $pipExit = 1
+          $autoInstallError = $_.Exception.Message
+        }
+        if ($pipExit -eq 0) {
+          try {
+            & $pythonCmd.Path @($candidate.ModuleArgs) 2>$null | Out-Null
+            $moduleExit = $LASTEXITCODE
+          } catch {
+            $moduleExit = 1
+            if (-not $autoInstallError) {
+              $autoInstallError = $_.Exception.Message
+            }
+          }
+        } else {
+          if (-not $autoInstallError) {
+            $autoInstallError = "pip exited with code $pipExit"
+          }
+          $moduleExit = 1
+        }
+      } else {
+        $autoInstallError = "Requirements file not found at $requirementsFile"
+        $moduleExit = 1
+      }
+    }
+  }
+
   if ($moduleExit -ne 0) {
     $missingModuleCandidates += $pythonCmd.Path
     continue
@@ -60,12 +109,19 @@ foreach ($candidate in $pythonCandidates) {
   $selectedPythonVersion = $versionOutput
   break
 }
+
 if (-not $PYTHON) {
   if ($missingModuleCandidates.Count -gt 0) {
-    Write-Host 'Found Python installations but aws_cdk is unavailable. Install dependencies with:' -ForegroundColor Red
-    Write-Host '  pip install -r cdk/requirements.txt' -ForegroundColor Yellow
-    Write-Host "Checked interpreters:
-$(($missingModuleCandidates | Sort-Object -Unique) -join [Environment]::NewLine)" -ForegroundColor Yellow
+    Write-Host 'Python was located but aws_cdk remains unavailable.' -ForegroundColor Red
+    if ($autoInstallError) {
+      Write-Host "Automatic dependency installation failed: $autoInstallError" -ForegroundColor Red
+    }
+    if (-not $requirementsAvailable) {
+      Write-Host "Expected requirements file at $requirementsFile" -ForegroundColor Yellow
+    }
+    Write-Host 'Checked interpreters:' -ForegroundColor Yellow
+    ($missingModuleCandidates | Sort-Object -Unique) | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    Write-Host 'Install the dependencies manually and rerun the script.' -ForegroundColor Yellow
   } else {
     Write-Host 'Python is required but was not found. Install it from https://www.python.org/downloads/' -ForegroundColor Red
     Write-Host 'If you recently installed Python, ensure the "App execution aliases" for python.exe are disabled in Windows settings.' -ForegroundColor Yellow
@@ -90,11 +146,6 @@ $originalPath = $env:PATH
 $env:PATH = "$pythonShimDir;$originalPath"
 
 try {
-
-# Determine repository root and key paths
-$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-$REPO_ROOT  = (Resolve-Path (Join-Path $SCRIPT_DIR '..')).Path
-$CDK_DIR    = Join-Path $REPO_ROOT 'cdk'
 
 # Place synthesized CDK templates outside the repository
 $env:CDK_OUTDIR = Join-Path $REPO_ROOT '.cdk.out'

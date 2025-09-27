@@ -219,10 +219,11 @@ def _format_saved_query(slug: str, payload: dict) -> dict:
 
 
 @router.get("/saved")
-async def list_saved_queries(detailed: bool = Query(False)):
+async def list_saved_queries(detailed: bool | None = Query(None)):
+    wants_detailed = True if detailed is None else detailed
     if config.app_env == "aws":
         slugs = _list_queries_s3()
-        if not detailed:
+        if not wants_detailed:
             return slugs
 
         entries = []
@@ -240,7 +241,7 @@ async def list_saved_queries(detailed: bool = Query(False)):
         return []
 
     slugs = [path.stem for path in sorted(QUERIES_DIR.glob("*.json"))]
-    if not detailed:
+    if not wants_detailed:
         return slugs
 
     entries = []

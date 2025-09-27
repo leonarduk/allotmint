@@ -57,8 +57,18 @@ catch {
 Write-Host '# Running tests with coverage (backend scope via .coveragerc) ...' -ForegroundColor Cyan
 
 & $PYTHON -m coverage erase | Out-Null
-& $PYTHON -m coverage run -m pytest -o addopts='' -p no:cov @PytestArgs 2>&1 | Tee-Object -Variable testOutput
-$exitCode = $LASTEXITCODE
+
+$exitCode = 1
+$previousErrorActionPreference = $ErrorActionPreference
+try {
+  $ErrorActionPreference = 'Continue'
+  & $PYTHON -m coverage run -m pytest -o addopts='' -p no:cov @PytestArgs 2>&1 |
+    Tee-Object -Variable testOutput
+  $exitCode = $LASTEXITCODE
+}
+finally {
+  $ErrorActionPreference = $previousErrorActionPreference
+}
 
 & $PYTHON -m coverage html
 & $PYTHON -m coverage report

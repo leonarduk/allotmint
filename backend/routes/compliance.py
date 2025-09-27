@@ -15,6 +15,13 @@ def _known_owners(accounts_root) -> set[str]:
     """Return a lower-cased set of known owners for the configured root."""
 
     owners: set[str] = set()
+    discovery_successful = False
+
+    specified_root: Path | None
+    try:
+        specified_root = Path(accounts_root) if accounts_root is not None else None
+    except (TypeError, ValueError):
+        specified_root = None
 
     def _ensure_demo_owner(owner_set: set[str]) -> None:
         """Ensure the bundled demo owner remains discoverable."""
@@ -42,30 +49,47 @@ def _known_owners(accounts_root) -> set[str]:
         entries = data_loader.list_plots(accounts_root)
     except Exception:
         entries = []
+    else:
+        discovery_successful = True
+
+    if specified_root is not None and not specified_root.exists():
+        discovery_successful = False
+        entries = []
 
     for entry in entries:
         owner = (entry.get("owner") or "").strip()
         if owner:
             owners.add(owner.lower())
 
-    _ensure_demo_owner(owners)
-
     if owners:
+        if discovery_successful:
+            _ensure_demo_owner(owners)
         return owners
 
     try:
-        root_path = Path(accounts_root) if accounts_root else data_loader.resolve_paths(None, None).accounts_root
+        root_path = (
+            Path(accounts_root)
+            if accounts_root
+            else data_loader.resolve_paths(None, None).accounts_root
+        )
     except Exception:
+        if discovery_successful:
+            _ensure_demo_owner(owners)
         return owners
 
     if not root_path or not root_path.exists():
+        if discovery_successful:
+            _ensure_demo_owner(owners)
         return owners
+
+    discovery_successful = True
 
     for entry in root_path.iterdir():
         if entry.is_dir():
             owners.add(entry.name.lower())
 
-    _ensure_demo_owner(owners)
+    if discovery_successful:
+        _ensure_demo_owner(owners)
     return owners
 
 

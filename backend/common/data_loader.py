@@ -213,11 +213,11 @@ def _list_local_plots(
     fallback_paths = resolve_paths(None, None)
     fallback_root = fallback_paths.accounts_root
     include_demo_primary = False
-    if data_root is None:
-        try:
-            include_demo_primary = primary_root.resolve() == fallback_root.resolve()
-        except Exception:
-            include_demo_primary = False
+    try:
+        candidate_root = primary_root if data_root is None else Path(data_root)
+        include_demo_primary = candidate_root.resolve() == fallback_root.resolve()
+    except Exception:
+        include_demo_primary = False
 
     results = _discover(primary_root, include_demo=include_demo_primary)
 
@@ -225,8 +225,22 @@ def _list_local_plots(
     # avoid blending in accounts from the repository fallback tree.  This keeps
     # unit tests (which use temporary roots) isolated from the real repository
     # data and mirrors the expectation that callers passing a custom root only
-    # see data from that location.
+    # see data from that location.  However, when the primary tree already
+    # contains the demo owner we still want to expose it so the API mirrors the
+    # bundled sample data regardless of whether the directory is a copy or the
+    # canonical location.
     if data_root is not None:
+        if all(str(entry.get("owner", "")).lower() != "demo" for entry in results):
+            primary_demo = _load_demo_owner(primary_root)
+            primary_meta = (
+                load_person_meta("demo", primary_root) if primary_demo else {}
+            )
+            if (
+                primary_demo
+                and config.disable_auth
+                and _is_authorized("demo", primary_meta)
+            ):
+                results.append(primary_demo)
         return results
 
     try:

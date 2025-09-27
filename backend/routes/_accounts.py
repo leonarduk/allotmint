@@ -12,7 +12,7 @@ from backend.common import data_loader
 from backend.config import config
 
 
-def resolve_accounts_root(request: Request) -> Path:
+def resolve_accounts_root(request: Request, *, allow_missing: bool = False) -> Path:
     """Determine the accounts root directory for the current request.
 
     Preference is given to ``request.app.state.accounts_root`` when available,
@@ -26,19 +26,31 @@ def resolve_accounts_root(request: Request) -> Path:
     if accounts_root_value is not None:
         try:
             cached_path = Path(os.fspath(accounts_root_value)).expanduser()
-            resolved_cached = cached_path.resolve(strict=False)
         except (TypeError, ValueError, OSError):
             cached_path = None
             resolved_cached = None
         else:
-            if cached_path.exists() and not cached_path.is_dir():
+            try:
+                resolved_cached = cached_path.resolve(strict=False)
+            except OSError:
+                resolved_cached = None
+            if cached_path.exists():
+                if not cached_path.is_dir():
+                    cached_path = None
+                    resolved_cached = None
+                else:
+                    resolved_cached = cached_path.expanduser().resolve()
+            elif allow_missing:
+                resolved_cached = resolved_cached or cached_path
+            else:
                 cached_path = None
                 resolved_cached = None
-            elif resolved_cached is not None:
-                request.app.state.accounts_root = resolved_cached
-                if hasattr(request.app.state, "accounts_root_is_global"):
-                    request.app.state.accounts_root_is_global = False
-                return resolved_cached
+
+        if resolved_cached is not None:
+            request.app.state.accounts_root = resolved_cached
+            if hasattr(request.app.state, "accounts_root_is_global"):
+                request.app.state.accounts_root_is_global = False
+            return resolved_cached
 
         request.app.state.accounts_root = None
         if hasattr(request.app.state, "accounts_root_is_global"):

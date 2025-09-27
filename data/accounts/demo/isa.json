@@ -1,25 +1,7 @@
 {
   "owner": "demo",
-  "account_type": "ISA",
+  "account_type": "isa",
   "currency": "GBP",
-  "last_updated": "2024-01-01",
-  "holdings": [
-    {
-      "ticker": "CASH.GBP",
-      "units": 1000,
-      "cost_basis_gbp": 1000
-    },
-    {
-      "ticker": "VWRL.L",
-      "units": 10,
-      "acquired_date": null,
-      "cost_basis_gbp": 0.0
-    },
-    {
-      "ticker": "ERNS.L",
-      "units": 15,
-      "acquired_date": null,
-      "cost_basis_gbp": 0.0
-    }
-  ]
+  "last_updated": "2025-09-27",
+  "holdings": []
 }

@@ -517,12 +517,14 @@ async def get_account(owner: str, account: str, request: Request):
 async def instrument_detail(slug: str, ticker: str):
     try:
         series = instrument_api.timeseries_for_ticker(ticker)
-        prices_list = series["prices"]
-        if not prices_list:
-            raise ValueError("no prices")
+        prices_list = series.get("prices", [])
         positions_list = instrument_api.positions_for_ticker(slug, ticker)
     except Exception:
         raise HTTPException(status_code=404, detail="Instrument not found")
+
+    if not prices_list and not positions_list:
+        raise HTTPException(status_code=404, detail="Instrument not found")
+
     return {"prices": prices_list, "mini": series.get("mini", {}), "positions": positions_list}
 
 

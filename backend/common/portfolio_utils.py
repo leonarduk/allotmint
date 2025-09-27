@@ -1002,7 +1002,7 @@ def _alpha_vs_benchmark(
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
     df = load_meta_timeseries(bench_tkr, bench_exch, days)
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
-        return None
+        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
     df = df[["Date", "Close"]].copy()
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
     bench_ret = df.set_index("Date")["Close"].pct_change().dropna()
@@ -1066,7 +1066,7 @@ def _tracking_error(
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
     df = load_meta_timeseries(bench_tkr, bench_exch, days)
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
-        return None
+        return None, {"active_returns": [], "daily_active_standard_deviation": None}
     df = df[["Date", "Close"]].copy()
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
     bench_ret = df.set_index("Date")["Close"].pct_change().dropna()

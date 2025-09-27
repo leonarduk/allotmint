@@ -72,6 +72,70 @@ _METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
 _SKIP_OWNERS = {".idea", "demo"}
 
 
+def _extract_account_names(owner_dir: Path) -> List[str]:
+    """Return de-duplicated account names for ``owner_dir``."""
+
+    acct_names: List[str] = []
+    try:
+        entries = sorted(owner_dir.iterdir())
+    except OSError:
+        entries = []
+
+    for path in entries:
+        if not path.is_file() or path.suffix.lower() != ".json":
+            continue
+        stem = path.stem
+        if stem.lower() in _METADATA_STEMS:
+            continue
+        acct_names.append(stem)
+
+    seen: set[str] = set()
+    dedup: List[str] = []
+    for name in acct_names:
+        lowered = name.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        dedup.append(name)
+    return dedup
+
+
+def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
+    """Return the bundled ``demo`` owner description if available."""
+
+    try:
+        demo_dir = (root or Path()).expanduser() / "demo"
+    except Exception:
+        return None
+
+    if not demo_dir.exists() or not demo_dir.is_dir():
+        return None
+
+    accounts = _extract_account_names(demo_dir)
+    return {"owner": "demo", "accounts": accounts}
+
+
+def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> None:
+    """Merge account names from ``extra`` into ``base`` in-place."""
+
+    if not base or not extra:
+        return
+
+    existing = base.setdefault("accounts", [])
+    if not isinstance(existing, list):
+        return
+
+    seen = {str(name).lower() for name in existing}
+    for name in extra.get("accounts", []):
+        if not isinstance(name, str):
+            continue
+        lowered = name.lower()
+        if lowered in seen:
+            continue
+        existing.append(name)
+        seen.add(lowered)
+
+
 def _list_local_plots(
     data_root: Optional[Path] = None,
     current_user: Optional[str] = None,
@@ -128,27 +192,9 @@ def _list_local_plots(
             elif user and user != owner and user not in viewers:
                 continue
 
-            acct_names: List[str] = []
-            for f in sorted(owner_dir.iterdir()):
-                if not f.is_file() or f.suffix.lower() != ".json":
-                    continue
+            accounts = _extract_account_names(owner_dir)
 
-                stem = f.stem
-                if stem.lower() in _METADATA_STEMS:
-                    continue
-
-                acct_names.append(stem)
-
-            seen: set[str] = set()
-            dedup: List[str] = []
-            for a in acct_names:
-                al = a.lower()
-                if al in seen:
-                    continue
-                seen.add(al)
-                dedup.append(a)
-
-            results.append({"owner": owner, "accounts": dedup})
+            results.append({"owner": owner, "accounts": accounts})
 
         return results
 
@@ -164,17 +210,42 @@ def _list_local_plots(
         include_demo_primary = False
 
     results = _discover(primary_root, include_demo=include_demo_primary)
-    if results:
-        return results
 
     try:
         same_root = fallback_root.resolve() == primary_root.resolve()
     except OSError:
         same_root = False
+
+    if not results:
+        fallback_results = _discover(fallback_root, include_demo=True)
+        results.extend(fallback_results)
+
+    owners_index = {
+        str(entry.get("owner", "")).lower(): entry for entry in results
+    }
+
+    fallback_demo = _load_demo_owner(fallback_root)
+    if "demo" in owners_index:
+        _merge_accounts(owners_index["demo"], fallback_demo)
+    else:
+        if fallback_demo:
+            results.append(fallback_demo)
+            owners_index["demo"] = fallback_demo
+        elif include_demo_primary:
+            primary_demo = _load_demo_owner(primary_root)
+            if primary_demo:
+                results.append(primary_demo)
+                owners_index["demo"] = primary_demo
+
     if same_root:
         return results
 
-    return _discover(fallback_root, include_demo=True)
+    if "demo" not in owners_index:
+        primary_demo = _load_demo_owner(primary_root)
+        if primary_demo:
+            results.append(primary_demo)
+
+    return results
 
 
 # ------------------------------------------------------------------

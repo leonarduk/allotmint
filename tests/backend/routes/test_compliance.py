@@ -26,6 +26,7 @@ def fastapi_request():
 
 def test_known_owners_aggregates_plot_metadata(tmp_path, monkeypatch):
     expected_root = tmp_path / "accounts"
+    expected_root.mkdir()
 
     monkeypatch.setattr(
         compliance_module.data_loader,
@@ -47,6 +48,7 @@ def test_known_owners_aggregates_plot_metadata(tmp_path, monkeypatch):
     owners = compliance_module._known_owners(expected_root)
 
     assert owners == {"alice", "bob"}
+    assert owners.active_root_has_entries is True
 
 
 def test_known_owners_falls_back_to_directory_iteration(tmp_path, monkeypatch):
@@ -75,6 +77,7 @@ def test_known_owners_falls_back_to_directory_iteration(tmp_path, monkeypatch):
     owners = compliance_module._known_owners(accounts_root)
 
     assert owners == {"alice", "beta"}
+    assert owners.active_root_has_entries is True
 
 
 def test_known_owners_adds_demo_owner_when_available(tmp_path, monkeypatch):
@@ -100,6 +103,59 @@ def test_known_owners_adds_demo_owner_when_available(tmp_path, monkeypatch):
     owners = compliance_module._known_owners(accounts_root)
 
     assert owners == {"alice", "demo"}
+    assert owners.active_root_has_entries is True
+
+
+def test_known_owners_skips_demo_when_root_missing(tmp_path, monkeypatch):
+    accounts_root = tmp_path / "missing"
+    fallback_root = tmp_path / "fallback"
+    fallback_root.mkdir()
+    (fallback_root / "demo").mkdir()
+
+    monkeypatch.setattr(
+        compliance_module.data_loader,
+        "list_plots",
+        lambda _: [{"owner": "demo"}],
+    )
+    monkeypatch.setattr(
+        compliance_module.data_loader,
+        "resolve_paths",
+        lambda *_, **__: types.SimpleNamespace(accounts_root=fallback_root),
+    )
+
+    owners = compliance_module._known_owners(accounts_root)
+
+    assert owners == set()
+    assert owners.active_root_has_entries is False
+
+
+def test_known_owners_skips_demo_when_metadata_lookup_fails(tmp_path, monkeypatch):
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir()
+    (accounts_root / "Alice").mkdir()
+
+    fallback_root = tmp_path / "fallback"
+    fallback_root.mkdir()
+    (fallback_root / "demo").mkdir()
+
+    def raise_failure(_):
+        raise RuntimeError("metadata unavailable")
+
+    monkeypatch.setattr(
+        compliance_module.data_loader,
+        "list_plots",
+        raise_failure,
+    )
+    monkeypatch.setattr(
+        compliance_module.data_loader,
+        "resolve_paths",
+        lambda *_, **__: types.SimpleNamespace(accounts_root=fallback_root),
+    )
+
+    owners = compliance_module._known_owners(accounts_root)
+
+    assert owners == {"alice"}
+    assert owners.active_root_has_entries is True
 
 
 @pytest.mark.anyio
@@ -408,3 +464,64 @@ async def test_validate_trade_scaffolds_missing_directory(tmp_path, monkeypatch,
     assert recorded["scaffold_missing"] is True
     assert recorded["scaffold_args"] == ("alice", accounts_root)
     assert any("failed to scaffold compliance data" in record.message for record in caplog.records)
+
+
+@pytest.mark.anyio
+async def test_validate_trade_scaffolds_when_owner_discovery_fails(
+    tmp_path, monkeypatch
+):
+    request = PayloadRequest(
+        {
+            "owner": " demo ",
+            "account": "brokerage",
+            "ticker": "XYZ",
+            "type": "buy",
+            "date": "2024-03-01",
+        }
+    )
+    missing_root = tmp_path / "missing"
+
+    recorded = {}
+
+    def fake_check_trade(trade, root, *, scaffold_missing):
+        recorded["trade"] = dict(trade)
+        recorded["root"] = root
+        recorded["scaffold_missing"] = scaffold_missing
+        return {"status": "ok"}
+
+    def record_scaffold(owner, root):
+        recorded["scaffold"] = (owner, root)
+
+    monkeypatch.setattr(
+        compliance_module,
+        "resolve_accounts_root",
+        lambda req, allow_missing=False: missing_root,
+    )
+    monkeypatch.setattr(
+        compliance_module,
+        "resolve_owner_directory",
+        lambda root, owner: None,
+    )
+    monkeypatch.setattr(
+        compliance_module,
+        "_known_owners",
+        lambda root: compliance_module.KnownOwnerSet(active_root_has_entries=False),
+    )
+    monkeypatch.setattr(
+        compliance_module.compliance,
+        "check_trade",
+        fake_check_trade,
+    )
+    monkeypatch.setattr(
+        compliance_module.compliance,
+        "ensure_owner_scaffold",
+        record_scaffold,
+    )
+
+    result = await compliance_module.validate_trade(request)
+
+    assert result == {"status": "ok"}
+    assert recorded["trade"]["owner"] == "demo"
+    assert recorded["root"] is missing_root
+    assert recorded["scaffold_missing"] is True
+    assert recorded["scaffold"] == ("demo", missing_root)

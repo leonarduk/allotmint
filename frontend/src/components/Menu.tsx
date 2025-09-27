@@ -127,10 +127,9 @@ export default function Menu({
         'scenario',
         'trading',
         'rebalance',
-        'tradecompliance',
       ],
     },
-    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail'] },
+    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail', 'tradecompliance'] },
     { id: 'preferences', titleKey: 'preferences', tabIds: ['alertsettings', 'settings'] },
   ];
 

@@ -210,7 +210,6 @@ def _resolve_cache_exchange(
         cache_exchange = explicit_exchange
     elif loader_exchange:
         cache_exchange = loader_exchange
-
     if metadata_exchange and loader_exchange and loader_exchange != metadata_exchange:
         logger.debug(
             "Cache exchange mismatch for %s: loader %s vs metadata %s",

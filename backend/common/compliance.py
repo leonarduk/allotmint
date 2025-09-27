@@ -113,7 +113,10 @@ def load_transactions(
     if not owner_dir.exists():
         if not scaffold_missing:
             raise FileNotFoundError(owner_dir)
-        _ensure_owner_scaffold(owner, owner_dir)
+        # Callers opting to scaffold missing owners expect the function to
+        # return an empty transaction list without mutating the filesystem.
+        # ``ensure_owner_scaffold`` remains available to explicitly create the
+        # default structure when desired.
         return []
 
     _ensure_owner_scaffold(owner, owner_dir)

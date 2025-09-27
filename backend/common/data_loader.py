@@ -151,16 +151,39 @@ def _list_local_plots(
         Username of the authenticated user or ``None`` when unauthenticated.
     """
 
+    user = (
+        current_user.get(None)
+        if hasattr(current_user, "get")
+        else current_user
+    )
+
+    def _is_authorized(owner: str, meta: Dict[str, Any]) -> bool:
+        viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
+        if not isinstance(viewers, list):
+            viewers = []
+
+        if config.disable_auth is False and user is None:
+            return False
+
+        if isinstance(user, str):
+            allowed_identities = {owner.lower()}
+            email = meta.get("email") if isinstance(meta, dict) else None
+            if isinstance(email, str) and email:
+                allowed_identities.add(email.lower())
+            allowed_identities.update(
+                v.lower() for v in viewers if isinstance(v, str)
+            )
+            return user.lower() in allowed_identities
+
+        if user and user != owner and user not in viewers:
+            return False
+
+        return True
+
     def _discover(root: Path, *, include_demo: bool = False) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         if not root.exists():
             return results
-
-        user = (
-            current_user.get(None)
-            if hasattr(current_user, "get")
-            else current_user
-        )
 
         skip_owners = (
             {owner for owner in _SKIP_OWNERS if owner != "demo"}
@@ -173,23 +196,9 @@ def _list_local_plots(
                 continue
             if owner_dir.name in skip_owners:
                 continue
-            if config.disable_auth is False and user is None:
-                continue
-
             owner = owner_dir.name
             meta = load_person_meta(owner, root)
-            viewers = meta.get("viewers", [])
-            email = meta.get("email")
-            if isinstance(user, str):
-                allowed_identities = {owner.lower()}
-                if isinstance(email, str) and email:
-                    allowed_identities.add(email.lower())
-                allowed_identities.update(
-                    v.lower() for v in viewers if isinstance(v, str)
-                )
-                if user.lower() not in allowed_identities:
-                    continue
-            elif user and user != owner and user not in viewers:
+            if not _is_authorized(owner, meta):
                 continue
 
             accounts = _extract_account_names(owner_dir)
@@ -225,15 +234,27 @@ def _list_local_plots(
     }
 
     fallback_demo = _load_demo_owner(fallback_root)
+    fallback_meta = load_person_meta("demo", fallback_root) if fallback_demo else {}
     if "demo" in owners_index:
         _merge_accounts(owners_index["demo"], fallback_demo)
     else:
-        if fallback_demo and not config.disable_auth:
+        if (
+            fallback_demo
+            and not config.disable_auth
+            and _is_authorized("demo", fallback_meta)
+        ):
             results.append(fallback_demo)
             owners_index["demo"] = fallback_demo
         elif include_demo_primary:
             primary_demo = _load_demo_owner(primary_root)
-            if primary_demo and not config.disable_auth:
+            primary_meta = (
+                load_person_meta("demo", primary_root) if primary_demo else {}
+            )
+            if (
+                primary_demo
+                and not config.disable_auth
+                and _is_authorized("demo", primary_meta)
+            ):
                 results.append(primary_demo)
                 owners_index["demo"] = primary_demo
 
@@ -242,7 +263,10 @@ def _list_local_plots(
 
     if "demo" not in owners_index and not config.disable_auth:
         primary_demo = _load_demo_owner(primary_root)
-        if primary_demo:
+        primary_meta = (
+            load_person_meta("demo", primary_root) if primary_demo else {}
+        )
+        if primary_demo and _is_authorized("demo", primary_meta):
             results.append(primary_demo)
 
     return results

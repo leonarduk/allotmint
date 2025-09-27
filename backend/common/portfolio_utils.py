@@ -986,10 +986,17 @@ def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) 
     return total.sort_index()
 
 
-def _alpha_vs_benchmark(name: str, benchmark: str, days: int = 365, *, group: bool = False) -> float | None:
+def _alpha_vs_benchmark(
+    name: str,
+    benchmark: str,
+    days: int = 365,
+    *,
+    group: bool = False,
+    include_breakdown: bool = False,
+) -> tuple[float | None, dict[str, Any]]:
     total = _portfolio_value_series(name, days, group=group)
     if total.empty:
-        return None
+        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
     port_ret = total.pct_change().dropna()
 
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
@@ -1002,7 +1009,7 @@ def _alpha_vs_benchmark(name: str, benchmark: str, days: int = 365, *, group: bo
 
     port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
     if port_ret.empty:
-        return None
+        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
 
     aligned = pd.DataFrame({"portfolio": port_ret, "benchmark": bench_ret})
     aligned = aligned.replace([np.inf, -np.inf], np.nan).dropna()
@@ -1013,17 +1020,47 @@ def _alpha_vs_benchmark(name: str, benchmark: str, days: int = 365, *, group: bo
     max_reasonable_return = 10.0
     aligned = aligned[(aligned.abs() <= max_reasonable_return).all(axis=1)]
     if aligned.empty:
-        return None
+        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
 
-    port_cum = (1 + aligned["portfolio"]).prod() - 1
-    bench_cum = (1 + aligned["benchmark"]).prod() - 1
-    return float(port_cum - bench_cum)
+    port_cum_series = (1 + aligned["portfolio"]).cumprod() - 1
+    bench_cum_series = (1 + aligned["benchmark"]).cumprod() - 1
+    value = float(port_cum_series.iloc[-1] - bench_cum_series.iloc[-1])
+
+    if not include_breakdown:
+        return value, {}
+
+    breakdown_series: list[dict[str, Any]] = []
+    for idx, _row in aligned.iterrows():
+        breakdown_series.append(
+            {
+                "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                "portfolio_cumulative_return": float(port_cum_series.loc[idx]),
+                "benchmark_cumulative_return": float(bench_cum_series.loc[idx]),
+                "excess_cumulative_return": float(
+                    port_cum_series.loc[idx] - bench_cum_series.loc[idx]
+                ),
+            }
+        )
+
+    breakdown = {
+        "series": breakdown_series,
+        "portfolio_cumulative_return": float(port_cum_series.iloc[-1]),
+        "benchmark_cumulative_return": float(bench_cum_series.iloc[-1]),
+    }
+    return value, breakdown
 
 
-def _tracking_error(name: str, benchmark: str, days: int = 365, *, group: bool = False) -> float | None:
+def _tracking_error(
+    name: str,
+    benchmark: str,
+    days: int = 365,
+    *,
+    group: bool = False,
+    include_breakdown: bool = False,
+) -> tuple[float | None, dict[str, Any]]:
     total = _portfolio_value_series(name, days, group=group)
     if total.empty:
-        return None
+        return None, {"active_returns": [], "daily_active_standard_deviation": None}
     port_ret = total.pct_change().dropna()
 
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
@@ -1036,48 +1073,157 @@ def _tracking_error(name: str, benchmark: str, days: int = 365, *, group: bool =
 
     port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
     if port_ret.empty:
-        return None
-    diff = port_ret - bench_ret
-    if diff.count() < 2:
-        return None
-    std = diff.std()
+        return None, {"active_returns": [], "daily_active_standard_deviation": None}
+    aligned = pd.DataFrame({"portfolio": port_ret, "benchmark": bench_ret})
+    aligned = aligned.replace([np.inf, -np.inf], np.nan).dropna()
+    aligned["active"] = aligned["portfolio"] - aligned["benchmark"]
+    if aligned["active"].count() < 2:
+        return None, {"active_returns": [], "daily_active_standard_deviation": None}
+    std = aligned["active"].std()
     if not math.isfinite(std):
-        return None
-    annualised = std * math.sqrt(252)
-    return float(annualised)
+        return None, {"active_returns": [], "daily_active_standard_deviation": None}
+    annualised = float(std * math.sqrt(252))
+
+    if not include_breakdown:
+        return annualised, {}
+
+    active_rows: list[dict[str, Any]] = []
+    for idx, row in aligned.iterrows():
+        active_rows.append(
+            {
+                "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                "portfolio_return": float(row["portfolio"]),
+                "benchmark_return": float(row["benchmark"]),
+                "active_return": float(row["active"]),
+            }
+        )
+
+    breakdown = {
+        "active_returns": active_rows,
+        "daily_active_standard_deviation": float(std),
+    }
+    return annualised, breakdown
 
 
-def _max_drawdown(name: str, days: int = 365, *, group: bool = False) -> float | None:
+def _max_drawdown(
+    name: str,
+    days: int = 365,
+    *,
+    group: bool = False,
+    include_breakdown: bool = False,
+) -> tuple[float | None, dict[str, Any]]:
     total = _portfolio_value_series(name, days, group=group)
     if total.empty:
-        return None
+        return None, {"series": [], "peak": None, "trough": None}
     running_max = total.cummax()
     drawdown = total / running_max - 1
-    return float(drawdown.min())
+    min_drawdown = drawdown.min()
+    value = float(min_drawdown) if math.isfinite(min_drawdown) else None
+
+    if not include_breakdown:
+        return value, {}
+
+    series: list[dict[str, Any]] = []
+    for idx, val in total.items():
+        series.append(
+            {
+                "date": idx.isoformat() if hasattr(idx, "isoformat") else str(idx),
+                "portfolio_value": float(val),
+                "running_max": float(running_max.loc[idx]),
+                "drawdown": float(drawdown.loc[idx]),
+            }
+        )
+
+    peak_info: dict[str, Any] | None = None
+    trough_info: dict[str, Any] | None = None
+    if value is not None:
+        trough_date = drawdown.idxmin()
+        if trough_date is not None:
+            trough_val = float(total.loc[trough_date])
+            trough_info = {
+                "date": trough_date.isoformat() if hasattr(trough_date, "isoformat") else str(trough_date),
+                "value": trough_val,
+                "drawdown": float(drawdown.loc[trough_date]),
+            }
+            peak_series = running_max.loc[:trough_date]
+            if not peak_series.empty:
+                peak_value = float(peak_series.max())
+                peak_date_candidates = peak_series[peak_series == peak_value]
+                if not peak_date_candidates.empty:
+                    peak_date = peak_date_candidates.index[0]
+                    peak_info = {
+                        "date": peak_date.isoformat()
+                        if hasattr(peak_date, "isoformat")
+                        else str(peak_date),
+                        "value": peak_value,
+                    }
+
+    breakdown = {"series": series, "peak": peak_info, "trough": trough_info}
+    return value, breakdown
 
 
-def compute_alpha_vs_benchmark(owner: str, benchmark: str, days: int = 365) -> float | None:
-    return _alpha_vs_benchmark(owner, benchmark, days)
+def compute_alpha_vs_benchmark(
+    owner: str, benchmark: str, days: int = 365, *, include_breakdown: bool = False
+) -> float | None | tuple[float | None, dict[str, Any]]:
+    value, breakdown = _alpha_vs_benchmark(
+        owner, benchmark, days, include_breakdown=include_breakdown
+    )
+    if include_breakdown:
+        return value, breakdown
+    return value
 
 
-def compute_group_alpha_vs_benchmark(slug: str, benchmark: str, days: int = 365) -> float | None:
-    return _alpha_vs_benchmark(slug, benchmark, days, group=True)
+def compute_group_alpha_vs_benchmark(
+    slug: str, benchmark: str, days: int = 365, *, include_breakdown: bool = False
+) -> float | None | tuple[float | None, dict[str, Any]]:
+    value, breakdown = _alpha_vs_benchmark(
+        slug, benchmark, days, group=True, include_breakdown=include_breakdown
+    )
+    if include_breakdown:
+        return value, breakdown
+    return value
 
 
-def compute_tracking_error(owner: str, benchmark: str, days: int = 365) -> float | None:
-    return _tracking_error(owner, benchmark, days)
+def compute_tracking_error(
+    owner: str, benchmark: str, days: int = 365, *, include_breakdown: bool = False
+) -> float | None | tuple[float | None, dict[str, Any]]:
+    value, breakdown = _tracking_error(
+        owner, benchmark, days, include_breakdown=include_breakdown
+    )
+    if include_breakdown:
+        return value, breakdown
+    return value
 
 
-def compute_group_tracking_error(slug: str, benchmark: str, days: int = 365) -> float | None:
-    return _tracking_error(slug, benchmark, days, group=True)
+def compute_group_tracking_error(
+    slug: str, benchmark: str, days: int = 365, *, include_breakdown: bool = False
+) -> float | None | tuple[float | None, dict[str, Any]]:
+    value, breakdown = _tracking_error(
+        slug, benchmark, days, group=True, include_breakdown=include_breakdown
+    )
+    if include_breakdown:
+        return value, breakdown
+    return value
 
 
-def compute_max_drawdown(owner: str, days: int = 365) -> float | None:
-    return _max_drawdown(owner, days)
+def compute_max_drawdown(
+    owner: str, days: int = 365, *, include_breakdown: bool = False
+) -> float | None | tuple[float | None, dict[str, Any]]:
+    value, breakdown = _max_drawdown(owner, days, include_breakdown=include_breakdown)
+    if include_breakdown:
+        return value, breakdown
+    return value
 
 
-def compute_group_max_drawdown(slug: str, days: int = 365) -> float | None:
-    return _max_drawdown(slug, days, group=True)
+def compute_group_max_drawdown(
+    slug: str, days: int = 365, *, include_breakdown: bool = False
+) -> float | None | tuple[float | None, dict[str, Any]]:
+    value, breakdown = _max_drawdown(
+        slug, days, group=True, include_breakdown=include_breakdown
+    )
+    if include_breakdown:
+        return value, breakdown
+    return value
 
 
 # ──────────────────────────────────────────────────────────────

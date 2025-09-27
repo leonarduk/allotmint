@@ -8,6 +8,12 @@ $ErrorActionPreference = 'Stop'
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT  = (Resolve-Path (Join-Path $SCRIPT_DIR '..')).Path
 $CDK_DIR    = Join-Path $REPO_ROOT 'cdk'
+
+if ([string]::IsNullOrWhiteSpace($env:VITE_APP_BASE_URL)) {
+  $defaultBaseUrl = 'https://app.allotmint.io'
+  Write-Host "VITE_APP_BASE_URL is not set. Defaulting to $defaultBaseUrl. Set VITE_APP_BASE_URL to override." -ForegroundColor Yellow
+  $env:VITE_APP_BASE_URL = $defaultBaseUrl
+}
 $requirementsFile = Join-Path $CDK_DIR 'requirements.txt'
 $requirementsSources = @()
 if (Test-Path $requirementsFile) {

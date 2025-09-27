@@ -17,6 +17,11 @@ if (-not (Test-Path $frontendDir)) {
 
 Push-Location $frontendDir
 try {
+  if ([string]::IsNullOrWhiteSpace($env:VITE_APP_BASE_URL)) {
+    $defaultBaseUrl = 'https://app.allotmint.io'
+    Write-Host "VITE_APP_BASE_URL is not set. Defaulting to $defaultBaseUrl. Set VITE_APP_BASE_URL to override." -ForegroundColor Yellow
+    $env:VITE_APP_BASE_URL = $defaultBaseUrl
+  }
   Write-Host 'Running `npm run build` in the frontend workspace...' -ForegroundColor Cyan
   npm run build
   if ($LASTEXITCODE -ne 0) {

@@ -138,7 +138,7 @@ def _require_accounts_root(request: Request) -> Path:
     except FileNotFoundError as exc:  # pragma: no cover - defensive
         raise HTTPException(status_code=400, detail="Accounts root not configured") from exc
 
-    if getattr(request.app.state, "accounts_root_is_global", False):
+    if state_is_global or getattr(request.app.state, "accounts_root_is_global", False):
         raise HTTPException(status_code=400, detail="Accounts root not configured")
 
     if not resolved.exists():

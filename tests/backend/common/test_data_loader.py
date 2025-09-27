@@ -18,12 +18,22 @@ from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import Config
 
 
-def _write_owner(root: Path, owner: str, accounts: list[str], viewers: list[str] | None = None) -> None:
+def _write_owner(
+    root: Path,
+    owner: str,
+    accounts: list[str],
+    viewers: list[str] | None = None,
+    *,
+    email: str | None = None,
+) -> None:
     owner_dir = root / owner
     owner_dir.mkdir(parents=True, exist_ok=True)
     person_path = owner_dir / "person.json"
     viewers_data = viewers or []
-    person_path.write_text(json.dumps({"viewers": viewers_data}))
+    meta: dict[str, object] = {"viewers": viewers_data}
+    if email:
+        meta["email"] = email
+    person_path.write_text(json.dumps(meta))
     for account in accounts:
         (owner_dir / f"{account}.json").write_text("{}")
 
@@ -200,4 +210,25 @@ class TestListLocalPlots:
 
         assert result == [
             {"owner": "carol", "accounts": ["gamma"]},
+        ]
+
+    def test_allows_access_when_user_matches_owner_email(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        self._configure(monkeypatch, tmp_path, data_root, disable_auth=False)
+
+        _write_owner(
+            data_root,
+            "alice",
+            ["alpha"],
+            viewers=[],
+            email="alice@example.com",
+        )
+        _write_owner(data_root, "bob", ["beta"], viewers=["bob"], email="bob@example.com")
+
+        result = _list_local_plots(data_root=data_root, current_user="alice@example.com")
+
+        assert result == [
+            {"owner": "alice", "accounts": ["alpha"]},
         ]

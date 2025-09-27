@@ -148,7 +148,7 @@ test.describe('public route smoke coverage', () => {
 
       await applyAuth(page);
 
-      await page.goto(target);
+      await page.goto(target.href);
       await expect(page).toHaveURL(target.href);
 
       if (route.assertion.kind === 'mode') {

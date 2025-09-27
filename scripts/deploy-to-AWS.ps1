@@ -9,13 +9,21 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $REPO_ROOT  = (Resolve-Path (Join-Path $SCRIPT_DIR '..')).Path
 $CDK_DIR    = Join-Path $REPO_ROOT 'cdk'
 $requirementsFile = Join-Path $CDK_DIR 'requirements.txt'
-$requirementsAvailable = Test-Path $requirementsFile
+$requirementsSources = @()
+if (Test-Path $requirementsFile) {
+  $requirementsSources += @{ Description = "pip install -r $requirementsFile"; Args = @('-r', $requirementsFile) }
+}
+$devRequirementsFile = Join-Path $REPO_ROOT 'requirements-dev.txt'
+if (Test-Path $devRequirementsFile) {
+  $requirementsSources += @{ Description = "pip install -r $devRequirementsFile"; Args = @('-r', $devRequirementsFile) }
+}
+$requirementsSources += @{ Description = 'pip install aws-cdk-lib~=2.151.0 constructs~=10.3.0'; Args = @('aws-cdk-lib~=2.151.0', 'constructs~=10.3.0') }
 
 # Ensure Python is available by validating the command actually executes and can import aws_cdk.
 $pythonCandidates = @(
-  @{ Name = 'python';   VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');       ResolveArgs = @();                               InstallArgs = @('-m', 'pip', 'install', '-r') },
-  @{ Name = 'python3';  VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');       ResolveArgs = @();                               InstallArgs = @('-m', 'pip', 'install', '-r') },
-  @{ Name = 'py';       VersionArgs = @('-3', '--version'); ModuleArgs = @('-3', '-c', 'import aws_cdk'); ResolveArgs = @('-3', '-c', 'import sys; print(sys.executable)'); InstallArgs = @('-3', '-m', 'pip', 'install', '-r') }
+  @{ Name = 'python';   VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');       ResolveArgs = @();                               InstallArgs = @('-m', 'pip', 'install') },
+  @{ Name = 'python3';  VersionArgs = @('--version');       ModuleArgs = @('-c', 'import aws_cdk');       ResolveArgs = @();                               InstallArgs = @('-m', 'pip', 'install') },
+  @{ Name = 'py';       VersionArgs = @('-3', '--version'); ModuleArgs = @('-3', '-c', 'import aws_cdk'); ResolveArgs = @('-3', '-c', 'import sys; print(sys.executable)'); InstallArgs = @('-3', '-m', 'pip', 'install') }
 )
 
 $PYTHON = $null
@@ -51,9 +59,9 @@ foreach ($candidate in $pythonCandidates) {
     $commandKey = $pythonCmd.Path.ToLowerInvariant()
     if (-not $installAttempts.ContainsKey($commandKey)) {
       $installAttempts[$commandKey] = $true
-      if ($requirementsAvailable) {
-        Write-Host 'Installing AWS CDK Python dependencies (pip install -r cdk/requirements.txt)...' -ForegroundColor Yellow
-        $installArgs = $candidate.InstallArgs + $requirementsFile
+      foreach ($source in $requirementsSources) {
+        Write-Host "Installing AWS CDK Python dependencies ($($source.Description))..." -ForegroundColor Yellow
+        $installArgs = $candidate.InstallArgs + $source.Args
         $pipExit = 0
         try {
           & $pythonCmd.Path @installArgs
@@ -72,15 +80,15 @@ foreach ($candidate in $pythonCandidates) {
               $autoInstallError = $_.Exception.Message
             }
           }
+          if ($moduleExit -eq 0) {
+            $autoInstallError = $null
+            break
+          }
         } else {
           if (-not $autoInstallError) {
             $autoInstallError = "pip exited with code $pipExit"
           }
-          $moduleExit = 1
         }
-      } else {
-        $autoInstallError = "Requirements file not found at $requirementsFile"
-        $moduleExit = 1
       }
     }
   }
@@ -116,8 +124,8 @@ if (-not $PYTHON) {
     if ($autoInstallError) {
       Write-Host "Automatic dependency installation failed: $autoInstallError" -ForegroundColor Red
     }
-    if (-not $requirementsAvailable) {
-      Write-Host "Expected requirements file at $requirementsFile" -ForegroundColor Yellow
+    if (-not (Test-Path $requirementsFile)) {
+      Write-Host "No cdk/requirements.txt file was found; attempted fallback installers instead." -ForegroundColor Yellow
     }
     Write-Host 'Checked interpreters:' -ForegroundColor Yellow
     ($missingModuleCandidates | Sort-Object -Unique) | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }

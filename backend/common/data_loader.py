@@ -151,16 +151,43 @@ def _list_local_plots(
         Username of the authenticated user or ``None`` when unauthenticated.
     """
 
+    user = (
+        current_user.get(None)
+        if hasattr(current_user, "get")
+        else current_user
+    )
+
+    def _user_has_access(owner: str, meta: Dict[str, Any]) -> bool:
+        if config.disable_auth is False and user is None:
+            return False
+
+        if not user:
+            return True
+
+        viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
+        email = meta.get("email") if isinstance(meta, dict) else None
+
+        if isinstance(user, str):
+            allowed_identities = {owner.lower()}
+            if isinstance(email, str) and email:
+                allowed_identities.add(email.lower())
+            allowed_identities.update(
+                v.lower() for v in viewers if isinstance(v, str)
+            )
+            return user.lower() in allowed_identities
+
+        if user == owner:
+            return True
+
+        try:
+            return user in viewers  # type: ignore[operator]
+        except TypeError:
+            return False
+
     def _discover(root: Path, *, include_demo: bool = False) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         if not root.exists():
             return results
-
-        user = (
-            current_user.get(None)
-            if hasattr(current_user, "get")
-            else current_user
-        )
 
         skip_owners = (
             {owner for owner in _SKIP_OWNERS if owner != "demo"}
@@ -173,23 +200,10 @@ def _list_local_plots(
                 continue
             if owner_dir.name in skip_owners:
                 continue
-            if config.disable_auth is False and user is None:
-                continue
 
             owner = owner_dir.name
             meta = load_person_meta(owner, root)
-            viewers = meta.get("viewers", [])
-            email = meta.get("email")
-            if isinstance(user, str):
-                allowed_identities = {owner.lower()}
-                if isinstance(email, str) and email:
-                    allowed_identities.add(email.lower())
-                allowed_identities.update(
-                    v.lower() for v in viewers if isinstance(v, str)
-                )
-                if user.lower() not in allowed_identities:
-                    continue
-            elif user and user != owner and user not in viewers:
+            if not _user_has_access(owner, meta):
                 continue
 
             accounts = _extract_account_names(owner_dir)
@@ -225,15 +239,20 @@ def _list_local_plots(
     }
 
     fallback_demo = _load_demo_owner(fallback_root)
+    fallback_meta = load_person_meta("demo", fallback_root) if fallback_demo else {}
     if "demo" in owners_index:
-        _merge_accounts(owners_index["demo"], fallback_demo)
+        if _user_has_access("demo", fallback_meta):
+            _merge_accounts(owners_index["demo"], fallback_demo)
     else:
-        if fallback_demo:
+        if fallback_demo and _user_has_access("demo", fallback_meta):
             results.append(fallback_demo)
             owners_index["demo"] = fallback_demo
         elif include_demo_primary:
             primary_demo = _load_demo_owner(primary_root)
-            if primary_demo:
+            primary_meta = (
+                load_person_meta("demo", primary_root) if primary_demo else {}
+            )
+            if primary_demo and _user_has_access("demo", primary_meta):
                 results.append(primary_demo)
                 owners_index["demo"] = primary_demo
 
@@ -242,7 +261,8 @@ def _list_local_plots(
 
     if "demo" not in owners_index:
         primary_demo = _load_demo_owner(primary_root)
-        if primary_demo:
+        primary_meta = load_person_meta("demo", primary_root) if primary_demo else {}
+        if primary_demo and _user_has_access("demo", primary_meta):
             results.append(primary_demo)
 
     return results

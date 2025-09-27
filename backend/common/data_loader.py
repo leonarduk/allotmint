@@ -68,7 +68,14 @@ PLOTS_PREFIX = "accounts/"
 # ------------------------------------------------------------------
 # Local discovery
 # ------------------------------------------------------------------
-_METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
+_METADATA_STEMS = {
+    "person",
+    "config",
+    "notes",
+    "settings",
+    "approvals",
+    "approval_requests",
+}  # ignore these as accounts
 _SKIP_OWNERS = {".idea", "demo"}
 
 
@@ -85,7 +92,10 @@ def _extract_account_names(owner_dir: Path) -> List[str]:
         if not path.is_file() or path.suffix.lower() != ".json":
             continue
         stem = path.stem
-        if stem.lower() in _METADATA_STEMS:
+        lowered = stem.lower()
+        if lowered in _METADATA_STEMS:
+            continue
+        if lowered.endswith("_transactions"):
             continue
         acct_names.append(stem)
 

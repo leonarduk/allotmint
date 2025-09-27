@@ -13,7 +13,7 @@
     "menuCategories": {
       "dashboard": "Dashboard",
       "holdings": "Holdings",
-      "tradeTools": "Insightts",
+      "tradeTools": "Insights",
       "goals": "Requirements",
       "preferences": "Settings",
       "operations": "Operations",
@@ -27,7 +27,7 @@
       "transactions": "Transactions",
       "trading": "Trading",
       "screener": "Screener & Query",
-      "timeseries": "Timeseries",
+      "timeseries": "Time Series",
       "watchlist": "Watchlist",
       "allocation": "Allocation",
       "rebalance": "Rebalance",
@@ -40,10 +40,11 @@
       "taxtools": "Tax Tools",
       "trail": "Trail",
       "reports": "Reports",
-  "alertsettings": "Alert Settings",
-  "compliance": "Compliance warnings",
-  "trade-compliance": "Trade compliance",
-  "support": "Support",
+      "alertsettings": "Alert Settings",
+      "compliance": "Compliance Warnings",
+      "trade-compliance": "Trade Compliance",
+      "tradecompliance": "Trade Compliance",
+      "support": "Support",
       "scenario": "Scenario Tester"
     }
   },
@@ -421,7 +422,7 @@
     "loading": "Loading…"
   },
   "timeseriesEdit": {
-    "title": "Timeseries Editor",
+    "title": "Time Series Editor",
     "ticker": "Ticker",
     "exchange": "Exchange",
     "load": "Load",

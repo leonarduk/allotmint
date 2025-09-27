@@ -248,7 +248,7 @@ export default function Menu({
 
   return (
     <nav className="mb-4" style={style}>
-      <ul className="flex flex-wrap items-center gap-4 border-b border-gray-200 pb-4">
+      <ul className="flex list-none flex-wrap items-center gap-4 border-b border-gray-200 pb-4">
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
           const containsActiveTab = category.tabs.some((tab) => tab.id === mode);
@@ -310,7 +310,7 @@ export default function Menu({
                 }}
 
               >
-                <ul className="flex flex-col gap-1">
+                <ul className="flex list-none flex-col gap-1">
                   {category.tabs.map((tab) => (
                     <li key={tab.id}>
                       <Link

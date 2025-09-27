@@ -205,6 +205,31 @@ def _build_compliance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
     return tasks
 
 
+def _normalise_threshold(raw: object) -> float | None:
+    """Return ``raw`` converted to a fractional threshold when possible."""
+
+    if isinstance(raw, bool):
+        # Boolean flags are handled by the caller – they cannot be
+        # normalised to a numeric threshold.
+        return None
+
+    try:
+        candidate = float(raw)
+    except (TypeError, ValueError):
+        return None
+
+    if not math.isfinite(candidate):
+        return None
+
+    # Historically thresholds have been stored either as fractions (0.05 for
+    # 5%) or as whole numbers (5 for 5%).  Normalise both representations so
+    # they can be compared against the default threshold.
+    if candidate > 1:
+        candidate /= 100
+
+    return candidate
+
+
 def _has_custom_threshold(user: str) -> bool:
     thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
     if not isinstance(thresholds, dict):
@@ -213,17 +238,23 @@ def _has_custom_threshold(user: str) -> bool:
     raw_threshold = thresholds.get(user)
     if raw_threshold is None:
         return False
+
     if isinstance(raw_threshold, bool):
         return bool(raw_threshold)
-    if isinstance(raw_threshold, (int, float)):
-        return math.isfinite(float(raw_threshold))
 
-    try:
-        candidate = float(raw_threshold)
-    except (TypeError, ValueError):
+    normalised = _normalise_threshold(raw_threshold)
+    if normalised is None:
+        # Non-numeric values are treated as custom when truthy so that
+        # intentionally configured strings (e.g. ``"disabled"``) still mark
+        # the task complete.
         return bool(raw_threshold)
 
-    return math.isfinite(candidate)
+    return not math.isclose(
+        normalised,
+        getattr(alerts, "DEFAULT_THRESHOLD_PCT", 0.05),
+        rel_tol=1e-9,
+        abs_tol=1e-9,
+    )
 
 
 _AUTO_ONCE_KEY = "_auto_once"

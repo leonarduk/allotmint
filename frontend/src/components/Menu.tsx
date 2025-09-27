@@ -141,6 +141,7 @@ export default function Menu({
       titleKey: 'operations',
       tabIds: ['instrumentadmin', 'dataadmin', 'timeseries', 'support'],
     },
+    { id: 'preferences', titleKey: 'preferences', tabIds: [] },
   ];
 
   const availableTabs = useMemo(
@@ -170,7 +171,13 @@ export default function Menu({
         ...category,
         tabs: availableTabs.filter((tab) => category.tabIds.includes(tab.id)),
       }))
-      .filter((category) => category.tabs.length > 0);
+      .filter((category) => {
+        if (category.tabs.length > 0) return true;
+        if (category.id === 'preferences') {
+          return supportEnabled || Boolean(onLogout);
+        }
+        return false;
+      });
 
     const uncategorizedTabs = availableTabs.filter((tab) => !categorizedTabIds.has(tab.id));
 
@@ -184,10 +191,24 @@ export default function Menu({
     }
 
     return categories;
-  }, [availableTabs, categorizedTabIds, categoryDefinitions]);
+  }, [availableTabs, categorizedTabIds, categoryDefinitions, onLogout, supportEnabled]);
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const firstLinkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
+  const firstLinkRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  const registerFirstFocusable = (categoryId: string) => (element: HTMLElement | null) => {
+    if (!element) {
+      if (firstLinkRefs.current[categoryId]?.isConnected === false) {
+        firstLinkRefs.current[categoryId] = null;
+      }
+      return;
+    }
+
+    const current = firstLinkRefs.current[categoryId];
+    if (!current || current.isConnected === false) {
+      firstLinkRefs.current[categoryId] = element;
+    }
+  };
 
   function pathFor(m: any) {
     switch (m) {
@@ -234,6 +255,7 @@ export default function Menu({
           const containsActiveTab = category.tabs.some((tab) => tab.id === mode);
           const buttonId = `menu-trigger-${category.id}`;
           const panelId = `menu-panel-${category.id}`;
+          const assignFirstFocusable = registerFirstFocusable(category.id);
 
           return (
             <li key={category.id} className="relative">
@@ -290,16 +312,10 @@ export default function Menu({
 
               >
                 <ul className="flex flex-col gap-1">
-                  {category.tabs.map((tab, index) => (
+                  {category.tabs.map((tab) => (
                     <li key={tab.id}>
                       <Link
-                        ref={
-                          index === 0
-                            ? (element) => {
-                                firstLinkRefs.current[category.id] = element;
-                              }
-                            : undefined
-                        }
+                        ref={assignFirstFocusable}
                         role="menuitem"
                         to={pathFor(tab.id as string)}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
@@ -312,34 +328,43 @@ export default function Menu({
                       </Link>
                     </li>
                   ))}
+                  {category.id === 'preferences' && supportEnabled && (
+                    <li key="support">
+                      <Link
+                        ref={assignFirstFocusable}
+                        role="menuitem"
+                        to={inSupport ? '/' : '/support'}
+                        className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
+                          inSupport
+                            ? 'font-semibold text-gray-900'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                      >
+                        {t('app.supportLink')}
+                      </Link>
+                    </li>
+                  )}
+                  {category.id === 'preferences' && onLogout && (
+                    <li key="logout">
+                      <button
+                        ref={(element) => assignFirstFocusable(element)}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          onLogout();
+                        }}
+                        className="block w-full rounded px-2 py-1 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                      >
+                        {t('app.logout')}
+                      </button>
+                    </li>
+                  )}
                 </ul>
               </div>
             </li>
           );
         })}
       </ul>
-
-      <div className="mt-6 flex flex-col gap-2 border-t border-gray-200 pt-4">
-        {supportEnabled && (
-          <Link
-            to={inSupport ? '/' : '/support'}
-            className={`${inSupport ? 'font-bold' : ''} break-words text-sm text-gray-600 hover:text-gray-900`}
-          >
-            {t('app.supportLink')}
-          </Link>
-        )}
-        {onLogout && (
-          <button
-            type="button"
-            onClick={() => {
-              onLogout();
-            }}
-            className="bg-transparent border-0 p-0 text-left text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
-          >
-            {t('app.logout')}
-          </button>
-        )}
-      </div>
     </nav>
   );
 }

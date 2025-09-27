@@ -21,10 +21,11 @@ describe("AlertSettings navigation", () => {
         </Routes>
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByRole("button", { name: i18n.t("app.menu") }));
-    fireEvent.click(
-      screen.getByRole("link", { name: i18n.t("app.modes.alertsettings") }),
-    );
+    fireEvent.click(screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.preferences"),
+    }));
+    const alertSettingsLink = await screen.findByRole("menuitem", { name: i18n.t("app.modes.alertsettings") });
+    fireEvent.click(alertSettingsLink);
     expect(
       await screen.findByRole("heading", { name: en.alertSettings.title }),
     ).toBeInTheDocument();

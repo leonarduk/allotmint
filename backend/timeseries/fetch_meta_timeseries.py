@@ -229,24 +229,23 @@ def _resolve_cache_exchange(
     explicit_exchange = _explicit_exchange_from_ticker(ticker)
     provided_exchange = (exchange_arg or "").strip().upper()
 
-    if explicit_exchange:
+    if metadata_exchange:
+        cache_exchange = metadata_exchange
+        if loader_exchange and loader_exchange != metadata_exchange:
+            logger.debug(
+                "Cache exchange mismatch for %s: loader %s vs metadata %s",
+                symbol,
+                loader_exchange,
+                metadata_exchange or "<empty>",
+            )
+    elif explicit_exchange:
         cache_exchange = explicit_exchange
     elif provided_exchange:
         cache_exchange = provided_exchange
     elif loader_exchange:
         cache_exchange = loader_exchange
-    elif metadata_exchange:
-        cache_exchange = metadata_exchange
     else:
         cache_exchange = ""
-
-    if metadata_exchange and loader_exchange and loader_exchange != metadata_exchange:
-        logger.debug(
-            "Cache exchange mismatch for %s: loader %s vs metadata %s",
-            symbol,
-            loader_exchange,
-            metadata_exchange or "<empty>",
-        )
 
     return cache_exchange
 

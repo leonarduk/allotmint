@@ -92,6 +92,32 @@ if (Test-Path '.env') {
     }
 }
 
+function Get-GitValue([string[]]$arguments) {
+  try {
+    $output = & git @arguments 2>$null
+    if ($LASTEXITCODE -eq 0) {
+      return ($output | Out-String).Trim()
+    }
+  } catch {
+    return $null
+  }
+  return $null
+}
+
+if (-not $env:VITE_GIT_COMMIT -or $env:VITE_GIT_COMMIT -eq '') {
+  $gitCommit = Get-GitValue @('rev-parse', 'HEAD')
+  if ($gitCommit) {
+    $env:VITE_GIT_COMMIT = $gitCommit
+  }
+}
+
+if (-not $env:VITE_GIT_BRANCH -or $env:VITE_GIT_BRANCH -eq '') {
+  $gitBranch = Get-GitValue @('rev-parse', '--abbrev-ref', 'HEAD')
+  if ($gitBranch) {
+    $env:VITE_GIT_BRANCH = $gitBranch
+  }
+}
+
 # Place synthesized CDK templates outside the repository
 $env:CDK_OUTDIR = Join-Path $SCRIPT_DIR '..\.cdk.out'
 

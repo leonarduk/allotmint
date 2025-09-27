@@ -52,5 +52,8 @@ def test_ensure_owner_scaffold_populates_person_metadata(tmp_path, monkeypatch):
 
     metadata = json.loads(person_path.read_text())
     assert metadata["owner"] == owner
+    assert metadata["full_name"] == ""
+    assert metadata["dob"] == ""
+    assert metadata["email"] == ""
     assert isinstance(metadata.get("holdings"), list)
     assert isinstance(metadata.get("viewers"), list)

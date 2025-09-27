@@ -6,7 +6,6 @@ import { useState } from "react";
 import type { Account } from "../types";
 import { HoldingsTable } from "./HoldingsTable";
 import { InstrumentDetail } from "./InstrumentDetail";
-import { money } from "../lib/money";
 import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
 
@@ -85,7 +84,7 @@ export function AccountBlock({
       )}
     </div>
   );
-  }
+}
 
 /* Export default as convenience for `lazy()` / Storybook */
 export default AccountBlock;

@@ -68,12 +68,15 @@ export default function MarketOverview() {
             <YAxis />
             <Tooltip content={<IndexTooltip />} />
             <Bar dataKey="change">
-              {indexData.map((entry) => (
-                <Cell
-                  key={entry.name}
-                  fill={entry.change >= 0 ? '#16a34a' : '#dc2626'}
-                />
-              ))}
+              {indexData.map((entry) => {
+                const changeValue = entry.change ?? 0;
+                return (
+                  <Cell
+                    key={entry.name}
+                    fill={changeValue >= 0 ? '#16a34a' : '#dc2626'}
+                  />
+                );
+              })}
             </Bar>
           </BarChart>
         </ResponsiveContainer>

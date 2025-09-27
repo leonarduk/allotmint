@@ -56,9 +56,16 @@ def test_s3_save_load_and_list(monkeypatch):
 
     resp = client.get(f"/custom-query/{slug}")
     assert resp.status_code == 200
-    assert resp.json()["tickers"] == BASE_QUERY["tickers"]
+    data = resp.json()
+    assert data["tickers"] == BASE_QUERY["tickers"]
 
-    resp = client.get("/custom-query/saved")
+    expected_params = dict(data)
+    expected_params.pop("name", None)
+
+    resp = client.get("/custom-query/saved", params={"detailed": "true"})
     saved_entries = resp.json()
-    assert any(entry["id"] == slug and entry["name"] == slug for entry in saved_entries)
+    matching_entry = next((entry for entry in saved_entries if entry["id"] == slug), None)
+    assert matching_entry is not None
+    assert matching_entry["name"] == slug
+    assert matching_entry["params"] == expected_params
 

@@ -52,9 +52,15 @@ def test_save_and_load_query(client, tmp_path):
     data = resp.json()
     assert data["tickers"] == BASE_QUERY["tickers"]
 
-    resp = client.get("/custom-query/saved")
+    expected_params = dict(data)
+    expected_params.pop("name", None)
+
+    resp = client.get("/custom-query/saved", params={"detailed": "true"})
     saved_entries = resp.json()
-    assert any(entry["id"] == slug and entry["name"] == slug for entry in saved_entries)
+    matching_entry = next((entry for entry in saved_entries if entry["id"] == slug), None)
+    assert matching_entry is not None
+    assert matching_entry["name"] == slug
+    assert matching_entry["params"] == expected_params
 
 
 def test_unknown_metric_rejected(client):

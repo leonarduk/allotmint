@@ -12,10 +12,9 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Dashboard",
-      "holdings": "Holdings",
-      "tradeTools": "Trade Tools",
-      "goals": "Goals",
-      "preferences": "Preferences",
+      "insightts": "Insightts",
+      "requirements": "Requirements",
+      "settings": "Settings",
       "operations": "Operations",
       "other": "Other"
     },
@@ -40,10 +39,10 @@
       "taxtools": "Tax Tools",
       "trail": "Trail",
       "reports": "Reports",
-  "alertsettings": "Alert Settings",
-  "compliance": "Compliance warnings",
-  "trade-compliance": "Trade compliance",
-  "support": "Support",
+      "alertsettings": "Alert Settings",
+      "compliance": "Compliance warnings",
+      "trade-compliance": "Trade compliance",
+      "support": "Support",
       "scenario": "Scenario Tester"
     }
   },

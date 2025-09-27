@@ -112,15 +112,23 @@ export default function Menu({
   };
 
   const USER_MENU_CATEGORIES: MenuCategory[] = [
-    { id: 'dashboard', titleKey: 'dashboard', tabIds: ['group', 'market', 'movers'] },
     {
-      id: 'holdings',
-      titleKey: 'holdings',
-      tabIds: ['owner', 'performance', 'allocation', 'transactions', 'reports'],
+      id: 'dashboard',
+      titleKey: 'dashboard',
+      tabIds: [
+        'group',
+        'market',
+        'movers',
+        'owner',
+        'performance',
+        'allocation',
+        'transactions',
+        'reports',
+      ],
     },
     {
-      id: 'tradeTools',
-      titleKey: 'tradeTools',
+      id: 'insightts',
+      titleKey: 'insightts',
       tabIds: [
         'instrument',
         'screener',
@@ -131,8 +139,8 @@ export default function Menu({
         'tradecompliance',
       ],
     },
-    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail'] },
-    { id: 'preferences', titleKey: 'preferences', tabIds: ['alertsettings', 'settings'] },
+    { id: 'requirements', titleKey: 'requirements', tabIds: ['pension', 'taxtools', 'trail'] },
+    { id: 'settings', titleKey: 'settings', tabIds: ['alertsettings', 'settings'] },
   ];
 
   const SUPPORT_MENU_CATEGORIES: MenuCategory[] = [
@@ -312,34 +320,44 @@ export default function Menu({
                       </Link>
                     </li>
                   ))}
+                  {category.id === 'settings' && (supportEnabled || onLogout) && (
+                    <li role="separator" className="my-1 border-t border-gray-200" />
+                  )}
+                  {category.id === 'settings' && supportEnabled && (
+                    <li key="support">
+                      <Link
+                        role="menuitem"
+                        to={inSupport ? '/' : '/support'}
+                        className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
+                          inSupport
+                            ? 'font-semibold text-gray-900'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                      >
+                        {t('app.supportLink')}
+                      </Link>
+                    </li>
+                  )}
+                  {category.id === 'settings' && onLogout && (
+                    <li key="logout">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          onLogout();
+                        }}
+                        className="block w-full rounded px-2 py-1 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                      >
+                        {t('app.logout')}
+                      </button>
+                    </li>
+                  )}
                 </ul>
               </div>
             </li>
           );
         })}
       </ul>
-
-      <div className="mt-6 flex flex-col gap-2 border-t border-gray-200 pt-4">
-        {supportEnabled && (
-          <Link
-            to={inSupport ? '/' : '/support'}
-            className={`${inSupport ? 'font-bold' : ''} break-words text-sm text-gray-600 hover:text-gray-900`}
-          >
-            {t('app.supportLink')}
-          </Link>
-        )}
-        {onLogout && (
-          <button
-            type="button"
-            onClick={() => {
-              onLogout();
-            }}
-            className="bg-transparent border-0 p-0 text-left text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
-          >
-            {t('app.logout')}
-          </button>
-        )}
-      </div>
     </nav>
   );
 }

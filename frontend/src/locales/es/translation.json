@@ -12,10 +12,9 @@
     "menu": "Menú",
     "menuCategories": {
       "dashboard": "Panel",
-      "holdings": "Posiciones",
-      "tradeTools": "Herramientas de trading",
-      "goals": "Objetivos",
-      "preferences": "Preferencias",
+      "insightts": "Insightts",
+      "requirements": "Requisitos",
+      "settings": "Configuración",
       "operations": "Operaciones",
       "other": "Otros"
     },
@@ -40,10 +39,10 @@
       "taxtools": "Herramientas fiscales",
       "trail": "Trail",
       "reports": "Informes",
-  "alertsettings": "Alert Settings",
-  "compliance": "Alertas de cumplimiento",
-  "trade-compliance": "Cumplimiento de operaciones",
-  "support": "Soporte",
+      "alertsettings": "Alert Settings",
+      "compliance": "Alertas de cumplimiento",
+      "trade-compliance": "Cumplimiento de operaciones",
+      "support": "Soporte",
       "scenario": "Probador de Escenarios"
     },
     "logs": {

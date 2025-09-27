@@ -216,14 +216,25 @@ def _has_custom_threshold(user: str) -> bool:
     if isinstance(raw_threshold, bool):
         return bool(raw_threshold)
     if isinstance(raw_threshold, (int, float)):
-        return math.isfinite(float(raw_threshold))
-
-    try:
         candidate = float(raw_threshold)
-    except (TypeError, ValueError):
-        return bool(raw_threshold)
+    else:
+        try:
+            candidate = float(raw_threshold)
+        except (TypeError, ValueError):
+            return bool(raw_threshold)
 
-    return math.isfinite(candidate)
+    if not math.isfinite(candidate):
+        return False
+
+    default_threshold = getattr(alerts, "DEFAULT_THRESHOLD_PCT", 0.0)
+    default_variants = {default_threshold}
+    if default_threshold:
+        default_variants.add(default_threshold * 100)
+
+    if any(math.isclose(candidate, default, rel_tol=1e-9, abs_tol=1e-9) for default in default_variants):
+        return False
+
+    return True
 
 
 _AUTO_ONCE_KEY = "_auto_once"

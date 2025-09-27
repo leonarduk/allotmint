@@ -70,6 +70,7 @@ Set one of the following environment variables to tell the UI where the backend 
 * `VITE_ALLOTMINT_API_BASE` – full base URL to the backend.
 * `VITE_API_URL` – legacy fallback used when `VITE_ALLOTMINT_API_BASE` is unset.
 * `VITE_API_TOKEN` – optional token sent as `X-API-Token` with every request.
+* `VITE_GIT_COMMIT` / `VITE_GIT_BRANCH` – optional git metadata shown on the Support page for build provenance (set them manually or rely on `build.sh` / `scripts/deploy-to-aws.sh`).
 
 To provide the token, add it to your environment or a `.env` file in `frontend`:
 

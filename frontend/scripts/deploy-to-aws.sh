@@ -68,6 +68,17 @@ if ! command -v aws >/dev/null 2>&1; then
 fi
 
 echo "\n=== Building frontend ==="
+
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  VITE_GIT_COMMIT_DEFAULT="$(git rev-parse HEAD)"
+  VITE_GIT_BRANCH_DEFAULT="$(git rev-parse --abbrev-ref HEAD)"
+  : "${VITE_GIT_COMMIT:=$VITE_GIT_COMMIT_DEFAULT}"
+  : "${VITE_GIT_BRANCH:=$VITE_GIT_BRANCH_DEFAULT}"
+fi
+
+export VITE_GIT_COMMIT="${VITE_GIT_COMMIT:-}"
+export VITE_GIT_BRANCH="${VITE_GIT_BRANCH:-}"
+
 npm run build
 
 if [[ ! -d dist ]]; then

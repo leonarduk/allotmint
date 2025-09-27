@@ -13,9 +13,9 @@
     "menuCategories": {
       "dashboard": "Panel",
       "holdings": "Posiciones",
-      "tradeTools": "Herramientas de trading",
-      "goals": "Objetivos",
-      "preferences": "Preferencias",
+      "tradeTools": "Insightts",
+      "goals": "Requisitos",
+      "preferences": "Configuración",
       "operations": "Operaciones",
       "other": "Otros"
     },

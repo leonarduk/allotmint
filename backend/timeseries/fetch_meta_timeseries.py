@@ -95,8 +95,19 @@ def _instrument_dirs() -> list[Path]:
 def _resolve_exchange_from_metadata(symbol: str) -> str:
     """Return exchange code for *symbol* using instrument metadata if possible."""
 
+    symbol = symbol.upper()
     dirs = tuple(str(path) for path in _instrument_dirs())
-    return _resolve_exchange_from_metadata_cached(symbol.upper(), dirs)
+    exchange = _resolve_exchange_from_metadata_cached(symbol, dirs)
+
+    if exchange and not _metadata_entry_exists(symbol, exchange, dirs):
+        # Metadata files can be created and removed dynamically during tests.
+        # When the cache is primed against a file that has since been deleted,
+        # stale entries would previously leak into subsequent lookups. Clear the
+        # cache so the lookup can fall back to the current filesystem state.
+        _resolve_exchange_from_metadata_cached.cache_clear()
+        exchange = _resolve_exchange_from_metadata_cached(symbol, dirs)
+
+    return exchange or ""
 
 
 @lru_cache(maxsize=2048)
@@ -119,6 +130,27 @@ def _resolve_exchange_from_metadata_cached(
         except OSError:
             continue
     return ""
+
+
+def _metadata_entry_exists(
+    symbol: str, exchange: str, directories: tuple[str, ...]
+) -> bool:
+    """Return ``True`` when metadata for *symbol* exists under *exchange*."""
+
+    symbol = symbol.upper()
+    exchange = exchange.upper()
+    if not symbol or not exchange:
+        return False
+
+    for root_str in directories:
+        root = Path(root_str)
+        try:
+            candidate = root / exchange / f"{symbol}.json"
+            if candidate.is_file():
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _resolve_symbol_exchange_details(

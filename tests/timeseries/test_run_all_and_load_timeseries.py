@@ -86,3 +86,26 @@ def test_load_timeseries_data_prefers_metadata_exchange_for_cache():
             fmt.load_timeseries_data(["AAA.L", "BBB"], exchange="L", days=3)
 
     assert calls == [("AAA", "N", 3), ("BBB", "L", 3)]
+
+
+def test_load_timeseries_data_handles_stale_metadata(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_load(sym, ex, days):
+        calls.append((sym, ex, days))
+        return _df()
+
+    instruments_dir = tmp_path / "instruments" / "L"
+    instruments_dir.mkdir(parents=True)
+    (instruments_dir / "AAA.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(fmt.config, "data_root", tmp_path, raising=False)
+    fmt._resolve_exchange_from_metadata_cached.cache_clear()
+    assert fmt._resolve_exchange_from_metadata("AAA") == "L"
+
+    (instruments_dir / "AAA.json").unlink()
+
+    with patch("backend.timeseries.cache.load_meta_timeseries", side_effect=fake_load):
+        fmt.load_timeseries_data(["AAA"], days=5)
+
+    assert calls == [("AAA", "", 5)]

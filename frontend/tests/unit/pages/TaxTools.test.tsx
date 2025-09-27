@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TaxTools from "@/pages/TaxTools";
-import { getAllowances, harvestTax } from "@/api";
+import { getAllowances, getPortfolio, harvestTax } from "@/api";
 import { useRoute } from "@/RouteContext";
 
 vi.mock("@/api", () => ({
   harvestTax: vi.fn(),
   getAllowances: vi.fn(),
+  getPortfolio: vi.fn(),
 }));
 
 vi.mock("@/RouteContext", () => ({
@@ -16,6 +17,7 @@ vi.mock("@/RouteContext", () => ({
 describe("TaxTools", () => {
   const allowancesMock = getAllowances as unknown as vi.Mock;
   const harvestMock = harvestTax as unknown as vi.Mock;
+  const portfolioMock = getPortfolio as unknown as vi.Mock;
   const useRouteMock = useRoute as unknown as vi.Mock;
 
   beforeEach(() => {
@@ -35,30 +37,64 @@ describe("TaxTools", () => {
         isa: { used: 1000, limit: 20000, remaining: 19000 },
       },
     });
+    portfolioMock.mockResolvedValue({
+      owner: "demo",
+      as_of: "2024-01-01",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [
+        {
+          account_type: "isa",
+          currency: "GBP",
+          value_estimate_gbp: 0,
+          holdings: [
+            {
+              ticker: "ABC",
+              name: "ABC Corp",
+              units: 10,
+              cost_basis_gbp: 1000,
+              market_value_gbp: 800,
+              gain_gbp: -200,
+              current_price_gbp: 80,
+              acquired_date: "2023-01-01",
+            },
+            {
+              ticker: "XYZ",
+              name: "XYZ Plc",
+              units: 5,
+              cost_basis_gbp: 500,
+              market_value_gbp: 400,
+              gain_gbp: -100,
+              current_price_gbp: 80,
+              acquired_date: "2023-02-01",
+            },
+          ],
+        },
+      ],
+    });
     harvestMock.mockResolvedValue({ trades: [] });
   });
 
-  it("calls harvest API and shows results", async () => {
+  it("loads the owner portfolio when an owner is selected", async () => {
+    render(<TaxTools />);
+
+    await screen.findByRole("checkbox", { name: /abc/i });
+
+    expect(portfolioMock).toHaveBeenCalledWith("demo");
+  });
+
+  it("calls harvest API with selected holdings and shows results", async () => {
     harvestMock.mockResolvedValue({ trades: [{ ticker: "ABC", loss: 123 }] });
 
     render(<TaxTools />);
 
-    fireEvent.change(screen.getByPlaceholderText(/ticker/i), {
-      target: { value: "ABC" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/basis/i), {
-      target: { value: "100" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/price/i), {
-      target: { value: "80" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/threshold/i), {
-      target: { value: "0" },
-    });
+    const checkbox = await screen.findByRole("checkbox", { name: /abc/i });
+    fireEvent.click(checkbox);
 
     fireEvent.click(screen.getByRole("button", { name: /run harvest/i }));
 
-    await screen.findByText(/ABC/);
+    await screen.findByTestId("harvest-results");
 
     expect(harvestMock).toHaveBeenCalledWith(
       [{ ticker: "ABC", basis: 100, price: 80 }],
@@ -77,18 +113,8 @@ describe("TaxTools", () => {
 
     render(<TaxTools />);
 
-    fireEvent.change(screen.getByPlaceholderText(/ticker/i), {
-      target: { value: "XYZ" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/basis/i), {
-      target: { value: "200" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/price/i), {
-      target: { value: "150" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/threshold/i), {
-      target: { value: "5" },
-    });
+    const checkbox = await screen.findByRole("checkbox", { name: /abc/i });
+    fireEvent.click(checkbox);
 
     const button = screen.getByRole("button", { name: /run harvest/i });
     fireEvent.click(button);
@@ -97,7 +123,7 @@ describe("TaxTools", () => {
     expect(button).toBeDisabled();
 
     resolvePromise!({ trades: [{ ticker: "XYZ", loss: 50 }] });
-    await screen.findByText(/XYZ/);
+    await screen.findByTestId("harvest-results");
   });
 
   it("renders allowance data", async () => {
@@ -106,8 +132,12 @@ describe("TaxTools", () => {
     await screen.findByText(/tax year 2024/i);
     expect(screen.getByText(/used £1,000.00 of £20,000.00 total/i)).toBeInTheDocument();
 
-    const table = screen.getByRole("table");
-    const isaCell = within(table)
+    const tables = await screen.findAllByRole("table");
+    const allowancesTable = tables.find((table) =>
+      within(table).queryByText(/usage/i),
+    );
+    expect(allowancesTable).toBeDefined();
+    const isaCell = within(allowancesTable!)
       .getAllByRole("cell")
       .find((cell) => cell.textContent?.trim().toLowerCase() === "isa");
     expect(isaCell).toBeDefined();
@@ -129,8 +159,12 @@ describe("TaxTools", () => {
 
     render(<TaxTools />);
 
-    const table = await screen.findByRole("table");
-    const isaCell = within(table)
+    const tables = await screen.findAllByRole("table");
+    const allowancesTable = tables.find((table) =>
+      within(table).queryByText(/usage/i),
+    );
+    expect(allowancesTable).toBeDefined();
+    const isaCell = within(allowancesTable!)
       .getAllByRole("cell")
       .find((cell) => cell.textContent?.trim().toLowerCase() === "isa");
     expect(isaCell).toBeDefined();
@@ -160,15 +194,43 @@ describe("TaxTools", () => {
     expect(allowancesMock).not.toHaveBeenCalled();
   });
 
-  it("shows validation error when inputs are incomplete", async () => {
+  it("allows manual entry through the advanced toggle", async () => {
     render(<TaxTools />);
 
+    const advancedToggle = await screen.findByLabelText(/advanced/i);
+    fireEvent.click(advancedToggle);
+
     fireEvent.change(screen.getByPlaceholderText(/ticker/i), {
-      target: { value: "ABC" },
+      target: { value: "MAN" },
     });
+    fireEvent.change(screen.getByPlaceholderText(/basis/i), {
+      target: { value: "50" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/price/i), {
+      target: { value: "40" },
+    });
+
+    const slider = screen.getByRole("slider");
+    fireEvent.change(slider, { target: { value: "10" } });
+
     fireEvent.click(screen.getByRole("button", { name: /run harvest/i }));
 
-    await screen.findByText(/fill out all fields/i);
+    expect(harvestMock).toHaveBeenCalledWith(
+      [{ ticker: "MAN", basis: 50, price: 40 }],
+      10,
+    );
+  });
+
+  it("shows validation error when no positions are selected", async () => {
+    render(<TaxTools />);
+
+    await screen.findByRole("checkbox", { name: /abc/i });
+
+    fireEvent.click(screen.getByRole("button", { name: /run harvest/i }));
+
+    expect(
+      await screen.findByText(/select a position or enter one manually/i),
+    ).toBeInTheDocument();
     expect(harvestMock).not.toHaveBeenCalled();
   });
 });

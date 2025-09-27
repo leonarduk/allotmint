@@ -27,6 +27,7 @@ export interface TabsConfig {
   instrumentadmin: boolean;
   dataadmin: boolean;
   virtual: boolean;
+  research: boolean;
   support: boolean;
   settings: boolean;
   profile: boolean;
@@ -75,6 +76,7 @@ const defaultTabs: TabsConfig = {
   instrumentadmin: true,
   dataadmin: true,
   virtual: true,
+  research: true,
   support: true,
   settings: true,
   profile: false,

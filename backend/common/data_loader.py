@@ -233,7 +233,7 @@ def _list_local_plots(
     # unit tests (which use temporary roots) isolated from the real repository
     # data and mirrors the expectation that callers passing a custom root only
     # see data from that location.
-    if data_root is not None:
+    if data_root is not None and not config.disable_auth:
         return results
 
     try:
@@ -249,7 +249,7 @@ def _list_local_plots(
         str(entry.get("owner", "")).lower(): entry for entry in results
     }
 
-    allow_fallback_demo = data_root is None or not results
+    allow_fallback_demo = data_root is None or not results or config.disable_auth
     if not allow_fallback_demo:
         return results
 

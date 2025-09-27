@@ -18,11 +18,15 @@ def client():
 
 # Shared mock data
 mock_owners = [
-    {"owner": "demo", "accounts": ["isa"]},
-    {"owner": "alex", "accounts": ["isa", "sipp"]},
-    {"owner": "joe", "accounts": ["isa", "sipp"]},
-    {"owner": "lucy", "accounts": ["isa", "pension-forecast"]},
-    {"owner": "steve", "accounts": ["isa", "jpm", "sipp"]},
+    {"owner": "demo", "full_name": "Demo", "accounts": ["isa"]},
+    {"owner": "alex", "full_name": "Alex Example", "accounts": ["isa", "sipp"]},
+    {"owner": "joe", "full_name": "Joe Example", "accounts": ["isa", "sipp"]},
+    {
+        "owner": "lucy",
+        "full_name": "Lucy Example",
+        "accounts": ["isa", "pension-forecast"],
+    },
+    {"owner": "steve", "full_name": "Steve Example", "accounts": ["isa", "jpm", "sipp"]},
 ]
 
 mock_groups = [

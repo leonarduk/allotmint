@@ -49,6 +49,7 @@ KEY_LOSERS = "losers"
 # ──────────────────────────────────────────────────────────────
 class OwnerSummary(BaseModel):
     owner: str
+    full_name: str
     accounts: List[str]
 
 
@@ -82,8 +83,8 @@ if config.disable_auth:
         """
         Returns
             [
-              {"owner": "alex",  "accounts": ["isa", "sipp"]},
-              {"owner": "joe",   "accounts": ["isa", "sipp"]},
+              {"owner": "alex",  "full_name": "Alex Example", "accounts": ["isa", "sipp"]},
+              {"owner": "joe",   "full_name": "Joe Example",  "accounts": ["isa", "sipp"]},
               ...
             ]
         """
@@ -98,8 +99,8 @@ else:
         """
         Returns
             [
-              {"owner": "alex",  "accounts": ["isa", "sipp"]},
-              {"owner": "joe",   "accounts": ["isa", "sipp"]},
+              {"owner": "alex",  "full_name": "Alex Example", "accounts": ["isa", "sipp"]},
+              {"owner": "joe",   "full_name": "Joe Example",  "accounts": ["isa", "sipp"]},
               ...
             ]
         """

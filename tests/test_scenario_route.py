@@ -18,7 +18,7 @@ def test_scenario_route(monkeypatch):
     monkeypatch.setattr(
         scenario_route,
         "list_plots",
-        lambda: [{"owner": "alice", "accounts": [{}]}],
+        lambda: [{"owner": "alice", "full_name": "Alice Example", "accounts": [{}]}],
     )
     monkeypatch.setattr(
         scenario_route,
@@ -58,7 +58,7 @@ def test_historical_scenario_route(monkeypatch):
     monkeypatch.setattr(
         scenario_route,
         "list_plots",
-        lambda: [{"owner": "alice", "accounts": [{}]}],
+        lambda: [{"owner": "alice", "full_name": "Alice Example", "accounts": [{}]}],
     )
     monkeypatch.setattr(
         scenario_route,

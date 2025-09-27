@@ -110,6 +110,32 @@ def _extract_account_names(owner_dir: Path) -> List[str]:
     return dedup
 
 
+def _build_owner_summary(
+    owner: str,
+    accounts: List[str],
+    meta: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Construct an owner summary including a display name."""
+
+    summary: Dict[str, Any] = {"owner": owner, "accounts": accounts}
+
+    display_name: Optional[str] = None
+    if meta:
+        for key in ("full_name", "display_name", "preferred_name", "owner", "name"):
+            value = meta.get(key) if isinstance(meta, dict) else None
+            if isinstance(value, str) and value.strip():
+                display_name = value.strip()
+                if key == "full_name":
+                    break
+        if display_name:
+            summary["full_name"] = display_name
+
+    if "full_name" not in summary:
+        summary["full_name"] = owner
+
+    return summary
+
+
 def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
     """Return the bundled ``demo`` owner description if available."""
 
@@ -122,7 +148,8 @@ def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
         return None
 
     accounts = _extract_account_names(demo_dir)
-    return {"owner": "demo", "accounts": accounts}
+    meta = load_person_meta("demo", root)
+    return _build_owner_summary("demo", accounts, meta)
 
 
 def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> None:
@@ -130,6 +157,11 @@ def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> No
 
     if not base or not extra:
         return
+
+    if "full_name" not in base:
+        extra_name = extra.get("full_name")
+        if isinstance(extra_name, str) and extra_name:
+            base["full_name"] = extra_name
 
     existing = base.setdefault("accounts", [])
     if not isinstance(existing, list):
@@ -214,7 +246,7 @@ def _list_local_plots(
 
             accounts = _extract_account_names(owner_dir)
 
-            results.append({"owner": owner, "accounts": accounts})
+            results.append(_build_owner_summary(owner, accounts, meta))
 
         return results
 
@@ -437,12 +469,12 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
             and current_user is None
         ):
             continue
+        meta = load_person_meta(owner)
         if current_user and current_user != owner:
-            meta = load_person_meta(owner)
             viewers = meta.get("viewers", [])
             if user not in viewers:
                 continue
-        results.append({"owner": owner, "accounts": accounts})
+        results.append(_build_owner_summary(owner, accounts, meta))
     return results
 
 
@@ -465,8 +497,9 @@ def list_plots(
     Returns
     -------
     List[Dict[str, Any]]
-        A list of dictionaries each containing an ``owner`` and their
-        available ``accounts``.
+        A list of dictionaries each containing an ``owner`` identifier, a
+        human-friendly ``full_name`` (if available) and their available
+        ``accounts``.
     """
 
     if config.app_env == "aws":
@@ -555,7 +588,17 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
 
     def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
         meta: Dict[str, Any] = {}
-        for key in ("dob", "email", "holdings", "viewers"):
+        allowed_keys = {
+            "owner",
+            "full_name",
+            "display_name",
+            "preferred_name",
+            "dob",
+            "email",
+            "holdings",
+            "viewers",
+        }
+        for key in allowed_keys:
             if key in data:
                 meta[key] = data[key]
         if "viewers" not in meta:

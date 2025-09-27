@@ -211,10 +211,10 @@ class TestListLocalPlots:
 
         assert result == [
             {"owner": "carol", "accounts": ["gamma"]},
-            {"owner": "demo", "accounts": ["demo1"]},
         ]
+        assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
-    def test_list_plots_with_explicit_root_keeps_demo(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_list_plots_with_explicit_root_skips_demo(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         repo_root = tmp_path / "repo"
         accounts_root = repo_root / "accounts"
         accounts_root.mkdir(parents=True, exist_ok=True)
@@ -228,8 +228,8 @@ class TestListLocalPlots:
 
         assert result == [
             {"owner": "carol", "accounts": ["gamma"]},
-            {"owner": "demo", "accounts": ["demo1"]},
         ]
+        assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
     def test_allows_access_when_user_matches_owner_email(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

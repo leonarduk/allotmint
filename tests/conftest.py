@@ -3,7 +3,15 @@ import inspect
 import os
 from pathlib import Path
 
-import boto3
+try:
+    import boto3
+except ImportError:  # pragma: no cover - fallback for environments without boto3
+    import types
+
+    # Provide a minimal ``boto3`` stub so tests that monkeypatch ``resource`` can
+    # still run in environments where the real dependency isn't installed.
+    boto3 = types.SimpleNamespace(resource=lambda *args, **kwargs: None)
+
 import pytest
 
 os.environ.setdefault("TESTING", "1")

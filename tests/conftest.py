@@ -1,3 +1,5 @@
+import asyncio
+import inspect
 import os
 from pathlib import Path
 
@@ -12,6 +14,32 @@ from backend import auth as auth_module
 from backend import app as app_module
 
 _real_verify_google_token = auth_module.verify_google_token
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_pyfunc_call(pyfuncitem):
+    """Lightweight async test support when ``pytest-asyncio`` isn't available."""
+
+    test_function = pyfuncitem.obj
+    if not inspect.iscoroutinefunction(test_function):
+        return None
+
+    call_kwargs = {
+        name: value
+        for name, value in pyfuncitem.funcargs.items()
+        if name in pyfuncitem._fixtureinfo.argnames
+    }
+
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(test_function(**call_kwargs))
+        loop.run_until_complete(loop.shutdown_asyncgens())
+    finally:
+        asyncio.set_event_loop(None)
+        loop.close()
+
+    return True
 
 
 @pytest.fixture(scope="session", autouse=True)

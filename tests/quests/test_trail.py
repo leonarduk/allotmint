@@ -214,3 +214,14 @@ def test_threshold_once_task_marks_custom_value(memory_storage, monkeypatch):
     )
 
     assert threshold_task["completed"] is True
+
+
+def test_threshold_once_task_handles_percent_strings(memory_storage, monkeypatch):
+    monkeypatch.setattr(alerts, "_USER_THRESHOLDS", {"demo": "5%"})
+
+    response = trail.get_tasks("demo")
+    threshold_task = next(
+        task for task in response["tasks"] if task["id"] == "set_alert_threshold"
+    )
+
+    assert threshold_task["completed"] is False

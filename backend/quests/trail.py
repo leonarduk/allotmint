@@ -205,23 +205,41 @@ def _build_compliance_tasks(owners: Iterable[str]) -> List[TaskDefinition]:
     return tasks
 
 
+def _normalise_threshold(raw: object) -> float | None:
+    """Return ``raw`` converted to a numeric threshold when possible."""
+
+    if raw is None or isinstance(raw, bool):
+        return None
+
+    if isinstance(raw, (int, float)):
+        return float(raw)
+
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return None
+        if text.endswith("%"):
+            text = text[:-1].strip()
+        try:
+            return float(text)
+        except ValueError:
+            return None
+
+    try:
+        return float(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
 def _has_custom_threshold(user: str) -> bool:
     thresholds = getattr(alerts, "_USER_THRESHOLDS", {})
     if not isinstance(thresholds, dict):
         return False
 
-    raw_threshold = thresholds.get(user)
-    if raw_threshold is None:
-        return False
-    if isinstance(raw_threshold, bool):
-        return bool(raw_threshold)
-    if isinstance(raw_threshold, (int, float)):
-        candidate = float(raw_threshold)
-    else:
-        try:
-            candidate = float(raw_threshold)
-        except (TypeError, ValueError):
-            return bool(raw_threshold)
+    candidate = _normalise_threshold(thresholds.get(user))
+    if candidate is None:
+        # Preserve existing behaviour of truthiness for non-numeric entries.
+        return bool(thresholds.get(user))
 
     if not math.isfinite(candidate):
         return False
@@ -230,8 +248,13 @@ def _has_custom_threshold(user: str) -> bool:
     default_variants = {default_threshold}
     if default_threshold:
         default_variants.add(default_threshold * 100)
+        if default_threshold >= 1:
+            default_variants.add(default_threshold / 100)
 
-    if any(math.isclose(candidate, default, rel_tol=1e-9, abs_tol=1e-9) for default in default_variants):
+    if any(
+        math.isclose(candidate, default, rel_tol=1e-9, abs_tol=1e-9)
+        for default in default_variants
+    ):
         return False
 
     return True

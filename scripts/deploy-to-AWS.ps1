@@ -46,6 +46,21 @@ if (-not (Test-Path $CDK_DIR)) {
   exit 1
 }
 
+$requirementsFile = Join-Path $CDK_DIR 'requirements.txt'
+if (-not (Test-Path $requirementsFile)) {
+  Write-Host "Expected requirements file at $requirementsFile" -ForegroundColor Red
+  Write-Host 'Install the dependencies manually and rerun the script.' -ForegroundColor Yellow
+  exit 1
+}
+
+Write-Host "Installing CDK dependencies from $requirementsFile..." -ForegroundColor Cyan
+$pipArgs = @('-m', 'pip', 'install', '-r', $requirementsFile)
+$pipProcess = Start-Process -FilePath $PYTHON -ArgumentList $pipArgs -NoNewWindow -PassThru -Wait
+if ($pipProcess.ExitCode -ne 0) {
+  Write-Host 'Failed to install CDK Python dependencies.' -ForegroundColor Red
+  exit $pipProcess.ExitCode
+}
+
 if ($Backend) {
   if (-not $env:DATA_BUCKET -and -not $DataBucket) {
     Write-Host 'Provide the S3 bucket for account data via -DataBucket or DATA_BUCKET environment variable.' -ForegroundColor Red

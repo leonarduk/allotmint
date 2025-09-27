@@ -8,6 +8,10 @@ import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
 
 const SUPPORT_ONLY_TABS: TabPluginId[] = [];
 
+const ALL_USER_TAB_IDS: TabPluginId[] = orderedTabPlugins
+  .filter((plugin) => plugin.section === 'user')
+  .map((plugin) => plugin.id);
+
 interface MenuProps {
   selectedOwner?: string;
   selectedGroup?: string;
@@ -112,27 +116,7 @@ export default function Menu({
   };
 
   const USER_MENU_CATEGORIES: MenuCategory[] = [
-    { id: 'dashboard', titleKey: 'dashboard', tabIds: ['group', 'market', 'movers'] },
-    {
-      id: 'holdings',
-      titleKey: 'holdings',
-      tabIds: ['owner', 'performance', 'allocation', 'transactions', 'reports'],
-    },
-    {
-      id: 'tradeTools',
-      titleKey: 'tradeTools',
-      tabIds: [
-        'instrument',
-        'screener',
-        'watchlist',
-        'scenario',
-        'trading',
-        'rebalance',
-        'tradecompliance',
-      ],
-    },
-    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail'] },
-    { id: 'preferences', titleKey: 'preferences', tabIds: ['alertsettings', 'settings'] },
+    { id: 'dashboard', titleKey: 'dashboard', tabIds: ALL_USER_TAB_IDS },
   ];
 
   const SUPPORT_MENU_CATEGORIES: MenuCategory[] = [
@@ -328,7 +312,9 @@ export default function Menu({
                       </Link>
                     </li>
                   ))}
-                  {category.id === 'preferences' && supportEnabled && (
+                  {((!isSupportMode && category.id === 'dashboard') ||
+                    (isSupportMode && category.id === 'preferences')) &&
+                    supportEnabled && (
                     <li key="support">
                       <Link
                         ref={assignFirstFocusable}
@@ -344,7 +330,9 @@ export default function Menu({
                       </Link>
                     </li>
                   )}
-                  {category.id === 'preferences' && onLogout && (
+                  {((!isSupportMode && category.id === 'dashboard') ||
+                    (isSupportMode && category.id === 'preferences')) &&
+                    onLogout && (
                     <li key="logout">
                       <button
                         ref={(element) => assignFirstFocusable(element)}

@@ -12,21 +12,21 @@ describe("Menu", () => {
         <Menu />
       </MemoryRouter>,
     );
-    const settingsToggle = screen.getByRole("button", {
-      name: i18n.t("app.menuCategories.preferences"),
+    const dashboardToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.dashboard"),
     });
-    expect(settingsToggle).toHaveAttribute("aria-expanded", "false");
+    expect(dashboardToggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("menuitem", { name: "Support" })).not.toBeInTheDocument();
-    fireEvent.click(settingsToggle);
-    expect(settingsToggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(dashboardToggle);
+    expect(dashboardToggle).toHaveAttribute("aria-expanded", "true");
     const supportLink = await screen.findByRole("menuitem", { name: "Support" });
     expect(supportLink).toBeVisible();
     expect(supportLink).toHaveAttribute(
       "href",
       "/support",
     );
-    fireEvent.click(settingsToggle);
-    expect(settingsToggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(dashboardToggle);
+    expect(dashboardToggle).toHaveAttribute("aria-expanded", "false");
     await waitFor(() =>
       expect(screen.queryByRole("menuitem", { name: "Support" })).not.toBeInTheDocument(),
     );
@@ -38,14 +38,14 @@ describe("Menu", () => {
         <Menu />
       </MemoryRouter>,
     );
-    const settingsToggle = screen.getByRole("button", {
-      name: i18n.t("app.menuCategories.preferences"),
+    const dashboardToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.dashboard"),
     });
-    expect(settingsToggle).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(settingsToggle);
-    expect(settingsToggle).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(settingsToggle);
-    expect(settingsToggle).toHaveAttribute("aria-expanded", "false");
+    expect(dashboardToggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(dashboardToggle);
+    expect(dashboardToggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(dashboardToggle);
+    expect(dashboardToggle).toHaveAttribute("aria-expanded", "false");
   });
 
   it("shows support tabs on support route", async () => {
@@ -54,10 +54,10 @@ describe("Menu", () => {
         <Menu />
       </MemoryRouter>,
     );
-    const settingsToggle = screen.getByRole("button", {
+    const preferencesToggle = screen.getByRole("button", {
       name: i18n.t("app.menuCategories.preferences"),
     });
-    fireEvent.click(settingsToggle);
+    fireEvent.click(preferencesToggle);
     const supportLink = await screen.findByRole("menuitem", { name: "Support" });
     expect(supportLink).toHaveAttribute("href", "/");
   });
@@ -102,10 +102,10 @@ describe("Menu", () => {
         </MemoryRouter>
       </configContext.Provider>,
     );
-    const settingsToggle = screen.getByRole("button", {
-      name: i18n.t("app.menuCategories.preferences"),
+    const dashboardToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.dashboard"),
     });
-    fireEvent.click(settingsToggle);
+    fireEvent.click(dashboardToggle);
     expect(screen.queryByRole("menuitem", { name: "Support" })).toBeNull();
   });
 
@@ -117,10 +117,10 @@ describe("Menu", () => {
         <Menu onLogout={onLogout} />
       </MemoryRouter>,
     );
-    const settingsToggle = screen.getByRole("button", {
-      name: i18n.t("app.menuCategories.preferences"),
+    const dashboardToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.dashboard"),
     });
-    fireEvent.click(settingsToggle);
+    fireEvent.click(dashboardToggle);
     const btn = await screen.findByRole("menuitem", { name: "Déconnexion" });
     fireEvent.click(btn);
     expect(onLogout).toHaveBeenCalled();

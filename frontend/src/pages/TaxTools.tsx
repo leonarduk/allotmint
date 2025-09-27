@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { getAllowances, getPortfolio, harvestTax } from "../api";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+} from "react";
+import { getAllowances, getOwners, getPortfolio, harvestTax } from "../api";
 import EmptyState from "../components/EmptyState";
 import { useRoute } from "../RouteContext";
-import type { Holding, Portfolio } from "../types";
+import type { Holding, OwnerSummary, Portfolio } from "../types";
+import { sanitizeOwners } from "../utils/owners";
 
 type Trade = {
   ticker: string;
@@ -42,6 +49,38 @@ type AllowanceResponse = {
   tax_year: string;
   allowances: AllowanceMap;
 };
+
+function useOwnersList() {
+  const [owners, setOwners] = useState<OwnerSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    setError(null);
+    getOwners()
+      .then((response) => {
+        if (!isMounted) return;
+        setOwners(sanitizeOwners(response));
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setOwners([]);
+        setError("Failed to load owners");
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return { owners, loading, error } as const;
+}
 
 function InputField({
   placeholder,
@@ -615,14 +654,80 @@ function TaxAllowancesSection() {
 }
 
 export default function TaxTools() {
+  const { selectedOwner, setSelectedOwner } = useRoute();
+  const {
+    owners,
+    loading: ownersLoading,
+    error: ownersError,
+  } = useOwnersList();
+
+  useEffect(() => {
+    if (!selectedOwner) return;
+    if (!owners.length) return;
+    const isValid = owners.some((owner) => owner.owner === selectedOwner);
+    if (!isValid) {
+      setSelectedOwner("");
+    }
+  }, [owners, selectedOwner, setSelectedOwner]);
+
+  const ownerSelectValue = useMemo(() => {
+    if (!selectedOwner) return "";
+    return owners.some((owner) => owner.owner === selectedOwner)
+      ? selectedOwner
+      : "";
+  }, [owners, selectedOwner]);
+
+  const handleOwnerChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      setSelectedOwner(event.target.value);
+    },
+    [setSelectedOwner],
+  );
+
+  const ownerSelectDisabled =
+    ownersLoading || ownersError !== null || owners.length === 0;
+
   return (
     <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="mb-2 text-2xl md:text-4xl">Tax Tools</h1>
-        <p className="text-gray-600">
-          Run quick harvest scenarios and keep tabs on your annual allowances in
-          one place.
-        </p>
+      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="mb-2 text-2xl md:text-4xl">Tax Tools</h1>
+          <p className="text-gray-600">
+            Run quick harvest scenarios and keep tabs on your annual allowances in
+            one place.
+          </p>
+        </div>
+        <div className="md:w-64">
+          <label
+            htmlFor="tax-owner-select"
+            className="flex flex-col gap-1 text-sm font-medium text-gray-700"
+          >
+            Portfolio owner
+            <select
+              id="tax-owner-select"
+              className="rounded border border-gray-300 px-3 py-2 text-base"
+              value={ownerSelectValue}
+              onChange={handleOwnerChange}
+              disabled={ownerSelectDisabled}
+            >
+              <option value="">Select an owner</option>
+              {owners.map((owner) => (
+                <option key={owner.owner} value={owner.owner}>
+                  {owner.owner}
+                </option>
+              ))}
+            </select>
+          </label>
+          {ownersLoading && (
+            <p className="mt-1 text-xs text-gray-500">Loading owners...</p>
+          )}
+          {!ownersLoading && ownersError && (
+            <p className="mt-1 text-xs text-red-500">{ownersError}</p>
+          )}
+          {!ownersLoading && !ownersError && owners.length === 0 && (
+            <p className="mt-1 text-xs text-gray-500">No owners available.</p>
+          )}
+        </div>
       </header>
       <TaxHarvestSection />
       <TaxAllowancesSection />

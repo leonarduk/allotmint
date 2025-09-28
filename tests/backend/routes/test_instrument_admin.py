@@ -180,13 +180,38 @@ async def test_refresh_instrument_offline_guard(
     def original_fetch(_: str) -> dict[str, Any]:  # pragma: no cover - guard prevents execution
         raise AssertionError("should not fetch when offline")
 
+    def fail_load(*_: Any, **__: Any) -> dict[str, Any]:  # pragma: no cover - guard prevents execution
+        raise AssertionError("should not load metadata when offline")
+
     monkeypatch.setattr(instrument_admin, "_ORIGINAL_FETCH_METADATA", original_fetch, raising=False)
     monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", original_fetch, raising=False)
+    monkeypatch.setattr(instrument_admin, "_load_meta_for_update", fail_load)
     monkeypatch.setattr(instrument_admin.config, "offline_mode", True)
 
     with pytest.raises(HTTPException) as exc:
         await instrument_admin.refresh_instrument("NYSE", "AAA")
+
     assert exc.value.status_code == 503
+    assert save_calls["saved"] == []
+
+
+async def test_refresh_instrument_fetch_failure_returns_502(
+    monkeypatch: pytest.MonkeyPatch,
+    path_states: dict[tuple[str, str], Any],
+    save_calls: dict[str, Any],
+) -> None:
+    path_states[("BBB", "NYSE")] = True
+    monkeypatch.setattr(instrument_admin.config, "offline_mode", False)
+
+    existing = {"ticker": "BBB.NYSE", "exchange": "NYSE", "name": "Before"}
+
+    monkeypatch.setattr(instrument_admin, "_load_meta_for_update", lambda *args: dict(existing))
+    monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda _: {})
+
+    with pytest.raises(HTTPException) as exc:
+        await instrument_admin.refresh_instrument("NYSE", "BBB")
+
+    assert exc.value.status_code == 502
     assert save_calls["saved"] == []
 
 
@@ -195,24 +220,25 @@ async def test_refresh_instrument_preview_shows_diff_without_saving(
     path_states: dict[tuple[str, str], Any],
     save_calls: dict[str, Any],
 ) -> None:
-    path_states[("BBB", "NYSE")] = True
+    path_states[("CCC", "NYSE")] = True
     monkeypatch.setattr(instrument_admin.config, "offline_mode", False)
 
-    existing = {"ticker": "BBB.NYSE", "exchange": "NYSE", "name": "Old", "instrument_type": "fund"}
+    existing = {"ticker": "CCC.NYSE", "exchange": "NYSE", "name": "Old", "instrument_type": "fund"}
 
     def load_meta(exchange: str, ticker: str) -> dict[str, Any]:
-        assert (ticker, exchange) == ("BBB", "NYSE")
+        assert (exchange, ticker) == ("NYSE", "CCC")
         return dict(existing)
 
-    fetched = {"ticker": "BBB.NYSE", "name": "New", "instrumentType": "Equity"}
+    fetched = {"ticker": "CCC.NYSE", "name": "New", "instrumentType": "Equity"}
 
     monkeypatch.setattr(instrument_admin, "_load_meta_for_update", load_meta)
-    monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda _: dict(fetched), raising=False)
+    monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda _: dict(fetched))
 
-    response = await instrument_admin.refresh_instrument("NYSE", "BBB")
+    response = await instrument_admin.refresh_instrument("NYSE", "CCC")
 
     assert response["status"] == "preview"
     assert response["changes"]["name"] == {"from": "Old", "to": "New"}
+    assert response["changes"]["instrumentType"] == {"from": None, "to": "Equity"}
     assert response["metadata"]["instrumentType"] == "Equity"
     assert response["metadata"]["instrument_type"] == "Equity"
     assert save_calls["saved"] == []
@@ -223,21 +249,22 @@ async def test_refresh_instrument_persists_when_not_preview(
     path_states: dict[tuple[str, str], Any],
     save_calls: dict[str, Any],
 ) -> None:
-    path_states[("CCC", "NYSE")] = True
+    path_states[("DDD", "NYSE")] = True
     monkeypatch.setattr(instrument_admin.config, "offline_mode", False)
 
-    def load_meta(exchange: str, ticker: str) -> dict[str, Any]:
-        return {"ticker": f"{ticker}.{exchange}", "exchange": exchange, "instrumentType": "Bond"}
+    existing = {"ticker": "DDD.NYSE", "exchange": "NYSE", "instrumentType": "Bond"}
+    fetched = {"ticker": "DDD.NYSE", "instrument_type": "bond", "currency": "USD"}
 
-    fetched = {"ticker": "CCC.NYSE", "instrument_type": "bond", "currency": "USD"}
+    monkeypatch.setattr(instrument_admin, "_load_meta_for_update", lambda *args: dict(existing))
+    monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda _: dict(fetched))
 
-    monkeypatch.setattr(instrument_admin, "_load_meta_for_update", load_meta)
-    monkeypatch.setattr(instrument_admin, "_fetch_metadata_from_yahoo", lambda _: dict(fetched), raising=False)
-
-    response = await instrument_admin.refresh_instrument("NYSE", "CCC", {"preview": False})
+    response = await instrument_admin.refresh_instrument("NYSE", "DDD", {"preview": False})
 
     assert response["status"] == "updated"
-    merged = save_calls["saved"][-1][2]
+    assert len(save_calls["saved"]) == 1
+    saved_entry = save_calls["saved"][0]
+    assert saved_entry[0:2] == ("DDD", "NYSE")
+    merged = saved_entry[2]
     assert merged["instrument_type"] == "bond"
     assert merged["instrumentType"] == "bond"
     assert merged["currency"] == "USD"

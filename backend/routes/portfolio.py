@@ -106,6 +106,7 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
         "notes",
         "settings",
         "approvals",
+        "approval_requests",
     }
 
     try:

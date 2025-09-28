@@ -64,6 +64,22 @@ const PIE_COLORS = [
   "#ffc0cb",
 ];
 
+const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
+
+const computeDayChangePct = (value: number, delta: number): number | null => {
+  if (!Number.isFinite(value) || !Number.isFinite(delta)) {
+    return null;
+  }
+
+  const baseline = value - delta;
+
+  if (!Number.isFinite(baseline) || Math.abs(baseline) < DAY_CHANGE_BASELINE_EPSILON) {
+    return null;
+  }
+
+  return (delta / baseline) * 100;
+};
+
 type Props = {
   slug: string;
   owners?: OwnerSummary[];
@@ -371,19 +387,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
     const ownerRows = Object.entries(perOwner).map(([owner, data]) => {
       const gainPct = data.cost > 0 ? (data.gain / data.cost) * 100 : 0;
-      const dayChangePct =
-        data.value - data.dayChange !== 0
-          ? (data.dayChange / (data.value - data.dayChange)) * 100
-          : 0;
+      const dayChangePct = computeDayChangePct(data.value, data.dayChange);
       const valuePct = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
       const stockPct = totalValue > 0 ? (data.stock / totalValue) * 100 : 0;
       const cashPct = totalValue > 0 ? (data.cash / totalValue) * 100 : 0;
       const accounts = data.accounts.map((acct) => {
         const accountGainPct = acct.cost > 0 ? (acct.gain / acct.cost) * 100 : 0;
-        const accountDayChangePct =
-          acct.value - acct.dayChange !== 0
-            ? (acct.dayChange / (acct.value - acct.dayChange)) * 100
-            : 0;
+        const accountDayChangePct = computeDayChangePct(acct.value, acct.dayChange);
         const accountValuePct =
           totalValue > 0 ? (acct.value / totalValue) * 100 : 0;
         const accountStockPct =

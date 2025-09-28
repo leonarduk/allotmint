@@ -251,10 +251,75 @@ describe("GroupPortfolioView", () => {
     expect(ownerTable).toBeTruthy();
     expect(within(ownerTable!).getByText("Alice Example")).toBeInTheDocument();
     expect(within(ownerTable!).getByText("Bob Example")).toBeInTheDocument();
-    expect(within(ownerTable!).getByText("66.67%")).toBeInTheDocument();
+    expect(within(ownerTable!).getAllByText("66.67%").length).toBeGreaterThan(0);
     expect(within(ownerTable!).getByText("25.00%")).toBeInTheDocument();
     expect(within(ownerTable!).getByText("-4.76%")).toBeInTheDocument();
     expect(screen.queryByText("Total Value")).toBeNull();
+  });
+
+  it("suppresses day change percentage when the baseline is nearly zero", async () => {
+    const mockPortfolio = {
+      name: "Tiny balances",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 0.0095,
+          holdings: [
+            {
+              units: 1,
+              cost_basis_gbp: 0.0095,
+              market_value_gbp: 0.0095,
+              day_change_gbp: 0.009,
+              instrument_type: "equity",
+            },
+          ],
+        },
+      ],
+    };
+
+    mockAllFetches(mockPortfolio);
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Alice Example").length).toBeGreaterThan(0),
+    );
+
+    const ownerTable = screen
+      .getAllByRole("table")
+      .find((table) => within(table).queryByText("Owner"));
+    expect(ownerTable).toBeTruthy();
+
+    const ownerRow = within(ownerTable!)
+      .getAllByRole("row")
+      .find((row) => within(row).queryByText("Alice Example"));
+    expect(ownerRow).toBeTruthy();
+
+    const ownerCells = within(ownerRow!)
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent?.trim());
+    expect(ownerCells[5]).toBe("—");
+
+    await userEvent.click(ownerRow!);
+
+    await waitFor(() =>
+      expect(
+        within(ownerTable!)
+          .getAllByRole("row")
+          .some((row) => within(row).queryByText("isa")),
+      ).toBe(true),
+    );
+
+    const accountRow = within(ownerTable!)
+      .getAllByRole("row")
+      .find((row) => within(row).queryByText("isa"));
+    expect(accountRow).toBeTruthy();
+
+    const accountCells = within(accountRow!)
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent?.trim());
+    expect(accountCells[5]).toBe("—");
   });
 
   it("renders instrument type pie chart", async () => {

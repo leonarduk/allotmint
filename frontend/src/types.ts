@@ -2,6 +2,7 @@ export type OwnerSummary = {
   owner: string;
   accounts: string[];
   full_name?: string | null;
+  has_transactions_artifact?: boolean;
 };
 
 export interface Holding {

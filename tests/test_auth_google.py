@@ -7,7 +7,7 @@ def test_token_requires_configured_email():
     app = create_app()
     client = TestClient(app)
 
-    # Token mapped to lucy@example.com should succeed (see mock in conftest)
+    # Token mapped to user@example.com should succeed (see mock in conftest)
     ok = client.post("/token", json={"id_token": "good"})
     assert ok.status_code == 200
     assert "access_token" in ok.json()

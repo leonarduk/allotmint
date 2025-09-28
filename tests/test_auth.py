@@ -1,5 +1,8 @@
 import asyncio
+import importlib
+import logging
 import sys
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +11,7 @@ from fastapi import HTTPException
 import backend.auth as auth
 import backend.common.data_loader as dl
 from tests.conftest import _real_verify_google_token
+import tests.conftest as tests_conftest
 
 
 def test_allowed_emails_local_filesystem(monkeypatch, tmp_path):
@@ -58,6 +62,20 @@ def test_create_and_decode_token_round_trip():
 
 def test_decode_token_invalid_returns_none():
     assert auth.decode_token("invalid") is None
+
+
+def test_decode_token_expired_raises_http_exception():
+    expired = datetime.now(timezone.utc) - timedelta(minutes=1)
+    token = auth.jwt.encode(
+        {"sub": "user@example.com", "exp": expired},
+        auth.SECRET_KEY,
+        algorithm=auth.ALGORITHM,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        auth.decode_token(token)
+
+    assert exc.value.status_code == 401
 
 
 def test_verify_google_token_success(monkeypatch):
@@ -124,3 +142,22 @@ def test_get_current_user_valid_token():
 def test_get_current_user_invalid_token():
     with pytest.raises(HTTPException):
         asyncio.run(auth.get_current_user("bad"))
+
+
+def test_missing_secret_key_generates_ephemeral_secret(monkeypatch, caplog):
+    monkeypatch.delenv("JWT_SECRET", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.setenv("TESTING", "")
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+
+    caplog.set_level(logging.WARNING, logger=auth.logger.name)
+
+    reloaded = importlib.reload(auth)
+
+    assert reloaded.SECRET_KEY
+    assert any(
+        "JWT_SECRET not set; using ephemeral secret for development" in record.getMessage()
+        for record in caplog.records
+    )
+
+    tests_conftest._real_verify_google_token = reloaded.verify_google_token

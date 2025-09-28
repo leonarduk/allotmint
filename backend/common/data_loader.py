@@ -128,6 +128,8 @@ def _build_owner_summary(
                     break
     if display_name:
         summary["full_name"] = display_name
+    else:
+        summary["full_name"] = owner
 
     return summary
 

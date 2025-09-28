@@ -4,7 +4,7 @@ import type { UserConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { accessSync, constants } from 'node:fs'
 import { createRequire } from 'node:module'
 import fg from 'fast-glob'
 
@@ -54,8 +54,9 @@ export default defineConfig(({ command }) => {
           if (!executable) {
             canPrerender = false
           } else {
-            const probe = spawnSync(executable, ['--version'], { stdio: 'ignore' })
-            if (probe.error || probe.status !== 0) {
+            try {
+              accessSync(executable, constants.X_OK)
+            } catch {
               canPrerender = false
             }
           }

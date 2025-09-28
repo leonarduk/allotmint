@@ -186,15 +186,19 @@ async def post_portfolio_health(req: PortfolioHealthRequest | None = None) -> di
         if cache is None or cache.threshold != threshold:
             stale = False
 
-    if error is not None:
+    if snapshot is None:
         response = {"status": "error", "stale": True}
-        if snapshot is not None:
-            response["findings"] = snapshot.findings
-            response["generated_at"] = snapshot.generated_at.isoformat()
+    elif error is not None:
+        response = {"status": "error", "stale": True}
+        response["findings"] = snapshot.findings
+        response["generated_at"] = snapshot.generated_at.isoformat()
     else:
         response = _format_portfolio_health_response(snapshot, stale=stale)
 
     findings = response.get("findings", [])
+    if not isinstance(findings, list):
+        return response
+
     for f in findings:
         msg = f.get("message", "")
         m = re.search(r"Instrument metadata (.+) not found", msg)

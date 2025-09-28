@@ -32,6 +32,7 @@ from backend.timeseries.cache import (
 )
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_period
+from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
 
 
@@ -415,8 +416,8 @@ def top_movers(
         Optional mapping of ``ticker -> weight_percent`` used for filtering.
     """
 
-    today = dt.date.today()
-    yday = today - dt.timedelta(days=1)
+    calc = PricingDateCalculator(today=dt.date.today(), weekday_func=_nearest_weekday)
+    last_price_date = calc.reporting_date
     rows: List[Dict[str, Any]] = []
     anomalies: List[str] = []
 
@@ -432,7 +433,7 @@ def top_movers(
             continue
         sym, ex = resolved
         full = f"{sym}.{ex}" if ex else sym
-        last_px = _close_on(sym, ex, yday)
+        last_px = _close_on(sym, ex, last_price_date)
         meta = get_security_meta(full) or {}
         rows.append(
             {
@@ -440,7 +441,7 @@ def top_movers(
                 "name": meta.get("name", full),
                 "change_pct": change,
                 "last_price_gbp": last_px,
-                "last_price_date": yday.isoformat(),
+                "last_price_date": last_price_date.isoformat(),
             }
         )
 
@@ -461,8 +462,8 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
     """
     Return last price and common percentage changes for ``ticker``.
     """
-    today = dt.date.today()
-    yday = today - dt.timedelta(days=1)
+    calc = PricingDateCalculator(today=dt.date.today(), weekday_func=_nearest_weekday)
+    last_price_date = calc.reporting_date
 
     resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
     if not resolved:
@@ -484,13 +485,13 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
         last_time = snap.get("last_price_time")
         is_stale = bool(snap.get("is_stale", False))
     else:
-        last_px = _close_on(sym, ex, yday)
+        last_px = _close_on(sym, ex, last_price_date)
         last_time = None
         is_stale = True
 
     return {
         "last_price_gbp": last_px,
-        "last_price_date": yday.isoformat(),
+        "last_price_date": last_price_date.isoformat(),
         "last_price_time": last_time,
         "is_stale": is_stale,
         "change_7d_pct": price_change_pct(ticker, 7),

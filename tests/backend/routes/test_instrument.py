@@ -222,3 +222,50 @@ async def test_instrument_json_foreign_currency_fx(monkeypatch):
     assert data["prices"][0]["close_gbp"] == pytest.approx(8.0)
     assert data["fx"] == {"EURGBP": "/timeseries/meta?ticker=EURGBP"}
 
+
+@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
+async def test_intraday_returns_prices(monkeypatch):
+    timestamps = pd.date_range("2024-03-01", periods=2, freq="5min")
+    df = pd.DataFrame({"Close": [101.5, 102.75]}, index=timestamps)
+    df.index.name = "Datetime"
+
+    class DummyTicker:
+        def history(self, period: str, interval: str):
+            assert period == "2d"
+            assert interval == "5m"
+            return df
+
+    monkeypatch.setattr(instrument.yf, "Ticker", lambda _symbol: DummyTicker())
+
+    result = await instrument.intraday("AAA.L")
+
+    assert result["ticker"] == "AAA.L"
+    assert len(result["prices"]) == 2
+    assert result["prices"][0]["timestamp"] == timestamps[0].isoformat()
+    assert isinstance(result["prices"][0]["close"], float)
+    assert result["prices"][0]["close"] == pytest.approx(101.5)
+    assert result["prices"][1]["timestamp"] == timestamps[1].isoformat()
+    assert isinstance(result["prices"][1]["close"], float)
+    assert result["prices"][1]["close"] == pytest.approx(102.75)
+
+
+@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
+async def test_intraday_no_data(monkeypatch):
+    class EmptyTicker:
+        def history(self, period: str, interval: str):
+            assert period == "2d"
+            assert interval == "5m"
+            empty = pd.DataFrame(columns=["Close"])
+            empty.index.name = "Datetime"
+            return empty
+
+    monkeypatch.setattr(instrument.yf, "Ticker", lambda _symbol: EmptyTicker())
+
+    with pytest.raises(HTTPException) as exc:
+        await instrument.intraday("AAA.L")
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "no intraday data"
+

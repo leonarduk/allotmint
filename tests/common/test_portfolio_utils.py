@@ -52,6 +52,28 @@ def test_first_nonempty_str_skips_blank_candidates():
     assert result == "ticker"
 
 
+def test_first_nonempty_str_with_source_returns_trimmed_value():
+    result = pu._first_nonempty_str_with_source(
+        ("yahoo", "  value  "),
+        ("manual", ""),
+        ("fallback", None),
+    )
+
+    assert result == ("value", "yahoo")
+
+
+def test_first_nonempty_str_with_source_returns_none_when_missing():
+    result = pu._first_nonempty_str_with_source(
+        ("primary", "  "),
+        ("secondary", None),
+        ("tertiary", 0),
+        ("quaternary", []),
+        ("quinary", "\n"),
+    )
+
+    assert result == (None, None)
+
+
 def test_fx_to_base_uses_cache_for_currency_and_base(monkeypatch):
     rates = {"JPY": 0.005, "USD": 0.8}
     calls: list[tuple[str, str]] = []

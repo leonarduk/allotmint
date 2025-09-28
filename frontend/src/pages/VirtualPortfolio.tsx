@@ -83,9 +83,8 @@ export function VirtualPortfolio() {
         setPortfolios(ps);
         setOwners(sanitizeOwners(os));
         setHasLoadedInitialData(true);
-        setLoading(false);
         track("view", { portfolio_count: ps.length });
-        return;
+        break;
       } catch (e) {
         const err = e instanceof Error ? e : new Error(String(e));
 
@@ -118,6 +117,12 @@ export function VirtualPortfolio() {
         }
       }
     }
+
+    if (!isMountedRef.current) {
+      return;
+    }
+
+    setLoading(false);
   }, [track]);
 
   useEffect(() => {

@@ -197,12 +197,13 @@ export function useConfig() {
 }
 
 export const SUPPORTED_CURRENCIES = [
-  "GBP",
-  "USD",
-  "EUR",
-  "CHF",
-  "JPY",
   "CAD",
+  "CHF",
+  "EUR",
+  "GBP",
+  "GBX",
+  "JPY",
+  "USD",
 ];
 
 export function BaseCurrencySelector() {

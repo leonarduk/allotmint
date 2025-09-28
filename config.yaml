@@ -13,7 +13,6 @@ auth:
   google_client_id: ''
   allowed_emails:
   - user@example.com
-  - lucy@example.com
 server:
   app_env: local
   uvicorn_host: 0.0.0.0

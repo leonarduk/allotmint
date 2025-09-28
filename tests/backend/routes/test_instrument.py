@@ -5,9 +5,19 @@ from datetime import date
 
 import pandas as pd
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
+from backend.app import create_app
+from backend.config import config
 from backend.routes import instrument
+
+
+def _auth_client(app: FastAPI) -> TestClient:
+    client = TestClient(app)
+    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client
 
 
 @pytest.mark.asyncio
@@ -332,4 +342,100 @@ async def test_intraday_no_data(monkeypatch):
     lowered = detail.lower()
     assert "no intraday data" in lowered
     assert "aaa.l" in lowered
+
+
+def test_instrument_search_truncates_at_maximum(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True, raising=False)
+    app = create_app()
+
+    def fake_list_instruments():
+        for idx in range(25):
+            yield {
+                "ticker": f"TRIM{idx:02d}.L",
+                "name": f"Trim Candidate {idx}",
+                "sector": "Technology",
+                "region": "UK",
+            }
+
+    monkeypatch.setattr(instrument, "list_instruments", fake_list_instruments)
+
+    client = _auth_client(app)
+    response = client.get("/instrument/search", params={"q": "trim"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 20
+    assert payload[0]["ticker"] == "TRIM00.L"
+    assert payload[-1]["ticker"] == "TRIM19.L"
+
+
+def test_instrument_json_days_zero_uses_epoch_and_usd_branch(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True, raising=False)
+    monkeypatch.setattr(config, "base_currency", "USD", raising=False)
+    app = create_app()
+    monkeypatch.setattr(instrument.config, "base_currency", "USD", raising=False)
+
+    captured: dict[str, object] = {}
+
+    dates = pd.date_range("2024-01-01", periods=3, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close_gbp": [1.1, 1.2, 1.3]})
+
+    def fake_load(tkr, exch, start_date, end_date):
+        captured["ticker"] = tkr
+        captured["exchange"] = exch
+        captured["start_date"] = start_date
+        captured["end_date"] = end_date
+        return df.copy()
+
+    def fake_fx(from_ccy, to_ccy, start, end):
+        if from_ccy == "USD" and to_ccy == "GBP":
+            rng = pd.date_range(start, end, freq="D")
+            return pd.DataFrame({"Date": rng, "Rate": [0.8] * len(rng)})
+        return pd.DataFrame(columns=["Date", "Rate"])
+
+    monkeypatch.setattr(instrument, "load_meta_timeseries_range", fake_load)
+    monkeypatch.setattr(instrument, "fetch_fx_rate_range", fake_fx)
+    monkeypatch.setattr(instrument, "get_security_meta", lambda _t: {"name": "Epoch", "currency": "GBP"})
+    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instrument, "get_scaling_override", lambda *a, **k: 1.0)
+
+    client = _auth_client(app)
+    response = client.get(
+        "/instrument",
+        params={
+            "ticker": "EPOCH.L",
+            "days": 0,
+            "format": "json",
+            "base_currency": "GBP",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert captured["start_date"] == date(1900, 1, 1)
+    assert payload["from"] == "1900-01-01"
+    assert len(payload["prices"]) == 3
+
+    last = payload["prices"][-1]
+    assert last["close"] == pytest.approx(1.3)
+    assert last["close_gbp"] == pytest.approx(1.3)
+    assert "close_usd" in last
+    assert last["close_usd"] == pytest.approx(last["close_gbp"] / 0.8)
+
+
+def test_intraday_returns_502_on_provider_error(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True, raising=False)
+    app = create_app()
+
+    def raising_ticker(_symbol):
+        raise RuntimeError("upstream failure")
+
+    monkeypatch.setattr(instrument.yf, "Ticker", raising_ticker)
+
+    client = _auth_client(app)
+    response = client.get("/instrument/intraday", params={"ticker": "ERR.L"})
+
+    assert response.status_code == 502
+    assert "upstream failure" in response.text
 

@@ -99,3 +99,21 @@ def test_portfolio_health_handles_run_check_errors(monkeypatch):
     assert data["stale"] is True
     assert data["findings"] == cached_payload["findings"]
     assert data["generated_at"] == stale_generated_at
+
+
+def test_portfolio_health_initial_failure_returns_error(monkeypatch):
+    """Initial computation failures return a structured error payload."""
+
+    monkeypatch.setattr(support, "_portfolio_health_cache", None)
+    monkeypatch.setattr(support, "_portfolio_health_refresh", None)
+
+    def boom(threshold: float) -> list[dict]:  # pragma: no cover - signature for typing
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(support, "run_check", boom)
+
+    client = make_client()
+    resp = client.post("/support/portfolio-health", json={"threshold": 0.1})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "error", "stale": True}

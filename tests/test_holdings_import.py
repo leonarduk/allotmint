@@ -27,6 +27,18 @@ def test_hargreaves_parse():
     assert first.amount_minor == pytest.approx(1500)
 
 
+def test_hargreaves_to_float_variants():
+    # None or blank strings should resolve to ``None`` without raising.
+    assert hargreaves._to_float(None) is None
+    assert hargreaves._to_float("   ") is None
+
+    # Comma separated numbers should be normalised before conversion.
+    assert hargreaves._to_float("1,234.56") == pytest.approx(1234.56)
+
+    # Malformed numeric values should be ignored gracefully.
+    assert hargreaves._to_float("not-a-number") is None
+
+
 def test_update_holdings_from_csv(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(config, "accounts_root", tmp_path)
     result = update_holdings_from_csv.update_from_csv(

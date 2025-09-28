@@ -263,8 +263,8 @@ test.describe('config bootstrap', () => {
         await route.abort('failed');
         return;
       }
-      await page.unroute('**/config', handler);
       await route.continue();
+      await page.unroute('**/config', handler);
     };
 
     await page.route('**/config', handler);

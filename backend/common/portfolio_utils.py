@@ -813,6 +813,8 @@ def compute_owner_performance(
 
     flagged = {k.upper() for k, v in _PRICE_SNAPSHOT.items() if v.get("flagged")}
 
+    calc = PricingDateCalculator()
+
     holdings: List[tuple[str, str, float]] = []  # (ticker, exchange, units)
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
@@ -840,7 +842,6 @@ def compute_owner_performance(
             holdings.append((sym, exch, units))
 
     if not holdings:
-        calc = PricingDateCalculator()
         return {
             "history": [],
             "max_drawdown": None,
@@ -859,7 +860,6 @@ def compute_owner_performance(
         total = total.add(values, fill_value=0)
 
     if total.empty:
-        calc = PricingDateCalculator()
         return {
             "history": [],
             "max_drawdown": None,
@@ -868,6 +868,16 @@ def compute_owner_performance(
         }
 
     perf = total.sort_index().to_frame(name="value")
+    perf = perf.loc[[idx.weekday() < 5 for idx in perf.index]]
+
+    if perf.empty:
+        return {
+            "history": [],
+            "max_drawdown": None,
+            "reporting_date": calc.reporting_date.isoformat(),
+            "previous_date": calc.previous_pricing_date.isoformat(),
+        }
+
     perf["daily_return"] = perf["value"].pct_change()
     perf["weekly_return"] = perf["value"].pct_change(5)
     start_val = perf["value"].iloc[0]
@@ -875,13 +885,30 @@ def compute_owner_performance(
     perf["running_max"] = perf["value"].cummax()
     perf["drawdown"] = perf["value"] / perf["running_max"] - 1
     max_drawdown = float(perf["drawdown"].min())
+
+    last_date = perf.index[-1]
+    if isinstance(last_date, datetime):
+        last_date = last_date.date()
+    reporting_date = calc.resolve_weekday(last_date, forward=False).isoformat()
+
+    if len(perf) >= 2:
+        prev_candidate = perf.index[-2]
+        if isinstance(prev_candidate, datetime):
+            prev_candidate = prev_candidate.date()
+        previous_date = calc.resolve_weekday(prev_candidate, forward=False).isoformat()
+    else:
+        previous_date = calc.previous_pricing_date.isoformat()
+
     perf = perf.reset_index().rename(columns={"index": "date"})
 
     out: List[Dict] = []
     for row in perf.itertuples(index=False):
+        raw_date = row.Date
+        if isinstance(raw_date, datetime):
+            raw_date = raw_date.date()
         out.append(
             {
-                "date": row.Date.isoformat(),
+                "date": raw_date.isoformat(),
                 "value": round(float(row.value), 2),
                 "daily_return": (float(row.daily_return) if pd.notna(row.daily_return) else None),
                 "weekly_return": (float(row.weekly_return) if pd.notna(row.weekly_return) else None),
@@ -890,10 +917,6 @@ def compute_owner_performance(
                 "drawdown": (float(row.drawdown) if pd.notna(row.drawdown) else None),
             }
         )
-
-    calc = PricingDateCalculator()
-    reporting_date = out[-1]["date"] if out else calc.reporting_date.isoformat()
-    previous_date = out[-2]["date"] if len(out) >= 2 else calc.previous_pricing_date.isoformat()
 
     return {
         "history": out,

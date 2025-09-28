@@ -108,6 +108,9 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     data = _normalise_config_structure(merged_data)
 
     persisted_data = deepcopy(data)
+    persist_required = persisted_data != existing_data
+    if not persist_required:
+        return serialise_config(config_module.config)
 
     auth_section = data.get("auth", {}) if isinstance(data, dict) else {}
     if not isinstance(auth_section, dict):
@@ -124,16 +127,18 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     google_auth_enabled = auth_section.get("google_auth_enabled")
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
     if env_google_auth is not None:
-        env_val = env_google_auth.strip().lower()
-        if env_val in {"1", "true", "yes"}:
-            google_auth_enabled = True
-        elif env_val in {"0", "false", "no"}:
-            google_auth_enabled = False
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="GOOGLE_AUTH_ENABLED must be one of '1', 'true', 'yes', '0', 'false', 'no'",
-            )
+        env_val_raw = env_google_auth.strip()
+        if env_val_raw:
+            env_val = env_val_raw.lower()
+            if env_val in {"1", "true", "yes"}:
+                google_auth_enabled = True
+            elif env_val in {"0", "false", "no"}:
+                google_auth_enabled = False
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="GOOGLE_AUTH_ENABLED must be one of '1', 'true', 'yes', '0', 'false', 'no'",
+                )
 
     google_client_id = auth_section.get("google_client_id")
     if isinstance(google_client_id, str):
@@ -162,20 +167,19 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     else:
         persisted_auth_section["google_client_id"] = persisted_google_client_id
 
-    try:
-        validate_google_auth(google_auth_enabled, google_client_id)
-    except ConfigValidationError as exc:
-        logger.error("Invalid config update: %s", exc)
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    persist_required = persisted_data != existing_data
-
-    if persist_required:
+    should_validate = bool(google_auth_enabled) or google_client_id is not None
+    if should_validate:
         try:
-            with path.open("w", encoding="utf-8") as fh:
-                yaml.safe_dump(persisted_data, fh, sort_keys=False)
-        except Exception as exc:
-            raise HTTPException(500, f"Failed to write config: {exc}")
+            validate_google_auth(google_auth_enabled, google_client_id)
+        except ConfigValidationError as exc:
+            logger.error("Invalid config update: %s", exc)
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    try:
+        with path.open("w", encoding="utf-8") as fh:
+            yaml.safe_dump(persisted_data, fh, sort_keys=False)
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to write config: {exc}")
 
     try:
         cfg = config_module.reload_config()

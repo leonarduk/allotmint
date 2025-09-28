@@ -36,6 +36,7 @@ export function VirtualPortfolio() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasLoadedInitialData, setHasLoadedInitialData] = useState(false);
+  const [initialLoadInProgress, setInitialLoadInProgress] = useState(true);
   const isMountedRef = useRef(true);
   const activeLoadRef = useRef(0);
   const ownerLookup = useMemo(
@@ -72,6 +73,7 @@ export function VirtualPortfolio() {
     activeLoadRef.current = loadId;
 
     setHasLoadedInitialData(false);
+    setInitialLoadInProgress(true);
     setLoading(true);
     setMessage(null);
     setError(null);
@@ -89,9 +91,10 @@ export function VirtualPortfolio() {
 
         setPortfolios(ps);
         setOwners(sanitizeOwners(os));
-        setHasLoadedInitialData(true);
         track("view", { portfolio_count: ps.length });
         setLoading(false);
+        setHasLoadedInitialData(true);
+        setInitialLoadInProgress(false);
         return;
       } catch (e) {
         const err = e instanceof Error ? e : new Error(String(e));
@@ -108,6 +111,7 @@ export function VirtualPortfolio() {
               : "You appear to be offline.",
           );
           setLoading(false);
+          setInitialLoadInProgress(false);
           errorToast(err);
           return;
         }
@@ -219,13 +223,13 @@ export function VirtualPortfolio() {
     }
   }
 
-  const isInitialLoading = !hasLoadedInitialData && loading;
+  const isInitialLoading = initialLoadInProgress && !hasLoadedInitialData;
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl md:text-4xl">Virtual Portfolios</h1>
 
-      {isInitialLoading && <p>Loading...</p>}
+      {isInitialLoading && <p data-testid="virtual-portfolio-loader">Loading...</p>}
       {error && (
         <div className="mb-2">
           <p className="text-red-500">{error}</p>

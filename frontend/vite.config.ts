@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { globSync } from 'glob'
+import fg from 'fast-glob'
 
 const staticDir = path.resolve(__dirname, 'dist')
 const pageRoutes: string[] = []
@@ -33,7 +33,7 @@ export default defineConfig(({ command }) => {
   ]
 
   if (command === 'build') {
-    const files = globSync('src/pages/**/*.tsx', {
+    const files = fg.sync('src/pages/**/*.tsx', {
       cwd: __dirname,
       ignore: ['**/*.test.tsx']
     })

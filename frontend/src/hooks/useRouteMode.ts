@@ -151,10 +151,12 @@ export function useRouteMode(): RouteState {
     const params = new URLSearchParams(location.search);
     const newMode = segmentToMode(segs[0], segs.length);
 
-    if (tabs[newMode] !== true || disabledTabs?.includes(newMode)) {
+    const isDisabled =
+      tabs[newMode] === false || disabledTabs?.includes(newMode);
+    if (isDisabled) {
       const firstEnabled = Object.entries(tabs).find(
         ([m, enabled]) =>
-          enabled === true && !disabledTabs?.includes(m as Mode),
+          enabled !== false && !disabledTabs?.includes(m as Mode),
       )?.[0] as Mode | undefined;
 
       if (firstEnabled) {

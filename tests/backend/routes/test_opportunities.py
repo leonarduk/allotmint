@@ -52,7 +52,9 @@ async def test_get_opportunities_rejects_group_and_tickers(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_group_requires_authentication():
+async def test_group_requires_authentication(monkeypatch):
+    monkeypatch.setattr(opportunities_module.config, "disable_auth", False)
+
     with pytest.raises(HTTPException) as exc:
         await opportunities_module.get_opportunities(
             group="growth",

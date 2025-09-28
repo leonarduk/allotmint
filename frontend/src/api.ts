@@ -447,7 +447,12 @@ export const getPerformance = (
 ): Promise<PerformanceResponse> => {
   const params = new URLSearchParams({ days: String(days) });
   if (excludeCash) params.set("exclude_cash", "1");
-  const base = fetchJson<{ owner: string; history: PerformancePoint[] }>(
+  const base = fetchJson<{
+    owner: string;
+    history: PerformancePoint[];
+    reporting_date?: string | null;
+    previous_date?: string | null;
+  }>(
     `${API_BASE}/performance/${owner}?${params.toString()}`,
   );
   const twr = fetchJson<{ owner: string; time_weighted_return: number | null }>(
@@ -460,6 +465,8 @@ export const getPerformance = (
     history: p.history,
     time_weighted_return: t.time_weighted_return,
     xirr: x.xirr,
+    reportingDate: p.reporting_date ?? null,
+    previousDate: p.previous_date ?? null,
   }));
 };
 

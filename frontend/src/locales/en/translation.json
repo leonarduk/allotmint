@@ -91,6 +91,8 @@
     "maxDrawdownHelp": "Max drawdown is the largest percentage drop from any portfolio peak to the lowest closing value that follows, calculated from the rebuilt daily totals of your holdings.",
     "metricsExplanationLink": "How are these calculated?",
     "portfolioValue": "Portfolio Value",
+    "reportingDate": "Reporting date",
+    "previousDate": "Previous date",
     "range": "Range:",
     "rangeOptions": {
       "10y": "10Y",

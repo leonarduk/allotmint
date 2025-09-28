@@ -101,16 +101,20 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as exc:  # pragma: no cover - defensive
             raise HTTPException(500, f"Failed to read config: {exc}")
 
+    existing_data = _normalise_config_structure(stored_data)
+
+    if not payload:
+        return serialise_config(config_module.config)
+
     merged_data = deepcopy(stored_data)
     deep_merge(merged_data, payload)
 
-    existing_data = _normalise_config_structure(stored_data)
     data = _normalise_config_structure(merged_data)
 
-    persisted_data = deepcopy(data)
-    persist_required = persisted_data != existing_data
-    if not persist_required:
+    if data == existing_data:
         return serialise_config(config_module.config)
+
+    persisted_data = deepcopy(data)
 
     auth_section = data.get("auth", {}) if isinstance(data, dict) else {}
     if not isinstance(auth_section, dict):

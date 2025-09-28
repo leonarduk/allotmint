@@ -9,13 +9,14 @@
       "notSupported": "Push não suportado",
       "title": "Notificações push"
     },
-    "save": "Save",
+    "save": "Salvar",
+    "signInNotice": "Faça login para configurar os alertas",
     "status": {
-      "error": "Error",
-      "saved": "Saved"
+      "error": "Erro",
+      "saved": "Salvo"
     },
-    "threshold": "Threshold %:",
-    "title": "Alert Settings"
+    "threshold": "Percentual de limite:",
+    "title": "Configurações de alerta"
   },
   "allocation": {
     "instrumentTypes": "Tipos de instrumentos",
@@ -37,13 +38,13 @@
       "dashboard": "Painel",
       "goals": "Requisitos",
       "holdings": "Participações",
-      "insights": "Insights",
+      "insights": "Análises",
       "operations": "Operações",
       "other": "Outros",
       "preferences": "Configurações"
     },
     "modes": {
-      "alertsettings": "Alert Settings",
+      "alertsettings": "Configurações de alerta",
       "allocation": "Alocação",
       "compliance": "Alertas de conformidade",
       "dataadmin": "Administração de dados",
@@ -51,11 +52,11 @@
       "instrument": "Instrumento",
       "instrumentadmin": "Administração de instrumentos",
       "market": "Visão geral do mercado",
-      "movers": "Movers",
+      "movers": "Maiores variações",
       "owner": "Portfólio",
       "pension": "Previsão de pensão",
       "performance": "Desempenho",
-      "rebalance": "Rebalance",
+      "rebalance": "Rebalanceamento",
       "reports": "Relatórios",
       "scenario": "Testador de Cenários",
       "screener": "Filtro e consulta",
@@ -65,7 +66,7 @@
       "timeseries": "Série temporal",
       "trade-compliance": "Conformidade de negociações",
       "trading": "Negociação",
-      "trail": "Trail",
+      "trail": "Trilha de auditoria",
       "transactions": "Transações",
       "watchlist": "Lista de observação"
     },
@@ -93,6 +94,8 @@
     "cumulativeReturn": "Retorno acumulado",
     "excludeCash": "Excluir caixa",
     "maxDrawdown": "Máxima queda",
+    "maxDrawdownHelp": "A máxima queda é a maior redução percentual entre qualquer pico da carteira e o valor de fechamento mais baixo subsequente, calculada a partir dos totais diários reconstruídos das suas posições.",
+    "metricsExplanationLink": "Como isso é calculado?",
     "portfolioValue": "Valor da carteira",
     "reportingDate": "Data do relatório",
     "previousDate": "Data anterior",
@@ -139,7 +142,7 @@
       "market": "Mkt £",
       "name": "Nome",
       "price": "Preço £",
-      "stage": "Stage",
+      "stage": "Etapa",
       "ticker": "Ticker",
       "trend": "Tendência",
       "type": "Tipo",
@@ -178,7 +181,7 @@
   "instrumentadmin": {
     "actions": "Ações",
     "add": "Adicionar instrumento",
-    "exchange": "Exchange",
+    "exchange": "Bolsa",
     "grouping": "Agrupamento",
     "name": "Nome",
     "region": "Região",
@@ -189,9 +192,9 @@
     "sector": "Setor",
     "ticker": "Ticker",
     "validation": {
-      "grouping": "Agrupamento é obrigatório",
-      "name": "Nome é obrigatório",
-      "ticker": "Ticker é obrigatório"
+      "grouping": "O agrupamento é obrigatório",
+      "name": "O nome é obrigatório",
+      "ticker": "O ticker é obrigatório"
     }
   },
   "instrumentDetail": {

@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -52,3 +54,48 @@ def test_portfolio_health_suggestions(monkeypatch):
     assert findings[0]["suggestion"] == "Create instruments/FOO.json with instrument details."
     assert findings[1]["suggestion"] == "Add approvals.json under accounts/alice/."
     assert "suggestion" not in findings[2]
+
+
+def test_portfolio_health_handles_run_check_errors(monkeypatch):
+    """Failures during recompute return cached data with an error status."""
+
+    monkeypatch.setattr(support, "_portfolio_health_cache", None)
+    monkeypatch.setattr(support, "_portfolio_health_refresh", None)
+
+    call_state = {"count": 0}
+
+    def fake_run_check(threshold: float) -> list[dict]:
+        call_state["count"] += 1
+        if call_state["count"] == 1:
+            return [{"message": "initial"}]
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(support, "run_check", fake_run_check)
+
+    client = make_client()
+
+    # Prime the cache with a successful response.
+    first_resp = client.post("/support/portfolio-health", json={"threshold": 0.3})
+    assert first_resp.status_code == 200
+    cached_payload = first_resp.json()
+    assert cached_payload["status"] == "ok"
+
+    # Mark the cache as stale so the next request triggers a refresh attempt.
+    assert support._portfolio_health_cache is not None
+    support._portfolio_health_cache.generated_at = (
+        support._now() - support._portfolio_health_ttl - timedelta(seconds=1)
+    )
+    stale_generated_at = support._portfolio_health_cache.generated_at.isoformat()
+
+    # First retry kicks off the failing background task.
+    retry_resp = client.post("/support/portfolio-health", json={"threshold": 0.3})
+    assert retry_resp.status_code == 200
+
+    # A subsequent call should observe the failed task and surface the cached data.
+    final_resp = client.post("/support/portfolio-health", json={"threshold": 0.3})
+    assert final_resp.status_code == 200
+    data = final_resp.json()
+    assert data["status"] == "error"
+    assert data["stale"] is True
+    assert data["findings"] == cached_payload["findings"]
+    assert data["generated_at"] == stale_generated_at

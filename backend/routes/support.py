@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 import os
 import re
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -61,7 +61,13 @@ def _cache_is_fresh(cache: _PortfolioHealthSnapshot, threshold: float) -> bool:
 
 
 async def _compute_portfolio_health(threshold: float) -> _PortfolioHealthSnapshot:
-    findings = await asyncio.to_thread(run_check, threshold)
+    try:
+        findings = await asyncio.to_thread(run_check, threshold)
+    except Exception:  # pragma: no cover - defensive logging
+        logger.exception(
+            "Portfolio health check failed for threshold %.4f", threshold,
+        )
+        raise
     return _PortfolioHealthSnapshot(
         threshold=threshold,
         findings=findings,
@@ -128,32 +134,68 @@ async def post_portfolio_health(req: PortfolioHealthRequest | None = None) -> di
     global _portfolio_health_cache
     cache = _portfolio_health_cache
     stale = False
+    error: Exception | None = None
+    snapshot: _PortfolioHealthSnapshot | None = (
+        cache if cache and cache.threshold == threshold else None
+    )
 
     if cache and _cache_is_fresh(cache, threshold):
         snapshot = cache
     else:
         if cache and cache.threshold == threshold:
-            task = _ensure_refresh_task(threshold)
-            if task.done():
+            refresh_task: asyncio.Task[_PortfolioHealthSnapshot] | None = None
+            if _portfolio_health_refresh is not None:
+                cached_threshold, candidate_task = _portfolio_health_refresh
+                if cached_threshold == threshold:
+                    refresh_task = candidate_task
+
+            if refresh_task is not None and refresh_task.done():
                 try:
-                    snapshot = task.result()
-                except Exception as exc:  # pragma: no cover - defensive
-                    raise HTTPException(status_code=500, detail="health check failed") from exc
-            else:
-                snapshot = cache
-                stale = True
+                    snapshot = refresh_task.result()
+                except Exception as exc:
+                    logger.exception("Portfolio health refresh task failed: %s", exc)
+                    error = exc
+                    snapshot = cache
+                    stale = True
+                    refresh_task = _ensure_refresh_task(threshold)
+                else:
+                    stale = False
+
+            if refresh_task is None or not refresh_task.done():
+                refresh_task = _ensure_refresh_task(threshold)
+                if refresh_task.done():
+                    try:
+                        snapshot = refresh_task.result()
+                    except Exception as exc:
+                        logger.exception("Portfolio health refresh task failed: %s", exc)
+                        error = exc
+                        snapshot = cache
+                        stale = True
+                else:
+                    snapshot = cache
+                    stale = True
         else:
             task = _ensure_refresh_task(threshold)
             try:
                 snapshot = await task
-            except Exception as exc:  # pragma: no cover - defensive
-                raise HTTPException(status_code=500, detail="health check failed") from exc
+            except Exception as exc:
+                logger.exception("Portfolio health computation failed: %s", exc)
+                error = exc
+                snapshot = cache if cache and cache.threshold == threshold else None
+                stale = True
         if cache is None or cache.threshold != threshold:
             stale = False
 
-    response = _format_portfolio_health_response(snapshot, stale=stale)
+    if error is not None:
+        response = {"status": "error", "stale": True}
+        if snapshot is not None:
+            response["findings"] = snapshot.findings
+            response["generated_at"] = snapshot.generated_at.isoformat()
+    else:
+        response = _format_portfolio_health_response(snapshot, stale=stale)
 
-    for f in response["findings"]:
+    findings = response.get("findings", [])
+    for f in findings:
         msg = f.get("message", "")
         m = re.search(r"Instrument metadata (.+) not found", msg)
         if m:

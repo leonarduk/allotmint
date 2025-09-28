@@ -1,5 +1,7 @@
 import builtins
 import io
+import logging
+import os
 import sys
 from types import SimpleNamespace
 
@@ -16,6 +18,32 @@ def cleanup_boto3_module():
         sys.modules.pop("boto3", None)
     else:
         sys.modules["boto3"] = original
+
+
+@pytest.fixture(autouse=True)
+def restore_config_env():
+    had_disable_auth = hasattr(dl.config, "disable_auth")
+    original_disable_auth = getattr(dl.config, "disable_auth", None)
+    had_app_env = hasattr(dl.config, "app_env")
+    original_app_env = getattr(dl.config, "app_env", None)
+    original_bucket = os.environ.get(dl.DATA_BUCKET_ENV)
+
+    yield
+
+    if had_disable_auth:
+        setattr(dl.config, "disable_auth", original_disable_auth)
+    elif hasattr(dl.config, "disable_auth"):
+        delattr(dl.config, "disable_auth")
+
+    if had_app_env:
+        setattr(dl.config, "app_env", original_app_env)
+    elif hasattr(dl.config, "app_env"):
+        delattr(dl.config, "app_env")
+
+    if original_bucket is None:
+        os.environ.pop(dl.DATA_BUCKET_ENV, None)
+    else:
+        os.environ[dl.DATA_BUCKET_ENV] = original_bucket
 
 
 def test_list_aws_plots(monkeypatch):
@@ -104,6 +132,30 @@ def test_list_aws_plots_filters_without_auth(monkeypatch):
     owners = dl._list_aws_plots(current_user="Bob")
     assert owners == expected
     assert all("full_name" not in entry for entry in owners)
+
+
+def test_list_aws_plots_blocks_anonymous(monkeypatch, cleanup_boto3_module):
+    monkeypatch.setattr(dl.config, "disable_auth", False, raising=False)
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    calls = {"list_objects": False}
+
+    def fake_client(name):
+        assert name == "s3"
+
+        def list_objects_v2(**kwargs):
+            calls["list_objects"] = True
+            assert kwargs["Bucket"] == "bucket"
+            assert kwargs["Prefix"] == dl.PLOTS_PREFIX
+            return {"Contents": [{"Key": "accounts/Alice/ISA.json"}]}
+
+        return SimpleNamespace(list_objects_v2=list_objects_v2)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    assert dl._list_aws_plots(current_user=None) == []
+    assert calls["list_objects"] is True
 
 
 def test_list_aws_plots_filters_special_directories(monkeypatch):
@@ -211,6 +263,35 @@ def test_load_account_from_s3(monkeypatch):
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
     assert dl.load_account("Alice", "ISA") == {"balance": 10}
+
+
+def test_load_account_falls_back_to_local(tmp_path, monkeypatch, caplog, cleanup_boto3_module):
+    monkeypatch.setattr(dl.config, "app_env", "aws", raising=False)
+    monkeypatch.setenv(dl.DATA_BUCKET_ENV, "bucket")
+
+    owner_dir = tmp_path / "owner"
+    owner_dir.mkdir()
+    (owner_dir / "account.json").write_text("{\"value\": 7}")
+
+    def fake_client(name):
+        assert name == "s3"
+
+        def get_object(Bucket, Key):
+            raise RuntimeError("boom")
+
+        return SimpleNamespace(get_object=get_object)
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
+
+    with caplog.at_level(logging.WARNING):
+        data = dl.load_account("owner", "account", data_root=tmp_path)
+
+    assert data == {"value": 7}
+    assert any(
+        "falling back to local file" in record.getMessage()
+        and "s3://bucket/accounts/owner/account.json" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_load_account_missing_bucket(monkeypatch):

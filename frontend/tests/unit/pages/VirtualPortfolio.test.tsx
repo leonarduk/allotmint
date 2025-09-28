@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import VirtualPortfolio from "@/pages/VirtualPortfolio";
 import * as api from "@/api";
 import type { OwnerSummary, VirtualPortfolio as VirtualPortfolioType } from "@/types";
@@ -11,6 +11,10 @@ const mockGetOwners = vi.mocked(api.getOwners);
 const mockGetVirtualPortfolio = vi.mocked(api.getVirtualPortfolio);
 
 describe("VirtualPortfolio page", () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
   it("loads portfolios and allows selecting one", async () => {
     mockGetVirtualPortfolios.mockResolvedValueOnce([
       {
@@ -46,13 +50,55 @@ describe("VirtualPortfolio page", () => {
   });
 
   it("shows error when loading portfolios fails", async () => {
-    mockGetVirtualPortfolios.mockRejectedValueOnce(new Error("fail"));
-    mockGetOwners.mockResolvedValueOnce([]);
+    mockGetVirtualPortfolios.mockRejectedValue(new Error("fail"));
+    mockGetOwners.mockResolvedValue([]);
 
     render(<VirtualPortfolio />);
 
     expect(
-      await screen.findByText(/Request timed out\. Please try again\./i),
+      await screen.findByText(
+        /Unable to load virtual portfolios\. Please try again\./i,
+        undefined,
+        { timeout: 6000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Loading\.\.\./i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /Retry/i }, { timeout: 6000 }),
+    ).toBeInTheDocument();
+  });
+
+  it("allows retrying the initial load after failures", async () => {
+    mockGetVirtualPortfolios
+      .mockRejectedValueOnce(new Error("fail"))
+      .mockRejectedValueOnce(new Error("fail again"))
+      .mockRejectedValueOnce(new Error("still failing"))
+      .mockResolvedValueOnce([
+        {
+          id: 2,
+          name: "Recovered VP",
+          accounts: [],
+          holdings: [],
+        } as VirtualPortfolioType,
+      ]);
+    mockGetOwners.mockResolvedValue([]);
+
+    render(<VirtualPortfolio />);
+
+    const retryButton = await screen.findByRole(
+      "button",
+      { name: /Retry/i },
+      { timeout: 6000 },
+    );
+
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "bob", full_name: "Bob Example", accounts: ["A1"] } as OwnerSummary,
+    ]);
+
+    fireEvent.click(retryButton);
+
+    expect(
+      await screen.findByRole("option", { name: "Recovered VP" }),
     ).toBeInTheDocument();
   });
 });

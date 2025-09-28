@@ -28,6 +28,7 @@ def test_list_local_plots_filters_special_directories(tmp_path, monkeypatch):
     assert owners == [
         {"owner": "alice", "accounts": ["isa"]},
     ]
+    assert all("full_name" not in entry for entry in owners)
     assert all(entry["owner"] not in {"demo", ".idea"} for entry in owners)
 
 
@@ -60,3 +61,4 @@ def test_list_local_plots_authenticated(tmp_path, monkeypatch):
         {"owner": "alice", "accounts": ["isa"]},
         {"owner": "bob", "accounts": ["gia"]},
     ]
+    assert all("full_name" not in entry for entry in owners)

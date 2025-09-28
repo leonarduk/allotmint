@@ -192,8 +192,9 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user="viewer")
 
         assert result == [
-            {"owner": "alice", "full_name": "alice", "accounts": ["alpha"]},
+            {"owner": "alice", "accounts": ["alpha"]},
         ]
+        assert all("full_name" not in entry for entry in result)
 
     def test_accepts_contextvar_current_user(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
@@ -210,8 +211,9 @@ class TestListLocalPlots:
             user_var.reset(token)
 
         assert result == [
-            {"owner": "alice", "full_name": "alice", "accounts": ["alpha"]},
+            {"owner": "alice", "accounts": ["alpha"]},
         ]
+        assert all("full_name" not in entry for entry in result)
 
     def test_includes_full_name_from_metadata(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
@@ -256,10 +258,10 @@ class TestListLocalPlots:
         assert result == [
             {
                 "owner": "charlie",
-                "full_name": "charlie",
                 "accounts": ["brokerage", "isa"],
             },
         ]
+        assert all("full_name" not in entry for entry in result)
 
     def test_authentication_disabled_allows_anonymous_access(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
@@ -271,8 +273,9 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user=None)
 
         assert result == [
-            {"owner": "carol", "full_name": "carol", "accounts": ["gamma"]},
+            {"owner": "carol", "accounts": ["gamma"]},
         ]
+        assert all("full_name" not in entry for entry in result)
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
     def test_list_plots_with_explicit_root_skips_demo(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -288,8 +291,9 @@ class TestListLocalPlots:
         result = list_plots(data_root=explicit_root, current_user=None)
 
         assert result == [
-            {"owner": "carol", "full_name": "carol", "accounts": ["gamma"]},
+            {"owner": "carol", "accounts": ["gamma"]},
         ]
+        assert all("full_name" not in entry for entry in result)
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
     def test_allows_access_when_user_matches_owner_email(
@@ -310,5 +314,6 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user="alice@example.com")
 
         assert result == [
-            {"owner": "alice", "full_name": "alice", "accounts": ["alpha"]},
+            {"owner": "alice", "accounts": ["alpha"]},
         ]
+        assert all("full_name" not in entry for entry in result)

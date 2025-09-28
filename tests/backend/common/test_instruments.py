@@ -308,3 +308,61 @@ def test_list_group_definitions_loads_json(monkeypatch, tmp_path) -> None:
         assert "invalid" not in defs
     finally:
         instruments.list_group_definitions.cache_clear()
+@pytest.mark.parametrize(
+    "value,upper,expected",
+    [
+        ("  spaced  ", False, "spaced"),
+        ("lower", True, "LOWER"),
+        (123, False, "123"),
+        ("  ", False, None),
+        (None, True, None),
+    ],
+)
+def test_clean_str_variants(value, upper, expected) -> None:
+    assert instruments._clean_str(value, upper=upper) == expected
+
+
+@pytest.mark.parametrize(
+    "quote_type,expected",
+    [
+        ("equity", "Equity"),
+        ("mutualfund", "Fund"),
+        ("cryptoCurrency", "Crypto"),
+        ("unknown_type", "Unknown Type"),
+        (None, None),
+    ],
+)
+def test_asset_class_from_quote_type_variants(quote_type, expected) -> None:
+    assert instruments._asset_class_from_quote_type(quote_type) == expected
+
+
+@pytest.mark.parametrize(
+    "exchange,expected",
+    [
+        ("LSE", ".L"),
+        ("lse", ".L"),
+        ("NASDAQ", ""),
+        ("fx", "=X"),
+    ],
+)
+def test_yahoo_suffix_for_exchange(exchange, expected) -> None:
+    assert instruments._yahoo_suffix_for_exchange(exchange) == expected
+
+
+def test_yahoo_suffix_for_exchange_unknown() -> None:
+    with pytest.raises(ValueError):
+        instruments._yahoo_suffix_for_exchange("unsupported")
+
+
+@pytest.mark.parametrize(
+    "symbol,exchange,expected",
+    [
+        ("abc", "lse", "ABC.L"),
+        ("abc.l", "LSE", "ABC.L"),
+        ("usdgbp=x", "fx", "USDGBP=X"),
+        ("spy", "NYSE", "SPY"),
+    ],
+)
+def test_build_yahoo_symbol(symbol, exchange, expected) -> None:
+    assert instruments._build_yahoo_symbol(symbol, exchange) == expected
+

@@ -99,7 +99,6 @@ class TestBuildOwnerSummary:
         assert result == {
             "owner": "alex",
             "accounts": accounts,
-            "full_name": "alex",
         }
 
 

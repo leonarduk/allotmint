@@ -111,15 +111,14 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     google_client_id = auth_section.get("google_client_id")
     if isinstance(google_client_id, str):
         google_client_id = google_client_id.strip() or None
+
     env_google_client_id = os.getenv("GOOGLE_CLIENT_ID")
     if env_google_client_id is not None:
         env_val = env_google_client_id.strip()
         if env_val:
             google_client_id = env_val
-        elif google_auth_enabled:
+        elif google_client_id is None and google_auth_enabled:
             raise HTTPException(status_code=400, detail="GOOGLE_CLIENT_ID is empty")
-        else:
-            google_client_id = None
 
     try:
         validate_google_auth(google_auth_enabled, google_client_id)

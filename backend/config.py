@@ -316,12 +316,14 @@ def load_config() -> Config:
             )
 
     google_client_id = data.get("google_client_id")
-    env_client_id = os.getenv("GOOGLE_CLIENT_ID")
-    if env_client_id is not None:
-        google_client_id = env_client_id
-
     if isinstance(google_client_id, str):
         google_client_id = google_client_id.strip() or None
+
+    env_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if env_client_id is not None:
+        env_val = env_client_id.strip()
+        if env_val:
+            google_client_id = env_val
 
     allowed_emails_raw = _parse_str_list(data.get("allowed_emails"))
     allowed_emails = None

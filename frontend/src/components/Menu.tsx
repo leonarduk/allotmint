@@ -119,8 +119,8 @@ export default function Menu({
       tabIds: ['group', 'market', 'movers', 'owner', 'performance', 'allocation', 'transactions', 'reports'],
     },
     {
-      id: 'insightts',
-      titleKey: 'insightts',
+      id: 'insights',
+      titleKey: 'insights',
       tabIds: [
         'instrument',
         'screener',

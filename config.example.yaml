@@ -94,5 +94,5 @@ ui:
     trail: true
     alertsettings: true
     taxtools: true
-    tradecompliance: true
+    trade-compliance: true
     logs: true

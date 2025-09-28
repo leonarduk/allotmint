@@ -57,7 +57,7 @@ function segmentToMode(segment: string | undefined, segmentCount: number): Mode 
     case "alert-settings":
       return "alertsettings";
     case "trade-compliance":
-      return "tradecompliance";
+      return "trade-compliance";
     case "trail":
       return "trail";
     case "support":
@@ -133,7 +133,7 @@ export function useRouteMode(): RouteState {
         return "/alert-settings";
       case "instrumentadmin":
         return "/instrumentadmin";
-      case "tradecompliance":
+      case "trade-compliance":
         return "/trade-compliance";
       case "trail":
         return "/trail";

@@ -35,6 +35,7 @@ export interface TabsConfig {
   trail: boolean;
   alertsettings: boolean;
   taxtools: boolean;
+  'trade-compliance': boolean;
   reports: boolean;
   scenario: boolean;
 }
@@ -84,6 +85,7 @@ const defaultTabs: TabsConfig = {
   trail: true,
   alertsettings: true,
   taxtools: true,
+  'trade-compliance': true,
   reports: true,
   scenario: true,
 };

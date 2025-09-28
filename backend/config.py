@@ -29,11 +29,14 @@ def validate_tabs(tabs_raw: Any) -> TabsConfig:
     tabs_data = asdict(TabsConfig())
     if isinstance(tabs_raw, dict):
         for key, val in tabs_raw.items():
-            if key not in tabs_data:
+            normalised_key = key.replace("-", "_")
+            if normalised_key == "tradecompliance":
+                normalised_key = "trade_compliance"
+            if normalised_key not in tabs_data:
                 raise ConfigValidationError(f"Unknown tab '{key}'")
             if not isinstance(val, bool):
                 raise ConfigValidationError(f"Tab '{key}' must be a boolean")
-            tabs_data[key] = val
+            tabs_data[normalised_key] = val
     return TabsConfig(**tabs_data)
 
 
@@ -59,7 +62,7 @@ class TabsConfig:
     support: bool = True
     settings: bool = True
     alertsettings: bool = True
-    tradecompliance: bool = True
+    trade_compliance: bool = True
     trail: bool = True
     taxtools: bool = True
     profile: bool = False

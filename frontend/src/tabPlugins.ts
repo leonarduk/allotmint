@@ -17,7 +17,7 @@ export const tabPluginMap = {
   virtual: {},
   support: {},
   alertsettings: {},
-  tradecompliance: {},
+  "trade-compliance": {},
   settings: {},
   pension: {},
   trail: {},
@@ -48,7 +48,7 @@ export const orderedTabPlugins = [
   { id: "pension", priority: 107, section: "user" },
   { id: "taxtools", priority: 108, section: "user" },
   { id: "trail", priority: 102, section: "user" },
-  { id: "tradecompliance", priority: 110, section: "user" },
+  { id: "trade-compliance", priority: 110, section: "user" },
   { id: "support", priority: 110, section: "support" },
   { id: "scenario", priority: 120, section: "user" },
 ] as const;

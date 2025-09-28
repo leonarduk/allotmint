@@ -30,10 +30,27 @@ def deep_merge(dst: Dict[str, Any], src: Dict[str, Any]) -> None:
             dst[key] = value
 
 
+def serialise_config(cfg: config_module.Config) -> Dict[str, Any]:
+    data = asdict(cfg)
+    tabs = data.get("tabs")
+    if isinstance(tabs, dict):
+        serialised_tabs = {
+            ("trade-compliance" if key == "trade_compliance" else key): value
+            for key, value in tabs.items()
+        }
+        data["tabs"] = serialised_tabs
+    disabled = data.get("disabled_tabs")
+    if isinstance(disabled, list):
+        data["disabled_tabs"] = [
+            "trade-compliance" if item == "trade_compliance" else item for item in disabled
+        ]
+    return data
+
+
 @router.get("")
 async def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
-    return asdict(config_module.config)
+    return serialise_config(config_module.config)
 
 
 @router.put("")
@@ -119,7 +136,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         config_module.load_config.cache_clear()
         cfg = config_module.load_config()
-        return asdict(cfg)
+        return serialise_config(cfg)
     except ConfigValidationError as exc:
         logger.error("Invalid config after reload: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))

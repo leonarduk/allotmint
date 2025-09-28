@@ -83,6 +83,9 @@ export default function Menu({
     case 'tax-tools':
       mode = 'taxtools';
       break;
+    case 'trade-compliance':
+      mode = 'trade-compliance';
+      break;
     case 'support':
       mode = 'support';
       break;
@@ -130,7 +133,7 @@ export default function Menu({
         'rebalance',
       ],
     },
-    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail', 'tradecompliance'] },
+    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail', 'trade-compliance'] },
     { id: 'preferences', titleKey: 'preferences', tabIds: ['alertsettings', 'settings'] },
   ];
 

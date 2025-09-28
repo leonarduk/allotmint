@@ -42,6 +42,7 @@ from backend.common.portfolio_utils import (
 # ──────────────────────────────────────────────────────────────
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries_range
+from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
 
 logger = logging.getLogger("prices")
@@ -73,7 +74,8 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     ``None`` values so downstream consumers can skip incomplete entries.
     """
 
-    last_trading_day = _nearest_weekday(date.today() - timedelta(days=1), forward=False)
+    calc = PricingDateCalculator()
+    last_trading_day = calc.reporting_date
     latest = _load_latest_prices(list(tickers))
     live = load_live_prices(list(tickers))
     now = datetime.now(UTC)
@@ -112,8 +114,8 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
                 exch = "L"
                 logger.debug("Could not resolve exchange for %s; defaulting to L", full)
 
-            px_7 = _close_on(sym, exch, last_trading_day - timedelta(days=7))
-            px_30 = _close_on(sym, exch, last_trading_day - timedelta(days=30))
+            px_7 = _close_on(sym, exch, calc.lookback_anchor(7))
+            px_30 = _close_on(sym, exch, calc.lookback_anchor(30))
 
             if px_7 not in (None, 0):
                 info["change_7d_pct"] = (float(price) / px_7 - 1.0) * 100.0
@@ -209,8 +211,8 @@ def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
     """
     if not tickers:
         return {}
-    start_date = date.today() - timedelta(days=365)
-    end_date = date.today() - timedelta(days=1)
+    calc = PricingDateCalculator()
+    start_date, end_date = calc.lookback_range(365)
 
     prices: Dict[str, float] = {}
     for full in tickers:
@@ -235,8 +237,8 @@ def load_prices_for_tickers(
     Fetch historical daily closes for a list of tickers and return a
     concatenated dataframe; keeps each original suffix (e.g. '.L').
     """
-    end_date = _nearest_weekday(datetime.today().date(), forward=True)
-    start_date = _nearest_weekday(end_date - timedelta(days=days), forward=False)
+    calc = PricingDateCalculator()
+    start_date, end_date = calc.lookback_range(days, end=calc.today, forward_end=True)
 
     frames: List[pd.DataFrame] = []
 

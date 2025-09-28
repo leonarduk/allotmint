@@ -149,6 +149,8 @@ def test_performance_summary_success(client, monkeypatch):
     result = {
         "history": [{"date": "2024-01-01", "cumulative_return": 0.07}],
         "max_drawdown": -0.4,
+        "reporting_date": "2024-01-01",
+        "previous_date": "2023-12-29",
     }
 
     def fake(owner, *args, **kwargs):

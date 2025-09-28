@@ -319,13 +319,22 @@ def test_owner_performance_success(monkeypatch):
         assert owner == "alice"
         assert days == 30
         assert include_cash is False
-        return {"total_return": 9.9}
+        return {
+            "total_return": 9.9,
+            "reporting_date": "2024-03-01",
+            "previous_date": "2024-02-29",
+        }
 
     monkeypatch.setattr(portfolio_utils, "compute_owner_performance", fake)
     client = _auth_client()
     resp = client.get("/performance/alice?days=30&exclude_cash=true")
     assert resp.status_code == 200
-    assert resp.json() == {"owner": "alice", "total_return": 9.9}
+    assert resp.json() == {
+        "owner": "alice",
+        "total_return": 9.9,
+        "reporting_date": "2024-03-01",
+        "previous_date": "2024-02-29",
+    }
 
 
 def test_owner_performance_not_found(monkeypatch):

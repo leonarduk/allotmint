@@ -256,3 +256,9 @@ def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
     assert [row["value"] for row in included_flagged["history"]] == [15.0, 17.0]
     assert [row["value"] for row in included_cash["history"]] == [12.0, 13.0]
 
+    for payload in (excluded, included_flagged, included_cash):
+        assert "reporting_date" in payload
+        assert "previous_date" in payload
+        date.fromisoformat(payload["reporting_date"])
+        date.fromisoformat(payload["previous_date"])
+

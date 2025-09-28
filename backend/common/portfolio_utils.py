@@ -34,6 +34,7 @@ from backend.common.compliance import load_transactions
 from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries, load_meta_timeseries_range
+from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
 from backend.utils.fx_rates import fetch_fx_rate_range
 
@@ -839,7 +840,13 @@ def compute_owner_performance(
             holdings.append((sym, exch, units))
 
     if not holdings:
-        return {"history": [], "max_drawdown": None}
+        calc = PricingDateCalculator()
+        return {
+            "history": [],
+            "max_drawdown": None,
+            "reporting_date": calc.reporting_date.isoformat(),
+            "previous_date": calc.previous_pricing_date.isoformat(),
+        }
 
     total = pd.Series(dtype=float)
     for ticker, exchange, units in holdings:
@@ -852,7 +859,13 @@ def compute_owner_performance(
         total = total.add(values, fill_value=0)
 
     if total.empty:
-        return {"history": [], "max_drawdown": None}
+        calc = PricingDateCalculator()
+        return {
+            "history": [],
+            "max_drawdown": None,
+            "reporting_date": calc.reporting_date.isoformat(),
+            "previous_date": calc.previous_pricing_date.isoformat(),
+        }
 
     perf = total.sort_index().to_frame(name="value")
     perf["daily_return"] = perf["value"].pct_change()
@@ -878,7 +891,16 @@ def compute_owner_performance(
             }
         )
 
-    return {"history": out, "max_drawdown": max_drawdown}
+    calc = PricingDateCalculator()
+    reporting_date = out[-1]["date"] if out else calc.reporting_date.isoformat()
+    previous_date = out[-2]["date"] if len(out) >= 2 else calc.previous_pricing_date.isoformat()
+
+    return {
+        "history": out,
+        "max_drawdown": max_drawdown,
+        "reporting_date": reporting_date,
+        "previous_date": previous_date,
+    }
 
 
 def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:

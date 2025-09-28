@@ -49,19 +49,12 @@ export function VirtualPortfolio() {
 
   useEffect(() => {
     let cancelled = false;
-    const withTimeout = <T,>(p: Promise<T>) =>
-      Promise.race([
-        p,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("timeout")), 5000),
-        ),
-      ]);
 
     (async () => {
       try {
         const [ps, os] = await Promise.all([
-          withTimeout(getVirtualPortfolios()),
-          withTimeout(getOwners()),
+          getVirtualPortfolios(),
+          getOwners(),
         ]);
         if (!cancelled) {
           setPortfolios(ps);
@@ -70,9 +63,10 @@ export function VirtualPortfolio() {
         }
       } catch (e) {
         if (!cancelled) {
+          const err = e instanceof Error ? e.message : String(e);
           setError(
             navigator.onLine
-              ? "Request timed out. Please try again."
+              ? err || "Unable to load virtual portfolios. Please try again."
               : "You appear to be offline.",
           );
           errorToast(e);
@@ -170,13 +164,13 @@ export function VirtualPortfolio() {
     }
   }
 
-  if (loading) return <div>Loading...</div>;
-  if (error && portfolios.length === 0) return <div>{error}</div>;
+  const isInitialLoading = loading && portfolios.length === 0 && owners.length === 0;
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl md:text-4xl">Virtual Portfolios</h1>
 
+      {isInitialLoading && <p>Loading...</p>}
       {error && <p className="text-red-500">{error}</p>}
       {message && <p className="text-green-600">{message}</p>}
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict
@@ -47,6 +48,39 @@ def serialise_config(cfg: config_module.Config) -> Dict[str, Any]:
     return data
 
 
+def _normalise_config_structure(raw: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {"ui": {}, "auth": {}}
+
+    data: Dict[str, Any] = deepcopy(raw)
+
+    ui_raw = data.get("ui")
+    ui_section = ui_raw if isinstance(ui_raw, dict) else {}
+    if "tabs" in data:
+        tabs_value = data.pop("tabs")
+        if isinstance(ui_section.get("tabs"), dict) and isinstance(tabs_value, dict):
+            deep_merge(tabs_value, ui_section["tabs"])
+        ui_section["tabs"] = tabs_value
+    for key in ["theme", "relative_view_enabled"]:
+        if key in data:
+            ui_section[key] = data.pop(key)
+    data["ui"] = ui_section
+
+    auth_raw = data.get("auth")
+    auth_section = auth_raw if isinstance(auth_raw, dict) else {}
+    for key in [
+        "google_auth_enabled",
+        "google_client_id",
+        "disable_auth",
+        "allowed_emails",
+    ]:
+        if key in data:
+            auth_section[key] = data.pop(key)
+    data["auth"] = auth_section
+
+    return data
+
+
 @router.get("")
 async def read_config() -> Dict[str, Any]:
     """Return the full application configuration."""
@@ -57,42 +91,26 @@ async def read_config() -> Dict[str, Any]:
 async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Update configuration values and persist them to ``config.yaml``."""
     path: Path = _project_config_path()
-    data: Dict[str, Any] = {}
+    stored_data: Dict[str, Any] = {}
     if path.exists():
         try:
             with path.open("r", encoding="utf-8") as fh:
                 file_data = yaml.safe_load(fh) or {}
                 if isinstance(file_data, dict):
-                    data.update(file_data)
+                    stored_data = file_data
         except Exception as exc:  # pragma: no cover - defensive
             raise HTTPException(500, f"Failed to read config: {exc}")
 
-    deep_merge(data, payload)
+    merged_data = deepcopy(stored_data)
+    deep_merge(merged_data, payload)
 
-    ui_section = data.get("ui", {}) if isinstance(data, dict) else {}
-    if "tabs" in data:
-        if isinstance(ui_section.get("tabs"), dict) and isinstance(data["tabs"], dict):
-            deep_merge(data["tabs"], ui_section["tabs"])
-            ui_section["tabs"] = data.pop("tabs")
-        else:
-            ui_section["tabs"] = data.pop("tabs")
-    for key in ["theme", "relative_view_enabled"]:
-        if key in data:
-            ui_section[key] = data.pop(key)
-    data["ui"] = ui_section
+    existing_data = _normalise_config_structure(stored_data)
+    data = _normalise_config_structure(merged_data)
 
     auth_section = data.get("auth", {}) if isinstance(data, dict) else {}
-
-    for key in [
-        "google_auth_enabled",
-        "google_client_id",
-        "disable_auth",
-        "allowed_emails",
-    ]:
-        if key in data:
-            auth_section[key] = data.pop(key)
-
-    data["auth"] = auth_section
+    if not isinstance(auth_section, dict):
+        auth_section = {}
+        data["auth"] = auth_section
 
     google_auth_enabled = auth_section.get("google_auth_enabled")
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
@@ -125,6 +143,9 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     except ConfigValidationError as exc:
         logger.error("Invalid config update: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
+
+    if data == existing_data:
+        return serialise_config(config_module.config)
 
     try:
         with path.open("w", encoding="utf-8") as fh:

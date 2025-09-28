@@ -94,6 +94,8 @@
     "excludeCash": "Excluir caixa",
     "maxDrawdown": "Máxima queda",
     "portfolioValue": "Valor da carteira",
+    "reportingDate": "Data do relatório",
+    "previousDate": "Data anterior",
     "range": "Intervalo:",
     "rangeOptions": {
       "10y": "10A",

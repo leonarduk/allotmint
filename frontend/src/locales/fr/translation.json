@@ -94,6 +94,8 @@
     "excludeCash": "Exclure la trésorerie",
     "maxDrawdown": "Drawdown maximal",
     "portfolioValue": "Valeur du portefeuille",
+    "reportingDate": "Date du reporting",
+    "previousDate": "Date précédente",
     "range": "Plage :",
     "rangeOptions": {
       "10y": "10A",

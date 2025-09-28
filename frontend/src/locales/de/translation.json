@@ -96,6 +96,8 @@
     "maxDrawdownHelp": "Der maximale Drawdown ist der größte prozentuale Rückgang vom bisherigen Höchststand des Portfolios bis zum darauffolgenden Tief, berechnet auf Basis der rekonstruierten täglichen Schlusswerte Ihrer Positionen.",
     "metricsExplanationLink": "Wie werden diese Werte berechnet?",
     "portfolioValue": "Portfoliowert",
+    "reportingDate": "Berichtsdatum",
+    "previousDate": "Vorheriges Datum",
     "range": "Zeitraum:",
     "rangeOptions": {
       "10y": "10J",

@@ -94,6 +94,8 @@
     "excludeCash": "Escludere contanti",
     "maxDrawdown": "Drawdown massimo",
     "portfolioValue": "Valore del portafoglio",
+    "reportingDate": "Data di rendicontazione",
+    "previousDate": "Data precedente",
     "range": "Allineare:",
     "rangeOptions": {
       "10y": "10y",

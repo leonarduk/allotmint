@@ -94,6 +94,8 @@
     "excludeCash": "Excluir efectivo",
     "maxDrawdown": "Máxima caída",
     "portfolioValue": "Valor de la cartera",
+    "reportingDate": "Fecha del informe",
+    "previousDate": "Fecha anterior",
     "range": "Rango:",
     "rangeOptions": {
       "10y": "10A",

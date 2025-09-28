@@ -154,6 +154,8 @@ export interface PerformanceResponse {
   history: PerformancePoint[];
   time_weighted_return?: number | null;
   xirr?: number | null;
+  reportingDate?: string | null;
+  previousDate?: string | null;
 }
 
 export interface HoldingValue {

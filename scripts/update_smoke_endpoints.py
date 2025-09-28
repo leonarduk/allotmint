@@ -68,6 +68,7 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
         "approved_on": "1970-01-01",
     },
     ("DELETE", "/accounts/{owner}/approvals"): {"ticker": "PFE"},
+    ("POST", "/analytics/events"): {"source": "trail", "event": "view"},
     ("POST", "/compliance/validate"): {"owner": "demo"},
     ("POST", "/instrument/admin/groups"): {"name": "demo"},
     ("POST", "/user-config/{owner}"): {},
@@ -181,6 +182,7 @@ def main() -> None:
         "  account: 'isa',\n"
         "  user: 'demo',\n"
         "  email: 'user@example.com',\n"
+        "  source: 'trail',\n"
         "  id: '1',\n"
         "  vp_id: '1',\n"
         "  quest_id: 'check-in',\n"

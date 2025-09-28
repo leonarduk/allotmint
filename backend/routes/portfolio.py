@@ -52,6 +52,7 @@ class OwnerSummary(BaseModel):
     owner: str
     full_name: str
     accounts: List[str]
+    has_transactions_artifact: bool = False
 
 
 class GroupSummary(BaseModel):
@@ -89,6 +90,7 @@ _DEFAULT_DEMO_OWNER: Dict[str, Any] = {
     "owner": "demo",
     "full_name": "Demo",
     "accounts": list(_CONVENTIONAL_ACCOUNT_EXTRAS),
+    "has_transactions_artifact": False,
 }
 
 
@@ -128,6 +130,46 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
         seen.add(lowered)
 
     return stems
+
+
+def _has_transactions_artifact(owner_dir: Optional[Path], owner: str) -> bool:
+    """Return ``True`` when ``owner_dir`` exposes a transactions export."""
+
+    if not owner_dir:
+        return False
+
+    owner_slug = str(owner or "").strip()
+    candidate_slugs: list[str] = []
+    seen_slugs_cf: set[str] = set()
+    if owner_slug:
+        candidate_slugs.append(owner_slug)
+        seen_slugs_cf.add(owner_slug.casefold())
+
+    dir_name = owner_dir.name.strip() if owner_dir.name else ""
+    dir_name_cf = dir_name.casefold() if dir_name else ""
+    if dir_name and dir_name_cf not in seen_slugs_cf:
+        candidate_slugs.append(dir_name)
+        seen_slugs_cf.add(dir_name_cf)
+
+    if not candidate_slugs:
+        return False
+
+    target_files = {f"{slug}{_TRANSACTIONS_SUFFIX}.json".casefold() for slug in candidate_slugs}
+    target_dirs = {f"{slug}{_TRANSACTIONS_SUFFIX}".casefold() for slug in candidate_slugs}
+
+    try:
+        entries = list(owner_dir.iterdir())
+    except OSError:
+        entries = []
+
+    for entry in entries:
+        name_cf = entry.name.casefold()
+        if name_cf in target_files and entry.is_file():
+            return True
+        if name_cf in target_dirs and entry.is_dir():
+            return True
+
+    return False
 
 
 def _resolve_full_name(
@@ -197,6 +239,7 @@ def _normalise_owner_entry(
         "owner": owner,
         "full_name": _resolve_full_name(owner, entry, resolved_meta),
         "accounts": accounts,
+        "has_transactions_artifact": _has_transactions_artifact(owner_dir, owner),
     }
 
     return summary
@@ -218,8 +261,11 @@ def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
         full_name = summary.get("full_name")
         if isinstance(full_name, str) and full_name.casefold() == "demo":
             summary["full_name"] = _DEFAULT_DEMO_OWNER["full_name"]
+        summary["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, "demo")
         return summary
-    return _DEFAULT_DEMO_OWNER.copy()
+    fallback = _DEFAULT_DEMO_OWNER.copy()
+    fallback["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, "demo")
+    return fallback
 
 
 def _list_owner_summaries(

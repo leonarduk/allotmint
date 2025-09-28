@@ -70,6 +70,7 @@ def test_build_demo_summary_upgrades_default_name(monkeypatch: pytest.MonkeyPatc
     assert summary["owner"] == "demo"
     assert summary["full_name"] == "Demo"
     assert "demo" in {account.casefold() for account in summary["accounts"]}
+    assert summary["has_transactions_artifact"] is False
 
     def raising_meta(owner: str, root: Path) -> dict:
         raise RuntimeError("boom")
@@ -80,6 +81,7 @@ def test_build_demo_summary_upgrades_default_name(monkeypatch: pytest.MonkeyPatc
     assert fallback["owner"] == "demo"
     assert fallback["full_name"] == "Demo"
     assert "demo" in {account.casefold() for account in fallback["accounts"]}
+    assert fallback["has_transactions_artifact"] is False
 
 
 def test_list_owner_summaries_appends_demo_when_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

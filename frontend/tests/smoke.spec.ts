@@ -251,3 +251,33 @@ test.describe('config bootstrap', () => {
     await expect(marker).toHaveAttribute('data-pathname', '/');
   });
 });
+
+test.describe('timeseries edit resilience', () => {
+  test('keeps the route marker visible when the edit load fails', async ({ page }) => {
+    await applyAuth(page);
+
+    const target = new URL('/timeseries?ticker=FAIL&exchange=L', baseUrl);
+    let requested = false;
+
+    await page.route('**/timeseries/edit?*', async (route) => {
+      requested = true;
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'upstream failed' }),
+      });
+    });
+
+    await page.goto(target.href);
+
+    const loadButton = page.getByRole('button', { name: 'Load' });
+    await expect(loadButton).toBeEnabled();
+    await loadButton.click();
+
+    await expect.poll(() => requested).toBeTruthy();
+
+    const marker = page.getByTestId('active-route-marker');
+    await expect(marker).toHaveAttribute('data-mode', 'timeseries');
+    await expect(marker).toHaveAttribute('data-pathname', '/timeseries');
+  });
+});

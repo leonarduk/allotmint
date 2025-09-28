@@ -90,6 +90,12 @@ def test_update_config_env_uses_existing_client_id(monkeypatch, tmp_path):
     assert data["google_auth_enabled"] is True
     assert data["google_client_id"] == "existing-id"
 
+    get_resp = client.get("/config")
+    assert get_resp.status_code == 200
+    get_data = get_resp.json()
+    assert get_data["google_auth_enabled"] is True
+    assert get_data["google_client_id"] == "existing-id"
+
     monkeypatch.undo()
     reload_config()
 
@@ -105,6 +111,12 @@ def test_update_config_env_valid(monkeypatch, tmp_path):
     data = resp.json()
     assert data["google_auth_enabled"] is True
     assert data["google_client_id"] == "client-id"
+
+    get_resp = client.get("/config")
+    assert get_resp.status_code == 200
+    get_data = get_resp.json()
+    assert get_data["google_auth_enabled"] is True
+    assert get_data["google_client_id"] == "client-id"
 
     monkeypatch.undo()
     reload_config()

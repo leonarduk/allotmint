@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import pytest
 from fastapi import FastAPI
@@ -19,20 +19,23 @@ _MISSING = object()
 
 
 @contextmanager
-def _provider_override(app: FastAPI, override: Callable[[], Any]):
+def _provider_override(
+    app: FastAPI, override: Callable[[], Any], target: Literal["app", "router"] = "app"
+):
+    owner = app if target == "app" else app.router
     provider = type("OverrideProvider", (), {"dependency_overrides": {}})()
-    previous = getattr(app, "dependency_overrides_provider", _MISSING)
-    app.dependency_overrides_provider = provider
+    previous = getattr(owner, "dependency_overrides_provider", _MISSING)
+    owner.dependency_overrides_provider = provider
     provider.dependency_overrides[get_current_user] = override
     try:
         yield
     finally:
         provider.dependency_overrides.pop(get_current_user, None)
         if previous is _MISSING:
-            if hasattr(app, "dependency_overrides_provider"):
-                delattr(app, "dependency_overrides_provider")
+            if hasattr(owner, "dependency_overrides_provider"):
+                delattr(owner, "dependency_overrides_provider")
         else:
-            app.dependency_overrides_provider = previous
+            owner.dependency_overrides_provider = previous
 
 
 async def _empty_receive() -> dict[str, object]:
@@ -52,7 +55,8 @@ def _make_request(app: FastAPI) -> Request:
 
 
 @pytest.mark.anyio
-async def test_get_active_user_respects_sync_override() -> None:
+@pytest.mark.parametrize("provider_target", ["app", "router"])
+async def test_get_active_user_respects_sync_override(provider_target: str) -> None:
     app = FastAPI()
 
     def fake_user() -> str:
@@ -60,13 +64,14 @@ async def test_get_active_user_respects_sync_override() -> None:
 
     request = _make_request(app)
 
-    with _provider_override(app, fake_user):
+    with _provider_override(app, fake_user, target=provider_target):
         assert app.dependency_overrides == {}
         assert await get_active_user(request, token=None) == "sync-user"
 
 
 @pytest.mark.anyio
-async def test_get_active_user_awaits_async_override() -> None:
+@pytest.mark.parametrize("provider_target", ["app", "router"])
+async def test_get_active_user_awaits_async_override(provider_target: str) -> None:
     app = FastAPI()
 
     async def fake_user() -> str:
@@ -74,7 +79,7 @@ async def test_get_active_user_awaits_async_override() -> None:
 
     request = _make_request(app)
 
-    with _provider_override(app, fake_user):
+    with _provider_override(app, fake_user, target=provider_target):
         assert app.dependency_overrides == {}
         assert await get_active_user(request, token=None) == "async-user"
 

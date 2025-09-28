@@ -229,9 +229,17 @@ async def get_active_user(
 
     override = request.app.dependency_overrides.get(get_current_user)
     if not override:
-        provider = getattr(request.app, "dependency_overrides_provider", None)
-        overrides = getattr(provider, "dependency_overrides", {}) if provider else {}
-        override = overrides.get(get_current_user)
+        providers = [
+            getattr(request.app, "dependency_overrides_provider", None),
+            getattr(getattr(request.app, "router", None), "dependency_overrides_provider", None),
+        ]
+        for provider in providers:
+            if not provider:
+                continue
+            overrides = getattr(provider, "dependency_overrides", {})
+            override = overrides.get(get_current_user)
+            if override:
+                break
     if override:
         return await _invoke_override(override)
 

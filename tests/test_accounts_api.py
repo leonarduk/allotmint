@@ -55,7 +55,7 @@ def test_owners_endpoint_matches_sample_data(client):
     assert "demo" in owners
     for owner, accounts in sample_accounts():
         assert owner in owners
-        assert set(accounts).issubset(owners[owner])
+        assert owners[owner] == set(accounts)
 
 
 @pytest.mark.parametrize("owner,accounts", list(sample_accounts()))

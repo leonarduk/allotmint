@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -8,7 +9,9 @@ import pytest
 from backend.timeseries.fetch_meta_timeseries import (
     _coverage_ratio,
     _merge,
+    _resolve_cache_exchange,
     _resolve_exchange_from_metadata,
+    _resolve_loader_exchange,
     _resolve_ticker_exchange,
     fetch_meta_timeseries,
 )
@@ -27,6 +30,76 @@ def test_resolve_exchange_from_metadata(tmp_path):
         assert meta._resolve_exchange_from_metadata("XYZ") == ""
 
 
+@pytest.mark.parametrize(
+    "ticker, exchange_arg, metadata_value, expected_exchange, expected_meta, log_substring",
+    [
+        (
+            "ABC.L",
+            "",
+            "m",
+            "L",
+            "M",
+            "Exchange metadata mismatch for ABC: using L but metadata M",
+        ),
+        (
+            "ABC.L",
+            "N",
+            "L",
+            "L",
+            "L",
+            "Exchange mismatch for ABC.L: suffix L vs argument N",
+        ),
+        (
+            "XYZ",
+            "",
+            "l",
+            "L",
+            "L",
+            "Resolved exchange for XYZ via metadata: L",
+        ),
+        (
+            "XYZ",
+            "N",
+            "M",
+            "N",
+            "M",
+            "Exchange metadata mismatch for XYZ: using N but metadata M",
+        ),
+    ],
+)
+def test_resolve_symbol_exchange_details(
+    ticker,
+    exchange_arg,
+    metadata_value,
+    expected_exchange,
+    expected_meta,
+    log_substring,
+    caplog,
+    monkeypatch,
+):
+    import backend.timeseries.fetch_meta_timeseries as meta
+
+    captured_symbols: list[str] = []
+
+    def _fake_resolve(symbol: str, value: str = metadata_value) -> str:
+        captured_symbols.append(symbol)
+        return value
+
+    monkeypatch.setattr(meta, "_resolve_exchange_from_metadata", _fake_resolve)
+
+    with caplog.at_level("DEBUG"):
+        symbol, resolved_exchange, metadata_exchange = meta._resolve_symbol_exchange_details(
+            ticker, exchange_arg
+        )
+
+    base_symbol = re.split(r"[._]", ticker, 1)[0]
+    assert captured_symbols == [base_symbol]
+    assert symbol == base_symbol.upper()
+    assert resolved_exchange == expected_exchange
+    assert metadata_exchange == expected_meta
+    assert log_substring in caplog.text
+
+
 def test_resolve_ticker_exchange_precedence():
     import backend.timeseries.fetch_meta_timeseries as meta
 
@@ -37,6 +110,53 @@ def test_resolve_ticker_exchange_precedence():
         assert meta._resolve_ticker_exchange("ABC", "N") == ("ABC", "N")
         # metadata used when nothing else supplied
         assert meta._resolve_ticker_exchange("ABC", "") == ("ABC", "Q")
+
+
+@pytest.mark.parametrize(
+    "ticker, exchange_arg, resolved_exchange, expected",
+    [
+        ("ABC", "X", "", "X"),
+        ("ABC", "X", "Q", "Q"),
+        ("ABC.L", "", "", "L"),
+        ("ABC", "", "M", "M"),
+        ("ABC.L", "", "Q", "Q"),
+        ("ABC", "", "", ""),
+    ],
+)
+def test_resolve_loader_exchange(ticker, exchange_arg, resolved_exchange, expected):
+    assert (
+        _resolve_loader_exchange(ticker, exchange_arg, ticker.split(".")[0], resolved_exchange)
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "ticker, exchange_arg, resolved_exchange, metadata_exchange, expected",
+    [
+        pytest.param("ABC", "X", "", "M", "X", id="explicit_override_wins"),
+        pytest.param("ABC", "X", "", "", "X", id="provided_without_metadata"),
+        pytest.param("ABC.L", "", "", "", "L", id="suffix_only"),
+        pytest.param("ABC.L", "X", "L", "", "L", id="suffix_beats_argument"),
+        pytest.param("ABC", "", "Q", "M", "M", id="metadata_conflict_defaults_to_metadata"),
+        pytest.param("ABC.L", "", "L", "M", "M", id="metadata_conflict_with_suffix"),
+        pytest.param("ABC", "", "Q", "", "", id="resolved_without_sources"),
+    ],
+)
+def test_resolve_cache_exchange(
+    ticker, exchange_arg, resolved_exchange, metadata_exchange, expected, caplog
+):
+    with caplog.at_level("DEBUG"):
+        result = _resolve_cache_exchange(
+            ticker,
+            exchange_arg,
+            ticker.split(".")[0],
+            resolved_exchange,
+            metadata_exchange,
+        )
+
+    assert result == expected
+    if metadata_exchange and expected != metadata_exchange:
+        assert "Cache exchange override" in caplog.text or "Cache exchange mismatch" in caplog.text
 
 
 def test_merge_and_coverage_ratio():
@@ -73,6 +193,26 @@ def test_merge_and_coverage_ratio():
     expected = set(pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"]).date)
     ratio = _coverage_ratio(merged, expected)
     assert ratio == pytest.approx(3 / 4)
+
+
+def test_coverage_ratio_partial_and_empty():
+    partial_df = pd.DataFrame(
+        {
+            "Date": pd.to_datetime(["2024-01-01", "2024-01-02"]).date,
+        }
+    )
+    expected_dates = {
+        date(2024, 1, 1),
+        date(2024, 1, 2),
+        date(2024, 1, 3),
+    }
+
+    ratio = _coverage_ratio(partial_df, expected_dates)
+    assert ratio == pytest.approx(2 / 3)
+    assert ratio < 1.0
+
+    empty_df = pd.DataFrame({"Date": pd.Series(dtype="datetime64[ns]")})
+    assert _coverage_ratio(empty_df, expected_dates) == 0.0
 
 
 def test_fetch_meta_timeseries_invalid_ticker():

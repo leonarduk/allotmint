@@ -1,14 +1,37 @@
 {
+  "alertSettings": {
+    "description": "Konfigurieren Sie, wann Sie Benachrichtigungen erhalten. Die Alarme erscheinen auf der Alerts-Seite und als Push-Benachrichtigungen.",
+    "push": {
+      "denied": "Push-Berechtigung verweigert.",
+      "disable": "Push-Alerts deaktivieren",
+      "enable": "Push-Alerts aktivieren",
+      "error": "Fehler bei der Verarbeitung der Push-Anmeldung.",
+      "notSupported": "Push wird nicht unterstützt",
+      "title": "Push-Benachrichtigungen"
+    },
+    "save": "Save",
+    "status": {
+      "error": "Error",
+      "saved": "Saved"
+    },
+    "threshold": "Threshold %:",
+    "title": "Alert Settings"
+  },
+  "allocation": {
+    "instrumentTypes": "Instrumenttypen",
+    "region": "Regionen",
+    "sector": "Branchen"
+  },
   "app": {
-    "relativeView": "Relative Ansicht",
-    "refreshPrices": "Preise aktualisieren",
-    "refreshing": "Aktualisierung…",
     "last": "Zuletzt:",
     "loading": "Laden…",
-    "supportLink": "Support",
-    "userLink": "App",
-    "research": "Recherche",
     "logout": "Abmelden",
+    "logs": {
+      "empty": "Keine Protokolle verfügbar.",
+      "error": "Protokolle konnten nicht geladen werden.",
+      "refresh": "Protokolle aktualisieren",
+      "title": "Protokolle"
+    },
     "menu": "Menü",
     "menuCategories": {
       "dashboard": "Dashboard",
@@ -46,498 +69,475 @@
       "transactions": "Transaktionen",
       "watchlist": "Beobachtungsliste"
     },
-    "logs": {
-      "title": "Protokolle",
-      "refresh": "Protokolle aktualisieren",
-      "empty": "Keine Protokolle verfügbar.",
-      "error": "Protokolle konnten nicht geladen werden."
-    }
+    "refreshing": "Aktualisierung…",
+    "refreshPrices": "Preise aktualisieren",
+    "relativeView": "Relative Ansicht",
+    "research": "Recherche",
+    "supportLink": "Support",
+    "userLink": "App"
   },
-  "trail": {
-    "title": "Trail-Fortschritt",
-    "daily": "Täglich",
-    "once": "Einmalig",
-    "progressLabel": "Täglicher Fortschritt: {{completed}} / {{total}} ({{percent}}%)",
-    "xpLabel": "XP: {{xp}}",
-    "streakLabel": "Serie: {{count}} Tag",
-    "streakLabel_plural": "Serie: {{count}} Tage",
-    "dailyComplete": "Tägliche Aufgaben erledigt! Weiter so.",
-    "allDone": "Alle Trail-Aufgaben erledigt – großartig!"
-  },
+  "approxTotal": "Ungefähre Summe: £{{value}}",
+  "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",
   "common": {
+    "action": "Aktion",
     "error": "Fehler",
     "loading": "Laden…",
-    "other": "Andere",
-    "ticker": "Ticker",
     "name": "Name",
-    "action": "Aktion",
+    "other": "Andere",
+    "period": "Zeitraum:",
     "reason": "Grund",
-    "period": "Zeitraum:"
+    "ticker": "Ticker"
   },
-  "instrumentType": {
-    "equity": "Aktie",
-    "bond": "Anleihe",
-    "cash": "Bargeld",
-    "etf": "ETF",
-    "fund": "Fonds",
-    "investmentTrust": "Investmentgesellschaft",
-    "realEstate": "Immobilien",
-    "other": "Andere"
-  },
-  "instrumentTable": {
-    "noInstruments": "Keine Instrumente.",
-    "ungrouped": "Ohne Gruppe",
-    "exchangesLabel": "Börsen:",
-    "groupTotals": {
-      "market": "Marktwert",
-      "gain": "Gewinn",
-      "gainPct": "Gewinn %",
-      "delta7d": "7T %",
-      "delta30d": "30T %"
+  "dashboard": {
+    "alphaVsBenchmark": "Alpha vs Benchmark",
+    "cumulativeReturn": "Kumulierte Rendite",
+    "excludeCash": "Bargeld ausschließen",
+    "maxDrawdown": "Max Drawdown",
+    "maxDrawdownHelp": "Der maximale Drawdown ist der größte prozentuale Rückgang vom bisherigen Höchststand des Portfolios bis zum darauffolgenden Tief, berechnet auf Basis der rekonstruierten täglichen Schlusswerte Ihrer Positionen.",
+    "metricsExplanationLink": "Wie werden diese Werte berechnet?",
+    "portfolioValue": "Portfoliowert",
+    "range": "Zeitraum:",
+    "rangeOptions": {
+      "10y": "10J",
+      "1m": "1M",
+      "1w": "1W",
+      "1y": "1J",
+      "max": "MAX"
     },
+    "selectMember": "Wählen Sie ein Mitglied.",
+    "timeWeightedReturn": "Zeitgewichtete Rendite",
+    "trackingError": "Tracking Error",
+    "xirr": "XIRR"
+  },
+  "goals": {
+    "add": "Ziel hinzufügen",
+    "back": "Zurück zum Portfolio",
+    "currentAmount": "Aktueller Betrag:",
+    "goalLine": "{{name}} – Ziel {{amount}} bis {{date}}",
+    "progress": "Fortschritt: {{progress}}%",
+    "suggestedTrades": "Vorgeschlagene Trades",
+    "targetAmount": "Zielbetrag",
+    "title": "Ziele",
+    "trade": "{{action}} {{amount}} von {{ticker}}",
+    "view": "Ansehen"
+  },
+  "group": {
+    "atAGlance": "Auf einen Blick",
+    "select": "Wählen Sie eine Gruppe."
+  },
+  "holdingsTable": {
+    "actualPurchaseCost": "Tatsächliche Anschaffungskosten",
+    "clearFilters": "Filter löschen",
     "columns": {
-      "ticker": "Ticker",
-      "name": "Name",
+      "acquired": "Erworben",
       "ccy": "Währung",
+      "cost": "Kosten £",
+      "daysHeld": "Tage gehalten",
+      "eligible": "Berechtigt?",
+      "gain": "Gewinn £",
+      "gainPct": "Gewinn %",
+      "market": "Markt £",
+      "name": "Name",
+      "price": "Preis £",
+      "stage": "Stage",
+      "ticker": "Ticker",
+      "trend": "Trend",
       "type": "Typ",
       "units": "Einheiten",
+      "weightPct": "Gewicht %"
+    },
+    "columnsLabel": "Spalten:",
+    "eligible": "Berechtigt",
+    "filters": {
+      "all": "Alle",
+      "gainPct": "Gewinn %",
+      "name": "Name",
+      "no": "Nein",
+      "sellEligible": "Verkaufsberechtigt",
+      "ticker": "Ticker",
+      "type": "Typ",
+      "units": "Einheiten",
+      "yes": "Ja"
+    },
+    "inferredCost": "Abgeleitet vom Preis am Erwerbsdatum",
+    "minimumGainPrompt": "Minimaler Gewinn %",
+    "noHoldings": "Keine Bestände entsprechen den aktuellen Filtern.",
+    "openScreener": "Screener öffnen",
+    "quickFilters": "Schnellfilter:",
+    "quickFiltersGainPct": "Gewinn% > x",
+    "quickFiltersSellEligible": "Verkaufsberechtigt",
+    "range": "Zeitraum:",
+    "rangeOption": "{{count}}T",
+    "source": "Quelle:",
+    "totalRowLabel": "Gesamt",
+    "view": "Ansicht:",
+    "viewPresets": {
+      "all": "Alle"
+    }
+  },
+  "instrumentadmin": {
+    "actions": "Actions",
+    "add": "Add Instrument",
+    "exchange": "Exchange",
+    "grouping": "Gruppierung",
+    "name": "Name",
+    "region": "Region",
+    "save": "Save",
+    "saveError": "Error saving",
+    "saveSuccess": "Saved",
+    "searchPlaceholder": "Filter instruments…",
+    "sector": "Sector",
+    "ticker": "Ticker",
+    "validation": {
+      "grouping": "Grouping is required",
+      "name": "Name is required",
+      "ticker": "Ticker is required"
+    }
+  },
+  "instrumentDetail": {
+    "bollingerBands": "Bollinger-Bänder",
+    "change30d": "30T",
+    "change7d": "7T",
+    "columns": {
+      "account": "Konto",
+      "gain": "Gewinn £",
+      "gainPct": "Gewinn %",
+      "market": "Markt £",
+      "units": "Einheiten"
+    },
+    "edit": "Bearbeiten",
+    "intraday": "Intraday",
+    "intradayUnavailable": "Keine Intraday-Daten",
+    "ma20": "20d MA",
+    "ma200": "200d MA",
+    "ma50": "50d MA",
+    "noPositions": "Keine Positionen",
+    "noPriceData": "Keine Preisdaten",
+    "positions": "Positionen",
+    "priceColumns": {
+      "close": "£ Schluss",
+      "date": "Datum",
+      "delta": "Δ £",
+      "deltaPct": "Δ %"
+    },
+    "range": "Zeitraum:",
+    "rangeOptions": {
+      "10y": "10J",
+      "1m": "1M",
+      "1w": "1W",
+      "1y": "1J",
+      "max": "MAX"
+    },
+    "recentPrices": "Aktuelle Preise",
+    "rsi": "RSI"
+  },
+  "instrumentTable": {
+    "columns": {
+      "ccy": "Währung",
       "cost": "Kosten £",
-      "market": "Marktwert £",
+      "delta30d": "30T %",
+      "delta7d": "7T %",
       "gain": "Gewinn £",
       "gainPct": "Gewinn %",
       "last": "Letzter £",
       "lastDate": "Letztes Datum",
+      "market": "Marktwert £",
+      "name": "Name",
+      "ticker": "Ticker",
+      "type": "Typ",
+      "units": "Einheiten"
+    },
+    "exchangesLabel": "Börsen:",
+    "groupTotals": {
+      "delta30d": "30T %",
       "delta7d": "7T %",
-      "delta30d": "30T %"
-    }
-  },
-  "holdingsTable": {
-    "range": "Zeitraum:",
-    "rangeOption": "{{count}}T",
-    "view": "Ansicht:",
-    "viewPresets": {
-      "all": "Alle"
-    },
-    "quickFilters": "Schnellfilter:",
-    "quickFiltersSellEligible": "Verkaufsberechtigt",
-    "quickFiltersGainPct": "Gewinn% > x",
-    "minimumGainPrompt": "Minimaler Gewinn %",
-    "columnsLabel": "Spalten:",
-    "columns": {
-      "ticker": "Ticker",
-      "name": "Name",
-      "trend": "Trend",
-      "ccy": "Währung",
-      "type": "Typ",
-      "units": "Einheiten",
-      "price": "Preis £",
-      "cost": "Kosten £",
-      "market": "Markt £",
-      "gain": "Gewinn £",
+      "gain": "Gewinn",
       "gainPct": "Gewinn %",
-      "weightPct": "Gewicht %",
-      "acquired": "Erworben",
-      "daysHeld": "Tage gehalten",
-      "stage": "Stage",
-      "eligible": "Berechtigt?"
+      "market": "Marktwert"
     },
-    "filters": {
-      "ticker": "Ticker",
-      "name": "Name",
-      "type": "Typ",
-      "units": "Einheiten",
-      "gainPct": "Gewinn %",
-      "sellEligible": "Verkaufsberechtigt",
-      "all": "Alle",
-      "yes": "Ja",
-      "no": "Nein"
-    },
-    "noHoldings": "Keine Bestände entsprechen den aktuellen Filtern.",
-    "clearFilters": "Filter löschen",
-    "openScreener": "Screener öffnen",
-    "source": "Quelle:",
-    "actualPurchaseCost": "Tatsächliche Anschaffungskosten",
-    "inferredCost": "Abgeleitet vom Preis am Erwerbsdatum",
-    "eligible": "Berechtigt",
-    "totalRowLabel": "Gesamt"
+    "noInstruments": "Keine Instrumente.",
+    "ungrouped": "Ohne Gruppe"
   },
-  "instrumentDetail": {
-    "edit": "Bearbeiten",
-    "change7d": "7T",
-    "change30d": "30T",
-    "range": "Zeitraum:",
-    "rangeOptions": {
-      "1w": "1W",
-      "1m": "1M",
-      "1y": "1J",
-      "10y": "10J",
-      "max": "MAX"
+  "instrumentType": {
+    "bond": "Anleihe",
+    "cash": "Bargeld",
+    "equity": "Aktie",
+    "etf": "ETF",
+    "fund": "Fonds",
+    "investmentTrust": "Investmentgesellschaft",
+    "other": "Andere",
+    "realEstate": "Immobilien"
+  },
+  "loadingPortfolio": "Portfolio wird geladen…",
+  "market": {
+    "indexLevels": "Indexstände",
+    "latestHeadlines": "Neueste Schlagzeilen",
+    "sectorPerformance": "Sektorentwicklung"
+  },
+  "metricsExplanation": {
+    "activeReturn": "Active Return",
+    "alphaCumulative": "Überrendite",
+    "backLink": "Zurück zum Portfolio-Dashboard",
+    "benchmarkCumulative": "Kumulierte Benchmark-Rendite",
+    "benchmarkReturn": "Benchmark-Rendite",
+    "calculationHeading": "So berechnen wir das",
+    "dataBody": "Wir rekonstruieren tägliche Marktwerte für jede Position mithilfe der neuesten Kursdaten und erfasster Kapitalmaßnahmen. Cashflows, Trades und Benchmark-Stände werden auf UTC-Handelstage normalisiert. Kennzahlen werden aktualisiert, sobald neue Preise vorliegen.",
+    "dataHeading": "Datengrundlage",
+    "dateColumn": "Datum",
+    "disclaimer": "Diese Statistiken dienen nur zur Information und können von den Angaben Ihres Brokers abweichen, wenn sich Preisquellen oder Benchmark-Auswahl unterscheiden.",
+    "drawdownColumn": "Drawdown",
+    "groupContext": "Kennzahlen für die Gruppe {{group}}.",
+    "intro": "Diese Kennzahlen fassen zusammen, wie sich das kombinierte Portfolio im Vergleich zu seinem Benchmark entwickelt. Jede Zahl basiert auf denselben täglichen Renditereihen wie die Kacheln im Dashboard.",
+    "loadError": "Die Kennzahlen konnten nicht geladen werden: {{message}}",
+    "loading": "Kennzahlen werden geladen…",
+    "missingContext": "Es wurde kein Portfolio oder keine Gruppe angegeben. Kehren Sie zum Dashboard zurück und folgen Sie dort dem Link aus dem gewünschten Portfolio.",
+    "noContext": "Öffnen Sie diese Seite aus einem Portfolio oder einer Gruppe, um aktuelle Werte zu sehen.",
+    "notAvailable": "k. A.",
+    "notesHeading": "Wissenswertes",
+    "ownerContext": "Kennzahlen für das Portfolio von {{owner}}.",
+    "parameters": "Benchmark: {{benchmark}} • Zeitraum: {{days}} Tage",
+    "portfolioCumulative": "Kumulierte Portfoliorendite",
+    "portfolioReturn": "Portfoliorendite",
+    "portfolioValue": "Portfoliowert",
+    "runningPeak": "Laufendes Hoch",
+    "sections": {
+      "alpha": {
+        "breakdownHeading": "Kumulierte Renditen im Zeitverlauf",
+        "breakdownIntro": "Die Tabelle zeigt für jeden Handelstag die kumulierten Renditen von Portfolio und Benchmark sowie deren Differenz (Alpha).",
+        "calculation": "Wir berechnen zeitgewichtete kumulierte Renditen für Portfolio und Benchmark. Alpha ist einfach die Portfoliorendite minus der Benchmark-Rendite in Prozentpunkten.",
+        "detail": "Kumulierte Portfoliorendite: {{portfolio}} · Benchmark-Rendite: {{benchmark}} · Alpha: {{alpha}}",
+        "headline": "Alpha gegenüber dem Benchmark",
+        "notes": [
+          "Positives Alpha bedeutet, dass das Portfolio den Benchmark im betrachteten Zeitraum geschlagen hat.",
+          "Wenn für einen Teil des Zeitraums keine Daten vorliegen, verwenden wir nur die überlappenden Handelstage."
+        ],
+        "summary": "Alpha misst die Überrendite des Portfolios gegenüber dem Benchmark im gleichen Zeitraum.",
+        "title": "Alpha vs Benchmark"
+      },
+      "maxDrawdown": {
+        "breakdownHeading": "Tägliche Werte und laufende Hochs",
+        "breakdownIntro": "Wir rekonstruieren die Wertentwicklung des Portfolios, verfolgen laufende Hochs und berechnen daraus den Drawdown. Das Minimum dieser Reihe ist der maximale Drawdown.",
+        "calculation": "Wir verfolgen die zeitgewichtete Renditekurve, merken uns jedes neue Hoch und protokollieren den größten folgenden Rückgang, bevor ein neues Hoch erreicht wird. Der tiefste Verlust in Prozent ist der maximale Drawdown.",
+        "detail": "Max Drawdown: {{drawdown}} · Hoch: {{peakValue}} am {{peakDate}} · Tief: {{troughValue}} am {{troughDate}}",
+        "headline": "Schlimmster Weg vom Hoch zum Tief",
+        "notes": [
+          "Der Drawdown basiert nur auf Portfoliorenditen; der Benchmark fließt hier nicht ein.",
+          "Ein Drawdown von -100 % bedeutet, dass der Portfoliowert nach einem vorherigen Hoch auf null gefallen ist."
+        ],
+        "summary": "Der maximale Drawdown identifiziert den größten Rückgang vom Höchststand zum Tiefpunkt innerhalb des Beobachtungszeitraums.",
+        "title": "Max Drawdown"
+      },
+      "trackingError": {
+        "breakdownHeading": "Tägliche Active Returns",
+        "breakdownIntro": "Hier listen wir die täglichen Differenzen zwischen Portfolio und Benchmark auf. Die Standardabweichung dieser Reihe, multipliziert mit √252, ergibt den oben angegebenen Tracking Error.",
+        "calculation": "Für jeden Handelstag ziehen wir die Benchmark-Rendite von der Portfoliorendite ab und erhalten so eine Active-Return-Reihe. Der Tracking Error ist die annualisierte Standardabweichung dieser Werte (tägliche Standardabweichung multipliziert mit √252).",
+        "detail": "Annualisierter Tracking Error: {{trackingError}} · Tägliche Standardabweichung der Active Returns: {{dailyStd}}",
+        "headline": "Tracking Error und Active Returns",
+        "notes": [
+          "Ein höherer Tracking Error deutet auf eine geringere Kopplung an den Benchmark hin.",
+          "Für die Anzeige benötigen wir mindestens 30 überlappende Tagesrenditen."
+        ],
+        "summary": "Der Tracking Error zeigt, wie stark die täglichen Portfoliorenditen vom Benchmark abweichen.",
+        "title": "Tracking Error"
+      }
     },
-    "bollingerBands": "Bollinger-Bänder",
-    "ma20": "20d MA",
-    "ma50": "50d MA",
-    "ma200": "200d MA",
-    "rsi": "RSI",
-    "positions": "Positionen",
-    "columns": {
-      "account": "Konto",
-      "units": "Einheiten",
-      "market": "Markt £",
-      "gain": "Gewinn £",
-      "gainPct": "Gewinn %"
-    },
-    "noPositions": "Keine Positionen",
-    "recentPrices": "Aktuelle Preise",
-    "priceColumns": {
-      "date": "Datum",
-      "close": "£ Schluss",
-      "delta": "Δ £",
-      "deltaPct": "Δ %"
-    },
-    "noPriceData": "Keine Preisdaten",
-    "intraday": "Intraday",
-    "intradayUnavailable": "Keine Intraday-Daten"
+    "title": "Performancekennzahlen erklärt"
+  },
+  "movers": {
+    "excludeSmall": "Positionen <{{min}}% ausschließen",
+    "loadFailed": "Laden der Movers fehlgeschlagen{{status}}",
+    "loginPrompt": "Bitte melden Sie sich an, um portfolio-basierte Movers zu sehen.",
+    "pctPortfolio": "% des Portfolios",
+    "period": "Zeitraum:",
+    "signal": "Signal",
+    "watchlist": "Beobachtungsliste:"
   },
   "owner": {
     "label": "Besitzer",
     "select": "Wählen Sie einen Besitzer."
   },
   "pensionForecast": {
-    "currentAge": "Aktuelles Alter: {{age}}",
     "birthDate": "Geburtsdatum: {{dob}}",
-    "retirementAge": "Renteneintrittsalter: {{age}}",
-    "pensionPot": "Pensionsvermögen",
+    "currentAge": "Aktuelles Alter: {{age}}",
+    "employerContributionLabel": "Arbeitgeberbeitrag",
     "growthAssumption": "Wachstumsannahme (%):",
-    "monthlyContribution": "Monatlicher Beitrag (£):",
+    "header": {
+      "employeeContribution": "Ihr monatlicher Beitrag",
+      "employerContribution": "Arbeitgeberbeitrag",
+      "heading": "Behalten Sie Ihre Beiträge im Blick",
+      "kicker": "Ihr Rentenüberblick",
+      "linkedPotsHeading": "Verknüpfte Rententöpfe",
+      "noLinkedPots": "Für diese Person sind noch keine Rententöpfe verknüpft.",
+      "notAvailable": "Nicht verfügbar",
+      "pensionPot": "Aktueller Rententopf",
+      "totalContribution": "Gesamte monatliche Beiträge: {{total}}"
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
-      "state": "State pension",
       "definedBenefit": "Defined benefit",
-      "definedContribution": "Defined contribution"
+      "definedContribution": "Defined contribution",
+      "state": "State pension"
     },
     "incomeTable": {
-      "source": "Source",
       "annual": "Annual (£)",
       "monthly": "Monthly (£)",
-      "share": "Share"
+      "share": "Share",
+      "source": "Source"
     },
-    "totalAnnualIncome": "Total annual income",
-    "totalMonthlyIncome": "Total monthly income",
+    "monthlyContribution": "Monatlicher Beitrag (£):",
+    "pensionPot": "Pensionsvermögen",
     "prediction": {
+      "earliest": "Estimated earliest retirement age: {{age}}",
+      "noBreakdown": "No income breakdown available.",
       "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
       "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} from age {{age}}.",
       "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
-      "earliest": "Estimated earliest retirement age: {{age}}",
-      "noBreakdown": "No income breakdown available."
+      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then."
     },
-    "employerContributionLabel": "Arbeitgeberbeitrag",
-    "header": {
-      "kicker": "Ihr Rentenüberblick",
-      "heading": "Behalten Sie Ihre Beiträge im Blick",
-      "pensionPot": "Aktueller Rententopf",
-      "employeeContribution": "Ihr monatlicher Beitrag",
-      "employerContribution": "Arbeitgeberbeitrag",
-      "totalContribution": "Gesamte monatliche Beiträge: {{total}}",
-      "linkedPotsHeading": "Verknüpfte Rententöpfe",
-      "noLinkedPots": "Für diese Person sind noch keine Rententöpfe verknüpft.",
-      "notAvailable": "Nicht verfügbar"
-    }
+    "retirementAge": "Renteneintrittsalter: {{age}}",
+    "totalAnnualIncome": "Total annual income",
+    "totalMonthlyIncome": "Total monthly income"
   },
-  "group": {
-    "select": "Wählen Sie eine Gruppe.",
-    "atAGlance": "Auf einen Blick"
-  },
-  "dashboard": {
-    "selectMember": "Wählen Sie ein Mitglied.",
-    "range": "Zeitraum:",
-    "rangeOptions": {
-      "1w": "1W",
-      "1m": "1M",
-      "1y": "1J",
-      "10y": "10J",
-      "max": "MAX"
-    },
-    "excludeCash": "Bargeld ausschließen",
-    "alphaVsBenchmark": "Alpha vs Benchmark",
-    "trackingError": "Tracking Error",
-    "maxDrawdown": "Max Drawdown",
-    "maxDrawdownHelp": "Der maximale Drawdown ist der größte prozentuale Rückgang vom bisherigen Höchststand des Portfolios bis zum darauffolgenden Tief, berechnet auf Basis der rekonstruierten täglichen Schlusswerte Ihrer Positionen.",
-    "metricsExplanationLink": "Wie werden diese Werte berechnet?",
-    "timeWeightedReturn": "Zeitgewichtete Rendite",
-    "xirr": "XIRR",
-    "portfolioValue": "Portfoliowert",
-    "cumulativeReturn": "Kumulierte Rendite"
-  },
-  "metricsExplanation": {
-    "title": "Performancekennzahlen erklärt",
-    "intro": "Diese Kennzahlen fassen zusammen, wie sich das kombinierte Portfolio im Vergleich zu seinem Benchmark entwickelt. Jede Zahl basiert auf denselben täglichen Renditereihen wie die Kacheln im Dashboard.",
-    "backLink": "Zurück zum Portfolio-Dashboard",
-    "groupContext": "Kennzahlen für die Gruppe {{group}}.",
-    "ownerContext": "Kennzahlen für das Portfolio von {{owner}}.",
-    "noContext": "Öffnen Sie diese Seite aus einem Portfolio oder einer Gruppe, um aktuelle Werte zu sehen.",
-    "parameters": "Benchmark: {{benchmark}} • Zeitraum: {{days}} Tage",
-    "missingContext": "Es wurde kein Portfolio oder keine Gruppe angegeben. Kehren Sie zum Dashboard zurück und folgen Sie dort dem Link aus dem gewünschten Portfolio.",
-    "loadError": "Die Kennzahlen konnten nicht geladen werden: {{message}}",
-    "loading": "Kennzahlen werden geladen…",
-    "notAvailable": "k. A.",
-    "dateColumn": "Datum",
-    "portfolioCumulative": "Kumulierte Portfoliorendite",
-    "benchmarkCumulative": "Kumulierte Benchmark-Rendite",
-    "alphaCumulative": "Überrendite",
-    "portfolioReturn": "Portfoliorendite",
-    "benchmarkReturn": "Benchmark-Rendite",
-    "activeReturn": "Active Return",
-    "portfolioValue": "Portfoliowert",
-    "runningPeak": "Laufendes Hoch",
-    "drawdownColumn": "Drawdown",
-    "calculationHeading": "So berechnen wir das",
-    "notesHeading": "Wissenswertes",
-    "dataHeading": "Datengrundlage",
-    "dataBody": "Wir rekonstruieren tägliche Marktwerte für jede Position mithilfe der neuesten Kursdaten und erfasster Kapitalmaßnahmen. Cashflows, Trades und Benchmark-Stände werden auf UTC-Handelstage normalisiert. Kennzahlen werden aktualisiert, sobald neue Preise vorliegen.",
-    "disclaimer": "Diese Statistiken dienen nur zur Information und können von den Angaben Ihres Brokers abweichen, wenn sich Preisquellen oder Benchmark-Auswahl unterscheiden.",
-    "sections": {
-      "alpha": {
-        "title": "Alpha vs Benchmark",
-        "summary": "Alpha misst die Überrendite des Portfolios gegenüber dem Benchmark im gleichen Zeitraum.",
-        "headline": "Alpha gegenüber dem Benchmark",
-        "detail": "Kumulierte Portfoliorendite: {{portfolio}} · Benchmark-Rendite: {{benchmark}} · Alpha: {{alpha}}",
-        "breakdownHeading": "Kumulierte Renditen im Zeitverlauf",
-        "breakdownIntro": "Die Tabelle zeigt für jeden Handelstag die kumulierten Renditen von Portfolio und Benchmark sowie deren Differenz (Alpha).",
-        "calculation": "Wir berechnen zeitgewichtete kumulierte Renditen für Portfolio und Benchmark. Alpha ist einfach die Portfoliorendite minus der Benchmark-Rendite in Prozentpunkten.",
-        "notes": [
-          "Positives Alpha bedeutet, dass das Portfolio den Benchmark im betrachteten Zeitraum geschlagen hat.",
-          "Wenn für einen Teil des Zeitraums keine Daten vorliegen, verwenden wir nur die überlappenden Handelstage."
-        ]
-      },
-      "trackingError": {
-        "title": "Tracking Error",
-        "summary": "Der Tracking Error zeigt, wie stark die täglichen Portfoliorenditen vom Benchmark abweichen.",
-        "headline": "Tracking Error und Active Returns",
-        "detail": "Annualisierter Tracking Error: {{trackingError}} · Tägliche Standardabweichung der Active Returns: {{dailyStd}}",
-        "breakdownHeading": "Tägliche Active Returns",
-        "breakdownIntro": "Hier listen wir die täglichen Differenzen zwischen Portfolio und Benchmark auf. Die Standardabweichung dieser Reihe, multipliziert mit √252, ergibt den oben angegebenen Tracking Error.",
-        "calculation": "Für jeden Handelstag ziehen wir die Benchmark-Rendite von der Portfoliorendite ab und erhalten so eine Active-Return-Reihe. Der Tracking Error ist die annualisierte Standardabweichung dieser Werte (tägliche Standardabweichung multipliziert mit √252).",
-        "notes": [
-          "Ein höherer Tracking Error deutet auf eine geringere Kopplung an den Benchmark hin.",
-          "Für die Anzeige benötigen wir mindestens 30 überlappende Tagesrenditen."
-        ]
-      },
-      "maxDrawdown": {
-        "title": "Max Drawdown",
-        "summary": "Der maximale Drawdown identifiziert den größten Rückgang vom Höchststand zum Tiefpunkt innerhalb des Beobachtungszeitraums.",
-        "headline": "Schlimmster Weg vom Hoch zum Tief",
-        "detail": "Max Drawdown: {{drawdown}} · Hoch: {{peakValue}} am {{peakDate}} · Tief: {{troughValue}} am {{troughDate}}",
-        "breakdownHeading": "Tägliche Werte und laufende Hochs",
-        "breakdownIntro": "Wir rekonstruieren die Wertentwicklung des Portfolios, verfolgen laufende Hochs und berechnen daraus den Drawdown. Das Minimum dieser Reihe ist der maximale Drawdown.",
-        "calculation": "Wir verfolgen die zeitgewichtete Renditekurve, merken uns jedes neue Hoch und protokollieren den größten folgenden Rückgang, bevor ein neues Hoch erreicht wird. Der tiefste Verlust in Prozent ist der maximale Drawdown.",
-        "notes": [
-          "Der Drawdown basiert nur auf Portfoliorenditen; der Benchmark fließt hier nicht ein.",
-          "Ein Drawdown von -100 % bedeutet, dass der Portfoliowert nach einem vorherigen Hoch auf null gefallen ist."
-        ]
-      }
-    }
-  },
-  "support": {
-    "title": "Support",
-    "online": "Online",
-    "onlineYes": "Ja",
-    "onlineNo": "Nein",
-    "environment": "Umgebung",
-    "priceRefresh": "Preisaktualisierung",
-    "telegramMessage": "Telegram-Nachricht",
-    "send": "Senden",
-    "status": {
-      "sent": "Gesendet",
-      "error": "Fehler",
-      "sending": "Wird gesendet...",
-      "saved": "Gespeichert",
-      "saving": "Speichern..."
-    },
-    "health": {
-      "title": "Portfoliozustand",
-      "run": "Portfolio-Gesundheitsprüfung ausführen",
-      "copyReport": "Bericht kopieren",
-      "error": "Fehler beim Ausführen der Gesundheitsprüfung"
-    },
-    "notifications": {
-      "title": "Benachrichtigungen",
-      "notSupported": "Push wird nicht unterstützt",
-      "disable": "Push-Benachrichtigungen deaktivieren",
-      "enable": "Push-Benachrichtigungen aktivieren",
-      "denied": "Push-Berechtigung verweigert.",
-      "error": "Fehler bei der Verarbeitung der Push-Anmeldung."
-    },
-    "config": {
-      "title": "Konfiguration",
-      "tabsEnabled": "Tabs aktiviert",
-      "otherSwitches": "Andere Schalter",
-      "otherParams": "Weitere Parameter",
-      "save": "Speichern"
-    }
-  },
-  "alertSettings": {
-    "title": "Alert Settings",
-    "description": "Konfigurieren Sie, wann Sie Benachrichtigungen erhalten. Die Alarme erscheinen auf der Alerts-Seite und als Push-Benachrichtigungen.",
-    "threshold": "Threshold %:",
-    "save": "Save",
-    "push": {
-      "title": "Push-Benachrichtigungen",
-      "notSupported": "Push wird nicht unterstützt",
-      "enable": "Push-Alerts aktivieren",
-      "disable": "Push-Alerts deaktivieren",
-      "denied": "Push-Berechtigung verweigert.",
-      "error": "Fehler bei der Verarbeitung der Push-Anmeldung."
-    },
-    "status": {
-      "saved": "Saved",
-      "error": "Error"
-    }
+  "portfolio": "Portfolio",
+  "query": {
+    "end": "Ende",
+    "exportCsv": "CSV exportieren",
+    "exportXlsx": "XLSX exportieren",
+    "metrics": "Metriken",
+    "owners": "Eigentümer",
+    "run": "Ausführen",
+    "running": "Wird ausgeführt…",
+    "save": "Speichern",
+    "start": "Start",
+    "tickers": "Ticker"
   },
   "reports": {
-    "title": "Berichte",
     "csv": "CSV herunterladen",
+    "noOwners": "No owners available—check backend connection",
     "pdf": "PDF herunterladen",
-    "noOwners": "No owners available—check backend connection"
+    "title": "Berichte"
   },
-  "loadingPortfolio": "Portfolio wird geladen…",
-  "portfolio": "Portfolio",
-  "asOf": "Stand {{date}} • Trades diesen Monat: {{trades}} / 20 (Verbleibend: {{remaining}})",
-  "approxTotal": "Ungefähre Summe: £{{value}}",
-  "allocation": {
-    "instrumentTypes": "Instrumenttypen",
-    "sector": "Branchen",
-    "region": "Regionen"
+  "screener": {
+    "loading": "Laden…",
+    "max52WeekHigh": "Max 52W High",
+    "max52WeekLow": "Max 52W Low",
+    "maxBeta": "Max Beta",
+    "maxDe": "Max D/E",
+    "maxDividendPayoutRatio": "Max Dividend Payout Ratio",
+    "maxLtDe": "Max LT D/E",
+    "maxPe": "Max P/E",
+    "maxPeg": "Max PEG",
+    "min52WeekLow": "Min 52W Low",
+    "minAvgVolume": "Min Avg Volume",
+    "minCurrentRatio": "Min Current Ratio",
+    "minDividendYield": "Min Dividend Yield",
+    "minEbitdaMargin": "Min. EBITDA-Marge",
+    "minEps": "Min EPS",
+    "minFcf": "Min FCF",
+    "minFloatShares": "Min Float Shares",
+    "minGrossMargin": "Min. Bruttomarge",
+    "minInterestCoverage": "Min Interest Coverage",
+    "minMarketCap": "Min Market Cap",
+    "minNetMargin": "Min. Nettomarge",
+    "minOperatingMargin": "Min. operative Marge",
+    "minQuickRatio": "Min Quick Ratio",
+    "minRoa": "Min. ROA",
+    "minRoe": "Min. ROE",
+    "minRoi": "Min. ROI",
+    "minSharesOutstanding": "Min Shares Outstanding",
+    "run": "Ausführen",
+    "tickers": "Ticker",
+    "watchlist": "Beobachtungsliste:"
   },
-  "watchlist": {
-    "refresh": "Aktualisieren"
-  },
-  "trading": {
-    "noPositions": "Keine Positionen.",
-    "noSignals": "Keine Signale."
-  },
-  "movers": {
-    "watchlist": "Beobachtungsliste:",
-    "period": "Zeitraum:",
-    "excludeSmall": "Positionen <{{min}}% ausschließen",
-    "loginPrompt": "Bitte melden Sie sich an, um portfolio-basierte Movers zu sehen.",
-    "loadFailed": "Laden der Movers fehlgeschlagen{{status}}",
-    "signal": "Signal",
-    "pctPortfolio": "% des Portfolios"
+  "support": {
+    "config": {
+      "otherParams": "Weitere Parameter",
+      "otherSwitches": "Andere Schalter",
+      "save": "Speichern",
+      "tabsEnabled": "Tabs aktiviert",
+      "title": "Konfiguration"
+    },
+    "environment": "Umgebung",
+    "health": {
+      "copyReport": "Bericht kopieren",
+      "error": "Fehler beim Ausführen der Gesundheitsprüfung",
+      "run": "Portfolio-Gesundheitsprüfung ausführen",
+      "title": "Portfoliozustand"
+    },
+    "notifications": {
+      "denied": "Push-Berechtigung verweigert.",
+      "disable": "Push-Benachrichtigungen deaktivieren",
+      "enable": "Push-Benachrichtigungen aktivieren",
+      "error": "Fehler bei der Verarbeitung der Push-Anmeldung.",
+      "notSupported": "Push wird nicht unterstützt",
+      "title": "Benachrichtigungen"
+    },
+    "online": "Online",
+    "onlineNo": "Nein",
+    "onlineYes": "Ja",
+    "priceRefresh": "Preisaktualisierung",
+    "send": "Senden",
+    "status": {
+      "error": "Fehler",
+      "saved": "Gespeichert",
+      "saving": "Speichern...",
+      "sending": "Wird gesendet...",
+      "sent": "Gesendet"
+    },
+    "telegramMessage": "Telegram-Nachricht",
+    "title": "Support"
   },
   "timeseries": {
     "loading": "Laden…"
   },
   "timeseriesEdit": {
-    "title": "Zeitreihen-Editor",
-    "ticker": "Ticker",
-    "exchange": "Börse",
-    "load": "Laden",
     "addRow": "Zeile hinzufügen",
-    "save": "Speichern",
-    "delete": "Löschen",
     "columns": {
+      "close": "Schluss",
       "date": "Datum",
-      "open": "Eröffnung",
       "high": "Hoch",
       "low": "Tief",
-      "close": "Schluss",
-      "volume": "Volumen",
+      "open": "Eröffnung",
+      "source": "Quelle",
       "ticker": "Ticker",
-      "source": "Quelle"
+      "volume": "Volumen"
     },
+    "delete": "Löschen",
+    "error": {
+      "noData": "Keine Daten zum Speichern",
+      "unexpectedColumns": "Unerwartete Spalte(n): {{columns}}"
+    },
+    "exchange": "Börse",
+    "load": "Laden",
+    "save": "Speichern",
     "status": {
       "loaded": "Geladen {{count}} Zeilen",
       "saved": "Gespeichert {{count}} Zeilen"
     },
-    "error": {
-      "noData": "Keine Daten zum Speichern",
-      "unexpectedColumns": "Unerwartete Spalte(n): {{columns}}"
-    }
-  },
-  "query": {
-    "start": "Start",
-    "end": "Ende",
-    "owners": "Eigentümer",
-    "tickers": "Ticker",
-    "metrics": "Metriken",
-    "run": "Ausführen",
-    "running": "Wird ausgeführt…",
-    "save": "Speichern",
-    "exportCsv": "CSV exportieren",
-    "exportXlsx": "XLSX exportieren"
-  },
-  "screener": {
-    "watchlist": "Beobachtungsliste:",
-    "tickers": "Ticker",
-    "maxPeg": "Max PEG",
-    "maxPe": "Max P/E",
-    "maxDe": "Max D/E",
-    "maxLtDe": "Max LT D/E",
-    "minInterestCoverage": "Min Interest Coverage",
-    "minCurrentRatio": "Min Current Ratio",
-    "minQuickRatio": "Min Quick Ratio",
-    "minFcf": "Min FCF",
-    "minEps": "Min EPS",
-    "minGrossMargin": "Min. Bruttomarge",
-    "minOperatingMargin": "Min. operative Marge",
-    "minNetMargin": "Min. Nettomarge",
-    "minEbitdaMargin": "Min. EBITDA-Marge",
-    "minRoa": "Min. ROA",
-    "minRoe": "Min. ROE",
-    "minRoi": "Min. ROI",
-    "minDividendYield": "Min Dividend Yield",
-    "maxDividendPayoutRatio": "Max Dividend Payout Ratio",
-    "maxBeta": "Max Beta",
-    "minSharesOutstanding": "Min Shares Outstanding",
-    "minFloatShares": "Min Float Shares",
-    "minMarketCap": "Min Market Cap",
-    "max52WeekHigh": "Max 52W High",
-    "max52WeekLow": "Max 52W Low",
-    "min52WeekLow": "Min 52W Low",
-    "minAvgVolume": "Min Avg Volume",
-    "run": "Ausführen",
-    "loading": "Laden…"
-  },
-  "instrumentadmin": {
     "ticker": "Ticker",
-    "exchange": "Exchange",
-    "name": "Name",
-    "region": "Region",
-    "sector": "Sector",
-    "grouping": "Gruppierung",
-    "actions": "Actions",
-    "add": "Add Instrument",
-    "save": "Save",
-    "saveSuccess": "Saved",
-    "saveError": "Error saving",
-    "searchPlaceholder": "Filter instruments…",
-    "validation": {
-      "ticker": "Ticker is required",
-      "name": "Name is required",
-      "grouping": "Grouping is required"
-    }
+    "title": "Zeitreihen-Editor"
+  },
+  "trading": {
+    "noPositions": "Keine Positionen.",
+    "noSignals": "Keine Signale."
+  },
+  "trail": {
+    "allDone": "Alle Trail-Aufgaben erledigt – großartig!",
+    "daily": "Täglich",
+    "dailyComplete": "Tägliche Aufgaben erledigt! Weiter so.",
+    "once": "Einmalig",
+    "progressLabel": "Täglicher Fortschritt: {{completed}} / {{total}} ({{percent}}%)",
+    "streakLabel": "Serie: {{count}} Tag",
+    "streakLabel_plural": "Serie: {{count}} Tage",
+    "title": "Trail-Fortschritt",
+    "xpLabel": "XP: {{xp}}"
   },
   "var": {
-    "title": "Value at Risk",
     "details": "Details zur historischen Simulation",
-    "noData": "Keine VaR-Daten verfügbar."
+    "noData": "Keine VaR-Daten verfügbar.",
+    "title": "Value at Risk"
   },
-  "market": {
-    "indexLevels": "Indexstände",
-    "sectorPerformance": "Sektorentwicklung",
-    "latestHeadlines": "Neueste Schlagzeilen"
-  },
-  "goals": {
-    "title": "Ziele",
-    "targetAmount": "Zielbetrag",
-    "add": "Ziel hinzufügen",
-    "currentAmount": "Aktueller Betrag:",
-    "goalLine": "{{name}} – Ziel {{amount}} bis {{date}}",
-    "view": "Ansehen",
-    "progress": "Fortschritt: {{progress}}%",
-    "suggestedTrades": "Vorgeschlagene Trades",
-    "trade": "{{action}} {{amount}} von {{ticker}}",
-    "back": "Zurück zum Portfolio"
+  "watchlist": {
+    "refresh": "Aktualisieren"
   }
 }

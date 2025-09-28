@@ -1,14 +1,37 @@
 {
+  "alertSettings": {
+    "description": "Configura cuándo recibirás alertas. Las alertas aparecen en la página de alertas y en las notificaciones push.",
+    "push": {
+      "denied": "Permiso de push denegado.",
+      "disable": "Desactivar alertas push",
+      "enable": "Activar alertas push",
+      "error": "Error al manejar la suscripción push.",
+      "notSupported": "Push no soportado",
+      "title": "Notificaciones push"
+    },
+    "save": "Save",
+    "status": {
+      "error": "Error",
+      "saved": "Saved"
+    },
+    "threshold": "Threshold %:",
+    "title": "Alert Settings"
+  },
+  "allocation": {
+    "instrumentTypes": "Tipos de instrumentos",
+    "region": "Regiones",
+    "sector": "Industrias"
+  },
   "app": {
-    "relativeView": "Vista relativa",
-    "refreshPrices": "Actualizar precios",
-    "refreshing": "Actualizando…",
     "last": "Último:",
     "loading": "Cargando…",
-    "supportLink": "Soporte",
-    "userLink": "App",
-    "research": "Investigación",
     "logout": "Cerrar sesión",
+    "logs": {
+      "empty": "No hay registros disponibles.",
+      "error": "No se pudieron cargar los registros.",
+      "refresh": "Actualizar registros",
+      "title": "Registros"
+    },
     "menu": "Menú",
     "menuCategories": {
       "dashboard": "Panel",
@@ -46,427 +69,404 @@
       "transactions": "Transacciones",
       "watchlist": "Lista de seguimiento"
     },
-    "logs": {
-      "title": "Registros",
-      "refresh": "Actualizar registros",
-      "empty": "No hay registros disponibles.",
-      "error": "No se pudieron cargar los registros."
-    }
+    "refreshing": "Actualizando…",
+    "refreshPrices": "Actualizar precios",
+    "relativeView": "Vista relativa",
+    "research": "Investigación",
+    "supportLink": "Soporte",
+    "userLink": "App"
   },
-  "trail": {
-    "title": "Progreso del Trail",
-    "daily": "Diario",
-    "once": "Única vez",
-    "progressLabel": "Progreso diario: {{completed}} / {{total}} ({{percent}}%)",
-    "xpLabel": "XP: {{xp}}",
-    "streakLabel": "Racha: {{count}} día",
-    "streakLabel_plural": "Racha: {{count}} días",
-    "dailyComplete": "¡Tareas diarias completas! Mantén la racha.",
-    "allDone": "Todas las tareas de Trail están completas — ¡excelente!"
-  },
+  "approxTotal": "Total aproximado: £{{value}}",
+  "asOf": "A fecha de {{date}} • Operaciones este mes: {{trades}} / 20 (Restantes: {{remaining}})",
   "common": {
+    "action": "Acción",
     "error": "Error",
     "loading": "Cargando…",
-    "other": "Otro",
-    "ticker": "Ticker",
     "name": "Nombre",
-    "action": "Acción",
+    "other": "Otro",
+    "period": "Período:",
     "reason": "Motivo",
-    "period": "Período:"
+    "ticker": "Ticker"
   },
-  "instrumentType": {
-    "equity": "Acción",
-    "bond": "Bono",
-    "cash": "Efectivo",
-    "etf": "ETF",
-    "fund": "Fondo",
-    "investmentTrust": "Fideicomiso de inversión",
-    "realEstate": "Bienes raíces",
-    "other": "Otro"
-  },
-  "instrumentTable": {
-    "noInstruments": "Sin instrumentos.",
-    "ungrouped": "Sin grupo",
-    "exchangesLabel": "Bolsas:",
-    "groupTotals": {
-      "market": "Mercado",
-      "gain": "Ganancia",
-      "gainPct": "Ganancia %",
-      "delta7d": "7d %",
-      "delta30d": "30d %"
+  "dashboard": {
+    "alphaVsBenchmark": "Alfa vs Referencia",
+    "cumulativeReturn": "Retorno acumulado",
+    "excludeCash": "Excluir efectivo",
+    "maxDrawdown": "Máxima caída",
+    "portfolioValue": "Valor de la cartera",
+    "range": "Rango:",
+    "rangeOptions": {
+      "10y": "10A",
+      "1m": "1M",
+      "1w": "1S",
+      "1y": "1A",
+      "max": "MÁX"
     },
+    "selectMember": "Seleccione un miembro.",
+    "timeWeightedReturn": "Rentabilidad ponderada en el tiempo",
+    "trackingError": "Error de seguimiento",
+    "xirr": "XIRR"
+  },
+  "goals": {
+    "add": "Agregar objetivo",
+    "back": "Volver al portafolio",
+    "currentAmount": "Monto actual:",
+    "goalLine": "{{name}} – objetivo {{amount}} para {{date}}",
+    "progress": "Progreso: {{progress}}%",
+    "suggestedTrades": "Operaciones sugeridas",
+    "targetAmount": "Monto objetivo",
+    "title": "Objetivos",
+    "trade": "{{action}} {{amount}} de {{ticker}}",
+    "view": "Ver"
+  },
+  "group": {
+    "atAGlance": "De un vistazo",
+    "select": "Seleccione un grupo."
+  },
+  "holdingsTable": {
+    "actualPurchaseCost": "Costo de compra real",
+    "clearFilters": "Limpiar filtros",
     "columns": {
-      "ticker": "Ticker",
-      "name": "Nombre",
+      "acquired": "Adquirido",
       "ccy": "Moneda",
+      "cost": "Coste £",
+      "daysHeld": "Días en posesión",
+      "eligible": "¿Elegible?",
+      "gain": "Ganancia £",
+      "gainPct": "Ganancia %",
+      "market": "Mkt £",
+      "name": "Nombre",
+      "price": "Precio £",
+      "stage": "Stage",
+      "ticker": "Ticker",
+      "trend": "Tendencia",
       "type": "Tipo",
       "units": "Unidades",
+      "weightPct": "Peso %"
+    },
+    "columnsLabel": "Columnas:",
+    "eligible": "Elegible",
+    "filters": {
+      "all": "Todos",
+      "gainPct": "Ganancia %",
+      "name": "Nombre",
+      "no": "No",
+      "sellEligible": "Elegible para venta",
+      "ticker": "Ticker",
+      "type": "Tipo",
+      "units": "Unidades",
+      "yes": "Sí"
+    },
+    "inferredCost": "Inferido del precio en la fecha de adquisición",
+    "minimumGainPrompt": "Ganancia mínima %",
+    "noHoldings": "No hay posiciones que coincidan con los filtros actuales.",
+    "openScreener": "Abrir Screener",
+    "quickFilters": "Filtros rápidos:",
+    "quickFiltersGainPct": "Ganancia% > x",
+    "quickFiltersSellEligible": "Elegible para venta",
+    "range": "Rango:",
+    "rangeOption": "{{count}}d",
+    "source": "Fuente:",
+    "totalRowLabel": "Total",
+    "view": "Vista:",
+    "viewPresets": {
+      "all": "Todos"
+    }
+  },
+  "instrumentadmin": {
+    "actions": "Actions",
+    "add": "Add Instrument",
+    "exchange": "Exchange",
+    "grouping": "Agrupación",
+    "name": "Name",
+    "region": "Region",
+    "save": "Save",
+    "saveError": "Error saving",
+    "saveSuccess": "Saved",
+    "searchPlaceholder": "Filter instruments…",
+    "sector": "Sector",
+    "ticker": "Ticker",
+    "validation": {
+      "grouping": "Grouping is required",
+      "name": "Name is required",
+      "ticker": "Ticker is required"
+    }
+  },
+  "instrumentDetail": {
+    "bollingerBands": "Bandas de Bollinger",
+    "change30d": "30d",
+    "change7d": "7d",
+    "columns": {
+      "account": "Cuenta",
+      "gain": "Ganancia £",
+      "gainPct": "Ganancia %",
+      "market": "Mercado £",
+      "units": "Unidades"
+    },
+    "edit": "Editar",
+    "intraday": "Intradía",
+    "intradayUnavailable": "Datos intradía no disponibles",
+    "ma20": "20d MA",
+    "ma200": "200d MA",
+    "ma50": "50d MA",
+    "noPositions": "Sin posiciones",
+    "noPriceData": "Sin datos de precios",
+    "positions": "Posiciones",
+    "priceColumns": {
+      "close": "£ Cierre",
+      "date": "Fecha",
+      "delta": "Δ £",
+      "deltaPct": "Δ %"
+    },
+    "range": "Rango:",
+    "rangeOptions": {
+      "10y": "10A",
+      "1m": "1M",
+      "1w": "1S",
+      "1y": "1A",
+      "max": "MÁX"
+    },
+    "recentPrices": "Precios recientes",
+    "rsi": "RSI"
+  },
+  "instrumentTable": {
+    "columns": {
+      "ccy": "Moneda",
       "cost": "Coste £",
-      "market": "Valor de mercado £",
+      "delta30d": "30d %",
+      "delta7d": "7d %",
       "gain": "Ganancia £",
       "gainPct": "Ganancia %",
       "last": "Último £",
       "lastDate": "Última fecha",
+      "market": "Valor de mercado £",
+      "name": "Nombre",
+      "ticker": "Ticker",
+      "type": "Tipo",
+      "units": "Unidades"
+    },
+    "exchangesLabel": "Bolsas:",
+    "groupTotals": {
+      "delta30d": "30d %",
       "delta7d": "7d %",
-      "delta30d": "30d %"
-    }
-  },
-  "holdingsTable": {
-    "range": "Rango:",
-    "rangeOption": "{{count}}d",
-    "view": "Vista:",
-    "viewPresets": {
-      "all": "Todos"
-    },
-    "quickFilters": "Filtros rápidos:",
-    "quickFiltersSellEligible": "Elegible para venta",
-    "quickFiltersGainPct": "Ganancia% > x",
-    "minimumGainPrompt": "Ganancia mínima %",
-    "columnsLabel": "Columnas:",
-    "columns": {
-      "ticker": "Ticker",
-      "name": "Nombre",
-      "trend": "Tendencia",
-      "ccy": "Moneda",
-      "type": "Tipo",
-      "units": "Unidades",
-      "price": "Precio £",
-      "cost": "Coste £",
-      "market": "Mkt £",
-      "gain": "Ganancia £",
+      "gain": "Ganancia",
       "gainPct": "Ganancia %",
-      "weightPct": "Peso %",
-      "acquired": "Adquirido",
-      "daysHeld": "Días en posesión",
-      "stage": "Stage",
-      "eligible": "¿Elegible?"
+      "market": "Mercado"
     },
-    "filters": {
-      "ticker": "Ticker",
-      "name": "Nombre",
-      "type": "Tipo",
-      "units": "Unidades",
-      "gainPct": "Ganancia %",
-      "sellEligible": "Elegible para venta",
-      "all": "Todos",
-      "yes": "Sí",
-      "no": "No"
-    },
-    "noHoldings": "No hay posiciones que coincidan con los filtros actuales.",
-    "clearFilters": "Limpiar filtros",
-    "openScreener": "Abrir Screener",
-    "source": "Fuente:",
-    "actualPurchaseCost": "Costo de compra real",
-    "inferredCost": "Inferido del precio en la fecha de adquisición",
-    "eligible": "Elegible",
-    "totalRowLabel": "Total"
+    "noInstruments": "Sin instrumentos.",
+    "ungrouped": "Sin grupo"
   },
-  "instrumentDetail": {
-    "edit": "Editar",
-    "change7d": "7d",
-    "change30d": "30d",
-    "range": "Rango:",
-    "rangeOptions": {
-      "1w": "1S",
-      "1m": "1M",
-      "1y": "1A",
-      "10y": "10A",
-      "max": "MÁX"
-    },
-    "bollingerBands": "Bandas de Bollinger",
-    "ma20": "20d MA",
-    "ma50": "50d MA",
-    "ma200": "200d MA",
-    "rsi": "RSI",
-    "positions": "Posiciones",
-    "columns": {
-      "account": "Cuenta",
-      "units": "Unidades",
-      "market": "Mercado £",
-      "gain": "Ganancia £",
-      "gainPct": "Ganancia %"
-    },
-    "noPositions": "Sin posiciones",
-    "recentPrices": "Precios recientes",
-    "priceColumns": {
-      "date": "Fecha",
-      "close": "£ Cierre",
-      "delta": "Δ £",
-      "deltaPct": "Δ %"
-    },
-    "noPriceData": "Sin datos de precios",
-    "intraday": "Intradía",
-    "intradayUnavailable": "Datos intradía no disponibles"
+  "instrumentType": {
+    "bond": "Bono",
+    "cash": "Efectivo",
+    "equity": "Acción",
+    "etf": "ETF",
+    "fund": "Fondo",
+    "investmentTrust": "Fideicomiso de inversión",
+    "other": "Otro",
+    "realEstate": "Bienes raíces"
+  },
+  "loadingPortfolio": "Cargando portafolio…",
+  "market": {
+    "indexLevels": "Niveles de índices",
+    "latestHeadlines": "Últimos titulares",
+    "sectorPerformance": "Rendimiento por sector"
+  },
+  "movers": {
+    "excludeSmall": "Excluir posiciones <{{min}}%",
+    "loadFailed": "Error al cargar los movers{{status}}",
+    "loginPrompt": "Inicia sesión para ver los movers basados en el portafolio.",
+    "pctPortfolio": "% del portafolio",
+    "period": "Período:",
+    "signal": "Señal",
+    "watchlist": "Lista de seguimiento:"
   },
   "owner": {
     "label": "Propietario",
     "select": "Seleccione un propietario."
   },
   "pensionForecast": {
-    "currentAge": "Edad actual: {{age}}",
     "birthDate": "Fecha de nacimiento: {{dob}}",
-    "retirementAge": "Edad de jubilación: {{age}}",
-    "pensionPot": "Fondo de pensiones",
+    "currentAge": "Edad actual: {{age}}",
+    "employerContributionLabel": "Aportación del empleador",
     "growthAssumption": "Suposición de crecimiento (%):",
-    "monthlyContribution": "Contribución mensual (£):",
+    "header": {
+      "employeeContribution": "Tu aportación mensual",
+      "employerContribution": "Aportación del empleador",
+      "heading": "Controla tus aportaciones de un vistazo",
+      "kicker": "Resumen de tu pensión",
+      "linkedPotsHeading": "Fondos de pensión vinculados",
+      "noLinkedPots": "Aún no hay fondos de pensión vinculados para este titular.",
+      "notAvailable": "No disponible",
+      "pensionPot": "Fondo de pensión actual",
+      "totalContribution": "Aportaciones mensuales totales: {{total}}"
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
-      "state": "State pension",
       "definedBenefit": "Defined benefit",
-      "definedContribution": "Defined contribution"
+      "definedContribution": "Defined contribution",
+      "state": "State pension"
     },
     "incomeTable": {
-      "source": "Source",
       "annual": "Annual (£)",
       "monthly": "Monthly (£)",
-      "share": "Share"
+      "share": "Share",
+      "source": "Source"
     },
-    "totalAnnualIncome": "Total annual income",
-    "totalMonthlyIncome": "Total monthly income",
+    "monthlyContribution": "Contribución mensual (£):",
+    "pensionPot": "Fondo de pensiones",
     "prediction": {
+      "earliest": "Estimated earliest retirement age: {{age}}",
+      "noBreakdown": "No income breakdown available.",
       "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
       "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} from age {{age}}.",
       "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
-      "earliest": "Estimated earliest retirement age: {{age}}",
-      "noBreakdown": "No income breakdown available."
+      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then."
     },
-    "employerContributionLabel": "Aportación del empleador",
-    "header": {
-      "kicker": "Resumen de tu pensión",
-      "heading": "Controla tus aportaciones de un vistazo",
-      "pensionPot": "Fondo de pensión actual",
-      "employeeContribution": "Tu aportación mensual",
-      "employerContribution": "Aportación del empleador",
-      "totalContribution": "Aportaciones mensuales totales: {{total}}",
-      "linkedPotsHeading": "Fondos de pensión vinculados",
-      "noLinkedPots": "Aún no hay fondos de pensión vinculados para este titular.",
-      "notAvailable": "No disponible"
-    }
+    "retirementAge": "Edad de jubilación: {{age}}",
+    "totalAnnualIncome": "Total annual income",
+    "totalMonthlyIncome": "Total monthly income"
   },
-  "group": {
-    "select": "Seleccione un grupo.",
-    "atAGlance": "De un vistazo"
-  },
-  "dashboard": {
-    "selectMember": "Seleccione un miembro.",
-    "range": "Rango:",
-    "rangeOptions": {
-      "1w": "1S",
-      "1m": "1M",
-      "1y": "1A",
-      "10y": "10A",
-      "max": "MÁX"
-    },
-    "excludeCash": "Excluir efectivo",
-    "alphaVsBenchmark": "Alfa vs Referencia",
-    "trackingError": "Error de seguimiento",
-    "maxDrawdown": "Máxima caída",
-    "timeWeightedReturn": "Rentabilidad ponderada en el tiempo",
-    "xirr": "XIRR",
-    "portfolioValue": "Valor de la cartera",
-    "cumulativeReturn": "Retorno acumulado"
-  },
-  "support": {
-    "title": "Soporte",
-    "online": "En línea",
-    "onlineYes": "Sí",
-    "onlineNo": "No",
-    "environment": "Entorno",
-    "priceRefresh": "Actualización de precios",
-    "telegramMessage": "Mensaje de Telegram",
-    "send": "Enviar",
-    "status": {
-      "sent": "Enviado",
-      "error": "Error",
-      "sending": "Enviando...",
-      "saved": "Guardado",
-      "saving": "Guardando..."
-    },
-    "health": {
-      "title": "Salud del portafolio",
-      "run": "Ejecutar verificación de salud del portafolio",
-      "copyReport": "Copiar informe",
-      "error": "No se pudo ejecutar la verificación de salud"
-    },
-    "notifications": {
-      "title": "Notificaciones",
-      "notSupported": "Push no compatible",
-      "disable": "Desactivar alertas push",
-      "enable": "Activar alertas push",
-      "denied": "Permiso de push denegado.",
-      "error": "Error al manejar la suscripción push."
-    },
-    "config": {
-      "title": "Configuración",
-      "tabsEnabled": "Pestañas habilitadas",
-      "otherSwitches": "Otros interruptores",
-      "otherParams": "Otros parámetros",
-      "save": "Guardar"
-    }
-  },
-  "alertSettings": {
-    "title": "Alert Settings",
-    "description": "Configura cuándo recibirás alertas. Las alertas aparecen en la página de alertas y en las notificaciones push.",
-    "threshold": "Threshold %:",
-    "save": "Save",
-    "push": {
-      "title": "Notificaciones push",
-      "notSupported": "Push no soportado",
-      "enable": "Activar alertas push",
-      "disable": "Desactivar alertas push",
-      "denied": "Permiso de push denegado.",
-      "error": "Error al manejar la suscripción push."
-    },
-    "status": {
-      "saved": "Saved",
-      "error": "Error"
-    }
+  "portfolio": "Portafolio",
+  "query": {
+    "end": "Fin",
+    "exportCsv": "Exportar CSV",
+    "exportXlsx": "Exportar XLSX",
+    "metrics": "Métricas",
+    "owners": "Propietarios",
+    "run": "Ejecutar",
+    "running": "Ejecutando…",
+    "save": "Guardar",
+    "start": "Inicio",
+    "tickers": "Tickers"
   },
   "reports": {
-    "title": "Informes",
     "csv": "Descargar CSV",
+    "noOwners": "No owners available—check backend connection",
     "pdf": "Descargar PDF",
-    "noOwners": "No owners available—check backend connection"
+    "title": "Informes"
   },
-  "loadingPortfolio": "Cargando portafolio…",
-  "portfolio": "Portafolio",
-  "asOf": "A fecha de {{date}} • Operaciones este mes: {{trades}} / 20 (Restantes: {{remaining}})",
-  "approxTotal": "Total aproximado: £{{value}}",
-  "allocation": {
-    "instrumentTypes": "Tipos de instrumentos",
-    "sector": "Industrias",
-    "region": "Regiones"
+  "screener": {
+    "loading": "Cargando…",
+    "max52WeekHigh": "Max 52W High",
+    "max52WeekLow": "Max 52W Low",
+    "maxBeta": "Max Beta",
+    "maxDe": "D/E máx",
+    "maxDividendPayoutRatio": "Max Dividend Payout Ratio",
+    "maxLtDe": "Max LT D/E",
+    "maxPe": "P/E máx",
+    "maxPeg": "PEG máx",
+    "min52WeekLow": "Min 52W Low",
+    "minAvgVolume": "Min Avg Volume",
+    "minCurrentRatio": "Min Current Ratio",
+    "minDividendYield": "Min Dividend Yield",
+    "minEbitdaMargin": "Margen EBITDA mín",
+    "minEps": "EPS mín",
+    "minFcf": "FCF mín",
+    "minFloatShares": "Min Float Shares",
+    "minGrossMargin": "Margen bruto mín",
+    "minInterestCoverage": "Min Interest Coverage",
+    "minMarketCap": "Min Market Cap",
+    "minNetMargin": "Margen neto mín",
+    "minOperatingMargin": "Margen operativo mín",
+    "minQuickRatio": "Min Quick Ratio",
+    "minRoa": "ROA mín",
+    "minRoe": "ROE mín",
+    "minRoi": "ROI mín",
+    "minSharesOutstanding": "Min Shares Outstanding",
+    "run": "Ejecutar",
+    "tickers": "Tickers",
+    "watchlist": "Lista de seguimiento:"
   },
-  "watchlist": {
-    "refresh": "Actualizar"
-  },
-  "trading": {
-    "noPositions": "Sin posiciones.",
-    "noSignals": "Sin señales."
-  },
-  "movers": {
-    "watchlist": "Lista de seguimiento:",
-    "period": "Período:",
-    "excludeSmall": "Excluir posiciones <{{min}}%",
-    "loginPrompt": "Inicia sesión para ver los movers basados en el portafolio.",
-    "loadFailed": "Error al cargar los movers{{status}}",
-    "signal": "Señal",
-    "pctPortfolio": "% del portafolio"
+  "support": {
+    "config": {
+      "otherParams": "Otros parámetros",
+      "otherSwitches": "Otros interruptores",
+      "save": "Guardar",
+      "tabsEnabled": "Pestañas habilitadas",
+      "title": "Configuración"
+    },
+    "environment": "Entorno",
+    "health": {
+      "copyReport": "Copiar informe",
+      "error": "No se pudo ejecutar la verificación de salud",
+      "run": "Ejecutar verificación de salud del portafolio",
+      "title": "Salud del portafolio"
+    },
+    "notifications": {
+      "denied": "Permiso de push denegado.",
+      "disable": "Desactivar alertas push",
+      "enable": "Activar alertas push",
+      "error": "Error al manejar la suscripción push.",
+      "notSupported": "Push no compatible",
+      "title": "Notificaciones"
+    },
+    "online": "En línea",
+    "onlineNo": "No",
+    "onlineYes": "Sí",
+    "priceRefresh": "Actualización de precios",
+    "send": "Enviar",
+    "status": {
+      "error": "Error",
+      "saved": "Guardado",
+      "saving": "Guardando...",
+      "sending": "Enviando...",
+      "sent": "Enviado"
+    },
+    "telegramMessage": "Mensaje de Telegram",
+    "title": "Soporte"
   },
   "timeseries": {
     "loading": "Cargando…"
   },
   "timeseriesEdit": {
-    "title": "Editor de series temporales",
-    "ticker": "Ticker",
-    "exchange": "Bolsa",
-    "load": "Cargar",
     "addRow": "Añadir fila",
-    "save": "Guardar",
-    "delete": "Eliminar",
     "columns": {
+      "close": "Cierre",
       "date": "Fecha",
-      "open": "Apertura",
       "high": "Máximo",
       "low": "Mínimo",
-      "close": "Cierre",
-      "volume": "Volumen",
+      "open": "Apertura",
+      "source": "Fuente",
       "ticker": "Ticker",
-      "source": "Fuente"
+      "volume": "Volumen"
     },
+    "delete": "Eliminar",
+    "error": {
+      "noData": "No hay datos para guardar",
+      "unexpectedColumns": "Columna(s) inesperada(s): {{columns}}"
+    },
+    "exchange": "Bolsa",
+    "load": "Cargar",
+    "save": "Guardar",
     "status": {
       "loaded": "Cargadas {{count}} filas",
       "saved": "Guardadas {{count}} filas"
     },
-    "error": {
-      "noData": "No hay datos para guardar",
-      "unexpectedColumns": "Columna(s) inesperada(s): {{columns}}"
-    }
-  },
-  "query": {
-    "start": "Inicio",
-    "end": "Fin",
-    "owners": "Propietarios",
-    "tickers": "Tickers",
-    "metrics": "Métricas",
-    "run": "Ejecutar",
-    "running": "Ejecutando…",
-    "save": "Guardar",
-    "exportCsv": "Exportar CSV",
-    "exportXlsx": "Exportar XLSX"
-  },
-  "screener": {
-    "watchlist": "Lista de seguimiento:",
-    "tickers": "Tickers",
-    "maxPeg": "PEG máx",
-    "maxPe": "P/E máx",
-    "maxDe": "D/E máx",
-    "maxLtDe": "Max LT D/E",
-    "minInterestCoverage": "Min Interest Coverage",
-    "minCurrentRatio": "Min Current Ratio",
-    "minQuickRatio": "Min Quick Ratio",
-    "minFcf": "FCF mín",
-    "minEps": "EPS mín",
-    "minGrossMargin": "Margen bruto mín",
-    "minOperatingMargin": "Margen operativo mín",
-    "minNetMargin": "Margen neto mín",
-    "minEbitdaMargin": "Margen EBITDA mín",
-    "minRoa": "ROA mín",
-    "minRoe": "ROE mín",
-    "minRoi": "ROI mín",
-    "minDividendYield": "Min Dividend Yield",
-    "maxDividendPayoutRatio": "Max Dividend Payout Ratio",
-    "maxBeta": "Max Beta",
-    "minSharesOutstanding": "Min Shares Outstanding",
-    "minFloatShares": "Min Float Shares",
-    "minMarketCap": "Min Market Cap",
-    "max52WeekHigh": "Max 52W High",
-    "max52WeekLow": "Max 52W Low",
-    "min52WeekLow": "Min 52W Low",
-    "minAvgVolume": "Min Avg Volume",
-    "run": "Ejecutar",
-    "loading": "Cargando…"
-  },
-  "instrumentadmin": {
     "ticker": "Ticker",
-    "exchange": "Exchange",
-    "name": "Name",
-    "region": "Region",
-    "sector": "Sector",
-    "grouping": "Agrupación",
-    "actions": "Actions",
-    "add": "Add Instrument",
-    "save": "Save",
-    "saveSuccess": "Saved",
-    "saveError": "Error saving",
-    "searchPlaceholder": "Filter instruments…",
-    "validation": {
-      "ticker": "Ticker is required",
-      "name": "Name is required",
-      "grouping": "Grouping is required"
-    }
+    "title": "Editor de series temporales"
+  },
+  "trading": {
+    "noPositions": "Sin posiciones.",
+    "noSignals": "Sin señales."
+  },
+  "trail": {
+    "allDone": "Todas las tareas de Trail están completas — ¡excelente!",
+    "daily": "Diario",
+    "dailyComplete": "¡Tareas diarias completas! Mantén la racha.",
+    "once": "Única vez",
+    "progressLabel": "Progreso diario: {{completed}} / {{total}} ({{percent}}%)",
+    "streakLabel": "Racha: {{count}} día",
+    "streakLabel_plural": "Racha: {{count}} días",
+    "title": "Progreso del Trail",
+    "xpLabel": "XP: {{xp}}"
   },
   "var": {
-    "title": "Valor en Riesgo",
     "details": "Detalles de la simulación histórica",
-    "noData": "No hay datos de VaR disponibles."
+    "noData": "No hay datos de VaR disponibles.",
+    "title": "Valor en Riesgo"
   },
-  "market": {
-    "indexLevels": "Niveles de índices",
-    "sectorPerformance": "Rendimiento por sector",
-    "latestHeadlines": "Últimos titulares"
-  },
-  "goals": {
-    "title": "Objetivos",
-    "targetAmount": "Monto objetivo",
-    "add": "Agregar objetivo",
-    "currentAmount": "Monto actual:",
-    "goalLine": "{{name}} – objetivo {{amount}} para {{date}}",
-    "view": "Ver",
-    "progress": "Progreso: {{progress}}%",
-    "suggestedTrades": "Operaciones sugeridas",
-    "trade": "{{action}} {{amount}} de {{ticker}}",
-    "back": "Volver al portafolio"
+  "watchlist": {
+    "refresh": "Actualizar"
   }
 }

@@ -227,19 +227,39 @@ async def get_active_user(
             result = await result
         return result
 
-    override = request.app.dependency_overrides.get(get_current_user)
-    if not override:
-        providers = [
-            getattr(request.app, "dependency_overrides_provider", None),
-            getattr(getattr(request.app, "router", None), "dependency_overrides_provider", None),
-        ]
-        for provider in providers:
-            if not provider:
+    def _resolve_override() -> Callable[[], Any] | None:
+        queue: list[Any] = [request.app.dependency_overrides, request.app, getattr(request.app, "router", None)]
+        seen: Set[int] = set()
+
+        while queue:
+            candidate = queue.pop(0)
+            if candidate is None:
                 continue
-            overrides = getattr(provider, "dependency_overrides", {})
-            override = overrides.get(get_current_user)
-            if override:
-                break
+            if isinstance(candidate, dict):
+                override_candidate = candidate.get(get_current_user)
+                if override_candidate:
+                    return override_candidate
+                continue
+
+            ident = id(candidate)
+            if ident in seen:
+                continue
+            seen.add(ident)
+
+            overrides = getattr(candidate, "dependency_overrides", None)
+            if overrides:
+                override_candidate = overrides.get(get_current_user)
+                if override_candidate:
+                    return override_candidate
+                queue.append(overrides)
+
+            provider = getattr(candidate, "dependency_overrides_provider", None)
+            if provider is not None:
+                queue.append(provider)
+
+        return None
+
+    override = _resolve_override()
     if override:
         return await _invoke_override(override)
 

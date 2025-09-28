@@ -49,6 +49,41 @@ describe("VirtualPortfolio page", () => {
     expect(accountCheckbox.checked).toBe(true);
   });
 
+  it("keeps showing the initial loading state until portfolios resolve", async () => {
+    mockGetVirtualPortfolios.mockImplementationOnce(
+      () =>
+        new Promise<VirtualPortfolioType[]>((resolve) => {
+          setTimeout(
+            () =>
+              resolve([
+                {
+                  id: 3,
+                  name: "Delayed VP",
+                  accounts: [],
+                  holdings: [],
+                } as VirtualPortfolioType,
+              ]),
+            50,
+          );
+        }),
+    );
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "alice", full_name: "Alice", accounts: [] } as OwnerSummary,
+    ]);
+
+    render(<VirtualPortfolio />);
+
+    expect(screen.getByText(/Loading\.\.\./i)).toBeInTheDocument();
+
+    expect(
+      await screen.findByRole("option", { name: "Delayed VP" }),
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading\.\.\./i)).not.toBeInTheDocument();
+    });
+  });
+
   it("shows error when loading portfolios fails", async () => {
     mockGetVirtualPortfolios.mockRejectedValue(new Error("fail"));
     mockGetOwners.mockResolvedValue([]);

@@ -11,7 +11,6 @@ Owners / groups / portfolio endpoints (shared).
 from __future__ import annotations
 
 import logging
-from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -32,6 +31,7 @@ from backend.common import (
 from backend.common import portfolio as portfolio_mod
 from backend.config import config
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
+from backend.utils.pricing_dates import PricingDateCalculator
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -391,9 +391,10 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, e
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    calc = PricingDateCalculator()
     return {
         "owner": owner,
-        "as_of": date.today().isoformat(),
+        "as_of": calc.reporting_date.isoformat(),
         "var": var,
         "sharpe_ratio": sharpe,
     }
@@ -412,9 +413,10 @@ async def portfolio_var_breakdown(owner: str, days: int = 365, confidence: float
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    calc = PricingDateCalculator()
     return {
         "owner": owner,
-        "as_of": date.today().isoformat(),
+        "as_of": calc.reporting_date.isoformat(),
         "var": var,
         "breakdown": breakdown,
     }

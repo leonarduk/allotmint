@@ -22,7 +22,12 @@ from backend.common.instruments import get_instrument_meta
 from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries_range
-from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
+from backend.utils.pricing_dates import PricingDateCalculator
+from backend.utils.timeseries_helpers import (
+    _nearest_weekday,
+    apply_scaling,
+    get_scaling_override,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +46,6 @@ def _parse_date(val) -> Optional[dt.date]:
         return None
 
 
-def _nearest_weekday(d: dt.date, forward: bool) -> dt.date:
-    while d.weekday() >= 5:
-        d += dt.timedelta(days=1 if forward else -1)
-    return d
-
-
 def _lower_name_map(df: pd.DataFrame) -> Dict[str, str]:
     return {c.lower(): c for c in df.columns}
 
@@ -63,8 +62,8 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     if not full_tickers:
         return result
 
-    end_date = date.today() - timedelta(days=1)
-    start_date = end_date - timedelta(days=365)
+    calc = PricingDateCalculator()
+    start_date, end_date = calc.lookback_range(365)
 
     from backend.common import instrument_api
 
@@ -433,9 +432,12 @@ def enrich_holding(
     if out.get(ACQUIRED_DATE) is None:
         out[ACQUIRED_DATE] = (today - dt.timedelta(days=365)).isoformat()
 
+    calc = PricingDateCalculator(today)
     acq = _parse_date(out.get(ACQUIRED_DATE))
+    pricing_date = calc.reporting_date
+
     if acq:
-        days = (today - acq).days
+        days = (pricing_date - acq).days
         out["days_held"] = days
         hold_days = ucfg.hold_days_min or 0
         eligible = days >= hold_days
@@ -489,14 +491,14 @@ def enrich_holding(
             last_price_time = snap.get("last_price_time")
             is_stale = bool(snap.get("is_stale", False))
             px_source = "snapshot"
-            prev_date = _nearest_weekday(today - dt.timedelta(days=1), forward=False)
+            prev_date = calc.previous_pricing_date
         else:
             # fallback to previous close
-            asof_date = today - dt.timedelta(days=1)
+            asof_date = calc.reporting_date
             px, px_source = _get_price_for_date_scaled(
                 ticker, exchange, asof_date, field="Close_gbp"
             )
-            prev_date = _nearest_weekday(asof_date - dt.timedelta(days=1), forward=False)
+            prev_date = calc.previous_pricing_date
 
         prev_px, _ = _get_price_for_date_scaled(
             ticker, exchange, prev_date, field="Close_gbp"

@@ -20,6 +20,7 @@ from backend.common.constants import (
 )
 from backend.common.holding_utils import enrich_holding
 from backend.common.user_config import load_user_config
+from backend.utils.pricing_dates import PricingDateCalculator
 
 logger = logging.getLogger("group_portfolio")
 
@@ -84,7 +85,9 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
     approvals_map = {pf[OWNER]: load_approvals(pf[OWNER]) for pf in portfolios_to_merge}
     user_cfg_map = {pf[OWNER]: load_user_config(pf[OWNER]) for pf in portfolios_to_merge}
 
-    today = dt.date.today()
+    calc = PricingDateCalculator()
+    today = calc.today
+    pricing_date = calc.reporting_date
     price_cache: dict[str, float] = {}
 
     merged_accounts: List[Dict[str, Any]] = []
@@ -125,7 +128,7 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
         "slug": slug,
         "name": grp["name"],
         "members": grp.get("members", []),
-        "as_of": today.isoformat(),
+        "as_of": pricing_date.isoformat(),
         "total_value_estimate_gbp": total_value,
         ACCOUNTS: merged_accounts,
     }

@@ -116,6 +116,18 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
+    "method": "POST",
+    "path": "/analytics/events",
+    "body": {
+      "source": "trail",
+      "event": "view"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/analytics/funnels/{source}"
+  },
+  {
     "method": "GET",
     "path": "/api/quotes"
   },
@@ -123,7 +135,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/compliance/validate",
     "body": {
-      "owner": "demo-owner"
+      "owner": "demo"
     }
   },
   {
@@ -185,6 +197,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
+    "method": "DELETE",
+    "path": "/goals/{name}"
+  },
+  {
     "method": "GET",
     "path": "/goals/{name}",
     "query": {
@@ -201,10 +217,6 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
-    "method": "DELETE",
-    "path": "/goals/{name}"
-  },
-  {
     "method": "GET",
     "path": "/groups"
   },
@@ -217,7 +229,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/holdings/import",
     "body": {
       "__form__": {
-        "owner": "demo-owner",
+        "owner": "demo",
         "account": "isa",
         "provider": "test",
         "file": "__file__"
@@ -286,6 +298,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
+    "method": "POST",
+    "path": "/instrument/admin/{exchange}/{ticker}/refresh"
+  },
+  {
     "method": "GET",
     "path": "/instrument/intraday",
     "query": {
@@ -294,10 +310,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
-    "path": "/instrument/search",
-    "query": {
-      "q": "demo"
-    }
+    "path": "/instrument/search"
   },
   {
     "method": "GET",
@@ -346,13 +359,17 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
+    "path": "/opportunities"
+  },
+  {
+    "method": "GET",
     "path": "/owners"
   },
   {
     "method": "GET",
     "path": "/pension/forecast",
     "query": {
-      "owner": "demo-owner",
+      "owner": "demo",
       "death_age": demoPensionDeathAge
     }
   },
@@ -447,7 +464,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/returns/compare",
     "query": {
-      "owner": "demo-owner"
+      "owner": "demo"
     }
   },
   {
@@ -462,8 +479,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/scenario/historical",
     "query": {
-      "event_id": "covid-2020",
-      "horizons": "1"
+      "horizons": "['test']"
     }
   },
   {
@@ -525,8 +541,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/timeseries/edit",
     "query": {
       "ticker": "PFE"
-    },
-    "body": []
+    }
   },
   {
     "method": "GET",
@@ -545,9 +560,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "POST",
     "path": "/token",
-    "body": {
-      "id_token": "good"
-    }
+    "body": {}
   },
   {
     "method": "POST",
@@ -578,16 +591,15 @@ export const smokeEndpoints: SmokeEndpoint[] = [
       "account": "test",
       "ticker": "test",
       "date": "1970-01-01",
-      "price_gbp": 1,
-      "units": 1,
-      "reason": "smoke"
+      "price_gbp": 0,
+      "units": 0
     }
   },
   {
     "method": "GET",
     "path": "/transactions/compliance",
     "query": {
-      "owner": "demo-owner"
+      "owner": "demo"
     }
   },
   {
@@ -598,6 +610,22 @@ export const smokeEndpoints: SmokeEndpoint[] = [
         "provider": "test",
         "file": "__file__"
       }
+    }
+  },
+  {
+    "method": "DELETE",
+    "path": "/transactions/{tx_id}"
+  },
+  {
+    "method": "PUT",
+    "path": "/transactions/{tx_id}",
+    "body": {
+      "owner": "test",
+      "account": "test",
+      "ticker": "test",
+      "date": "1970-01-01",
+      "price_gbp": 0,
+      "units": 0
     }
   },
   {
@@ -638,11 +666,11 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
-    "method": "GET",
+    "method": "DELETE",
     "path": "/virtual-portfolios/{vp_id}"
   },
   {
-    "method": "DELETE",
+    "method": "GET",
     "path": "/virtual-portfolios/{vp_id}"
   }
 ] as const;
@@ -651,16 +679,16 @@ export const smokeEndpoints: SmokeEndpoint[] = [
 // Values are chosen based on common parameter names. Unknown names default to
 // `1` which parses as an integer or string.
 const SAMPLE_PATH_VALUES: Record<string, string> = {
-  owner: 'demo-owner',
+  owner: 'demo',
   account: 'isa',
-  user: 'demo-owner',
+  user: 'demo',
   email: 'user@example.com',
+  source: 'trail',
   id: '1',
-  vp_id: 'test',
+  vp_id: '1',
   quest_id: 'check-in',
-  task_id: 'log_in',
   slug: 'demo-slug',
-  name: 'test',
+  name: 'demo',
   exchange: 'NASDAQ',
   ticker: 'PFE',
 };

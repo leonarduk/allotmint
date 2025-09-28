@@ -92,7 +92,7 @@ const ROUTES: RouteConfig[] = [
       });
     },
     extraAssertions: async (page) => {
-      const loader = page.getByText('Loading...');
+      const loader = page.getByTestId('virtual-portfolio-loader');
       await expect(loader).toBeVisible();
       await expect(
         page.getByRole('heading', { name: 'Virtual Portfolios' }),

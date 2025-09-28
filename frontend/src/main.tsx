@@ -99,6 +99,10 @@ export function Root() {
         setConfigError(null)
       }
 
+      let shouldRetry = false
+      let retryDelay = 0
+      let nextAttempt = attempt
+
       getConfig<Record<string, unknown>>({ signal: controller.signal })
         .then(cfg => {
           if (!isMounted.current || activeRequest.current !== controller) return
@@ -117,16 +121,21 @@ export function Root() {
               : new Error(String(err))
           setConfigError(error)
 
-          const nextAttempt = attempt + 1
-          const retryDelay = Math.min(30000, 2000 * 2 ** attempt)
-          retryTimer.current = window.setTimeout(() => {
-            fetchConfig(nextAttempt)
-          }, retryDelay)
+          shouldRetry = true
+          nextAttempt = attempt + 1
+          retryDelay = Math.min(30000, 2000 * 2 ** attempt)
         })
         .finally(() => {
           window.clearTimeout(timeoutId)
-          if (isMounted.current && activeRequest.current === controller) {
+          const isCurrent = isMounted.current && activeRequest.current === controller
+          if (isCurrent) {
+            activeRequest.current = null
             setConfigLoading(false)
+          }
+          if (shouldRetry && isMounted.current) {
+            retryTimer.current = window.setTimeout(() => {
+              fetchConfig(nextAttempt)
+            }, retryDelay)
           }
         })
     },

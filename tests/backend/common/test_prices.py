@@ -70,9 +70,9 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
     mapping = {"ABC.L": ("ABC", "L"), "DEF.N": ("DEF", "N"), "GHI.L": ("GHI", "L")}
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: mapping.get(full))
 
-    yday = date.today() - timedelta(days=1)
-    seven_day = yday - timedelta(days=7)
-    thirty_day = yday - timedelta(days=30)
+    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
+    seven_day = last_trading_day - timedelta(days=7)
+    thirty_day = last_trading_day - timedelta(days=30)
 
     close_lookup: Dict[Tuple[str, str, date], float | None] = {
         ("ABC", "L", seven_day): 95.0,
@@ -97,7 +97,7 @@ def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.M
     assert info_abc["last_price"] == pytest.approx(101.0)
     assert info_abc["is_stale"] is False
     assert info_abc["last_price_time"] == now.isoformat().replace("+00:00", "Z")
-    assert info_abc["last_price_date"] == yday.isoformat()
+    assert info_abc["last_price_date"] == last_trading_day.isoformat()
     assert info_abc["change_7d_pct"] == pytest.approx((101.0 / 95.0 - 1.0) * 100.0)
     assert info_abc["change_30d_pct"] == pytest.approx((101.0 / 90.0 - 1.0) * 100.0)
 

@@ -71,6 +71,7 @@ export function VirtualPortfolio() {
     const loadId = activeLoadRef.current + 1;
     activeLoadRef.current = loadId;
 
+    setHasLoadedInitialData(false);
     setLoading(true);
     setMessage(null);
     setError(null);
@@ -218,7 +219,7 @@ export function VirtualPortfolio() {
     }
   }
 
-  const isInitialLoading = !hasLoadedInitialData;
+  const isInitialLoading = !hasLoadedInitialData && loading;
 
   return (
     <div className="container mx-auto p-4">

@@ -91,13 +91,15 @@ const ROUTES: RouteConfig[] = [
       });
     },
     extraAssertions: async (page) => {
-      await expect(page.getByText('Loading...')).toBeVisible();
+      const loader = page.getByText('Loading...');
+      await expect(loader).toBeVisible();
       await expect(
         page.getByRole('heading', { name: 'Virtual Portfolios' }),
       ).toBeVisible();
       await expect(
         page.getByRole('option', { name: 'Slow path demo' }),
       ).toBeVisible();
+      await expect(loader).not.toBeVisible();
     },
   },
   { path: '/support', assertion: { kind: 'heading', name: 'Support' } },

@@ -242,7 +242,9 @@ test.describe('config bootstrap', () => {
 
     await page.route('**/config', handler);
 
-    const firstFailure = page.waitForRequestFailed('**/config');
+    const firstFailure = page.waitForEvent('requestfailed', (request) =>
+      request.url().endsWith('/config'),
+    );
     const secondResponse = page.waitForResponse((response) =>
       response.url().endsWith('/config') && response.ok(),
     );

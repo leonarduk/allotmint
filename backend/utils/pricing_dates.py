@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from functools import cached_property
-from typing import Tuple
+from typing import Callable, Tuple
 
 from backend.utils.timeseries_helpers import _nearest_weekday
 
@@ -18,8 +18,19 @@ class PricingDateCalculator:
     pricing utilities.
     """
 
-    def __init__(self, today: dt.date | None = None) -> None:
+    def __init__(
+        self,
+        today: dt.date | None = None,
+        *,
+        weekday_func: Callable[[dt.date, bool], dt.date] | None = None,
+    ) -> None:
         self._today = today or dt.date.today()
+        self._weekday_func = weekday_func or _nearest_weekday
+
+    def resolve_weekday(self, candidate: dt.date, *, forward: bool) -> dt.date:
+        """Normalise ``candidate`` to the nearest weekday using the resolver."""
+
+        return self._weekday_func(candidate, forward)
 
     @property
     def today(self) -> dt.date:
@@ -31,13 +42,13 @@ class PricingDateCalculator:
     def reporting_date(self) -> dt.date:
         """Return the primary reporting date (previous trading day)."""
 
-        return _nearest_weekday(self._today - dt.timedelta(days=1), forward=False)
+        return self.resolve_weekday(self._today - dt.timedelta(days=1), forward=False)
 
     @cached_property
     def previous_pricing_date(self) -> dt.date:
         """Return the trading day preceding :attr:`reporting_date`."""
 
-        return _nearest_weekday(self.reporting_date - dt.timedelta(days=1), forward=False)
+        return self.resolve_weekday(self.reporting_date - dt.timedelta(days=1), forward=False)
 
     def lookback_anchor(
         self,
@@ -54,7 +65,7 @@ class PricingDateCalculator:
         """
 
         base = (from_date or self.reporting_date) - dt.timedelta(days=days)
-        return _nearest_weekday(base, forward=forward)
+        return self.resolve_weekday(base, forward=forward)
 
     def lookback_range(
         self,
@@ -66,9 +77,9 @@ class PricingDateCalculator:
         """Return a ``(start, end)`` tuple spanning ``days`` backwards."""
 
         end_candidate = end or self.reporting_date
-        resolved_end = _nearest_weekday(end_candidate, forward=forward_end)
+        resolved_end = self.resolve_weekday(end_candidate, forward=forward_end)
         start_candidate = resolved_end - dt.timedelta(days=days)
-        start = _nearest_weekday(start_candidate, forward=False)
+        start = self.resolve_weekday(start_candidate, forward=False)
         return start, resolved_end
 
 

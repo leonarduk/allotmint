@@ -8,9 +8,26 @@ from backend.common import prices
 
 def test_get_price_snapshot(monkeypatch):
     ticker = "ABC.L"
-    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
-    d7 = prices._nearest_weekday(last_trading_day - timedelta(days=7), forward=False)
-    d30 = prices._nearest_weekday(last_trading_day - timedelta(days=30), forward=False)
+    frozen_today = date(2024, 4, 8)
+
+    class FakeDate(date):
+        @classmethod
+        def today(cls) -> date:
+            return frozen_today
+
+    monkeypatch.setattr(prices, "date", FakeDate)
+
+    weekday_calls: list[tuple[date, bool]] = []
+
+    def fake_weekday(day: date, forward: bool) -> date:
+        weekday_calls.append((day, forward))
+        return day
+
+    monkeypatch.setattr(prices, "_nearest_weekday", fake_weekday)
+
+    last_trading_day = frozen_today - timedelta(days=1)
+    d7 = last_trading_day - timedelta(days=7)
+    d30 = last_trading_day - timedelta(days=30)
 
     # Patch load_latest_prices to return a last price of 100
     monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 100.0})
@@ -32,3 +49,6 @@ def test_get_price_snapshot(monkeypatch):
     assert info["last_price_date"] == last_trading_day.isoformat()
     assert info["change_7d_pct"] == pytest.approx((100 / 90.0 - 1) * 100)
     assert info["change_30d_pct"] == pytest.approx((100 / 80.0 - 1) * 100)
+    assert weekday_calls[0] == (frozen_today - timedelta(days=1), False)
+    assert (last_trading_day - timedelta(days=7), False) in weekday_calls
+    assert (last_trading_day - timedelta(days=30), False) in weekday_calls

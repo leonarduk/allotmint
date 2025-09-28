@@ -1,5 +1,7 @@
+import importlib
 import io
 import json
+import pathlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -197,6 +199,90 @@ def test_list_group_definitions_returns_empty_when_missing(monkeypatch, tmp_path
         assert instruments.list_group_definitions() == {}
     finally:
         instruments.list_group_definitions.cache_clear()
+
+
+@pytest.mark.parametrize(
+    (
+        "configured_exists",
+        "patch_module_path",
+        "fallback_exists",
+        "expected_source",
+        "warning_fragment",
+    ),
+    [
+        (True, False, False, "configured", None),
+        (False, True, True, "fallback", "falling back to"),
+        (False, True, False, "configured", "not found"),
+    ],
+    ids=[
+        "configured-directory",
+        "packaged-fallback",
+        "missing-everywhere",
+    ],
+)
+def test_instruments_dir_resolution(
+    monkeypatch,
+    tmp_path,
+    caplog,
+    configured_exists: bool,
+    patch_module_path: bool,
+    fallback_exists: bool,
+    expected_source: str,
+    warning_fragment: str | None,
+) -> None:
+    original_data_root = instruments.config.data_root
+    module_path = Path(instruments.__file__).resolve()
+
+    configured_root = tmp_path / "configured"
+    configured_root.mkdir()
+    configured_dir = configured_root / "instruments"
+    if configured_exists:
+        configured_dir.mkdir()
+
+    fake_root = tmp_path / "package_root"
+    fake_module_path = fake_root / "pkg" / "backend" / "common" / "instruments.py"
+    fake_module_path.parent.mkdir(parents=True)
+    fake_module_path.write_text("# dummy module placeholder\n")
+    fallback_dir = fake_root / "pkg" / "data" / "instruments"
+    if fallback_exists:
+        fallback_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(instruments.config, "data_root", configured_root)
+    path_cls = type(Path())
+    original_resolve = path_cls.resolve
+
+    def reload_module() -> object:
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            if patch_module_path:
+                def fake_resolve(self, *args, **kwargs):  # type: ignore[override]
+                    resolved = original_resolve(self, *args, **kwargs)
+                    if resolved == module_path:
+                        return pathlib.Path(fake_module_path)
+                    return resolved
+
+                with monkeypatch.context() as ctx:
+                    ctx.setattr(path_cls, "resolve", fake_resolve)
+                    return importlib.reload(instruments)
+            return importlib.reload(instruments)
+
+    module = reload_module()
+
+    try:
+        expected_dir = fallback_dir if expected_source == "fallback" else configured_dir
+        assert module._INSTRUMENTS_DIR == expected_dir
+
+        if warning_fragment is None:
+            assert not caplog.records
+        else:
+            messages = [record.getMessage() for record in caplog.records]
+            assert any(warning_fragment in message for message in messages)
+    finally:
+        if module is not None:
+            module.get_instrument_meta.cache_clear()
+        monkeypatch.setattr(instruments.config, "data_root", original_data_root)
+        restored = importlib.reload(instruments)
+        restored.get_instrument_meta.cache_clear()
 
 
 def test_save_instrument_meta_variants(monkeypatch, tmp_path) -> None:

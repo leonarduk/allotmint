@@ -396,6 +396,14 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
     return pct
 
 
+def _resolve_last_price_date(calc: PricingDateCalculator) -> dt.date:
+    """Return the appropriate last price date for the calculator context."""
+
+    if calc.today.weekday() == 0:  # Monday
+        return calc.today - dt.timedelta(days=1)
+    return calc.reporting_date
+
+
 def top_movers(
     tickers: List[str],
     days: int,
@@ -417,7 +425,7 @@ def top_movers(
     """
 
     calc = PricingDateCalculator(today=dt.date.today(), weekday_func=_nearest_weekday)
-    last_price_date = calc.reporting_date
+    last_price_date = _resolve_last_price_date(calc)
     rows: List[Dict[str, Any]] = []
     anomalies: List[str] = []
 
@@ -463,7 +471,7 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
     Return last price and common percentage changes for ``ticker``.
     """
     calc = PricingDateCalculator(today=dt.date.today(), weekday_func=_nearest_weekday)
-    last_price_date = calc.reporting_date
+    last_price_date = _resolve_last_price_date(calc)
 
     resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
     if not resolved:

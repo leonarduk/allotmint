@@ -106,7 +106,6 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
         "notes",
         "settings",
         "approvals",
-        "approval_requests",
     }
 
     try:
@@ -129,25 +128,6 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
         seen.add(lowered)
 
     return stems
-
-
-def _has_transactions_artifact(owner_dir: Optional[Path], owner: str) -> bool:
-    """Return ``True`` when a transactions file or directory exists for ``owner``."""
-
-    if not owner_dir or not owner:
-        return False
-
-    target = f"{owner}{_TRANSACTIONS_SUFFIX}".casefold()
-
-    try:
-        for entry in owner_dir.iterdir():
-            name = entry.stem if entry.is_file() else entry.name
-            if name.casefold() == target:
-                return True
-    except OSError:
-        return False
-
-    return False
 
 
 def _resolve_full_name(
@@ -205,12 +185,6 @@ def _normalise_owner_entry(
             if not stripped:
                 continue
             _append(stripped)
-
-    for extra in _CONVENTIONAL_ACCOUNT_EXTRAS:
-        _append(extra)
-
-    if _has_transactions_artifact(owner_dir, owner):
-        _append(f"{owner}{_TRANSACTIONS_SUFFIX}")
 
     resolved_meta = meta
     if resolved_meta is None:

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
 const authToken = process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? null;
@@ -28,6 +28,8 @@ type TestIdAssertion = { kind: 'testId'; value: string };
 type RouteConfig = {
   path: string;
   assertion: ModeAssertion | HeadingAssertion | TextAssertion | TestIdAssertion;
+  setup?: (page: Page, target: URL) => Promise<void> | void;
+  extraAssertions?: (page: Page, target: URL) => Promise<void> | void;
 };
 
 const ROUTES: RouteConfig[] = [
@@ -59,7 +61,45 @@ const ROUTES: RouteConfig[] = [
   { path: '/scenario', assertion: { kind: 'mode', mode: 'scenario' } },
   { path: '/pension/forecast', assertion: { kind: 'mode', mode: 'pension' } },
   { path: '/research/AAA', assertion: { kind: 'mode', mode: 'research' } },
-  { path: '/virtual', assertion: { kind: 'heading', name: 'Virtual Portfolios' } },
+  {
+    path: '/virtual',
+    assertion: { kind: 'heading', name: 'Virtual Portfolios' },
+    setup: async (page) => {
+      let handled = false;
+      await page.route('**/virtual-portfolios', async (route) => {
+        if (!handled) {
+          handled = true;
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            { id: 101, name: 'Slow path demo', accounts: [], holdings: [] },
+          ]),
+        });
+      });
+      await page.route('**/owners', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['Account A'] },
+          ]),
+        });
+      });
+    },
+    extraAssertions: async (page) => {
+      await expect(page.getByText('Loading...')).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Virtual Portfolios' }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('option', { name: 'Slow path demo' }),
+      ).toBeVisible();
+    },
+  },
   { path: '/support', assertion: { kind: 'heading', name: 'Support' } },
   { path: '/alerts', assertion: { kind: 'testId', value: 'alerts-page-marker' } },
   { path: '/alert-settings', assertion: { kind: 'heading', name: 'Alert Settings' } },
@@ -148,6 +188,10 @@ test.describe('public route smoke coverage', () => {
 
       await applyAuth(page);
 
+      if (route.setup) {
+        await route.setup(page, target);
+      }
+
       await page.goto(target.href);
       await expect(page).toHaveURL(target.href);
 
@@ -170,7 +214,40 @@ test.describe('public route smoke coverage', () => {
         ).toBeVisible();
       }
 
+      if (route.extraAssertions) {
+        await route.extraAssertions(page, target);
+      }
+
       expect(pageErrors).toHaveLength(0);
     });
   }
+});
+
+test.describe('config bootstrap', () => {
+  test('renders the route marker after retrying config load', async ({ page }) => {
+    await applyAuth(page);
+
+    const rootUrl = new URL('/', baseUrl).toString();
+    let attempt = 0;
+
+    const handler = async (route: Route) => {
+      attempt += 1;
+      if (attempt === 1) {
+        await route.abort('failed');
+        return;
+      }
+      await page.unroute('**/config', handler);
+      await route.continue();
+    };
+
+    await page.route('**/config', handler);
+
+    await page.goto(rootUrl);
+
+    await expect.poll(() => attempt).toBeGreaterThan(1);
+
+    const marker = page.getByTestId('active-route-marker');
+    await expect(marker).toHaveAttribute('data-mode', 'group');
+    await expect(marker).toHaveAttribute('data-pathname', '/');
+  });
 });

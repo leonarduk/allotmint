@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.config import config
 from backend.routes.opportunities import router
 
 
@@ -63,8 +64,15 @@ def test_opportunities_with_watchlist(monkeypatch):
 def test_opportunities_requires_auth_for_group(monkeypatch):
     app = _build_app()
 
-    with TestClient(app) as client:
-        resp = client.get("/opportunities", params={"group": "all"})
+    original_disable_auth = config.disable_auth
+    config.disable_auth = False
+
+    try:
+        with TestClient(app) as client:
+            resp = client.get("/opportunities", params={"group": "all"})
+    finally:
+        config.disable_auth = original_disable_auth
+
     assert resp.status_code == 401
 
 
@@ -103,6 +111,50 @@ def test_opportunities_with_group(monkeypatch):
             params={"group": "all", "days": 1, "limit": 5},
             headers=headers,
         )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["context"]["source"] == "group"
+    assert {entry["ticker"] for entry in data["entries"]} == {"AAA", "BBB"}
+
+
+def test_opportunities_allows_group_when_auth_disabled(monkeypatch):
+    app = _build_app()
+
+    original_disable_auth = config.disable_auth
+    config.disable_auth = True
+
+    monkeypatch.setattr(
+        "backend.common.instrument_api.instrument_summaries_for_group",
+        lambda slug: [
+            {"ticker": "AAA", "market_value_gbp": 1000.0, "name": "Alpha"},
+            {"ticker": "BBB", "market_value_gbp": 500.0, "name": "Beta"},
+        ],
+    )
+
+    monkeypatch.setattr(
+        "backend.common.instrument_api.top_movers",
+        lambda tickers, days, limit, min_weight=0.0, weights=None: {
+            "gainers": [
+                {"ticker": "AAA", "name": "Alpha", "change_pct": 2.0, "market_value_gbp": 1000.0}
+            ],
+            "losers": [
+                {"ticker": "BBB", "name": "Beta", "change_pct": -1.0, "market_value_gbp": 500.0}
+            ],
+            "anomalies": [],
+        },
+    )
+
+    monkeypatch.setattr("backend.agent.trading_agent.run", lambda notify=False: [])
+
+    try:
+        with TestClient(app) as client:
+            resp = client.get(
+                "/opportunities",
+                params={"group": "all", "days": 1, "limit": 5},
+            )
+    finally:
+        config.disable_auth = original_disable_auth
 
     assert resp.status_code == 200
     data = resp.json()

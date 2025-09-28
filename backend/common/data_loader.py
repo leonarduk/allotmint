@@ -74,7 +74,6 @@ _METADATA_STEMS = {
     "notes",
     "settings",
     "approvals",
-    "approval_requests",
 }  # ignore these as accounts
 _SKIP_OWNERS = {".idea", "demo"}
 
@@ -120,18 +119,15 @@ def _build_owner_summary(
     summary: Dict[str, Any] = {"owner": owner, "accounts": accounts}
 
     display_name: Optional[str] = None
-    if meta:
+    if isinstance(meta, dict):
         for key in ("full_name", "display_name", "preferred_name", "owner", "name"):
-            value = meta.get(key) if isinstance(meta, dict) else None
+            value = meta.get(key)
             if isinstance(value, str) and value.strip():
                 display_name = value.strip()
                 if key == "full_name":
                     break
-        if display_name:
-            summary["full_name"] = display_name
-
-    if "full_name" not in summary:
-        summary["full_name"] = owner
+    if display_name:
+        summary["full_name"] = display_name
 
     return summary
 

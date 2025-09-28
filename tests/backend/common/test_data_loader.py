@@ -7,7 +7,10 @@ import pytest
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     ResolvedPaths,
+    _build_owner_summary,
     _list_local_plots,
+    _load_demo_owner,
+    _merge_accounts,
     _safe_json_load,
     list_plots,
     load_person_meta,
@@ -70,6 +73,36 @@ class TestSafeJsonLoad:
         assert str(exc.value) == f"Empty JSON file: {path}"
 
 
+class TestBuildOwnerSummary:
+    def test_prefers_full_name_and_strips_whitespace(self) -> None:
+        accounts = ["ISA"]
+        meta = {
+            "full_name": "  Alex Example  ",
+            "display_name": "Alex Display",
+            "preferred_name": "Alex Preferred",
+        }
+
+        result = _build_owner_summary("alex", accounts, meta)
+
+        assert result == {
+            "owner": "alex",
+            "accounts": accounts,
+            "full_name": "Alex Example",
+        }
+
+    def test_defaults_to_owner_slug_when_names_missing(self) -> None:
+        accounts = ["SIPP"]
+        meta = {"full_name": " ", "display_name": "", "preferred_name": None}
+
+        result = _build_owner_summary("alex", accounts, meta)
+
+        assert result == {
+            "owner": "alex",
+            "accounts": accounts,
+            "full_name": "alex",
+        }
+
+
 class TestLoadPersonMeta:
     def test_malformed_person_json_returns_empty_meta(self, tmp_path: Path) -> None:
         owner_dir = tmp_path / "alice"
@@ -94,6 +127,17 @@ class TestLoadPersonMeta:
         meta = load_person_meta("alice", data_root=tmp_path)
 
         assert meta["full_name"] == "Alice Example"
+
+
+class TestMergeAccounts:
+    def test_merges_without_duplication_and_sets_missing_full_name(self) -> None:
+        base = {"owner": "alex", "accounts": ["ISA"]}
+        extra = {"accounts": ["isa", "SIPP"], "full_name": "Alex Smith"}
+
+        _merge_accounts(base, extra)
+
+        assert base["accounts"] == ["ISA", "SIPP"]
+        assert base["full_name"] == "Alex Smith"
 
 
 class TestResolvePaths:
@@ -192,8 +236,9 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user="viewer")
 
         assert result == [
-            {"owner": "alice", "full_name": "alice", "accounts": ["alpha"]},
+            {"owner": "alice", "accounts": ["alpha"]},
         ]
+        assert all("full_name" not in entry for entry in result)
 
     def test_accepts_contextvar_current_user(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
@@ -210,8 +255,9 @@ class TestListLocalPlots:
             user_var.reset(token)
 
         assert result == [
-            {"owner": "alice", "full_name": "alice", "accounts": ["alpha"]},
+            {"owner": "alice", "accounts": ["alpha"]},
         ]
+        assert all("full_name" not in entry for entry in result)
 
     def test_includes_full_name_from_metadata(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
@@ -256,10 +302,10 @@ class TestListLocalPlots:
         assert result == [
             {
                 "owner": "charlie",
-                "full_name": "charlie",
                 "accounts": ["brokerage", "isa"],
             },
         ]
+        assert all("full_name" not in entry for entry in result)
 
     def test_authentication_disabled_allows_anonymous_access(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
@@ -271,8 +317,9 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user=None)
 
         assert result == [
-            {"owner": "carol", "full_name": "carol", "accounts": ["gamma"]},
+            {"owner": "carol", "accounts": ["gamma"]},
         ]
+        assert all("full_name" not in entry for entry in result)
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
     def test_list_plots_with_explicit_root_skips_demo(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -288,8 +335,9 @@ class TestListLocalPlots:
         result = list_plots(data_root=explicit_root, current_user=None)
 
         assert result == [
-            {"owner": "carol", "full_name": "carol", "accounts": ["gamma"]},
+            {"owner": "carol", "accounts": ["gamma"]},
         ]
+        assert all("full_name" not in entry for entry in result)
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
     def test_allows_access_when_user_matches_owner_email(
@@ -310,5 +358,34 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user="alice@example.com")
 
         assert result == [
-            {"owner": "alice", "full_name": "alice", "accounts": ["alpha"]},
+            {"owner": "alice", "accounts": ["alpha"]},
         ]
+
+
+class TestLoadDemoOwner:
+    def test_returns_demo_summary_when_available(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        demo_root = tmp_path / "data"
+        demo_dir = demo_root / "demo"
+        demo_dir.mkdir(parents=True)
+        (demo_dir / "isa.json").write_text("{}")
+
+        expected_meta = {"full_name": "Demo User", "accounts": ["isa"]}
+        monkeypatch.setattr(
+            "backend.common.data_loader.load_person_meta",
+            lambda owner, root=None: expected_meta,
+        )
+
+        result = _load_demo_owner(demo_root)
+
+        assert result == {
+            "owner": "demo",
+            "accounts": ["isa"],
+            "full_name": "Demo User",
+        }
+
+    def test_returns_none_when_demo_directory_missing(self, tmp_path: Path) -> None:
+        result = _load_demo_owner(tmp_path)
+
+        assert result is None

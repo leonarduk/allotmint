@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { MemoryRouter, Link, useLocation } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n from "@/i18n";
-import type { InstrumentMetadata } from "@/types";
+import type { InstrumentMetadata, InstrumentSummary } from "@/types";
 
 const mockTradingSignals = vi.fn();
 
@@ -63,6 +63,7 @@ describe("App", () => {
         getGroupInstruments: mockGetGroupInstruments,
         getCachedGroupInstruments: undefined,
         listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
         getPortfolio: vi.fn(),
         refreshPrices: vi.fn(),
         getAlerts: vi.fn().mockResolvedValue([]),
@@ -113,17 +114,24 @@ describe("App", () => {
         name: "Foo Plc",
         currency: "GBP",
         instrument_type: "equity",
+        grouping: "",
+        sector: "Technology",
       } as InstrumentMetadata & { symbol: string },
     ]);
 
+    let capturedRows: InstrumentSummary[] = [];
+
     vi.doMock("@/components/InstrumentTable", () => ({
-      InstrumentTable: ({ rows }: { rows: { ticker: string }[] }) => (
-        <div data-testid="instrument-table">
-          {rows.map((row) => (
-            <span key={row.ticker}>{row.ticker}</span>
-          ))}
-        </div>
-      ),
+      InstrumentTable: ({ rows }: { rows: InstrumentSummary[] }) => {
+        capturedRows = rows;
+        return (
+          <div data-testid="instrument-table">
+            {rows.map((row) => (
+              <span key={row.ticker}>{row.ticker}</span>
+            ))}
+          </div>
+        );
+      },
     }));
 
     vi.doMock("@/api", async () => {
@@ -173,6 +181,7 @@ describe("App", () => {
 
     const table = await screen.findByTestId("instrument-table");
     expect(within(table).getAllByText("FOO.LSE")).toHaveLength(1);
+    expect(capturedRows[0]?.grouping).toBe("Technology");
     expect(mockGetGroupInstruments).not.toHaveBeenCalled();
   });
 

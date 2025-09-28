@@ -314,6 +314,84 @@ def test_save_instrument_meta_variants(monkeypatch, tmp_path) -> None:
         instruments.save_instrument_meta("ABC", {"name": "ABC"})
 
 
+def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> None:
+    expected_info = {
+        "shortName": "Alpha plc  ",
+        "currency": "gbp",
+        "sector": " Technology ",
+        "industry": " Software",
+        "region": "United Kingdom ",
+        "quoteType": "EQUITY",
+    }
+
+    def fake_ticker(symbol: str):
+        assert symbol == "ABC.L"
+
+        class _FakeTicker:
+            def get_info(self):
+                return dict(expected_info)
+
+        return _FakeTicker()
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=fake_ticker))
+
+    result = instruments._fetch_metadata_from_yahoo("abc", "L")
+
+    assert result == {
+        "name": "Alpha plc",
+        "currency": "GBP",
+        "sector": "Technology",
+        "region": "United Kingdom",
+        "asset_class": "Equity",
+        "industry": "Software",
+        "instrument_type": "EQUITY",
+    }
+
+
+@pytest.mark.parametrize("fast_info_kind", ["object", "dict"])
+def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch, fast_info_kind: str) -> None:
+    def build_fast_info():
+        if fast_info_kind == "object":
+            return SimpleNamespace(currency="usd")
+        return {"currency": "usd"}
+
+    class _FallbackTicker:
+        info = {
+            "longName": "Beta Fund",
+            "industryDisp": " Diversified ",
+            "country": "US ",
+            "quoteType": "MUTUALFUND",
+            "category": " Index ",
+        }
+
+        def __init__(self, symbol: str) -> None:
+            assert symbol == "BETA"
+            self.fast_info = build_fast_info()
+
+        def get_info(self):
+            raise RuntimeError("boom")
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=_FallbackTicker))
+
+    result = instruments._fetch_metadata_from_yahoo("beta", "NASDAQ")
+
+    assert result == {
+        "name": "Beta Fund",
+        "currency": "USD",
+        "sector": "Index",
+        "region": "US",
+        "asset_class": "Fund",
+        "industry": "Diversified",
+        "instrument_type": "MUTUALFUND",
+    }
+
+
+def test_fetch_metadata_from_yahoo_rejects_unknown_exchange(monkeypatch) -> None:
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=lambda symbol: None))
+
+    assert instruments._fetch_metadata_from_yahoo("abc", "MARS") is None
+
+
 def test_auto_create_instrument_meta_merges_payload(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv("TESTING", raising=False)
     monkeypatch.setattr(instruments, "_AUTO_CREATE_FAILURES", set())

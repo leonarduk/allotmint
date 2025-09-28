@@ -327,5 +327,9 @@ async def test_intraday_no_data(monkeypatch):
         await instrument.intraday("AAA.L")
 
     assert exc.value.status_code == 404
-    assert exc.value.detail == "no intraday data"
+    detail = exc.value.detail
+    assert isinstance(detail, str)
+    lowered = detail.lower()
+    assert "no intraday data" in lowered
+    assert "aaa.l" in lowered
 

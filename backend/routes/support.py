@@ -42,11 +42,7 @@ async def post_portfolio_health(req: PortfolioHealthRequest | None = None) -> di
     )
 
     try:
-        findings = await asyncio.wait_for(
-            asyncio.to_thread(run_check, threshold), timeout=10
-        )
-    except asyncio.TimeoutError as exc:  # pragma: no cover - defensive
-        raise HTTPException(status_code=500, detail="health check timed out") from exc
+        findings = await asyncio.to_thread(run_check, threshold)
     except Exception as exc:  # pragma: no cover - defensive
         raise HTTPException(status_code=500, detail="health check failed") from exc
 

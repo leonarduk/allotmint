@@ -8,9 +8,9 @@ from backend.common import prices
 
 def test_get_price_snapshot(monkeypatch):
     ticker = "ABC.L"
-    yday = date.today() - timedelta(days=1)
-    d7 = prices._nearest_weekday(yday - timedelta(days=7), forward=False)
-    d30 = prices._nearest_weekday(yday - timedelta(days=30), forward=False)
+    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
+    d7 = prices._nearest_weekday(last_trading_day - timedelta(days=7), forward=False)
+    d30 = prices._nearest_weekday(last_trading_day - timedelta(days=30), forward=False)
 
     # Patch load_latest_prices to return a last price of 100
     monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 100.0})
@@ -29,6 +29,6 @@ def test_get_price_snapshot(monkeypatch):
     info = snap[ticker]
 
     assert info["last_price"] == 100.0
-    assert info["last_price_date"] == yday.isoformat()
+    assert info["last_price_date"] == last_trading_day.isoformat()
     assert info["change_7d_pct"] == pytest.approx((100 / 90.0 - 1) * 100)
     assert info["change_30d_pct"] == pytest.approx((100 / 80.0 - 1) * 100)

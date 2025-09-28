@@ -73,7 +73,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     ``None`` values so downstream consumers can skip incomplete entries.
     """
 
-    yday = date.today() - timedelta(days=1)
+    last_trading_day = _nearest_weekday(date.today() - timedelta(days=1), forward=False)
     latest = _load_latest_prices(list(tickers))
     live = load_live_prices(list(tickers))
     now = datetime.now(UTC)
@@ -98,7 +98,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
             "last_price": price,
             "change_7d_pct": None,
             "change_30d_pct": None,
-            "last_price_date": yday.isoformat(),
+            "last_price_date": last_trading_day.isoformat(),
             "last_price_time": ts.isoformat().replace("+00:00", "Z") if ts else None,
             "is_stale": is_stale,
         }
@@ -112,8 +112,8 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
                 exch = "L"
                 logger.debug("Could not resolve exchange for %s; defaulting to L", full)
 
-            px_7 = _close_on(sym, exch, yday - timedelta(days=7))
-            px_30 = _close_on(sym, exch, yday - timedelta(days=30))
+            px_7 = _close_on(sym, exch, last_trading_day - timedelta(days=7))
+            px_30 = _close_on(sym, exch, last_trading_day - timedelta(days=30))
 
             if px_7 not in (None, 0):
                 info["change_7d_pct"] = (float(price) / px_7 - 1.0) * 100.0

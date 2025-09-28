@@ -62,9 +62,9 @@ def test_close_on_handles_close_column_and_conversion_errors(
 def test_get_price_snapshot_uses_latest_and_live(monkeypatch: pytest.MonkeyPatch) -> None:
     ticker = "ABC.L"
     now = datetime.now(UTC)
-    yday = date.today() - timedelta(days=1)
-    seven_day = yday - timedelta(days=7)
-    thirty_day = yday - timedelta(days=30)
+    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
+    seven_day = last_trading_day - timedelta(days=7)
+    thirty_day = last_trading_day - timedelta(days=30)
 
     monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 118.5})
     monkeypatch.setattr(
@@ -85,7 +85,7 @@ def test_get_price_snapshot_uses_latest_and_live(monkeypatch: pytest.MonkeyPatch
     info = snapshot[ticker]
 
     assert info["last_price"] == pytest.approx(120.5)
-    assert info["last_price_date"] == yday.isoformat()
+    assert info["last_price_date"] == last_trading_day.isoformat()
     assert info["last_price_time"] == now.isoformat().replace("+00:00", "Z")
     assert info["is_stale"] is False
     assert info["change_7d_pct"] == pytest.approx((120.5 / 100.0 - 1.0) * 100.0)
@@ -114,7 +114,7 @@ def test_get_price_snapshot_uses_latest_and_live(monkeypatch: pytest.MonkeyPatch
 def test_get_price_snapshot_handles_missing_live_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     ticker_missing_price = "MNO.L"
     ticker_missing_ts = "PQR.L"
-    yday = date.today() - timedelta(days=1)
+    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
 
     monkeypatch.setattr(
         prices,
@@ -146,15 +146,15 @@ def test_get_price_snapshot_handles_missing_live_fields(monkeypatch: pytest.Monk
     assert missing_ts["is_stale"] is True
     assert missing_ts["change_7d_pct"] is None
     assert missing_ts["change_30d_pct"] is None
-    assert missing_ts["last_price_date"] == yday.isoformat()
+    assert missing_ts["last_price_date"] == last_trading_day.isoformat()
 
 
 def test_get_price_snapshot_defaults_to_cached_close(monkeypatch: pytest.MonkeyPatch) -> None:
     ticker = "XYZ.L"
     base = ticker.split(".", 1)[0]
-    yday = date.today() - timedelta(days=1)
-    seven_day = yday - timedelta(days=7)
-    thirty_day = yday - timedelta(days=30)
+    last_trading_day = prices._nearest_weekday(date.today() - timedelta(days=1), forward=False)
+    seven_day = last_trading_day - timedelta(days=7)
+    thirty_day = last_trading_day - timedelta(days=30)
 
     monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 99.5})
     monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
@@ -176,7 +176,7 @@ def test_get_price_snapshot_defaults_to_cached_close(monkeypatch: pytest.MonkeyP
     info = snapshot[ticker]
 
     assert info["last_price"] == pytest.approx(99.5)
-    assert info["last_price_date"] == yday.isoformat()
+    assert info["last_price_date"] == last_trading_day.isoformat()
     assert info["last_price_time"] is None
     assert info["is_stale"] is True
     assert info["change_7d_pct"] == pytest.approx((99.5 / 88.0 - 1.0) * 100.0)
@@ -185,6 +185,38 @@ def test_get_price_snapshot_defaults_to_cached_close(monkeypatch: pytest.MonkeyP
         (base, "L", seven_day),
         (base, "L", thirty_day),
     ]
+
+
+def test_get_price_snapshot_uses_prior_weekday_on_weekend(monkeypatch: pytest.MonkeyPatch) -> None:
+    ticker = "WEEK.L"
+    frozen_today = date(2024, 3, 24)  # Sunday
+    expected_last_trading_day = prices._nearest_weekday(frozen_today - timedelta(days=1), forward=False)
+    expected_7d_anchor = expected_last_trading_day - timedelta(days=7)
+    expected_30d_anchor = expected_last_trading_day - timedelta(days=30)
+
+    class FakeDate(date):
+        @classmethod
+        def today(cls) -> date:
+            return frozen_today
+
+    monkeypatch.setattr(prices, "date", FakeDate)
+    monkeypatch.setattr(prices, "_load_latest_prices", lambda tickers: {ticker: 111.0})
+    monkeypatch.setattr(prices, "load_live_prices", lambda tickers: {})
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("WEEK", "L"))
+
+    requested_dates: List[date] = []
+
+    def fake_close_on(sym: str, exch: str, requested_date: date) -> float:
+        requested_dates.append(requested_date)
+        return 111.0
+
+    monkeypatch.setattr(prices, "_close_on", fake_close_on)
+
+    snapshot = prices.get_price_snapshot([ticker])
+    info = snapshot[ticker]
+
+    assert info["last_price_date"] == expected_last_trading_day.isoformat()
+    assert requested_dates == [expected_7d_anchor, expected_30d_anchor]
 
 
 def test_load_latest_prices_defaults_to_l(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:

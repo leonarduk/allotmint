@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, Suspense } from "react";
+import { useCallback, useEffect, useState, Suspense, type CSSProperties } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -130,6 +130,20 @@ const initialSlug = path[1] ?? "";
 
 type InstrumentMetadataWithSymbol = InstrumentMetadata & {
   symbol?: string | null;
+};
+
+const routeMarkerStyle: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  border: 0,
+  opacity: 0,
+  pointerEvents: "none",
+  clip: "rect(0 0 0 0)",
+  clipPath: "inset(50%)",
+  overflow: "hidden",
 };
 
 function metadataToInstrumentSummary(metadata: InstrumentMetadata): InstrumentSummary {
@@ -629,7 +643,7 @@ export default function App({ onLogout }: AppProps) {
           data-testid="active-route-marker"
           data-mode={mode}
           data-pathname={location.pathname}
-          hidden
+          style={routeMarkerStyle}
         />
         {renderMainContent()}
       </main>

@@ -28,7 +28,13 @@ test.describe('config bootstrap regression', () => {
       }
 
       await page.unroute('**/config', handler);
-      await route.continue();
+      try {
+        await route.continue();
+      } catch (error) {
+        if (!(error instanceof Error) || !/already handled/i.test(error.message)) {
+          throw error;
+        }
+      }
     };
 
     await page.route('**/config', handler);

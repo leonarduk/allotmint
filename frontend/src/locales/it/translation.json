@@ -440,14 +440,20 @@
     "delete": "Eliminare",
     "error": {
       "noData": "Nessun dato da salvare",
-      "unexpectedColumns": "Colonna (s) imprevisto: {{colonne}}"
+      "unexpectedColumns": "Colonna (s) imprevisto: {{colonne}}",
+      "invalidScale": "Inserisci un fattore di scala valido maggiore di zero"
     },
     "exchange": "Scambio",
     "load": "Carico",
+    "applyScaling": "Applica scala",
+    "scaleFactor": "Fattore di scala",
+    "scaleVolume": "Scala volume",
     "save": "Salva",
     "status": {
       "loaded": "Caricato {{Count}} ROWS",
-      "saved": "Saved {{count}} righe"
+      "saved": "Saved {{count}} righe",
+      "scaled": "Applicata scala {{factor}}× a {{count}} righe{{volumeNote}}",
+      "volumeIncluded": " (incluso il volume)"
     },
     "ticker": "Ticker",
     "title": "Editor serie temporali"

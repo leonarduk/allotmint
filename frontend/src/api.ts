@@ -734,6 +734,11 @@ export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntr
     body: JSON.stringify(rows),
   });
 
+export const getInstrumentMetadata = (ticker: string, exchange: string) =>
+  fetchJson<(InstrumentMetadata & Record<string, unknown>) | null>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,
+  );
+
 export const listTimeseries = () =>
   fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`);
 

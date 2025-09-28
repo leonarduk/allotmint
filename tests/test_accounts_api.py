@@ -32,17 +32,24 @@ def sample_accounts():
     )
     if not root.exists():
         pytest.skip("accounts sample data unavailable", allow_module_level=True)
+    metadata_stems = {
+        "person",
+        "config",
+        "notes",
+        "settings",
+        "approvals",
+        "approval_requests",
+    }
     for owner_dir in root.iterdir():
         if owner_dir.is_dir():
             files = list(owner_dir.glob("*.json"))
-            stems_lower = {f.stem.lower() for f in files}
             accounts = []
             for p in files:
                 stem = p.stem
                 lower = stem.lower()
-                if lower == "person":
+                if lower in metadata_stems:
                     continue
-                if lower.endswith("_transactions") and lower[:-13] in stems_lower:
+                if lower.endswith("_transactions"):
                     continue
                 accounts.append(stem)
             yield owner_dir.name, accounts

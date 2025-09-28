@@ -84,6 +84,51 @@ describe("VirtualPortfolio page", () => {
     });
   });
 
+  it("populates the select once a delayed virtual portfolios request resolves", async () => {
+    mockGetVirtualPortfolios.mockImplementationOnce(
+      () =>
+        new Promise<VirtualPortfolioType[]>((resolve) => {
+          setTimeout(
+            () =>
+              resolve([
+                {
+                  id: 7,
+                  name: "Slow result",
+                  accounts: [],
+                  holdings: [],
+                } as VirtualPortfolioType,
+              ]),
+            80,
+          );
+        }),
+    );
+    mockGetOwners.mockImplementationOnce(
+      () =>
+        new Promise<OwnerSummary[]>((resolve) => {
+          setTimeout(
+            () =>
+              resolve([
+                {
+                  owner: "slow-owner",
+                  full_name: "Slow Owner",
+                  accounts: ["Account S"],
+                } as OwnerSummary,
+              ]),
+            40,
+          );
+        }),
+    );
+
+    render(<VirtualPortfolio />);
+
+    const option = await screen.findByRole("option", { name: "Slow result" });
+    expect(option).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading\.\.\./i)).not.toBeInTheDocument();
+    });
+  });
+
   it("shows error when loading portfolios fails", async () => {
     mockGetVirtualPortfolios.mockRejectedValue(new Error("fail"));
     mockGetOwners.mockResolvedValue([]);

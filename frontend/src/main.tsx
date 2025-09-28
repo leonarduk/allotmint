@@ -85,10 +85,13 @@ export function Root() {
       if (!isMounted.current) return
 
       clearRetryTimer()
-      activeRequest.current?.abort()
 
+      const previousController = activeRequest.current
       const controller = new AbortController()
       activeRequest.current = controller
+      if (previousController && previousController !== controller) {
+        previousController.abort()
+      }
 
       const timeoutMs = Math.min(60000, 30000 + attempt * 10000)
       const timeoutId = window.setTimeout(() => {

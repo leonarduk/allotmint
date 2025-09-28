@@ -9,13 +9,13 @@
       "notSupported": "Push non supporté",
       "title": "Notifications push"
     },
-    "save": "Save",
+    "save": "Enregistrer",
     "status": {
-      "error": "Error",
-      "saved": "Saved"
+      "error": "Erreur",
+      "saved": "Enregistré"
     },
-    "threshold": "Threshold %:",
-    "title": "Alert Settings"
+    "threshold": "Seuil % :",
+    "title": "Paramètres d'alerte"
   },
   "allocation": {
     "instrumentTypes": "Types d'instruments",
@@ -37,13 +37,13 @@
       "dashboard": "Tableau de bord",
       "goals": "Exigences",
       "holdings": "Positions",
-      "insights": "Insights",
+      "insights": "Analyses",
       "operations": "Opérations",
       "other": "Autres",
       "preferences": "Paramètres"
     },
     "modes": {
-      "alertsettings": "Alert Settings",
+      "alertsettings": "Paramètres d'alerte",
       "allocation": "Allocation",
       "compliance": "Alertes de conformité",
       "dataadmin": "Administration des données",
@@ -51,11 +51,11 @@
       "instrument": "Instrument",
       "instrumentadmin": "Administration des instruments",
       "market": "Aperçu du marché",
-      "movers": "Movers",
+      "movers": "Mouvements",
       "owner": "Portefeuille",
       "pension": "Prévision de pension",
       "performance": "Performance",
-      "rebalance": "Rebalance",
+      "rebalance": "Rééquilibrage",
       "reports": "Rapports",
       "scenario": "Testeur de Scénario",
       "screener": "Filtre & Requête",
@@ -74,7 +74,7 @@
     "relativeView": "Vue relative",
     "research": "Recherche",
     "supportLink": "Support",
-    "userLink": "App"
+    "userLink": "Application"
   },
   "approxTotal": "Total approximatif: £{{value}}",
   "asOf": "Au {{date}} • Transactions ce mois: {{trades}} / 20 (Restantes: {{remaining}})",
@@ -139,7 +139,7 @@
       "market": "Mkt £",
       "name": "Nom",
       "price": "Prix £",
-      "stage": "Stage",
+      "stage": "Étape",
       "ticker": "Ticker",
       "trend": "Tendance",
       "type": "Type",
@@ -177,21 +177,21 @@
   },
   "instrumentadmin": {
     "actions": "Actions",
-    "add": "Add Instrument",
-    "exchange": "Exchange",
+    "add": "Ajouter un instrument",
+    "exchange": "Bourse",
     "grouping": "Regroupement",
-    "name": "Name",
-    "region": "Region",
-    "save": "Save",
-    "saveError": "Error saving",
-    "saveSuccess": "Saved",
-    "searchPlaceholder": "Filter instruments…",
-    "sector": "Sector",
+    "name": "Nom",
+    "region": "Région",
+    "save": "Enregistrer",
+    "saveError": "Erreur lors de l'enregistrement",
+    "saveSuccess": "Enregistré",
+    "searchPlaceholder": "Filtrer les instruments…",
+    "sector": "Secteur",
     "ticker": "Ticker",
     "validation": {
-      "grouping": "Grouping is required",
-      "name": "Name is required",
-      "ticker": "Ticker is required"
+      "grouping": "Le regroupement est obligatoire",
+      "name": "Le nom est obligatoire",
+      "ticker": "Le ticker est obligatoire"
     }
   },
   "instrumentDetail": {
@@ -276,8 +276,8 @@
   },
   "movers": {
     "excludeSmall": "Exclure les positions <{{min}} %",
-    "loadFailed": "Échec du chargement des movers{{status}}",
-    "loginPrompt": "Veuillez vous connecter pour afficher les movers basés sur le portefeuille.",
+    "loadFailed": "Échec du chargement des mouvements{{status}}",
+    "loginPrompt": "Veuillez vous connecter pour afficher les mouvements basés sur le portefeuille.",
     "pctPortfolio": "% du portefeuille",
     "period": "Période :",
     "signal": "Signal",
@@ -291,7 +291,7 @@
     "birthDate": "Date de naissance : {{dob}}",
     "currentAge": "Âge actuel : {{age}}",
     "employerContributionLabel": "Contribution de l'employeur",
-    "growthAssumption": "Hypothèse de croissance (%):",
+    "growthAssumption": "Hypothèse de croissance (%) :",
     "header": {
       "employeeContribution": "Votre cotisation mensuelle",
       "employerContribution": "Contribution de l'employeur",
@@ -303,31 +303,31 @@
       "pensionPot": "Épargne retraite actuelle",
       "totalContribution": "Cotisations mensuelles totales : {{total}}"
     },
-    "incomeBreakdownHeading": "Retirement income breakdown",
+    "incomeBreakdownHeading": "Répartition du revenu de retraite",
     "incomeSources": {
-      "definedBenefit": "Defined benefit",
-      "definedContribution": "Defined contribution",
-      "state": "State pension"
+      "definedBenefit": "Prestations définies",
+      "definedContribution": "Cotisations définies",
+      "state": "Pension publique"
     },
     "incomeTable": {
-      "annual": "Annual (£)",
-      "monthly": "Monthly (£)",
-      "share": "Share",
+      "annual": "Annuel (£)",
+      "monthly": "Mensuel (£)",
+      "share": "Part",
       "source": "Source"
     },
-    "monthlyContribution": "Contribution mensuelle (£):",
+    "monthlyContribution": "Contribution mensuelle (£) :",
     "pensionPot": "Pot de pension",
     "prediction": {
-      "earliest": "Estimated earliest retirement age: {{age}}",
-      "noBreakdown": "No income breakdown available.",
-      "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
-      "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} from age {{age}}.",
-      "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then."
+      "earliest": "Âge estimé de départ le plus tôt : {{age}}",
+      "noBreakdown": "Aucune répartition de revenu disponible.",
+      "onTrack": "Vous êtes sur la bonne voie : le revenu annuel projeté de {{total}} atteint votre objectif de {{desired}}.",
+      "onTrackWithAge": "Vous êtes sur la bonne voie : le revenu projeté de {{total}} atteint votre objectif de {{desired}} à partir de {{age}} ans.",
+      "shortfall": "Le revenu projeté laisse un déficit de {{shortfallAnnual}} par an ({{shortfallMonthly}} par mois) par rapport à votre objectif de {{desired}}.",
+      "shortfallWithAge": "Vous atteindrez votre objectif de {{desired}} vers {{age}} ans, laissant un déficit de {{shortfallAnnual}} par an d'ici là."
     },
     "retirementAge": "Âge de retraite : {{age}}",
-    "totalAnnualIncome": "Total annual income",
-    "totalMonthlyIncome": "Total monthly income"
+    "totalAnnualIncome": "Revenu annuel total",
+    "totalMonthlyIncome": "Revenu mensuel total"
   },
   "portfolio": "Portefeuille",
   "query": {
@@ -345,41 +345,41 @@
   },
   "reports": {
     "csv": "Télécharger CSV",
-    "noOwners": "No owners available—check backend connection",
+    "noOwners": "Aucun propriétaire disponible — vérifiez la connexion au backend",
     "pdf": "Télécharger PDF",
     "title": "Rapports"
   },
   "screener": {
     "loading": "Chargement…",
-    "max52WeekHigh": "Max 52W High",
-    "max52WeekLow": "Max 52W Low",
-    "maxBeta": "Max Beta",
+    "max52WeekHigh": "Plus haut 52 sem. max",
+    "max52WeekLow": "Plus bas 52 sem. max",
+    "maxBeta": "Bêta max",
     "maxDe": "D/E max",
-    "maxDividendPayoutRatio": "Max Dividend Payout Ratio",
-    "maxLtDe": "Max LT D/E",
-    "maxPe": "P/E max",
+    "maxDividendPayoutRatio": "Taux de distribution de dividende max",
+    "maxLtDe": "D/E LT max",
+    "maxPe": "PER max",
     "maxPeg": "PEG max",
-    "min52WeekLow": "Min 52W Low",
-    "minAvgVolume": "Min Avg Volume",
-    "minCurrentRatio": "Min Current Ratio",
-    "minDividendYield": "Min Dividend Yield",
+    "min52WeekLow": "Plus bas 52 sem. min",
+    "minAvgVolume": "Volume moyen min",
+    "minCurrentRatio": "Ratio courant min",
+    "minDividendYield": "Rendement du dividende min",
     "minEbitdaMargin": "Marge EBITDA min",
     "minEps": "BPA min",
     "minFcf": "FCF min",
-    "minFloatShares": "Min Float Shares",
+    "minFloatShares": "Actions flottantes min",
     "minGrossMargin": "Marge brute min",
-    "minInterestCoverage": "Min Interest Coverage",
-    "minMarketCap": "Min Market Cap",
+    "minInterestCoverage": "Couverture des intérêts min",
+    "minMarketCap": "Capitalisation boursière min",
     "minNetMargin": "Marge nette min",
     "minOperatingMargin": "Marge opérationnelle min",
-    "minQuickRatio": "Min Quick Ratio",
+    "minQuickRatio": "Ratio rapide min",
     "minRoa": "ROA min",
     "minRoe": "ROE min",
     "minRoi": "ROI min",
-    "minSharesOutstanding": "Min Shares Outstanding",
+    "minSharesOutstanding": "Actions en circulation min",
     "run": "Exécuter",
     "tickers": "Tickers",
-    "watchlist": "Liste de suivi:"
+    "watchlist": "Liste de suivi :"
   },
   "support": {
     "config": {

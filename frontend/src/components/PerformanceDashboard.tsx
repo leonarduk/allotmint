@@ -119,8 +119,8 @@ export function PerformanceDashboard({ owner }: Props) {
           display: "flex",
           gap: "1rem",
           flexWrap: "wrap",
-          fontSize: "0.85rem",
-          color: "#666",
+          fontSize: "0.9rem",
+          color: "#aaa",
           marginBottom: "0.75rem",
         }}
       >

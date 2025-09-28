@@ -32,7 +32,6 @@ from backend.timeseries.cache import (
 )
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_period
-from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import _nearest_weekday
 
 
@@ -246,8 +245,11 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> Dict[str, Any]:
         except Exception:
             pass
 
-    calc = PricingDateCalculator()
-    start_date, end_date = calc.lookback_range(max(1, days))
+    today = dt.date.today()
+    yday = today - dt.timedelta(days=1)
+    lookback_days = max(1, days)
+    start_date = yday - dt.timedelta(days=lookback_days)
+    end_date = yday
 
     df = load_meta_timeseries_range(sym, ex, start_date=start_date, end_date=end_date)
     if df is None or df.empty:
@@ -366,8 +368,8 @@ def _close_on(sym: str, ex: str, d: dt.date) -> Optional[float]:
 
 def price_change_pct(ticker: str, days: int) -> Optional[float]:
     """Return % change from ``days`` ago to yesterday's close for ``ticker``."""
-    calc = PricingDateCalculator()
-    yday = calc.reporting_date
+    today = dt.date.today()
+    yday = today - dt.timedelta(days=1)
 
     resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
     if not resolved:
@@ -375,7 +377,7 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
 
     sym, ex = resolved
     px_now = _close_on(sym, ex, yday)
-    px_then = _close_on(sym, ex, calc.lookback_anchor(days, from_date=yday))
+    px_then = _close_on(sym, ex, yday - dt.timedelta(days=days))
     if px_now is None or px_then is None or px_then == 0:
         return None
     if px_then < MIN_PRICE_THRESHOLD:
@@ -413,8 +415,8 @@ def top_movers(
         Optional mapping of ``ticker -> weight_percent`` used for filtering.
     """
 
-    calc = PricingDateCalculator()
-    yday = calc.reporting_date
+    today = dt.date.today()
+    yday = today - dt.timedelta(days=1)
     rows: List[Dict[str, Any]] = []
     anomalies: List[str] = []
 
@@ -459,8 +461,8 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
     """
     Return last price and common percentage changes for ``ticker``.
     """
-    calc = PricingDateCalculator()
-    yday = calc.reporting_date
+    today = dt.date.today()
+    yday = today - dt.timedelta(days=1)
 
     resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
     if not resolved:

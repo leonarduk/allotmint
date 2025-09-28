@@ -221,8 +221,24 @@ def test_get_price_snapshot_uses_prior_weekday_on_weekend(monkeypatch: pytest.Mo
 
 def test_load_latest_prices_defaults_to_l(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     ticker = "AAA.L"
-    expected_start = date.today() - timedelta(days=365)
-    expected_end = date.today() - timedelta(days=1)
+    frozen_today = date(2024, 3, 6)
+
+    class FakeDate(date):
+        @classmethod
+        def today(cls) -> date:
+            return frozen_today
+
+    monkeypatch.setattr(prices, "date", FakeDate)
+
+    expected_start = frozen_today - timedelta(days=365)
+    expected_end = frozen_today - timedelta(days=1)
+    weekday_calls: list[tuple[date, bool]] = []
+
+    def fake_weekday(day: date, forward: bool) -> date:
+        weekday_calls.append((day, forward))
+        return day
+
+    monkeypatch.setattr(prices, "_nearest_weekday", fake_weekday)
     frame = pd.DataFrame({"close": [95.0, 105.0]})
 
     monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, cache: None)
@@ -240,6 +256,10 @@ def test_load_latest_prices_defaults_to_l(monkeypatch: pytest.MonkeyPatch, caplo
 
     assert result == {ticker: pytest.approx(105.0)}
     assert "defaulting to L" in caplog.text
+    assert weekday_calls == [
+        (expected_start, False),
+        (expected_end, False),
+    ]
 
 
 def test_load_prices_for_tickers_combines_frames(

@@ -74,7 +74,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     ``None`` values so downstream consumers can skip incomplete entries.
     """
 
-    calc = PricingDateCalculator()
+    calc = PricingDateCalculator(today=date.today(), weekday_func=_nearest_weekday)
     last_trading_day = calc.reporting_date
     latest = _load_latest_prices(list(tickers))
     live = load_live_prices(list(tickers))
@@ -211,8 +211,11 @@ def load_latest_prices(tickers: List[str]) -> Dict[str, float]:
     """
     if not tickers:
         return {}
-    calc = PricingDateCalculator()
-    start_date, end_date = calc.lookback_range(365)
+    calc = PricingDateCalculator(today=date.today(), weekday_func=_nearest_weekday)
+    start_candidate = calc.today - timedelta(days=365)
+    end_candidate = calc.today - timedelta(days=1)
+    start_date = calc.resolve_weekday(start_candidate, forward=False)
+    end_date = calc.resolve_weekday(end_candidate, forward=False)
 
     prices: Dict[str, float] = {}
     for full in tickers:
@@ -237,7 +240,7 @@ def load_prices_for_tickers(
     Fetch historical daily closes for a list of tickers and return a
     concatenated dataframe; keeps each original suffix (e.g. '.L').
     """
-    calc = PricingDateCalculator()
+    calc = PricingDateCalculator(today=date.today(), weekday_func=_nearest_weekday)
     start_date, end_date = calc.lookback_range(days, end=calc.today, forward_end=True)
 
     frames: List[pd.DataFrame] = []

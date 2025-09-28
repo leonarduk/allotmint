@@ -7,10 +7,14 @@ import { fireEvent } from "@testing-library/react";
 import i18n from "@/i18n";
 
 describe("Header", () => {
-  it("shows trade meter when data present", () => {
-    render(<Header tradesThisMonth={3} tradesRemaining={17} />);
+  it("shows localized as-of summary when data present", () => {
+    render(
+      <Header asOf="2024-07-01" tradesThisMonth={3} tradesRemaining={17} />,
+    );
     expect(
-      screen.getByText(/Trades this month: 3 \/ 20 \(Remaining: 17\)/)
+      screen.getByText(
+        "As of 2024-07-01 • Trades this month: 3 / 20 (Remaining: 17)",
+      ),
     ).toBeInTheDocument();
   });
 

@@ -83,7 +83,15 @@ const computeDayChangePct = (value: number, delta: number): number | null => {
 type Props = {
   slug: string;
   owners?: OwnerSummary[];
-  onTradeInfo?: (info: { trades_this_month?: number; trades_remaining?: number } | null) => void;
+  onTradeInfo?: (
+    info:
+      | {
+          as_of?: string | null;
+          trades_this_month?: number | null;
+          trades_remaining?: number | null;
+        }
+      | null,
+  ) => void;
 };
 
 /* ────────────────────────────────────────────────────────────
@@ -268,6 +276,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       onTradeInfo(
         portfolio
           ? {
+              as_of: portfolio.as_of,
               trades_this_month: portfolio.trades_this_month,
               trades_remaining: portfolio.trades_remaining,
             }

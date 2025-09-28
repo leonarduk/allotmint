@@ -161,3 +161,37 @@ async def test_update_config_env_provides_client_id(monkeypatch: pytest.MonkeyPa
     written = yaml.safe_load(config_path.read_text())
     assert written["auth"]["disable_auth"] is True
     assert written["auth"]["allowed_emails"] == ["user@example.com"]
+
+
+async def test_update_config_noop_payload_preserves_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config_path = tmp_path / "config.yaml"
+    base_config = {
+        "auth": {
+            "google_auth_enabled": False,
+            "disable_auth": True,
+            "google_client_id": "",
+            "allowed_emails": ["user@example.com"],
+        },
+        "ui": {
+            "theme": "system",
+            "tabs": {"instrument": True, "market": True},
+        },
+    }
+    _write_config(config_path, base_config)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+    loader = _patch_loader(monkeypatch)
+    dummy_config = _DummyConfig(google_auth_enabled=False, google_client_id=None)
+    monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
+    calls = _spy_validate(monkeypatch)
+
+    original_contents = config_path.read_text()
+
+    result = await routes_config.update_config({})
+
+    assert calls == [(False, None)]
+    assert loader.cleared is False
+    assert config_path.read_text() == original_contents
+    assert result["google_auth_enabled"] is False
+    assert result["google_client_id"] is None

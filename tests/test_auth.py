@@ -78,6 +78,13 @@ def test_decode_token_expired_raises_http_exception():
     assert exc.value.status_code == 401
 
 
+def test_user_from_token_missing_token_raises_http_exception():
+    with pytest.raises(HTTPException) as exc:
+        auth._user_from_token(token=None)
+
+    assert exc.value.status_code == 401
+
+
 def test_verify_google_token_success(monkeypatch):
     monkeypatch.setattr(auth, "verify_google_token", _real_verify_google_token)
     monkeypatch.setattr(auth.config, "google_client_id", "client", raising=False)
@@ -118,6 +125,22 @@ def test_verify_google_token_unverified_email(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         auth.verify_google_token("token")
     assert exc.value.status_code == 401
+
+
+def test_verify_google_token_rejects_unknown_email(monkeypatch):
+    monkeypatch.setattr(auth, "verify_google_token", _real_verify_google_token)
+    monkeypatch.setattr(auth.config, "google_client_id", "client", raising=False)
+
+    def fake_verify(token, request, client_id):
+        return {"email": "intruder@example.com", "email_verified": True}
+
+    monkeypatch.setattr(auth.id_token, "verify_oauth2_token", fake_verify)
+    monkeypatch.setattr(auth, "_allowed_emails", lambda: {"user@example.com"})
+
+    with pytest.raises(HTTPException) as exc:
+        auth.verify_google_token("token")
+
+    assert exc.value.status_code == 403
 
 
 def test_verify_google_token_verification_failure(monkeypatch):

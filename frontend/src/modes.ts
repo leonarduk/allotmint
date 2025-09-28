@@ -19,7 +19,7 @@ export type Mode =
   | "research"
   | "reports"
   | "alertsettings"
-  | "tradecompliance"
+  | "trade-compliance"
   | "trail"
   | "support"
   | "taxtools"
@@ -46,7 +46,7 @@ export const MODES: Mode[] = [
   "research",
   "reports",
   "alertsettings",
-  "tradecompliance",
+  "trade-compliance",
   "settings",
   "trail",
   "support",

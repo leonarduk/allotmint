@@ -372,7 +372,14 @@ export function TimeseriesEdit() {
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
         <button
-          onClick={() =>
+          onClick={() => {
+            const trimmedTicker = ticker.trim().toUpperCase();
+            const defaultTicker =
+              trimmedTicker && exchange
+                ? trimmedTicker.includes(".")
+                  ? trimmedTicker
+                  : `${trimmedTicker}.${exchange}`
+                : trimmedTicker;
             setRows((rs) => [
               ...rs,
               {
@@ -382,11 +389,11 @@ export function TimeseriesEdit() {
                 Low: null,
                 Close: null,
                 Volume: null,
-                Ticker: "",
-                Source: "",
+                Ticker: defaultTicker,
+                Source: "Manual",
               },
-            ])
-          }
+            ]);
+          }}
         >
           {t("timeseriesEdit.addRow")}
         </button>

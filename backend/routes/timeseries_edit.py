@@ -89,6 +89,9 @@ async def post_timeseries_edit(
         raise HTTPException(status_code=400, detail=str(exc))
 
     df = _ensure_schema(df)
+    for col in ("Ticker", "Source"):
+        if col in df.columns:
+            df[col] = df[col].replace("", pd.NA)
     if "Ticker" not in df.columns or df["Ticker"].isna().all():
         df["Ticker"] = ticker
     if "Source" not in df.columns or df["Source"].isna().all():

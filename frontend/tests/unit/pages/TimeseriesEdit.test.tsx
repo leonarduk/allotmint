@@ -56,6 +56,10 @@ describe("TimeseriesEdit page", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /add row/i }));
     expect(screen.getAllByLabelText("Date")).toHaveLength(2);
+    const tickerInputs = screen.getAllByLabelText("Ticker");
+    expect(tickerInputs[tickerInputs.length - 1]).toHaveValue("ABC.L");
+    const sourceInputs = screen.getAllByLabelText("Source");
+    expect(sourceInputs[sourceInputs.length - 1]).toHaveValue("Manual");
 
     fireEvent.click(screen.getAllByRole("button", { name: /delete/i })[1]);
     expect(screen.getAllByLabelText("Date")).toHaveLength(1);

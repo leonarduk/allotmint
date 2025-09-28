@@ -107,10 +107,22 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     existing_data = _normalise_config_structure(stored_data)
     data = _normalise_config_structure(merged_data)
 
+    if data == existing_data:
+        return serialise_config(config_module.config)
+
+    persisted_data = deepcopy(data)
+
     auth_section = data.get("auth", {}) if isinstance(data, dict) else {}
     if not isinstance(auth_section, dict):
         auth_section = {}
         data["auth"] = auth_section
+
+    persisted_auth_section = (
+        persisted_data.get("auth", {}) if isinstance(persisted_data, dict) else {}
+    )
+    if not isinstance(persisted_auth_section, dict):
+        persisted_auth_section = {}
+        persisted_data["auth"] = persisted_auth_section
 
     google_auth_enabled = auth_section.get("google_auth_enabled")
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
@@ -130,6 +142,10 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(google_client_id, str):
         google_client_id = google_client_id.strip() or None
 
+    persisted_google_client_id = persisted_auth_section.get("google_client_id")
+    if isinstance(persisted_google_client_id, str):
+        persisted_google_client_id = persisted_google_client_id.strip() or None
+
     env_google_client_id = os.getenv("GOOGLE_CLIENT_ID")
     if env_google_client_id is not None:
         env_val = env_google_client_id.strip()
@@ -144,18 +160,20 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     else:
         auth_section["google_client_id"] = google_client_id
 
+    if persisted_google_client_id is None:
+        persisted_auth_section.pop("google_client_id", None)
+    else:
+        persisted_auth_section["google_client_id"] = persisted_google_client_id
+
     try:
         validate_google_auth(google_auth_enabled, google_client_id)
     except ConfigValidationError as exc:
         logger.error("Invalid config update: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
 
-    if data == existing_data:
-        return serialise_config(config_module.config)
-
     try:
         with path.open("w", encoding="utf-8") as fh:
-            yaml.safe_dump(data, fh, sort_keys=False)
+            yaml.safe_dump(persisted_data, fh, sort_keys=False)
     except Exception as exc:
         raise HTTPException(500, f"Failed to write config: {exc}")
 

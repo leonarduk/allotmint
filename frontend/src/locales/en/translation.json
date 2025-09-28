@@ -1,13 +1,31 @@
 {
+  "alertSettings": {
+    "description": "Configure when you'll receive alerts. Alerts appear on the Alerts page and in push notifications.",
+    "push": {
+      "denied": "Push permission denied.",
+      "disable": "Disable Push Alerts",
+      "enable": "Enable Push Alerts",
+      "error": "Error handling push subscription.",
+      "notSupported": "Push not supported",
+      "title": "Push Notifications"
+    },
+    "save": "Save",
+    "signInNotice": "Sign in to configure alerts",
+    "status": {
+      "error": "Error",
+      "saved": "Saved"
+    },
+    "threshold": "Threshold %:",
+    "title": "Alert Settings"
+  },
+  "allocation": {
+    "instrumentTypes": "Instrument Types",
+    "region": "Regions",
+    "sector": "Industries"
+  },
   "app": {
-    "relativeView": "Relative view",
-    "refreshPrices": "Refresh Prices",
-    "refreshing": "Refreshing…",
     "last": "Last:",
     "loading": "Loading…",
-    "supportLink": "Support",
-    "userLink": "App",
-    "research": "Research",
     "logout": "Logout",
     "menu": "Menu",
     "menuCategories": {
@@ -45,523 +63,505 @@
       "trail": "Trail",
       "transactions": "Transactions",
       "watchlist": "Watchlist"
-    }
+    },
+    "refreshing": "Refreshing…",
+    "refreshPrices": "Refresh Prices",
+    "relativeView": "Relative view",
+    "research": "Research",
+    "supportLink": "Support",
+    "userLink": "App"
   },
-  "trail": {
-    "title": "Trail progress",
-    "daily": "Daily",
-    "once": "Once",
-    "progressLabel": "Daily progress: {{completed}} / {{total}} ({{percent}}%)",
-    "xpLabel": "XP: {{xp}}",
-    "streakLabel": "Streak: {{count}} day",
-    "streakLabel_plural": "Streak: {{count}} days",
-    "dailyComplete": "Daily tasks complete! Keep the streak going.",
-    "allDone": "All Trail tasks are complete — fantastic work!"
-  },
+  "approxTotal": "Approx Total: £{{value}}",
+  "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",
   "common": {
+    "action": "Action",
     "error": "Error",
     "loading": "Loading…",
-    "other": "Other",
-    "ticker": "Ticker",
     "name": "Name",
-    "action": "Action",
+    "other": "Other",
+    "period": "Period:",
     "reason": "Reason",
-    "period": "Period:"
+    "ticker": "Ticker"
   },
-  "instrumentType": {
-    "equity": "Equity",
-    "bond": "Bond",
-    "cash": "Cash",
-    "etf": "ETF",
-    "fund": "Fund",
-    "investmentTrust": "Investment Trust",
-    "realEstate": "Real Estate",
-    "other": "Other"
-  },
-  "instrumentTable": {
-    "noInstruments": "No instruments.",
-    "ungrouped": "Ungrouped",
-    "exchangesLabel": "Exchanges:",
-    "groupTotals": {
-      "market": "Market",
-      "gain": "Gain",
-      "gainPct": "Gain %",
-      "delta7d": "7d %",
-      "delta30d": "30d %"
+  "dashboard": {
+    "alphaVsBenchmark": "Alpha vs Benchmark",
+    "cumulativeReturn": "Cumulative Return",
+    "excludeCash": "Exclude cash",
+    "maxDrawdown": "Max Drawdown",
+    "maxDrawdownHelp": "Max drawdown is the largest percentage drop from any portfolio peak to the lowest closing value that follows, calculated from the rebuilt daily totals of your holdings.",
+    "metricsExplanationLink": "How are these calculated?",
+    "portfolioValue": "Portfolio Value",
+    "range": "Range:",
+    "rangeOptions": {
+      "10y": "10Y",
+      "1m": "1M",
+      "1w": "1W",
+      "1y": "1Y",
+      "max": "MAX"
     },
+    "selectMember": "Select a member.",
+    "timeWeightedReturn": "Time-Weighted Return",
+    "trackingError": "Tracking Error",
+    "xirr": "XIRR"
+  },
+  "goals": {
+    "add": "Add Goal",
+    "back": "Back to Portfolio",
+    "currentAmount": "Current Amount:",
+    "goalLine": "{{name}} – target {{amount}} by {{date}}",
+    "progress": "Progress: {{progress}}%",
+    "suggestedTrades": "Suggested Trades",
+    "targetAmount": "Target Amount",
+    "title": "Goals",
+    "trade": "{{action}} {{amount}} of {{ticker}}",
+    "view": "View"
+  },
+  "group": {
+    "atAGlance": "At a glance",
+    "select": "Select a group."
+  },
+  "holdingsTable": {
+    "actualPurchaseCost": "Actual purchase cost",
+    "clearFilters": "Clear filters",
     "columns": {
-      "ticker": "Ticker",
-      "name": "Name",
+      "acquired": "Acquired",
       "ccy": "CCY",
+      "cost": "Cost £",
+      "daysHeld": "Days Held",
+      "eligible": "Eligible?",
+      "gain": "Gain £",
+      "gainPct": "Gain %",
+      "market": "Mkt £",
+      "name": "Name",
+      "price": "Px £",
+      "stage": "Stage",
+      "ticker": "Ticker",
+      "trend": "Trend",
       "type": "Type",
       "units": "Units",
+      "weightPct": "Weight %"
+    },
+    "columnsLabel": "Columns:",
+    "eligible": "Eligible",
+    "filters": {
+      "all": "All",
+      "gainPct": "Gain %",
+      "name": "Name",
+      "no": "No",
+      "sellEligible": "Sell eligible",
+      "ticker": "Ticker",
+      "type": "Type",
+      "units": "Units",
+      "yes": "Yes"
+    },
+    "inferredCost": "Inferred from price on acquisition date",
+    "minimumGainPrompt": "Min Gain %",
+    "noHoldings": "No holdings match the current filters.",
+    "openScreener": "Open Screener",
+    "quickFilters": "Quick Filters:",
+    "quickFiltersGainPct": "Gain% > x",
+    "quickFiltersSellEligible": "Sell-eligible",
+    "range": "Range:",
+    "rangeOption": "{{count}}d",
+    "source": "Source:",
+    "totalRowLabel": "Total",
+    "view": "View:",
+    "viewPresets": {
+      "all": "All"
+    }
+  },
+  "instrumentadmin": {
+    "actions": "Actions",
+    "add": "Add Instrument",
+    "exchange": "Exchange",
+    "grouping": "Grouping",
+    "name": "Name",
+    "region": "Region",
+    "save": "Save",
+    "saveError": "Error saving",
+    "saveSuccess": "Saved",
+    "searchPlaceholder": "Filter instruments…",
+    "sector": "Sector",
+    "ticker": "Ticker",
+    "validation": {
+      "grouping": "Grouping is required",
+      "name": "Name is required",
+      "ticker": "Ticker is required"
+    }
+  },
+  "instrumentDetail": {
+    "bollingerBands": "Bollinger Bands",
+    "cancel": "Cancel",
+    "change30d": "30d",
+    "change7d": "7d",
+    "columns": {
+      "account": "Account",
+      "gain": "Gain £",
+      "gainPct": "Gain %",
+      "market": "Mkt £",
+      "units": "Units"
+    },
+    "confirm": "Confirm",
+    "currencyLabel": "Currency",
+    "currencyPlaceholder": "Select a currency",
+    "edit": "Edit",
+    "infoHeading": "Instrument info",
+    "intraday": "Intraday",
+    "intradayUnavailable": "Intraday data unavailable",
+    "ma20": "20d MA",
+    "ma200": "200d MA",
+    "ma50": "50d MA",
+    "metadataCurrencyError": "Select a supported currency before saving.",
+    "metadataLoadError": "Unable to load the instrument catalogue.",
+    "metadataMissingExchange": "Instrument exchange is unknown; try reloading.",
+    "metadataSaveError": "Unable to save instrument details.",
+    "metadataSaveSuccess": "Instrument details updated.",
+    "nameLabel": "Name",
+    "noPositions": "No positions",
+    "noPriceData": "No price data",
+    "positions": "Positions",
+    "priceColumns": {
+      "close": "£ Close",
+      "date": "Date",
+      "delta": "Δ £",
+      "deltaPct": "Δ %"
+    },
+    "range": "Range:",
+    "rangeOptions": {
+      "10y": "10Y",
+      "1m": "1M",
+      "1w": "1W",
+      "1y": "1Y",
+      "max": "MAX"
+    },
+    "recentPrices": "Recent Prices",
+    "refresh": "Refresh",
+    "refreshCancel": "Cancel",
+    "refreshConfirm": "Confirm",
+    "refreshError": "Unable to refresh instrument details.",
+    "refreshNoChanges": "The latest data matches the saved metadata.",
+    "refreshPreviewDescription": "Review the fetched metadata before confirming.",
+    "refreshPreviewTitle": "Proposed updates",
+    "refreshSuccess": "Instrument details refreshed from Yahoo Finance.",
+    "rsi": "RSI",
+    "save": "Save",
+    "sectorLabel": "Sector"
+  },
+  "instrumentTable": {
+    "columns": {
+      "ccy": "CCY",
       "cost": "Cost £",
-      "market": "Market £",
+      "delta30d": "30d %",
+      "delta7d": "7d %",
       "gain": "Gain £",
       "gainPct": "Gain %",
       "last": "Last £",
       "lastDate": "Last Date",
+      "market": "Market £",
+      "name": "Name",
+      "ticker": "Ticker",
+      "type": "Type",
+      "units": "Units"
+    },
+    "exchangesLabel": "Exchanges:",
+    "groupTotals": {
+      "delta30d": "30d %",
       "delta7d": "7d %",
-      "delta30d": "30d %"
-    }
-  },
-  "holdingsTable": {
-    "range": "Range:",
-    "rangeOption": "{{count}}d",
-    "view": "View:",
-    "viewPresets": {
-      "all": "All"
-    },
-    "quickFilters": "Quick Filters:",
-    "quickFiltersSellEligible": "Sell-eligible",
-    "quickFiltersGainPct": "Gain% > x",
-    "minimumGainPrompt": "Min Gain %",
-    "columnsLabel": "Columns:",
-    "columns": {
-      "ticker": "Ticker",
-      "name": "Name",
-      "trend": "Trend",
-      "ccy": "CCY",
-      "type": "Type",
-      "units": "Units",
-      "price": "Px £",
-      "cost": "Cost £",
-      "market": "Mkt £",
-      "gain": "Gain £",
+      "gain": "Gain",
       "gainPct": "Gain %",
-      "weightPct": "Weight %",
-      "acquired": "Acquired",
-      "daysHeld": "Days Held",
-      "stage": "Stage",
-      "eligible": "Eligible?"
+      "market": "Market"
     },
-    "filters": {
-      "ticker": "Ticker",
-      "name": "Name",
-      "type": "Type",
-      "units": "Units",
-      "gainPct": "Gain %",
-      "sellEligible": "Sell eligible",
-      "all": "All",
-      "yes": "Yes",
-      "no": "No"
-    },
-    "noHoldings": "No holdings match the current filters.",
-    "clearFilters": "Clear filters",
-    "openScreener": "Open Screener",
-    "source": "Source:",
-    "actualPurchaseCost": "Actual purchase cost",
-    "inferredCost": "Inferred from price on acquisition date",
-    "eligible": "Eligible",
-    "totalRowLabel": "Total"
+    "noInstruments": "No instruments.",
+    "ungrouped": "Ungrouped"
   },
-  "instrumentDetail": {
-    "edit": "Edit",
-    "save": "Save",
-    "cancel": "Cancel",
-    "confirm": "Confirm",
-    "refresh": "Refresh",
-    "refreshConfirm": "Confirm",
-    "refreshCancel": "Cancel",
-    "refreshPreviewTitle": "Proposed updates",
-    "refreshPreviewDescription": "Review the fetched metadata before confirming.",
-    "refreshNoChanges": "The latest data matches the saved metadata.",
-    "refreshError": "Unable to refresh instrument details.",
-    "refreshSuccess": "Instrument details refreshed from Yahoo Finance.",
-    "infoHeading": "Instrument info",
-    "nameLabel": "Name",
-    "sectorLabel": "Sector",
-    "currencyLabel": "Currency",
-    "currencyPlaceholder": "Select a currency",
-    "metadataSaveSuccess": "Instrument details updated.",
-    "metadataSaveError": "Unable to save instrument details.",
-    "metadataLoadError": "Unable to load the instrument catalogue.",
-    "metadataCurrencyError": "Select a supported currency before saving.",
-    "metadataMissingExchange": "Instrument exchange is unknown; try reloading.",
-    "change7d": "7d",
-    "change30d": "30d",
-    "range": "Range:",
-    "rangeOptions": {
-      "1w": "1W",
-      "1m": "1M",
-      "1y": "1Y",
-      "10y": "10Y",
-      "max": "MAX"
+  "instrumentType": {
+    "bond": "Bond",
+    "cash": "Cash",
+    "equity": "Equity",
+    "etf": "ETF",
+    "fund": "Fund",
+    "investmentTrust": "Investment Trust",
+    "other": "Other",
+    "realEstate": "Real Estate"
+  },
+  "loadingPortfolio": "Loading portfolio…",
+  "market": {
+    "indexLevels": "Index Levels",
+    "latestHeadlines": "Latest Headlines",
+    "sectorPerformance": "Sector Performance"
+  },
+  "metricsExplanation": {
+    "activeReturn": "Active return",
+    "alphaCumulative": "Excess cumulative return",
+    "backLink": "Back to portfolio dashboard",
+    "benchmarkCumulative": "Benchmark cumulative return",
+    "benchmarkReturn": "Benchmark return",
+    "calculationHeading": "How we calculate it",
+    "dataBody": "We rebuild daily market values for every holding using the latest price data and any recorded corporate actions. Cash flows, trades and benchmark levels are normalised to UTC trading days. Metrics refresh whenever new prices are ingested.",
+    "dataHeading": "Data inputs",
+    "dateColumn": "Date",
+    "disclaimer": "These statistics are provided for information only and may differ from figures reported by your broker if their pricing or benchmark selection differs.",
+    "drawdownColumn": "Drawdown",
+    "groupContext": "Showing combined metrics for group {{group}}.",
+    "intro": "These metrics summarise how the combined portfolio performs relative to its benchmark. Each value is derived from the same daily return series that powers the dashboard tiles.",
+    "loadError": "We couldn’t load the latest metrics: {{message}}",
+    "loading": "Loading latest metrics…",
+    "missingContext": "No portfolio or group was specified. Return to the dashboard and follow the metrics explanation link from a specific portfolio.",
+    "noContext": "Open this page from a portfolio or group to see live numbers.",
+    "notAvailable": "n/a",
+    "notesHeading": "Things to know",
+    "ownerContext": "Showing metrics for {{owner}}'s portfolio.",
+    "parameters": "Benchmark: {{benchmark}} • Window: {{days}} days",
+    "portfolioCumulative": "Portfolio cumulative return",
+    "portfolioReturn": "Portfolio return",
+    "portfolioValue": "Portfolio value",
+    "runningPeak": "Running peak",
+    "sections": {
+      "alpha": {
+        "breakdownHeading": "Step-by-step cumulative returns",
+        "breakdownIntro": "Each row shows how the cumulative portfolio and benchmark returns evolve on the same trading days. Their difference is the excess return (alpha).",
+        "calculation": "We compute time-weighted cumulative returns for both the portfolio and the configured benchmark. Alpha is simply the portfolio return minus the benchmark return, expressed in percentage points.",
+        "detail": "Cumulative portfolio return: {{portfolio}} · Benchmark return: {{benchmark}} · Alpha: {{alpha}}",
+        "headline": "Alpha vs benchmark",
+        "notes": [
+          "Positive alpha means the portfolio outperformed the benchmark over the selected period.",
+          "If either return series is unavailable for the full span we fall back to the overlapping dates only."
+        ],
+        "summary": "Alpha measures the portfolio's excess return after matching the benchmark over the same date range.",
+        "title": "Alpha vs Benchmark"
+      },
+      "maxDrawdown": {
+        "breakdownHeading": "Daily values and running peaks",
+        "breakdownIntro": "We rebuild the portfolio value curve, track each rolling peak, and compute the drawdown at every point. The minimum of this series is the max drawdown shown above.",
+        "calculation": "We scan the time-weighted return curve, track each new peak, and record the largest subsequent drop before a new peak is reached. The deepest percentage loss becomes the max drawdown.",
+        "detail": "Max drawdown: {{drawdown}} · Peak: {{peakValue}} on {{peakDate}} · Trough: {{troughValue}} on {{troughDate}}",
+        "headline": "Worst peak-to-trough move",
+        "notes": [
+          "Drawdown is calculated on portfolio returns only; the benchmark is not considered here.",
+          "A -100% drawdown would mean the portfolio value reached zero after a prior peak."
+        ],
+        "summary": "Max drawdown identifies the worst peak-to-trough decline in portfolio value over the measurement window.",
+        "title": "Max Drawdown"
+      },
+      "trackingError": {
+        "breakdownHeading": "Daily active returns",
+        "breakdownIntro": "Daily active returns (portfolio minus benchmark) are listed below. The standard deviation of this series, scaled by √252, produces the tracking error above.",
+        "calculation": "For each trading day we take the portfolio return minus the benchmark return, producing an active return series. Tracking error is the annualised standard deviation of those active returns (daily standard deviation multiplied by √252).",
+        "detail": "Annualised tracking error: {{trackingError}} · Daily active-return standard deviation: {{dailyStd}}",
+        "headline": "Tracking error and daily active returns",
+        "notes": [
+          "Higher tracking error indicates looser alignment with the benchmark.",
+          "We require at least 30 overlapping daily returns to display this metric."
+        ],
+        "summary": "Tracking error captures the variability of active returns—how much the portfolio's daily returns diverge from the benchmark.",
+        "title": "Tracking Error"
+      }
     },
-    "bollingerBands": "Bollinger Bands",
-    "ma20": "20d MA",
-    "ma50": "50d MA",
-    "ma200": "200d MA",
-    "rsi": "RSI",
-    "positions": "Positions",
-    "columns": {
-      "account": "Account",
-      "units": "Units",
-      "market": "Mkt £",
-      "gain": "Gain £",
-      "gainPct": "Gain %"
-    },
-    "noPositions": "No positions",
-    "recentPrices": "Recent Prices",
-    "priceColumns": {
-      "date": "Date",
-      "close": "£ Close",
-      "delta": "Δ £",
-      "deltaPct": "Δ %"
-    },
-    "noPriceData": "No price data",
-    "intraday": "Intraday",
-    "intradayUnavailable": "Intraday data unavailable"
+    "title": "Performance Metrics Explained"
+  },
+  "movers": {
+    "excludeSmall": "Exclude positions <{{min}}%",
+    "loadFailed": "Failed to load movers{{status}}",
+    "loginPrompt": "Please log in to view portfolio-based movers.",
+    "pctPortfolio": "% of portfolio",
+    "period": "Period:",
+    "signal": "Signal",
+    "watchlist": "Watchlist:"
   },
   "owner": {
     "label": "Owner",
     "select": "Select an owner."
   },
   "pensionForecast": {
-    "currentAge": "Current age: {{age}}",
     "birthDate": "Birth date: {{dob}}",
-    "retirementAge": "Retirement age: {{age}}",
-    "pensionPot": "Pension pot",
+    "currentAge": "Current age: {{age}}",
+    "employerContributionLabel": "Employer contribution",
     "growthAssumption": "Growth assumption (%):",
-    "monthlyContribution": "Monthly Contribution (£):",
+    "header": {
+      "employeeContribution": "Your monthly contribution",
+      "employerContribution": "Employer contribution",
+      "heading": "Track your contributions at a glance",
+      "kicker": "Your pension snapshot",
+      "linkedPotsHeading": "Linked pension pots",
+      "noLinkedPots": "No pension pots linked for this owner yet.",
+      "notAvailable": "Not available",
+      "pensionPot": "Current pension pot",
+      "totalContribution": "Total monthly contributions: {{total}}"
+    },
     "incomeBreakdownHeading": "Retirement income breakdown",
     "incomeSources": {
-      "state": "State pension",
       "definedBenefit": "Defined benefit",
-      "definedContribution": "Defined contribution"
+      "definedContribution": "Defined contribution",
+      "state": "State pension"
     },
     "incomeTable": {
-      "source": "Source",
       "annual": "Annual (£)",
       "monthly": "Monthly (£)",
-      "share": "Share"
+      "share": "Share",
+      "source": "Source"
     },
-    "totalAnnualIncome": "Total annual income",
-    "totalMonthlyIncome": "Total monthly income",
+    "monthlyContribution": "Monthly Contribution (£):",
+    "pensionPot": "Pension pot",
     "prediction": {
+      "earliest": "Estimated earliest retirement age: {{age}}",
+      "noBreakdown": "No income breakdown available.",
       "onTrack": "You're on track: projected annual income of {{total}} meets your desired {{desired}}.",
       "onTrackWithAge": "You're on track: projected income of {{total}} meets your desired {{desired}} from age {{age}}.",
       "shortfall": "Projected income leaves a shortfall of {{shortfallAnnual}} per year ({{shortfallMonthly}} per month) against your desired {{desired}}.",
-      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then.",
-      "earliest": "Estimated earliest retirement age: {{age}}",
-      "noBreakdown": "No income breakdown available."
+      "shortfallWithAge": "You'll reach your desired {{desired}} around age {{age}}, leaving a shortfall of {{shortfallAnnual}} per year until then."
     },
-    "employerContributionLabel": "Employer contribution",
-    "header": {
-      "kicker": "Your pension snapshot",
-      "heading": "Track your contributions at a glance",
-      "pensionPot": "Current pension pot",
-      "employeeContribution": "Your monthly contribution",
-      "employerContribution": "Employer contribution",
-      "totalContribution": "Total monthly contributions: {{total}}",
-      "linkedPotsHeading": "Linked pension pots",
-      "noLinkedPots": "No pension pots linked for this owner yet.",
-      "notAvailable": "Not available"
-    }
+    "retirementAge": "Retirement age: {{age}}",
+    "totalAnnualIncome": "Total annual income",
+    "totalMonthlyIncome": "Total monthly income"
   },
-  "group": {
-    "select": "Select a group.",
-    "atAGlance": "At a glance"
-  },
-  "dashboard": {
-    "selectMember": "Select a member.",
-    "range": "Range:",
-    "rangeOptions": {
-      "1w": "1W",
-      "1m": "1M",
-      "1y": "1Y",
-      "10y": "10Y",
-      "max": "MAX"
-    },
-    "excludeCash": "Exclude cash",
-    "alphaVsBenchmark": "Alpha vs Benchmark",
-    "trackingError": "Tracking Error",
-    "maxDrawdown": "Max Drawdown",
-    "maxDrawdownHelp": "Max drawdown is the largest percentage drop from any portfolio peak to the lowest closing value that follows, calculated from the rebuilt daily totals of your holdings.",
-    "metricsExplanationLink": "How are these calculated?",
-    "timeWeightedReturn": "Time-Weighted Return",
-    "xirr": "XIRR",
-    "portfolioValue": "Portfolio Value",
-    "cumulativeReturn": "Cumulative Return"
-  },
-  "metricsExplanation": {
-    "title": "Performance Metrics Explained",
-    "intro": "These metrics summarise how the combined portfolio performs relative to its benchmark. Each value is derived from the same daily return series that powers the dashboard tiles.",
-    "backLink": "Back to portfolio dashboard",
-    "groupContext": "Showing combined metrics for group {{group}}.",
-    "ownerContext": "Showing metrics for {{owner}}'s portfolio.",
-    "noContext": "Open this page from a portfolio or group to see live numbers.",
-    "parameters": "Benchmark: {{benchmark}} • Window: {{days}} days",
-    "missingContext": "No portfolio or group was specified. Return to the dashboard and follow the metrics explanation link from a specific portfolio.",
-    "loadError": "We couldn’t load the latest metrics: {{message}}",
-    "loading": "Loading latest metrics…",
-    "notAvailable": "n/a",
-    "dateColumn": "Date",
-    "portfolioCumulative": "Portfolio cumulative return",
-    "benchmarkCumulative": "Benchmark cumulative return",
-    "alphaCumulative": "Excess cumulative return",
-    "portfolioReturn": "Portfolio return",
-    "benchmarkReturn": "Benchmark return",
-    "activeReturn": "Active return",
-    "portfolioValue": "Portfolio value",
-    "runningPeak": "Running peak",
-    "drawdownColumn": "Drawdown",
-    "calculationHeading": "How we calculate it",
-    "notesHeading": "Things to know",
-    "dataHeading": "Data inputs",
-    "dataBody": "We rebuild daily market values for every holding using the latest price data and any recorded corporate actions. Cash flows, trades and benchmark levels are normalised to UTC trading days. Metrics refresh whenever new prices are ingested.",
-    "disclaimer": "These statistics are provided for information only and may differ from figures reported by your broker if their pricing or benchmark selection differs.",
-    "sections": {
-      "alpha": {
-        "title": "Alpha vs Benchmark",
-        "summary": "Alpha measures the portfolio's excess return after matching the benchmark over the same date range.",
-        "headline": "Alpha vs benchmark",
-        "detail": "Cumulative portfolio return: {{portfolio}} · Benchmark return: {{benchmark}} · Alpha: {{alpha}}",
-        "breakdownHeading": "Step-by-step cumulative returns",
-        "breakdownIntro": "Each row shows how the cumulative portfolio and benchmark returns evolve on the same trading days. Their difference is the excess return (alpha).",
-        "calculation": "We compute time-weighted cumulative returns for both the portfolio and the configured benchmark. Alpha is simply the portfolio return minus the benchmark return, expressed in percentage points.",
-        "notes": [
-          "Positive alpha means the portfolio outperformed the benchmark over the selected period.",
-          "If either return series is unavailable for the full span we fall back to the overlapping dates only."
-        ]
-      },
-      "trackingError": {
-        "title": "Tracking Error",
-        "summary": "Tracking error captures the variability of active returns—how much the portfolio's daily returns diverge from the benchmark.",
-        "headline": "Tracking error and daily active returns",
-        "detail": "Annualised tracking error: {{trackingError}} · Daily active-return standard deviation: {{dailyStd}}",
-        "breakdownHeading": "Daily active returns",
-        "breakdownIntro": "Daily active returns (portfolio minus benchmark) are listed below. The standard deviation of this series, scaled by √252, produces the tracking error above.",
-        "calculation": "For each trading day we take the portfolio return minus the benchmark return, producing an active return series. Tracking error is the annualised standard deviation of those active returns (daily standard deviation multiplied by √252).",
-        "notes": [
-          "Higher tracking error indicates looser alignment with the benchmark.",
-          "We require at least 30 overlapping daily returns to display this metric."
-        ]
-      },
-      "maxDrawdown": {
-        "title": "Max Drawdown",
-        "summary": "Max drawdown identifies the worst peak-to-trough decline in portfolio value over the measurement window.",
-        "headline": "Worst peak-to-trough move",
-        "detail": "Max drawdown: {{drawdown}} · Peak: {{peakValue}} on {{peakDate}} · Trough: {{troughValue}} on {{troughDate}}",
-        "breakdownHeading": "Daily values and running peaks",
-        "breakdownIntro": "We rebuild the portfolio value curve, track each rolling peak, and compute the drawdown at every point. The minimum of this series is the max drawdown shown above.",
-        "calculation": "We scan the time-weighted return curve, track each new peak, and record the largest subsequent drop before a new peak is reached. The deepest percentage loss becomes the max drawdown.",
-        "notes": [
-          "Drawdown is calculated on portfolio returns only; the benchmark is not considered here.",
-          "A -100% drawdown would mean the portfolio value reached zero after a prior peak."
-        ]
-      }
-    }
-  },
-  "support": {
-    "title": "Support",
-    "online": "Online",
-    "onlineYes": "Yes",
-    "onlineNo": "No",
-    "environment": "Environment",
-    "priceRefresh": "Price Refresh",
-    "telegramMessage": "Telegram Message",
-    "send": "Send",
-    "status": {
-      "sent": "Sent",
-      "error": "Error",
-      "sending": "Sending...",
-      "saved": "Saved",
-      "saving": "Saving..."
-    },
-    "health": {
-      "title": "Portfolio health",
-      "run": "Run portfolio health check",
-      "copyReport": "Copy report",
-      "error": "Failed to run health check"
-    },
-    "notifications": {
-      "title": "Notifications",
-      "notSupported": "Push not supported",
-      "disable": "Disable Push Alerts",
-      "enable": "Enable Push Alerts",
-      "denied": "Push permission denied.",
-      "error": "Error handling push subscription."
-    },
-    "config": {
-      "title": "Configuration",
-      "tabsEnabled": "Tabs Enabled",
-      "otherSwitches": "Other Switches",
-      "otherParams": "Other parameters",
-      "save": "Save"
-    },
-    "logs": {
-      "title": "Logs",
-      "refresh": "Refresh logs",
-      "empty": "No logs available.",
-      "error": "Failed to load logs."
-    }
-  },
-  "alertSettings": {
-    "title": "Alert Settings",
-    "description": "Configure when you'll receive alerts. Alerts appear on the Alerts page and in push notifications.",
-    "threshold": "Threshold %:",
+  "portfolio": "Portfolio",
+  "query": {
+    "copyLink": "Copy Link",
+    "end": "End",
+    "exportCsv": "Export CSV",
+    "exportXlsx": "Export XLSX",
+    "metrics": "Metrics",
+    "noResults": "No results.",
+    "owners": "Owners",
+    "run": "Run",
+    "running": "Running…",
     "save": "Save",
-    "signInNotice": "Sign in to configure alerts",
-    "push": {
-      "title": "Push Notifications",
-      "notSupported": "Push not supported",
-      "enable": "Enable Push Alerts",
-      "disable": "Disable Push Alerts",
-      "denied": "Push permission denied.",
-      "error": "Error handling push subscription."
-    },
-    "status": {
-      "saved": "Saved",
-      "error": "Error"
-    }
+    "start": "Start",
+    "tickers": "Tickers"
   },
   "reports": {
-    "title": "Reports",
     "csv": "Download CSV",
+    "noOwners": "No owners available—check backend connection",
     "pdf": "Download PDF",
-    "noOwners": "No owners available—check backend connection"
+    "title": "Reports"
   },
-  "loadingPortfolio": "Loading portfolio…",
-  "portfolio": "Portfolio",
-  "asOf": "As of {{date}} • Trades this month: {{trades}} / 20 (Remaining: {{remaining}})",
-  "approxTotal": "Approx Total: £{{value}}",
-  "allocation": {
-    "instrumentTypes": "Instrument Types",
-    "sector": "Industries",
-    "region": "Regions"
+  "screener": {
+    "loading": "Loading…",
+    "max52WeekHigh": "Max 52W High",
+    "max52WeekLow": "Max 52W Low",
+    "maxBeta": "Max Beta",
+    "maxDe": "Max D/E",
+    "maxDividendPayoutRatio": "Max Dividend Payout Ratio",
+    "maxLtDe": "Max LT D/E",
+    "maxPe": "Max P/E",
+    "maxPeg": "Max PEG",
+    "min52WeekLow": "Min 52W Low",
+    "minAvgVolume": "Min Avg Volume",
+    "minCurrentRatio": "Min Current Ratio",
+    "minDividendYield": "Min Dividend Yield",
+    "minEbitdaMargin": "Min EBITDA Margin",
+    "minEps": "Min EPS",
+    "minFcf": "Min FCF",
+    "minFloatShares": "Min Float Shares",
+    "minGrossMargin": "Min Gross Margin",
+    "minInterestCoverage": "Min Interest Coverage",
+    "minMarketCap": "Min Market Cap",
+    "minNetMargin": "Min Net Margin",
+    "minOperatingMargin": "Min Operating Margin",
+    "minQuickRatio": "Min Quick Ratio",
+    "minRoa": "Min ROA",
+    "minRoe": "Min ROE",
+    "minRoi": "Min ROI",
+    "minSharesOutstanding": "Min Shares Outstanding",
+    "run": "Run",
+    "tickers": "Tickers",
+    "watchlist": "Watchlist:"
   },
-  "watchlist": {
-    "refresh": "Refresh"
-  },
-  "trading": {
-    "noPositions": "No positions.",
-    "noSignals": "No signals."
-  },
-  "movers": {
-    "watchlist": "Watchlist:",
-    "period": "Period:",
-    "excludeSmall": "Exclude positions <{{min}}%",
-    "loginPrompt": "Please log in to view portfolio-based movers.",
-    "loadFailed": "Failed to load movers{{status}}",
-    "signal": "Signal",
-    "pctPortfolio": "% of portfolio"
+  "support": {
+    "config": {
+      "otherParams": "Other parameters",
+      "otherSwitches": "Other Switches",
+      "save": "Save",
+      "tabsEnabled": "Tabs Enabled",
+      "title": "Configuration"
+    },
+    "environment": "Environment",
+    "health": {
+      "copyReport": "Copy report",
+      "error": "Failed to run health check",
+      "run": "Run portfolio health check",
+      "title": "Portfolio health"
+    },
+    "logs": {
+      "empty": "No logs available.",
+      "error": "Failed to load logs.",
+      "refresh": "Refresh logs",
+      "title": "Logs"
+    },
+    "notifications": {
+      "denied": "Push permission denied.",
+      "disable": "Disable Push Alerts",
+      "enable": "Enable Push Alerts",
+      "error": "Error handling push subscription.",
+      "notSupported": "Push not supported",
+      "title": "Notifications"
+    },
+    "online": "Online",
+    "onlineNo": "No",
+    "onlineYes": "Yes",
+    "priceRefresh": "Price Refresh",
+    "send": "Send",
+    "status": {
+      "error": "Error",
+      "saved": "Saved",
+      "saving": "Saving...",
+      "sending": "Sending...",
+      "sent": "Sent"
+    },
+    "telegramMessage": "Telegram Message",
+    "title": "Support"
   },
   "timeseries": {
     "loading": "Loading…"
   },
   "timeseriesEdit": {
-    "title": "Time Series Editor",
-    "ticker": "Ticker",
-    "exchange": "Exchange",
-    "load": "Load",
     "addRow": "Add Row",
-    "save": "Save",
-    "delete": "Delete",
     "columns": {
+      "close": "Close",
       "date": "Date",
-      "open": "Open",
       "high": "High",
       "low": "Low",
-      "close": "Close",
-      "volume": "Volume",
+      "open": "Open",
+      "source": "Source",
       "ticker": "Ticker",
-      "source": "Source"
+      "volume": "Volume"
     },
+    "delete": "Delete",
+    "error": {
+      "noData": "No data to save",
+      "unexpectedColumns": "Unexpected column(s): {{columns}}"
+    },
+    "exchange": "Exchange",
+    "load": "Load",
+    "save": "Save",
     "status": {
       "loaded": "Loaded {{count}} rows",
       "saved": "Saved {{count}} rows"
     },
-    "error": {
-      "noData": "No data to save",
-      "unexpectedColumns": "Unexpected column(s): {{columns}}"
-    }
-  },
-  "query": {
-    "noResults": "No results.",
-    "start": "Start",
-    "end": "End",
-    "owners": "Owners",
-    "tickers": "Tickers",
-    "metrics": "Metrics",
-    "run": "Run",
-    "running": "Running…",
-    "save": "Save",
-    "copyLink": "Copy Link",
-    "exportCsv": "Export CSV",
-    "exportXlsx": "Export XLSX"
-  },
-  "screener": {
-    "watchlist": "Watchlist:",
-    "tickers": "Tickers",
-    "maxPeg": "Max PEG",
-    "maxPe": "Max P/E",
-    "maxDe": "Max D/E",
-    "maxLtDe": "Max LT D/E",
-    "minInterestCoverage": "Min Interest Coverage",
-    "minCurrentRatio": "Min Current Ratio",
-    "minQuickRatio": "Min Quick Ratio",
-    "minFcf": "Min FCF",
-    "minEps": "Min EPS",
-    "minGrossMargin": "Min Gross Margin",
-    "minOperatingMargin": "Min Operating Margin",
-    "minNetMargin": "Min Net Margin",
-    "minEbitdaMargin": "Min EBITDA Margin",
-    "minRoa": "Min ROA",
-    "minRoe": "Min ROE",
-    "minRoi": "Min ROI",
-    "minDividendYield": "Min Dividend Yield",
-    "maxDividendPayoutRatio": "Max Dividend Payout Ratio",
-    "maxBeta": "Max Beta",
-    "minSharesOutstanding": "Min Shares Outstanding",
-    "minFloatShares": "Min Float Shares",
-    "minMarketCap": "Min Market Cap",
-    "max52WeekHigh": "Max 52W High",
-    "max52WeekLow": "Max 52W Low",
-    "min52WeekLow": "Min 52W Low",
-    "minAvgVolume": "Min Avg Volume",
-    "run": "Run",
-    "loading": "Loading…"
-  },
-  "instrumentadmin": {
     "ticker": "Ticker",
-    "exchange": "Exchange",
-    "name": "Name",
-    "region": "Region",
-    "sector": "Sector",
-    "grouping": "Grouping",
-    "actions": "Actions",
-    "add": "Add Instrument",
-    "save": "Save",
-    "saveSuccess": "Saved",
-    "saveError": "Error saving",
-    "searchPlaceholder": "Filter instruments…",
-    "validation": {
-      "ticker": "Ticker is required",
-      "name": "Name is required",
-      "grouping": "Grouping is required"
-    }
+    "title": "Time Series Editor"
+  },
+  "trading": {
+    "noPositions": "No positions.",
+    "noSignals": "No signals."
+  },
+  "trail": {
+    "allDone": "All Trail tasks are complete — fantastic work!",
+    "daily": "Daily",
+    "dailyComplete": "Daily tasks complete! Keep the streak going.",
+    "once": "Once",
+    "progressLabel": "Daily progress: {{completed}} / {{total}} ({{percent}}%)",
+    "streakLabel": "Streak: {{count}} day",
+    "streakLabel_plural": "Streak: {{count}} days",
+    "title": "Trail progress",
+    "xpLabel": "XP: {{xp}}"
   },
   "var": {
-    "title": "Value at Risk",
     "details": "Historical simulation details",
-    "noData": "No VaR data available."
+    "noData": "No VaR data available.",
+    "title": "Value at Risk"
   },
-  "market": {
-    "indexLevels": "Index Levels",
-    "sectorPerformance": "Sector Performance",
-    "latestHeadlines": "Latest Headlines"
-  },
-  "goals": {
-    "title": "Goals",
-    "targetAmount": "Target Amount",
-    "add": "Add Goal",
-    "currentAmount": "Current Amount:",
-    "goalLine": "{{name}} – target {{amount}} by {{date}}",
-    "view": "View",
-    "progress": "Progress: {{progress}}%",
-    "suggestedTrades": "Suggested Trades",
-    "trade": "{{action}} {{amount}} of {{ticker}}",
-    "back": "Back to Portfolio"
+  "watchlist": {
+    "refresh": "Refresh"
   }
 }

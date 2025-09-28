@@ -37,6 +37,7 @@ export function VirtualPortfolio() {
   const [loading, setLoading] = useState(false);
   const [hasLoadedInitialData, setHasLoadedInitialData] = useState(false);
   const isMountedRef = useRef(true);
+  const activeLoadRef = useRef(0);
   const ownerLookup = useMemo(
     () => createOwnerDisplayLookup(owners),
     [owners],
@@ -57,13 +58,18 @@ export function VirtualPortfolio() {
   );
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      activeLoadRef.current += 1;
     };
   }, []);
 
   const loadInitialData = useCallback(async () => {
     if (!isMountedRef.current) return;
+
+    const loadId = activeLoadRef.current + 1;
+    activeLoadRef.current = loadId;
 
     setLoading(true);
     setMessage(null);
@@ -76,7 +82,7 @@ export function VirtualPortfolio() {
           getOwners(),
         ]);
 
-        if (!isMountedRef.current) {
+        if (!isMountedRef.current || loadId !== activeLoadRef.current) {
           return;
         }
 
@@ -89,7 +95,7 @@ export function VirtualPortfolio() {
       } catch (e) {
         const err = e instanceof Error ? e : new Error(String(e));
 
-        if (!isMountedRef.current) {
+        if (!isMountedRef.current || loadId !== activeLoadRef.current) {
           return;
         }
 
@@ -112,7 +118,7 @@ export function VirtualPortfolio() {
 
         if (delay > 0) {
           await new Promise<void>((resolve) => setTimeout(resolve, delay));
-          if (!isMountedRef.current) {
+          if (!isMountedRef.current || loadId !== activeLoadRef.current) {
             return;
           }
         }

@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import VirtualPortfolio from "@/pages/VirtualPortfolio";
 import * as api from "@/api";
@@ -180,5 +181,53 @@ describe("VirtualPortfolio page", () => {
     expect(
       await screen.findByRole("option", { name: "Recovered VP" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows slow portfolios after StrictMode remounts", async () => {
+    mockGetVirtualPortfolios.mockImplementation(() =>
+      new Promise<VirtualPortfolioType[]>((resolve) => {
+        setTimeout(
+          () =>
+            resolve([
+              {
+                id: 99,
+                name: "Slow path demo",
+                accounts: [],
+                holdings: [],
+              } as VirtualPortfolioType,
+            ]),
+          50,
+        );
+      }),
+    );
+
+    mockGetOwners.mockImplementation(() =>
+      new Promise<OwnerSummary[]>((resolve) => {
+        setTimeout(
+          () =>
+            resolve([
+              {
+                owner: "slow-owner",
+                full_name: "Slow Owner",
+                accounts: [],
+              } as OwnerSummary,
+            ]),
+          30,
+        );
+      }),
+    );
+
+    render(
+      <StrictMode>
+        <VirtualPortfolio />
+      </StrictMode>,
+    );
+
+    const option = await screen.findByRole("option", { name: "Slow path demo" });
+    expect(option).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading\.\.\./i)).not.toBeInTheDocument();
+    });
   });
 });

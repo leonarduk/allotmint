@@ -81,6 +81,27 @@ async def test_get_active_user_invokes_token_helper_when_disabled(
     assert calls == {"token": "stub"}
 
 
+@pytest.mark.anyio
+async def test_get_active_user_returns_none_when_disabled_without_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Auth-disabled requests without a token should return ``None``."""
+
+    app = FastAPI()
+    request = _make_request(app)
+
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+
+    # Guard against accidental token validation to ensure we exercise the
+    # ``None`` early-return branch.
+    def fake_user_from_token(token: str | None) -> str:  # pragma: no cover - fails if called
+        raise AssertionError("_user_from_token should not be invoked")
+
+    monkeypatch.setattr(auth, "_user_from_token", fake_user_from_token)
+
+    assert await auth.get_active_user(request, token=None) is None
+
+
 def test_allowed_emails_missing_accounts_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

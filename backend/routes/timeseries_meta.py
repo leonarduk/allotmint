@@ -65,12 +65,19 @@ async def get_meta_timeseries(
     end_date = date.today() - timedelta(days=1)
 
     try:
-        df = load_meta_timeseries_range(ticker, exchange, start_date=start_date, end_date=end_date)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        df = load_meta_timeseries_range(
+            ticker, exchange, start_date=start_date, end_date=end_date
+        )
+    except Exception as exc:
+        logger.debug(
+            "Failed to load meta timeseries for %s.%s: %s", ticker, exchange, exc
+        )
+        raise HTTPException(
+            status_code=404, detail="timeseries meta not found"
+        ) from exc
 
-    if df.empty:
-        raise HTTPException(status_code=404, detail=f"No data found for {ticker}.{exchange}")
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail="timeseries meta not found")
 
     df = df.copy()
     df["Date"] = pd.to_datetime(df["Date"])

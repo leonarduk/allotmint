@@ -14,7 +14,6 @@ import {
   type PensionIncomeBreakdown,
 } from "../api";
 import type { OwnerSummary } from "../types";
-import { OwnerSelector } from "../components/OwnerSelector";
 import { useTranslation } from "react-i18next";
 import { useRoute } from "../RouteContext";
 import { sanitizeOwners } from "../utils/owners";
@@ -29,7 +28,6 @@ export default function PensionForecast() {
   const [monthlySpending, setMonthlySpending] = useState(2000);
   const [employerContributionMonthly, setEmployerContributionMonthly] =
     useState(150);
-  const [additionalPensions, setAdditionalPensions] = useState(0);
   const [careerPathIndex, setCareerPathIndex] = useState(1);
   const [data, setData] = useState<{ age: number; income: number }[]>([]);
   const [projectedPot, setProjectedPot] = useState<number | null>(null);
@@ -72,10 +70,6 @@ export default function PensionForecast() {
   );
 
   const totalMonthlyContribution = monthlySavings + employerContributionMonthly;
-
-  const handleAddAnotherPension = () => {
-    setAdditionalPensions((count) => count + 1);
-  };
 
   useEffect(() => {
     getOwners()
@@ -128,6 +122,11 @@ export default function PensionForecast() {
     setOwner(value);
     setSelectedOwner(value);
   };
+
+  const ownerAccounts = useMemo(() => {
+    const ownerSummary = owners.find((o) => o.owner === owner);
+    return ownerSummary?.accounts ?? [];
+  }, [owners, owner]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -268,7 +267,7 @@ export default function PensionForecast() {
         aria-labelledby="pension-snapshot-heading"
         className="rounded-3xl bg-slate-900 p-6 text-white shadow-sm"
       >
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
               {t("pensionForecast.header.kicker")}
@@ -279,21 +278,49 @@ export default function PensionForecast() {
             >
               {t("pensionForecast.header.heading")}
             </h2>
-            {additionalPensions > 0 && (
-              <p className="text-sm text-blue-100">
-                {t("pensionForecast.header.additionalPensions", {
-                  count: additionalPensions,
-                })}
-              </p>
-            )}
           </div>
-          <button
-            type="button"
-            onClick={handleAddAnotherPension}
-            className="inline-flex items-center justify-center rounded-full border border-white/30 px-4 py-2 text-sm font-semibold text-white transition hover:border-white hover:bg-white hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-2 focus:ring-offset-slate-900"
-          >
-            {t("pensionForecast.header.addAnother")}
-          </button>
+          <div className="w-full md:w-auto">
+            <label
+              htmlFor="pension-owner"
+              className="text-xs font-semibold uppercase tracking-wide text-blue-200"
+            >
+              {t("owner.label")}
+            </label>
+            <select
+              id="pension-owner"
+              value={owner}
+              onChange={(event) => handleSelectOwner(event.target.value)}
+              className="mt-1 w-full min-w-[12rem] rounded-md border border-white/30 bg-slate-900/60 px-3 py-2 text-sm font-medium text-white shadow-sm transition focus:border-white focus:outline-none focus:ring-2 focus:ring-white/60 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-blue-200/60"
+              disabled={owners.length === 0}
+            >
+              {owners.map((o) => (
+                <option key={o.owner} value={o.owner}>
+                  {o.full_name?.trim() ? o.full_name : o.owner}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">
+            {t("pensionForecast.header.linkedPotsHeading")}
+          </p>
+          {ownerAccounts.length > 0 ? (
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {ownerAccounts.map((account) => (
+                <li
+                  key={account}
+                  className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white"
+                >
+                  {account}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-blue-100">
+              {t("pensionForecast.header.noLinkedPots")}
+            </p>
+          )}
         </div>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <SnapshotStat
@@ -334,11 +361,6 @@ export default function PensionForecast() {
             </p>
           </header>
           <div className="space-y-5">
-            <OwnerSelector
-              owners={owners}
-              selected={owner}
-              onSelect={handleSelectOwner}
-            />
             <SliderControl
               id="career-path"
               label="Career path"

@@ -28,7 +28,7 @@ def test_compute_alpha_and_tracking_error(monkeypatch: pytest.MonkeyPatch) -> No
     assert alpha == pytest.approx(0.03, rel=1e-4)
 
     tracking_error = portfolio_utils.compute_tracking_error("alice", "SPY.L", days=365)
-    assert tracking_error == pytest.approx(0.008190058, rel=1e-4)
+    assert tracking_error == pytest.approx(0.13001314, rel=1e-4)
 
 
 def test_compute_metrics_none_when_series_misaligned(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -84,7 +84,7 @@ def test_group_metrics_and_max_drawdown(monkeypatch: pytest.MonkeyPatch) -> None
     assert alpha == pytest.approx(0.03, rel=1e-4)
 
     tracking_error = portfolio_utils.compute_group_tracking_error("demo-group", "SPY.L", days=365)
-    assert tracking_error == pytest.approx(0.008190058, rel=1e-4)
+    assert tracking_error == pytest.approx(0.13001314, rel=1e-4)
 
     assert group_calls == ["demo-group", "demo-group"]
 

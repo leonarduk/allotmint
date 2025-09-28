@@ -811,6 +811,36 @@ export const updateInstrumentMetadata = (
     },
   );
 
+export type InstrumentMetadataRefreshResponse = {
+  status: string;
+  metadata: InstrumentMetadata & Record<string, unknown>;
+  changes: Record<string, { from: unknown; to: unknown }>;
+};
+
+export const refreshInstrumentMetadata = (
+  ticker: string,
+  exchange: string,
+) =>
+  fetchJson<InstrumentMetadataRefreshResponse>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}/refresh`,
+    {
+      method: "POST",
+    },
+  );
+
+export const confirmInstrumentMetadata = (
+  ticker: string,
+  exchange: string,
+) =>
+  fetchJson<InstrumentMetadataRefreshResponse>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}/refresh`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preview: false }),
+    },
+  );
+
 
 export const getTransactions = (params: {
   owner?: string;
@@ -1115,8 +1145,15 @@ export const saveCustomQuery = (name: string, params: CustomQuery) =>
   });
 
 /** List saved queries available on the backend. */
-export const listSavedQueries = () =>
-  fetchJson<SavedQuery[]>(`${API_BASE}/custom-query/saved`);
+export function listSavedQueries(opts?: { detailed?: true }): Promise<SavedQuery[]>;
+export function listSavedQueries(opts: { detailed: false }): Promise<string[]>;
+export function listSavedQueries(opts: { detailed?: boolean } = {}) {
+  const detailed = opts.detailed ?? true;
+  if (detailed) {
+    return fetchJson<SavedQuery[]>(`${API_BASE}/custom-query/saved?detailed=1`);
+  }
+  return fetchJson<string[]>(`${API_BASE}/custom-query/saved`);
+}
 /** Fetch Value at Risk metrics for an owner. */
 export const getValueAtRisk = (
   owner: string,

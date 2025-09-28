@@ -20,7 +20,7 @@ function statePensionAgeUk(dob: string): number {
 
 function computeDemoDeathAge(): string {
   const accountsRoot = process.env.ACCOUNTS_ROOT ?? path.resolve(__dirname, '../data/accounts');
-  const personPath = path.join(accountsRoot, 'demo', 'person.json');
+  const personPath = path.join(accountsRoot, 'demo-owner', 'person.json');
 
   try {
     const meta = JSON.parse(fs.readFileSync(personPath, 'utf8')) as { dob?: unknown };
@@ -123,7 +123,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/compliance/validate",
     "body": {
-      "owner": "demo"
+      "owner": "demo-owner"
     }
   },
   {
@@ -217,7 +217,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/holdings/import",
     "body": {
       "__form__": {
-        "owner": "demo",
+        "owner": "demo-owner",
         "account": "isa",
         "provider": "test",
         "file": "__file__"
@@ -352,7 +352,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/pension/forecast",
     "query": {
-      "owner": "demo",
+      "owner": "demo-owner",
       "death_age": demoPensionDeathAge
     }
   },
@@ -447,7 +447,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/returns/compare",
     "query": {
-      "owner": "demo"
+      "owner": "demo-owner"
     }
   },
   {
@@ -462,7 +462,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/scenario/historical",
     "query": {
-      "horizons": "['test']"
+      "event_id": "covid-2020",
+      "horizons": "1"
     }
   },
   {
@@ -524,7 +525,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/timeseries/edit",
     "query": {
       "ticker": "PFE"
-    }
+    },
+    "body": []
   },
   {
     "method": "GET",
@@ -544,7 +546,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/token",
     "body": {
-      "id_token": "test"
+      "id_token": "good"
     }
   },
   {
@@ -576,15 +578,16 @@ export const smokeEndpoints: SmokeEndpoint[] = [
       "account": "test",
       "ticker": "test",
       "date": "1970-01-01",
-      "price_gbp": 0,
-      "units": 0
+      "price_gbp": 1,
+      "units": 1,
+      "reason": "smoke"
     }
   },
   {
     "method": "GET",
     "path": "/transactions/compliance",
     "query": {
-      "owner": "demo"
+      "owner": "demo-owner"
     }
   },
   {
@@ -635,11 +638,11 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     }
   },
   {
-    "method": "DELETE",
+    "method": "GET",
     "path": "/virtual-portfolios/{vp_id}"
   },
   {
-    "method": "GET",
+    "method": "DELETE",
     "path": "/virtual-portfolios/{vp_id}"
   }
 ] as const;
@@ -648,13 +651,14 @@ export const smokeEndpoints: SmokeEndpoint[] = [
 // Values are chosen based on common parameter names. Unknown names default to
 // `1` which parses as an integer or string.
 const SAMPLE_PATH_VALUES: Record<string, string> = {
-  owner: 'demo',
+  owner: 'demo-owner',
   account: 'isa',
-  user: 'demo',
+  user: 'demo-owner',
   email: 'user@example.com',
   id: '1',
-  vp_id: '1',
+  vp_id: 'test',
   quest_id: 'check-in',
+  task_id: 'log_in',
   slug: 'demo-slug',
   name: 'test',
   exchange: 'NASDAQ',

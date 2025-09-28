@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from backend.common.approvals import is_approval_valid, load_approvals
 from backend.common.data_loader import resolve_paths
 from backend.common.instruments import get_instrument_meta
-from backend.common.user_config import load_user_config
+from backend.common.user_config import UserConfig, load_user_config
 from backend.config import config
 
 logger = logging.getLogger("compliance")
@@ -52,6 +52,9 @@ def _ensure_owner_scaffold(owner: str, owner_dir: Path) -> None:
         "settings.json": _default_settings_payload(),
         "approvals.json": {"approvals": []},
         "person.json": {
+            "dob": "",
+            "email": "",
+            "full_name": "",
             "owner": owner,
             "holdings": [],
             "viewers": [],
@@ -111,7 +114,14 @@ def load_transactions(
     root = Path(accounts_root) if accounts_root else paths.accounts_root
     owner_dir = root / owner
     if not owner_dir.exists():
-        raise FileNotFoundError(owner_dir)
+        if not scaffold_missing:
+            raise FileNotFoundError(owner_dir)
+        # Callers opting to scaffold missing owners expect the function to
+        # return an empty transaction list without mutating the filesystem.
+        # ``ensure_owner_scaffold`` remains available to explicitly create the
+        # default structure when desired.
+        return []
+
     _ensure_owner_scaffold(owner, owner_dir)
 
     results: List[Dict[str, Any]] = []
@@ -136,8 +146,20 @@ def _check_transactions(owner: str, txs: List[Dict[str, Any]], accounts_root: Op
     """Run compliance checks on a list of transactions."""
 
     warnings: List[str] = []
-    approvals = load_approvals(owner, accounts_root)
-    ucfg = load_user_config(owner, accounts_root)
+    try:
+        approvals = load_approvals(owner, accounts_root)
+    except FileNotFoundError:
+        approvals = {}
+
+    try:
+        ucfg = load_user_config(owner, accounts_root)
+    except FileNotFoundError:
+        ucfg = UserConfig(
+            hold_days_min=config.hold_days_min,
+            max_trades_per_month=config.max_trades_per_month,
+            approval_exempt_types=config.approval_exempt_types,
+            approval_exempt_tickers=config.approval_exempt_tickers,
+        )
     exempt_tickers = {t.upper() for t in (ucfg.approval_exempt_tickers or [])}
     exempt_types = {t.upper() for t in (ucfg.approval_exempt_types or [])}
 

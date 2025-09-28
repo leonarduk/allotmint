@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 import i18n from "@/i18n";
@@ -6,26 +6,30 @@ import Menu from "@/components/Menu";
 import { configContext, type ConfigContextValue } from "@/ConfigContext";
 
 describe("Menu", () => {
-  it("hides links by default and shows them after toggle", () => {
+  it("hides links by default and shows them after toggle", async () => {
     render(
       <MemoryRouter>
         <Menu />
       </MemoryRouter>,
     );
-    const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("link", { name: "Support" })).not.toBeInTheDocument();
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    const supportLink = screen.getByRole("link", { name: "Support" });
+    const settingsToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.preferences"),
+    });
+    expect(settingsToggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menuitem", { name: "Support" })).not.toBeInTheDocument();
+    fireEvent.click(settingsToggle);
+    expect(settingsToggle).toHaveAttribute("aria-expanded", "true");
+    const supportLink = await screen.findByRole("menuitem", { name: "Support" });
     expect(supportLink).toBeVisible();
     expect(supportLink).toHaveAttribute(
       "href",
       "/support",
     );
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("link", { name: "Support" })).not.toBeInTheDocument();
+    fireEvent.click(settingsToggle);
+    expect(settingsToggle).toHaveAttribute("aria-expanded", "false");
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem", { name: "Support" })).not.toBeInTheDocument(),
+    );
   });
 
   it("updates aria-expanded attribute when toggled", () => {
@@ -34,25 +38,28 @@ describe("Menu", () => {
         <Menu />
       </MemoryRouter>,
     );
-    const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const settingsToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.preferences"),
+    });
+    expect(settingsToggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(settingsToggle);
+    expect(settingsToggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(settingsToggle);
+    expect(settingsToggle).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("shows support tabs on support route", () => {
+  it("shows support tabs on support route", async () => {
     render(
       <MemoryRouter initialEntries={["/support"]}>
         <Menu />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByLabelText(i18n.t("app.menu")));
-    expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
-      "href",
-      "/",
-    );
+    const settingsToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.preferences"),
+    });
+    fireEvent.click(settingsToggle);
+    const supportLink = await screen.findByRole("menuitem", { name: "Support" });
+    expect(supportLink).toHaveAttribute("href", "/");
   });
 
   it("hides support toggle when support tab disabled", () => {
@@ -95,11 +102,14 @@ describe("Menu", () => {
         </MemoryRouter>
       </configContext.Provider>,
     );
-    fireEvent.click(screen.getByRole("button", { name: i18n.t("app.menu") }));
-    expect(screen.queryByRole("link", { name: "Support" })).toBeNull();
+    const settingsToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.preferences"),
+    });
+    fireEvent.click(settingsToggle);
+    expect(screen.queryByRole("menuitem", { name: "Support" })).toBeNull();
   });
 
-  it("renders logout button when callback provided", () => {
+  it("renders logout button when callback provided", async () => {
     const onLogout = vi.fn();
     i18n.changeLanguage("fr");
     render(
@@ -107,9 +117,11 @@ describe("Menu", () => {
         <Menu onLogout={onLogout} />
       </MemoryRouter>,
     );
-    const toggle = screen.getByRole("button", { name: i18n.t("app.menu") });
-    fireEvent.click(toggle);
-    const btn = screen.getByRole("button", { name: "Déconnexion" });
+    const settingsToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.preferences"),
+    });
+    fireEvent.click(settingsToggle);
+    const btn = await screen.findByRole("menuitem", { name: "Déconnexion" });
     fireEvent.click(btn);
     expect(onLogout).toHaveBeenCalled();
     i18n.changeLanguage("en");

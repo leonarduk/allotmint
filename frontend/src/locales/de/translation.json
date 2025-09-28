@@ -12,9 +12,10 @@
     "menu": "Menü",
     "menuCategories": {
       "dashboard": "Dashboard",
-      "insightts": "Insightts",
-      "requirements": "Anforderungen",
-      "settings": "Einstellungen",
+      "holdings": "Bestände",
+      "tradeTools": "Insights",
+      "goals": "Anforderungen",
+      "preferences": "Einstellungen",
       "operations": "Operationen",
       "other": "Weitere"
     },
@@ -42,6 +43,7 @@
       "alertsettings": "Alert Settings",
       "compliance": "Compliance-Warnungen",
       "trade-compliance": "Handels-Compliance",
+      "tradecompliance": "Handelskonformität",
       "support": "Support",
       "scenario": "Szenario-Tester"
     },
@@ -238,14 +240,14 @@
       "employeeContribution": "Ihr monatlicher Beitrag",
       "employerContribution": "Arbeitgeberbeitrag",
       "totalContribution": "Gesamte monatliche Beiträge: {{total}}",
-      "addAnother": "Weitere Rente hinzufügen",
-      "additionalPensions_one": "{{count}} weiterer Rentenvertrag verknüpft",
-      "additionalPensions_other": "{{count}} weitere Rentenverträge verknüpft",
+      "linkedPotsHeading": "Verknüpfte Rententöpfe",
+      "noLinkedPots": "Für diese Person sind noch keine Rententöpfe verknüpft.",
       "notAvailable": "Nicht verfügbar"
     }
   },
   "group": {
-    "select": "Wählen Sie eine Gruppe."
+    "select": "Wählen Sie eine Gruppe.",
+    "atAGlance": "Auf einen Blick"
   },
   "dashboard": {
     "selectMember": "Wählen Sie ein Mitglied.",
@@ -272,6 +274,24 @@
     "title": "Performancekennzahlen erklärt",
     "intro": "Diese Kennzahlen fassen zusammen, wie sich das kombinierte Portfolio im Vergleich zu seinem Benchmark entwickelt. Jede Zahl basiert auf denselben täglichen Renditereihen wie die Kacheln im Dashboard.",
     "backLink": "Zurück zum Portfolio-Dashboard",
+    "groupContext": "Kennzahlen für die Gruppe {{group}}.",
+    "ownerContext": "Kennzahlen für das Portfolio von {{owner}}.",
+    "noContext": "Öffnen Sie diese Seite aus einem Portfolio oder einer Gruppe, um aktuelle Werte zu sehen.",
+    "parameters": "Benchmark: {{benchmark}} • Zeitraum: {{days}} Tage",
+    "missingContext": "Es wurde kein Portfolio oder keine Gruppe angegeben. Kehren Sie zum Dashboard zurück und folgen Sie dort dem Link aus dem gewünschten Portfolio.",
+    "loadError": "Die Kennzahlen konnten nicht geladen werden: {{message}}",
+    "loading": "Kennzahlen werden geladen…",
+    "notAvailable": "k. A.",
+    "dateColumn": "Datum",
+    "portfolioCumulative": "Kumulierte Portfoliorendite",
+    "benchmarkCumulative": "Kumulierte Benchmark-Rendite",
+    "alphaCumulative": "Überrendite",
+    "portfolioReturn": "Portfoliorendite",
+    "benchmarkReturn": "Benchmark-Rendite",
+    "activeReturn": "Active Return",
+    "portfolioValue": "Portfoliowert",
+    "runningPeak": "Laufendes Hoch",
+    "drawdownColumn": "Drawdown",
     "calculationHeading": "So berechnen wir das",
     "notesHeading": "Wissenswertes",
     "dataHeading": "Datengrundlage",
@@ -281,6 +301,10 @@
       "alpha": {
         "title": "Alpha vs Benchmark",
         "summary": "Alpha misst die Überrendite des Portfolios gegenüber dem Benchmark im gleichen Zeitraum.",
+        "headline": "Alpha gegenüber dem Benchmark",
+        "detail": "Kumulierte Portfoliorendite: {{portfolio}} · Benchmark-Rendite: {{benchmark}} · Alpha: {{alpha}}",
+        "breakdownHeading": "Kumulierte Renditen im Zeitverlauf",
+        "breakdownIntro": "Die Tabelle zeigt für jeden Handelstag die kumulierten Renditen von Portfolio und Benchmark sowie deren Differenz (Alpha).",
         "calculation": "Wir berechnen zeitgewichtete kumulierte Renditen für Portfolio und Benchmark. Alpha ist einfach die Portfoliorendite minus der Benchmark-Rendite in Prozentpunkten.",
         "notes": [
           "Positives Alpha bedeutet, dass das Portfolio den Benchmark im betrachteten Zeitraum geschlagen hat.",
@@ -290,6 +314,10 @@
       "trackingError": {
         "title": "Tracking Error",
         "summary": "Der Tracking Error zeigt, wie stark die täglichen Portfoliorenditen vom Benchmark abweichen.",
+        "headline": "Tracking Error und Active Returns",
+        "detail": "Annualisierter Tracking Error: {{trackingError}} · Tägliche Standardabweichung der Active Returns: {{dailyStd}}",
+        "breakdownHeading": "Tägliche Active Returns",
+        "breakdownIntro": "Hier listen wir die täglichen Differenzen zwischen Portfolio und Benchmark auf. Die Standardabweichung dieser Reihe, multipliziert mit √252, ergibt den oben angegebenen Tracking Error.",
         "calculation": "Für jeden Handelstag ziehen wir die Benchmark-Rendite von der Portfoliorendite ab und erhalten so eine Active-Return-Reihe. Der Tracking Error ist die annualisierte Standardabweichung dieser Werte (tägliche Standardabweichung multipliziert mit √252).",
         "notes": [
           "Ein höherer Tracking Error deutet auf eine geringere Kopplung an den Benchmark hin.",
@@ -299,6 +327,10 @@
       "maxDrawdown": {
         "title": "Max Drawdown",
         "summary": "Der maximale Drawdown identifiziert den größten Rückgang vom Höchststand zum Tiefpunkt innerhalb des Beobachtungszeitraums.",
+        "headline": "Schlimmster Weg vom Hoch zum Tief",
+        "detail": "Max Drawdown: {{drawdown}} · Hoch: {{peakValue}} am {{peakDate}} · Tief: {{troughValue}} am {{troughDate}}",
+        "breakdownHeading": "Tägliche Werte und laufende Hochs",
+        "breakdownIntro": "Wir rekonstruieren die Wertentwicklung des Portfolios, verfolgen laufende Hochs und berechnen daraus den Drawdown. Das Minimum dieser Reihe ist der maximale Drawdown.",
         "calculation": "Wir verfolgen die zeitgewichtete Renditekurve, merken uns jedes neue Hoch und protokollieren den größten folgenden Rückgang, bevor ein neues Hoch erreicht wird. Der tiefste Verlust in Prozent ist der maximale Drawdown.",
         "notes": [
           "Der Drawdown basiert nur auf Portfoliorenditen; der Benchmark fließt hier nicht ein.",

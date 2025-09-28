@@ -8,7 +8,7 @@ import en from "@/locales/en/translation.json";
 import fr from "@/locales/fr/translation.json";
 
 const mockQueryData = [
-  { owner: "Alice", ticker: "AAA", market_value_gbp: 100 },
+  { owner: "alice", ticker: "AAA", market_value_gbp: 100 },
 ];
 const mockScreenerData = [
   {
@@ -41,8 +41,8 @@ const mockScreenerData = [
 vi.mock("@/api", () => ({
   API_BASE: "http://api",
   getOwners: vi.fn().mockResolvedValue([
-    { owner: "Alice", accounts: [] },
-    { owner: "Bob", accounts: [] },
+    { owner: "alice", full_name: "Alice Example", accounts: [] },
+    { owner: "bob", full_name: "Bob Example", accounts: [] },
   ]),
   runCustomQuery: vi.fn(),
   saveCustomQuery: vi.fn().mockResolvedValue({}),
@@ -53,7 +53,7 @@ vi.mock("@/api", () => ({
       params: {
         start: "2024-01-01",
         end: "2024-01-31",
-        owners: ["Bob"],
+        owners: ["bob"],
         tickers: ["BBB"],
         metrics: ["market_value_gbp"],
       },
@@ -125,7 +125,7 @@ describe("Screener & Query page", () => {
     runCustomQuery.mockResolvedValue(mockQueryData);
     const { i18n } = renderWithI18n(<ScreenerQuery />);
 
-    await screen.findByLabelText("Alice");
+    await screen.findByLabelText("Alice Example");
 
     fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
       target: { value: "2024-01-01" },
@@ -134,7 +134,7 @@ describe("Screener & Query page", () => {
       target: { value: "2024-02-01" },
     });
 
-    fireEvent.click(screen.getByLabelText("Alice"));
+    fireEvent.click(screen.getByLabelText("Alice Example"));
     fireEvent.click(screen.getByLabelText("AAA"));
     fireEvent.click(screen.getByLabelText("market_value_gbp"));
 
@@ -143,7 +143,7 @@ describe("Screener & Query page", () => {
     expect(runCustomQuery).toHaveBeenCalledWith({
       start: "2024-01-01",
       end: "2024-02-01",
-      owners: ["Alice"],
+      owners: ["alice"],
       tickers: ["AAA"],
       metrics: ["market_value_gbp"],
     });
@@ -163,7 +163,7 @@ describe("Screener & Query page", () => {
     runCustomQuery.mockResolvedValue(mockQueryData);
     const { i18n } = renderWithI18n(<ScreenerQuery />);
 
-    await screen.findByLabelText("Alice");
+    await screen.findByLabelText("Alice Example");
 
     fireEvent.change(screen.getByLabelText(i18n.t("query.start")), {
       target: { value: "2024-01-01" },
@@ -172,7 +172,7 @@ describe("Screener & Query page", () => {
       target: { value: "2024-02-01" },
     });
 
-    fireEvent.click(screen.getByLabelText("Alice"));
+    fireEvent.click(screen.getByLabelText("Alice Example"));
     fireEvent.click(screen.getByLabelText("AAA"));
     fireEvent.click(screen.getByLabelText("market_value_gbp"));
 
@@ -184,7 +184,7 @@ describe("Screener & Query page", () => {
     const href = csv.getAttribute("href") ?? "";
     expect(href).toContain("start=2024-01-01");
     expect(href).toContain("end=2024-02-01");
-    expect(href).toContain("owners=Alice");
+    expect(href).toContain("owners=alice");
     expect(href).toContain("tickers=AAA");
     expect(href).toContain("metrics=market_value_gbp");
   });
@@ -200,14 +200,14 @@ describe("Screener & Query page", () => {
     window.history.pushState(
       {},
       "",
-      "/?start=2024-01-01&owners=Alice&tickers=AAA&metrics=market_value_gbp",
+      "/?start=2024-01-01&owners=alice&tickers=AAA&metrics=market_value_gbp",
     );
     const { i18n } = renderWithI18n(<ScreenerQuery />);
-    await screen.findByLabelText("Alice");
+    await screen.findByLabelText("Alice Example");
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue(
       "2024-01-01",
     );
-    expect(screen.getByLabelText("Alice")).toBeChecked();
+    expect(screen.getByLabelText("Alice Example")).toBeChecked();
     expect(screen.getByLabelText("AAA")).toBeChecked();
     expect(screen.getByLabelText("market_value_gbp")).toBeChecked();
   });
@@ -221,23 +221,23 @@ describe("Screener & Query page", () => {
     const { i18n } = renderWithI18n(<ScreenerQuery />);
     await screen.findByLabelText(i18n.t("query.start"));
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("");
-    expect(screen.getByLabelText("Alice")).not.toBeChecked();
-    expect(screen.getByLabelText("Bob")).not.toBeChecked();
+    expect(screen.getByLabelText("Alice Example")).not.toBeChecked();
+    expect(screen.getByLabelText("Bob Example")).not.toBeChecked();
   });
 
   it("copies an encoded link to the clipboard", async () => {
     const writeText = vi.fn();
     Object.assign(navigator, { clipboard: { writeText } });
     const { i18n } = renderWithI18n(<ScreenerQuery />);
-    await screen.findByLabelText("Alice");
-    fireEvent.click(screen.getByLabelText("Alice"));
+    await screen.findByLabelText("Alice Example");
+    fireEvent.click(screen.getByLabelText("Alice Example"));
     fireEvent.click(screen.getByLabelText("AAA"));
     fireEvent.click(screen.getByLabelText("market_value_gbp"));
     fireEvent.click(
       screen.getByRole("button", { name: i18n.t("query.copyLink") }),
     );
     expect(writeText).toHaveBeenCalled();
-    expect(writeText.mock.calls[0][0]).toContain("owners=Alice");
+    expect(writeText.mock.calls[0][0]).toContain("owners=alice");
   });
 
   it("switches labels when language changes", async () => {

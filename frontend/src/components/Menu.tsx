@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
+import { isDefaultGroupSlug } from '../utils/groups';
 import type { TabPluginId } from '../tabPlugins';
 import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
 
@@ -115,16 +116,7 @@ export default function Menu({
     {
       id: 'dashboard',
       titleKey: 'dashboard',
-      tabIds: [
-        'group',
-        'market',
-        'movers',
-        'owner',
-        'performance',
-        'allocation',
-        'transactions',
-        'reports',
-      ],
+      tabIds: ['group', 'market', 'movers', 'owner', 'performance', 'allocation', 'transactions', 'reports'],
     },
     {
       id: 'insightts',
@@ -136,11 +128,10 @@ export default function Menu({
         'scenario',
         'trading',
         'rebalance',
-        'tradecompliance',
       ],
     },
-    { id: 'requirements', titleKey: 'requirements', tabIds: ['pension', 'taxtools', 'trail'] },
-    { id: 'settings', titleKey: 'settings', tabIds: ['alertsettings', 'settings'] },
+    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail', 'tradecompliance'] },
+    { id: 'preferences', titleKey: 'preferences', tabIds: ['alertsettings', 'settings'] },
   ];
 
   const SUPPORT_MENU_CATEGORIES: MenuCategory[] = [
@@ -149,6 +140,7 @@ export default function Menu({
       titleKey: 'operations',
       tabIds: ['instrumentadmin', 'dataadmin', 'timeseries', 'support'],
     },
+    { id: 'preferences', titleKey: 'preferences', tabIds: [] },
   ];
 
   const availableTabs = useMemo(
@@ -178,7 +170,13 @@ export default function Menu({
         ...category,
         tabs: availableTabs.filter((tab) => category.tabIds.includes(tab.id)),
       }))
-      .filter((category) => category.tabs.length > 0);
+      .filter((category) => {
+        if (category.tabs.length > 0) return true;
+        if (category.id === 'preferences') {
+          return supportEnabled || Boolean(onLogout);
+        }
+        return false;
+      });
 
     const uncategorizedTabs = availableTabs.filter((tab) => !categorizedTabIds.has(tab.id));
 
@@ -192,15 +190,31 @@ export default function Menu({
     }
 
     return categories;
-  }, [availableTabs, categorizedTabIds, categoryDefinitions]);
+  }, [availableTabs, categorizedTabIds, categoryDefinitions, onLogout, supportEnabled]);
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const firstLinkRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
+  const firstLinkRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  const registerFirstFocusable = (categoryId: string) => (element: HTMLElement | null) => {
+    if (!element) {
+      if (firstLinkRefs.current[categoryId]?.isConnected === false) {
+        firstLinkRefs.current[categoryId] = null;
+      }
+      return;
+    }
+
+    const current = firstLinkRefs.current[categoryId];
+    if (!current || current.isConnected === false) {
+      firstLinkRefs.current[categoryId] = element;
+    }
+  };
 
   function pathFor(m: any) {
     switch (m) {
       case 'group':
-        return selectedGroup ? `/?group=${selectedGroup}` : '/';
+        return selectedGroup && !isDefaultGroupSlug(selectedGroup)
+          ? `/?group=${selectedGroup}`
+          : '/';
       case 'instrument':
         return selectedGroup ? `/instrument/${selectedGroup}` : '/instrument';
       case 'owner':
@@ -236,12 +250,13 @@ export default function Menu({
 
   return (
     <nav className="mb-4" style={style}>
-      <ul className="flex flex-wrap items-center gap-4 border-b border-gray-200 pb-4">
+      <ul className="flex list-none flex-wrap items-center gap-4 border-b border-gray-200 pb-4">
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
           const containsActiveTab = category.tabs.some((tab) => tab.id === mode);
           const buttonId = `menu-trigger-${category.id}`;
           const panelId = `menu-panel-${category.id}`;
+          const assignFirstFocusable = registerFirstFocusable(category.id);
 
           return (
             <li key={category.id} className="relative">
@@ -297,17 +312,11 @@ export default function Menu({
                 }}
 
               >
-                <ul className="flex flex-col gap-1">
-                  {category.tabs.map((tab, index) => (
+                <ul className="flex list-none flex-col gap-1">
+                  {category.tabs.map((tab) => (
                     <li key={tab.id}>
                       <Link
-                        ref={
-                          index === 0
-                            ? (element) => {
-                                firstLinkRefs.current[category.id] = element;
-                              }
-                            : undefined
-                        }
+                        ref={assignFirstFocusable}
                         role="menuitem"
                         to={pathFor(tab.id as string)}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
@@ -320,12 +329,10 @@ export default function Menu({
                       </Link>
                     </li>
                   ))}
-                  {category.id === 'settings' && (supportEnabled || onLogout) && (
-                    <li role="separator" className="my-1 border-t border-gray-200" />
-                  )}
-                  {category.id === 'settings' && supportEnabled && (
+                  {category.id === 'preferences' && supportEnabled && (
                     <li key="support">
                       <Link
+                        ref={assignFirstFocusable}
                         role="menuitem"
                         to={inSupport ? '/' : '/support'}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
@@ -338,9 +345,10 @@ export default function Menu({
                       </Link>
                     </li>
                   )}
-                  {category.id === 'settings' && onLogout && (
+                  {category.id === 'preferences' && onLogout && (
                     <li key="logout">
                       <button
+                        ref={(element) => assignFirstFocusable(element)}
                         type="button"
                         role="menuitem"
                         onClick={() => {

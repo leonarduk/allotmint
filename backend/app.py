@@ -194,9 +194,27 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+    configured_root = getattr(cfg, "accounts_root", None)
+    fallback_used = False
+    try:
+        if configured_root:
+            configured_path = Path(configured_root).expanduser()
+            if not configured_path.exists():
+                fallback_used = True
+        else:
+            fallback_used = True
+    except (TypeError, ValueError, OSError):
+        fallback_used = True
+
     paths = resolve_paths(cfg.repo_root, cfg.accounts_root)
     accounts_root = paths.accounts_root
     original_accounts_root = accounts_root
+
+    try:
+        global_accounts_root = resolve_paths(None, None).accounts_root.resolve()
+        fallback_used = fallback_used or accounts_root.resolve() == global_accounts_root
+    except Exception:
+        pass
 
     if os.getenv("TESTING"):
         try:
@@ -224,6 +242,7 @@ def create_app() -> FastAPI:
         logger.exception("Failed to reconcile holdings with transactions")
     app.state.repo_root = paths.repo_root
     app.state.accounts_root = accounts_root
+    app.state.accounts_root_is_global = fallback_used
     app.state.virtual_pf_root = paths.virtual_pf_root
 
     # ───────────────────────────── CORS ─────────────────────────────
@@ -317,19 +336,39 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=status, content={"detail": exc.errors()})
 
     class TokenIn(BaseModel):
-        id_token: str
+        id_token: str | None = None
 
     @app.post("/token")
     async def login(body: TokenIn):
-        try:
-            email = auth.authenticate_user(body.id_token)
-        except HTTPException as exc:
-            logger.warning("User authentication failed: %s", exc.detail)
-            raise
+        id_token = body.id_token if body else None
+
+        email: str | None = None
+
+        if id_token:
+            try:
+                email = auth.authenticate_user(id_token)
+            except HTTPException as exc:
+                logger.warning("User authentication failed: %s", exc.detail)
+                raise
+        elif cfg.disable_auth:
+            email = "user@example.com"
+        else:
+            raise HTTPException(status_code=400, detail="Missing token")
 
         if not email:
             logger.warning("authenticate_user returned no email")
             raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        allowlist_raw = getattr(cfg, "allowed_emails", None)
+        if allowlist_raw:
+            normalized = {
+                item.strip().lower()
+                for item in allowlist_raw
+                if isinstance(item, str) and item.strip()
+            }
+            if normalized and email.lower() not in normalized:
+                logger.warning("Email %s not authorized for login", email)
+                raise HTTPException(status_code=403, detail="email not authorized")
 
         token = auth.create_access_token(email)
         return {"access_token": token, "token_type": "bearer"}
@@ -337,13 +376,16 @@ def create_app() -> FastAPI:
     @app.post("/token/google")
     async def google_token(payload: dict):
         token = payload.get("token")
-        if not token:
-            raise HTTPException(status_code=400, detail="Missing token")
-        try:
-            email = auth.verify_google_token(token)
-        except HTTPException as exc:
-            logger.warning("Google token verification failed: %s", exc.detail)
-            raise
+        if cfg.disable_auth:
+            email = "user@example.com"
+        else:
+            if not token:
+                raise HTTPException(status_code=400, detail="Missing token")
+            try:
+                email = auth.verify_google_token(token)
+            except HTTPException as exc:
+                logger.warning("Google token verification failed: %s", exc.detail)
+                raise
         jwt_token = auth.create_access_token(email)
         return {"access_token": jwt_token, "token_type": "bearer"}
 

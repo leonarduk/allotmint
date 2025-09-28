@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from fastapi import APIRouter, HTTPException, Query, Request, Depends
@@ -49,6 +50,7 @@ KEY_LOSERS = "losers"
 # ──────────────────────────────────────────────────────────────
 class OwnerSummary(BaseModel):
     owner: str
+    full_name: str
     accounts: List[str]
 
 
@@ -75,37 +77,219 @@ class MoversResponse(BaseModel):
 # ──────────────────────────────────────────────────────────────
 # Simple lists
 # ──────────────────────────────────────────────────────────────
+_CONVENTIONAL_ACCOUNT_EXTRAS = (
+    "brokerage",
+    "isa",
+    "savings",
+    "approvals",
+    "settings",
+)
+_TRANSACTIONS_SUFFIX = "_transactions"
+_DEFAULT_DEMO_OWNER: Dict[str, Any] = {
+    "owner": "demo",
+    "full_name": "Demo",
+    "accounts": list(_CONVENTIONAL_ACCOUNT_EXTRAS),
+}
+
+
+def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
+    """Return JSON account stems for ``owner_dir`` excluding metadata files."""
+
+    if not owner_dir:
+        return []
+
+    stems: List[str] = []
+    seen: set[str] = set()
+    metadata_stems = {
+        "person",
+        "config",
+        "notes",
+        "settings",
+        "approvals",
+        "approval_requests",
+    }
+
+    try:
+        entries = sorted(owner_dir.iterdir())
+    except OSError:
+        entries = []
+
+    for path in entries:
+        if not path.is_file() or path.suffix.lower() != ".json":
+            continue
+        stem = path.stem
+        lowered = stem.casefold()
+        if lowered in metadata_stems:
+            continue
+        if lowered.endswith(_TRANSACTIONS_SUFFIX):
+            continue
+        if lowered in seen:
+            continue
+        stems.append(stem)
+        seen.add(lowered)
+
+    return stems
+
+
+def _has_transactions_artifact(owner_dir: Optional[Path], owner: str) -> bool:
+    """Return ``True`` when a transactions file or directory exists for ``owner``."""
+
+    if not owner_dir or not owner:
+        return False
+
+    target = f"{owner}{_TRANSACTIONS_SUFFIX}".casefold()
+
+    try:
+        for entry in owner_dir.iterdir():
+            name = entry.stem if entry.is_file() else entry.name
+            if name.casefold() == target:
+                return True
+    except OSError:
+        return False
+
+    return False
+
+
+def _resolve_full_name(
+    owner: str,
+    entry: Dict[str, Any],
+    meta: Optional[Dict[str, Any]],
+) -> str:
+    """Determine the preferred display name for ``owner``."""
+
+    full_name = entry.get("full_name")
+    if isinstance(full_name, str) and full_name.strip():
+        return full_name.strip()
+
+    meta = meta or {}
+    if isinstance(meta, dict):
+        for key in ("full_name", "display_name", "preferred_name", "owner", "name"):
+            value = meta.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+    return owner
+
+
+def _normalise_owner_entry(
+    entry: Dict[str, Any],
+    accounts_root: Path,
+    *,
+    meta: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Return a cleaned owner summary enriched with conventional accounts."""
+
+    owner = str(entry.get("owner", "")).strip()
+    if not owner:
+        return None
+
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+
+    accounts: List[str] = []
+    seen: set[str] = set()
+
+    def _append(name: str) -> None:
+        lowered = name.casefold()
+        if lowered in seen:
+            return
+        accounts.append(name)
+        seen.add(lowered)
+
+    for source in (entry.get("accounts", []), _collect_account_stems(owner_dir)):
+        if not isinstance(source, list):
+            continue
+        for candidate in source:
+            if not isinstance(candidate, str):
+                continue
+            stripped = candidate.strip()
+            if not stripped:
+                continue
+            _append(stripped)
+
+    for extra in _CONVENTIONAL_ACCOUNT_EXTRAS:
+        _append(extra)
+
+    if _has_transactions_artifact(owner_dir, owner):
+        _append(f"{owner}{_TRANSACTIONS_SUFFIX}")
+
+    resolved_meta = meta
+    if resolved_meta is None:
+        try:
+            resolved_meta = data_loader.load_person_meta(owner, accounts_root)
+        except Exception:  # pragma: no cover - metadata lookup failures are tolerated
+            resolved_meta = {}
+
+    summary: Dict[str, Any] = {
+        "owner": owner,
+        "full_name": _resolve_full_name(owner, entry, resolved_meta),
+        "accounts": accounts,
+    }
+
+    return summary
+
+
+def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
+    """Construct an owner summary for the demo account."""
+
+    demo_dir = resolve_owner_directory(accounts_root, "demo")
+    accounts = _collect_account_stems(demo_dir)
+    try:
+        meta = data_loader.load_person_meta("demo", accounts_root)
+    except Exception:  # pragma: no cover - metadata lookup failures fall back to defaults
+        meta = {}
+
+    entry = {"owner": "demo", "accounts": accounts}
+    summary = _normalise_owner_entry(entry, accounts_root, meta=meta)
+    if summary:
+        full_name = summary.get("full_name")
+        if isinstance(full_name, str) and full_name.casefold() == "demo":
+            summary["full_name"] = _DEFAULT_DEMO_OWNER["full_name"]
+        return summary
+    return _DEFAULT_DEMO_OWNER.copy()
+
+
+def _list_owner_summaries(
+    request: Request, current_user: Optional[str] = None
+) -> List[OwnerSummary]:
+    """Return owner summaries enriched with conventional account entries."""
+
+    accounts_root = resolve_accounts_root(request, allow_missing=True)
+
+    raw_entries = data_loader.list_plots(accounts_root, current_user)
+    summaries: List[Dict[str, Any]] = []
+
+    for entry in raw_entries:
+        normalised = _normalise_owner_entry(entry, accounts_root)
+        if normalised:
+            summaries.append(normalised)
+
+    demo_present = any(summary["owner"].casefold() == "demo" for summary in summaries)
+
+    if summaries and not demo_present:
+        summaries.append(_build_demo_summary(accounts_root))
+    elif not summaries:
+        summaries.append(_build_demo_summary(accounts_root))
+
+    return [OwnerSummary(**summary) for summary in summaries]
+
+
 if config.disable_auth:
 
     @router.get("/owners", response_model=List[OwnerSummary])
-    async def owners(request: Request):
-        """
-        Returns
-            [
-              {"owner": "alex",  "accounts": ["isa", "sipp"]},
-              {"owner": "joe",   "accounts": ["isa", "sipp"]},
-              ...
-            ]
-        """
-        return data_loader.list_plots(request.app.state.accounts_root)
+    async def owners(request: Request) -> List[OwnerSummary]:
+        """List available owners including demo defaults when necessary."""
+
+        return _list_owner_summaries(request)
 
 else:
 
     @router.get("/owners", response_model=List[OwnerSummary])
     async def owners(
         request: Request, current_user: str = Depends(get_current_user)
-    ):
-        """
-        Returns
-            [
-              {"owner": "alex",  "accounts": ["isa", "sipp"]},
-              {"owner": "joe",   "accounts": ["isa", "sipp"]},
-              ...
-            ]
-        """
-        return data_loader.list_plots(
-            request.app.state.accounts_root, current_user
-        )
+    ) -> List[OwnerSummary]:
+        """List available owners including demo defaults when necessary."""
+
+        return _list_owner_summaries(request, current_user)
 # =======
 # @public_router.get("/owners", response_model=List[OwnerSummary])
 # async def owners(request: Request, token: str | None = Depends(oauth2_optional)):
@@ -517,12 +701,14 @@ async def get_account(owner: str, account: str, request: Request):
 async def instrument_detail(slug: str, ticker: str):
     try:
         series = instrument_api.timeseries_for_ticker(ticker)
-        prices_list = series["prices"]
-        if not prices_list:
-            raise ValueError("no prices")
+        prices_list = series.get("prices", [])
         positions_list = instrument_api.positions_for_ticker(slug, ticker)
     except Exception:
         raise HTTPException(status_code=404, detail="Instrument not found")
+
+    if not prices_list and not positions_list:
+        raise HTTPException(status_code=404, detail="Instrument not found")
+
     return {"prices": prices_list, "mini": series.get("mini", {}), "positions": positions_list}
 
 

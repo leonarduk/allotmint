@@ -36,10 +36,10 @@ def list_groups() -> List[Dict[str, Any]]:
 
     owners = sorted({pf.get("owner") for pf in list_portfolios() if pf.get("owner")})
 
-    return [
+    groups = [
         {
             "slug": "all",
-            "name": "All owners combined",
+            "name": "At a glance",
             "members": owners,
         },
         {
@@ -53,6 +53,18 @@ def list_groups() -> List[Dict[str, Any]]:
             "members": [o for o in owners if (o or "").lower() in {"alex", "joe"}],
         },
     ]
+
+    demo_members = [o for o in owners if (o or "").lower() == "demo"]
+    if demo_members:
+        groups.append(
+            {
+                "slug": "demo-slug",
+                "name": "Demo",
+                "members": demo_members,
+            }
+        )
+
+    return groups
 
 
 # ───────────────────────── core builder ─────────────────────────

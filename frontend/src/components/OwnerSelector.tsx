@@ -26,7 +26,10 @@ export const OwnerSelector = memo(function OwnerSelector({
       label={t("owner.label")}
       value={selected}
       onChange={handleChange}
-      options={owners.map((o) => ({ value: o.owner, label: o.owner }))}
+      options={owners.map((o) => ({
+        value: o.owner,
+        label: o.full_name?.trim() ? o.full_name : o.owner,
+      }))}
     />
   );
 });

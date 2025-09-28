@@ -85,6 +85,12 @@ def test_account_route_adds_missing_account_type(tmp_path):
         json.dumps({"currency": "GBP", "holdings": []})
     )
 
+    demo_dir = tmp_path / "demo"
+    demo_dir.mkdir()
+    (demo_dir / "demo.json").write_text(
+        json.dumps({"currency": "GBP", "holdings": []})
+    )
+
     old_root = config.accounts_root
     config.accounts_root = tmp_path
     reload(app_mod)
@@ -95,4 +101,9 @@ def test_account_route_adds_missing_account_type(tmp_path):
         data = resp.json()
         assert data["account_type"] == acct
         assert "owner" not in data
+        owners_resp = c.get("/owners")
+        assert owners_resp.status_code == 200
+        owners = owners_resp.json()
+        assert any(o.get("owner") == "demo" for o in owners)
     config.accounts_root = old_root
+    reload(app_mod)

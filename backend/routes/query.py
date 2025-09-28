@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -208,13 +208,53 @@ async def run_query(q: CustomQuery):
     return {"results": rows}
 
 
+def _format_saved_query(slug: str, payload: dict) -> dict:
+    """Normalise persisted query data into an API response."""
+
+    params = dict(payload or {})
+    name = params.pop("name", None)
+    if not isinstance(name, str) or not name.strip():
+        name = slug
+    return {"id": slug, "name": name, "params": params}
+
+
 @router.get("/saved")
-async def list_saved_queries():
+async def list_saved_queries(detailed: bool | None = Query(None)):
+    wants_detailed = True if detailed is None else detailed
     if config.app_env == "aws":
-        return _list_queries_s3()
+        slugs = _list_queries_s3()
+        if not wants_detailed:
+            return slugs
+
+        entries = []
+        for slug in slugs:
+            try:
+                payload = _load_query_s3(slug)
+            except HTTPException:
+                payload = {}
+            if not isinstance(payload, dict):
+                payload = {}
+            entries.append(_format_saved_query(slug, payload))
+        return entries
+
     if not QUERIES_DIR.exists():
         return []
-    return sorted(p.stem for p in QUERIES_DIR.glob("*.json"))
+
+    slugs = [path.stem for path in sorted(QUERIES_DIR.glob("*.json"))]
+    if not wants_detailed:
+        return slugs
+
+    entries = []
+    for slug in slugs:
+        path = QUERIES_DIR / f"{slug}.json"
+        try:
+            payload = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        entries.append(_format_saved_query(slug, payload))
+    return entries
 
 
 @router.get("/{slug}")

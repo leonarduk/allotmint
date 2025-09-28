@@ -12,9 +12,10 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Dashboard",
-      "insightts": "Insightts",
-      "requirements": "Requisiti",
-      "settings": "Impostazioni",
+      "holdings": "Posizioni",
+      "tradeTools": "Insights",
+      "goals": "Requisiti",
+      "preferences": "Impostazioni",
       "operations": "Operazioni",
       "other": "Altro"
     },
@@ -42,6 +43,7 @@
       "alertsettings": "Alert Settings",
       "compliance": "Avvisi di conformità",
       "trade-compliance": "Conformità delle operazioni",
+      "tradecompliance": "Conformità delle operazioni",
       "support": "Supporto",
       "scenario": "Tester di scenario"
     },
@@ -238,14 +240,14 @@
       "employeeContribution": "Il tuo contributo mensile",
       "employerContribution": "Contributo del datore di lavoro",
       "totalContribution": "Contributi mensili totali: {{total}}",
-      "addAnother": "Aggiungi un'altra pensione",
-      "additionalPensions_one": "{{count}} pensione aggiuntiva collegata",
-      "additionalPensions_other": "{{count}} pensioni aggiuntive collegate",
+      "linkedPotsHeading": "Fondi pensione collegati",
+      "noLinkedPots": "Nessun fondo pensione collegato per questo titolare.",
       "notAvailable": "Non disponibile"
     }
   },
   "group": {
-    "select": "Seleziona un gruppo."
+    "select": "Seleziona un gruppo.",
+    "atAGlance": "A colpo d'occhio"
   },
   "dashboard": {
     "selectMember": "Seleziona un membro.",
@@ -357,7 +359,7 @@
     "loading": "Caricamento…"
   },
   "timeseriesEdit": {
-    "title": "Editor Timeseries",
+    "title": "Editor serie temporali",
     "ticker": "Ticker",
     "exchange": "Scambio",
     "load": "Carico",

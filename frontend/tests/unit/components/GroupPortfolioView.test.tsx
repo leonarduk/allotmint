@@ -7,6 +7,7 @@ import { configContext, type AppConfig } from "@/ConfigContext";
 import { useState } from "react";
 import * as api from "@/api";
 import { MemoryRouter } from "react-router-dom";
+import type { OwnerSummary } from "@/types";
 vi.mock("@/components/TopMoversSummary", () => ({
   TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
@@ -86,6 +87,11 @@ const renderWithConfig = (ui: React.ReactElement) =>
 const instrumentKey = (owner?: string | null, account?: string | null) =>
   `${owner ?? ""}::${account ?? ""}`;
 
+const ownerFixtures: OwnerSummary[] = [
+  { owner: "alice", full_name: "Alice Example", accounts: ["isa", "sipp"] },
+  { owner: "bob", full_name: "Bob Example", accounts: ["isa"] },
+];
+
 const toUrlString = (input: RequestInfo | URL) => {
   if (typeof input === "string") return input;
   if (input instanceof URL) return input.toString();
@@ -135,6 +141,12 @@ const mockAllFetches = (
         json: async () => [],
       } as Response);
     }
+    if (url.includes("/instrument/admin/groupings")) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => [],
+      } as Response);
+    }
     if (url.includes("/portfolio-group/") && url.includes("/movers")) {
       return Promise.resolve({
         ok: true,
@@ -149,7 +161,7 @@ const mockAllFetches = (
         ],
       } as Response);
     }
-    if (url.includes("alpha-vs-benchmark")) {
+    if (url.includes("/alpha")) {
       return Promise.resolve({
         ok: true,
         json: async () => ({ alpha_vs_benchmark: alpha }),
@@ -191,7 +203,7 @@ const mockAllFetches = (
 describe("GroupPortfolioView", () => {
   it("shows per-owner totals with percentages in relative view", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [
         {
           owner: "alice",
@@ -224,9 +236,11 @@ describe("GroupPortfolioView", () => {
 
     mockAllFetches(mockPortfolio);
 
-    renderWithConfig(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
-    await waitFor(() => expect(screen.getAllByText("alice").length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(screen.getAllByText("Alice Example").length).toBeGreaterThan(0),
+    );
 
     const toggle = screen.getAllByLabelText('Relative view')[0];
     await userEvent.click(toggle);
@@ -235,8 +249,8 @@ describe("GroupPortfolioView", () => {
       .getAllByRole("table")
       .find((table) => within(table).queryByText("Owner"));
     expect(ownerTable).toBeTruthy();
-    expect(within(ownerTable!).getByText("alice")).toBeInTheDocument();
-    expect(within(ownerTable!).getByText("bob")).toBeInTheDocument();
+    expect(within(ownerTable!).getByText("Alice Example")).toBeInTheDocument();
+    expect(within(ownerTable!).getByText("Bob Example")).toBeInTheDocument();
     expect(within(ownerTable!).getByText("66.67%")).toBeInTheDocument();
     expect(within(ownerTable!).getByText("25.00%")).toBeInTheDocument();
     expect(within(ownerTable!).getByText("-4.76%")).toBeInTheDocument();
@@ -245,7 +259,7 @@ describe("GroupPortfolioView", () => {
 
   it("renders instrument type pie chart", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [
         {
           owner: "alice",
@@ -278,7 +292,7 @@ describe("GroupPortfolioView", () => {
 
     mockAllFetches(mockPortfolio);
 
-    renderWithConfig(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
     await waitFor(() => {
       const containers = document.querySelectorAll(
@@ -290,7 +304,7 @@ describe("GroupPortfolioView", () => {
 
   it("switches instrument rows across owner and account tabs", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [
         {
           owner: "alice",
@@ -354,7 +368,7 @@ describe("GroupPortfolioView", () => {
 
     const fetchMock = mockAllFetches(mockPortfolio, { instruments });
 
-    renderWithConfig(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
     await waitFor(() =>
       expect(
@@ -365,7 +379,7 @@ describe("GroupPortfolioView", () => {
     );
     expect(screen.queryByRole("tab", { name: "All accounts" })).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("tab", { name: "alice" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Alice Example" }));
 
     await waitFor(() =>
       expect(
@@ -389,7 +403,7 @@ describe("GroupPortfolioView", () => {
     );
     expect(screen.getByRole("tab", { name: "isa" })).toHaveAttribute("aria-selected", "true");
 
-    await userEvent.click(screen.getByRole("tab", { name: "bob" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Bob Example" }));
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([input]) =>
@@ -401,7 +415,7 @@ describe("GroupPortfolioView", () => {
 
   it("calls onSelectMember when owner name clicked", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [
         {
           owner: "alice",
@@ -415,14 +429,20 @@ describe("GroupPortfolioView", () => {
     mockAllFetches(mockPortfolio);
 
     const handler = vi.fn();
-    renderWithConfig(<GroupPortfolioView slug="all" onSelectMember={handler} />);
+    renderWithConfig(
+      <GroupPortfolioView
+        slug="all"
+        owners={ownerFixtures}
+        onSelectMember={handler}
+      />,
+    );
 
     const summaryTable = (await screen.findAllByRole("table")).find((table) =>
       within(table).queryByText("Owner"),
     );
     expect(summaryTable).toBeTruthy();
 
-    const ownerCell = within(summaryTable!).getByText("alice");
+    const ownerCell = within(summaryTable!).getByText("Alice Example");
     await act(async () => {
       await userEvent.click(ownerCell);
     });
@@ -437,7 +457,7 @@ describe("GroupPortfolioView", () => {
     await act(async () => {
       await i18n.changeLanguage(lng);
     });
-    renderWithConfig(<GroupPortfolioView slug="" />);
+    renderWithConfig(<GroupPortfolioView slug="" owners={ownerFixtures} />);
     expect(await screen.findByText(i18n.t("group.select"))).toBeInTheDocument();
   });
 
@@ -446,7 +466,7 @@ describe("GroupPortfolioView", () => {
       await i18n.changeLanguage(lng);
     });
     vi.spyOn(global, "fetch").mockRejectedValueOnce(new Error("boom"));
-    renderWithConfig(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
     await waitFor(() =>
       screen.getByText(`${i18n.t("common.error")}: boom`)
     );
@@ -459,13 +479,13 @@ describe("GroupPortfolioView", () => {
     vi.spyOn(global, "fetch").mockImplementation(
       () => new Promise(() => {})
     );
-    renderWithConfig(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
     expect(screen.getByText(i18n.t("common.loading"))).toBeInTheDocument();
   });
 
   it("renders metrics error message", async () => {
     const mockPortfolio = {
-      name: "All owners combined",
+      name: "At a glance",
       accounts: [],
     };
 
@@ -486,15 +506,59 @@ describe("GroupPortfolioView", () => {
       } as Response);
     });
 
-    renderWithConfig(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
     await waitFor(() =>
       screen.getByText(`${i18n.t("common.error")}: boom`)
     );
   });
 
+  it("renders whole-percentage metrics returned by the API", async () => {
+    const mockPortfolio = { name: "At a glance", accounts: [] };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const fetchMock = mockAllFetches(mockPortfolio, {
+      metrics: {
+        alpha: 3.44,
+        trackingError: 2.5,
+        maxDrawdown: -12.34,
+      },
+    });
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          toUrlString(input as RequestInfo | URL).includes("/alpha"),
+        ),
+      ).toBe(true),
+    );
+
+    const alphaLabel = await screen.findByText("Alpha vs Benchmark");
+    await waitFor(() =>
+      expect(within(alphaLabel.parentElement!).getByText("3.44%"))
+        .toBeInTheDocument(),
+    );
+
+    const teLabel = await screen.findByText("Tracking Error");
+    await waitFor(() =>
+      expect(within(teLabel.parentElement!).getByText("2.50%"))
+        .toBeInTheDocument(),
+    );
+
+    const mdLabel = await screen.findByText("Max Drawdown");
+    await waitFor(() =>
+      expect(within(mdLabel.parentElement!).getByText("-12.34%"))
+        .toBeInTheDocument(),
+    );
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it("shows N/A for invalid performance metrics", async () => {
-    const mockPortfolio = { name: "All owners combined", accounts: [] };
+    const mockPortfolio = { name: "At a glance", accounts: [] };
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     mockAllFetches(mockPortfolio, {
@@ -505,7 +569,7 @@ describe("GroupPortfolioView", () => {
       },
     });
 
-    renderWithConfig(<GroupPortfolioView slug="all" />);
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
 
     const alphaLabel = await screen.findByText("Alpha vs Benchmark");
     within(alphaLabel.parentElement!).getByText("N/A");

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { MemoryRouter, Link, useLocation } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n from "@/i18n";
+import type { InstrumentMetadata } from "@/types";
 
 const mockTradingSignals = vi.fn();
 
@@ -100,6 +101,81 @@ describe("App", () => {
     );
   });
 
+  it("includes catalogue instruments in the /instrument/all view", async () => {
+    window.history.pushState({}, "", "/instrument/all");
+
+    const mockGetGroupInstruments = vi.fn().mockResolvedValue([]);
+    const mockListInstrumentMetadata = vi.fn().mockResolvedValue([
+      {
+        ticker: "",
+        symbol: "FOO",
+        exchange: "LSE",
+        name: "Foo Plc",
+        currency: "GBP",
+        instrument_type: "equity",
+      } as InstrumentMetadata & { symbol: string },
+    ]);
+
+    vi.doMock("@/components/InstrumentTable", () => ({
+      InstrumentTable: ({ rows }: { rows: { ticker: string }[] }) => (
+        <div data-testid="instrument-table">
+          {rows.map((row) => (
+            <span key={row.ticker}>{row.ticker}</span>
+          ))}
+        </div>
+      ),
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: vi.fn().mockResolvedValue([]),
+        getGroups: vi
+          .fn()
+          .mockResolvedValue([{ slug: "all", name: "All Instruments", members: [] }]),
+        getPortfolio: vi.fn(),
+        getGroupInstruments: mockGetGroupInstruments,
+        listInstrumentMetadata: mockListInstrumentMetadata,
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        assignInstrumentGroup: vi.fn(),
+        clearInstrumentGroup: vi.fn(),
+        createInstrumentGroup: vi.fn(),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+        getCachedGroupInstruments: undefined,
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    render(
+      <MemoryRouter initialEntries={["/instrument/all"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockListInstrumentMetadata).toHaveBeenCalledTimes(1);
+    });
+
+    const table = await screen.findByTestId("instrument-table");
+    expect(within(table).getAllByText("FOO.LSE")).toHaveLength(1);
+    expect(mockGetGroupInstruments).not.toHaveBeenCalled();
+  });
+
   it("renders timeseries editor when path is /timeseries", async () => {
     window.history.pushState({}, "", "/timeseries?ticker=ABC&exchange=L");
 
@@ -128,6 +204,7 @@ describe("App", () => {
       saveTimeseries: vi.fn(),
       refetchTimeseries: vi.fn(),
       rebuildTimeseriesCache: vi.fn(),
+      searchInstruments: vi.fn().mockResolvedValue([]),
       getCachedGroupInstruments: undefined,
     }));
 
@@ -336,6 +413,124 @@ describe("App", () => {
 
     expect(locationUpdates).not.toContain("/portfolio/alice");
     expect(await screen.findByText(/owner not found/i)).toBeInTheDocument();
+  });
+
+  it("stays on the portfolio route when switching owners from the portfolio page", async () => {
+    window.history.pushState({}, "", "/portfolio/alice");
+
+    const locationUpdates: string[] = [];
+
+    function LocationListener() {
+      const location = useLocation();
+      useEffect(() => {
+        locationUpdates.push(location.pathname);
+      }, [location.pathname]);
+      return null;
+    }
+
+    const mockGetOwners = vi
+      .fn()
+      .mockResolvedValue([
+        { owner: "alice", accounts: [] },
+        { owner: "bob", accounts: [] },
+      ]);
+    const mockGetGroups = vi.fn().mockResolvedValue([]);
+    const mockGetPortfolio = vi.fn().mockImplementation((owner: string) =>
+      Promise.resolve({
+        owner,
+        as_of: "2024-01-01T00:00:00.000Z",
+        trades_this_month: 0,
+        trades_remaining: 0,
+        total_value_estimate_gbp: 0,
+        accounts: [],
+      }),
+    );
+    const mockGetCompliance = vi.fn().mockResolvedValue({
+      owner: "",
+      warnings: [],
+      trade_counts: {},
+    });
+    const mockComplianceForOwner = vi.fn().mockResolvedValue({
+      owner: "",
+      warnings: [],
+      trade_counts: {},
+    });
+    const mockGetValueAtRisk = vi.fn().mockResolvedValue({ var: {} });
+    const mockGetVarBreakdown = vi.fn().mockResolvedValue([]);
+    const mockRecomputeValueAtRisk = vi.fn();
+
+    mockTradingSignals.mockResolvedValue([]);
+
+    vi.doMock("@/components/PerformanceDashboard", () => ({
+      __esModule: true,
+      default: () => <div data-testid="performance-dashboard" />,
+    }));
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: mockGetGroups,
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(),
+        getGroupTrackingError: vi.fn(),
+        getGroupMaxDrawdown: vi.fn(),
+        getGroupSectorContributions: vi.fn(),
+        getGroupRegionContributions: vi.fn(),
+        getGroupMovers: vi.fn(),
+        getCachedGroupInstruments: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: mockGetCompliance,
+        complianceForOwner: mockComplianceForOwner,
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        listTimeseries: vi.fn().mockResolvedValue([]),
+        listInstrumentMetadata: vi.fn().mockResolvedValue([]),
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        assignInstrumentGroup: vi.fn(),
+        clearInstrumentGroup: vi.fn(),
+        createInstrumentGroup: vi.fn(),
+        getTradingSignals: mockTradingSignals,
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+        getValueAtRisk: mockGetValueAtRisk,
+        recomputeValueAtRisk: mockRecomputeValueAtRisk,
+        getVarBreakdown: mockGetVarBreakdown,
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/portfolio/alice"]}>
+        <LocationListener />
+        <App />
+      </MemoryRouter>,
+    );
+
+    const ownerSelectorContainer = await screen.findByTestId(
+      "portfolio-owner-selector",
+    );
+    const portfolioSelector = within(ownerSelectorContainer).getByLabelText(/owner/i);
+    await waitFor(() => {
+      expect((portfolioSelector as HTMLSelectElement).options.length).toBeGreaterThan(1);
+    });
+    await user.selectOptions(portfolioSelector as HTMLSelectElement, "bob");
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
+    await waitFor(() =>
+      expect(locationUpdates.at(-1)?.startsWith("/portfolio")).toBe(true),
+    );
+    expect(locationUpdates.some((path) => path.startsWith("/performance"))).toBe(false);
   });
 
   it("allows navigation to enabled tabs", async () => {

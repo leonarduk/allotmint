@@ -9,6 +9,8 @@ entirely on AWS S3 + Lambda, and keeps your AWS and Python skills sharp.
 
 For setup and usage instructions, see the [USER_README](USER_README.md).
 
+For contributor workflow guidance, start with the [Repository Guidelines](../AGENTS.md).
+
 ---
 
 ## MVP Scope
@@ -605,3 +607,4 @@ The script will produce `allotmint_video.mp4` in the repository root.
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+

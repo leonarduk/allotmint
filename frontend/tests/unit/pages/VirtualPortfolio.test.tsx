@@ -21,12 +21,12 @@ describe("VirtualPortfolio page", () => {
       } as VirtualPortfolioType,
     ]);
     mockGetOwners.mockResolvedValueOnce([
-      { owner: "Bob", accounts: ["A1"] } as OwnerSummary,
+      { owner: "bob", full_name: "Bob Example", accounts: ["A1"] } as OwnerSummary,
     ]);
     mockGetVirtualPortfolio.mockResolvedValueOnce({
       id: 1,
       name: "Test VP",
-      accounts: ["Bob:A1"],
+      accounts: ["bob:A1"],
       holdings: [],
     } as VirtualPortfolioType);
 

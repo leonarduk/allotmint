@@ -14,6 +14,10 @@ import { money } from "../lib/money";
 import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
 import { useTranslation } from "react-i18next";
+import {
+  createOwnerDisplayLookup,
+  getOwnerDisplayName,
+} from "../utils/owners";
 
 type Props = {
   owners: OwnerSummary[];
@@ -44,6 +48,10 @@ export function TransactionsPage({ owners }: Props) {
   const { t } = useTranslation();
   const { baseCurrency } = useConfig();
   const pageSizeOptions = [10, 20, 50, 100];
+  const ownerLookup = useMemo(
+    () => createOwnerDisplayLookup(owners),
+    [owners],
+  );
 
   const resetForm = useCallback(() => {
     setNewTicker("");
@@ -283,7 +291,8 @@ export function TransactionsPage({ owners }: Props) {
       );
       setNewFees(tx.fees != null ? String(tx.fees) : "");
       setNewComments(tx.comments ?? "");
-      setNewReason(tx.reason ?? tx.reason_to_buy ?? "");
+      const legacyReason = (tx as { reason_to_buy?: string | null }).reason_to_buy;
+      setNewReason(tx.reason ?? legacyReason ?? "");
       setFormError(null);
       setFormSuccess(null);
     },
@@ -395,7 +404,39 @@ export function TransactionsPage({ owners }: Props) {
     setFormError(null);
     setFormSuccess(null);
     try {
-      await Promise.all(selectedIds.map((id) => deleteTransaction(id)));
+      const groupedIds = new Map<string, { entries: { id: string; index: number }[] }>();
+      const fallbackIds: string[] = [];
+
+      selectedIds.forEach((id) => {
+        const [ownerPart, accountPart, indexPart] = id.split(":");
+        const parsedIndex = Number.parseInt(indexPart ?? "", 10);
+
+        if (!ownerPart || !accountPart || Number.isNaN(parsedIndex)) {
+          fallbackIds.push(id);
+          return;
+        }
+
+        const key = `${ownerPart}:${accountPart}`;
+        const group = groupedIds.get(key) ?? { entries: [] };
+        group.entries.push({ id, index: parsedIndex });
+        groupedIds.set(key, group);
+      });
+
+      const deletionOrder: string[] = [];
+
+      groupedIds.forEach((group) => {
+        group.entries
+          .sort((a, b) => b.index - a.index)
+          .forEach(({ id }) => {
+            deletionOrder.push(id);
+          });
+      });
+
+      deletionOrder.push(...fallbackIds);
+
+      for (const id of deletionOrder) {
+        await deleteTransaction(id);
+      }
       if (editingId && selectedIds.includes(editingId)) {
         setEditingId(null);
         resetForm();
@@ -528,7 +569,10 @@ export function TransactionsPage({ owners }: Props) {
           onChange={handleOwnerChange}
           options={[
             { value: "", label: "All" },
-            ...owners.map((o) => ({ value: o.owner, label: o.owner })),
+            ...owners.map((o) => ({
+              value: o.owner,
+              label: getOwnerDisplayName(ownerLookup, o.owner, o.owner),
+            })),
           ]}
         />
         <Selector
@@ -564,7 +608,10 @@ export function TransactionsPage({ owners }: Props) {
           onChange={(e) => setNewOwner(e.target.value)}
           options={[
             { value: "", label: "Select" },
-            ...owners.map((o) => ({ value: o.owner, label: o.owner })),
+            ...owners.map((o) => ({
+              value: o.owner,
+              label: getOwnerDisplayName(ownerLookup, o.owner, o.owner),
+            })),
           ]}
         />
         <Selector
@@ -746,6 +793,7 @@ export function TransactionsPage({ owners }: Props) {
                 <th className={tableStyles.cell}>Owner</th>
                 <th className={tableStyles.cell}>Account</th>
                 <th className={tableStyles.cell}>Instrument</th>
+                <th className={tableStyles.cell}>Instrument name</th>
                 <th className={tableStyles.cell}>Type</th>
                 <th className={`${tableStyles.cell} ${tableStyles.right}`}>Amount</th>
                 <th className={`${tableStyles.cell} ${tableStyles.right}`}>Shares</th>
@@ -782,9 +830,16 @@ export function TransactionsPage({ owners }: Props) {
                       <td className={tableStyles.cell}>
                         {t.date ? formatDateISO(new Date(t.date)) : ""}
                       </td>
-                      <td className={tableStyles.cell}>{t.owner}</td>
+                      <td className={tableStyles.cell}>
+                        {getOwnerDisplayName(
+                          ownerLookup,
+                          t.owner ?? null,
+                          t.owner ?? "—",
+                        )}
+                      </td>
                       <td className={tableStyles.cell}>{t.account}</td>
                       <td className={tableStyles.cell}>{t.ticker || t.security_ref || ""}</td>
+                      <td className={tableStyles.cell}>{t.instrument_name || ""}</td>
                       <td className={tableStyles.cell}>{t.type || t.kind}</td>
                       <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                         {t.amount_minor != null

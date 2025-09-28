@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -11,7 +12,7 @@ from backend.common import data_loader
 from backend.config import config
 
 
-def resolve_accounts_root(request: Request) -> Path:
+def resolve_accounts_root(request: Request, *, allow_missing: bool = False) -> Path:
     """Determine the accounts root directory for the current request.
 
     Preference is given to ``request.app.state.accounts_root`` when available,
@@ -24,26 +25,51 @@ def resolve_accounts_root(request: Request) -> Path:
     accounts_root_value = getattr(request.app.state, "accounts_root", None)
     if accounts_root_value is not None:
         try:
-            resolved_candidate = Path(accounts_root_value).expanduser().resolve(strict=False)
-        except (OSError, RuntimeError, ValueError, TypeError):
-            resolved_candidate = None
+            cached_path = Path(os.fspath(accounts_root_value)).expanduser()
+        except (TypeError, ValueError, OSError):
+            cached_path = None
+            resolved_cached = None
         else:
-            request.app.state.accounts_root = resolved_candidate
-            return resolved_candidate
+            try:
+                resolved_cached = cached_path.resolve(strict=False)
+            except OSError:
+                resolved_cached = None
+            if cached_path.exists():
+                if not cached_path.is_dir():
+                    cached_path = None
+                    resolved_cached = None
+                else:
+                    resolved_cached = cached_path.expanduser().resolve()
+            elif allow_missing:
+                resolved_cached = resolved_cached or cached_path
+            else:
+                cached_path = None
+                resolved_cached = None
 
-        # The cached path is no longer valid; clear it so the fallback logic
-        # can determine a new directory.
+        if resolved_cached is not None:
+            request.app.state.accounts_root = resolved_cached
+            if hasattr(request.app.state, "accounts_root_is_global"):
+                request.app.state.accounts_root_is_global = False
+            return resolved_cached
+
         request.app.state.accounts_root = None
+        if hasattr(request.app.state, "accounts_root_is_global"):
+            request.app.state.accounts_root_is_global = False
 
     paths = data_loader.resolve_paths(config.repo_root, config.accounts_root)
-    root = paths.accounts_root
-    if not root.exists():
-        fallback_paths = data_loader.resolve_paths(None, None)
-        root = fallback_paths.accounts_root
+    primary_root = paths.accounts_root
+    if primary_root.exists():
+        resolved_primary = primary_root.expanduser().resolve()
+        request.app.state.accounts_root = resolved_primary
+        request.app.state.accounts_root_is_global = False
+        return resolved_primary
 
-    resolved_root = Path(root).expanduser().resolve(strict=False)
-    request.app.state.accounts_root = resolved_root
-    return resolved_root
+    fallback_paths = data_loader.resolve_paths(None, None)
+    fallback_root = fallback_paths.accounts_root
+    resolved_fallback = fallback_root.expanduser().resolve()
+    request.app.state.accounts_root = resolved_fallback
+    request.app.state.accounts_root_is_global = True
+    return resolved_fallback
 
 
 def resolve_owner_directory(accounts_root: Optional[Path], owner: str) -> Optional[Path]:

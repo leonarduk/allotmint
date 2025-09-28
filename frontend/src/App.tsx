@@ -6,10 +6,12 @@ import {
   getGroups,
   getOwners,
   getPortfolio,
+  listInstrumentMetadata,
 } from "./api";
 
 import type {
   GroupSummary,
+  InstrumentMetadata,
   InstrumentSummary,
   OwnerSummary,
   Portfolio,
@@ -53,6 +55,10 @@ import PensionForecast from "./pages/PensionForecast";
 import TaxTools from "./pages/TaxTools";
 import RightRail from "./components/RightRail";
 import { sanitizeOwners } from "./utils/owners";
+import {
+  isDefaultGroupSlug,
+  normaliseGroupSlug,
+} from "./utils/groups";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -122,6 +128,71 @@ const initialMode: Mode =
 
 const initialSlug = path[1] ?? "";
 
+type InstrumentMetadataWithSymbol = InstrumentMetadata & {
+  symbol?: string | null;
+};
+
+function metadataToInstrumentSummary(metadata: InstrumentMetadata): InstrumentSummary {
+  const metadataWithSymbol = metadata as InstrumentMetadataWithSymbol;
+  const ticker = (() => {
+    const rawTicker = typeof metadata.ticker === "string" ? metadata.ticker.trim() : "";
+    if (rawTicker) {
+      return rawTicker;
+    }
+    const symbol =
+      typeof metadataWithSymbol.symbol === "string" && metadataWithSymbol.symbol.trim()
+        ? metadataWithSymbol.symbol.trim()
+        : "";
+    if (!symbol) {
+      return metadata.name?.trim() || "UNKNOWN";
+    }
+    const exchange =
+      typeof metadata.exchange === "string" && metadata.exchange.trim()
+        ? metadata.exchange.trim()
+        : "";
+    return exchange ? `${symbol}.${exchange}` : symbol;
+  })();
+
+  const exchange =
+    typeof metadata.exchange === "string" && metadata.exchange.trim()
+      ? metadata.exchange.trim()
+      : null;
+  const currency =
+    typeof metadata.currency === "string" && metadata.currency.trim()
+      ? metadata.currency.trim()
+      : null;
+  const grouping =
+    typeof metadata.grouping === "string" && metadata.grouping.trim()
+      ? metadata.grouping.trim()
+      : null;
+  const instrumentType = (() => {
+    if (typeof metadata.instrument_type === "string" && metadata.instrument_type.trim()) {
+      return metadata.instrument_type.trim();
+    }
+    if (typeof metadata.instrumentType === "string" && metadata.instrumentType.trim()) {
+      return metadata.instrumentType.trim();
+    }
+    return null;
+  })();
+
+  const name = metadata.name?.trim() || ticker;
+
+  return {
+    ticker,
+    name,
+    grouping,
+    exchange,
+    currency,
+    units: 0,
+    market_value_gbp: 0,
+    market_value_currency: currency,
+    gain_gbp: 0,
+    gain_currency: currency,
+    gain_pct: 0,
+    instrument_type: instrumentType,
+  };
+}
+
 export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -137,7 +208,9 @@ export default function App({ onLogout }: AppProps) {
       : "",
   );
   const [selectedGroup, setSelectedGroup] = useState(
-    initialMode === "instrument" ? initialSlug : params.get("group") ?? ""
+    initialMode === "instrument"
+      ? initialSlug
+      : normaliseGroupSlug(params.get("group"))
   );
 
   const [researchTicker, setResearchTicker] = useState(
@@ -160,10 +233,18 @@ export default function App({ onLogout }: AppProps) {
     setRetryNonce((n) => n + 1);
   }, []);
 
-  const handleOwnerSelect = useCallback(
+  const handleOwnerSelectPerformance = useCallback(
     (owner: string) => {
       setSelectedOwner(owner);
       navigate(`/performance/${owner}`);
+    },
+    [navigate],
+  );
+
+  const handleOwnerSelectPortfolio = useCallback(
+    (owner: string) => {
+      setSelectedOwner(owner);
+      navigate(`/portfolio/${owner}`);
     },
     [navigate],
   );
@@ -259,7 +340,11 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === "instrument") {
       setSelectedGroup(segs[1] ?? "");
     } else if (newMode === "group") {
-      setSelectedGroup(params.get("group") ?? "");
+      const groupParam = params.get("group");
+      setSelectedGroup(normaliseGroupSlug(groupParam));
+      if (groupParam && isDefaultGroupSlug(groupParam) && location.search) {
+        navigate("/", { replace: true });
+      }
     } else if (newMode === "research") {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? "") : "");
     }
@@ -314,7 +399,12 @@ export default function App({ onLogout }: AppProps) {
     const segs = location.pathname.split("/").filter(Boolean);
     const atPortfolioRoot = segs[0] === "portfolio" && segs.length === 1;
 
-    if (mode === "owner" && !selectedOwner && owners.length && atPortfolioRoot) {
+    if (
+      mode === "owner" &&
+      !selectedOwner &&
+      owners.length === 1 &&
+      atPortfolioRoot
+    ) {
       const owner = owners[0].owner;
       setSelectedOwner(owner);
       navigate(`/portfolio/${owner}`, { replace: true });
@@ -322,14 +412,31 @@ export default function App({ onLogout }: AppProps) {
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
       setSelectedGroup(slug);
-      navigate(`/instrument/${slug}`, { replace: true });
+      if (slug && slug !== "all") {
+        navigate(`/instrument/${slug}`, { replace: true });
+      }
     }
-    if (mode === "group" && !selectedGroup && groups.length) {
-      const slug = groups[0].slug;
-      setSelectedGroup(slug);
-      navigate(`/?group=${slug}`, { replace: true });
+    if (mode === "group" && groups.length) {
+      const hasSelection = groups.some((g) => g.slug === selectedGroup);
+      if (!hasSelection) {
+        const slug = groups[0].slug;
+        setSelectedGroup(slug);
+        if (isDefaultGroupSlug(slug)) {
+          if (location.search) navigate("/", { replace: true });
+        } else {
+          navigate(`/?group=${slug}`, { replace: true });
+        }
+      }
     }
-  }, [mode, selectedOwner, selectedGroup, owners, groups, navigate]);
+  }, [
+    mode,
+    selectedOwner,
+    selectedGroup,
+    owners,
+    groups,
+    navigate,
+    location.search,
+  ]);
 
   // data fetching based on route
   useEffect(() => {
@@ -347,150 +454,174 @@ export default function App({ onLogout }: AppProps) {
     if (mode === "instrument" && selectedGroup) {
       setLoading(true);
       setErr(null);
-      getGroupInstruments(selectedGroup)
+      const fetchPromise =
+        selectedGroup === "all"
+          ? listInstrumentMetadata().then((catalogue) =>
+              catalogue.map((entry) => metadataToInstrumentSummary(entry)),
+            )
+          : getGroupInstruments(selectedGroup);
+      fetchPromise
         .then(setInstruments)
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));
     }
   }, [mode, selectedGroup]);
 
-  if (backendUnavailable) {
-    return <BackendUnavailableCard onRetry={handleRetry} />;
-  }
+  const renderMainContent = () => {
+    if (backendUnavailable) {
+      return <BackendUnavailableCard onRetry={handleRetry} />;
+    }
+
+    return (
+      <>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            margin: "1rem 0",
+          }}
+        >
+          <LanguageSwitcher />
+          <Menu
+            selectedOwner={selectedOwner}
+            selectedGroup={selectedGroup}
+            onLogout={onLogout}
+            style={{ margin: 0 }}
+          />
+          <InstrumentSearchBarToggle />
+          {mode === "owner" && (
+            <OwnerSelector
+              owners={owners}
+              selected={selectedOwner}
+              onSelect={setSelectedOwner}
+            />
+          )}
+          {lastRefresh && (
+            <span
+              style={{
+                background: "#eee",
+                borderRadius: "1rem",
+                padding: "0.25rem 0.5rem",
+                fontSize: "0.75rem",
+              }}
+              title={t("app.last") ?? undefined}
+            >
+              {new Date(lastRefresh).toLocaleString()}
+            </span>
+          )}
+          <button
+            aria-label="notifications"
+            onClick={() => setNotificationsOpen(true)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "1.5rem",
+            }}
+          >
+            🔔
+          </button>
+          <UserAvatar />
+        </div>
+        <NotificationsDrawer
+          open={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+        />
+
+        {/* OWNER VIEW */}
+        {mode === "owner" && (
+          <>
+            <div data-testid="portfolio-owner-selector">
+              <OwnerSelector
+                owners={owners}
+                selected={selectedOwner}
+                onSelect={handleOwnerSelectPortfolio}
+              />
+            </div>
+            <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
+            <PortfolioView data={portfolio} loading={loading} error={err} />
+          </>
+        )}
+
+        {/* GROUP VIEW */}
+        {mode === "group" && selectedGroup && (
+          <>
+            <ComplianceWarnings
+              owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
+            />
+            <GroupPortfolioView slug={selectedGroup} owners={owners} />
+          </>
+        )}
+
+        {/* INSTRUMENT VIEW */}
+        {mode === "instrument" && groups.length > 0 && (
+          <>
+            {err && <p style={{ color: "red" }}>{err}</p>}
+            {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
+          </>
+        )}
+
+        {/* PERFORMANCE VIEW */}
+        {mode === "performance" && (
+          <>
+            <OwnerSelector
+              owners={owners}
+              selected={selectedOwner}
+              onSelect={handleOwnerSelectPerformance}
+            />
+            <Suspense fallback={<PortfolioDashboardSkeleton />}>
+              <PerformanceDashboard owner={selectedOwner} />
+            </Suspense>
+          </>
+        )}
+
+        {mode === "transactions" && <TransactionsPage owners={owners} />}
+
+        {mode === "trading" && <Trading />}
+
+        {mode === "screener" && <ScreenerQuery />}
+        {mode === "timeseries" && <TimeseriesEdit />}
+        {mode === "instrumentadmin" && <InstrumentAdmin />}
+        {mode === "dataadmin" && <DataAdmin />}
+        {mode === "watchlist" && <Watchlist />}
+        {mode === "allocation" && <AllocationCharts />}
+        {mode === "rebalance" && <Rebalance />}
+        {mode === "market" && <MarketOverview />}
+        {mode === "movers" && <TopMovers />}
+        {mode === "reports" && <Reports />}
+        {mode === "taxtools" && <TaxTools />}
+        {mode === "support" && <Support />}
+        {mode === "settings" && <UserConfigPage />}
+        {mode === "scenario" && <ScenarioTester />}
+        {mode === "research" && (
+          <Suspense fallback={<p>{t("app.loading")}</p>}>
+            <InstrumentResearch ticker={researchTicker} />
+          </Suspense>
+        )}
+        {mode === "pension" && <PensionForecast />}
+      </>
+    );
+  };
+
+  const rightRail = backendUnavailable ? null : (
+    <Defer>
+      <RightRail owner={selectedOwner} />
+    </Defer>
+  );
 
   return (
     <div className="xl:flex xl:justify-center">
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          margin: "1rem 0",
-        }}
-      >
-        <LanguageSwitcher />
-        <Menu
-          selectedOwner={selectedOwner}
-          selectedGroup={selectedGroup}
-          onLogout={onLogout}
-          style={{ margin: 0 }}
+        <div
+          data-testid="active-route-marker"
+          data-mode={mode}
+          data-pathname={location.pathname}
+          hidden
         />
-        <InstrumentSearchBarToggle />
-        {mode === "owner" && (
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={setSelectedOwner}
-          />
-        )}
-        {lastRefresh && (
-          <span
-            style={{
-              background: "#eee",
-              borderRadius: "1rem",
-              padding: "0.25rem 0.5rem",
-              fontSize: "0.75rem",
-            }}
-            title={t("app.last") ?? undefined}
-          >
-            {new Date(lastRefresh).toLocaleString()}
-          </span>
-        )}
-        <button
-          aria-label="notifications"
-          onClick={() => setNotificationsOpen(true)}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "1.5rem",
-          }}
-        >
-          🔔
-        </button>
-        <UserAvatar />
-      </div>
-      <NotificationsDrawer
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-      />
-
-      {/* OWNER VIEW */}
-      {mode === "owner" && (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={handleOwnerSelect}
-          />
-          <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-          <PortfolioView data={portfolio} loading={loading} error={err} />
-        </>
-      )}
-
-      {/* GROUP VIEW */}
-      {mode === "group" && selectedGroup && (
-        <>
-          <ComplianceWarnings
-            owners={groups.find((g) => g.slug === selectedGroup)?.members ?? []}
-          />
-          <GroupPortfolioView
-            slug={selectedGroup}
-          />
-        </>
-      )}
-
-      {/* INSTRUMENT VIEW */}
-      {mode === "instrument" && groups.length > 0 && (
-        <>
-          {err && <p style={{ color: "red" }}>{err}</p>}
-          {loading ? <p>{t("app.loading")}</p> : <InstrumentTable rows={instruments} />}
-        </>
-      )}
-
-      {/* PERFORMANCE VIEW */}
-      {mode === "performance" && (
-        <>
-          <OwnerSelector
-            owners={owners}
-            selected={selectedOwner}
-            onSelect={handleOwnerSelect}
-          />
-          <Suspense fallback={<PortfolioDashboardSkeleton />}>
-            <PerformanceDashboard owner={selectedOwner} />
-          </Suspense>
-        </>
-      )}
-
-      {mode === "transactions" && <TransactionsPage owners={owners} />}
-
-      {mode === "trading" && <Trading />}
-
-      {mode === "screener" && <ScreenerQuery />}
-      {mode === "timeseries" && <TimeseriesEdit />}
-      {mode === "instrumentadmin" && <InstrumentAdmin />}
-      {mode === "dataadmin" && <DataAdmin />}
-      {mode === "watchlist" && <Watchlist />}
-      {mode === "allocation" && <AllocationCharts />}
-      {mode === "rebalance" && <Rebalance />}
-      {mode === "market" && <MarketOverview />}
-      {mode === "movers" && <TopMovers />}
-      {mode === "reports" && <Reports />}
-      {mode === "taxtools" && <TaxTools />}
-      {mode === "support" && <Support />}
-      {mode === "settings" && <UserConfigPage />}
-      {mode === "scenario" && <ScenarioTester />}
-      {mode === "research" && (
-        <Suspense fallback={<p>{t("app.loading")}</p>}>
-          <InstrumentResearch ticker={researchTicker} />
-        </Suspense>
-      )}
-      {mode === "pension" && <PensionForecast />}
+        {renderMainContent()}
       </main>
-      <Defer>
-        <RightRail owner={selectedOwner} />
-      </Defer>
+      {rightRail}
     </div>
   );
 }

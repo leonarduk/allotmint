@@ -17,11 +17,28 @@ export default function ReturnComparison() {
   const [cashApy, setCashApy] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!owner) return;
-    getReturnComparison(owner, days).then((res) => {
-      setCagr(res.cagr);
-      setCashApy(res.cash_apy);
-    });
+    if (!owner) {
+      setCagr(null);
+      setCashApy(null);
+      return;
+    }
+
+    let cancelled = false;
+    getReturnComparison(owner, days)
+      .then((res) => {
+        if (cancelled) return;
+        setCagr(res.cagr);
+        setCashApy(res.cash_apy);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCagr(null);
+        setCashApy(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [owner, days]);
 
   return (

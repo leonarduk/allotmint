@@ -12,9 +12,10 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Painel",
-      "insightts": "Insightts",
-      "requirements": "Requisitos",
-      "settings": "Configurações",
+      "holdings": "Participações",
+      "tradeTools": "Insights",
+      "goals": "Requisitos",
+      "preferences": "Configurações",
       "operations": "Operações",
       "other": "Outros"
     },
@@ -42,6 +43,7 @@
       "alertsettings": "Alert Settings",
       "compliance": "Alertas de conformidade",
       "trade-compliance": "Conformidade de negociações",
+      "tradecompliance": "Conformidade de negociações",
       "support": "Suporte",
       "scenario": "Testador de Cenários"
     },
@@ -238,14 +240,14 @@
       "employeeContribution": "Sua contribuição mensal",
       "employerContribution": "Contribuição do empregador",
       "totalContribution": "Contribuições mensais totais: {{total}}",
-      "addAnother": "Adicionar outra aposentadoria",
-      "additionalPensions_one": "{{count}} aposentadoria adicional vinculada",
-      "additionalPensions_other": "{{count}} aposentadorias adicionais vinculadas",
+      "linkedPotsHeading": "Fundos de pensão vinculados",
+      "noLinkedPots": "Ainda não há fundos de pensão vinculados para este titular.",
       "notAvailable": "Não disponível"
     }
   },
   "group": {
-    "select": "Selecione um grupo."
+    "select": "Selecione um grupo.",
+    "atAGlance": "Visão geral"
   },
   "dashboard": {
     "selectMember": "Selecione um membro.",

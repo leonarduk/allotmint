@@ -13,48 +13,117 @@ def _auth_client():
 
 
 @pytest.mark.parametrize(
-    "path, func_name, expected_args, result_key, return_value",
+    "path, func_name, expected_args, expected_kwargs, result_key, return_value, extra_keys",
     [
         (
             "/performance/alice/alpha?benchmark=SPY&days=30",
             "compute_alpha_vs_benchmark",
             ("alice", "SPY", 30),
+            {"include_breakdown": True},
             "alpha_vs_benchmark",
-            1.23,
+            (
+                1.23,
+                {
+                    "series": [
+                        {
+                            "date": "2024-01-01",
+                            "portfolio_cumulative_return": 0.1,
+                            "benchmark_cumulative_return": 0.05,
+                            "excess_cumulative_return": 0.05,
+                        }
+                    ],
+                    "portfolio_cumulative_return": 0.1,
+                    "benchmark_cumulative_return": 0.05,
+                },
+            ),
+            [
+                "series",
+                "portfolio_cumulative_return",
+                "benchmark_cumulative_return",
+            ],
         ),
         (
             "/performance/alice/tracking-error?benchmark=SPY&days=30",
             "compute_tracking_error",
             ("alice", "SPY", 30),
+            {"include_breakdown": True},
             "tracking_error",
-            2.34,
+            (
+                2.34,
+                {
+                    "active_returns": [
+                        {
+                            "date": "2024-01-02",
+                            "portfolio_return": 0.01,
+                            "benchmark_return": 0.005,
+                            "active_return": 0.005,
+                        }
+                    ],
+                    "daily_active_standard_deviation": 0.15,
+                },
+            ),
+            ["active_returns", "daily_active_standard_deviation"],
         ),
         (
             "/performance/alice/max-drawdown?days=30",
             "compute_max_drawdown",
             ("alice", 30),
+            {"include_breakdown": True},
             "max_drawdown",
-            -5.0,
+            (
+                -5.0,
+                {
+                    "series": [
+                        {
+                            "date": "2024-01-01",
+                            "portfolio_value": 100.0,
+                            "running_max": 100.0,
+                            "drawdown": 0.0,
+                        }
+                    ],
+                    "peak": {"date": "2024-01-01", "value": 100.0},
+                    "trough": {
+                        "date": "2024-01-01",
+                        "value": 95.0,
+                        "drawdown": -0.05,
+                    },
+                },
+            ),
+            ["series", "peak", "trough"],
         ),
         (
             "/performance/alice/twr?days=90",
             "compute_time_weighted_return",
             ("alice", 90),
+            {},
             "time_weighted_return",
             0.12,
+            [],
         ),
         (
             "/performance/alice/xirr?days=180",
             "compute_xirr",
             ("alice", 180),
+            {},
             "xirr",
             0.34,
+            [],
         ),
     ],
 )
-def test_owner_metrics_success(path, func_name, expected_args, result_key, return_value, monkeypatch):
-    def fake(*args):
+def test_owner_metrics_success(
+    path,
+    func_name,
+    expected_args,
+    expected_kwargs,
+    result_key,
+    return_value,
+    extra_keys,
+    monkeypatch,
+):
+    def fake(*args, **kwargs):
         assert args == expected_args
+        assert kwargs == expected_kwargs
         return return_value
 
     monkeypatch.setattr(portfolio_utils, func_name, fake)
@@ -65,26 +134,55 @@ def test_owner_metrics_success(path, func_name, expected_args, result_key, retur
     assert data["owner"] == "alice"
     if "benchmark" in data:
         assert data["benchmark"] == "SPY"
-    assert data[result_key] == pytest.approx(return_value)
+    if isinstance(return_value, tuple):
+        expected_val = return_value[0]
+        assert data[result_key] == pytest.approx(expected_val)
+        breakdown = return_value[1]
+        for key in extra_keys:
+            assert data[key] == breakdown.get(key)
+    else:
+        assert data[result_key] == pytest.approx(return_value)
 
 
 @pytest.mark.parametrize(
-    "path, func_name, expected_args",
+    "path, func_name, expected_args, expected_kwargs",
     [
-        ("/performance/missing/alpha", "compute_alpha_vs_benchmark", ("missing", "VWRL.L", 365)),
+        (
+            "/performance/missing/alpha",
+            "compute_alpha_vs_benchmark",
+            ("missing", "VWRL.L", 365),
+            {"include_breakdown": True},
+        ),
         (
             "/performance/missing/tracking-error",
             "compute_tracking_error",
             ("missing", "VWRL.L", 365),
+            {"include_breakdown": True},
         ),
-        ("/performance/missing/max-drawdown", "compute_max_drawdown", ("missing", 365)),
-        ("/performance/missing/twr", "compute_time_weighted_return", ("missing", 365)),
-        ("/performance/missing/xirr", "compute_xirr", ("missing", 365)),
+        (
+            "/performance/missing/max-drawdown",
+            "compute_max_drawdown",
+            ("missing", 365),
+            {"include_breakdown": True},
+        ),
+        (
+            "/performance/missing/twr",
+            "compute_time_weighted_return",
+            ("missing", 365),
+            {},
+        ),
+        (
+            "/performance/missing/xirr",
+            "compute_xirr",
+            ("missing", 365),
+            {},
+        ),
     ],
 )
-def test_owner_metrics_not_found(path, func_name, expected_args, monkeypatch):
-    def fake(*args):
+def test_owner_metrics_not_found(path, func_name, expected_args, expected_kwargs, monkeypatch):
+    def fake(*args, **kwargs):
         assert args == expected_args
+        assert kwargs == expected_kwargs
         raise FileNotFoundError
 
     monkeypatch.setattr(portfolio_utils, func_name, fake)
@@ -95,34 +193,74 @@ def test_owner_metrics_not_found(path, func_name, expected_args, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "path, func_name, expected_args, result_key, return_value",
+    "path, func_name, expected_args, expected_kwargs, result_key, return_value, extra_keys",
     [
         (
             "/performance-group/demo/alpha?benchmark=SPY&days=30",
             "compute_group_alpha_vs_benchmark",
             ("demo", "SPY", 30),
+            {"include_breakdown": True},
             "alpha_vs_benchmark",
-            0.5,
+            (
+                0.5,
+                {
+                    "series": [],
+                    "portfolio_cumulative_return": 0.2,
+                    "benchmark_cumulative_return": -0.3,
+                },
+            ),
+            [
+                "series",
+                "portfolio_cumulative_return",
+                "benchmark_cumulative_return",
+            ],
         ),
         (
             "/performance-group/demo/tracking-error?benchmark=SPY&days=30",
             "compute_group_tracking_error",
             ("demo", "SPY", 30),
+            {"include_breakdown": True},
             "tracking_error",
-            0.7,
+            (
+                0.7,
+                {
+                    "active_returns": [],
+                    "daily_active_standard_deviation": 0.2,
+                },
+            ),
+            ["active_returns", "daily_active_standard_deviation"],
         ),
         (
             "/performance-group/demo/max-drawdown?days=30",
             "compute_group_max_drawdown",
             ("demo", 30),
+            {"include_breakdown": True},
             "max_drawdown",
-            -1.0,
+            (
+                -1.0,
+                {
+                    "series": [],
+                    "peak": None,
+                    "trough": None,
+                },
+            ),
+            ["series", "peak", "trough"],
         ),
     ],
 )
-def test_group_metrics_success(path, func_name, expected_args, result_key, return_value, monkeypatch):
-    def fake(*args):
+def test_group_metrics_success(
+    path,
+    func_name,
+    expected_args,
+    expected_kwargs,
+    result_key,
+    return_value,
+    extra_keys,
+    monkeypatch,
+):
+    def fake(*args, **kwargs):
         assert args == expected_args
+        assert kwargs == expected_kwargs
         return return_value
 
     monkeypatch.setattr(portfolio_utils, func_name, fake)
@@ -133,32 +271,40 @@ def test_group_metrics_success(path, func_name, expected_args, result_key, retur
     assert data["group"] == "demo"
     if "benchmark" in data:
         assert data["benchmark"] == "SPY"
-    assert data[result_key] == pytest.approx(return_value)
+    expected_val = return_value[0]
+    assert data[result_key] == pytest.approx(expected_val)
+    breakdown = return_value[1]
+    for key in extra_keys:
+        assert data[key] == breakdown.get(key)
 
 
 @pytest.mark.parametrize(
-    "path, func_name, expected_args",
+    "path, func_name, expected_args, expected_kwargs",
     [
         (
             "/performance-group/missing/alpha",
             "compute_group_alpha_vs_benchmark",
             ("missing", "VWRL.L", 365),
+            {"include_breakdown": True},
         ),
         (
             "/performance-group/missing/tracking-error",
             "compute_group_tracking_error",
             ("missing", "VWRL.L", 365),
+            {"include_breakdown": True},
         ),
         (
             "/performance-group/missing/max-drawdown",
             "compute_group_max_drawdown",
             ("missing", 365),
+            {"include_breakdown": True},
         ),
     ],
 )
-def test_group_metrics_not_found(path, func_name, expected_args, monkeypatch):
-    def fake(*args):
+def test_group_metrics_not_found(path, func_name, expected_args, expected_kwargs, monkeypatch):
+    def fake(*args, **kwargs):
         assert args == expected_args
+        assert kwargs == expected_kwargs
         raise FileNotFoundError
 
     monkeypatch.setattr(portfolio_utils, func_name, fake)

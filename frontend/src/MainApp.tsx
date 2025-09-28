@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, lazy, Suspense } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getGroupInstruments, getGroups, getOwners, getPortfolio } from "./api";
 import type {
@@ -28,6 +28,7 @@ import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import lazyWithDelay from "./utils/lazyWithDelay";
 import PortfolioDashboardSkeleton from "./components/skeletons/PortfolioDashboardSkeleton";
 import { sanitizeOwners } from "./utils/owners";
+import { isDefaultGroupSlug } from "./utils/groups";
 
 const ScreenerQuery = lazy(() => import("./pages/ScreenerQuery"));
 const TimeseriesEdit = lazy(() =>
@@ -46,6 +47,7 @@ const PerformanceDashboard = lazyWithDelay(
 
 export default function MainApp() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const { mode, setMode, selectedOwner, setSelectedOwner, selectedGroup, setSelectedGroup } = useRoute();
 
@@ -129,14 +131,33 @@ export default function MainApp() {
     if (mode === "instrument" && !selectedGroup && groups.length) {
       const slug = groups[0].slug;
       setSelectedGroup(slug);
-      navigate(`/instrument/${slug}`, { replace: true });
+      if (slug && slug !== "all") {
+        navigate(`/instrument/${slug}`, { replace: true });
+      }
     }
-    if (mode === "group" && !selectedGroup && groups.length) {
-      const slug = groups[0].slug;
-      setSelectedGroup(slug);
-      navigate(`/?group=${slug}`, { replace: true });
+    if (mode === "group" && groups.length) {
+      const hasSelection = groups.some((g) => g.slug === selectedGroup);
+      if (!hasSelection) {
+        const slug = groups[0].slug;
+        setSelectedGroup(slug);
+        if (isDefaultGroupSlug(slug)) {
+          if (location.search) navigate("/", { replace: true });
+        } else {
+          navigate(`/?group=${slug}`, { replace: true });
+        }
+      }
     }
-  }, [mode, selectedOwner, selectedGroup, owners, groups, navigate, setSelectedOwner, setSelectedGroup]);
+  }, [
+    mode,
+    selectedOwner,
+    selectedGroup,
+    owners,
+    groups,
+    navigate,
+    setSelectedOwner,
+    setSelectedGroup,
+    location.search,
+  ]);
 
   // data fetching based on route
   useEffect(() => {
@@ -249,6 +270,7 @@ export default function MainApp() {
           />
           <GroupPortfolioView
             slug={selectedGroup}
+            owners={owners}
             onTradeInfo={(info) =>
               setTradeInfo(
                 info

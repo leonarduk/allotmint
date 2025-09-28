@@ -19,14 +19,16 @@ describe("Header", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("toggles menu drawer", () => {
+  it("toggles menu drawer", async () => {
     render(
       <MemoryRouter>
         <Menu />
       </MemoryRouter>
     );
-    const toggle = screen.getByLabelText(i18n.t("app.menu"));
-    fireEvent.click(toggle);
-    expect(screen.getByRole("link", { name: "Support" })).toBeInTheDocument();
+    const settingsToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.preferences"),
+    });
+    fireEvent.click(settingsToggle);
+    expect(await screen.findByRole("menuitem", { name: "Support" })).toBeInTheDocument();
   });
 });

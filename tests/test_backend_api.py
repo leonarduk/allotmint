@@ -7,7 +7,9 @@ from fastapi.testclient import TestClient
 
 from backend.common.instruments import get_instrument_meta
 import backend.common.alerts as alerts
+from backend.app import create_app
 from backend import config as backend_config
+from backend import config_module
 
 
 @pytest.fixture
@@ -140,6 +142,41 @@ def _get_groups(client):
     groups = resp.json()
     assert any("demo" in g.get("members", []) for g in groups)
     return groups
+
+
+def test_owners_in_disable_auth_mode(monkeypatch):
+    """When auth is disabled the demo owner should always be listed."""
+
+    monkeypatch.setattr(config_module.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(config_module.config, "skip_snapshot_warm", True, raising=False)
+
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/owners")
+
+    assert resp.status_code == 200
+    owners = resp.json()
+    assert any(owner.get("owner") == "demo" for owner in owners)
+
+
+def test_demo_owner_present_with_explicit_root(monkeypatch, tmp_path):
+    """Disable auth with a custom accounts root still exposes the demo owner."""
+
+    demo_dir = tmp_path / "demo"
+    demo_dir.mkdir()
+    (demo_dir / "demo.json").write_text("{}")
+
+    monkeypatch.setattr(config_module.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(config_module.config, "skip_snapshot_warm", True, raising=False)
+    monkeypatch.setattr(config_module.config, "accounts_root", tmp_path, raising=False)
+
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/owners")
+
+    assert resp.status_code == 200
+    owners = resp.json()
+    assert any(owner.get("owner") == "demo" for owner in owners)
 
 
 def test_health(client):

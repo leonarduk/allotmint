@@ -12,9 +12,10 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Tableau de bord",
-      "insightts": "Insightts",
-      "requirements": "Exigences",
-      "settings": "Paramètres",
+      "holdings": "Positions",
+      "tradeTools": "Insights",
+      "goals": "Exigences",
+      "preferences": "Paramètres",
       "operations": "Opérations",
       "other": "Autres"
     },
@@ -42,6 +43,7 @@
       "alertsettings": "Alert Settings",
       "compliance": "Alertes de conformité",
       "trade-compliance": "Conformité des transactions",
+      "tradecompliance": "Conformité des transactions",
       "support": "Support",
       "scenario": "Testeur de Scénario"
     },
@@ -238,14 +240,14 @@
       "employeeContribution": "Votre cotisation mensuelle",
       "employerContribution": "Contribution de l'employeur",
       "totalContribution": "Cotisations mensuelles totales : {{total}}",
-      "addAnother": "Ajouter une autre pension",
-      "additionalPensions_one": "{{count}} pension supplémentaire liée",
-      "additionalPensions_other": "{{count}} pensions supplémentaires liées",
+      "linkedPotsHeading": "Pots de pension associés",
+      "noLinkedPots": "Aucun pot de pension associé pour ce titulaire pour le moment.",
       "notAvailable": "Non disponible"
     }
   },
   "group": {
-    "select": "Sélectionnez un groupe."
+    "select": "Sélectionnez un groupe.",
+    "atAGlance": "En un coup d'œil"
   },
   "dashboard": {
     "selectMember": "Sélectionnez un membre.",

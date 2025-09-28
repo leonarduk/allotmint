@@ -748,14 +748,17 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
                       )}
                       {!relativeViewEnabled && visibleColumns.cost && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
-                          {money(r.cost, r.market_value_currency || baseCurrency)}
+                          {money(
+                            r.cost,
+                            r.market_value_currency || r.currency || baseCurrency,
+                          )}
                         </td>
                       )}
                       {!relativeViewEnabled && visibleColumns.market && (
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                           {money(
                             r.market_value_gbp,
-                            r.market_value_currency || baseCurrency,
+                            r.market_value_currency || r.currency || baseCurrency,
                           )}
                         </td>
                       )}
@@ -763,7 +766,10 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
                         <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                           <span className={gainClass}>
                             {gainPrefix}
-                            {money(r.gain_gbp, r.gain_currency || baseCurrency)}
+                            {money(
+                              r.gain_gbp,
+                              r.gain_currency || r.currency || baseCurrency,
+                            )}
                           </span>
                         </td>
                       )}
@@ -780,7 +786,7 @@ export function InstrumentTable({ rows, showGroupTotals = true }: Props) {
                           {r.last_price_gbp != null
                             ? money(
                                 r.last_price_gbp,
-                                r.last_price_currency || baseCurrency,
+                                r.last_price_currency || r.currency || baseCurrency,
                               )
                             : '—'}
                         </td>

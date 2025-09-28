@@ -52,7 +52,8 @@ logger = logging.getLogger("meta_timeseries")
 _TICKER_RE = re.compile(r"^[A-Za-z0-9]{1,12}(?:[-\.][A-Z]{1,3})?$")
 
 
-INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
+_DEFAULT_INSTRUMENTS_DIR = Path(__file__).resolve().parents[2] / "data" / "instruments"
+INSTRUMENTS_DIR = _DEFAULT_INSTRUMENTS_DIR
 
 
 def _instrument_dirs() -> list[Path]:
@@ -60,9 +61,18 @@ def _instrument_dirs() -> list[Path]:
 
     candidates: list[Path] = []
     data_root = getattr(config, "data_root", None)
-    if data_root:
-        candidates.append(Path(data_root) / "instruments")
-    candidates.append(INSTRUMENTS_DIR)
+
+    # When the module level ``INSTRUMENTS_DIR`` is overridden (for example in
+    # tests), treat it as authoritative and avoid falling back to the default
+    # repository metadata. This prevents unrelated fixtures on the host machine
+    # from influencing lookups while still allowing ``config.data_root`` to
+    # redirect metadata when the default location is in use.
+    if INSTRUMENTS_DIR != _DEFAULT_INSTRUMENTS_DIR:
+        candidates.append(INSTRUMENTS_DIR)
+    else:
+        if data_root:
+            candidates.append(Path(data_root) / "instruments")
+        candidates.append(INSTRUMENTS_DIR)
 
     seen: set[Path] = set()
     resolved: list[Path] = []
@@ -82,28 +92,92 @@ def _instrument_dirs() -> list[Path]:
     return resolved
 
 
-@lru_cache(maxsize=2048)
 def _resolve_exchange_from_metadata(symbol: str) -> str:
     """Return exchange code for *symbol* using instrument metadata if possible."""
 
-    sym = symbol.upper()
-    for root in _instrument_dirs():
+    symbol = symbol.upper()
+    dirs = tuple(str(path) for path in _instrument_dirs())
+    exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
+
+    def _is_valid(entry_exchange: str, entry_dir: str) -> bool:
+        if not entry_exchange:
+            return False
+        if entry_dir:
+            return _metadata_entry_exists_in_directory(symbol, Path(entry_dir))
+        return _metadata_entry_exists(symbol, entry_exchange, dirs)
+
+    if exchange and not _is_valid(exchange, source_dir):
+        _resolve_exchange_from_metadata_cached.cache_clear()
+        exchange, source_dir = _resolve_exchange_from_metadata_cached(symbol, dirs)
+        if exchange and not _is_valid(exchange, source_dir):
+            exchange = ""
+
+    return exchange or ""
+
+
+@lru_cache(maxsize=2048)
+def _resolve_exchange_from_metadata_cached(
+    symbol: str, directories: tuple[str, ...]
+) -> tuple[str, str]:
+    """Cached helper that scopes lookups to the active instrument directories."""
+
+    for root_str in directories:
+        root = Path(root_str)
         try:
             for ex_dir in root.iterdir():
                 if not ex_dir.is_dir() or ex_dir.name.lower() == "cash":
                     continue
                 try:
-                    if (ex_dir / f"{sym}.json").is_file():
-                        return ex_dir.name.upper()
+                    if (ex_dir / f"{symbol}.json").is_file():
+                        return ex_dir.name.upper(), str(ex_dir)
                 except OSError:
                     continue
         except OSError:
             continue
-    return ""
+    return "", ""
 
 
-def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, str]:
-    """Resolve base symbol and exchange from inputs and metadata."""
+def _metadata_entry_exists_in_directory(symbol: str, directory: Path) -> bool:
+    """Return ``True`` if *symbol* metadata exists in the provided directory."""
+
+    try:
+        if not directory.is_dir():
+            return False
+    except OSError:
+        return False
+
+    try:
+        return (directory / f"{symbol}.json").is_file()
+    except OSError:
+        return False
+
+
+def _metadata_entry_exists(
+    symbol: str, exchange: str, directories: tuple[str, ...]
+) -> bool:
+    """Return ``True`` when metadata for *symbol* exists under *exchange*."""
+
+    symbol = symbol.upper()
+    exchange = exchange.upper()
+    if not symbol or not exchange:
+        return False
+
+    for root_str in directories:
+        root = Path(root_str)
+        try:
+            candidate = root / exchange / f"{symbol}.json"
+            if candidate.is_file():
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _resolve_symbol_exchange_details(
+    ticker: str, exchange: str | None
+) -> Tuple[str, str, str]:
+    """Return symbol, resolved exchange and metadata exchange."""
+
     sym, suffix = (re.split(r"[._]", ticker, 1) + [""])[:2]
     provided = (exchange or "").upper()
     suffix = suffix.upper()
@@ -111,9 +185,10 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, st
         logger.debug(
             "Exchange mismatch for %s: suffix %s vs argument %s", ticker, suffix, provided
         )
-    ex = suffix or provided
+    resolved = suffix or provided
 
-    meta_ex = _resolve_exchange_from_metadata(sym)
+    meta_ex = _resolve_exchange_from_metadata(sym).upper()
+    ex = resolved
     if not ex and meta_ex:
         ex = meta_ex
         logger.debug("Resolved exchange for %s via metadata: %s", sym, ex)
@@ -126,17 +201,21 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, st
         )
     elif not ex:
         logger.debug("No exchange information for %s; continuing without exchange", sym)
-    return sym.upper(), ex.upper()
+
+    return sym.upper(), (ex or "").upper(), meta_ex
+
+
+def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> Tuple[str, str]:
+    """Resolve base symbol and exchange from inputs and metadata."""
+
+    sym, ex, _ = _resolve_symbol_exchange_details(ticker, exchange)
+    return sym, ex
 
 
 def _resolve_loader_exchange(
     ticker: str, exchange_arg: str | None, symbol: str, resolved_exchange: str
 ) -> str:
-    """Return the exchange to use when fetching cached data.
-
-    Explicit suffixes and ``exchange`` arguments take priority, otherwise fall
-    back to the previously resolved exchange (which may come from metadata).
-    """
+    """Return the exchange to use when fetching cached data."""
 
     parts = re.split(r"[._]", ticker, 1)
     suffix = parts[1].strip().upper() if len(parts) == 2 else ""
@@ -153,6 +232,61 @@ def _resolve_loader_exchange(
         return resolved or suffix
 
     return resolved
+
+
+def _resolve_cache_exchange(
+    ticker: str,
+    exchange_arg: str | None,
+    symbol: str,
+    resolved_exchange: str,
+    metadata_exchange: str,
+) -> str:
+    """Return the exchange code to use when reading from the cache."""
+
+    loader_exchange = _resolve_loader_exchange(
+        ticker, exchange_arg, symbol, resolved_exchange
+    )
+    explicit_exchange = _explicit_exchange_from_ticker(ticker)
+    provided_exchange = (exchange_arg or "").strip().upper()
+
+    if metadata_exchange:
+        if loader_exchange and loader_exchange != metadata_exchange:
+            logger.debug(
+                "Cache exchange mismatch for %s: loader %s vs metadata %s",
+                symbol,
+                loader_exchange,
+                metadata_exchange or "<empty>",
+            )
+
+        if (
+            provided_exchange
+            and not explicit_exchange
+            and provided_exchange != metadata_exchange
+        ):
+            logger.debug(
+                "Cache exchange override for %s: metadata %s vs argument %s",
+                symbol,
+                metadata_exchange or "<empty>",
+                provided_exchange or "<empty>",
+            )
+            cache_exchange = provided_exchange
+        else:
+            cache_exchange = metadata_exchange
+    elif explicit_exchange:
+        cache_exchange = explicit_exchange
+    elif provided_exchange:
+        cache_exchange = provided_exchange
+    elif loader_exchange and (metadata_exchange or explicit_exchange or provided_exchange):
+        cache_exchange = loader_exchange
+    else:
+        cache_exchange = ""
+
+    return cache_exchange
+
+
+def _explicit_exchange_from_ticker(ticker: str) -> str:
+    parts = re.split(r"[._]", ticker, 1)
+    return parts[1].strip().upper() if len(parts) == 2 else ""
 
 
 def _merge(sources: List[pd.DataFrame]) -> pd.DataFrame:
@@ -343,11 +477,11 @@ def run_all_tickers(
     for idx, t in enumerate(tickers):
         if delay and idx:
             time.sleep(delay)
-        sym, ex = _resolve_ticker_exchange(t, exchange)
+        sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug("run_all_tickers resolved %s -> %s.%s", t, sym, ex)
-        loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
+        cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
-            if not load_meta_timeseries(sym, loader_exchange, days).empty:
+            if not load_meta_timeseries(sym, cache_exchange, days).empty:
                 ok.append(t)
         except Exception as exc:
             logger.warning("[WARN] %s: %s", t, exc)
@@ -364,11 +498,11 @@ def load_timeseries_data(
     from backend.timeseries.cache import load_meta_timeseries
     out: dict[str, pd.DataFrame] = {}
     for t in tickers:
-        sym, ex = _resolve_ticker_exchange(t, exchange)
+        sym, ex, meta_exchange = _resolve_symbol_exchange_details(t, exchange)
         logger.debug("load_timeseries_data resolved %s -> %s.%s", t, sym, ex)
-        loader_exchange = _resolve_loader_exchange(t, exchange, sym, ex)
+        cache_exchange = _resolve_cache_exchange(t, exchange, sym, ex, meta_exchange)
         try:
-            df = load_meta_timeseries(sym, loader_exchange, days)
+            df = load_meta_timeseries(sym, cache_exchange, days)
             if not df.empty:
                 out[t] = df
         except Exception as exc:

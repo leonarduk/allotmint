@@ -13,6 +13,7 @@ import type {
   SectorContribution,
   RegionContribution,
   InstrumentSummary,
+  OwnerSummary,
 } from "../types";
 import {
   getGroupPortfolio,
@@ -33,9 +34,11 @@ import { useFetch } from "../hooks/useFetch";
 import tableStyles from "../styles/table.module.css";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "../ConfigContext";
+import { getGroupDisplayName } from "../utils/groups";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { isCashInstrument } from "../lib/instruments";
+import { createOwnerDisplayLookup, getOwnerDisplayName } from "../utils/owners";
 import {
   PieChart,
   Pie,
@@ -63,13 +66,14 @@ const PIE_COLORS = [
 
 type Props = {
   slug: string;
+  owners?: OwnerSummary[];
   onTradeInfo?: (info: { trades_this_month?: number; trades_remaining?: number } | null) => void;
 };
 
 /* ────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────── */
-export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
+export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const fetchPortfolio = useCallback(() => getGroupPortfolio(slug), [slug]);
   const {
     data: portfolio,
@@ -106,7 +110,15 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
 
   const loadGroupInstruments =
-    api.getCachedGroupInstruments ?? getGroupInstruments;
+    ("getCachedGroupInstruments" in api
+      ? (api as { getCachedGroupInstruments?: typeof getGroupInstruments })
+          .getCachedGroupInstruments
+      : undefined) ?? getGroupInstruments;
+
+  const ownerLookup = useMemo(
+    () => createOwnerDisplayLookup(owners ?? []),
+    [owners],
+  );
 
   useEffect(() => {
     setActiveOwner(null);
@@ -129,7 +141,7 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
         if (!entry) {
           entry = {
             value: acct.owner,
-            label: acct.owner,
+            label: getOwnerDisplayName(ownerLookup, acct.owner, acct.owner),
             accountTypes: new Set<string>(),
           };
           index.set(acct.owner, entry);
@@ -143,7 +155,7 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
         accountTypes: Array.from(accountTypes),
       }));
     },
-    [portfolio],
+    [portfolio, ownerLookup],
   );
 
   useEffect(() => {
@@ -387,8 +399,13 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
           cashPct: accountCashPct,
         };
       });
+      const ownerDisplay =
+        owner === "—"
+          ? "—"
+          : getOwnerDisplayName(ownerLookup, owner, owner);
       return {
         owner,
+        ownerDisplay,
         ...data,
         gainPct,
         dayChangePct,
@@ -406,7 +423,7 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
     }));
 
     return { ownerRows, typeRows };
-  }, [filteredAccounts, t, totals.totalValue]);
+  }, [filteredAccounts, t, totals.totalValue, ownerLookup]);
 
   useEffect(() => {
     setExpandedOwners((prev) => {
@@ -463,7 +480,7 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
           alignItems: "center",
         }}
       >
-        <h2>{portfolio.name}</h2>
+        <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
         <RelativeViewToggle />
       </div>
 
@@ -682,7 +699,7 @@ export function GroupPortfolioView({ slug, onTradeInfo }: Props) {
                           {isExpanded ? "▾" : "▸"}
                         </span>
                       )}
-                      {row.owner}
+                      {row.ownerDisplay}
                     </td>
                   <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                     {relativeViewEnabled

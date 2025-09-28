@@ -6,8 +6,11 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from backend.config import config
 from backend.common import instrument_groups
 from backend.common.instruments import (
+    _ORIGINAL_FETCH_METADATA,
+    _fetch_metadata_from_yahoo,
     delete_instrument_meta,
     get_instrument_meta,
     instrument_meta_path,
@@ -138,20 +141,91 @@ async def update_instrument(exchange: str, ticker: str, body: dict[str, Any]) ->
     return {"status": "updated"}
 
 
-@router.delete("/admin/{exchange}/{ticker}")
-async def delete_instrument(exchange: str, ticker: str) -> dict[str, str]:
-    """Remove instrument metadata from disk."""
+@router.post("/admin/{exchange}/{ticker}/refresh")
+async def refresh_instrument(
+    exchange: str, ticker: str, body: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Fetch fresh metadata for an instrument and optionally persist it."""
 
     try:
         path = instrument_meta_path(ticker, exchange)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     try:
         exists = path.exists()
     except OSError as exc:
         raise HTTPException(status_code=500, detail="Filesystem error") from exc
+
     if not exists:
         raise HTTPException(status_code=404, detail="Instrument not found")
+
+    if (
+        config.offline_mode
+        and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA
+    ):
+        raise HTTPException(status_code=503, detail="Metadata refresh disabled in offline mode")
+
+    preview = True
+    if body is not None and isinstance(body, dict):
+        preview = bool(body.get("preview", True))
+
+    canonical_ticker = f"{ticker}.{exchange}"
+    existing = _load_meta_for_update(exchange, ticker)
+
+    fetched = _fetch_metadata_from_yahoo(canonical_ticker)
+    if not fetched:
+        raise HTTPException(status_code=502, detail="Unable to fetch instrument metadata")
+
+    merged = dict(existing)
+    changes: dict[str, dict[str, Any]] = {}
+    for key, value in fetched.items():
+        if key in {"ticker", "exchange"}:
+            continue
+        current = existing.get(key)
+        if current != value:
+            changes[key] = {"from": current, "to": value}
+        merged[key] = value
+        if key == "instrument_type":
+            merged["instrumentType"] = value
+        elif key == "instrumentType":
+            merged["instrument_type"] = value
+
+    if "instrument_type" in merged and "instrumentType" not in merged:
+        merged["instrumentType"] = merged["instrument_type"]
+    if "instrumentType" in merged and "instrument_type" not in merged:
+        merged["instrument_type"] = merged["instrumentType"]
+
+    merged["ticker"] = canonical_ticker
+    merged["exchange"] = exchange
+
+    if not preview:
+        save_instrument_meta(ticker, exchange, merged)
+        status = "updated"
+    else:
+        status = "preview"
+
+    return {"status": status, "metadata": merged, "changes": changes}
+
+
+@router.delete("/admin/{exchange}/{ticker}")
+async def delete_instrument(exchange: str, ticker: str) -> dict[str, str]:
+    """Remove instrument metadata from disk."""
+
+    try:
+        meta_path = instrument_meta_path(ticker, exchange)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Filesystem error") from exc
+
+    try:
+        exists = meta_path.exists()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Filesystem error") from exc
+
+    if not exists:
+        raise HTTPException(status_code=404, detail="instrument not found")
     delete_instrument_meta(ticker, exchange)
     return {"status": "deleted"}
 

@@ -11,19 +11,71 @@ router = APIRouter(tags=["compliance"])
 logger = logging.getLogger(__name__)
 
 
-def _known_owners(accounts_root) -> set[str]:
+class KnownOwnerSet(set[str]):
+    """Set of owners discovered for the active accounts root."""
+
+    def __init__(self, iterable=(), *, active_root_has_entries: bool = False):
+        super().__init__(iterable)
+        self.active_root_has_entries = active_root_has_entries
+
+
+def _known_owners(accounts_root) -> KnownOwnerSet:
     """Return a lower-cased set of known owners for the configured root."""
 
-    owners: set[str] = set()
+    owners = KnownOwnerSet()
+    active_root_has_entries = False
+    allow_demo_injection = False
+
+    def _ensure_demo_owner(owner_set: set[str]) -> None:
+        """Ensure the bundled demo owner remains discoverable."""
+
+        if not owner_set or "demo" in owner_set:
+            return
+
+        try:
+            fallback_root = data_loader.resolve_paths(None, None).accounts_root
+        except Exception:
+            return
+
+        try:
+            demo_dir = fallback_root / "demo"
+        except TypeError:
+            return
+
+        try:
+            if demo_dir.exists() and demo_dir.is_dir():
+                owner_set.add("demo")
+        except Exception:
+            return
+
+    list_plots_failed = False
     try:
         entries = data_loader.list_plots(accounts_root)
     except Exception:
         entries = []
+        list_plots_failed = True
+    else:
+        allow_demo_injection = True
 
     for entry in entries:
         owner = (entry.get("owner") or "").strip()
         if owner:
             owners.add(owner.lower())
+
+    if owners:
+        active_root_has_entries = True
+
+    allow_demo_injection = allow_demo_injection and not list_plots_failed
+
+    if owners:
+        if allow_demo_injection:
+            _ensure_demo_owner(owners)
+        owners.active_root_has_entries = active_root_has_entries
+        return owners
+
+    if not list_plots_failed:
+        owners.active_root_has_entries = active_root_has_entries
+        return owners
 
     try:
         root_path = (
@@ -32,13 +84,23 @@ def _known_owners(accounts_root) -> set[str]:
             else data_loader.resolve_paths(None, None).accounts_root
         )
     except Exception:
-        root_path = None
+        owners.active_root_has_entries = active_root_has_entries
+        return owners
 
-    if root_path and root_path.exists():
-        for entry in root_path.iterdir():
-            if entry.is_dir():
-                owners.add(entry.name.lower())
+    if not root_path or not root_path.exists():
+        owners.active_root_has_entries = active_root_has_entries
+        return owners
 
+    for entry in root_path.iterdir():
+        if entry.is_dir():
+            owners.add(entry.name.lower())
+
+    if owners:
+        active_root_has_entries = True
+        if allow_demo_injection:
+            _ensure_demo_owner(owners)
+
+    owners.active_root_has_entries = active_root_has_entries
     return owners
 
 
@@ -76,29 +138,43 @@ async def validate_trade(request: Request):
     trade = await request.json()
     if "owner" not in trade:
         raise HTTPException(status_code=422, detail="owner is required")
-    accounts_root = resolve_accounts_root(request)
-    owner_value = (trade.get("owner") or "").strip()
+    accounts_root = resolve_accounts_root(request, allow_missing=True)
+    raw_owner = trade.get("owner")
+    owner_value = " ".join(str(raw_owner or "").split()).strip()
     if not owner_value:
         raise_owner_not_found()
 
     owners = _known_owners(accounts_root)
+    discovered_for_active_root = getattr(
+        owners, "active_root_has_entries", bool(owners)
+    )
     owner_dir = resolve_owner_directory(accounts_root, owner_value)
+    scaffold_missing = owner_dir is None
 
     if owner_dir:
         canonical_owner = owner_dir.name
-        if owners and canonical_owner.lower() not in owners:
+        if discovered_for_active_root and canonical_owner.lower() not in owners:
             raise_owner_not_found()
         trade["owner"] = canonical_owner
     else:
-        if owners:
+        if discovered_for_active_root:
             raise_owner_not_found()
-        owner_dir = compliance.ensure_owner_scaffold(owner_value, accounts_root)
-        accounts_root = owner_dir.parent
-        request.app.state.accounts_root = accounts_root
-        trade["owner"] = owner_dir.name
+        trade["owner"] = owner_value
     try:
-        return compliance.check_trade(trade, accounts_root)
+        result = compliance.check_trade(
+            trade,
+            accounts_root,
+            scaffold_missing=scaffold_missing,
+        )
     except FileNotFoundError:
         raise_owner_not_found()
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if scaffold_missing:
+        try:
+            compliance.ensure_owner_scaffold(trade["owner"], accounts_root)
+        except Exception:
+            logger.warning("failed to scaffold compliance data for %s", trade.get("owner"))
+
+    return result

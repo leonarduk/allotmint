@@ -1,6 +1,7 @@
 import io
 import json
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -198,6 +199,97 @@ def test_list_group_definitions_returns_empty_when_missing(monkeypatch, tmp_path
         instruments.list_group_definitions.cache_clear()
 
 
+def test_save_instrument_meta_variants(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
+    monkeypatch.setattr(instruments.config, "data_root", tmp_path)
+
+    path = instruments.save_instrument_meta("ABC", "L", {"name": "ABC"})
+    assert path == tmp_path / "L" / "ABC.json"
+
+    contents = path.read_text(encoding="utf-8")
+    assert contents.endswith("\n")
+    assert json.loads(contents) == {"name": "ABC"}
+
+    original_meta_path = instruments.instrument_meta_path
+    calls: list[tuple[str, str]] = []
+
+    def tracking_meta_path(ticker: str, exchange: str):
+        calls.append((ticker, exchange))
+        return original_meta_path(ticker, exchange)
+
+    monkeypatch.setattr(instruments, "instrument_meta_path", tracking_meta_path)
+    instruments.save_instrument_meta("ABC.L", {"name": "ABC"})
+    assert calls == [("ABC", "L")]
+
+    with pytest.raises(TypeError):
+        instruments.save_instrument_meta("ABC", "L", ["bad"])  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError):
+        instruments.save_instrument_meta("ABC", {"name": "ABC"})
+
+
+def test_auto_create_instrument_meta_merges_payload(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.setattr(instruments, "_AUTO_CREATE_FAILURES", set())
+    monkeypatch.setattr(instruments.config, "offline_mode", False)
+
+    monkeypatch.setattr(
+        instruments,
+        "_fetch_metadata_from_yahoo",
+        lambda symbol, exchange: {"name": "ZZZ", "currency": "GBP"},
+    )
+
+    saved: list[tuple[str, str, dict]] = []
+
+    def fake_save(symbol: str, exchange: str, payload: dict) -> Path:
+        saved.append((symbol, exchange, dict(payload)))
+        file_path = tmp_path / f"{exchange}" / f"{symbol}.json"
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(json.dumps(payload), encoding="utf-8")
+        return file_path
+
+    monkeypatch.setattr(instruments, "save_instrument_meta", fake_save)
+
+    result = instruments._auto_create_instrument_meta("ZZZ.L")
+    expected = {"ticker": "ZZZ.L", "exchange": "L", "name": "ZZZ", "currency": "GBP"}
+
+    assert result == expected
+    assert saved == [("ZZZ", "L", expected)]
+
+
+def test_auto_create_respects_offline_and_failure_cache(monkeypatch) -> None:
+    monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.setattr(instruments, "_AUTO_CREATE_FAILURES", set())
+    monkeypatch.setattr(instruments.config, "offline_mode", True)
+    monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", instruments._ORIGINAL_FETCH_METADATA)
+
+    assert instruments._auto_create_instrument_meta("YYY.L") is None
+
+    calls: list[tuple[str, str]] = []
+
+    def failing_fetch(symbol: str, exchange: str):
+        calls.append((symbol, exchange))
+        return None
+
+    monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", failing_fetch)
+    assert instruments._auto_create_instrument_meta("YYY.L") is None
+    assert calls == [("YYY", "L")]
+    assert "YYY.L" in instruments._AUTO_CREATE_FAILURES
+
+
+def test_auto_create_respects_testing_guard(monkeypatch) -> None:
+    monkeypatch.setattr(instruments, "_AUTO_CREATE_FAILURES", set())
+    monkeypatch.setattr(instruments.config, "offline_mode", False)
+
+    def unexpected_fetch(*_args, **_kwargs):
+        raise AssertionError("fetch should not be called when TESTING is set")
+
+    monkeypatch.setattr(instruments, "_fetch_metadata_from_yahoo", unexpected_fetch)
+    monkeypatch.setenv("TESTING", "1")
+    try:
+        assert instruments._auto_create_instrument_meta("TEST.L") is None
+    finally:
+        monkeypatch.delenv("TESTING", raising=False)
 def test_list_group_definitions_loads_json(monkeypatch, tmp_path) -> None:
     root = tmp_path / "instruments" / "groupings"
     root.mkdir(parents=True, exist_ok=True)

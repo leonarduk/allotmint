@@ -4,10 +4,12 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from backend import alerts as alert_utils
+from pathlib import Path
+
 from backend.common import data_loader
 from backend.common.alerts import get_recent_alerts
 from backend.common.errors import OWNER_NOT_FOUND
-from backend.routes._accounts import resolve_accounts_root
+from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -24,15 +26,16 @@ def _validate_owner(user: str, request: Request) -> None:
     """
 
     accounts_root = resolve_accounts_root(request)
-    owners = {o["owner"] for o in data_loader.list_plots(accounts_root)}
-    if user in owners:
+    if resolve_owner_directory(accounts_root, user):
         return
 
     fallback_root = data_loader.resolve_paths(None, None).accounts_root
-    if fallback_root != accounts_root:
-        fallback_owners = {o["owner"] for o in data_loader.list_plots(fallback_root)}
-        if user in fallback_owners:
-            request.app.state.accounts_root = fallback_root
+    # ``resolve_accounts_root`` returns a resolved ``Path`` instance, but avoid
+    # assuming callers do the same when the fallback root is injected via
+    # configuration.
+    if Path(fallback_root) != Path(accounts_root):
+        if resolve_owner_directory(fallback_root, user):
+            request.app.state.accounts_root = Path(fallback_root).expanduser().resolve(strict=False)
             return
 
     raise HTTPException(status_code=404, detail=OWNER_NOT_FOUND)

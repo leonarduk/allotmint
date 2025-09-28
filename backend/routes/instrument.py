@@ -471,7 +471,7 @@ async def intraday(
     except Exception as exc:  # pragma: no cover - network/IO errors
         raise HTTPException(502, str(exc))
     if df.empty:
-        raise HTTPException(404, f"No intraday data for {ticker}")
+        raise HTTPException(status_code=404, detail="no intraday data")
 
     df = df.reset_index()
     prices = [

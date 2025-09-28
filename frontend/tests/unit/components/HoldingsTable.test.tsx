@@ -335,7 +335,7 @@ describe("HoldingsTable", () => {
 
       it("opens InstrumentDetail without altering search params", async () => {
         const portfolio = {
-          name: "All owners combined",
+          name: "At a glance",
           accounts: [
             {
               owner: "alice",
@@ -367,7 +367,10 @@ describe("HoldingsTable", () => {
         vi.stubGlobal("Tooltip", () => <div />);
         renderWithConfig(
           <MemoryRouter>
-            <GroupPortfolioView slug="all" />
+            <GroupPortfolioView
+              slug="all"
+              owners={[{ owner: "alice", full_name: "Alice Example", accounts: ["isa"] }]}
+            />
           </MemoryRouter>,
         );
         await screen.findByRole("button", { name: "AAA" });

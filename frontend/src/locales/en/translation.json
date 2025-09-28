@@ -12,9 +12,10 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Dashboard",
-      "insightts": "Insightts",
-      "requirements": "Requirements",
-      "settings": "Settings",
+      "holdings": "Holdings",
+      "tradeTools": "Insights",
+      "goals": "Requirements",
+      "preferences": "Settings",
       "operations": "Operations",
       "other": "Other"
     },
@@ -26,7 +27,7 @@
       "transactions": "Transactions",
       "trading": "Trading",
       "screener": "Screener & Query",
-      "timeseries": "Timeseries",
+      "timeseries": "Time Series",
       "watchlist": "Watchlist",
       "allocation": "Allocation",
       "rebalance": "Rebalance",
@@ -40,8 +41,9 @@
       "trail": "Trail",
       "reports": "Reports",
       "alertsettings": "Alert Settings",
-      "compliance": "Compliance warnings",
-      "trade-compliance": "Trade compliance",
+      "compliance": "Compliance Warnings",
+      "trade-compliance": "Trade Compliance",
+      "tradecompliance": "Trade Compliance",
       "support": "Support",
       "scenario": "Scenario Tester"
     }
@@ -158,6 +160,15 @@
     "edit": "Edit",
     "save": "Save",
     "cancel": "Cancel",
+    "confirm": "Confirm",
+    "refresh": "Refresh",
+    "refreshConfirm": "Confirm",
+    "refreshCancel": "Cancel",
+    "refreshPreviewTitle": "Proposed updates",
+    "refreshPreviewDescription": "Review the fetched metadata before confirming.",
+    "refreshNoChanges": "The latest data matches the saved metadata.",
+    "refreshError": "Unable to refresh instrument details.",
+    "refreshSuccess": "Instrument details refreshed from Yahoo Finance.",
     "infoHeading": "Instrument info",
     "nameLabel": "Name",
     "sectorLabel": "Sector",
@@ -244,14 +255,14 @@
       "employeeContribution": "Your monthly contribution",
       "employerContribution": "Employer contribution",
       "totalContribution": "Total monthly contributions: {{total}}",
-      "addAnother": "Add another pension",
-      "additionalPensions_one": "{{count}} additional pension linked",
-      "additionalPensions_other": "{{count}} additional pensions linked",
+      "linkedPotsHeading": "Linked pension pots",
+      "noLinkedPots": "No pension pots linked for this owner yet.",
       "notAvailable": "Not available"
     }
   },
   "group": {
-    "select": "Select a group."
+    "select": "Select a group.",
+    "atAGlance": "At a glance"
   },
   "dashboard": {
     "selectMember": "Select a member.",
@@ -278,6 +289,24 @@
     "title": "Performance Metrics Explained",
     "intro": "These metrics summarise how the combined portfolio performs relative to its benchmark. Each value is derived from the same daily return series that powers the dashboard tiles.",
     "backLink": "Back to portfolio dashboard",
+    "groupContext": "Showing combined metrics for group {{group}}.",
+    "ownerContext": "Showing metrics for {{owner}}'s portfolio.",
+    "noContext": "Open this page from a portfolio or group to see live numbers.",
+    "parameters": "Benchmark: {{benchmark}} • Window: {{days}} days",
+    "missingContext": "No portfolio or group was specified. Return to the dashboard and follow the metrics explanation link from a specific portfolio.",
+    "loadError": "We couldn’t load the latest metrics: {{message}}",
+    "loading": "Loading latest metrics…",
+    "notAvailable": "n/a",
+    "dateColumn": "Date",
+    "portfolioCumulative": "Portfolio cumulative return",
+    "benchmarkCumulative": "Benchmark cumulative return",
+    "alphaCumulative": "Excess cumulative return",
+    "portfolioReturn": "Portfolio return",
+    "benchmarkReturn": "Benchmark return",
+    "activeReturn": "Active return",
+    "portfolioValue": "Portfolio value",
+    "runningPeak": "Running peak",
+    "drawdownColumn": "Drawdown",
     "calculationHeading": "How we calculate it",
     "notesHeading": "Things to know",
     "dataHeading": "Data inputs",
@@ -287,6 +316,10 @@
       "alpha": {
         "title": "Alpha vs Benchmark",
         "summary": "Alpha measures the portfolio's excess return after matching the benchmark over the same date range.",
+        "headline": "Alpha vs benchmark",
+        "detail": "Cumulative portfolio return: {{portfolio}} · Benchmark return: {{benchmark}} · Alpha: {{alpha}}",
+        "breakdownHeading": "Step-by-step cumulative returns",
+        "breakdownIntro": "Each row shows how the cumulative portfolio and benchmark returns evolve on the same trading days. Their difference is the excess return (alpha).",
         "calculation": "We compute time-weighted cumulative returns for both the portfolio and the configured benchmark. Alpha is simply the portfolio return minus the benchmark return, expressed in percentage points.",
         "notes": [
           "Positive alpha means the portfolio outperformed the benchmark over the selected period.",
@@ -296,6 +329,10 @@
       "trackingError": {
         "title": "Tracking Error",
         "summary": "Tracking error captures the variability of active returns—how much the portfolio's daily returns diverge from the benchmark.",
+        "headline": "Tracking error and daily active returns",
+        "detail": "Annualised tracking error: {{trackingError}} · Daily active-return standard deviation: {{dailyStd}}",
+        "breakdownHeading": "Daily active returns",
+        "breakdownIntro": "Daily active returns (portfolio minus benchmark) are listed below. The standard deviation of this series, scaled by √252, produces the tracking error above.",
         "calculation": "For each trading day we take the portfolio return minus the benchmark return, producing an active return series. Tracking error is the annualised standard deviation of those active returns (daily standard deviation multiplied by √252).",
         "notes": [
           "Higher tracking error indicates looser alignment with the benchmark.",
@@ -305,6 +342,10 @@
       "maxDrawdown": {
         "title": "Max Drawdown",
         "summary": "Max drawdown identifies the worst peak-to-trough decline in portfolio value over the measurement window.",
+        "headline": "Worst peak-to-trough move",
+        "detail": "Max drawdown: {{drawdown}} · Peak: {{peakValue}} on {{peakDate}} · Trough: {{troughValue}} on {{troughDate}}",
+        "breakdownHeading": "Daily values and running peaks",
+        "breakdownIntro": "We rebuild the portfolio value curve, track each rolling peak, and compute the drawdown at every point. The minimum of this series is the max drawdown shown above.",
         "calculation": "We scan the time-weighted return curve, track each new peak, and record the largest subsequent drop before a new peak is reached. The deepest percentage loss becomes the max drawdown.",
         "notes": [
           "Drawdown is calculated on portfolio returns only; the benchmark is not considered here.",
@@ -411,7 +452,7 @@
     "loading": "Loading…"
   },
   "timeseriesEdit": {
-    "title": "Timeseries Editor",
+    "title": "Time Series Editor",
     "ticker": "Ticker",
     "exchange": "Exchange",
     "load": "Load",

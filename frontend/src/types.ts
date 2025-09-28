@@ -1,6 +1,7 @@
 export type OwnerSummary = {
   owner: string;
   accounts: string[];
+  full_name?: string | null;
 };
 
 export interface Holding {
@@ -185,18 +186,53 @@ export interface ValueAtRiskResponse {
   sharpe_ratio?: number | null;
 }
 
+export interface AlphaSeriesPoint {
+  date: string;
+  portfolio_cumulative_return: number;
+  benchmark_cumulative_return: number;
+  excess_cumulative_return: number;
+}
+
 export interface AlphaResponse {
   alpha_vs_benchmark: number | null;
   benchmark: string;
+  portfolio_cumulative_return?: number | null;
+  benchmark_cumulative_return?: number | null;
+  series?: AlphaSeriesPoint[];
+}
+
+export interface TrackingErrorPoint {
+  date: string;
+  portfolio_return: number;
+  benchmark_return: number;
+  active_return: number;
 }
 
 export interface TrackingErrorResponse {
   tracking_error: number | null;
   benchmark: string;
+  active_returns?: TrackingErrorPoint[];
+  daily_active_standard_deviation?: number | null;
+}
+
+export interface DrawdownSeriesPoint {
+  date: string;
+  portfolio_value: number;
+  running_max: number;
+  drawdown: number;
+}
+
+export interface DrawdownExtrema {
+  date: string;
+  value: number;
+  drawdown?: number;
 }
 
 export interface MaxDrawdownResponse {
   max_drawdown: number | null;
+  series?: DrawdownSeriesPoint[];
+  peak?: DrawdownExtrema | null;
+  trough?: DrawdownExtrema | null;
 }
 
 export interface ReturnComparisonResponse {
@@ -271,12 +307,14 @@ export interface Transaction {
   currency?: string | null;
   security_ref?: string | null;
   ticker?: string | null;
+  instrument_name?: string | null;
   shares?: number | null;
   units?: number | null;
   price_gbp?: number | null;
   fees?: number | null;
   comments?: string | null;
   reason?: string | null;
+  reason_to_buy?: string | null;
 }
 
 export interface TransactionWithCompliance extends Transaction {

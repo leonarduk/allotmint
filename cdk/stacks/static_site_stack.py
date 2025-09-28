@@ -57,9 +57,17 @@ class StaticSiteStack(Stack):
             ),
         )
 
-        s3_origin = origins.S3BucketOrigin.with_origin_access_identity(
-            site_bucket, origin_access_identity=oai
-        )
+        if hasattr(origins, "S3BucketOrigin") and hasattr(
+            origins.S3BucketOrigin, "with_origin_access_identity"
+        ):
+            s3_origin = origins.S3BucketOrigin.with_origin_access_identity(
+                site_bucket, origin_access_identity=oai
+            )
+        else:
+            # Fallback for older CDK versions where S3BucketOrigin is not available.
+            s3_origin = origins.S3Origin(
+                site_bucket, origin_access_identity=oai
+            )
 
         asset_cache_policy = cloudfront.CachePolicy(
             self,

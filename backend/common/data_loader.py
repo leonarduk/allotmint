@@ -68,8 +68,114 @@ PLOTS_PREFIX = "accounts/"
 # ------------------------------------------------------------------
 # Local discovery
 # ------------------------------------------------------------------
-_METADATA_STEMS = {"person", "config", "notes"}  # ignore these as accounts
+_METADATA_STEMS = {
+    "person",
+    "config",
+    "notes",
+    "settings",
+    "approvals",
+    "approval_requests",
+}  # ignore these as accounts
 _SKIP_OWNERS = {".idea", "demo"}
+
+
+def _extract_account_names(owner_dir: Path) -> List[str]:
+    """Return de-duplicated account names for ``owner_dir``."""
+
+    acct_names: List[str] = []
+    try:
+        entries = sorted(owner_dir.iterdir())
+    except OSError:
+        entries = []
+
+    for path in entries:
+        if not path.is_file() or path.suffix.lower() != ".json":
+            continue
+        stem = path.stem
+        lowered = stem.lower()
+        if lowered in _METADATA_STEMS:
+            continue
+        if lowered.endswith("_transactions"):
+            continue
+        acct_names.append(stem)
+
+    seen: set[str] = set()
+    dedup: List[str] = []
+    for name in acct_names:
+        lowered = name.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        dedup.append(name)
+    return dedup
+
+
+def _build_owner_summary(
+    owner: str,
+    accounts: List[str],
+    meta: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Construct an owner summary including a display name."""
+
+    summary: Dict[str, Any] = {"owner": owner, "accounts": accounts}
+
+    display_name: Optional[str] = None
+    if meta:
+        for key in ("full_name", "display_name", "preferred_name", "owner", "name"):
+            value = meta.get(key) if isinstance(meta, dict) else None
+            if isinstance(value, str) and value.strip():
+                display_name = value.strip()
+                if key == "full_name":
+                    break
+        if display_name:
+            summary["full_name"] = display_name
+
+    if "full_name" not in summary:
+        summary["full_name"] = owner
+
+    return summary
+
+
+def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
+    """Return the bundled ``demo`` owner description if available."""
+
+    try:
+        demo_dir = (root or Path()).expanduser() / "demo"
+    except Exception:
+        return None
+
+    if not demo_dir.exists() or not demo_dir.is_dir():
+        return None
+
+    accounts = _extract_account_names(demo_dir)
+    meta = load_person_meta("demo", root)
+    return _build_owner_summary("demo", accounts, meta)
+
+
+def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> None:
+    """Merge account names from ``extra`` into ``base`` in-place."""
+
+    if not base or not extra:
+        return
+
+    if "full_name" not in base:
+        extra_name = extra.get("full_name")
+        if isinstance(extra_name, str) and extra_name:
+            base["full_name"] = extra_name
+
+    existing = base.setdefault("accounts", [])
+    if not isinstance(existing, list):
+        return
+
+    seen = {str(name).lower() for name in existing}
+    for name in extra.get("accounts", []):
+        if not isinstance(name, str):
+            continue
+        lowered = name.lower()
+        if lowered in seen:
+            continue
+        existing.append(name)
+        seen.add(lowered)
 
 
 def _list_local_plots(
@@ -87,61 +193,206 @@ def _list_local_plots(
         Username of the authenticated user or ``None`` when unauthenticated.
     """
 
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    root = data_root or paths.accounts_root
-    results: List[Dict[str, Any]] = []
-    if not root.exists():
+    user = (
+        current_user.get(None)
+        if hasattr(current_user, "get")
+        else current_user
+    )
+
+    def _is_authorized(owner: str, meta: Dict[str, Any]) -> bool:
+        viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
+        if not isinstance(viewers, list):
+            viewers = []
+
+        if config.disable_auth:
+            return True
+
+        if config.disable_auth is False and user is None:
+            return False
+
+        if isinstance(user, str):
+            allowed_identities = {owner.lower()}
+            email = meta.get("email") if isinstance(meta, dict) else None
+            if isinstance(email, str) and email:
+                allowed_identities.add(email.lower())
+            allowed_identities.update(
+                v.lower() for v in viewers if isinstance(v, str)
+            )
+            return user.lower() in allowed_identities
+
+        if user and user != owner and user not in viewers:
+            return False
+
+        return True
+
+    def _discover(root: Path, *, include_demo: bool = False) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
+        if not root.exists():
+            return results
+
+        skip_owners = set(_SKIP_OWNERS)
+        if include_demo:
+            skip_owners.discard("demo")
+
+        for owner_dir in sorted(root.iterdir()):
+            if not owner_dir.is_dir():
+                continue
+            if owner_dir.name in skip_owners:
+                continue
+            owner = owner_dir.name
+            meta = load_person_meta(owner, root)
+            if not _is_authorized(owner, meta):
+                continue
+
+            accounts = _extract_account_names(owner_dir)
+
+            results.append(_build_owner_summary(owner, accounts, meta))
+
         return results
 
-    # ``current_user`` may be passed in as ``None``, a simple string identifier
-    # or as a ``ContextVar`` (mirroring the AWS loader).  Normalise the value to
-    # the underlying string before applying permission checks.
-    user = current_user.get(None) if hasattr(current_user, "get") else current_user
+    paths = resolve_paths(config.repo_root, config.accounts_root)
+    primary_root = Path(data_root) if data_root else paths.accounts_root
 
-    for owner_dir in sorted(root.iterdir()):
-        if not owner_dir.is_dir():
-            continue
-        if owner_dir.name in _SKIP_OWNERS:
-            continue
-        # When authentication is enabled (``disable_auth`` is explicitly
-        # ``False``) and no user is authenticated, do not expose any accounts.
-        # ``config.disable_auth`` defaults to ``None`` when the configuration
-        # file cannot be loaded, which previously triggered this condition
-        # unintentionally.  Be explicit about the check so that a missing config
-        # behaves the same as auth being disabled.
-        if config.disable_auth is False and user is None:
-            continue
+    fallback_paths = resolve_paths(None, None)
+    fallback_root = fallback_paths.accounts_root
 
-        owner = owner_dir.name
-        meta = load_person_meta(owner, root)
-        viewers = meta.get("viewers", [])
-        if user and user != owner and user not in viewers:
-            continue
+    explicit_root = data_root is not None
 
-        acct_names: List[str] = []
-        for f in sorted(owner_dir.iterdir()):
-            if not f.is_file() or f.suffix.lower() != ".json":
+    try:
+        explicit_matches_fallback = (
+            explicit_root
+            and Path(data_root).expanduser().resolve() == fallback_root.resolve()
+        )
+    except Exception:
+        explicit_matches_fallback = False
+
+    try:
+        explicit_matches_config = (
+            explicit_root
+            and getattr(config, "accounts_root", None)
+            and Path(config.accounts_root).expanduser().resolve()
+            == Path(data_root).expanduser().resolve()
+        )
+    except Exception:
+        explicit_matches_config = False
+
+    try:
+        config_repo_matches_fallback = (
+            getattr(config, "repo_root", None)
+            and Path(config.repo_root).expanduser().resolve()
+            == fallback_paths.repo_root.resolve()
+        )
+    except Exception:
+        config_repo_matches_fallback = False
+
+    explicit_is_global = explicit_matches_fallback or (
+        explicit_matches_config and config_repo_matches_fallback
+    )
+
+    include_demo_primary = bool(config.disable_auth) and (
+        not explicit_root or explicit_is_global
+    )
+
+    if not explicit_root and not include_demo_primary:
+        try:
+            include_demo_primary = primary_root.resolve() == fallback_root.resolve()
+        except Exception:
+            include_demo_primary = False
+
+    results = _discover(primary_root, include_demo=include_demo_primary)
+
+    try:
+        same_root = fallback_root.resolve() == primary_root.resolve()
+    except OSError:
+        same_root = False
+
+    # When an explicit ``data_root`` is provided treat it as authoritative and
+    # avoid blending in accounts from the repository fallback tree.  This keeps
+    # unit tests (which use temporary roots) isolated from the real repository
+    # data and mirrors the expectation that callers passing a custom root only
+    # see data from that location.
+    if not explicit_root and not results:
+        fallback_results = _discover(fallback_root, include_demo=True)
+        results.extend(fallback_results)
+
+    owners_index = {
+        str(entry.get("owner", "")).lower(): entry for entry in results
+    }
+
+    if explicit_root and not explicit_is_global:
+        allow_fallback_demo = False
+    else:
+        allow_fallback_demo = bool(config.disable_auth) or not results
+    if not allow_fallback_demo:
+        return results
+
+    def _attach_demo_from(root: Optional[Path]) -> bool:
+        if not root:
+            return False
+        demo_entry = _load_demo_owner(root)
+        if not demo_entry:
+            return False
+        meta = load_person_meta("demo", root)
+        if not _is_authorized("demo", meta):
+            return False
+        results.append(demo_entry)
+        owners_index["demo"] = demo_entry
+        return True
+
+    if "demo" in owners_index:
+        if allow_fallback_demo:
+            fallback_demo = _load_demo_owner(fallback_root)
+            _merge_accounts(owners_index["demo"], fallback_demo)
+    else:
+        if allow_fallback_demo and config.disable_auth:
+            if _attach_demo_from(fallback_root):
+                allow_fallback_demo = False
+        if (config.disable_auth or include_demo_primary) and "demo" not in owners_index:
+            _attach_demo_from(primary_root if include_demo_primary else fallback_root)
+
+    def _lookup_meta(owner: str) -> Dict[str, Any]:
+        """Load metadata for ``owner`` from known search roots."""
+
+        # Prefer the primary root so callers overriding ``data_root`` can
+        # specify bespoke metadata for tests. Fall back to the repository data
+        # directory if the owner does not exist in the primary location.
+        for root in (primary_root, fallback_root):
+            try:
+                person_file = root / owner / "person.json"
+            except TypeError:
                 continue
+            if person_file.exists():
+                return load_person_meta(owner, root)
+        return {}
 
-            stem = f.stem
-            if stem.lower() in _METADATA_STEMS:
+    if same_root:
+        filtered_results: List[Dict[str, Any]] = []
+        for entry in results:
+            owner = str(entry.get("owner", ""))
+            if not owner:
                 continue
+            if _is_authorized(owner, _lookup_meta(owner)):
+                filtered_results.append(entry)
+        return filtered_results
 
-            acct_names.append(stem)
+    if "demo" not in owners_index and config.disable_auth:
+        primary_demo = _load_demo_owner(primary_root)
+        primary_meta = (
+            load_person_meta("demo", primary_root) if primary_demo else {}
+        )
+        if primary_demo and _is_authorized("demo", primary_meta):
+            results.append(primary_demo)
 
-        # Dedupe case-insensitive, preserve first occurrence order
-        seen: set[str] = set()
-        dedup: List[str] = []
-        for a in acct_names:
-            al = a.lower()
-            if al in seen:
-                continue
-            seen.add(al)
-            dedup.append(a)
+    filtered_results: List[Dict[str, Any]] = []
+    for entry in results:
+        owner = str(entry.get("owner", ""))
+        if not owner:
+            continue
+        if not _is_authorized(owner, _lookup_meta(owner)):
+            continue
+        filtered_results.append(entry)
 
-        results.append({"owner": owner, "accounts": dedup})
-
-    return results
+    return filtered_results
 
 
 # ------------------------------------------------------------------
@@ -218,12 +469,12 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
             and current_user is None
         ):
             continue
+        meta = load_person_meta(owner)
         if current_user and current_user != owner:
-            meta = load_person_meta(owner)
             viewers = meta.get("viewers", [])
             if user not in viewers:
                 continue
-        results.append({"owner": owner, "accounts": accounts})
+        results.append(_build_owner_summary(owner, accounts, meta))
     return results
 
 
@@ -246,12 +497,16 @@ def list_plots(
     Returns
     -------
     List[Dict[str, Any]]
-        A list of dictionaries each containing an ``owner`` and their
-        available ``accounts``.
+        A list of dictionaries each containing an ``owner`` identifier, a
+        human-friendly ``full_name`` (if available) and their available
+        ``accounts``.
     """
 
     if config.app_env == "aws":
-        return _list_aws_plots(current_user)
+        aws_results = _list_aws_plots(current_user)
+        if data_root is None or aws_results:
+            return aws_results
+        return _list_local_plots(data_root, current_user)
     return _list_local_plots(data_root, current_user)
 
 
@@ -276,26 +531,50 @@ def load_account(
     account: str,
     data_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
+    bucket = os.getenv(DATA_BUCKET_ENV)
+
     if config.app_env == "aws":
-        bucket = os.getenv(DATA_BUCKET_ENV)
         if not bucket:
-            raise FileNotFoundError(f"Missing {DATA_BUCKET_ENV} env var for AWS account loading")
-        key = f"{PLOTS_PREFIX}{owner}/{account}.json"
+            raise FileNotFoundError(
+                f"Missing {DATA_BUCKET_ENV} env var for AWS account loading"
+            )
+
+    local_root: Optional[Path] = data_root
+    if local_root is None:
         try:
-            import boto3  # type: ignore
+            local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+        except Exception:  # pragma: no cover - extremely defensive
+            local_root = None
 
-            obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
-        except Exception as exc:
-            raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
-        body = obj.get("Body")
-        txt = body.read().decode("utf-8-sig").strip() if body else ""
-        if not txt:
-            raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
-        data = json.loads(txt)
-        return data
+    if config.app_env == "aws":
+        if bucket:
+            key = f"{PLOTS_PREFIX}{owner}/{account}.json"
+            try:
+                import boto3  # type: ignore
 
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    root = data_root or paths.accounts_root
+                obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load account data from s3://%s/%s: %s; falling back to local file",
+                    bucket,
+                    key,
+                    exc,
+                    exc_info=True,
+                )
+                if not local_root:
+                    raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
+            else:
+                body = obj.get("Body")
+                txt = body.read().decode("utf-8-sig").strip() if body else ""
+                if not txt:
+                    raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
+                data = json.loads(txt)
+                return data
+
+    if not local_root:
+        raise FileNotFoundError(f"No account data available for owner '{owner}'")
+
+    root = local_root
     path = root / owner / f"{account}.json"
     data = _safe_json_load(path)
     return data
@@ -309,7 +588,17 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
 
     def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
         meta: Dict[str, Any] = {}
-        for key in ("dob", "email", "holdings", "viewers"):
+        allowed_keys = {
+            "owner",
+            "full_name",
+            "display_name",
+            "preferred_name",
+            "dob",
+            "email",
+            "holdings",
+            "viewers",
+        }
+        for key in allowed_keys:
             if key in data:
                 meta[key] = data[key]
         if "viewers" not in meta:
@@ -317,33 +606,46 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             meta["viewers"] = data.get("viewers", [])
         return meta
 
-    if config.app_env == "aws" or os.getenv(DATA_BUCKET_ENV):
-        bucket = os.getenv(DATA_BUCKET_ENV)
-        if not bucket:
-            return {}
-        key = f"{PLOTS_PREFIX}{owner}/person.json"
+    local_root: Optional[Path] = data_root
+    if local_root is None:
         try:
-            import boto3  # type: ignore
+            local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+        except Exception:  # pragma: no cover - extremely defensive
+            local_root = None
 
-            obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
-            body = obj.get("Body")
-            txt = body.read().decode("utf-8-sig").strip() if body else ""
-            if not txt:
-                return {}
-            data = json.loads(txt)
-            return _extract(data)
-        except Exception as exc:
-            logger.warning(
-                "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
-                bucket,
-                key,
-                exc,
-                exc_info=True,
-            )
-            if config.app_env == "aws" and data_root is None:
-                return {}
-    paths = resolve_paths(config.repo_root, config.accounts_root)
-    root = data_root or paths.accounts_root
+    has_local_fallback = local_root is not None
+    bucket = os.getenv(DATA_BUCKET_ENV)
+
+    if config.app_env == "aws" or bucket:
+        if bucket:
+            key = f"{PLOTS_PREFIX}{owner}/person.json"
+            try:
+                import boto3  # type: ignore
+
+                obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+                body = obj.get("Body")
+                txt = body.read().decode("utf-8-sig").strip() if body else ""
+                if not txt:
+                    return {}
+                data = json.loads(txt)
+                return _extract(data)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
+                    bucket,
+                    key,
+                    exc,
+                    exc_info=True,
+                )
+                if config.app_env == "aws" and not has_local_fallback:
+                    return {}
+        elif config.app_env == "aws" and not has_local_fallback:
+            return {}
+
+    if not local_root:
+        return {}
+
+    root = local_root
     path = root / owner / "person.json"
     if not path.exists():
         return {}

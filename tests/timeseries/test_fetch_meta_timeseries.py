@@ -14,6 +14,7 @@ from backend.timeseries.fetch_meta_timeseries import (
     _resolve_exchange_from_metadata,
     _resolve_loader_exchange,
     _resolve_ticker_exchange,
+    _metadata_entry_exists,
     fetch_meta_timeseries,
 )
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
@@ -195,6 +196,40 @@ def test_resolve_loader_exchange(ticker, exchange_arg, resolved_exchange, expect
         _resolve_loader_exchange(ticker, exchange_arg, ticker.split(".")[0], resolved_exchange)
         == expected
     )
+
+
+def test_metadata_entry_exists_requires_symbol_and_exchange(tmp_path):
+    instruments_root = tmp_path / "instruments"
+    (instruments_root / "L").mkdir(parents=True)
+    (instruments_root / "L" / "ABC.json").write_text("{}")
+
+    directories = (str(instruments_root),)
+
+    assert _metadata_entry_exists("", "L", directories) is False
+    assert _metadata_entry_exists("ABC", "", directories) is False
+
+
+def test_metadata_entry_exists_skips_problem_directories(tmp_path, monkeypatch):
+    broken_root = tmp_path / "broken"
+    broken_root.mkdir()
+
+    working_root = tmp_path / "working"
+    (working_root / "L").mkdir(parents=True)
+    (working_root / "L" / "ABC.json").write_text("{}")
+
+    target_path = broken_root / "L" / "ABC.json"
+    original_is_file = Path.is_file
+
+    def flaky_is_file(self):
+        if self == target_path:
+            raise OSError("boom")
+        return original_is_file(self)
+
+    monkeypatch.setattr(Path, "is_file", flaky_is_file)
+
+    directories = (str(broken_root), str(working_root))
+
+    assert _metadata_entry_exists("abc", "l", directories) is True
 
 
 @pytest.mark.parametrize(

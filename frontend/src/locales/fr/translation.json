@@ -12,12 +12,12 @@
     "menu": "Menu",
     "menuCategories": {
       "dashboard": "Tableau de bord",
-      "holdings": "Positions",
-      "tradeTools": "Insights",
       "goals": "Exigences",
-      "preferences": "Paramètres",
+      "holdings": "Positions",
+      "insights": "Insights",
       "operations": "Opérations",
-      "other": "Autres"
+      "other": "Autres",
+      "preferences": "Paramètres"
     },
     "modes": {
       "group": "Groupe",

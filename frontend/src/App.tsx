@@ -207,7 +207,7 @@ export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs } = useConfig();
+  const { tabs, disabledTabs } = useConfig();
   const { lastRefresh } = usePriceRefresh();
 
   const params = new URLSearchParams(location.search);
@@ -334,7 +334,9 @@ export default function App({ onLogout }: AppProps) {
         newMode = segs.length === 0 ? "group" : "movers";
     }
 
-    if (tabs[newMode] === false) {
+    const isDisabled =
+      tabs[newMode] === false || disabledTabs?.includes(newMode);
+    if (isDisabled) {
       setMode("group");
       navigate("/", { replace: true });
       return;
@@ -358,7 +360,7 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === "research") {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? "") : "");
     }
-  }, [location.pathname, location.search, tabs, navigate]);
+  }, [location.pathname, location.search, tabs, disabledTabs, navigate]);
 
   useEffect(() => {
     if (!ownersReq.data) return;

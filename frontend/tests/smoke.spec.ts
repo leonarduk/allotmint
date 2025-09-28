@@ -177,6 +177,30 @@ test.describe('pension forecast page', () => {
   });
 });
 
+test.describe('pension forecast routing', () => {
+  test('keeps pension mode when config tab state is indeterminate', async ({ page }) => {
+    await applyAuth(page);
+
+    await page.route('**/config', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          tabs: { pension: null },
+          disabled_tabs: [],
+        }),
+      });
+    });
+
+    await page.goto(pensionForecastPath);
+
+    const marker = page.getByTestId('active-route-marker');
+    await expect(marker).toHaveAttribute('data-mode', 'pension');
+    await expect(marker).toHaveAttribute('data-pathname', '/pension/forecast');
+    await expect(page.getByRole('heading', { name: 'Pension Forecast' })).toBeVisible();
+  });
+});
+
 test.describe('public route smoke coverage', () => {
   for (const route of ROUTES) {
     test(`renders ${route.path}`, async ({ page }) => {

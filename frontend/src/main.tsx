@@ -45,6 +45,7 @@ const SmokeTest = lazy(() => import('./pages/SmokeTest'))
 export function Root() {
   const [configLoading, setConfigLoading] = useState(true)
   const [configError, setConfigError] = useState<Error | null>(null)
+  const [retryScheduled, setRetryScheduled] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
   const [authed, setAuthed] = useState(Boolean(storedToken))
@@ -97,6 +98,7 @@ export function Root() {
       setConfigLoading(true)
       if (manual) {
         setConfigError(null)
+        setRetryScheduled(false)
       }
 
       let shouldRetry = false
@@ -109,6 +111,7 @@ export function Root() {
           setNeedsAuth(Boolean((cfg as any).google_auth_enabled))
           setClientId(String((cfg as any).google_client_id || ''))
           setConfigError(null)
+          setRetryScheduled(false)
         })
         .catch(err => {
           if (!isMounted.current || activeRequest.current !== controller) return
@@ -131,6 +134,9 @@ export function Root() {
           if (isCurrent) {
             activeRequest.current = null
             setConfigLoading(false)
+            if (shouldRetry) {
+              setRetryScheduled(true)
+            }
           }
           if (shouldRetry && isMounted.current) {
             retryTimer.current = window.setTimeout(() => {
@@ -156,7 +162,7 @@ export function Root() {
     fetchConfig(0, { manual: true })
   }, [fetchConfig])
 
-  if (configLoading) {
+  if (configLoading && !retryScheduled) {
     return (
       <div role="status" className="app-loading">
         Loading configuration...
@@ -164,7 +170,7 @@ export function Root() {
     )
   }
 
-  if (configError) {
+  if (configError && !retryScheduled) {
     return (
       <div role="alert" className="app-offline">
         <p>Unable to load configuration.</p>

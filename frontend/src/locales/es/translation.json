@@ -9,13 +9,14 @@
       "notSupported": "Push no soportado",
       "title": "Notificaciones push"
     },
-    "save": "Save",
+    "save": "Guardar",
+    "signInNotice": "Inicia sesión para configurar las alertas",
     "status": {
       "error": "Error",
-      "saved": "Saved"
+      "saved": "Guardado"
     },
-    "threshold": "Threshold %:",
-    "title": "Alert Settings"
+    "threshold": "Umbral %:",
+    "title": "Configuración de alertas"
   },
   "allocation": {
     "instrumentTypes": "Tipos de instrumentos",
@@ -37,25 +38,25 @@
       "dashboard": "Panel",
       "goals": "Requisitos",
       "holdings": "Posiciones",
-      "insights": "Insights",
+      "insights": "Perspectivas",
       "operations": "Operaciones",
       "other": "Otros",
       "preferences": "Configuración"
     },
     "modes": {
-      "alertsettings": "Alert Settings",
+      "alertsettings": "Configuración de alertas",
       "allocation": "Asignación",
       "compliance": "Alertas de cumplimiento",
       "dataadmin": "Administración de datos",
       "group": "Grupo",
       "instrument": "Instrumento",
-      "instrumentadmin": "Administración de Instrumentos",
+      "instrumentadmin": "Administración de instrumentos",
       "market": "Resumen del mercado",
-      "movers": "Movers",
+      "movers": "Movimientos destacados",
       "owner": "Portafolio",
       "pension": "Pronóstico de pensión",
       "performance": "Rendimiento",
-      "rebalance": "Rebalance",
+      "rebalance": "Reequilibrio",
       "reports": "Informes",
       "scenario": "Probador de Escenarios",
       "screener": "Filtro y consulta",
@@ -64,8 +65,8 @@
       "taxtools": "Herramientas fiscales",
       "timeseries": "Serie temporal",
       "trade-compliance": "Cumplimiento de operaciones",
-      "trading": "Trading",
-      "trail": "Trail",
+      "trading": "Operativa",
+      "trail": "Registro de auditoría",
       "transactions": "Transacciones",
       "watchlist": "Lista de seguimiento"
     },
@@ -93,6 +94,8 @@
     "cumulativeReturn": "Retorno acumulado",
     "excludeCash": "Excluir efectivo",
     "maxDrawdown": "Máxima caída",
+    "maxDrawdownHelp": "La máxima caída es la mayor caída porcentual desde cualquier pico de la cartera hasta el valor de cierre más bajo que le sigue, calculada a partir de los totales diarios reconstruidos de tus posiciones.",
+    "metricsExplanationLink": "¿Cómo se calculan?",
     "portfolioValue": "Valor de la cartera",
     "reportingDate": "Fecha del informe",
     "previousDate": "Fecha anterior",
@@ -139,7 +142,7 @@
       "market": "Mkt £",
       "name": "Nombre",
       "price": "Precio £",
-      "stage": "Stage",
+      "stage": "Etapa",
       "ticker": "Ticker",
       "trend": "Tendencia",
       "type": "Tipo",
@@ -176,22 +179,22 @@
     }
   },
   "instrumentadmin": {
-    "actions": "Actions",
-    "add": "Add Instrument",
-    "exchange": "Exchange",
+    "actions": "Acciones",
+    "add": "Agregar instrumento",
+    "exchange": "Bolsa",
     "grouping": "Agrupación",
-    "name": "Name",
-    "region": "Region",
-    "save": "Save",
-    "saveError": "Error saving",
-    "saveSuccess": "Saved",
-    "searchPlaceholder": "Filter instruments…",
+    "name": "Nombre",
+    "region": "Región",
+    "save": "Guardar",
+    "saveError": "Error al guardar",
+    "saveSuccess": "Guardado",
+    "searchPlaceholder": "Filtrar instrumentos…",
     "sector": "Sector",
     "ticker": "Ticker",
     "validation": {
-      "grouping": "Grouping is required",
-      "name": "Name is required",
-      "ticker": "Ticker is required"
+      "grouping": "La agrupación es obligatoria",
+      "name": "El nombre es obligatorio",
+      "ticker": "El ticker es obligatorio"
     }
   },
   "instrumentDetail": {

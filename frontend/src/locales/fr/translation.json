@@ -10,6 +10,7 @@
       "title": "Notifications push"
     },
     "save": "Enregistrer",
+    "signInNotice": "Connectez-vous pour configurer les alertes",
     "status": {
       "error": "Erreur",
       "saved": "Enregistré"
@@ -60,12 +61,12 @@
       "scenario": "Testeur de Scénario",
       "screener": "Filtre & Requête",
       "settings": "Paramètres utilisateur",
-      "support": "Support",
+      "support": "Assistance",
       "taxtools": "Outils fiscaux",
       "timeseries": "Séries temporelles",
       "trade-compliance": "Conformité des transactions",
-      "trading": "Trading",
-      "trail": "Trail",
+      "trading": "Négociation",
+      "trail": "Journal d'audit",
       "transactions": "Transactions",
       "watchlist": "Liste de suivi"
     },
@@ -93,6 +94,8 @@
     "cumulativeReturn": "Rendement cumulatif",
     "excludeCash": "Exclure la trésorerie",
     "maxDrawdown": "Drawdown maximal",
+    "maxDrawdownHelp": "Le drawdown maximal est la plus forte baisse en pourcentage entre un sommet du portefeuille et la valeur de clôture la plus basse qui suit, calculée à partir des totaux quotidiens reconstruits de vos positions.",
+    "metricsExplanationLink": "Comment sont-ils calculés ?",
     "portfolioValue": "Valeur du portefeuille",
     "reportingDate": "Date du reporting",
     "previousDate": "Date précédente",

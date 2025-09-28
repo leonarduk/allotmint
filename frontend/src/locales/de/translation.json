@@ -9,13 +9,14 @@
       "notSupported": "Push wird nicht unterstützt",
       "title": "Push-Benachrichtigungen"
     },
-    "save": "Save",
+    "save": "Speichern",
+    "signInNotice": "Melden Sie sich an, um Alarme zu konfigurieren",
     "status": {
-      "error": "Error",
-      "saved": "Saved"
+      "error": "Fehler",
+      "saved": "Gespeichert"
     },
-    "threshold": "Threshold %:",
-    "title": "Alert Settings"
+    "threshold": "Schwellenwert %:",
+    "title": "Alarm-Einstellungen"
   },
   "allocation": {
     "instrumentTypes": "Instrumenttypen",
@@ -34,16 +35,16 @@
     },
     "menu": "Menü",
     "menuCategories": {
-      "dashboard": "Dashboard",
+      "dashboard": "Übersicht",
       "goals": "Anforderungen",
       "holdings": "Bestände",
-      "insights": "Insights",
+      "insights": "Einblicke",
       "operations": "Operationen",
       "other": "Weitere",
       "preferences": "Einstellungen"
     },
     "modes": {
-      "alertsettings": "Alert Settings",
+      "alertsettings": "Alarm-Einstellungen",
       "allocation": "Allokation",
       "compliance": "Compliance-Warnungen",
       "dataadmin": "Datenverwaltung",
@@ -51,21 +52,21 @@
       "instrument": "Instrument",
       "instrumentadmin": "Instrumentverwaltung",
       "market": "Marktübersicht",
-      "movers": "Movers",
+      "movers": "Kursbewegungen",
       "owner": "Portfolio",
       "pension": "Rentenprognose",
       "performance": "Leistung",
-      "rebalance": "Rebalance",
+      "rebalance": "Neugewichtung",
       "reports": "Berichte",
       "scenario": "Szenario-Tester",
       "screener": "Filter & Abfrage",
       "settings": "Benutzereinstellungen",
-      "support": "Support",
+      "support": "Hilfe",
       "taxtools": "Steuer-Tools",
       "timeseries": "Zeitreihe",
       "trade-compliance": "Handels-Compliance",
       "trading": "Handel",
-      "trail": "Trail",
+      "trail": "Prüfpfad",
       "transactions": "Transaktionen",
       "watchlist": "Beobachtungsliste"
     },
@@ -141,7 +142,7 @@
       "market": "Markt £",
       "name": "Name",
       "price": "Preis £",
-      "stage": "Stage",
+      "stage": "Stufe",
       "ticker": "Ticker",
       "trend": "Trend",
       "type": "Typ",
@@ -178,22 +179,22 @@
     }
   },
   "instrumentadmin": {
-    "actions": "Actions",
-    "add": "Add Instrument",
-    "exchange": "Exchange",
+    "actions": "Aktionen",
+    "add": "Instrument hinzufügen",
+    "exchange": "Börse",
     "grouping": "Gruppierung",
     "name": "Name",
     "region": "Region",
-    "save": "Save",
-    "saveError": "Error saving",
-    "saveSuccess": "Saved",
-    "searchPlaceholder": "Filter instruments…",
-    "sector": "Sector",
+    "save": "Speichern",
+    "saveError": "Fehler beim Speichern",
+    "saveSuccess": "Gespeichert",
+    "searchPlaceholder": "Instrumente filtern…",
+    "sector": "Sektor",
     "ticker": "Ticker",
     "validation": {
-      "grouping": "Grouping is required",
-      "name": "Name is required",
-      "ticker": "Ticker is required"
+      "grouping": "Gruppierung ist erforderlich",
+      "name": "Name ist erforderlich",
+      "ticker": "Ticker ist erforderlich"
     }
   },
   "instrumentDetail": {

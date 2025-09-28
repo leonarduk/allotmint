@@ -9,7 +9,7 @@ import secrets
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Set
+from typing import Any, Callable, Optional, Set
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
@@ -221,12 +221,19 @@ async def get_active_user(
     router can be exercised easily in unit tests.
     """
 
-    override = request.app.dependency_overrides.get(get_current_user)
-    if override:
+    async def _invoke_override(override: Callable[[], Any]) -> Any:
         result = override()
         if inspect.isawaitable(result):
             result = await result
         return result
+
+    override = request.app.dependency_overrides.get(get_current_user)
+    if not override:
+        provider = getattr(request.app, "dependency_overrides_provider", None)
+        overrides = getattr(provider, "dependency_overrides", {}) if provider else {}
+        override = overrides.get(get_current_user)
+    if override:
+        return await _invoke_override(override)
 
     if config.disable_auth:
         if token:

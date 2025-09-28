@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, Callable
 
 import pytest
 from fastapi import FastAPI
@@ -11,6 +13,26 @@ from starlette.requests import Request
 
 from backend import auth
 from backend.auth import get_active_user, get_current_user
+
+
+_MISSING = object()
+
+
+@contextmanager
+def _provider_override(app: FastAPI, override: Callable[[], Any]):
+    provider = type("OverrideProvider", (), {"dependency_overrides": {}})()
+    previous = getattr(app, "dependency_overrides_provider", _MISSING)
+    app.dependency_overrides_provider = provider
+    provider.dependency_overrides[get_current_user] = override
+    try:
+        yield
+    finally:
+        provider.dependency_overrides.pop(get_current_user, None)
+        if previous is _MISSING:
+            if hasattr(app, "dependency_overrides_provider"):
+                delattr(app, "dependency_overrides_provider")
+        else:
+            app.dependency_overrides_provider = previous
 
 
 async def _empty_receive() -> dict[str, object]:
@@ -36,13 +58,11 @@ async def test_get_active_user_respects_sync_override() -> None:
     def fake_user() -> str:
         return "sync-user"
 
-    app.dependency_overrides[get_current_user] = fake_user
     request = _make_request(app)
 
-    try:
+    with _provider_override(app, fake_user):
+        assert app.dependency_overrides == {}
         assert await get_active_user(request, token=None) == "sync-user"
-    finally:
-        app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.mark.anyio
@@ -52,13 +72,11 @@ async def test_get_active_user_awaits_async_override() -> None:
     async def fake_user() -> str:
         return "async-user"
 
-    app.dependency_overrides[get_current_user] = fake_user
     request = _make_request(app)
 
-    try:
+    with _provider_override(app, fake_user):
+        assert app.dependency_overrides == {}
         assert await get_active_user(request, token=None) == "async-user"
-    finally:
-        app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.mark.anyio

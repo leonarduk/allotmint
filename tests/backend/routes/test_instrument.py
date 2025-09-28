@@ -295,6 +295,52 @@ async def test_instrument_json_scales_positions(monkeypatch):
     assert payload["positions"][0]["unrealised_gain_gbp"] == pytest.approx(10.0)
     assert payload["positions"][1]["unrealised_gain_gbp"] is None
 
+
+@pytest.mark.asyncio
+@pytest.mark.anyio("asyncio")
+async def test_instrument_last_close_fx_conversion(monkeypatch):
+    dates = pd.date_range(date(2024, 4, 1), periods=3, freq="D")
+    df = pd.DataFrame({"Date": dates, "Close": [15.5, 16.75, 17.25]})
+
+    monkeypatch.setattr(instrument, "load_meta_timeseries_range", lambda *_, **__: df)
+    monkeypatch.setattr(
+        instrument,
+        "get_security_meta",
+        lambda _ticker: {"name": "US Fund", "currency": "USD"},
+    )
+    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+    monkeypatch.setattr(instrument, "get_scaling_override", lambda *_, **__: 1.0)
+    monkeypatch.setattr(instrument, "apply_scaling", lambda df_in, _scale: df_in)
+
+    captured_last_close: dict[str, float | None] = {}
+    fx_call: dict[str, tuple[str, str, date, date]] = {}
+
+    def fake_positions(ticker: str, last_close: float | None):
+        captured_last_close["value"] = last_close
+        return []
+
+    def fake_fetch_fx_rate_range(from_ccy, to_ccy, start, end):
+        if start != end:
+            return pd.DataFrame(columns=["Date", "Rate"])
+        fx_call["args"] = (from_ccy, to_ccy, start, end)
+        rng = pd.date_range(start, end, freq="D")
+        return pd.DataFrame({"Date": rng, "Rate": [0.78] * len(rng)})
+
+    monkeypatch.setattr(instrument, "_positions_for_ticker", fake_positions)
+    monkeypatch.setattr(instrument, "fetch_fx_rate_range", fake_fetch_fx_rate_range)
+
+    response = await instrument.instrument(
+        ticker="USD.FUND",
+        days=30,
+        format="json",
+        base_currency="GBP",
+    )
+
+    assert response.status_code == 200
+    assert captured_last_close["value"] == pytest.approx(17.25 * 0.78)
+    assert fx_call["args"] == ("USD", "GBP", dates[-1].date(), dates[-1].date())
+
+
 async def test_intraday_returns_prices(monkeypatch):
     timestamps = pd.date_range("2024-03-01", periods=2, freq="5min")
     df = pd.DataFrame({"Close": [101.5, 102.75]}, index=timestamps)

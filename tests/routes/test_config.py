@@ -74,6 +74,25 @@ def test_update_config_env_requires_client_id(monkeypatch, tmp_path):
     reload_config()
 
 
+def test_update_config_env_uses_existing_client_id(monkeypatch, tmp_path):
+    _setup_config(
+        monkeypatch,
+        tmp_path,
+        "auth:\n  google_auth_enabled: false\n  google_client_id: existing-id\n",
+    )
+    client = TestClient(create_app())
+    monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "")
+
+    resp = client.put("/config", json={})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["google_auth_enabled"] is True
+    assert data["google_client_id"] == "existing-id"
+
+    monkeypatch.undo()
+    reload_config()
+
 
 def test_update_config_env_valid(monkeypatch, tmp_path):
     _setup_config(monkeypatch, tmp_path)

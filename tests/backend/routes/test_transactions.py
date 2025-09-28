@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 from datetime import date
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi import Request
+from fastapi.testclient import TestClient
 
+from backend.app import create_app
 from backend.routes import transactions as transactions_module
 
 
@@ -34,6 +40,21 @@ def reset_transactions_state():
     yield
     transactions_module._POSTED_TRANSACTIONS.clear()
     transactions_module._PORTFOLIO_IMPACT.clear()
+
+
+def _seed_transactions_file(
+    accounts_root: Path, owner: str, account: str, transactions: list[dict]
+) -> Path:
+    owner_dir = accounts_root / owner
+    owner_dir.mkdir(parents=True, exist_ok=True)
+    file_path = owner_dir / f"{account}_transactions.json"
+    payload = {
+        "owner": owner,
+        "account_type": account,
+        "transactions": transactions,
+    }
+    file_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return file_path
 
 
 def test_require_accounts_root_uses_cached_value(tmp_path):
@@ -340,4 +361,204 @@ async def test_create_transaction_records_valid_payload(monkeypatch, tmp_path):
     assert transactions_module._PORTFOLIO_IMPACT["alice"] == pytest.approx(7.5)
     assert response["owner"] == "alice"
     assert response["account"] == "primary"
+
+
+@pytest.mark.asyncio
+async def test_update_and_delete_transactions_flow(monkeypatch, tmp_path):
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(transactions_module.config, "accounts_root", accounts_root)
+    monkeypatch.setattr(
+        transactions_module, "_rebuild_portfolio", lambda *args, **kwargs: None
+    )
+
+    initial_entry = {
+        "date": "2024-01-01",
+        "reason": "Initial buy",
+        "price_gbp": 10.0,
+        "units": 2.0,
+        "ticker": "AAA",
+    }
+    original_file = _seed_transactions_file(
+        accounts_root, "alice", "primary", [initial_entry]
+    )
+
+    with TestClient(create_app()) as client:
+        move_payload = {
+            "owner": "bob",
+            "account": "savings",
+            "ticker": "AAA",
+            "date": "2024-02-01",
+            "price_gbp": 8.0,
+            "units": 4.0,
+            "reason": "Move to new account",
+        }
+        move_response = client.put("/transactions/alice:primary:0", json=move_payload)
+        assert move_response.status_code == 200
+        moved_payload = move_response.json()
+        assert moved_payload["owner"] == "bob"
+        assert moved_payload["account"] == "savings"
+        assert moved_payload["id"] == "bob:savings:0"
+
+        original_after_move = json.loads(original_file.read_text(encoding="utf-8"))
+        assert original_after_move["transactions"] == []
+
+        destination_file = accounts_root / "bob" / "savings_transactions.json"
+        destination_after_move = json.loads(
+            destination_file.read_text(encoding="utf-8")
+        )
+        assert len(destination_after_move["transactions"]) == 1
+        moved_entry = destination_after_move["transactions"][0]
+        assert moved_entry["reason"] == "Move to new account"
+        assert moved_entry["price_gbp"] == pytest.approx(8.0)
+        assert moved_entry["units"] == pytest.approx(4.0)
+
+        assert transactions_module._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
+        assert transactions_module._PORTFOLIO_IMPACT["bob"] == pytest.approx(32.0)
+
+        in_place_payload = {
+            "owner": "bob",
+            "account": "savings",
+            "ticker": "AAA",
+            "date": "2024-03-01",
+            "price_gbp": 9.0,
+            "units": 5.0,
+            "reason": "Adjust units",
+        }
+        in_place_response = client.put(
+            f"/transactions/{moved_payload['id']}", json=in_place_payload
+        )
+        assert in_place_response.status_code == 200
+
+        updated_destination = json.loads(
+            destination_file.read_text(encoding="utf-8")
+        )
+        assert len(updated_destination["transactions"]) == 1
+        updated_entry = updated_destination["transactions"][0]
+        assert updated_entry["price_gbp"] == pytest.approx(9.0)
+        assert updated_entry["units"] == pytest.approx(5.0)
+        assert updated_entry["reason"] == "Adjust units"
+
+        assert transactions_module._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
+        assert transactions_module._PORTFOLIO_IMPACT["bob"] == pytest.approx(45.0)
+
+        delete_response = client.delete(f"/transactions/{moved_payload['id']}")
+        assert delete_response.status_code == 200
+        assert delete_response.json() == {"status": "deleted"}
+
+        final_original = json.loads(original_file.read_text(encoding="utf-8"))
+        assert final_original["transactions"] == []
+
+        final_destination = json.loads(
+            destination_file.read_text(encoding="utf-8")
+        )
+        assert final_destination["transactions"] == []
+
+        assert transactions_module._PORTFOLIO_IMPACT["bob"] == pytest.approx(0.0)
+        assert transactions_module._PORTFOLIO_IMPACT["alice"] == pytest.approx(-20.0)
+
+
+@pytest.mark.asyncio
+async def test_update_transaction_out_of_range_index(monkeypatch, tmp_path):
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(transactions_module.config, "accounts_root", accounts_root)
+    monkeypatch.setattr(
+        transactions_module, "_rebuild_portfolio", lambda *args, **kwargs: None
+    )
+
+    entry = {
+        "date": "2024-01-01",
+        "reason": "Initial buy",
+        "price_gbp": 10.0,
+        "units": 2.0,
+        "ticker": "AAA",
+    }
+    original_file = _seed_transactions_file(
+        accounts_root, "alice", "primary", [entry]
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.put(
+            "/transactions/alice:primary:5",
+            json={
+                "owner": "alice",
+                "account": "primary",
+                "ticker": "AAA",
+                "date": "2024-02-01",
+                "price_gbp": 11.0,
+                "units": 1.0,
+                "reason": "Update missing",
+            },
+        )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Transaction not found"
+
+    unchanged = json.loads(original_file.read_text(encoding="utf-8"))
+    assert len(unchanged["transactions"]) == 1
+    assert not transactions_module._PORTFOLIO_IMPACT
+
+
+@pytest.mark.asyncio
+async def test_update_transaction_pending_entry_guard(monkeypatch, tmp_path):
+    accounts_root = tmp_path / "accounts"
+    accounts_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(transactions_module.config, "accounts_root", accounts_root)
+    monkeypatch.setattr(
+        transactions_module, "_rebuild_portfolio", lambda *args, **kwargs: None
+    )
+
+    entry = {
+        "date": "2024-01-01",
+        "reason": "Initial buy",
+        "price_gbp": 10.0,
+        "units": 2.0,
+        "ticker": "AAA",
+    }
+    _seed_transactions_file(accounts_root, "alice", "primary", [entry])
+
+    @contextlib.contextmanager
+    def fake_locked(owner: str, account: str, accounts_root_param: Path):
+        if owner.lower() == "alice":
+            data = {
+                "owner": owner,
+                "account_type": account,
+                "transactions": [dict(entry)],
+            }
+        else:
+            data = {
+                "owner": owner,
+                "account_type": account,
+                "transactions": [],
+            }
+        yield data, io.StringIO()
+
+    monkeypatch.setattr(transactions_module, "_locked_transactions_data", fake_locked)
+    monkeypatch.setattr(
+        transactions_module,
+        "_prepare_updated_transaction",
+        lambda _existing, _update: None,
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.put(
+            "/transactions/alice:primary:0",
+            json={
+                "owner": "bob",
+                "account": "savings",
+                "ticker": "AAA",
+                "date": "2024-02-01",
+                "price_gbp": 8.0,
+                "units": 4.0,
+                "reason": "Force failure",
+            },
+        )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Failed to update transaction"
+    assert not transactions_module._PORTFOLIO_IMPACT
 

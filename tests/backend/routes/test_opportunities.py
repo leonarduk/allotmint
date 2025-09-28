@@ -160,6 +160,116 @@ async def test_group_flow_populates_context_and_entries(monkeypatch):
     assert {signal.ticker for signal in response.signals} == {"AAA", "CCC"}
 
 
+def test_group_opportunities_recalculates_weights_and_enriches(monkeypatch):
+    summaries = [
+        {"ticker": "AAA", "market_value_gbp": 200.0},
+        {"ticker": "BBB", "market_value_gbp": 100.0},
+        {"ticker": "CCC", "market_value_gbp": None},
+    ]
+    captured = {}
+
+    monkeypatch.setattr(
+        opportunities_module.instrument_api,
+        "instrument_summaries_for_group",
+        lambda slug: summaries,
+    )
+
+    def fake_calculate(rows):
+        captured["calculate_rows"] = rows
+        return ["AAA", "BBB"], {"AAA": 50.0, "BBB": 50.0}, {"AAA": 120.0, "BBB": 80.0}
+
+    monkeypatch.setattr(
+        opportunities_module,
+        "_calculate_weights_and_market_values",
+        fake_calculate,
+    )
+
+    movers_payload = {"gainers": [{"ticker": "AAA"}], "losers": [{"ticker": "BBB"}], "anomalies": []}
+
+    def fake_top_movers(tickers, days, limit, *, min_weight, weights):
+        captured.update(
+            {
+                "tickers": tickers,
+                "days": days,
+                "limit": limit,
+                "min_weight": min_weight,
+                "weights": weights,
+            }
+        )
+        return movers_payload
+
+    monkeypatch.setattr(opportunities_module.instrument_api, "top_movers", fake_top_movers)
+
+    def fake_enrich(movers, market_values):
+        captured["enrich_args"] = (movers, market_values)
+        return {"gainers": [], "losers": [], "anomalies": []}
+
+    monkeypatch.setattr(
+        opportunities_module,
+        "_enrich_movers_with_market_values",
+        fake_enrich,
+    )
+
+    result = opportunities_module._group_opportunities(
+        "growth", days=5, limit=3, min_weight=2.5
+    )
+
+    assert captured["calculate_rows"] == summaries
+    assert captured["tickers"] == ["AAA", "BBB"]
+    assert captured["days"] == 5
+    assert captured["limit"] == 3
+    assert captured["min_weight"] == 2.5
+    assert captured["weights"] == {
+        "AAA": pytest.approx(200.0 / 300.0 * 100.0),
+        "BBB": pytest.approx(100.0 / 300.0 * 100.0),
+    }
+    assert captured["enrich_args"] == (
+        movers_payload,
+        {"AAA": 120.0, "BBB": 80.0},
+    )
+    assert result == {"gainers": [], "losers": [], "anomalies": []}
+
+
+def test_group_opportunities_error_and_short_circuit(monkeypatch):
+    def raise_lookup(slug):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        opportunities_module.instrument_api,
+        "instrument_summaries_for_group",
+        raise_lookup,
+    )
+
+    with pytest.raises(HTTPException) as excinfo:
+        opportunities_module._group_opportunities("growth", days=1, limit=5, min_weight=0.0)
+
+    assert excinfo.value.status_code == 404
+
+    monkeypatch.setattr(
+        opportunities_module.instrument_api,
+        "instrument_summaries_for_group",
+        lambda slug: [],
+    )
+    monkeypatch.setattr(
+        opportunities_module,
+        "_calculate_weights_and_market_values",
+        lambda rows: ([], {}, {}),
+    )
+
+    def fail_top_movers(*args, **kwargs):
+        raise AssertionError("should not call")
+
+    monkeypatch.setattr(
+        opportunities_module.instrument_api,
+        "top_movers",
+        fail_top_movers,
+    )
+
+    result = opportunities_module._group_opportunities("growth", days=1, limit=5, min_weight=0.0)
+
+    assert result == {"gainers": [], "losers": [], "anomalies": []}
+
+
 @pytest.mark.asyncio
 async def test_watchlist_blank_tickers(monkeypatch):
     monkeypatch.setattr(opportunities_module.trading_agent, "run", lambda **_: [])

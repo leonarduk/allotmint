@@ -6,49 +6,66 @@ import { EXCHANGES, type ExchangeCode } from "../lib/exchanges";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
 
-function parseCsv(text: string): PriceEntry[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  if (!lines.length) return [];
-  const [header, ...rows] = lines;
-  const cols = header.split(",");
-  const allowedCols: (keyof PriceEntry)[] = [
-    "Date",
-    "Open",
-    "High",
-    "Low",
-    "Close",
-    "Volume",
-    "Ticker",
-    "Source",
-  ];
-  const unexpected = cols.filter(
-    (c) => !allowedCols.includes(c as keyof PriceEntry),
-  );
-  if (unexpected.length)
-    throw new Error(
-      i18next.t("timeseriesEdit.error.unexpectedColumns", {
-        columns: unexpected.join(", "),
-      }),
+function parseCsv(
+  text: string,
+): { rows: PriceEntry[]; error: string | null } {
+  try {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (!lines.length) {
+      return { rows: [], error: null };
+    }
+    const [header, ...rows] = lines;
+    const cols = header.split(",");
+    const allowedCols: (keyof PriceEntry)[] = [
+      "Date",
+      "Open",
+      "High",
+      "Low",
+      "Close",
+      "Volume",
+      "Ticker",
+      "Source",
+    ];
+    const unexpected = cols.filter(
+      (c) => !allowedCols.includes(c as keyof PriceEntry),
     );
+    if (unexpected.length) {
+      return {
+        rows: [],
+        error: i18next.t("timeseriesEdit.error.unexpectedColumns", {
+          columns: unexpected.join(", "),
+        }),
+      };
+    }
 
-  return rows.map<PriceEntry>((line) => {
-    const parts = line.split(",");
-    const obj: Partial<PriceEntry> = {};
-    cols.forEach((col, i) => {
-      const key = col as keyof PriceEntry;
-      const val = parts[i];
-      const parsed =
-        key === "Date" || key === "Ticker" || key === "Source"
-          ? val
-          : val === undefined || val === ""
-          ? null
-          : Number(val);
-      (
-        obj as Record<keyof PriceEntry, PriceEntry[keyof PriceEntry]>
-      )[key] = parsed as PriceEntry[typeof key];
-    });
-    return obj as PriceEntry;
-  });
+    return {
+      rows: rows.map<PriceEntry>((line) => {
+        const parts = line.split(",");
+        const obj: Partial<PriceEntry> = {};
+        cols.forEach((col, i) => {
+          const key = col as keyof PriceEntry;
+          const val = parts[i];
+          const parsed =
+            key === "Date" || key === "Ticker" || key === "Source"
+              ? val
+              : val === undefined || val === ""
+              ? null
+              : Number(val);
+          (
+            obj as Record<keyof PriceEntry, PriceEntry[keyof PriceEntry]>
+          )[key] = parsed as PriceEntry[typeof key];
+        });
+        return obj as PriceEntry;
+      }),
+      error: null,
+    };
+  } catch (err) {
+    console.error("Failed to parse CSV", err);
+    return {
+      rows: [],
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 export function TimeseriesEdit() {
@@ -61,6 +78,9 @@ export function TimeseriesEdit() {
   const [suggestions, setSuggestions] = useState<
     { ticker: string; name: string }[]
   >([]);
+
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -108,7 +128,7 @@ export function TimeseriesEdit() {
       setRows(arr);
       setStatus(t("timeseriesEdit.status.loaded", { count: arr.length }));
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     }
   }
   function handleFile(e: ChangeEvent<HTMLInputElement>) {
@@ -117,7 +137,14 @@ export function TimeseriesEdit() {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const parsed = parseCsv(String(reader.result));
+        const { rows: parsed, error: parseError } = parseCsv(
+          String(reader.result),
+        );
+        if (parseError) {
+          setError(parseError);
+          return;
+        }
+        setError(null);
         setRows((prev) => {
           const map = new Map(prev.map((r) => [r.Date, r]));
           parsed.forEach((r) => map.set(r.Date, r));
@@ -133,12 +160,13 @@ export function TimeseriesEdit() {
   async function handleSave() {
     setError(null);
     try {
-      if (!rows.length)
+      const entries = Array.isArray(rows) ? rows : [];
+      if (!entries.length)
         throw new Error(t("timeseriesEdit.error.noData"));
-      await saveTimeseries(ticker, exchange, rows);
-      setStatus(t("timeseriesEdit.status.saved", { count: rows.length }));
+      await saveTimeseries(ticker, exchange, entries);
+      setStatus(t("timeseriesEdit.status.saved", { count: entries.length }));
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -155,12 +183,12 @@ export function TimeseriesEdit() {
             value={ticker}
             onChange={(e) => {
               const val = e.target.value;
-              const match = suggestions.find((s) => s.ticker === val);
+              const match = safeSuggestions.find((s) => s.ticker === val);
               setTicker(match ? match.ticker : val);
             }}
           />
           <datalist id="ticker-suggestions">
-            {suggestions.map((r) => (
+            {safeSuggestions.map((r) => (
               <option key={r.ticker} value={r.ticker}>
                 {`${r.ticker} — ${r.name}`}
               </option>
@@ -201,7 +229,7 @@ export function TimeseriesEdit() {
             </tr>
           </thead>
           <tbody>
-            {(Array.isArray(rows) ? rows : []).map((row, i) => (
+            {safeRows.map((row, i) => (
               <tr key={i}>
                 <td>
                   <input
@@ -365,7 +393,7 @@ export function TimeseriesEdit() {
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
         <input type="file" accept=".csv" onChange={handleFile} />{" "}
-        <button onClick={handleSave} disabled={!ticker || !rows.length}>
+        <button onClick={handleSave} disabled={!ticker || !safeRows.length}>
           {t("timeseriesEdit.save")}
         </button>
       </div>

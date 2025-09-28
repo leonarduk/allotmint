@@ -225,6 +225,66 @@ async def test_instrument_json_foreign_currency_fx(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.anyio("asyncio")
+async def test_instrument_json_scales_positions(monkeypatch):
+    dates = pd.date_range(date(2024, 3, 1), periods=2, freq="D")
+    df = pd.DataFrame(
+        {
+            "Date": dates,
+            "Close": [10.0, 12.0],
+            "Close_gbp": [9.0, 11.0],
+        }
+    )
+
+    monkeypatch.setattr(instrument, "load_meta_timeseries_range", lambda *_, **__: df)
+    monkeypatch.setattr(
+        instrument,
+        "get_security_meta",
+        lambda _ticker: {"name": "Scale Fund", "currency": "GBP"},
+    )
+
+    captured_last_close: dict[str, float | None] = {}
+
+    positions = [
+        {
+            "owner": "alex",
+            "account": "isa",
+            "units": 10,
+            "market_value_gbp": 100.0,
+            "unrealised_gain_gbp": 5.0,
+            "gain_pct": 5.0,
+        },
+        {
+            "owner": "sam",
+            "account": "general",
+            "units": 2,
+            "market_value_gbp": 20.0,
+            "unrealised_gain_gbp": None,
+            "gain_pct": None,
+        },
+    ]
+
+    def fake_positions(ticker: str, last_close: float | None):
+        captured_last_close["value"] = last_close
+        return positions
+
+    monkeypatch.setattr(instrument, "_positions_for_ticker", fake_positions)
+    monkeypatch.setattr(instrument, "get_scaling_override", lambda *a, **k: 2.0)
+    monkeypatch.setattr(instrument, "apply_scaling", lambda df_in, scale: df_in)
+    monkeypatch.setattr(instrument, "list_portfolios", lambda: [])
+
+    response = await instrument.instrument(
+        ticker="ABC.L",
+        days=30,
+        format="json",
+        base_currency="GBP",
+    )
+
+    payload = json.loads(response.body.decode())
+
+    assert captured_last_close["value"] == pytest.approx(22.0)
+    assert payload["positions"][0]["unrealised_gain_gbp"] == pytest.approx(10.0)
+    assert payload["positions"][1]["unrealised_gain_gbp"] is None
+
 async def test_intraday_returns_prices(monkeypatch):
     timestamps = pd.date_range("2024-03-01", periods=2, freq="5min")
     df = pd.DataFrame({"Close": [101.5, 102.75]}, index=timestamps)

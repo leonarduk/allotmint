@@ -161,10 +161,20 @@ function metadataToInstrumentSummary(metadata: InstrumentMetadata): InstrumentSu
     typeof metadata.currency === "string" && metadata.currency.trim()
       ? metadata.currency.trim()
       : null;
-  const grouping =
-    typeof metadata.grouping === "string" && metadata.grouping.trim()
-      ? metadata.grouping.trim()
-      : null;
+  const grouping = (() => {
+    const groupingCandidates = [
+      metadata.grouping,
+      metadata.sector,
+      metadata.region,
+      metadata.currency,
+    ];
+    for (const candidate of groupingCandidates) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+    return null;
+  })();
   const instrumentType = (() => {
     if (typeof metadata.instrument_type === "string" && metadata.instrument_type.trim()) {
       return metadata.instrument_type.trim();

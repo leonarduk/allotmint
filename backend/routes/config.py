@@ -138,6 +138,12 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         elif google_client_id is None and google_auth_enabled:
             raise HTTPException(status_code=400, detail="GOOGLE_CLIENT_ID is empty")
 
+    auth_section["google_auth_enabled"] = google_auth_enabled
+    if google_client_id is None:
+        auth_section.pop("google_client_id", None)
+    else:
+        auth_section["google_client_id"] = google_client_id
+
     try:
         validate_google_auth(google_auth_enabled, google_client_id)
     except ConfigValidationError as exc:
@@ -154,8 +160,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(500, f"Failed to write config: {exc}")
 
     try:
-        config_module.load_config.cache_clear()
-        cfg = config_module.load_config()
+        cfg = config_module.reload_config()
         return serialise_config(cfg)
     except ConfigValidationError as exc:
         logger.error("Invalid config after reload: %s", exc)

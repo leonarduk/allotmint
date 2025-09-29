@@ -120,6 +120,7 @@
   },
   "group": {
     "atAGlance": "At a glance",
+    "pricingAsOf": "Pricing as of {{date}}",
     "select": "Select a group."
   },
   "holdingsTable": {

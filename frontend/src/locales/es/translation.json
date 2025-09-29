@@ -126,6 +126,7 @@
   },
   "group": {
     "atAGlance": "De un vistazo",
+    "pricingAsOf": "Precios al {{date}}",
     "select": "Seleccione un grupo."
   },
   "holdingsTable": {

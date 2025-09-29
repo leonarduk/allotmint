@@ -83,13 +83,21 @@ export function TimeseriesEdit() {
   const [suggestions, setSuggestions] = useState<
     { ticker: string; name: string }[]
   >([]);
+
   const [scaleFactor, setScaleFactor] = useState<string>("1");
   const [scaleVolume, setScaleVolume] = useState(false);
   const userScaleEditedRef = useRef(false);
   const lastInstrumentKeyRef = useRef<string | null>(null);
 
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(
+    "desc",
+  );
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const safeRows = Array.isArray(rows) ? rows : [];
   const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
+
 
   const numberFormatter = useMemo(
     () =>
@@ -99,6 +107,44 @@ export function TimeseriesEdit() {
       }),
     [],
   );
+
+  const sortedRows = useMemo(() => {
+    const baseRows = Array.isArray(rows) ? rows : [];
+    const toTimestamp = (value: string | undefined) => {
+      if (!value) return NaN;
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? NaN : parsed;
+    };
+    const directionMultiplier = sortDirection === "asc" ? 1 : -1;
+    return baseRows
+      .map((row, index) => ({ row, index }))
+      .sort((a, b) => {
+        const aTime = toTimestamp(a.row.Date);
+        const bTime = toTimestamp(b.row.Date);
+        const aInvalid = Number.isNaN(aTime);
+        const bInvalid = Number.isNaN(bTime);
+        if (aInvalid && bInvalid) return 0;
+        if (aInvalid) return 1;
+        if (bInvalid) return -1;
+        return (aTime - bTime) * directionMultiplier;
+      });
+  }, [rows, sortDirection]);
+
+  const displayRows = useMemo(() => {
+    const start = startDate ? Date.parse(startDate) : null;
+    const end = endDate ? Date.parse(endDate) : null;
+    return sortedRows.filter(({ row }) => {
+      const timestamp = row.Date ? Date.parse(row.Date) : NaN;
+      const isValidTimestamp = !Number.isNaN(timestamp);
+      if (start !== null && (!isValidTimestamp || timestamp < start)) {
+        return false;
+      }
+      if (end !== null && (!isValidTimestamp || timestamp > end)) {
+        return false;
+      }
+      return true;
+    });
+  }, [sortedRows, startDate, endDate]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -267,7 +313,7 @@ export function TimeseriesEdit() {
   async function handleSave() {
     setError(null);
     try {
-      const entries = Array.isArray(rows) ? rows : [];
+      const entries = sortedRows.map(({ row }) => row);
       if (!entries.length)
         throw new Error(t("timeseriesEdit.error.noData"));
       await saveTimeseries(ticker, exchange, entries);
@@ -366,6 +412,54 @@ export function TimeseriesEdit() {
           {t("timeseriesEdit.load")}
         </button>
       </div>
+      <div className="mb-3 flex flex-wrap items-end gap-4 text-sm">
+        <label className="flex flex-col gap-1">
+          <span>
+            {t("timeseriesEdit.controls.sort", { defaultValue: "Sort" })}
+          </span>
+          <select
+            value={sortDirection}
+            onChange={(e) =>
+              setSortDirection(e.target.value as "asc" | "desc")
+            }
+          >
+            <option value="desc">
+              {t("timeseriesEdit.controls.sortDesc", {
+                defaultValue: "Newest first",
+              })}
+            </option>
+            <option value="asc">
+              {t("timeseriesEdit.controls.sortAsc", {
+                defaultValue: "Oldest first",
+              })}
+            </option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span>
+            {t("timeseriesEdit.controls.startDate", {
+              defaultValue: "Start date",
+            })}
+          </span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span>
+            {t("timeseriesEdit.controls.endDate", {
+              defaultValue: "End date",
+            })}
+          </span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </label>
+      </div>
       <div className="mb-2 overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
@@ -382,8 +476,8 @@ export function TimeseriesEdit() {
             </tr>
           </thead>
           <tbody>
-            {safeRows.map((row, i) => (
-              <tr key={i}>
+            {displayRows.map(({ row, index: originalIndex }) => (
+              <tr key={`${originalIndex}-${row.Date ?? "row"}`}>
                 <td>
                   <input
                     aria-label={t("timeseriesEdit.columns.date")}
@@ -391,7 +485,10 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = { ...copy[i], Date: e.target.value };
+                        copy[originalIndex] = {
+                          ...copy[originalIndex],
+                          Date: e.target.value,
+                        };
                         return copy;
                       })
                     }
@@ -405,8 +502,8 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = {
-                          ...copy[i],
+                        copy[originalIndex] = {
+                          ...copy[originalIndex],
                           Open: e.target.value === "" ? null : Number(e.target.value),
                         };
                         return copy;
@@ -422,8 +519,8 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = {
-                          ...copy[i],
+                        copy[originalIndex] = {
+                          ...copy[originalIndex],
                           High: e.target.value === "" ? null : Number(e.target.value),
                         };
                         return copy;
@@ -439,8 +536,8 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = {
-                          ...copy[i],
+                        copy[originalIndex] = {
+                          ...copy[originalIndex],
                           Low: e.target.value === "" ? null : Number(e.target.value),
                         };
                         return copy;
@@ -456,8 +553,8 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = {
-                          ...copy[i],
+                        copy[originalIndex] = {
+                          ...copy[originalIndex],
                           Close: e.target.value === "" ? null : Number(e.target.value),
                         };
                         return copy;
@@ -473,8 +570,8 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = {
-                          ...copy[i],
+                        copy[originalIndex] = {
+                          ...copy[originalIndex],
                           Volume: e.target.value === "" ? null : Number(e.target.value),
                         };
                         return copy;
@@ -489,7 +586,10 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = { ...copy[i], Ticker: e.target.value };
+                        copy[originalIndex] = {
+                          ...copy[originalIndex],
+                          Ticker: e.target.value,
+                        };
                         return copy;
                       })
                     }
@@ -502,7 +602,10 @@ export function TimeseriesEdit() {
                     onChange={(e) =>
                       setRows((rs) => {
                         const copy = [...rs];
-                        copy[i] = { ...copy[i], Source: e.target.value };
+                        copy[originalIndex] = {
+                          ...copy[originalIndex],
+                          Source: e.target.value,
+                        };
                         return copy;
                       })
                     }
@@ -512,7 +615,9 @@ export function TimeseriesEdit() {
                   <button
                     aria-label={t("timeseriesEdit.delete")}
                     onClick={() =>
-                      setRows((rs) => rs.filter((_, idx) => idx !== i))
+                      setRows((rs) =>
+                        rs.filter((_, idx) => idx !== originalIndex),
+                      )
                     }
                   >
                     {t("timeseriesEdit.delete")}

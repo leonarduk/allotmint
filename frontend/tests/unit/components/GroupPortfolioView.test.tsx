@@ -257,6 +257,24 @@ describe("GroupPortfolioView", () => {
     expect(screen.queryByText("Total Value")).toBeNull();
   });
 
+  it("renders the pricing as-of date", async () => {
+    const mockPortfolio = {
+      name: "At a glance",
+      as_of: "2024-04-01T12:00:00Z",
+      accounts: [],
+    };
+
+    mockAllFetches(mockPortfolio);
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownerFixtures} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Pricing as of 2024-04-01", { exact: false }),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("suppresses day change percentage when the baseline is nearly zero", async () => {
     const mockPortfolio = {
       name: "Tiny balances",

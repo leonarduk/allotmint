@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, Suspense, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  Suspense,
+  type CSSProperties,
+} from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -249,6 +256,17 @@ export default function App({ onLogout }: AppProps) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const portfolioCache = useRef(
+    new Map<
+      string,
+      {
+        data: Portfolio;
+        fetchedAt: number;
+        lastRefresh: string | null;
+      }
+    >(),
+  );
+
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -272,6 +290,12 @@ export default function App({ onLogout }: AppProps) {
     },
     [navigate],
   );
+
+  const handleLogout = useCallback(() => {
+    portfolioCache.current.clear();
+    setPortfolio(null);
+    onLogout?.();
+  }, [onLogout]);
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
@@ -466,15 +490,51 @@ export default function App({ onLogout }: AppProps) {
 
   // data fetching based on route
   useEffect(() => {
-    if (mode === "owner" && selectedOwner) {
-      setLoading(true);
-      setErr(null);
-      getPortfolio(selectedOwner)
-        .then(setPortfolio)
-        .catch((e) => setErr(String(e)))
-        .finally(() => setLoading(false));
+    if (mode !== "owner" || !selectedOwner) {
+      return;
     }
-  }, [mode, selectedOwner]);
+
+    setErr(null);
+
+    const refreshKey = lastRefresh ?? null;
+    const cached = portfolioCache.current.get(selectedOwner);
+
+    if (cached && cached.lastRefresh === refreshKey) {
+      setPortfolio(cached.data);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    let cancelled = false;
+
+    getPortfolio(selectedOwner)
+      .then((data) => {
+        if (cancelled) return;
+        setPortfolio(data);
+        portfolioCache.current.set(selectedOwner, {
+          data,
+          fetchedAt: Date.now(),
+          lastRefresh: refreshKey,
+        });
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setErr(String(e));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, selectedOwner, lastRefresh]);
+
+  useEffect(() => {
+    portfolioCache.current.clear();
+  }, [lastRefresh]);
 
   useEffect(() => {
     if (mode === "instrument" && selectedGroup) {
@@ -512,7 +572,7 @@ export default function App({ onLogout }: AppProps) {
           <Menu
             selectedOwner={selectedOwner}
             selectedGroup={selectedGroup}
-            onLogout={onLogout}
+            onLogout={handleLogout}
             style={{ margin: 0 }}
           />
           <InstrumentSearchBarToggle />

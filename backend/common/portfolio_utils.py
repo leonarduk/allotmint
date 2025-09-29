@@ -769,10 +769,16 @@ def aggregate_by_region(portfolio: dict | VirtualPortfolio, base_currency: str =
 # ──────────────────────────────────────────────────────────────
 # Performance helpers
 # ──────────────────────────────────────────────────────────────
-def _effective_days(days: int, pricing_date: date | None) -> int:
-    if pricing_date is None:
+def _effective_days(
+    days: int,
+    *,
+    requested_pricing_date: date | None,
+    reporting_date: date | None,
+) -> int:
+    if requested_pricing_date is None:
         return days
-    delta = (date.today() - pricing_date).days
+    anchor = reporting_date or requested_pricing_date
+    delta = (date.today() - anchor).days
     return days + max(0, delta)
 
 
@@ -864,7 +870,11 @@ def compute_owner_performance(
             "previous_date": calc.previous_pricing_date.isoformat(),
         }
 
-    effective_days = _effective_days(days, calc.reporting_date)
+    effective_days = _effective_days(
+        days,
+        requested_pricing_date=pricing_date,
+        reporting_date=calc.reporting_date,
+    )
     total = pd.Series(dtype=float)
     for ticker, exchange, units in holdings:
         df = load_meta_timeseries(ticker, exchange, effective_days)
@@ -1051,7 +1061,11 @@ def _portfolio_value_series(
                 continue
             holdings.append((sym, exch, units))
 
-    effective_days = _effective_days(days, calc.reporting_date)
+    effective_days = _effective_days(
+        days,
+        requested_pricing_date=pricing_date,
+        reporting_date=calc.reporting_date,
+    )
     total = pd.Series(dtype=float)
     for ticker, exchange, units in holdings:
         df = load_meta_timeseries(ticker, exchange, effective_days)
@@ -1080,14 +1094,18 @@ def _alpha_vs_benchmark(
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
     total = _portfolio_value_series(
-        name, days, group=group, pricing_date=calc.reporting_date
+        name, days, group=group, pricing_date=pricing_date
     )
     if total.empty:
         return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
     port_ret = total.pct_change().dropna()
 
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
-    effective_days = _effective_days(days, calc.reporting_date)
+    effective_days = _effective_days(
+        days,
+        requested_pricing_date=pricing_date,
+        reporting_date=calc.reporting_date,
+    )
     df = load_meta_timeseries(bench_tkr, bench_exch, effective_days)
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
         return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
@@ -1150,14 +1168,18 @@ def _tracking_error(
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
     total = _portfolio_value_series(
-        name, days, group=group, pricing_date=calc.reporting_date
+        name, days, group=group, pricing_date=pricing_date
     )
     if total.empty:
         return None, {"active_returns": [], "daily_active_standard_deviation": None}
     port_ret = total.pct_change().dropna()
 
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
-    effective_days = _effective_days(days, calc.reporting_date)
+    effective_days = _effective_days(
+        days,
+        requested_pricing_date=pricing_date,
+        reporting_date=calc.reporting_date,
+    )
     df = load_meta_timeseries(bench_tkr, bench_exch, effective_days)
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
         return None, {"active_returns": [], "daily_active_standard_deviation": None}
@@ -1210,7 +1232,7 @@ def _max_drawdown(
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
     total = _portfolio_value_series(
-        name, days, group=group, pricing_date=calc.reporting_date
+        name, days, group=group, pricing_date=pricing_date
     )
     if total.empty:
         return None, {"series": [], "peak": None, "trough": None}

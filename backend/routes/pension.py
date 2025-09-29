@@ -1,3 +1,5 @@
+import inspect
+
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from backend.common.data_loader import load_person_meta
@@ -49,7 +51,19 @@ def pension_forecast(
     forecast_death_age = max(death_age, retirement_age + 1)
 
     try:
-        portfolio = build_owner_portfolio(owner, accounts_root)
+        signature = inspect.signature(build_owner_portfolio)
+    except (TypeError, ValueError):
+        signature = None
+
+    if signature and "root" in signature.parameters:
+        kwargs: dict[str, object] = {"root": accounts_root}
+    elif signature and "accounts_root" in signature.parameters:
+        kwargs = {"accounts_root": accounts_root}
+    else:
+        kwargs = {"root": accounts_root}
+
+    try:
+        portfolio = build_owner_portfolio(owner, **kwargs)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     pension_pot = 0.0

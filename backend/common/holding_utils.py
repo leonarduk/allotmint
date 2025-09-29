@@ -442,11 +442,13 @@ def enrich_holding(
         days = (pricing_date - acq).days
         out["days_held"] = days
         hold_days = ucfg.hold_days_min or 0
-        eligible = days >= hold_days
-        next_date = acq + dt.timedelta(days=hold_days)
+        next_date_candidate = acq + dt.timedelta(days=hold_days)
+        next_date = calc.resolve_weekday(next_date_candidate, forward=True)
+        anchor = calc.today
+        eligible = anchor >= next_date
         out["eligible_on"] = next_date.isoformat()
         out["next_eligible_sell_date"] = next_date.isoformat()
-        out["days_until_eligible"] = max(0, hold_days - days)
+        out["days_until_eligible"] = max(0, (next_date - anchor).days)
     else:
         out["days_held"] = None
         eligible = False

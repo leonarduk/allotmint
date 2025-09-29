@@ -103,16 +103,12 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     existing_data = _normalise_config_structure(stored_data)
 
-    if not payload:
-        return serialise_config(config_module.config)
-
     merged_data = deepcopy(stored_data)
-    deep_merge(merged_data, payload)
+    if payload:
+        deep_merge(merged_data, payload)
 
     data = _normalise_config_structure(merged_data)
-
-    if data == existing_data:
-        return serialise_config(config_module.config)
+    has_changes = data != existing_data
 
     persisted_data = deepcopy(data)
 
@@ -179,11 +175,12 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
             logger.error("Invalid config update: %s", exc)
             raise HTTPException(status_code=400, detail=str(exc))
 
-    try:
-        with path.open("w", encoding="utf-8") as fh:
-            yaml.safe_dump(persisted_data, fh, sort_keys=False)
-    except Exception as exc:
-        raise HTTPException(500, f"Failed to write config: {exc}")
+    if has_changes:
+        try:
+            with path.open("w", encoding="utf-8") as fh:
+                yaml.safe_dump(persisted_data, fh, sort_keys=False)
+        except Exception as exc:
+            raise HTTPException(500, f"Failed to write config: {exc}")
 
     try:
         cfg = config_module.reload_config()

@@ -41,3 +41,5 @@ def test_timeseries_edit_roundtrip(tmp_path, monkeypatch):
     returned = resp.json()
     assert len(returned) == 2
     assert returned[0]["Open"] == 1.0
+    assert returned[0]["Ticker"] == "ABC"
+    assert returned[0]["Source"] == "Manual"

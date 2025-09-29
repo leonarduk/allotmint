@@ -83,7 +83,7 @@ def test_compute_portfolio_var_breakdown_deterministic(monkeypatch, include_cash
     monkeypatch.setattr(
         risk.portfolio_mod,
         "build_owner_portfolio",
-        lambda owner: {"owner": owner},
+        lambda owner, *, pricing_date=None, **_: {"owner": owner},
     )
     monkeypatch.setattr(
         risk.portfolio_utils,

@@ -31,7 +31,7 @@ def deterministic_setup(monkeypatch):
     monkeypatch.setattr(
         portfolio_mod,
         "build_owner_portfolio",
-        lambda owner, pricing_date=None: portfolio,
+        lambda owner, *, pricing_date=None, **_: portfolio,
     )
     monkeypatch.setattr(portfolio_mod, "list_owners", lambda: ["alice"])
 

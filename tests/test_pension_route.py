@@ -22,7 +22,9 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
         called.update(kwargs)
         return {"forecast": [], "projected_pot_gbp": 0.0}
 
-    def fake_portfolio(owner: str, root=None):  # pragma: no cover - signature match
+    def fake_portfolio(
+        owner: str, *, pricing_date=None, root=None
+    ):  # pragma: no cover - signature match
         return {
             "accounts": [
                 {"account_type": "sipp", "value_estimate_gbp": 100},
@@ -86,7 +88,8 @@ def test_pension_route_prefers_monthly_over_annual(monkeypatch):
     monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
     monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
     monkeypatch.setattr(
-        "backend.routes.pension.build_owner_portfolio", lambda o, root=None: {"accounts": []}
+        "backend.routes.pension.build_owner_portfolio",
+        lambda o, *, pricing_date=None, root=None: {"accounts": []},
     )
     app = create_app()
     with TestClient(app) as client:
@@ -129,7 +132,9 @@ def test_pension_route_propagates_missing_portfolio(monkeypatch):
         lambda owner, root=None: {"dob": "1980-01-01"},
     )
 
-    def fake_portfolio(owner: str, root=None):  # pragma: no cover - signature match
+    def fake_portfolio(
+        owner: str, *, pricing_date=None, root=None
+    ):  # pragma: no cover - signature match
         raise FileNotFoundError("no portfolio for owner")
 
     monkeypatch.setattr(
@@ -162,7 +167,9 @@ def test_pension_route_falls_back_to_local_metadata(tmp_path, monkeypatch):
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=raising_client))
 
-    def fake_portfolio(owner: str, root=None):  # pragma: no cover - signature match
+    def fake_portfolio(
+        owner: str, *, pricing_date=None, root=None
+    ):  # pragma: no cover - signature match
         return {"accounts": [{"account_type": "sipp", "value_estimate_gbp": 100.0}]}
 
     captured: dict[str, object] = {}

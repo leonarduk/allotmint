@@ -23,7 +23,7 @@ def test_portfolio_value_series_aggregates_and_skips_flagged(monkeypatch):
     monkeypatch.setattr(
         pu.portfolio_mod,
         "build_owner_portfolio",
-        lambda name: {
+        lambda name, *, pricing_date=None, **_: {
             "accounts": [
                 {
                     "holdings": [
@@ -91,7 +91,7 @@ def test_portfolio_value_series_uses_group_builder(monkeypatch):
     monkeypatch.setattr(
         pu.group_portfolio,
         "build_group_portfolio",
-        lambda name: {
+        lambda name, *, pricing_date=None, **_: {
             "accounts": [
                 {
                     "holdings": [

@@ -82,7 +82,8 @@ type Mode =
   | "pension"
   | "market"
   | "rebalance"
-  | "research";
+  | "research"
+  | "virtual";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -111,6 +112,8 @@ const initialMode: Mode =
     ? "market"
     : path[0] === "movers"
     ? "movers"
+    : path[0] === "virtual"
+    ? "virtual"
     : path[0] === "instrumentadmin"
     ? "instrumentadmin"
     : path[0] === "dataadmin"
@@ -340,6 +343,9 @@ export default function App({ onLogout }: AppProps) {
         break;
       case "movers":
         newMode = "movers";
+        break;
+      case "virtual":
+        newMode = "virtual";
         break;
       case "instrumentadmin":
         newMode = "instrumentadmin";

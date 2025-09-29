@@ -49,7 +49,7 @@ def pension_forecast(
     forecast_death_age = max(death_age, retirement_age + 1)
 
     try:
-        portfolio = build_owner_portfolio(owner, accounts_root)
+        portfolio = build_owner_portfolio(owner, root=accounts_root)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     pension_pot = 0.0

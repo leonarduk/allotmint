@@ -38,6 +38,28 @@ def _provider_override(
             owner.dependency_overrides_provider = previous
 
 
+@contextmanager
+def _mapping_override(
+    app: FastAPI, override: Callable[[], Any], target: Literal["app", "router"] = "app"
+):
+    owner = app if target == "app" else app.router
+    previous_mapping = getattr(owner, "dependency_overrides", _MISSING)
+    if previous_mapping is _MISSING:
+        mapping: dict[Any, Callable[..., Any]] = {}
+        owner.dependency_overrides = mapping  # type: ignore[attr-defined]
+    else:
+        mapping = previous_mapping  # type: ignore[assignment]
+
+    mapping[get_current_user] = override
+    try:
+        yield
+    finally:
+        mapping.pop(get_current_user, None)
+        if previous_mapping is _MISSING:
+            if hasattr(owner, "dependency_overrides"):
+                delattr(owner, "dependency_overrides")
+
+
 async def _empty_receive() -> dict[str, object]:
     return {"type": "http.request", "body": b"", "more_body": False}
 
@@ -82,6 +104,32 @@ async def test_get_active_user_awaits_async_override(provider_target: str) -> No
     with _provider_override(app, fake_user, target=provider_target):
         assert app.dependency_overrides == {}
         assert await get_active_user(request, token=None) == "async-user"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("owner_target", ["app", "router"])
+async def test_get_active_user_respects_sync_app_override(owner_target: str) -> None:
+    app = FastAPI()
+
+    def fake_user() -> str:
+        return "app-sync-user"
+
+    request = _make_request(app)
+    with _mapping_override(app, fake_user, target=owner_target):
+        assert await get_active_user(request, token=None) == "app-sync-user"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("owner_target", ["app", "router"])
+async def test_get_active_user_respects_async_app_override(owner_target: str) -> None:
+    app = FastAPI()
+
+    async def fake_user() -> str:
+        return "app-async-user"
+
+    request = _make_request(app)
+    with _mapping_override(app, fake_user, target=owner_target):
+        assert await get_active_user(request, token=None) == "app-async-user"
 
 
 @pytest.mark.anyio

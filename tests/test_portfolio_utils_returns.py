@@ -23,7 +23,11 @@ def sample_transactions():
 
 
 def test_compute_time_weighted_return_with_cashflows(monkeypatch, portfolio_series, sample_transactions):
-    monkeypatch.setattr(pu, "_portfolio_value_series", lambda owner, days=365: portfolio_series)
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda owner, days=365, *, pricing_date=None, **_: portfolio_series,
+    )
     monkeypatch.setattr(
         pu,
         "load_transactions",
@@ -38,7 +42,11 @@ def test_compute_time_weighted_return_with_cashflows(monkeypatch, portfolio_seri
 def test_compute_time_weighted_return_requires_two_points(monkeypatch):
     idx = pd.Index([date(2024, 1, 1)])
     series = pd.Series([1000.0], index=idx)
-    monkeypatch.setattr(pu, "_portfolio_value_series", lambda owner, days=365: series)
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda owner, days=365, *, pricing_date=None, **_: series,
+    )
     monkeypatch.setattr(
         pu, "load_transactions", lambda owner, *, scaffold_missing=False: []
     )
@@ -55,7 +63,11 @@ def one_year_series():
 
 
 def test_compute_xirr_simple_contribution(monkeypatch, one_year_series):
-    monkeypatch.setattr(pu, "_portfolio_value_series", lambda owner, days=365: one_year_series)
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda owner, days=365, *, pricing_date=None, **_: one_year_series,
+    )
     transactions = [
         {"date": "2024-01-01", "type": "DEPOSIT", "amount_minor": 100000},
         {"date": "2023-12-01", "type": "deposit", "amount_minor": 1000},
@@ -71,7 +83,11 @@ def test_compute_xirr_simple_contribution(monkeypatch, one_year_series):
 
 
 def test_compute_xirr_requires_cashflows(monkeypatch, one_year_series):
-    monkeypatch.setattr(pu, "_portfolio_value_series", lambda owner, days=365: one_year_series)
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda owner, days=365, *, pricing_date=None, **_: one_year_series,
+    )
     monkeypatch.setattr(
         pu, "load_transactions", lambda owner, *, scaffold_missing=False: []
     )
@@ -80,7 +96,11 @@ def test_compute_xirr_requires_cashflows(monkeypatch, one_year_series):
 
 
 def test_compute_cagr(monkeypatch, one_year_series):
-    monkeypatch.setattr(pu, "_portfolio_value_series", lambda owner, days=365: one_year_series)
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda owner, days=365, *, pricing_date=None, **_: one_year_series,
+    )
 
     result = pu.compute_cagr("owner")
 
@@ -90,7 +110,11 @@ def test_compute_cagr(monkeypatch, one_year_series):
 def test_compute_cagr_invalid_series(monkeypatch):
     idx = pd.Index([date(2024, 1, 1), date(2025, 1, 1)])
     series = pd.Series([0.0, 1000.0], index=idx)
-    monkeypatch.setattr(pu, "_portfolio_value_series", lambda owner, days=365: series)
+    monkeypatch.setattr(
+        pu,
+        "_portfolio_value_series",
+        lambda owner, days=365, *, pricing_date=None, **_: series,
+    )
 
     assert pu.compute_cagr("owner") is None
 
@@ -191,7 +215,7 @@ def test_portfolio_value_breakdown_aggregates_and_handles_missing(monkeypatch, s
 def test_portfolio_value_breakdown_invalid_date(monkeypatch):
     called = False
 
-    def fake_builder(owner, *, pricing_date=None):
+    def fake_builder(owner, *, pricing_date=None, **_):
         nonlocal called
         called = True
         return {}

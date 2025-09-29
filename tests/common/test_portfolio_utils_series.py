@@ -135,7 +135,7 @@ def test_cash_value_series_sums_cash_holdings(monkeypatch):
     monkeypatch.setattr(
         pu.portfolio_mod,
         "build_owner_portfolio",
-        lambda name: {
+        lambda name, *, pricing_date=None, **_: {
             "accounts": [
                 {
                     "holdings": [

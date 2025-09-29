@@ -248,27 +248,43 @@ async def get_active_user(
                     return override_candidate
             return None
 
-        def _walk_providers(obj: Any) -> Callable[..., Any] | None:
-            candidate = obj
-            while candidate is not None:
+        def _iter_providers(*roots: Any) -> list[Any]:
+            queue: list[Any] = [root for root in roots if root is not None]
+            providers: list[Any] = []
+            while queue:
+                candidate = queue.pop()
                 ident = id(candidate)
                 if ident in seen_objects:
-                    break
+                    continue
                 seen_objects.add(ident)
+                providers.append(candidate)
 
-                overrides = getattr(candidate, "dependency_overrides", None)
-                if isinstance(overrides, Mapping):
-                    override = _check_mapping(overrides)
+                provider = getattr(candidate, "dependency_overrides_provider", None)
+                if provider is None:
+                    continue
+                if isinstance(provider, (list, tuple, set, frozenset)):
+                    queue.extend(provider)
+                else:
+                    queue.append(provider)
+            return providers
+
+        for candidate in _iter_providers(request.app, getattr(request.app, "router", None)):
+            overrides = getattr(candidate, "dependency_overrides", None)
+            if isinstance(overrides, Mapping):
+                override = _check_mapping(overrides)
+                if override is not None:
+                    return override
+            elif hasattr(overrides, "items"):
+                try:
+                    items = overrides.items()
+                except Exception:  # pragma: no cover - defensive
+                    items = None
+                if items is not None:
+                    # ``items`` could be a generator; wrap in dict to preserve semantics
+                    overrides_dict = dict(items)
+                    override = _check_mapping(overrides_dict)
                     if override is not None:
                         return override
-
-                candidate = getattr(candidate, "dependency_overrides_provider", None)
-            return None
-
-        for root in (request.app, getattr(request.app, "router", None)):
-            override = _walk_providers(root)
-            if override is not None:
-                return override
 
         return None
 

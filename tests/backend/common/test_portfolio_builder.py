@@ -54,7 +54,9 @@ def fixture_portfolio_stubs(monkeypatch, today):
             "holdings": list(base_holdings),
         }
 
-    def fake_enrich_holding(holding, as_of, price_cache, approvals, ucfg):  # noqa: ARG001
+    def fake_enrich_holding(
+        holding, as_of, price_cache, approvals, ucfg, *, calc=None
+    ):  # noqa: ARG001
         return {
             **holding,
             "market_value_gbp": holding["base_value"],

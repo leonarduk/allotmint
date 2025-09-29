@@ -131,6 +131,7 @@ export function VirtualPortfolio() {
                 : "You appear to be offline.",
             );
             setLoading(false);
+            setInitialLoadInProgress(false);
             errorToast(err);
             return;
           }
@@ -277,21 +278,24 @@ export function VirtualPortfolio() {
       <div className="mb-4">
         <label>
           Select
-          <select
-            value={selected ?? ""}
-            onChange={(e) => {
-              const id = e.target.value ? Number(e.target.value) : null;
-              if (id) load(id);
-            }}
-            className="ml-2"
-          >
-            <option value="">New…</option>
-            {portfolios.map((p) => (
-              <option key={p.id} value={p.id ?? ""}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          {!isInitialLoading && (
+            <select
+              value={selected ?? ""}
+              onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : null;
+                if (id) load(id);
+              }}
+              className="ml-2"
+              size={Math.min(6, Math.max(1, portfolios.length + 1))}
+            >
+              <option value="">New…</option>
+              {portfolios.map((p) => (
+                <option key={p.id} value={p.id ?? ""}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
       </div>
 

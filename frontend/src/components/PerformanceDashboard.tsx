@@ -14,9 +14,10 @@ import { formatDateISO } from "../lib/date";
 
 type Props = {
   owner: string | null;
+  asOf?: string | null;
 };
 
-export function PerformanceDashboard({ owner }: Props) {
+export function PerformanceDashboard({ owner, asOf }: Props) {
   const [data, setData] = useState<PerformancePoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
@@ -40,11 +41,12 @@ export function PerformanceDashboard({ owner }: Props) {
     setReportingDate(null);
     setPreviousDate(null);
     const reqDays = days === 0 ? 36500 : days;
+    const opts = asOf ? { asOf } : undefined;
     Promise.all([
-      getAlphaVsBenchmark(owner, "VWRL.L", reqDays),
-      getTrackingError(owner, "VWRL.L", reqDays),
-      getMaxDrawdown(owner, reqDays),
-      getPerformance(owner, reqDays, excludeCash),
+      getAlphaVsBenchmark(owner, "VWRL.L", reqDays, opts),
+      getTrackingError(owner, "VWRL.L", reqDays, opts),
+      getMaxDrawdown(owner, reqDays, opts),
+      getPerformance(owner, reqDays, excludeCash, opts),
     ])
       .then(([alphaRes, teRes, mdRes, perf]) => {
         setData(perf.history);
@@ -57,7 +59,7 @@ export function PerformanceDashboard({ owner }: Props) {
         setPreviousDate(perf.previousDate ?? null);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, [owner, days, excludeCash]);
+  }, [owner, days, excludeCash, asOf]);
 
   if (!owner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;

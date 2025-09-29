@@ -113,8 +113,13 @@ def list_owners(
 
 
 # ─────────────────────── owner-level builder ─────────────────────
-def build_owner_portfolio(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, Any]:
-    calc = PricingDateCalculator()
+def build_owner_portfolio(
+    owner: str,
+    accounts_root: Optional[Path] = None,
+    *,
+    pricing_date: Optional[dt.date] = None,
+) -> Dict[str, Any]:
+    calc = PricingDateCalculator(reporting_date=pricing_date)
     today = calc.today
     pricing_date = calc.reporting_date
 
@@ -140,7 +145,17 @@ def build_owner_portfolio(owner: str, accounts_root: Optional[Path] = None) -> D
         raw = load_account(owner, meta, accounts_root)
         holdings_raw = raw.get("holdings", [])
 
-        enriched = [enrich_holding(h, today, price_cache, approvals, ucfg) for h in holdings_raw]
+        enriched = [
+            enrich_holding(
+                h,
+                today,
+                price_cache,
+                approvals,
+                ucfg,
+                calc=calc,
+            )
+            for h in holdings_raw
+        ]
         val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in enriched)
 
         accounts.append(

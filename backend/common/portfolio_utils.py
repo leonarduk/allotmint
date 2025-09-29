@@ -769,8 +769,20 @@ def aggregate_by_region(portfolio: dict | VirtualPortfolio, base_currency: str =
 # ──────────────────────────────────────────────────────────────
 # Performance helpers
 # ──────────────────────────────────────────────────────────────
+def _effective_days(days: int, pricing_date: date | None) -> int:
+    if pricing_date is None:
+        return days
+    delta = (date.today() - pricing_date).days
+    return days + max(0, delta)
+
+
 def compute_owner_performance(
-    owner: str, days: int = 365, include_flagged: bool = False, include_cash: bool = True
+    owner: str,
+    days: int = 365,
+    include_flagged: bool = False,
+    include_cash: bool = True,
+    *,
+    pricing_date: date | None = None,
 ) -> Dict[str, Any]:
     """Return daily portfolio values and returns for an ``owner``.
 
@@ -804,8 +816,11 @@ def compute_owner_performance(
     timeseries data is missing.
     """
 
+    calc = PricingDateCalculator(reporting_date=pricing_date)
     try:
-        pf = portfolio_mod.build_owner_portfolio(owner)
+        pf = portfolio_mod.build_owner_portfolio(
+            owner, pricing_date=calc.reporting_date
+        )
     except FileNotFoundError:
         raise
 
@@ -840,7 +855,6 @@ def compute_owner_performance(
             holdings.append((sym, exch, units))
 
     if not holdings:
-        calc = PricingDateCalculator()
         return {
             "history": [],
             "max_drawdown": None,
@@ -848,9 +862,10 @@ def compute_owner_performance(
             "previous_date": calc.previous_pricing_date.isoformat(),
         }
 
+    effective_days = _effective_days(days, calc.reporting_date)
     total = pd.Series(dtype=float)
     for ticker, exchange, units in holdings:
-        df = load_meta_timeseries(ticker, exchange, days)
+        df = load_meta_timeseries(ticker, exchange, effective_days)
         if df.empty or "Date" not in df.columns or "Close" not in df.columns:
             continue
         df = df[["Date", "Close"]].copy()
@@ -859,7 +874,6 @@ def compute_owner_performance(
         total = total.add(values, fill_value=0)
 
     if total.empty:
-        calc = PricingDateCalculator()
         return {
             "history": [],
             "max_drawdown": None,
@@ -867,7 +881,17 @@ def compute_owner_performance(
             "previous_date": calc.previous_pricing_date.isoformat(),
         }
 
-    perf = total.sort_index().to_frame(name="value")
+    total = total.sort_index()
+    total = total[total.index <= calc.reporting_date]
+    if total.empty:
+        return {
+            "history": [],
+            "max_drawdown": None,
+            "reporting_date": calc.reporting_date.isoformat(),
+            "previous_date": calc.previous_pricing_date.isoformat(),
+        }
+
+    perf = total.to_frame(name="value")
     perf["daily_return"] = perf["value"].pct_change()
     perf["weekly_return"] = perf["value"].pct_change(5)
     start_val = perf["value"].iloc[0]
@@ -891,15 +915,16 @@ def compute_owner_performance(
             }
         )
 
-    calc = PricingDateCalculator()
-    reporting_date = out[-1]["date"] if out else calc.reporting_date.isoformat()
-    previous_date = out[-2]["date"] if len(out) >= 2 else calc.previous_pricing_date.isoformat()
+    reporting_date_iso = out[-1]["date"] if out else calc.reporting_date.isoformat()
+    previous_date_iso = (
+        out[-2]["date"] if len(out) >= 2 else calc.previous_pricing_date.isoformat()
+    )
 
     return {
         "history": out,
         "max_drawdown": max_drawdown,
-        "reporting_date": reporting_date,
-        "previous_date": previous_date,
+        "reporting_date": reporting_date_iso,
+        "previous_date": previous_date_iso,
     }
 
 
@@ -961,13 +986,20 @@ def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:
     return result
 
 
-def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) -> pd.Series:
+def _portfolio_value_series(
+    name: str,
+    days: int = 365,
+    *,
+    group: bool = False,
+    pricing_date: date | None = None,
+) -> pd.Series:
     """Helper to compute daily portfolio values for an owner or group."""
 
+    calc = PricingDateCalculator(reporting_date=pricing_date)
     if group:
-        pf = group_portfolio.build_group_portfolio(name)
+        pf = group_portfolio.build_group_portfolio(name, pricing_date=calc.reporting_date)
     else:
-        pf = portfolio_mod.build_owner_portfolio(name)
+        pf = portfolio_mod.build_owner_portfolio(name, pricing_date=calc.reporting_date)
 
     from backend.common import instrument_api
 
@@ -995,9 +1027,10 @@ def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) 
                 continue
             holdings.append((sym, exch, units))
 
+    effective_days = _effective_days(days, calc.reporting_date)
     total = pd.Series(dtype=float)
     for ticker, exchange, units in holdings:
-        df = load_meta_timeseries(ticker, exchange, days)
+        df = load_meta_timeseries(ticker, exchange, effective_days)
         if df.empty or "Date" not in df.columns or "Close" not in df.columns:
             continue
         df = df[["Date", "Close"]].copy()
@@ -1005,7 +1038,8 @@ def _portfolio_value_series(name: str, days: int = 365, *, group: bool = False) 
         values = df.set_index("Date")["Close"] * units
         total = total.add(values, fill_value=0)
 
-    return total.sort_index()
+    total = total.sort_index()
+    return total[total.index <= calc.reporting_date]
 
 
 def _alpha_vs_benchmark(
@@ -1015,18 +1049,24 @@ def _alpha_vs_benchmark(
     *,
     group: bool = False,
     include_breakdown: bool = False,
+    pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
-    total = _portfolio_value_series(name, days, group=group)
+    calc = PricingDateCalculator(reporting_date=pricing_date)
+    total = _portfolio_value_series(
+        name, days, group=group, pricing_date=calc.reporting_date
+    )
     if total.empty:
         return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
     port_ret = total.pct_change().dropna()
 
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
-    df = load_meta_timeseries(bench_tkr, bench_exch, days)
+    effective_days = _effective_days(days, calc.reporting_date)
+    df = load_meta_timeseries(bench_tkr, bench_exch, effective_days)
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
         return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
     df = df[["Date", "Close"]].copy()
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    df = df[df["Date"] <= calc.reporting_date]
     bench_ret = df.set_index("Date")["Close"].pct_change().dropna()
 
     port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
@@ -1079,18 +1119,24 @@ def _tracking_error(
     *,
     group: bool = False,
     include_breakdown: bool = False,
+    pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
-    total = _portfolio_value_series(name, days, group=group)
+    calc = PricingDateCalculator(reporting_date=pricing_date)
+    total = _portfolio_value_series(
+        name, days, group=group, pricing_date=calc.reporting_date
+    )
     if total.empty:
         return None, {"active_returns": [], "daily_active_standard_deviation": None}
     port_ret = total.pct_change().dropna()
 
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
-    df = load_meta_timeseries(bench_tkr, bench_exch, days)
+    effective_days = _effective_days(days, calc.reporting_date)
+    df = load_meta_timeseries(bench_tkr, bench_exch, effective_days)
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
         return None, {"active_returns": [], "daily_active_standard_deviation": None}
     df = df[["Date", "Close"]].copy()
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    df = df[df["Date"] <= calc.reporting_date]
     bench_ret = df.set_index("Date")["Close"].pct_change().dropna()
 
     port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
@@ -1133,8 +1179,12 @@ def _max_drawdown(
     *,
     group: bool = False,
     include_breakdown: bool = False,
+    pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
-    total = _portfolio_value_series(name, days, group=group)
+    calc = PricingDateCalculator(reporting_date=pricing_date)
+    total = _portfolio_value_series(
+        name, days, group=group, pricing_date=calc.reporting_date
+    )
     if total.empty:
         return None, {"series": [], "peak": None, "trough": None}
     running_max = total.cummax()
@@ -1185,10 +1235,19 @@ def _max_drawdown(
 
 
 def compute_alpha_vs_benchmark(
-    owner: str, benchmark: str, days: int = 365, *, include_breakdown: bool = False
+    owner: str,
+    benchmark: str,
+    days: int = 365,
+    *,
+    include_breakdown: bool = False,
+    pricing_date: date | None = None,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
     value, breakdown = _alpha_vs_benchmark(
-        owner, benchmark, days, include_breakdown=include_breakdown
+        owner,
+        benchmark,
+        days,
+        include_breakdown=include_breakdown,
+        pricing_date=pricing_date,
     )
     if include_breakdown:
         return value, breakdown
@@ -1207,10 +1266,19 @@ def compute_group_alpha_vs_benchmark(
 
 
 def compute_tracking_error(
-    owner: str, benchmark: str, days: int = 365, *, include_breakdown: bool = False
+    owner: str,
+    benchmark: str,
+    days: int = 365,
+    *,
+    include_breakdown: bool = False,
+    pricing_date: date | None = None,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
     value, breakdown = _tracking_error(
-        owner, benchmark, days, include_breakdown=include_breakdown
+        owner,
+        benchmark,
+        days,
+        include_breakdown=include_breakdown,
+        pricing_date=pricing_date,
     )
     if include_breakdown:
         return value, breakdown
@@ -1229,9 +1297,15 @@ def compute_group_tracking_error(
 
 
 def compute_max_drawdown(
-    owner: str, days: int = 365, *, include_breakdown: bool = False
+    owner: str,
+    days: int = 365,
+    *,
+    include_breakdown: bool = False,
+    pricing_date: date | None = None,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
-    value, breakdown = _max_drawdown(owner, days, include_breakdown=include_breakdown)
+    value, breakdown = _max_drawdown(
+        owner, days, include_breakdown=include_breakdown, pricing_date=pricing_date
+    )
     if include_breakdown:
         return value, breakdown
     return value
@@ -1268,10 +1342,12 @@ _CASH_FLOW_SIGNS = {
 }
 
 
-def compute_time_weighted_return(owner: str, days: int = 365) -> float | None:
+def compute_time_weighted_return(
+    owner: str, days: int = 365, *, pricing_date: date | None = None
+) -> float | None:
     """Compute time-weighted return for ``owner`` over ``days``."""
 
-    total = _portfolio_value_series(owner, days)
+    total = _portfolio_value_series(owner, days, pricing_date=pricing_date)
     if total.empty or len(total) < 2:
         return None
 
@@ -1304,10 +1380,10 @@ def compute_time_weighted_return(owner: str, days: int = 365) -> float | None:
     return float(twr - 1.0)
 
 
-def compute_xirr(owner: str, days: int = 365) -> float | None:
+def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = None) -> float | None:
     """Compute XIRR for ``owner`` over ``days`` using cash flows."""
 
-    total = _portfolio_value_series(owner, days)
+    total = _portfolio_value_series(owner, days, pricing_date=pricing_date)
     if total.empty:
         return None
 

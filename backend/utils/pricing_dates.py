@@ -23,9 +23,17 @@ class PricingDateCalculator:
         today: dt.date | None = None,
         *,
         weekday_func: Callable[[dt.date, bool], dt.date] | None = None,
+        reporting_date: dt.date | None = None,
     ) -> None:
-        self._today = today or dt.date.today()
         self._weekday_func = weekday_func or _nearest_weekday
+        self._explicit_reporting_date = (
+            self.resolve_weekday(reporting_date, forward=False)
+            if reporting_date is not None
+            else None
+        )
+        if today is None and self._explicit_reporting_date is not None:
+            today = self._explicit_reporting_date + dt.timedelta(days=1)
+        self._today = today or dt.date.today()
 
     def resolve_weekday(self, candidate: dt.date, *, forward: bool) -> dt.date:
         """Normalise ``candidate`` to the nearest weekday using the resolver."""
@@ -42,6 +50,8 @@ class PricingDateCalculator:
     def reporting_date(self) -> dt.date:
         """Return the primary reporting date (previous trading day)."""
 
+        if self._explicit_reporting_date is not None:
+            return self._explicit_reporting_date
         return self.resolve_weekday(self._today - dt.timedelta(days=1), forward=False)
 
     @cached_property

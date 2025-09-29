@@ -101,7 +101,10 @@ def test_compile_report_filters_and_totals(monkeypatch):
         ],
         "max_drawdown": -0.1,
     }
-    monkeypatch.setattr("backend.common.portfolio_utils.compute_owner_performance", lambda owner: performance)
+    monkeypatch.setattr(
+        "backend.common.portfolio_utils.compute_owner_performance",
+        lambda owner, **kwargs: performance,
+    )
 
     start = date(2024, 1, 2)
     end = date(2024, 1, 3)

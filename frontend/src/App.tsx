@@ -244,6 +244,7 @@ export default function App({ onLogout }: AppProps) {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [portfolioAsOf, setPortfolioAsOf] = useState<string | null>(null);
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -272,6 +273,10 @@ export default function App({ onLogout }: AppProps) {
     },
     [navigate],
   );
+
+  const handlePortfolioDateChange = useCallback((isoDate: string | null) => {
+    setPortfolioAsOf(isoDate);
+  }, []);
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
@@ -469,10 +474,17 @@ export default function App({ onLogout }: AppProps) {
     if (mode === "owner" && selectedOwner) {
       setLoading(true);
       setErr(null);
-      getPortfolio(selectedOwner)
+      const opts = portfolioAsOf ? { asOf: portfolioAsOf } : undefined;
+      getPortfolio(selectedOwner, opts)
         .then(setPortfolio)
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));
+    }
+  }, [mode, selectedOwner, portfolioAsOf]);
+
+  useEffect(() => {
+    if (mode === "owner" && selectedOwner) {
+      setPortfolioAsOf(null);
     }
   }, [mode, selectedOwner]);
 
@@ -566,7 +578,12 @@ export default function App({ onLogout }: AppProps) {
               />
             </div>
             <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-            <PortfolioView data={portfolio} loading={loading} error={err} />
+            <PortfolioView
+              data={portfolio}
+              loading={loading}
+              error={err}
+              onDateChange={handlePortfolioDateChange}
+            />
           </>
         )}
 

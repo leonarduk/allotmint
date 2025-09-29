@@ -10,6 +10,7 @@ Owners / groups / portfolio endpoints (shared).
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -343,7 +344,7 @@ async def groups():
 # Owner / group portfolios
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio/{owner}")
-async def portfolio(owner: str, request: Request):
+async def portfolio(owner: str, request: Request, as_of: str | None = None):
     """Return the fully expanded portfolio for ``owner``.
 
     The helper function :func:`build_owner_portfolio` loads account data from
@@ -355,8 +356,21 @@ async def portfolio(owner: str, request: Request):
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
+    pricing_date: dt.date | None = None
+    if as_of:
+        try:
+            candidate = dt.date.fromisoformat(as_of)
+        except ValueError as exc:  # pragma: no cover - validation guard
+            raise HTTPException(status_code=400, detail="Invalid as_of date") from exc
+        if candidate > dt.date.today():
+            raise HTTPException(status_code=400, detail="Date cannot be in the future")
+        calc = PricingDateCalculator()
+        pricing_date = calc.resolve_weekday(candidate, forward=False)
+
     try:
-        return portfolio_mod.build_owner_portfolio(owner, accounts_root)
+        return portfolio_mod.build_owner_portfolio(
+            owner, accounts_root, pricing_date=pricing_date
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
 

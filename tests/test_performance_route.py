@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import datetime as dt
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -19,7 +23,7 @@ def _auth_client():
             "/performance/alice/alpha?benchmark=SPY&days=30",
             "compute_alpha_vs_benchmark",
             ("alice", "SPY", 30),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
             "alpha_vs_benchmark",
             (
                 1.23,
@@ -46,7 +50,7 @@ def _auth_client():
             "/performance/alice/tracking-error?benchmark=SPY&days=30",
             "compute_tracking_error",
             ("alice", "SPY", 30),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
             "tracking_error",
             (
                 2.34,
@@ -68,7 +72,7 @@ def _auth_client():
             "/performance/alice/max-drawdown?days=30",
             "compute_max_drawdown",
             ("alice", 30),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
             "max_drawdown",
             (
                 -5.0,
@@ -95,7 +99,7 @@ def _auth_client():
             "/performance/alice/twr?days=90",
             "compute_time_weighted_return",
             ("alice", 90),
-            {},
+            {"pricing_date": None},
             "time_weighted_return",
             0.12,
             [],
@@ -104,7 +108,7 @@ def _auth_client():
             "/performance/alice/xirr?days=180",
             "compute_xirr",
             ("alice", 180),
-            {},
+            {"pricing_date": None},
             "xirr",
             0.34,
             [],
@@ -151,31 +155,31 @@ def test_owner_metrics_success(
             "/performance/missing/alpha",
             "compute_alpha_vs_benchmark",
             ("missing", "VWRL.L", 365),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
         ),
         (
             "/performance/missing/tracking-error",
             "compute_tracking_error",
             ("missing", "VWRL.L", 365),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
         ),
         (
             "/performance/missing/max-drawdown",
             "compute_max_drawdown",
             ("missing", 365),
-            {"include_breakdown": True},
+            {"include_breakdown": True, "pricing_date": None},
         ),
         (
             "/performance/missing/twr",
             "compute_time_weighted_return",
             ("missing", 365),
-            {},
+            {"pricing_date": None},
         ),
         (
             "/performance/missing/xirr",
             "compute_xirr",
             ("missing", 365),
-            {},
+            {"pricing_date": None},
         ),
     ],
 )
@@ -190,6 +194,39 @@ def test_owner_metrics_not_found(path, func_name, expected_args, expected_kwargs
     resp = client.get(path)
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Owner not found"
+
+
+def test_owner_metrics_with_as_of(monkeypatch):
+    captured: dict[str, dt.date | None] = {}
+
+    def fake(owner, benchmark, days, *, include_breakdown, pricing_date):
+        assert owner == "alice"
+        assert benchmark == "SPY"
+        assert days == 365
+        assert include_breakdown is True
+        captured["pricing_date"] = pricing_date
+        return 0.42, {"series": []}
+
+    monkeypatch.setattr(
+        portfolio_utils, "compute_alpha_vs_benchmark", fake
+    )
+    client = _auth_client()
+    resp = client.get(
+        "/performance/alice/alpha",
+        params={"benchmark": "SPY", "as_of": "2024-09-08"},
+    )
+    assert resp.status_code == 200
+    assert captured["pricing_date"] == dt.date(2024, 9, 6)
+
+
+def test_owner_metrics_future_date_rejected(monkeypatch):
+    client = _auth_client()
+    resp = client.get(
+        "/performance/alice/alpha",
+        params={"as_of": (dt.date.today() + dt.timedelta(days=1)).isoformat()},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Date cannot be in the future"
 
 
 @pytest.mark.parametrize(
@@ -315,10 +352,11 @@ def test_group_metrics_not_found(path, func_name, expected_args, expected_kwargs
 
 
 def test_owner_performance_success(monkeypatch):
-    def fake(owner, *, days, include_cash):
+    def fake(owner, *, days, include_cash, pricing_date=None):
         assert owner == "alice"
         assert days == 30
         assert include_cash is False
+        assert pricing_date is None
         return {
             "total_return": 9.9,
             "reporting_date": "2024-03-01",
@@ -338,10 +376,11 @@ def test_owner_performance_success(monkeypatch):
 
 
 def test_owner_performance_not_found(monkeypatch):
-    def fake(owner, *, days, include_cash):
+    def fake(owner, *, days, include_cash, pricing_date=None):
         assert owner == "missing"
         assert days == 365
         assert include_cash is True
+        assert pricing_date is None
         raise FileNotFoundError
 
     monkeypatch.setattr(portfolio_utils, "compute_owner_performance", fake)

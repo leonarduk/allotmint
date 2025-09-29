@@ -139,6 +139,8 @@
       "eligible": "Idoneo?",
       "gain": "Guadagna £",
       "gainPct": "Guadagno %",
+      "forward7d": "7d change",
+      "forward30d": "30d change",
       "market": "Mkt £",
       "name": "Nome",
       "price": "Px £",

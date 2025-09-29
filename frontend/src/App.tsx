@@ -72,6 +72,9 @@ const PerformanceDashboard = lazyWithDelay(
 const InstrumentResearch = lazyWithDelay(
   () => import("./pages/InstrumentResearch"),
 );
+const VirtualPortfolio = lazyWithDelay(
+  () => import("./pages/VirtualPortfolio"),
+);
 
 interface AppProps {
   onLogout?: () => void;
@@ -674,6 +677,11 @@ export default function App({ onLogout }: AppProps) {
 
         {mode === "screener" && <ScreenerQuery />}
         {mode === "timeseries" && <TimeseriesEdit />}
+        {mode === "virtual" && (
+          <Suspense fallback={<p>{t("app.loading")}</p>}>
+            <VirtualPortfolio />
+          </Suspense>
+        )}
         {mode === "instrumentadmin" && <InstrumentAdmin />}
         {mode === "dataadmin" && <DataAdmin />}
         {mode === "watchlist" && <Watchlist />}

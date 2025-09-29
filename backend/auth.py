@@ -248,43 +248,63 @@ async def get_active_user(
                     return override_candidate
             return None
 
-        def _iter_providers(*roots: Any) -> list[Any]:
-            queue: list[Any] = [root for root in roots if root is not None]
-            providers: list[Any] = []
-            while queue:
-                candidate = queue.pop()
-                ident = id(candidate)
-                if ident in seen_objects:
-                    continue
-                seen_objects.add(ident)
-                providers.append(candidate)
-
-                provider = getattr(candidate, "dependency_overrides_provider", None)
-                if provider is None:
-                    continue
-                if isinstance(provider, (list, tuple, set, frozenset)):
-                    queue.extend(provider)
-                else:
-                    queue.append(provider)
-            return providers
-
-        for candidate in _iter_providers(request.app, getattr(request.app, "router", None)):
-            overrides = getattr(candidate, "dependency_overrides", None)
+        def _extract_override(overrides: Any) -> Callable[..., Any] | None:
+            if overrides is None:
+                return None
             if isinstance(overrides, Mapping):
-                override = _check_mapping(overrides)
-                if override is not None:
-                    return override
-            elif hasattr(overrides, "items"):
+                return _check_mapping(overrides)
+            if hasattr(overrides, "items"):
                 try:
                     items = overrides.items()
                 except Exception:  # pragma: no cover - defensive
                     items = None
                 if items is not None:
-                    # ``items`` could be a generator; wrap in dict to preserve semantics
                     overrides_dict = dict(items)
-                    override = _check_mapping(overrides_dict)
-                    if override is not None:
-                        return override
+                    return _check_mapping(overrides_dict)
+            return None
+
+        owners = [request.app, getattr(request.app, "router", None)]
+
+        # Honour direct overrides registered on the app or router before
+        # exploring any provider chains so test fixtures can replace the
+        # dependency deterministically.
+        for owner in owners:
+            if owner is None:
+                continue
+            override = _extract_override(getattr(owner, "dependency_overrides", None))
+            if override is not None:
+                return override
+
+        queue: list[Any] = []
+        for owner in owners:
+            if owner is None:
+                continue
+            provider = getattr(owner, "dependency_overrides_provider", None)
+            if provider is None:
+                continue
+            if isinstance(provider, (list, tuple, set, frozenset)):
+                queue.extend(provider)
+            else:
+                queue.append(provider)
+
+        while queue:
+            candidate = queue.pop()
+            ident = id(candidate)
+            if ident in seen_objects:
+                continue
+            seen_objects.add(ident)
+
+            override = _extract_override(getattr(candidate, "dependency_overrides", None))
+            if override is not None:
+                return override
+
+            provider = getattr(candidate, "dependency_overrides_provider", None)
+            if provider is None:
+                continue
+            if isinstance(provider, (list, tuple, set, frozenset)):
+                queue.extend(provider)
+            else:
+                queue.append(provider)
 
         return None
 

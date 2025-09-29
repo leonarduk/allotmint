@@ -223,8 +223,13 @@ describe("VirtualPortfolio page", () => {
       </StrictMode>,
     );
 
+    expect(screen.getByTestId("virtual-portfolio-loader")).toBeInTheDocument();
+
     const option = await screen.findByRole("option", { name: "Slow path demo" });
     expect(option).toBeInTheDocument();
+
+    expect(mockGetVirtualPortfolios).toHaveBeenCalledTimes(1);
+    expect(mockGetOwners).toHaveBeenCalledTimes(1);
 
     await waitFor(() => {
       expect(screen.queryByText(/Loading\.\.\./i)).not.toBeInTheDocument();

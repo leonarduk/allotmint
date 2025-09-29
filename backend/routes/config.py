@@ -183,6 +183,12 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         elif google_client_id is None and google_auth_enabled is True:
             raise HTTPException(status_code=400, detail="GOOGLE_CLIENT_ID is empty")
 
+    if google_auth_enabled not in (True, False, None):
+        raise HTTPException(
+            status_code=400,
+            detail="google_auth_enabled must be a boolean or null value",
+        )
+
     auth_section["google_auth_enabled"] = google_auth_enabled
     if google_client_id is None:
         auth_section.pop("google_client_id", None)

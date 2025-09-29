@@ -118,7 +118,11 @@ def build_owner_portfolio(
     accounts_root: Optional[Path] = None,
     *,
     pricing_date: Optional[dt.date] = None,
+    root: Optional[Path] = None,
 ) -> Dict[str, Any]:
+    if root is not None:
+        accounts_root = root
+
     calc = PricingDateCalculator(reporting_date=pricing_date)
     today = calc.today
     pricing_date = calc.reporting_date

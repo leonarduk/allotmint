@@ -38,7 +38,11 @@ import { getGroupDisplayName } from "../utils/groups";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { isCashInstrument } from "../lib/instruments";
-import { createOwnerDisplayLookup, getOwnerDisplayName } from "../utils/owners";
+import {
+  createOwnerDisplayLookup,
+  getOwnerDisplayName,
+  sanitizeOwners,
+} from "../utils/owners";
 import {
   PieChart,
   Pie,
@@ -83,6 +87,7 @@ const computeDayChangePct = (value: number, delta: number): number | null => {
 type Props = {
   slug: string;
   owners?: OwnerSummary[];
+  onSelectMember?: (ownerSlug: string) => void;
   onTradeInfo?: (
     info:
       | {
@@ -97,7 +102,8 @@ type Props = {
 /* ────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────── */
-export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
+export function GroupPortfolioView(props: Props) {
+  const { slug, owners, onTradeInfo } = props;
   const fetchPortfolio = useCallback(() => getGroupPortfolio(slug), [slug]);
   const {
     data: portfolio,
@@ -139,27 +145,58 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
           .getCachedGroupInstruments
       : undefined) ?? getGroupInstruments;
 
-  const ownerLookup = useMemo(
-    () => createOwnerDisplayLookup(owners ?? []),
+  const sanitizedOwners = useMemo(
+    () => (owners ? sanitizeOwners(owners) : []),
     [owners],
+  );
+
+  const allowedOwnerSlugs = useMemo<Set<string> | null>(() => {
+    if (!owners || owners.length === 0) {
+      return null;
+    }
+    const allowed = new Set<string>();
+    sanitizedOwners.forEach(({ owner }) => {
+      if (owner) {
+        allowed.add(owner);
+      }
+    });
+    return allowed;
+  }, [owners, sanitizedOwners]);
+
+  const ownerLookup = useMemo(
+    () => createOwnerDisplayLookup(sanitizedOwners),
+    [sanitizedOwners],
   );
 
   useEffect(() => {
     setActiveOwner(null);
   }, [slug]);
 
+  const visibleAccounts = useMemo(() => {
+    const source = portfolio?.accounts ?? [];
+    if (!allowedOwnerSlugs) {
+      return source;
+    }
+    return source.filter((acct) => {
+      if (!acct.owner) {
+        return true;
+      }
+      return allowedOwnerSlugs.has(acct.owner);
+    });
+  }, [portfolio, allowedOwnerSlugs]);
+
   const ownerTabs = useMemo<
     { value: string; label: string; accountTypes: string[] }[]
   >(
     () => {
-      if (!portfolio?.accounts?.length) return [];
+      if (!visibleAccounts.length) return [];
       const entries: {
         value: string;
         label: string;
         accountTypes: Set<string>;
       }[] = [];
       const index = new Map<string, (typeof entries)[number]>();
-      for (const acct of portfolio.accounts) {
+      for (const acct of visibleAccounts) {
         if (!acct.owner) continue;
         let entry = index.get(acct.owner);
         if (!entry) {
@@ -179,7 +216,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
         accountTypes: Array.from(accountTypes),
       }));
     },
-    [portfolio, ownerLookup],
+    [visibleAccounts, ownerLookup],
   );
 
   useEffect(() => {
@@ -286,13 +323,12 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   }, [portfolio, onTradeInfo]);
 
   const filteredAccounts = useMemo(() => {
-    const source = portfolio?.accounts ?? [];
-    return source.filter((acct) => {
+    return visibleAccounts.filter((acct) => {
       if (activeOwner && acct.owner !== activeOwner) return false;
       if (activeAccountType && acct.account_type !== activeAccountType) return false;
       return true;
     });
-  }, [portfolio, activeOwner, activeAccountType]);
+  }, [visibleAccounts, activeOwner, activeAccountType]);
 
   const totals = useMemo(
     () => computePortfolioTotals(filteredAccounts),
@@ -464,6 +500,12 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       return next;
     });
   }, []);
+
+  const handleOwnerSelect = (owner: string | null | undefined) => {
+    if (!owner || owner === "—") return;
+    if (!props.onSelectMember) return;
+    props.onSelectMember(owner);
+  };
 
   /* ── early-return states ───────────────────────────────── */
   if (!slug) return <p>{t("group.select")}</p>;
@@ -712,7 +754,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                     onClick={() => hasAccounts && toggleOwnerExpansion(row.owner)}
                     className={hasAccounts ? tableStyles.clickable : undefined}
                   >
-                    <td className={tableStyles.cell}>
+                    <td
+                      className={tableStyles.cell}
+                      onClick={() => handleOwnerSelect(row.owner)}
+                    >
                       {hasAccounts && (
                         <span style={{ marginRight: "0.5rem" }}>
                           {isExpanded ? "▾" : "▸"}

@@ -127,7 +127,9 @@ const mockAllFetches = (
     if (url.includes("/portfolio-group/") && url.includes("/instruments")) {
       const parsed = new URL(url);
       const owner = parsed.searchParams.get("owner");
-      const account = parsed.searchParams.get("account");
+      const account =
+        parsed.searchParams.get("account") ??
+        parsed.searchParams.get("account_type");
       const key = instrumentKey(owner, account);
       const rows = instruments[key] ?? defaultInstrumentRows;
       return Promise.resolve({
@@ -255,6 +257,62 @@ describe("GroupPortfolioView", () => {
     expect(within(ownerTable!).getByText("25.00%")).toBeInTheDocument();
     expect(within(ownerTable!).getByText("-4.76%")).toBeInTheDocument();
     expect(screen.queryByText("Total Value")).toBeNull();
+  });
+
+  it("omits blocked owners from the summary view", async () => {
+    const ownersWithBlocked: OwnerSummary[] = [
+      ...ownerFixtures,
+      { owner: "demo", full_name: "Demo Owner", accounts: ["isa"] },
+    ];
+
+    const mockPortfolio = {
+      name: "Filtered demo",
+      accounts: [
+        {
+          owner: "alice",
+          account_type: "isa",
+          value_estimate_gbp: 100,
+          holdings: [],
+        },
+        {
+          owner: "demo",
+          account_type: "isa",
+          value_estimate_gbp: 200,
+          holdings: [],
+        },
+        {
+          owner: null,
+          account_type: "isa",
+          value_estimate_gbp: 50,
+          holdings: [],
+        },
+      ],
+    };
+
+    mockAllFetches(mockPortfolio);
+
+    renderWithConfig(<GroupPortfolioView slug="all" owners={ownersWithBlocked} />);
+
+    const aliceTab = await screen.findByRole("tab", { name: "Alice Example" });
+    expect(aliceTab).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Demo Owner" })).not.toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("table")
+          .some((table) => within(table).queryByText("Owner")),
+      ).toBe(true),
+    );
+
+    const ownerTable = screen
+      .getAllByRole("table")
+      .find((table) => within(table).queryByText("Owner"));
+    expect(ownerTable).toBeTruthy();
+
+    expect(within(ownerTable!).getByText("Alice Example")).toBeInTheDocument();
+    expect(within(ownerTable!).queryByText("Demo Owner")).not.toBeInTheDocument();
+    expect(within(ownerTable!).queryByText("demo")).not.toBeInTheDocument();
   });
 
   it("suppresses day change percentage when the baseline is nearly zero", async () => {
@@ -462,7 +520,7 @@ describe("GroupPortfolioView", () => {
       expect(
         fetchMock.mock.calls.some(([input]) =>
           toUrlString(input as RequestInfo | URL).includes("owner=alice") &&
-          toUrlString(input as RequestInfo | URL).includes("account=isa"),
+          toUrlString(input as RequestInfo | URL).includes("account_type=isa"),
         ),
       ).toBe(true),
     );

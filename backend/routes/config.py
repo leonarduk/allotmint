@@ -103,9 +103,11 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     existing_data = _normalise_config_structure(stored_data)
 
+    incoming_payload: Dict[str, Any] = payload or {}
+
     merged_data = deepcopy(stored_data)
-    if payload:
-        deep_merge(merged_data, payload)
+    if incoming_payload:
+        deep_merge(merged_data, incoming_payload)
 
     data = _normalise_config_structure(merged_data)
     has_changes = data != existing_data

@@ -176,8 +176,17 @@ export const getOwners = () =>
   fetchJson<OwnerSummary[]>(`${API_BASE}/owners`);
 
 /** Fetch the portfolio tree for a single owner. */
-export const getPortfolio = (owner: string) =>
-  fetchJson<Portfolio>(`${API_BASE}/portfolio/${owner}`);
+export const getPortfolio = (
+  owner: string,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  return fetchJson<Portfolio>(
+    `${API_BASE}/portfolio/${owner}${qs ? `?${qs}` : ""}`,
+  );
+};
 
 /** List the configured groups (e.g. "adults", "children"). */
 export const getGroups = () =>
@@ -444,9 +453,11 @@ export const getPerformance = (
   owner: string,
   days = 365,
   excludeCash = false,
+  opts: { asOf?: string | null } = {},
 ): Promise<PerformanceResponse> => {
   const params = new URLSearchParams({ days: String(days) });
   if (excludeCash) params.set("exclude_cash", "1");
+  if (opts.asOf) params.set("as_of", opts.asOf);
   const base = fetchJson<{
     owner: string;
     history: PerformancePoint[];
@@ -456,10 +467,14 @@ export const getPerformance = (
     `${API_BASE}/performance/${owner}?${params.toString()}`,
   );
   const twr = fetchJson<{ owner: string; time_weighted_return: number | null }>(
-    `${API_BASE}/performance/${owner}/twr?days=${days}`,
+    `${API_BASE}/performance/${owner}/twr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
   );
   const xirr = fetchJson<{ owner: string; xirr: number | null }>(
-    `${API_BASE}/performance/${owner}/xirr?days=${days}`,
+    `${API_BASE}/performance/${owner}/xirr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
   );
   return Promise.all([base, twr, xirr]).then(([p, t, x]) => ({
     history: p.history,
@@ -474,10 +489,14 @@ export const getAlphaVsBenchmark = (
   owner: string,
   benchmark: string,
   days = 365,
-) =>
-  fetchJson<AlphaResponse>(
-    `${API_BASE}/performance/${owner}/alpha?benchmark=${benchmark}&days=${days}`,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams({ benchmark, days: String(days) });
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  return fetchJson<AlphaResponse>(
+    `${API_BASE}/performance/${owner}/alpha?${params.toString()}`,
   );
+};
 
 export const getPortfolioHoldings = (owner: string, date: string) =>
   fetchJson<{ owner: string; date: string; holdings: HoldingValue[] }>(
@@ -488,15 +507,26 @@ export const getTrackingError = (
   owner: string,
   benchmark: string,
   days = 365,
-) =>
-  fetchJson<TrackingErrorResponse>(
-    `${API_BASE}/performance/${owner}/tracking-error?benchmark=${benchmark}&days=${days}`,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams({ benchmark, days: String(days) });
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  return fetchJson<TrackingErrorResponse>(
+    `${API_BASE}/performance/${owner}/tracking-error?${params.toString()}`,
   );
+};
 
-export const getMaxDrawdown = (owner: string, days = 365) =>
-  fetchJson<MaxDrawdownResponse>(
-    `${API_BASE}/performance/${owner}/max-drawdown?days=${days}`,
+export const getMaxDrawdown = (
+  owner: string,
+  days = 365,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  return fetchJson<MaxDrawdownResponse>(
+    `${API_BASE}/performance/${owner}/max-drawdown?${params.toString()}`,
   );
+};
 
 export const getReturnComparison = (owner: string, days = 365) =>
   fetchJson<ReturnComparisonResponse>(

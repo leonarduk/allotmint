@@ -31,7 +31,11 @@ def test_generate_signals_rsi_extremes(monkeypatch):
 
 def test_alert_on_drawdown_handles_missing_perf(monkeypatch):
     monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
-    monkeypatch.setattr(trading_agent, "compute_owner_performance", lambda owner: (_ for _ in ()).throw(FileNotFoundError))
+    monkeypatch.setattr(
+        trading_agent,
+        "compute_owner_performance",
+        lambda owner, **kwargs: (_ for _ in ()).throw(FileNotFoundError),
+    )
     calls = []
     monkeypatch.setattr(trading_agent, "send_trade_alert", lambda msg: calls.append(msg))
     trading_agent._alert_on_drawdown()
@@ -40,7 +44,11 @@ def test_alert_on_drawdown_handles_missing_perf(monkeypatch):
 
 def test_alert_on_drawdown_emits_alert(monkeypatch):
     monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
-    monkeypatch.setattr(trading_agent, "compute_owner_performance", lambda owner: {"max_drawdown": -0.3})
+    monkeypatch.setattr(
+        trading_agent,
+        "compute_owner_performance",
+        lambda owner, **kwargs: {"max_drawdown": -0.3},
+    )
     calls = []
     monkeypatch.setattr(trading_agent, "send_trade_alert", lambda msg: calls.append(msg))
     trading_agent._alert_on_drawdown(0.2)

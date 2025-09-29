@@ -35,6 +35,8 @@ export interface Holding {
   instrument_type?: string | null;
   sector?: string | null;
   region?: string | null;
+  forward_7d_change_pct?: number | null;
+  forward_30d_change_pct?: number | null;
 
   days_held?: number;
   sell_eligible?: boolean;

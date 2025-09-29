@@ -10,6 +10,7 @@ Virtual "group portfolio" builder.
 
 import datetime as dt
 import logging
+from datetime import date
 from typing import Any, Dict, List
 
 from backend.common.approvals import load_approvals
@@ -69,7 +70,7 @@ def list_groups() -> List[Dict[str, Any]]:
 
 
 # ───────────────────────── core builder ─────────────────────────
-def build_group_portfolio(slug: str) -> Dict[str, Any]:
+def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dict[str, Any]:
     groups = {g["slug"]: g for g in list_groups()}
     grp = groups.get(slug)
     if not grp:
@@ -85,7 +86,7 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
     approvals_map = {pf[OWNER]: load_approvals(pf[OWNER]) for pf in portfolios_to_merge}
     user_cfg_map = {pf[OWNER]: load_user_config(pf[OWNER]) for pf in portfolios_to_merge}
 
-    calc = PricingDateCalculator()
+    calc = PricingDateCalculator(reporting_date=pricing_date)
     today = calc.today
     pricing_date = calc.reporting_date
     price_cache: dict[str, float] = {}
@@ -106,6 +107,7 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
                     price_cache,
                     approvals_map.get(owner),
                     user_cfg_map.get(owner),
+                    calc=calc,
                 )
                 for h in holdings
             ]

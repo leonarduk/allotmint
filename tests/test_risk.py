@@ -16,7 +16,7 @@ def test_compute_sharpe_ratio(monkeypatch):
     monkeypatch.setattr(
         risk.portfolio_utils,
         "compute_owner_performance",
-        lambda owner, days=3, include_cash=True: data,
+        lambda owner, days=3, include_cash=True, **kwargs: data,
     )
     monkeypatch.setattr(risk.config, "risk_free_rate", 0.01)
     rf = 0.01
@@ -33,7 +33,7 @@ def test_compute_sharpe_ratio_insufficient(monkeypatch):
     monkeypatch.setattr(
         risk.portfolio_utils,
         "compute_owner_performance",
-        lambda owner, days=3, include_cash=True: [],
+        lambda owner, days=3, include_cash=True, **kwargs: [],
     )
     assert risk.compute_sharpe_ratio("steve", days=3) is None
 

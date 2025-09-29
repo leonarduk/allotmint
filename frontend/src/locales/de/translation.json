@@ -140,6 +140,8 @@
       "eligible": "Berechtigt?",
       "gain": "Gewinn £",
       "gainPct": "Gewinn %",
+      "forward7d": "7d change",
+      "forward30d": "30d change",
       "market": "Markt £",
       "name": "Name",
       "price": "Preis £",

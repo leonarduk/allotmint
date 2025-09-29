@@ -251,6 +251,7 @@ export default function App({ onLogout }: AppProps) {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [portfolioAsOf, setPortfolioAsOf] = useState<string | null>(null);
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -290,6 +291,11 @@ export default function App({ onLogout }: AppProps) {
     },
     [navigate],
   );
+
+
+  const handlePortfolioDateChange = useCallback((isoDate: string | null) => {
+    setPortfolioAsOf(isoDate);
+  }, []);
 
   const handleLogout = useCallback(() => {
     portfolioCache.current.clear();
@@ -490,51 +496,23 @@ export default function App({ onLogout }: AppProps) {
 
   // data fetching based on route
   useEffect(() => {
-    if (mode !== "owner" || !selectedOwner) {
-      return;
+
+    if (mode === "owner" && selectedOwner) {
+      setLoading(true);
+      setErr(null);
+      const opts = portfolioAsOf ? { asOf: portfolioAsOf } : undefined;
+      getPortfolio(selectedOwner, opts)
+        .then(setPortfolio)
+        .catch((e) => setErr(String(e)))
+        .finally(() => setLoading(false));
     }
-
-    setErr(null);
-
-    const refreshKey = lastRefresh ?? null;
-    const cached = portfolioCache.current.get(selectedOwner);
-
-    if (cached && cached.lastRefresh === refreshKey) {
-      setPortfolio(cached.data);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    let cancelled = false;
-
-    getPortfolio(selectedOwner)
-      .then((data) => {
-        if (cancelled) return;
-        setPortfolio(data);
-        portfolioCache.current.set(selectedOwner, {
-          data,
-          fetchedAt: Date.now(),
-          lastRefresh: refreshKey,
-        });
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setErr(String(e));
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, selectedOwner, lastRefresh]);
+  }, [mode, selectedOwner, portfolioAsOf]);
 
   useEffect(() => {
-    portfolioCache.current.clear();
-  }, [lastRefresh]);
+    if (mode === "owner" && selectedOwner) {
+      setPortfolioAsOf(null);
+    }
+  }, [mode, selectedOwner]);
 
   useEffect(() => {
     if (mode === "instrument" && selectedGroup) {
@@ -626,7 +604,12 @@ export default function App({ onLogout }: AppProps) {
               />
             </div>
             <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-            <PortfolioView data={portfolio} loading={loading} error={err} />
+            <PortfolioView
+              data={portfolio}
+              loading={loading}
+              error={err}
+              onDateChange={handlePortfolioDateChange}
+            />
           </>
         )}
 

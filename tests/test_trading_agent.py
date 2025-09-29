@@ -414,7 +414,11 @@ def test_run_generates_ma_signal(monkeypatch):
     monkeypatch.setattr(trading_agent, "_log_trade", lambda *a, **k: None)
     monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
     monkeypatch.setattr(trading_agent.compliance, "check_trade", lambda trade: {"warnings": []})
-    monkeypatch.setattr(trading_agent, "compute_owner_performance", lambda owner: {"max_drawdown": None})
+    monkeypatch.setattr(
+        trading_agent,
+        "compute_owner_performance",
+        lambda owner, **kwargs: {"max_drawdown": None},
+    )
 
     class F:
         def __init__(self, ticker: str):
@@ -462,7 +466,7 @@ def test_alert_on_drawdown_handles_value_error(monkeypatch):
     """Ensure ValueError in performance computation doesn't leak."""
     monkeypatch.setattr(trading_agent, "list_portfolios", lambda: [{"owner": "alice"}])
 
-    def fake_perf(owner: str):
+    def fake_perf(owner: str, **kwargs):
         raise ValueError("cache gap")
 
     monkeypatch.setattr(trading_agent, "compute_owner_performance", fake_perf)

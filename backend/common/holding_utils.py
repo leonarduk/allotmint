@@ -324,6 +324,8 @@ def enrich_holding(
     price_cache: dict[str, float],
     approvals: dict[str, dt.date] | None = None,
     user_config: UserConfig | None = None,
+    *,
+    calc: PricingDateCalculator | None = None,
 ) -> Dict[str, Any]:
     """
     Canonical enrichment used by both owner and group builders.
@@ -432,7 +434,7 @@ def enrich_holding(
     if out.get(ACQUIRED_DATE) is None:
         out[ACQUIRED_DATE] = (today - dt.timedelta(days=365)).isoformat()
 
-    calc = PricingDateCalculator(today)
+    calc = calc or PricingDateCalculator(today=today)
     acq = _parse_date(out.get(ACQUIRED_DATE))
     pricing_date = calc.reporting_date
 
@@ -482,6 +484,9 @@ def enrich_holding(
     px = px_source = prev_px = None
     last_price_time = None
     is_stale = True
+    out["forward_7d_change_pct"] = None
+    out["forward_30d_change_pct"] = None
+
     if units != 0:
         from backend.common import portfolio_utils as pu  # local import to avoid circular
 
@@ -503,6 +508,29 @@ def enrich_holding(
         prev_px, _ = _get_price_for_date_scaled(
             ticker, exchange, prev_date, field="Close_gbp"
         )
+
+        if px is not None:
+            days_since = max(0, (dt.date.today() - pricing_date).days)
+            if days_since >= 7:
+                future_candidate = pricing_date + timedelta(days=7)
+                future_date = calc.resolve_weekday(future_candidate, forward=True)
+                if future_date > pricing_date:
+                    future_px, _ = _get_price_for_date_scaled(
+                        ticker, exchange, future_date, field="Close_gbp"
+                    )
+                    if future_px is not None:
+                        change = (future_px / px) - 1
+                        out["forward_7d_change_pct"] = round(change * 100, 4)
+            if days_since >= 30:
+                future_candidate = pricing_date + timedelta(days=30)
+                future_date = calc.resolve_weekday(future_candidate, forward=True)
+                if future_date > pricing_date:
+                    future_px, _ = _get_price_for_date_scaled(
+                        ticker, exchange, future_date, field="Close_gbp"
+                    )
+                    if future_px is not None:
+                        change = (future_px / px) - 1
+                        out["forward_30d_change_pct"] = round(change * 100, 4)
 
     out["price"] = px  # legacy name used in parts of UI
     out["current_price_gbp"] = px

@@ -24,12 +24,16 @@ const VIEW_PRESET_STORAGE_KEY = "holdingsTableViewPreset";
 type Props = {
   holdings: Holding[];
   onSelectInstrument?: (ticker: string, name: string) => void;
+  showForward7d?: boolean;
+  showForward30d?: boolean;
 };
 
 
 export function HoldingsTable({
   holdings,
   onSelectInstrument,
+  showForward7d = false,
+  showForward30d = false,
 }: Props) {
   const { t } = useTranslation();
   const { relativeViewEnabled, baseCurrency } = useConfig();
@@ -325,6 +329,12 @@ export function HoldingsTable({
                 />
               </th>
             )}
+            {showForward7d && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+            )}
+            {showForward30d && (
+              <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
+            )}
             <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
             <th className={tableStyles.cell}></th>
             <th className={`${tableStyles.cell} ${tableStyles.right}`}></th>
@@ -386,6 +396,24 @@ export function HoldingsTable({
                 {t("holdingsTable.columns.gainPct")}{sortKey === "gain_pct" ? (asc ? " ▲" : " ▼") : ""}
               </th>
             )}
+            {showForward7d && (
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort("forward_7d_change_pct")}
+              >
+                {t("holdingsTable.columns.forward7d")}
+                {sortKey === "forward_7d_change_pct" ? (asc ? " ▲" : " ▼") : ""}
+              </th>
+            )}
+            {showForward30d && (
+              <th
+                className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
+                onClick={() => handleSort("forward_30d_change_pct")}
+              >
+                {t("holdingsTable.columns.forward30d")}
+                {sortKey === "forward_30d_change_pct" ? (asc ? " ▲" : " ▼") : ""}
+              </th>
+            )}
             <th
               className={`${tableStyles.cell} ${tableStyles.right} ${tableStyles.clickable}`}
               onClick={() => handleSort("weight_pct")}
@@ -407,7 +435,10 @@ export function HoldingsTable({
         <tbody>
           {paddingTop > 0 && (
             <tr style={{ height: paddingTop }}>
-              <td colSpan={21} className="p-0 border-0" />
+              <td
+                colSpan={21 + (showForward7d ? 1 : 0) + (showForward30d ? 1 : 0)}
+                className="p-0 border-0"
+              />
             </tr>
           )}
           {items.map((virtualRow) => {
@@ -547,6 +578,20 @@ export function HoldingsTable({
                     {percent(h.gain_pct, 1)}
                   </td>
                 )}
+                {showForward7d && (
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right} ${getPerformanceClass(h.forward_7d_change_pct)}`}
+                  >
+                    {percent(h.forward_7d_change_pct ?? null, 1)}
+                  </td>
+                )}
+                {showForward30d && (
+                  <td
+                    className={`${tableStyles.cell} ${tableStyles.right} ${getPerformanceClass(h.forward_30d_change_pct)}`}
+                  >
+                    {percent(h.forward_30d_change_pct ?? null, 1)}
+                  </td>
+                )}
                 <td className={`${tableStyles.cell} ${tableStyles.right}`}>
                   {percent(h.weight_pct ?? 0, 1)}
                 </td>
@@ -581,7 +626,10 @@ export function HoldingsTable({
           })}
           {paddingBottom > 0 && (
             <tr style={{ height: paddingBottom }}>
-              <td colSpan={21} className="p-0 border-0" />
+              <td
+                colSpan={21 + (showForward7d ? 1 : 0) + (showForward30d ? 1 : 0)}
+                className="p-0 border-0"
+              />
             </tr>
           )}
         </tbody>
@@ -617,6 +665,12 @@ export function HoldingsTable({
               >
                 {percent(totalGainPct, 1)}
               </td>
+            )}
+            {showForward7d && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>
+            )}
+            {showForward30d && (
+              <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>—</td>
             )}
             <td className={`${tableStyles.cell} ${tableStyles.right} font-semibold`}>
               {percent(totals.weight, 1)}

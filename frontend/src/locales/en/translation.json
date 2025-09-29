@@ -532,14 +532,20 @@
     "delete": "Delete",
     "error": {
       "noData": "No data to save",
-      "unexpectedColumns": "Unexpected column(s): {{columns}}"
+      "unexpectedColumns": "Unexpected column(s): {{columns}}",
+      "invalidScale": "Enter a valid scaling factor greater than zero"
     },
     "exchange": "Exchange",
     "load": "Load",
+    "applyScaling": "Apply scaling",
+    "scaleFactor": "Scale factor",
+    "scaleVolume": "Scale volume",
     "save": "Save",
     "status": {
       "loaded": "Loaded {{count}} rows",
-      "saved": "Saved {{count}} rows"
+      "saved": "Saved {{count}} rows",
+      "scaled": "Applied {{factor}}× scaling to {{count}} rows{{volumeNote}}",
+      "volumeIncluded": " (including volume)"
     },
     "ticker": "Ticker",
     "title": "Time Series Editor"

@@ -1,7 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { ChangeEvent } from "react";
-import { getTimeseries, saveTimeseries, searchInstruments } from "../api";
-import type { PriceEntry } from "../types";
+import {
+  getInstrumentMetadata,
+  getTimeseries,
+  saveTimeseries,
+  searchInstruments,
+} from "../api";
+import type { InstrumentMetadata, PriceEntry } from "../types";
 import { EXCHANGES, type ExchangeCode } from "../lib/exchanges";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
@@ -78,6 +83,12 @@ export function TimeseriesEdit() {
   const [suggestions, setSuggestions] = useState<
     { ticker: string; name: string }[]
   >([]);
+
+  const [scaleFactor, setScaleFactor] = useState<string>("1");
+  const [scaleVolume, setScaleVolume] = useState(false);
+  const userScaleEditedRef = useRef(false);
+  const lastInstrumentKeyRef = useRef<string | null>(null);
+
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(
     "desc",
   );
@@ -86,6 +97,16 @@ export function TimeseriesEdit() {
 
   const safeRows = Array.isArray(rows) ? rows : [];
   const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
+
+
+  const numberFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(undefined, {
+        maximumFractionDigits: 8,
+        useGrouping: false,
+      }),
+    [],
+  );
 
   const sortedRows = useMemo(() => {
     const baseRows = Array.isArray(rows) ? rows : [];
@@ -163,6 +184,95 @@ export function TimeseriesEdit() {
     };
   }, [ticker]);
 
+  useEffect(() => {
+    const trimmed = ticker.trim();
+    if (!trimmed) {
+      lastInstrumentKeyRef.current = null;
+      return;
+    }
+    const instrumentKey = `${trimmed.toUpperCase()}|${exchange}`;
+    if (instrumentKey !== lastInstrumentKeyRef.current) {
+      userScaleEditedRef.current = false;
+      lastInstrumentKeyRef.current = instrumentKey;
+    }
+
+    let ignore = false;
+    const baseTicker = trimmed.split(".")[0] || trimmed;
+    Promise.resolve(
+      getInstrumentMetadata(baseTicker, exchange) as Promise<
+        (InstrumentMetadata & Record<string, unknown>) |
+          Record<string, unknown> |
+          null
+      >,
+    )
+      .then((meta) => {
+        if (ignore || !meta || typeof meta !== "object") return;
+        const possible = [
+          meta["price_scaling"],
+          meta["priceScaling"],
+          meta["scaling"],
+          meta["scale"],
+        ];
+        let suggestion: number | null = null;
+        for (const value of possible) {
+          if (value == null) continue;
+          const parsed = Number(value);
+          if (!Number.isNaN(parsed) && parsed > 0) {
+            suggestion = parsed;
+            break;
+          }
+        }
+        if (suggestion == null) {
+          let detectedCurrency: string | null = null;
+          const topCurrency = meta["currency"] ?? meta["Currency"];
+          if (typeof topCurrency === "string") {
+            detectedCurrency = topCurrency;
+          } else {
+            const metaRecord = meta as Record<string, unknown>;
+            for (const nestedKey of ["price", "quote"]) {
+              const block = metaRecord[nestedKey];
+              if (block && typeof block === "object") {
+                const nested = block as Record<string, unknown>;
+                const nestedCurrency =
+                  nested["currency"] ?? nested["Currency"] ?? null;
+                if (typeof nestedCurrency === "string") {
+                  detectedCurrency = nestedCurrency;
+                  break;
+                }
+              }
+            }
+          }
+          if (detectedCurrency) {
+            const normalized = detectedCurrency.trim().toUpperCase();
+            if (normalized === "GBX" || normalized === "GBXP" || normalized === "GBPX") {
+              suggestion = 0.01;
+            }
+          }
+        }
+        if (
+          suggestion != null &&
+          !Number.isNaN(suggestion) &&
+          suggestion > 0 &&
+          !userScaleEditedRef.current
+        ) {
+          setScaleFactor((current) => {
+            if (current && current.trim() !== "" && current !== "1") {
+              return current;
+            }
+            return String(suggestion);
+          });
+        }
+      })
+      .catch((err: unknown) => {
+        if ((err as { status?: number })?.status !== 404) {
+          console.debug("Failed to fetch instrument metadata", err);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [ticker, exchange]);
+
   async function handleLoad() {
     setError(null);
     try {
@@ -211,6 +321,52 @@ export function TimeseriesEdit() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
+  }
+
+  function handleApplyScaling() {
+    const parsed = Number(scaleFactor);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setError(t("timeseriesEdit.error.invalidScale"));
+      return;
+    }
+    if (!safeRows.length) {
+      setError(t("timeseriesEdit.error.noData"));
+      return;
+    }
+    setError(null);
+    const scaledRows = safeRows.map((entry) => {
+      const scaleValue = <T extends number | null | undefined>(value: T): T => {
+        if (value == null) {
+          return value;
+        }
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+          return value;
+        }
+        const result = numeric * parsed;
+        return (Number.isFinite(result) ? (result as T) : value) as T;
+      };
+      return {
+        ...entry,
+        Open: scaleValue(entry.Open),
+        High: scaleValue(entry.High),
+        Low: scaleValue(entry.Low),
+        Close: scaleValue(entry.Close),
+        Volume: scaleVolume ? scaleValue(entry.Volume) : entry.Volume ?? null,
+      };
+    });
+    setRows(scaledRows);
+    const formattedFactor = numberFormatter.format(parsed);
+    const volumeNote = scaleVolume
+      ? t("timeseriesEdit.status.volumeIncluded")
+      : "";
+    setStatus(
+      t("timeseriesEdit.status.scaled", {
+        factor: formattedFactor,
+        count: scaledRows.length,
+        volumeNote,
+      }),
+    );
   }
 
   return (
@@ -497,6 +653,33 @@ export function TimeseriesEdit() {
         <input type="file" accept=".csv" onChange={handleFile} />{" "}
         <button onClick={handleSave} disabled={!ticker || !safeRows.length}>
           {t("timeseriesEdit.save")}
+        </button>
+      </div>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <label>
+          {t("timeseriesEdit.scaleFactor")}{" "}
+          <input
+            type="number"
+            inputMode="decimal"
+            step="any"
+            value={scaleFactor}
+            onChange={(e) => {
+              userScaleEditedRef.current = true;
+              setScaleFactor(e.target.value);
+            }}
+            style={{ width: "6rem" }}
+          />
+        </label>
+        <label className="flex items-center gap-1">
+          <input
+            type="checkbox"
+            checked={scaleVolume}
+            onChange={(e) => setScaleVolume(e.target.checked)}
+          />
+          {t("timeseriesEdit.scaleVolume")}
+        </label>
+        <button onClick={handleApplyScaling} disabled={!safeRows.length}>
+          {t("timeseriesEdit.applyScaling")}
         </button>
       </div>
       {status && <p style={{ color: "green" }}>{status}</p>}

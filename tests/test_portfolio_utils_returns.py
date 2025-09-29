@@ -134,7 +134,11 @@ def sample_portfolio():
 
 
 def test_portfolio_value_breakdown_aggregates_and_handles_missing(monkeypatch, sample_portfolio):
-    monkeypatch.setattr(pu.portfolio_mod, "build_owner_portfolio", lambda owner: sample_portfolio)
+    monkeypatch.setattr(
+        pu.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: sample_portfolio,
+    )
 
     resolved = {
         "ABC": ("ABC", "L"),
@@ -187,7 +191,7 @@ def test_portfolio_value_breakdown_aggregates_and_handles_missing(monkeypatch, s
 def test_portfolio_value_breakdown_invalid_date(monkeypatch):
     called = False
 
-    def fake_builder(owner):
+    def fake_builder(owner, *, pricing_date=None):
         nonlocal called
         called = True
         return {}
@@ -214,7 +218,11 @@ def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(pu.portfolio_mod, "build_owner_portfolio", lambda owner: portfolio)
+    monkeypatch.setattr(
+        pu.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
     monkeypatch.setattr(
         pu,
         "_PRICE_SNAPSHOT",

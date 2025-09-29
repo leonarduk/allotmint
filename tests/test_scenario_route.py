@@ -23,7 +23,10 @@ def test_scenario_route(monkeypatch):
     monkeypatch.setattr(
         scenario_route,
         "build_owner_portfolio",
-        lambda owner: {"total_value_estimate_gbp": 100.0, "accounts": []},
+        lambda owner, *, pricing_date=None, **_: {
+            "total_value_estimate_gbp": 100.0,
+            "accounts": [],
+        },
     )
 
     def fake_apply_price_shock(pf, ticker, pct):
@@ -63,7 +66,10 @@ def test_historical_scenario_route(monkeypatch):
     monkeypatch.setattr(
         scenario_route,
         "build_owner_portfolio",
-        lambda owner: {"total_value_estimate_gbp": 100.0, "accounts": []},
+        lambda owner, *, pricing_date=None, **_: {
+            "total_value_estimate_gbp": 100.0,
+            "accounts": [],
+        },
     )
 
     client = _auth_client()

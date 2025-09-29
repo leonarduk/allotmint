@@ -18,6 +18,29 @@ from backend.config import (
     validate_google_auth,
 )
 
+_TRUE_STRINGS = {"1", "true", "yes"}
+_FALSE_STRINGS = {"0", "false", "no"}
+
+
+def _normalise_google_auth_flag(value: Any) -> bool | None | Any:
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, int):
+        if value in (0, 1):
+            return bool(value)
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        lowered = stripped.lower()
+        if lowered in _TRUE_STRINGS:
+            return True
+        if lowered in _FALSE_STRINGS:
+            return False
+    return value
+
+
 router = APIRouter(prefix="/config", tags=["config"])
 
 logger = logging.getLogger(__name__)
@@ -126,15 +149,17 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         persisted_auth_section = {}
         persisted_data["auth"] = persisted_auth_section
 
-    google_auth_enabled = auth_section.get("google_auth_enabled")
+    google_auth_enabled = _normalise_google_auth_flag(
+        auth_section.get("google_auth_enabled")
+    )
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
     if env_google_auth is not None:
         env_val_raw = env_google_auth.strip()
         if env_val_raw:
             env_val = env_val_raw.lower()
-            if env_val in {"1", "true", "yes"}:
+            if env_val in _TRUE_STRINGS:
                 google_auth_enabled = True
-            elif env_val in {"0", "false", "no"}:
+            elif env_val in _FALSE_STRINGS:
                 google_auth_enabled = False
             else:
                 raise HTTPException(
@@ -155,8 +180,14 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         env_val = env_google_client_id.strip()
         if env_val:
             google_client_id = env_val
-        elif google_client_id is None and google_auth_enabled:
+        elif google_client_id is None and google_auth_enabled is True:
             raise HTTPException(status_code=400, detail="GOOGLE_CLIENT_ID is empty")
+
+    if google_auth_enabled not in (True, False, None):
+        raise HTTPException(
+            status_code=400,
+            detail="google_auth_enabled must be a boolean or null value",
+        )
 
     auth_section["google_auth_enabled"] = google_auth_enabled
     if google_client_id is None:
@@ -169,8 +200,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     else:
         persisted_auth_section["google_client_id"] = persisted_google_client_id
 
-    should_validate = bool(google_auth_enabled) or google_client_id is not None
-    if should_validate:
+    if google_auth_enabled is True:
         try:
             validate_google_auth(google_auth_enabled, google_client_id)
         except ConfigValidationError as exc:

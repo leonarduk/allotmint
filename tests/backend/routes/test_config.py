@@ -106,7 +106,10 @@ async def test_update_config_supported_env_values(
 
     assert loader.cleared is True
     assert result["google_auth_enabled"] is expected
-    assert calls == [(expected, "payload-id")]
+    if expected:
+        assert calls == [(True, "payload-id")]
+    else:
+        assert calls == []
 
     written = yaml.safe_load(config_path.read_text())
     assert written["auth"]["disable_auth"] is True
@@ -195,6 +198,28 @@ async def test_update_config_noop_payload_preserves_config(
     assert calls == []
     assert loader.cleared is True
     assert config_path.read_text() == original_contents
+    assert result["google_auth_enabled"] is False
+    assert result["google_client_id"] is None
+
+
+async def test_update_config_accepts_string_false_flag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config_path = tmp_path / "config.yaml"
+    _write_config(config_path, {"auth": {"google_auth_enabled": "false"}})
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+    loader = _patch_loader(
+        monkeypatch,
+        _DummyConfig(google_auth_enabled=False, google_client_id=None),
+    )
+    dummy_config = _DummyConfig(google_auth_enabled=False, google_client_id=None)
+    monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
+    calls = _spy_validate(monkeypatch)
+
+    result = await routes_config.update_config({})
+
+    assert loader.cleared is True
+    assert calls == []
     assert result["google_auth_enabled"] is False
     assert result["google_client_id"] is None
 

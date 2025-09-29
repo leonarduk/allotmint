@@ -103,16 +103,17 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     existing_data = _normalise_config_structure(stored_data)
 
-    if not payload:
-        return serialise_config(config_module.config)
+    payload_data = payload if isinstance(payload, dict) else {}
+    current_cfg = config_module.config
+    current_google_auth_enabled = getattr(current_cfg, "google_auth_enabled", None)
+    current_google_client_id = getattr(current_cfg, "google_client_id", None)
 
     merged_data = deepcopy(stored_data)
-    deep_merge(merged_data, payload)
+    deep_merge(merged_data, payload_data)
 
     data = _normalise_config_structure(merged_data)
 
-    if data == existing_data:
-        return serialise_config(config_module.config)
+    unchanged = data == existing_data
 
     persisted_data = deepcopy(data)
 
@@ -178,6 +179,25 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         except ConfigValidationError as exc:
             logger.error("Invalid config update: %s", exc)
             raise HTTPException(status_code=400, detail=str(exc))
+
+    env_changed = (
+        google_auth_enabled != current_google_auth_enabled
+        or google_client_id != current_google_client_id
+    )
+
+    if unchanged:
+        if env_changed:
+            try:
+                cfg = config_module.reload_config()
+                response = serialise_config(cfg)
+            except ConfigValidationError as exc:
+                logger.error("Invalid config after reload: %s", exc)
+                raise HTTPException(status_code=400, detail=str(exc))
+        else:
+            response = serialise_config(config_module.config)
+        response["google_auth_enabled"] = google_auth_enabled
+        response["google_client_id"] = google_client_id
+        return response
 
     try:
         with path.open("w", encoding="utf-8") as fh:

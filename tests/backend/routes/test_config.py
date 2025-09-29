@@ -197,7 +197,7 @@ async def test_update_config_noop_payload_preserves_config(
     assert result["google_client_id"] is None
 
 
-async def test_update_config_empty_payload_ignores_google_auth_env_toggle(
+async def test_update_config_empty_payload_requires_client_id_for_env_toggle(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     config_path = tmp_path / "config.yaml"
@@ -222,12 +222,47 @@ async def test_update_config_empty_payload_ignores_google_auth_env_toggle(
 
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
 
+    with pytest.raises(HTTPException) as exc:
+        await routes_config.update_config({})
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "google_auth_enabled is true but google_client_id is missing"
+    assert calls == [(True, None)]
+    assert loader.cleared is False
+
+
+async def test_update_config_empty_payload_surfaces_env_values(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config_path = tmp_path / "config.yaml"
+    base_config = {
+        "auth": {
+            "google_auth_enabled": False,
+            "disable_auth": True,
+            "google_client_id": "",
+            "allowed_emails": ["user@example.com"],
+        },
+        "ui": {
+            "theme": "system",
+            "tabs": {"instrument": True, "market": True},
+        },
+    }
+    _write_config(config_path, base_config)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+    loader = _patch_loader(monkeypatch)
+    dummy_config = _DummyConfig(google_auth_enabled=False, google_client_id=None)
+    monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
+    calls = _spy_validate(monkeypatch)
+
+    monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-from-env")
+
     result = await routes_config.update_config({})
 
-    assert calls == []
-    assert loader.cleared is False
-    assert result["google_auth_enabled"] is False
-    assert result["google_client_id"] is None
+    assert calls == [(True, "client-from-env")]
+    assert loader.cleared is True
+    assert result["google_auth_enabled"] is True
+    assert result["google_client_id"] == "client-from-env"
 
 
 async def test_update_config_treats_blank_google_auth_env_as_absent(

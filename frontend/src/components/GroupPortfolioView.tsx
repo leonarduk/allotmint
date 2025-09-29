@@ -38,6 +38,7 @@ import { getGroupDisplayName } from "../utils/groups";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { isCashInstrument } from "../lib/instruments";
+import { formatDateISO } from "../lib/date";
 import { createOwnerDisplayLookup, getOwnerDisplayName } from "../utils/owners";
 import {
   PieChart,
@@ -490,16 +491,34 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const hasFilteredAccounts = filteredAccounts.length > 0;
 
   /* ── render ────────────────────────────────────────────── */
+  const pricingDate = portfolio.as_of
+    ? formatDateISO(new Date(portfolio.as_of))
+    : null;
+
   return (
     <div style={{ marginTop: "1rem" }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: "flex-end",
+          gap: "1rem",
         }}
       >
-        <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
+        <div>
+          <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
+          {pricingDate && (
+            <div
+              style={{
+                marginTop: "0.25rem",
+                fontSize: "0.85rem",
+                color: "#aaa",
+              }}
+            >
+              {t("group.pricingAsOf", { date: pricingDate })}
+            </div>
+          )}
+        </div>
         <RelativeViewToggle />
       </div>
 

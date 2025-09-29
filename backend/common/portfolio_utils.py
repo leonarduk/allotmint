@@ -883,6 +883,8 @@ def compute_owner_performance(
 
     total = total.sort_index()
     total = total[total.index <= calc.reporting_date]
+    if days:
+        total = total.tail(days)
     if total.empty:
         return {
             "history": [],
@@ -1039,7 +1041,10 @@ def _portfolio_value_series(
         total = total.add(values, fill_value=0)
 
     total = total.sort_index()
-    return total[total.index <= calc.reporting_date]
+    total = total[total.index <= calc.reporting_date]
+    if days:
+        total = total.tail(days)
+    return total
 
 
 def _alpha_vs_benchmark(

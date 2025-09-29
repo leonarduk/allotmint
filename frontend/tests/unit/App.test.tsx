@@ -1,10 +1,16 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
-import { MemoryRouter, Link, useLocation } from "react-router-dom";
+import {
+  MemoryRouter,
+  Link,
+  useLocation,
+  createMemoryRouter,
+  RouterProvider,
+} from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n from "@/i18n";
-import type { InstrumentMetadata, InstrumentSummary } from "@/types";
+import type { InstrumentMetadata, InstrumentSummary, Portfolio } from "@/types";
 
 const mockTradingSignals = vi.fn();
 
@@ -540,6 +546,127 @@ describe("App", () => {
       expect(locationUpdates.at(-1)?.startsWith("/portfolio")).toBe(true),
     );
     expect(locationUpdates.some((path) => path.startsWith("/performance"))).toBe(false);
+  });
+
+  it("reuses cached portfolio data when returning from research", async () => {
+    window.history.pushState({}, "", "/portfolio/alice");
+
+    const renderStates: Array<{ loading: boolean; owner: string | null }> = [];
+
+    vi.doMock("@/components/PortfolioView", () => ({
+      PortfolioView: ({
+        data,
+        loading,
+      }: {
+        data: Portfolio | null;
+        loading?: boolean;
+      }) => {
+        renderStates.push({ loading: Boolean(loading), owner: data?.owner ?? null });
+        return (
+          <div data-testid="portfolio-view">
+            {loading ? "loading" : data?.owner ?? "none"}
+          </div>
+        );
+      },
+    }));
+
+    const mockGetOwners = vi
+      .fn()
+      .mockResolvedValue([{ owner: "alice", accounts: [] }]);
+    const mockGetGroups = vi.fn().mockResolvedValue([]);
+    const mockGetPortfolio = vi.fn().mockResolvedValue({
+      owner: "alice",
+      as_of: "2024-01-01T00:00:00.000Z",
+      trades_this_month: 0,
+      trades_remaining: 0,
+      total_value_estimate_gbp: 0,
+      accounts: [],
+    });
+
+    vi.doMock("@/api", async () => {
+      const actual = await vi.importActual<typeof import("@/api")>("@/api");
+      return {
+        ...actual,
+        getOwners: mockGetOwners,
+        getGroups: mockGetGroups,
+        getPortfolio: mockGetPortfolio,
+        getGroupInstruments: vi.fn().mockResolvedValue([]),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(),
+        getGroupTrackingError: vi.fn(),
+        getGroupMaxDrawdown: vi.fn(),
+        getGroupSectorContributions: vi.fn(),
+        getGroupRegionContributions: vi.fn(),
+        getGroupMovers: vi.fn(),
+        getCachedGroupInstruments: vi.fn(),
+        listInstrumentMetadata: vi.fn().mockResolvedValue([]),
+        listInstrumentGroups: vi.fn().mockResolvedValue([]),
+        listInstrumentGroupingDefinitions: vi.fn().mockResolvedValue([]),
+        refreshPrices: vi.fn(),
+        getAlerts: vi.fn().mockResolvedValue([]),
+        getNudges: vi.fn().mockResolvedValue([]),
+        getAlertSettings: vi.fn().mockResolvedValue({ threshold: 0 }),
+        getCompliance: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        complianceForOwner: vi
+          .fn()
+          .mockResolvedValue({ owner: "", warnings: [], trade_counts: {} }),
+        getTimeseries: vi.fn().mockResolvedValue([]),
+        saveTimeseries: vi.fn(),
+        refetchTimeseries: vi.fn(),
+        rebuildTimeseriesCache: vi.fn(),
+        getTradingSignals: vi.fn().mockResolvedValue([]),
+        getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
+        getValueAtRisk: vi.fn().mockResolvedValue({ var: {} }),
+        recomputeValueAtRisk: vi.fn(),
+        getVarBreakdown: vi.fn().mockResolvedValue([]),
+      };
+    });
+
+    const { default: App } = await import("@/App");
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "*",
+          element: <App />,
+        },
+      ],
+      { initialEntries: ["/portfolio/alice"] },
+    );
+
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledTimes(1));
+
+    expect(await screen.findByTestId("portfolio-view")).toHaveTextContent("alice");
+    const initialCount = renderStates.length;
+
+    await act(async () => {
+      await router.navigate("/research/MSFT");
+    });
+
+    await waitFor(() => {
+      const marker = screen.getByTestId("active-route-marker");
+      expect(marker.getAttribute("data-pathname")).toBe("/research/MSFT");
+    });
+
+    await act(async () => {
+      await router.navigate("/portfolio/alice");
+    });
+
+    await waitFor(() => {
+      const marker = screen.getByTestId("active-route-marker");
+      expect(marker.getAttribute("data-pathname")).toBe("/portfolio/alice");
+    });
+
+    expect(await screen.findByTestId("portfolio-view")).toHaveTextContent("alice");
+    expect(mockGetPortfolio).toHaveBeenCalledTimes(1);
+
+    const rerendersAfterNavigation = renderStates.slice(initialCount);
+    expect(rerendersAfterNavigation.every((entry) => entry.loading === false)).toBe(true);
+    expect(rerendersAfterNavigation.at(-1)?.owner).toBe("alice");
   });
 
   it("allows navigation to enabled tabs", async () => {

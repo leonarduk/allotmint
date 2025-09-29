@@ -83,8 +83,18 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
 
     portfolios_to_merge = [pf for pf in list_portfolios() if (pf.get(OWNER, "") or "").lower() in wanted]
 
-    approvals_map = {pf[OWNER]: load_approvals(pf[OWNER]) for pf in portfolios_to_merge}
-    user_cfg_map = {pf[OWNER]: load_user_config(pf[OWNER]) for pf in portfolios_to_merge}
+    approvals_map: Dict[str, Dict[str, dt.date]] = {}
+    user_cfg_map: Dict[str, Any] = {}
+    for pf in portfolios_to_merge:
+        owner = pf[OWNER]
+        try:
+            approvals_map[owner] = load_approvals(owner)
+        except FileNotFoundError:
+            approvals_map[owner] = {}
+        try:
+            user_cfg_map[owner] = load_user_config(owner)
+        except FileNotFoundError:
+            user_cfg_map[owner] = None
 
     calc = PricingDateCalculator(reporting_date=pricing_date)
     today = calc.today

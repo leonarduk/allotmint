@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, Suspense, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  Suspense,
+  type CSSProperties,
+} from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -250,6 +257,17 @@ export default function App({ onLogout }: AppProps) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const portfolioCache = useRef(
+    new Map<
+      string,
+      {
+        data: Portfolio;
+        fetchedAt: number;
+        lastRefresh: string | null;
+      }
+    >(),
+  );
+
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -274,9 +292,16 @@ export default function App({ onLogout }: AppProps) {
     [navigate],
   );
 
+
   const handlePortfolioDateChange = useCallback((isoDate: string | null) => {
     setPortfolioAsOf(isoDate);
   }, []);
+
+  const handleLogout = useCallback(() => {
+    portfolioCache.current.clear();
+    setPortfolio(null);
+    onLogout?.();
+  }, [onLogout]);
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
@@ -471,6 +496,7 @@ export default function App({ onLogout }: AppProps) {
 
   // data fetching based on route
   useEffect(() => {
+
     if (mode === "owner" && selectedOwner) {
       setLoading(true);
       setErr(null);
@@ -524,7 +550,7 @@ export default function App({ onLogout }: AppProps) {
           <Menu
             selectedOwner={selectedOwner}
             selectedGroup={selectedGroup}
-            onLogout={onLogout}
+            onLogout={handleLogout}
             style={{ margin: 0 }}
           />
           <InstrumentSearchBarToggle />

@@ -126,6 +126,7 @@
   },
   "group": {
     "atAGlance": "De un vistazo",
+    "pricingAsOf": "Precios al {{date}}",
     "select": "Seleccione un grupo."
   },
   "holdingsTable": {
@@ -441,14 +442,20 @@
     "delete": "Eliminar",
     "error": {
       "noData": "No hay datos para guardar",
-      "unexpectedColumns": "Columna(s) inesperada(s): {{columns}}"
+      "unexpectedColumns": "Columna(s) inesperada(s): {{columns}}",
+      "invalidScale": "Introduce un factor de escala válido mayor que cero"
     },
     "exchange": "Bolsa",
     "load": "Cargar",
+    "applyScaling": "Aplicar escala",
+    "scaleFactor": "Factor de escala",
+    "scaleVolume": "Escalar volumen",
     "save": "Guardar",
     "status": {
       "loaded": "Cargadas {{count}} filas",
-      "saved": "Guardadas {{count}} filas"
+      "saved": "Guardadas {{count}} filas",
+      "scaled": "Se aplicó una escala de {{factor}}× a {{count}} filas{{volumeNote}}",
+      "volumeIncluded": " (incluyendo volumen)"
     },
     "ticker": "Ticker",
     "title": "Editor de series temporales"

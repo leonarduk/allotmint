@@ -25,6 +25,20 @@ const MAX_INITIAL_LOAD_ATTEMPTS = 3;
 const INITIAL_RETRY_BASE_DELAY_MS = 500;
 const INITIAL_RETRY_MAX_DELAY_MS = 2000;
 
+let initialDataPromise: Promise<[VP[], OwnerSummary[]]> | null = null;
+
+async function resolveInitialData() {
+  if (!initialDataPromise) {
+    initialDataPromise = Promise.all([getVirtualPortfolios(), getOwners()]);
+  }
+
+  try {
+    return await initialDataPromise;
+  } finally {
+    initialDataPromise = null;
+  }
+}
+
 export function VirtualPortfolio() {
   const [portfolios, setPortfolios] = useState<VP[]>([]);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -38,7 +52,8 @@ export function VirtualPortfolio() {
   const [hasLoadedInitialData, setHasLoadedInitialData] = useState(false);
   const [initialLoadInProgress, setInitialLoadInProgress] = useState(true);
   const isMountedRef = useRef(true);
-  const activeLoadRef = useRef(0);
+  const initialLoadStartedRef = useRef(false);
+  const initialLoadInFlightRef = useRef(false);
   const ownerLookup = useMemo(
     () => createOwnerDisplayLookup(owners),
     [owners],
@@ -49,11 +64,13 @@ export function VirtualPortfolio() {
       event: VirtualPortfolioAnalyticsEvent,
       metadata?: Record<string, unknown>,
     ) => {
-      logAnalyticsEvent({
+      const maybePromise = logAnalyticsEvent({
         source: "virtual_portfolio",
         event,
         metadata,
-      }).catch(() => undefined);
+      });
+
+      void maybePromise?.catch?.(() => undefined);
     },
     [],
   );
@@ -62,76 +79,86 @@ export function VirtualPortfolio() {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      activeLoadRef.current += 1;
     };
   }, []);
 
   const loadInitialData = useCallback(async () => {
     if (!isMountedRef.current) return;
 
-    const loadId = activeLoadRef.current + 1;
-    activeLoadRef.current = loadId;
+    if (initialLoadInFlightRef.current) {
+      return;
+    }
+
+    initialLoadInFlightRef.current = true;
 
     setHasLoadedInitialData(false);
-    setInitialLoadInProgress(true);
     setLoading(true);
+    setInitialLoadInProgress(true);
     setMessage(null);
     setError(null);
 
-    for (let attempt = 0; attempt < MAX_INITIAL_LOAD_ATTEMPTS; attempt += 1) {
-      try {
-        const [ps, os] = await Promise.all([
-          getVirtualPortfolios(),
-          getOwners(),
-        ]);
+    try {
+      for (let attempt = 0; attempt < MAX_INITIAL_LOAD_ATTEMPTS; attempt += 1) {
+        try {
+          const [ps, os] = await resolveInitialData();
 
-        if (!isMountedRef.current || loadId !== activeLoadRef.current) {
-          return;
-        }
-
-        setPortfolios(ps);
-        setOwners(sanitizeOwners(os));
-        track("view", { portfolio_count: ps.length });
-        setLoading(false);
-        setHasLoadedInitialData(true);
-        setInitialLoadInProgress(false);
-        return;
-      } catch (e) {
-        const err = e instanceof Error ? e : new Error(String(e));
-
-        if (!isMountedRef.current || loadId !== activeLoadRef.current) {
-          return;
-        }
-
-        const isFinalAttempt = attempt === MAX_INITIAL_LOAD_ATTEMPTS - 1;
-        if (isFinalAttempt) {
-          setError(
-            navigator.onLine
-              ? "Unable to load virtual portfolios. Please try again."
-              : "You appear to be offline.",
-          );
-          setLoading(false);
-          setInitialLoadInProgress(false);
-          errorToast(err);
-          return;
-        }
-
-        const delay = Math.min(
-          INITIAL_RETRY_BASE_DELAY_MS * 2 ** attempt,
-          INITIAL_RETRY_MAX_DELAY_MS,
-        );
-
-        if (delay > 0) {
-          await new Promise<void>((resolve) => setTimeout(resolve, delay));
-          if (!isMountedRef.current || loadId !== activeLoadRef.current) {
+          if (!isMountedRef.current) {
             return;
+          }
+
+          const normalizedPortfolios = Array.isArray(ps) ? ps : [];
+          const normalizedOwners = Array.isArray(os) ? os : [];
+
+          setPortfolios(normalizedPortfolios);
+          setOwners(sanitizeOwners(normalizedOwners));
+          track("view", { portfolio_count: normalizedPortfolios.length });
+          setLoading(false);
+          setHasLoadedInitialData(true);
+          setInitialLoadInProgress(false);
+          return;
+        } catch (e) {
+          const err = e instanceof Error ? e : new Error(String(e));
+
+          if (!isMountedRef.current) {
+            return;
+          }
+
+          const isFinalAttempt = attempt === MAX_INITIAL_LOAD_ATTEMPTS - 1;
+          if (isFinalAttempt) {
+            setError(
+              navigator.onLine
+                ? "Unable to load virtual portfolios. Please try again."
+                : "You appear to be offline.",
+            );
+            setLoading(false);
+            errorToast(err);
+            return;
+          }
+
+          const delay = Math.min(
+            INITIAL_RETRY_BASE_DELAY_MS * 2 ** attempt,
+            INITIAL_RETRY_MAX_DELAY_MS,
+          );
+
+          if (delay > 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, delay));
+            if (!isMountedRef.current) {
+              return;
+            }
           }
         }
       }
+    } finally {
+      initialLoadInFlightRef.current = false;
     }
   }, [track]);
 
   useEffect(() => {
+    if (initialLoadStartedRef.current) {
+      return;
+    }
+
+    initialLoadStartedRef.current = true;
     loadInitialData();
   }, [loadInitialData]);
 

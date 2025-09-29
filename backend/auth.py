@@ -228,12 +228,6 @@ async def get_active_user(
         return result
 
     def _resolve_override() -> Callable[[], Any] | None:
-        queue: list[Any] = [
-            getattr(request.app, "dependency_overrides", None),
-            request.app,
-            getattr(request.app, "router", None),
-            getattr(request.app, "dependency_overrides_provider", None),
-        ]
         seen_objects: Set[int] = set()
         seen_mappings: Set[int] = set()
 
@@ -254,29 +248,27 @@ async def get_active_user(
                     return override_candidate
             return None
 
-        while queue:
-            candidate = queue.pop(0)
-            if candidate is None:
-                continue
+        def _walk_providers(obj: Any) -> Callable[..., Any] | None:
+            candidate = obj
+            while candidate is not None:
+                ident = id(candidate)
+                if ident in seen_objects:
+                    break
+                seen_objects.add(ident)
 
-            if isinstance(candidate, Mapping):
-                override_candidate = _check_mapping(candidate)
-                if override_candidate is not None:
-                    return override_candidate
-                continue
+                overrides = getattr(candidate, "dependency_overrides", None)
+                if isinstance(overrides, Mapping):
+                    override = _check_mapping(overrides)
+                    if override is not None:
+                        return override
 
-            ident = id(candidate)
-            if ident in seen_objects:
-                continue
-            seen_objects.add(ident)
+                candidate = getattr(candidate, "dependency_overrides_provider", None)
+            return None
 
-            overrides = getattr(candidate, "dependency_overrides", None)
-            if isinstance(overrides, Mapping):
-                queue.append(overrides)
-
-            provider = getattr(candidate, "dependency_overrides_provider", None)
-            if provider is not None:
-                queue.append(provider)
+        for root in (request.app, getattr(request.app, "router", None)):
+            override = _walk_providers(root)
+            if override is not None:
+                return override
 
         return None
 

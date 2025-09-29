@@ -9,7 +9,7 @@ def test_compute_alpha_and_tracking_error(monkeypatch: pytest.MonkeyPatch) -> No
     portfolio_series = pd.Series([100.0, 110.0, 115.0], index=dates.date)
 
     def fake_portfolio_value_series(
-        name: str, days: int, *, group: bool = False, pricing_date=None
+        name: str, days: int, *, group: bool = False, pricing_date=None, **_
     ) -> pd.Series:
         assert name == "alice"
         assert days == 365
@@ -38,7 +38,7 @@ def test_compute_metrics_none_when_series_misaligned(monkeypatch: pytest.MonkeyP
     portfolio_series = pd.Series([100.0, 110.0, 115.0], index=dates.date)
 
     def fake_portfolio_value_series(
-        name: str, days: int, *, group: bool = False, pricing_date=None
+        name: str, days: int, *, group: bool = False, pricing_date=None, **_
     ) -> pd.Series:
         return portfolio_series
 
@@ -64,14 +64,14 @@ def test_group_metrics_and_max_drawdown(monkeypatch: pytest.MonkeyPatch) -> None
 
     group_calls: list[str] = []
 
-    def fake_group_portfolio(name: str) -> dict[str, str]:
+    def fake_group_portfolio(name: str, *, pricing_date=None, **_) -> dict[str, str]:
         group_calls.append(name)
         return {"slug": name}
 
     monkeypatch.setattr(portfolio_utils.group_portfolio, "build_group_portfolio", fake_group_portfolio)
 
     def fake_portfolio_value_series(
-        name: str, days: int, *, group: bool = False, pricing_date=None
+        name: str, days: int, *, group: bool = False, pricing_date=None, **_
     ) -> pd.Series:
         if group:
             # Mirror the real helper by touching the group portfolio builder.
@@ -98,7 +98,7 @@ def test_group_metrics_and_max_drawdown(monkeypatch: pytest.MonkeyPatch) -> None
     drawdown_series = pd.Series([100.0, 120.0, 90.0, 110.0], index=drawdown_dates.date)
 
     def fake_drawdown_series(
-        name: str, days: int, *, group: bool = False, pricing_date=None
+        name: str, days: int, *, group: bool = False, pricing_date=None, **_
     ) -> pd.Series:
         if group:
             portfolio_utils.group_portfolio.build_group_portfolio(name)

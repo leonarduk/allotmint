@@ -133,25 +133,20 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         deep_merge(merged_data, incoming_payload)
 
     data = _normalise_config_structure(merged_data)
-    has_changes = data != existing_data
-
-    persisted_data = deepcopy(data)
 
     auth_section = data.get("auth", {}) if isinstance(data, dict) else {}
     if not isinstance(auth_section, dict):
         auth_section = {}
         data["auth"] = auth_section
 
-    persisted_auth_section = (
-        persisted_data.get("auth", {}) if isinstance(persisted_data, dict) else {}
-    )
-    if not isinstance(persisted_auth_section, dict):
-        persisted_auth_section = {}
-        persisted_data["auth"] = persisted_auth_section
+    raw_google_auth_flag = auth_section.get("google_auth_enabled")
+    persisted_google_auth_enabled = _normalise_google_auth_flag(raw_google_auth_flag)
+    google_auth_enabled = persisted_google_auth_enabled
+    persisted_google_client_id = auth_section.get("google_client_id")
+    if isinstance(persisted_google_client_id, str):
+        persisted_google_client_id = persisted_google_client_id.strip() or None
 
-    google_auth_enabled = _normalise_google_auth_flag(
-        auth_section.get("google_auth_enabled")
-    )
+    google_client_id = persisted_google_client_id
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
     if env_google_auth is not None:
         env_val_raw = env_google_auth.strip()
@@ -167,14 +162,6 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
                     detail="GOOGLE_AUTH_ENABLED must be one of '1', 'true', 'yes', '0', 'false', 'no'",
                 )
 
-    google_client_id = auth_section.get("google_client_id")
-    if isinstance(google_client_id, str):
-        google_client_id = google_client_id.strip() or None
-
-    persisted_google_client_id = persisted_auth_section.get("google_client_id")
-    if isinstance(persisted_google_client_id, str):
-        persisted_google_client_id = persisted_google_client_id.strip() or None
-
     env_google_client_id = os.getenv("GOOGLE_CLIENT_ID")
     if env_google_client_id is not None:
         env_val = env_google_client_id.strip()
@@ -183,22 +170,13 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         elif google_client_id is None and google_auth_enabled is True:
             raise HTTPException(status_code=400, detail="GOOGLE_CLIENT_ID is empty")
 
-    if google_auth_enabled not in (True, False, None):
+    if persisted_google_auth_enabled not in (True, False, None):
         raise HTTPException(
             status_code=400,
             detail="google_auth_enabled must be a boolean or null value",
         )
 
-    auth_section["google_auth_enabled"] = google_auth_enabled
-    if google_client_id is None:
-        auth_section.pop("google_client_id", None)
-    else:
-        auth_section["google_client_id"] = google_client_id
-
-    if persisted_google_client_id is None:
-        persisted_auth_section.pop("google_client_id", None)
-    else:
-        persisted_auth_section["google_client_id"] = persisted_google_client_id
+    auth_section["google_auth_enabled"] = persisted_google_auth_enabled
 
     if google_auth_enabled is True:
         try:
@@ -206,6 +184,22 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
         except ConfigValidationError as exc:
             logger.error("Invalid config update: %s", exc)
             raise HTTPException(status_code=400, detail=str(exc))
+
+    has_changes = data != existing_data
+
+    persisted_data = deepcopy(data)
+    persisted_auth_section = (
+        persisted_data.get("auth", {}) if isinstance(persisted_data, dict) else {}
+    )
+    if not isinstance(persisted_auth_section, dict):
+        persisted_auth_section = {}
+        persisted_data["auth"] = persisted_auth_section
+
+    persisted_auth_section["google_auth_enabled"] = persisted_google_auth_enabled
+    if persisted_google_client_id is None:
+        persisted_auth_section.pop("google_client_id", None)
+    else:
+        persisted_auth_section["google_client_id"] = persisted_google_client_id
 
     if has_changes:
         try:

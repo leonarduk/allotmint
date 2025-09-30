@@ -122,7 +122,6 @@ def build_owner_portfolio(
 ) -> Dict[str, Any]:
     if root is not None:
         accounts_root = root
-
     calc = PricingDateCalculator(reporting_date=pricing_date)
     today = calc.today
     pricing_date = calc.reporting_date

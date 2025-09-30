@@ -248,6 +248,19 @@ async def get_active_user(
                     return override_candidate
             return None
 
+        def _check_any_mapping(overrides: Any) -> Callable[..., Any] | None:
+            if isinstance(overrides, Mapping):
+                return _check_mapping(overrides)
+            if hasattr(overrides, "items"):
+                try:
+                    items = overrides.items()
+                except Exception:  # pragma: no cover - defensive
+                    items = None
+                if items is not None:
+                    overrides_dict = dict(items)
+                    return _check_mapping(overrides_dict)
+            return None
+
         def _iter_providers(*roots: Any) -> list[Any]:
             queue: list[Any] = [root for root in roots if root is not None]
             providers: list[Any] = []
@@ -268,23 +281,19 @@ async def get_active_user(
                     queue.append(provider)
             return providers
 
+        direct_mappings = [
+            getattr(request.app, "dependency_overrides", None),
+            getattr(getattr(request.app, "router", None), "dependency_overrides", None),
+        ]
+        for overrides in direct_mappings:
+            override = _check_any_mapping(overrides)
+            if override is not None:
+                return override
+
         for candidate in _iter_providers(request.app, getattr(request.app, "router", None)):
-            overrides = getattr(candidate, "dependency_overrides", None)
-            if isinstance(overrides, Mapping):
-                override = _check_mapping(overrides)
-                if override is not None:
-                    return override
-            elif hasattr(overrides, "items"):
-                try:
-                    items = overrides.items()
-                except Exception:  # pragma: no cover - defensive
-                    items = None
-                if items is not None:
-                    # ``items`` could be a generator; wrap in dict to preserve semantics
-                    overrides_dict = dict(items)
-                    override = _check_mapping(overrides_dict)
-                    if override is not None:
-                        return override
+            override = _check_any_mapping(getattr(candidate, "dependency_overrides", None))
+            if override is not None:
+                return override
 
         return None
 

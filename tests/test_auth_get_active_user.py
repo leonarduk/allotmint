@@ -43,6 +43,9 @@ def _mapping_override(
     app: FastAPI, override: Callable[[], Any], target: Literal["app", "router"] = "app"
 ):
     owner = app if target == "app" else app.router
+    previous_provider = getattr(owner, "dependency_overrides_provider", _MISSING)
+    if previous_provider is not _MISSING:
+        delattr(owner, "dependency_overrides_provider")
     previous_mapping = getattr(owner, "dependency_overrides", _MISSING)
     if previous_mapping is _MISSING:
         mapping: dict[Any, Callable[..., Any]] = {}
@@ -58,6 +61,11 @@ def _mapping_override(
         if previous_mapping is _MISSING:
             if hasattr(owner, "dependency_overrides"):
                 delattr(owner, "dependency_overrides")
+        if previous_provider is _MISSING:
+            if hasattr(owner, "dependency_overrides_provider"):
+                delattr(owner, "dependency_overrides_provider")
+        else:
+            owner.dependency_overrides_provider = previous_provider
 
 
 async def _empty_receive() -> dict[str, object]:

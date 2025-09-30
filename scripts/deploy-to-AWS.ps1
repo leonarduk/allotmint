@@ -184,6 +184,44 @@ if ($pipProcess.ExitCode -ne 0) {
   exit $pipProcess.ExitCode
 }
 
+  $frontendDir = Join-Path $REPO_ROOT 'frontend'
+  if (-not (Test-Path $frontendDir)) {
+    Write-Host "Frontend workspace not found at $frontendDir" -ForegroundColor Red
+    exit 1
+  }
+
+  Push-Location $frontendDir
+  try {
+    $buildExitCode = 0
+    $buildScript = Join-Path $frontendDir 'build.sh'
+    if (Test-Path $buildScript) {
+      $bashCmd = Get-Command bash -ErrorAction SilentlyContinue
+      if (-not $bashCmd) {
+        Write-Host 'bash is required to run frontend/build.sh but was not found in PATH.' -ForegroundColor Red
+        throw 'bash is required to run frontend/build.sh but was not found in PATH.'
+      }
+      Write-Host 'Running frontend/build.sh in the frontend workspace...' -ForegroundColor Cyan
+      & $bashCmd.Path $buildScript
+      $buildExitCode = $LASTEXITCODE
+    } else {
+      $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
+      if (-not $npmCmd) {
+        Write-Host 'npm CLI not found. Install Node.js and npm to build the frontend.' -ForegroundColor Red
+        throw 'npm CLI not found. Install Node.js and npm to build the frontend.'
+      }
+      Write-Host 'Running `npm run build` in the frontend workspace...' -ForegroundColor Cyan
+      & $npmCmd.Path 'run' 'build'
+      $buildExitCode = $LASTEXITCODE
+    }
+
+    if ($buildExitCode -ne 0) {
+      Write-Host "Frontend build failed with exit code $buildExitCode" -ForegroundColor Red
+      throw "Frontend build failed with exit code $buildExitCode"
+    }
+  } finally {
+    Pop-Location
+  }
+
 if ($Backend) {
   if (-not $env:DATA_BUCKET -and -not $DataBucket) {
     Write-Host 'Provide the S3 bucket for account data via -DataBucket or DATA_BUCKET environment variable.' -ForegroundColor Red

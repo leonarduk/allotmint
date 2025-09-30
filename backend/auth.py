@@ -228,72 +228,80 @@ async def get_active_user(
         return result
 
     def _resolve_override() -> Callable[[], Any] | None:
-        seen_objects: Set[int] = set()
         seen_mappings: Set[int] = set()
 
-        def _check_mapping(mapping: Mapping[Any, Callable[..., Any]]) -> Callable[..., Any] | None:
+        def _match_override(overrides: Any) -> Callable[..., Any] | None:
+            if overrides is None:
+                return None
+
+            mapping: Mapping[Any, Callable[..., Any]] | None = None
+            if isinstance(overrides, Mapping):
+                mapping = overrides
+            elif hasattr(overrides, "items"):
+                try:
+                    mapping = dict(overrides.items())
+                except Exception:  # pragma: no cover - defensive
+                    mapping = None
+
+            if not mapping:
+                return None
+
             mapping_id = id(mapping)
             if mapping_id in seen_mappings:
                 return None
             seen_mappings.add(mapping_id)
 
-            for key, override_candidate in mapping.items():
-                if key is get_current_user:
+            for dependency, override_candidate in mapping.items():
+                if dependency is get_current_user:
                     return override_candidate
                 try:
-                    unwrapped = inspect.unwrap(key)
+                    unwrapped = inspect.unwrap(dependency)
                 except Exception:  # pragma: no cover - defensive; unwrap shouldn't raise
-                    unwrapped = key
+                    unwrapped = dependency
                 if unwrapped is get_current_user:
                     return override_candidate
             return None
 
-        def _check_any_mapping(overrides: Any) -> Callable[..., Any] | None:
-            if isinstance(overrides, Mapping):
-                return _check_mapping(overrides)
-            if hasattr(overrides, "items"):
-                try:
-                    items = overrides.items()
-                except Exception:  # pragma: no cover - defensive
-                    items = None
-                if items is not None:
-                    overrides_dict = dict(items)
-                    return _check_mapping(overrides_dict)
-            return None
-
-        def _iter_providers(*roots: Any) -> list[Any]:
-            queue: list[Any] = [root for root in roots if root is not None]
-            providers: list[Any] = []
-            while queue:
-                candidate = queue.pop()
-                ident = id(candidate)
-                if ident in seen_objects:
-                    continue
-                seen_objects.add(ident)
-                providers.append(candidate)
-
-                provider = getattr(candidate, "dependency_overrides_provider", None)
-                if provider is None:
-                    continue
-                if isinstance(provider, (list, tuple, set, frozenset)):
-                    queue.extend(provider)
-                else:
-                    queue.append(provider)
-            return providers
-
-        direct_mappings = [
+        # Explicit overrides defined directly on the app or its router take
+        # precedence over provider chains, matching FastAPI's resolution order.
+        direct_sources = (
             getattr(request.app, "dependency_overrides", None),
             getattr(getattr(request.app, "router", None), "dependency_overrides", None),
-        ]
-        for overrides in direct_mappings:
-            override = _check_any_mapping(overrides)
+        )
+        for overrides in direct_sources:
+            override = _match_override(overrides)
             if override is not None:
                 return override
 
-        for candidate in _iter_providers(request.app, getattr(request.app, "router", None)):
-            override = _check_any_mapping(getattr(candidate, "dependency_overrides", None))
+        # Traverse ``dependency_overrides_provider`` attributes to respect
+        # overrides supplied via provider chains (including nested providers).
+        seen_providers: Set[int] = set()
+        queue: list[Any] = [
+            getattr(request.app, "dependency_overrides_provider", None),
+            getattr(getattr(request.app, "router", None), "dependency_overrides_provider", None),
+        ]
+
+        while queue:
+            provider = queue.pop()
+            if provider is None:
+                continue
+
+            provider_id = id(provider)
+            if provider_id in seen_providers:
+                continue
+            seen_providers.add(provider_id)
+
+            override = _match_override(getattr(provider, "dependency_overrides", None))
             if override is not None:
                 return override
+
+            nested = getattr(provider, "dependency_overrides_provider", None)
+            if not nested:
+                continue
+            if isinstance(nested, (list, tuple, set, frozenset)):
+                queue.extend(nested)
+            else:
+                queue.append(nested)
 
         return None
 

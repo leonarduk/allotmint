@@ -1,22 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from backend.auth import get_active_user, oauth2_scheme
+from backend.auth import get_active_user
 from backend import quests
 
 router = APIRouter(prefix="/quests", tags=["quests"])
 
 
-async def require_active_user(
-    request: Request, token: str | None = Depends(oauth2_scheme)
-) -> str:
+async def require_active_user(current_user: str | None = Depends(get_active_user)) -> str:
     """Resolve the authenticated user or raise ``401`` when missing."""
 
-    user = await get_active_user(request, token)
-    if not user:
+    if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
         )
-    return user
+    return current_user
 
 
 @router.get("/today")

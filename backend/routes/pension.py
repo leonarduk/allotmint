@@ -1,3 +1,5 @@
+from inspect import signature
+
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from backend.common.data_loader import load_person_meta
@@ -48,8 +50,18 @@ def pension_forecast(
     # valid death age.
     forecast_death_age = max(death_age, retirement_age + 1)
 
+    builder_params = signature(build_owner_portfolio).parameters
+    portfolio_kwargs = {}
+    portfolio_args = ()
+    if "accounts_root" in builder_params:
+        portfolio_kwargs["accounts_root"] = accounts_root
+    elif "root" in builder_params:
+        portfolio_kwargs["root"] = accounts_root
+    elif accounts_root is not None:
+        portfolio_args = (accounts_root,)
+
     try:
-        portfolio = build_owner_portfolio(owner, root=accounts_root)
+        portfolio = build_owner_portfolio(owner, *portfolio_args, **portfolio_kwargs)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     pension_pot = 0.0

@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from backend.common import portfolio_utils
+from backend.common import instrument_api, portfolio_utils
 
 
 def test_compute_alpha_and_tracking_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -114,3 +114,47 @@ def test_group_metrics_and_max_drawdown(monkeypatch: pytest.MonkeyPatch) -> None
     assert group_max_drawdown == pytest.approx(-0.25, rel=1e-4)
 
     assert group_calls == ["demo-group", "demo-group", "demo-group"]
+
+
+def test_portfolio_value_series_uses_requested_days(monkeypatch: pytest.MonkeyPatch) -> None:
+    observed_days: list[int] = []
+
+    def fake_build_owner_portfolio(name: str, *, pricing_date=None, **_) -> dict:
+        assert name == "alice"
+        return {
+            "accounts": [
+                {
+                    "holdings": [
+                        {
+                            "ticker": "ABC",
+                            "exchange": "L",
+                            "units": 1.0,
+                        }
+                    ]
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        portfolio_utils.portfolio_mod,
+        "build_owner_portfolio",
+        fake_build_owner_portfolio,
+    )
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda ticker, snapshot: (ticker.split(".")[0], "L"),
+    )
+
+    def fake_load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
+        observed_days.append(days)
+        dates = pd.date_range("2024-01-01", periods=5, freq="D")
+        return pd.DataFrame({"Date": dates, "Close": [100, 101, 102, 103, 104]})
+
+    monkeypatch.setattr(portfolio_utils, "load_meta_timeseries", fake_load_meta_timeseries)
+
+    series = portfolio_utils._portfolio_value_series("alice", 30)
+    assert not series.empty
+    assert observed_days == [30]

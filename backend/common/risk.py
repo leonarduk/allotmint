@@ -66,30 +66,43 @@ def compute_portfolio_var(
         raise ValueError("confidence must be between 0 and 1 or 0 and 100")
 
     # exclude any instruments flagged in the price snapshot until refreshed
-    perf = portfolio_utils.compute_owner_performance(owner, days=days, include_flagged=False, include_cash=include_cash
+    perf = portfolio_utils.compute_owner_performance(
+        owner,
+        days=days + 1,
+        include_flagged=False,
+        include_cash=include_cash,
     )
     history = perf.get("history", []) if isinstance(perf, dict) else perf
     if not history:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
-    df = pd.DataFrame(history)
+    df = pd.DataFrame(history[-(days + 1) :])
     returns = df["daily_return"].dropna()
+    if len(returns) > days:
+        returns = returns.iloc[-days:]
     if returns.empty:
         return {"window_days": days, "confidence": confidence, "1d": None, "10d": None}
 
     current_value = float(df["value"].iloc[-1])
 
-    var_1d_pct = -returns.quantile(1 - confidence)
-    var_1d = float(var_1d_pct * current_value) if not pd.isna(var_1d_pct) else None
+    quantile_1d = returns.quantile(1 - confidence)
+    if pd.isna(quantile_1d):
+        var_1d = None
+    else:
+        var_1d_loss_pct = max(-(quantile_1d), 0.0)
+        var_1d = float(var_1d_loss_pct * current_value)
 
     ten_day_returns = returns.add(1).rolling(10).apply(np.prod) - 1
     ten_day_returns = ten_day_returns.dropna()
-    var_10d_pct = (
-        -ten_day_returns.quantile(1 - confidence)
-        if not ten_day_returns.empty
-        else np.nan
-    )
-    var_10d = float(var_10d_pct * current_value) if not pd.isna(var_10d_pct) else None
+    if ten_day_returns.empty:
+        var_10d = None
+    else:
+        quantile_10d = ten_day_returns.quantile(1 - confidence)
+        if pd.isna(quantile_10d):
+            var_10d = None
+        else:
+            var_10d_loss_pct = max(-(quantile_10d), 0.0)
+            var_10d = float(var_10d_loss_pct * current_value)
 
     return {
         "window_days": days,

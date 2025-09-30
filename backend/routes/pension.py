@@ -1,4 +1,5 @@
 from inspect import signature
+import inspect
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -59,6 +60,18 @@ def pension_forecast(
         portfolio_kwargs["root"] = accounts_root
     elif accounts_root is not None:
         portfolio_args = (accounts_root,)
+
+    try:
+        signature = inspect.signature(build_owner_portfolio)
+    except (TypeError, ValueError):
+        signature = None
+
+    if signature and "root" in signature.parameters:
+        kwargs: dict[str, object] = {"root": accounts_root}
+    elif signature and "accounts_root" in signature.parameters:
+        kwargs = {"accounts_root": accounts_root}
+    else:
+        kwargs = {"root": accounts_root}
 
     try:
         portfolio = build_owner_portfolio(owner, *portfolio_args, **portfolio_kwargs)

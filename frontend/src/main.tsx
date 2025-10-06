@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
 } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HelmetProvider } from 'react-helmet-async'
@@ -41,6 +42,29 @@ const ReturnComparison = lazy(() => import('./pages/ReturnComparison'))
 const AlertSettings = lazy(() => import('./pages/AlertSettings'))
 const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'))
 const SmokeTest = lazy(() => import('./pages/SmokeTest'))
+
+const routeMarkerStyle: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  border: 0,
+  opacity: 0,
+  pointerEvents: 'none',
+  clip: 'rect(0 0 0 0)',
+  clipPath: 'inset(50%)',
+  overflow: 'hidden',
+}
+
+const renderRouteMarker = (pathname: string, mode: string) => (
+  <div
+    data-testid="active-route-marker"
+    data-mode={mode}
+    data-pathname={pathname}
+    style={routeMarkerStyle}
+  />
+)
 
 export function Root() {
   const [configLoading, setConfigLoading] = useState(true)
@@ -167,29 +191,45 @@ export function Root() {
 
   if (configLoading && !retryScheduled) {
     return (
-      <div role="status" className="app-loading">
-        Loading configuration...
-      </div>
+      <>
+        {renderRouteMarker(location.pathname, 'loading')}
+        <div role="status" className="app-loading">
+          Loading configuration...
+        </div>
+      </>
     )
   }
 
   if (configError && !retryScheduled) {
     return (
-      <div role="alert" className="app-offline">
-        <p>Unable to load configuration.</p>
-        <p>Please check your connection and try again.</p>
-        <button type="button" onClick={handleRetry}>
-          Retry
-        </button>
-      </div>
+      <>
+        {renderRouteMarker(location.pathname, 'config-error')}
+        <div role="alert" className="app-offline">
+          <p>Unable to load configuration.</p>
+          <p>Please check your connection and try again.</p>
+          <button type="button" onClick={handleRetry}>
+            Retry
+          </button>
+        </div>
+      </>
     )
   }
   if (needsAuth && !authed) {
     if (!clientId) {
       console.error('Google client ID is missing; login disabled')
-      return <div>Google login is not configured.</div>
+      return (
+        <>
+          {renderRouteMarker(location.pathname, 'auth')}
+          <div>Google login is not configured.</div>
+        </>
+      )
     }
-    return <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
+    return (
+      <>
+        {renderRouteMarker(location.pathname, 'auth')}
+        <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
+      </>
+    )
   }
 
   return (

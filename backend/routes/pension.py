@@ -1,4 +1,3 @@
-from inspect import signature
 import inspect
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -51,7 +50,7 @@ def pension_forecast(
     # valid death age.
     forecast_death_age = max(death_age, retirement_age + 1)
 
-    builder_params = signature(build_owner_portfolio).parameters
+    builder_params = inspect.signature(build_owner_portfolio).parameters
     portfolio_kwargs = {}
     portfolio_args = ()
     if "accounts_root" in builder_params:
@@ -62,13 +61,13 @@ def pension_forecast(
         portfolio_args = (accounts_root,)
 
     try:
-        signature = inspect.signature(build_owner_portfolio)
+        builder_signature = inspect.signature(build_owner_portfolio)
     except (TypeError, ValueError):
-        signature = None
+        builder_signature = None
 
-    if signature and "root" in signature.parameters:
+    if builder_signature and "root" in builder_signature.parameters:
         kwargs: dict[str, object] = {"root": accounts_root}
-    elif signature and "accounts_root" in signature.parameters:
+    elif builder_signature and "accounts_root" in builder_signature.parameters:
         kwargs = {"accounts_root": accounts_root}
     else:
         kwargs = {"root": accounts_root}

@@ -6,10 +6,11 @@ import inspect
 import logging
 import os
 import secrets
+from collections.abc import Mapping
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional, Set
+from typing import Any, Callable, Optional, Set, cast
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
@@ -236,14 +237,11 @@ async def get_active_user(
 
             mapping: Mapping[Any, Callable[..., Any]] | None = None
             if isinstance(overrides, Mapping):
-                mapping = overrides
-            elif hasattr(overrides, "items"):
-                try:
-                    mapping = dict(overrides.items())
-                except Exception:  # pragma: no cover - defensive
-                    mapping = None
+                mapping = cast(Mapping[Any, Callable[..., Any]], overrides)
+            elif hasattr(overrides, "get"):
+                mapping = cast(Mapping[Any, Callable[..., Any]], overrides)
 
-            if not mapping:
+            if mapping is None:
                 return None
 
             mapping_id = id(mapping)
@@ -251,7 +249,22 @@ async def get_active_user(
                 return None
             seen_mappings.add(mapping_id)
 
-            for dependency, override_candidate in mapping.items():
+            getter = getattr(mapping, "get", None)
+            if callable(getter):
+                candidate = getter(get_current_user)
+                if candidate is not None:
+                    return candidate
+
+            items = getattr(mapping, "items", None)
+            if callable(items):
+                try:
+                    entries = list(items())
+                except Exception:  # pragma: no cover - defensive
+                    entries = []
+            else:
+                entries = []
+
+            for dependency, override_candidate in entries:
                 if dependency is get_current_user:
                     return override_candidate
                 try:

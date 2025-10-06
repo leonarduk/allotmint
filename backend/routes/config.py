@@ -193,7 +193,7 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     if persisted_google_auth_enabled is True:
         try:
-            validate_google_auth(persisted_google_auth_enabled, persisted_google_client_id)
+            validate_google_auth(persisted_google_auth_enabled, google_client_id)
         except ConfigValidationError as exc:
             logger.error("Invalid config update: %s", exc)
             raise HTTPException(status_code=400, detail=str(exc))

@@ -137,6 +137,38 @@ async def test_update_config_rejects_blank_client_id(monkeypatch: pytest.MonkeyP
     assert calls == [(True, None)]
 
 
+async def test_update_config_validates_with_env_client_id(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config_path = tmp_path / "config.yaml"
+    _write_config(config_path, {"auth": {"google_auth_enabled": True}})
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+    loader = _patch_loader(
+        monkeypatch,
+        _DummyConfig(
+            google_auth_enabled=True,
+            google_client_id="client-from-env",
+            auth={"google_auth_enabled": True},
+        ),
+    )
+    calls = _spy_validate(monkeypatch)
+
+    monkeypatch.delenv("GOOGLE_AUTH_ENABLED", raising=False)
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-from-env")
+
+    result = await routes_config.update_config({"auth": {"allowed_emails": ["user@example.com"]}})
+
+    assert loader.cleared is True
+    assert result["google_auth_enabled"] is True
+    assert result["google_client_id"] == "client-from-env"
+    assert calls == [(True, "client-from-env")]
+
+    written = yaml.safe_load(config_path.read_text())
+    assert written["auth"]["google_auth_enabled"] is True
+    assert written["auth"]["allowed_emails"] == ["user@example.com"]
+    assert "google_client_id" not in written["auth"]
+
+
 async def test_update_config_env_provides_client_id(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     _write_config(config_path, {"auth": {"disable_auth": True}})

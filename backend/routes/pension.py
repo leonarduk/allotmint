@@ -1,4 +1,3 @@
-from inspect import signature
 import inspect
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -51,27 +50,23 @@ def pension_forecast(
     # valid death age.
     forecast_death_age = max(death_age, retirement_age + 1)
 
-    builder_params = signature(build_owner_portfolio).parameters
-    portfolio_kwargs = {}
-    portfolio_args = ()
-    if "accounts_root" in builder_params:
-        portfolio_kwargs["accounts_root"] = accounts_root
-    elif "root" in builder_params:
-        portfolio_kwargs["root"] = accounts_root
+    try:
+        builder_signature = inspect.signature(build_owner_portfolio)
+    except (TypeError, ValueError):
+        builder_signature = None
+
+    portfolio_kwargs: dict[str, object] = {}
+    portfolio_args: tuple[object, ...] = ()
+    if builder_signature:
+        parameters = builder_signature.parameters
+        if "accounts_root" in parameters:
+            portfolio_kwargs["accounts_root"] = accounts_root
+        elif "root" in parameters:
+            portfolio_kwargs["root"] = accounts_root
+        elif accounts_root is not None:
+            portfolio_args = (accounts_root,)
     elif accounts_root is not None:
         portfolio_args = (accounts_root,)
-
-    try:
-        signature = inspect.signature(build_owner_portfolio)
-    except (TypeError, ValueError):
-        signature = None
-
-    if signature and "root" in signature.parameters:
-        kwargs: dict[str, object] = {"root": accounts_root}
-    elif signature and "accounts_root" in signature.parameters:
-        kwargs = {"accounts_root": accounts_root}
-    else:
-        kwargs = {"root": accounts_root}
 
     try:
         portfolio = build_owner_portfolio(owner, *portfolio_args, **portfolio_kwargs)

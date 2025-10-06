@@ -193,3 +193,76 @@ def test_pension_route_falls_back_to_local_metadata(tmp_path, monkeypatch):
     body = resp.json()
     assert body["dob"] == "1980-01-01"
     assert captured.get("dob") == "1980-01-01"
+
+
+def test_pension_route_passes_accounts_root_keyword(monkeypatch):
+    sentinel_root = "sentinel"
+    captured_meta: list[tuple[str, object]] = []
+    captured_portfolio: dict[str, object] = {}
+
+    def fake_resolve(request):  # pragma: no cover - signature match
+        return sentinel_root
+
+    def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
+        captured_meta.append((owner, root))
+        return {"dob": "1980-01-01"}
+
+    def fake_portfolio(
+        owner: str, *, accounts_root=None
+    ):  # pragma: no cover - signature match
+        captured_portfolio["owner"] = owner
+        captured_portfolio["accounts_root"] = accounts_root
+        return {"accounts": []}
+
+    monkeypatch.setattr("backend.routes.pension.resolve_accounts_root", fake_resolve)
+    monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio", fake_portfolio
+    )
+    monkeypatch.setattr(
+        "backend.routes.pension.forecast_pension",
+        lambda **kwargs: {"forecast": [], "initial_pot": kwargs["initial_pot"]},
+    )
+
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/pension/forecast", params={"owner": "eve", "death_age": 90})
+
+    assert resp.status_code == 200
+    assert captured_meta == [("eve", sentinel_root)]
+    assert captured_portfolio == {"owner": "eve", "accounts_root": sentinel_root}
+
+
+def test_pension_route_passes_accounts_root_positional(monkeypatch):
+    sentinel_root = "sentinel"
+    captured_meta: list[tuple[str, object]] = []
+    captured_args: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def fake_resolve(request):  # pragma: no cover - signature match
+        return sentinel_root
+
+    def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
+        captured_meta.append((owner, root))
+        return {"dob": "1980-01-01"}
+
+    def fake_portfolio(owner: str, accounts_root, *, pricing_date=None):
+        captured_args.append(((owner, accounts_root), {"pricing_date": pricing_date}))
+        return {"accounts": []}
+
+    monkeypatch.setattr("backend.routes.pension.resolve_accounts_root", fake_resolve)
+    monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio", fake_portfolio
+    )
+    monkeypatch.setattr(
+        "backend.routes.pension.forecast_pension",
+        lambda **kwargs: {"forecast": [], "initial_pot": kwargs["initial_pot"]},
+    )
+
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get("/pension/forecast", params={"owner": "frank", "death_age": 90})
+
+    assert resp.status_code == 200
+    assert captured_meta == [("frank", sentinel_root)]
+    assert captured_args == [(("frank", sentinel_root), {"pricing_date": None})]

@@ -1,4 +1,3 @@
-from inspect import signature
 import inspect
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -51,27 +50,34 @@ def pension_forecast(
     # valid death age.
     forecast_death_age = max(death_age, retirement_age + 1)
 
-    builder_params = signature(build_owner_portfolio).parameters
-    portfolio_kwargs = {}
-    portfolio_args = ()
-    if "accounts_root" in builder_params:
-        portfolio_kwargs["accounts_root"] = accounts_root
-    elif "root" in builder_params:
-        portfolio_kwargs["root"] = accounts_root
-    elif accounts_root is not None:
-        portfolio_args = (accounts_root,)
+    portfolio_args: tuple[object, ...] = ()
+    portfolio_kwargs: dict[str, object] = {}
 
     try:
-        signature = inspect.signature(build_owner_portfolio)
+        builder_signature = inspect.signature(build_owner_portfolio)
     except (TypeError, ValueError):
-        signature = None
+        builder_signature = None
 
-    if signature and "root" in signature.parameters:
-        kwargs: dict[str, object] = {"root": accounts_root}
-    elif signature and "accounts_root" in signature.parameters:
-        kwargs = {"accounts_root": accounts_root}
-    else:
-        kwargs = {"root": accounts_root}
+    if builder_signature is not None:
+        parameters = builder_signature.parameters
+        if "accounts_root" in parameters:
+            portfolio_kwargs["accounts_root"] = accounts_root
+        elif "root" in parameters:
+            portfolio_kwargs["root"] = accounts_root
+        elif accounts_root is not None:
+            positional = [
+                param
+                for param in parameters.values()
+                if param.kind
+                in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                )
+            ]
+            if len(positional) > 1:
+                portfolio_args = (accounts_root,)
+    elif accounts_root is not None:
+        portfolio_args = (accounts_root,)
 
     try:
         portfolio = build_owner_portfolio(owner, *portfolio_args, **portfolio_kwargs)

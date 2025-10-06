@@ -141,21 +141,23 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     raw_google_auth_flag = auth_section.get("google_auth_enabled")
     persisted_google_auth_enabled = _normalise_google_auth_flag(raw_google_auth_flag)
-    google_auth_enabled = persisted_google_auth_enabled
+    effective_google_auth_enabled = persisted_google_auth_enabled
     persisted_google_client_id = auth_section.get("google_client_id")
     if isinstance(persisted_google_client_id, str):
         persisted_google_client_id = persisted_google_client_id.strip() or None
 
     google_client_id = persisted_google_client_id
     env_google_auth = os.getenv("GOOGLE_AUTH_ENABLED")
+    env_forced_google_auth = False
     if env_google_auth is not None:
         env_val_raw = env_google_auth.strip()
         if env_val_raw:
             env_val = env_val_raw.lower()
             if env_val in _TRUE_STRINGS:
-                google_auth_enabled = True
+                effective_google_auth_enabled = True
+                env_forced_google_auth = True
             elif env_val in _FALSE_STRINGS:
-                google_auth_enabled = False
+                effective_google_auth_enabled = False
             else:
                 raise HTTPException(
                     status_code=400,
@@ -163,12 +165,23 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
                 )
 
     env_google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    env_missing_client_id = False
+    env_client_id_provided = False
     if env_google_client_id is not None:
         env_val = env_google_client_id.strip()
         if env_val:
             google_client_id = env_val
-        elif google_client_id is None and google_auth_enabled is True:
-            raise HTTPException(status_code=400, detail="GOOGLE_CLIENT_ID is empty")
+            env_client_id_provided = True
+        elif google_client_id is None and env_forced_google_auth:
+            env_missing_client_id = True
+
+    if (
+        not env_client_id_provided
+        and env_forced_google_auth
+        and effective_google_auth_enabled is True
+        and google_client_id is None
+    ):
+        env_missing_client_id = True
 
     if persisted_google_auth_enabled not in (True, False, None):
         raise HTTPException(
@@ -178,9 +191,9 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     auth_section["google_auth_enabled"] = persisted_google_auth_enabled
 
-    if google_auth_enabled is True:
+    if persisted_google_auth_enabled is True:
         try:
-            validate_google_auth(google_auth_enabled, google_client_id)
+            validate_google_auth(persisted_google_auth_enabled, persisted_google_client_id)
         except ConfigValidationError as exc:
             logger.error("Invalid config update: %s", exc)
             raise HTTPException(status_code=400, detail=str(exc))
@@ -207,6 +220,13 @@ async def update_config(payload: Dict[str, Any]) -> Dict[str, Any]:
                 yaml.safe_dump(persisted_data, fh, sort_keys=False)
         except Exception as exc:
             raise HTTPException(500, f"Failed to write config: {exc}")
+
+    if env_missing_client_id:
+        logger.warning(
+            "GOOGLE_AUTH_ENABLED is true via environment but GOOGLE_CLIENT_ID is missing; "
+            "returning persisted configuration"
+        )
+        return serialise_config(config_module.config)
 
     try:
         cfg = config_module.reload_config()

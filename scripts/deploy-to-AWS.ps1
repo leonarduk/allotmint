@@ -201,7 +201,9 @@ if ($pipProcess.ExitCode -ne 0) {
         throw 'bash is required to run frontend/build.sh but was not found in PATH.'
       }
       Write-Host 'Running frontend/build.sh in the frontend workspace...' -ForegroundColor Cyan
-      & $bashCmd.Path $buildScript
+      # Invoke bash with a relative path so path separators are handled consistently across Git Bash and WSL.
+      $bashArgs = @('-c', './build.sh')
+      & $bashCmd.Path @bashArgs
       $buildExitCode = $LASTEXITCODE
     } else {
       $npmCmd = Get-Command npm -ErrorAction SilentlyContinue

@@ -114,8 +114,11 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
                 exch = "L"
                 logger.debug("Could not resolve exchange for %s; defaulting to L", full)
 
-            px_7 = _close_on(sym, exch, calc.lookback_anchor(7))
-            px_30 = _close_on(sym, exch, calc.lookback_anchor(30))
+            px_7_candidate = calc.reporting_date - timedelta(days=7)
+            px_30_candidate = calc.reporting_date - timedelta(days=30)
+
+            px_7 = _close_on(sym, exch, px_7_candidate)
+            px_30 = _close_on(sym, exch, px_30_candidate)
 
             if px_7 not in (None, 0):
                 info["change_7d_pct"] = (float(price) / px_7 - 1.0) * 100.0

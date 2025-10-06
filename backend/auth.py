@@ -6,10 +6,11 @@ import inspect
 import logging
 import os
 import secrets
+from collections.abc import Mapping
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional, Set
+from typing import Any, Callable, Optional, Set, cast
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
@@ -236,14 +237,11 @@ async def get_active_user(
 
             mapping: Mapping[Any, Callable[..., Any]] | None = None
             if isinstance(overrides, Mapping):
-                mapping = overrides
-            elif hasattr(overrides, "items"):
-                try:
-                    mapping = dict(overrides.items())
-                except Exception:  # pragma: no cover - defensive
-                    mapping = None
+                mapping = cast(Mapping[Any, Callable[..., Any]], overrides)
+            elif hasattr(overrides, "get"):
+                mapping = cast(Mapping[Any, Callable[..., Any]], overrides)
 
-            if not mapping:
+            if mapping is None:
                 return None
 
             mapping_id = id(mapping)
@@ -251,7 +249,22 @@ async def get_active_user(
                 return None
             seen_mappings.add(mapping_id)
 
-            for dependency, override_candidate in mapping.items():
+            getter = getattr(mapping, "get", None)
+            if callable(getter):
+                candidate = getter(get_current_user)
+                if candidate is not None:
+                    return candidate
+
+            items = getattr(mapping, "items", None)
+            if callable(items):
+                try:
+                    entries = list(items())
+                except Exception:  # pragma: no cover - defensive
+                    entries = []
+            else:
+                entries = []
+
+            for dependency, override_candidate in entries:
                 if dependency is get_current_user:
                     return override_candidate
                 try:
@@ -264,21 +277,21 @@ async def get_active_user(
 
         # Explicit overrides defined directly on the app or its router take
         # precedence over provider chains, matching FastAPI's resolution order.
-        direct_sources = (
-            getattr(request.app, "dependency_overrides", None),
-            getattr(getattr(request.app, "router", None), "dependency_overrides", None),
-        )
-        for overrides in direct_sources:
-            override = _match_override(overrides)
-            if override is not None:
-                return override
+        direct_app_override = _match_override(getattr(request.app, "dependency_overrides", None))
+        if direct_app_override is not None:
+            return direct_app_override
+
+        router = getattr(request.app, "router", None)
+        direct_router_override = _match_override(getattr(router, "dependency_overrides", None))
+        if direct_router_override is not None:
+            return direct_router_override
 
         # Traverse ``dependency_overrides_provider`` attributes to respect
         # overrides supplied via provider chains (including nested providers).
         seen_providers: Set[int] = set()
         queue: list[Any] = [
             getattr(request.app, "dependency_overrides_provider", None),
-            getattr(getattr(request.app, "router", None), "dependency_overrides_provider", None),
+            getattr(router, "dependency_overrides_provider", None) if router else None,
         ]
 
         while queue:

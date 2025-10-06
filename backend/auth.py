@@ -264,21 +264,21 @@ async def get_active_user(
 
         # Explicit overrides defined directly on the app or its router take
         # precedence over provider chains, matching FastAPI's resolution order.
-        direct_sources = (
-            getattr(request.app, "dependency_overrides", None),
-            getattr(getattr(request.app, "router", None), "dependency_overrides", None),
-        )
-        for overrides in direct_sources:
-            override = _match_override(overrides)
-            if override is not None:
-                return override
+        direct_app_override = _match_override(getattr(request.app, "dependency_overrides", None))
+        if direct_app_override is not None:
+            return direct_app_override
+
+        router = getattr(request.app, "router", None)
+        direct_router_override = _match_override(getattr(router, "dependency_overrides", None))
+        if direct_router_override is not None:
+            return direct_router_override
 
         # Traverse ``dependency_overrides_provider`` attributes to respect
         # overrides supplied via provider chains (including nested providers).
         seen_providers: Set[int] = set()
         queue: list[Any] = [
             getattr(request.app, "dependency_overrides_provider", None),
-            getattr(getattr(request.app, "router", None), "dependency_overrides_provider", None),
+            getattr(router, "dependency_overrides_provider", None) if router else None,
         ]
 
         while queue:

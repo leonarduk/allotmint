@@ -63,3 +63,4 @@ google-auth~=2.36.0
 google-auth-oauthlib~=1.2.2
 google-auth-httplib2~=0.2.0
 pytest-asyncio~=0.23
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability

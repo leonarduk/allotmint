@@ -251,6 +251,35 @@ test.describe('public route smoke coverage', () => {
 });
 
 test.describe('config bootstrap', () => {
+  test('exposes the route marker while configuration is loading', async ({ page }) => {
+    await applyAuth(page);
+
+    const target = new URL('/portfolio', baseUrl);
+
+    const handler = async (route: Route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({}),
+      });
+    };
+
+    await page.route('**/config', handler);
+
+    const navigation = page.goto(target.href);
+
+    const marker = page.getByTestId('active-route-marker');
+    await expect(marker).toHaveAttribute('data-mode', 'loading');
+    await expect(marker).toHaveAttribute('data-pathname', '/portfolio');
+
+    await expect(page.getByText('Loading configuration...')).toBeVisible();
+
+    await navigation;
+
+    await page.unroute('**/config', handler);
+  });
+
   test('renders the route marker after retrying config load', async ({ page }) => {
     await applyAuth(page);
 
@@ -264,7 +293,6 @@ test.describe('config bootstrap', () => {
         return;
       }
       await route.continue();
-      await page.unroute('**/config', handler);
     };
 
     await page.route('**/config', handler);
@@ -287,6 +315,8 @@ test.describe('config bootstrap', () => {
     await expect(marker).toBeVisible();
     await expect(marker).toHaveAttribute('data-mode', 'group');
     await expect(marker).toHaveAttribute('data-pathname', '/');
+
+    await page.unroute('**/config', handler);
   });
 });
 

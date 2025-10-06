@@ -67,8 +67,16 @@ def test_update_config_env_requires_client_id(monkeypatch, tmp_path):
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "")
 
     resp = client.put("/config", json={})
-    assert resp.status_code == 400
-    assert resp.json()["detail"] == "GOOGLE_CLIENT_ID is empty"
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["google_auth_enabled"] is False
+    assert data["google_client_id"] is None
+
+    get_resp = client.get("/config")
+    assert get_resp.status_code == 200
+    get_data = get_resp.json()
+    assert get_data["google_auth_enabled"] is False
+    assert get_data["google_client_id"] is None
 
     monkeypatch.undo()
     reload_config()

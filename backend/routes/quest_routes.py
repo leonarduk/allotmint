@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import inspect
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from backend.auth import get_active_user, get_current_user
+from backend.auth import (
+    get_active_user,
+    get_current_user,
+    resolve_current_user_override,
+)
 from backend.config import config
 from backend import quests
 
@@ -22,21 +24,9 @@ async def require_active_user(
     if current_user:
         return current_user
 
-    override = None
-    for overrides in (
-        getattr(request.app, "dependency_overrides", None),
-        getattr(getattr(request.app, "router", None), "dependency_overrides", None),
-    ):
-        if overrides and get_current_user in overrides:
-            override = overrides[get_current_user]
-            break
-
-    if override is not None:
-        resolved = override()
-        if inspect.isawaitable(resolved):
-            resolved = await resolved
-        if resolved:
-            return resolved
+    has_override, resolved = await resolve_current_user_override(request)
+    if has_override and resolved:
+        return resolved
 
     if config.disable_auth:
         return DEMO_IDENTITY

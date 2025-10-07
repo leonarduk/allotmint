@@ -271,6 +271,28 @@ def _find_override(
 ) -> Callable[..., Any] | None:
     """Return the override callable for ``dependency`` if configured."""
 
+    targets = {dependency}
+    target_identities: set[tuple[str | None, str | None]] = set()
+
+    def _identity(func: Callable[..., Any]) -> tuple[str | None, str | None] | None:
+        module = getattr(func, "__module__", None)
+        qualname = getattr(func, "__qualname__", None)
+        if module is None or qualname is None:
+            return None
+        return module, qualname
+
+    try:
+        unwrapped_dependency = inspect.unwrap(dependency)
+    except Exception:  # pragma: no cover - defensive
+        unwrapped_dependency = dependency
+    else:
+        targets.add(unwrapped_dependency)
+
+    for candidate in list(targets):
+        identity = _identity(candidate)
+        if identity is not None:
+            target_identities.add(identity)
+
     for mapping in _iter_override_mappings(request):
         getter = getattr(mapping, "get", None)
         if callable(getter):
@@ -286,13 +308,19 @@ def _find_override(
         except Exception:  # pragma: no cover - defensive
             entries = []
         for declared_dependency, override in entries:
-            if declared_dependency is dependency:
+            if declared_dependency in targets:
+                return override
+            identity = _identity(declared_dependency)
+            if identity in target_identities:
                 return override
             try:
                 unwrapped = inspect.unwrap(declared_dependency)
             except Exception:  # pragma: no cover - defensive
                 unwrapped = declared_dependency
-            if unwrapped is dependency:
+            if unwrapped in targets:
+                return override
+            identity = _identity(unwrapped)
+            if identity in target_identities:
                 return override
     return None
 

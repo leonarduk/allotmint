@@ -121,6 +121,8 @@
   "group": {
     "atAGlance": "At a glance",
     "pricingAsOf": "Pricing as of {{date}}",
+    "pricingDatePickerLabel": "Change pricing date",
+    "resetPricingDate": "Reset to latest",
     "select": "Select a group."
   },
   "holdingsTable": {

@@ -127,6 +127,8 @@
   "group": {
     "atAGlance": "Auf einen Blick",
     "pricingAsOf": "Preisstand vom {{date}}",
+    "pricingDatePickerLabel": "Preisstand ändern",
+    "resetPricingDate": "Auf den neuesten Stand zurücksetzen",
     "select": "Wählen Sie eine Gruppe."
   },
   "holdingsTable": {

@@ -16,6 +16,12 @@ const applyAuth = async (page: Page) => {
   }, authToken);
 };
 
+const getActiveRouteMarker = (page: Page) =>
+  page.locator('[data-route-marker="active"], [data-testid="active-route-marker"]');
+
+const getBootstrapMarker = (page: Page) =>
+  page.locator('[data-route-marker="bootstrap"], [data-testid="route-bootstrap-marker"]');
+
 type ModeAssertion = { kind: 'mode'; mode: string };
 type HeadingAssertion = {
   kind: 'heading';
@@ -197,7 +203,7 @@ test.describe('pension forecast routing', () => {
 
     await page.goto(pensionForecastPath);
 
-    const marker = page.getByTestId('active-route-marker');
+    const marker = getActiveRouteMarker(page);
     await expect(marker).toHaveAttribute('data-mode', 'pension');
     await expect(marker).toHaveAttribute('data-pathname', '/pension/forecast');
     await expect(page.getByRole('heading', { name: 'Pension Forecast' })).toBeVisible();
@@ -223,7 +229,7 @@ test.describe('public route smoke coverage', () => {
       await expect(page).toHaveURL(target.href);
 
       if (route.assertion.kind === 'mode') {
-        const marker = page.getByTestId('active-route-marker');
+        const marker = getActiveRouteMarker(page);
         await expect(marker).toHaveAttribute('data-mode', route.assertion.mode);
         await expect(marker).toHaveAttribute('data-pathname', target.pathname);
       } else if (route.assertion.kind === 'heading') {
@@ -269,7 +275,7 @@ test.describe('config bootstrap', () => {
 
     const navigation = page.goto(target.href);
 
-    const marker = page.getByTestId('route-bootstrap-marker');
+    const marker = getBootstrapMarker(page);
     await expect(marker).toHaveAttribute('data-mode', 'loading');
     await expect(marker).toHaveAttribute('data-pathname', '/portfolio');
 
@@ -311,7 +317,7 @@ test.describe('config bootstrap', () => {
 
     await expect.poll(() => attempt).toBeGreaterThan(1);
 
-    const marker = page.getByTestId('active-route-marker');
+    const marker = getActiveRouteMarker(page);
     await expect(marker).toBeVisible();
     await expect(marker).toHaveAttribute('data-mode', 'group');
     await expect(marker).toHaveAttribute('data-pathname', '/');
@@ -344,7 +350,7 @@ test.describe('timeseries edit resilience', () => {
 
     await expect.poll(() => requested).toBeTruthy();
 
-    const marker = page.getByTestId('active-route-marker');
+    const marker = getActiveRouteMarker(page);
     await expect(marker).toHaveAttribute('data-mode', 'timeseries');
     await expect(marker).toHaveAttribute('data-pathname', '/timeseries');
   });

@@ -59,7 +59,7 @@ const routeMarkerStyle: CSSProperties = {
 
 const renderRouteMarker = (pathname: string, mode: string) => (
   <div
-    data-testid="active-route-marker"
+    data-testid="route-bootstrap-marker"
     data-mode={mode}
     data-pathname={pathname}
     style={routeMarkerStyle}

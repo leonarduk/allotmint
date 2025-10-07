@@ -38,3 +38,10 @@ def test_movers_invalid_days():
     client = _client()
     resp = client.get("/movers?tickers=AAA&days=2")
     assert resp.status_code == 400
+
+
+def test_movers_requires_nonempty_tickers():
+    client = _client()
+    resp = client.get("/movers?tickers= , , &days=7")
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "No tickers provided"}

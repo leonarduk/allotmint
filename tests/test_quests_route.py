@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 
 from fastapi import FastAPI, Request
@@ -106,3 +107,28 @@ def test_today_falls_back_to_demo_when_auth_disabled(tmp_path, monkeypatch):
     assert resp.status_code == 200
     data = resp.json()
     assert data["xp"] == 0
+
+
+def test_require_active_user_handles_coroutine_override(tmp_path, monkeypatch):
+    """Coroutine overrides for ``get_current_user`` are awaited."""
+
+    import backend.routes.quest_routes as quest_routes
+
+    monkeypatch.setattr(config, "disable_auth", False)
+    app = _build_app(tmp_path, monkeypatch)
+
+    async def _inactive(_: Request):
+        return None
+
+    async def _async_override():
+        await asyncio.sleep(0)
+        return "dave"
+
+    app.dependency_overrides[quest_routes.get_active_user] = _inactive
+    app.dependency_overrides[get_current_user] = _async_override
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/quests/today")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["xp"] == 0

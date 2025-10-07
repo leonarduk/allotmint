@@ -55,7 +55,10 @@ export default function MainApp() {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
-  const [tradeInfo, setTradeInfo] = useState<{ tradesThisMonth: number; tradesRemaining: number } | null>(null);
+  const [headerAsOf, setHeaderAsOf] = useState<string | null>(null);
+  const [tradeInfo, setTradeInfo] = useState<
+    { tradesThisMonth: number; tradesRemaining: number } | null
+  >(null);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -164,18 +167,41 @@ export default function MainApp() {
     if (mode === "owner" && selectedOwner) {
       setLoading(true);
       setErr(null);
+      setTradeInfo(null);
+      setHeaderAsOf(null);
       getPortfolio(selectedOwner)
         .then((p) => {
           setPortfolio(p);
-          setTradeInfo({
-            tradesThisMonth: p.trades_this_month,
-            tradesRemaining: p.trades_remaining,
-          });
+          if (
+            p.as_of != null &&
+            p.trades_this_month != null &&
+            p.trades_remaining != null
+          ) {
+            setHeaderAsOf(p.as_of);
+            setTradeInfo({
+              tradesThisMonth: p.trades_this_month,
+              tradesRemaining: p.trades_remaining,
+            });
+          } else {
+            setHeaderAsOf(null);
+            setTradeInfo(null);
+          }
         })
-        .catch((e) => setErr(String(e)))
+        .catch((e) => {
+          setErr(String(e));
+          setHeaderAsOf(null);
+          setTradeInfo(null);
+        })
         .finally(() => setLoading(false));
     }
   }, [mode, selectedOwner]);
+
+  useEffect(() => {
+    if (mode === "group") {
+      setHeaderAsOf(null);
+      setTradeInfo(null);
+    }
+  }, [mode, selectedGroup]);
 
   useEffect(() => {
     if (mode === "instrument" && selectedGroup) {
@@ -241,6 +267,7 @@ export default function MainApp() {
       <Menu selectedOwner={selectedOwner} selectedGroup={selectedGroup} />
 
       <Header
+        asOf={headerAsOf}
         tradesThisMonth={tradeInfo?.tradesThisMonth}
         tradesRemaining={tradeInfo?.tradesRemaining}
       />
@@ -271,16 +298,23 @@ export default function MainApp() {
           <GroupPortfolioView
             slug={selectedGroup}
             owners={owners}
-            onTradeInfo={(info) =>
-              setTradeInfo(
-                info
-                  ? {
-                      tradesThisMonth: info.trades_this_month ?? 0,
-                      tradesRemaining: info.trades_remaining ?? 0,
-                    }
-                  : null,
-              )
-            }
+            onTradeInfo={(info) => {
+              if (
+                info &&
+                info.as_of != null &&
+                info.trades_this_month != null &&
+                info.trades_remaining != null
+              ) {
+                setHeaderAsOf(info.as_of);
+                setTradeInfo({
+                  tradesThisMonth: info.trades_this_month,
+                  tradesRemaining: info.trades_remaining,
+                });
+              } else {
+                setHeaderAsOf(null);
+                setTradeInfo(null);
+              }
+            }}
           />
         </>
       )}

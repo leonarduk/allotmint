@@ -72,7 +72,36 @@ def test_health(client):
 def test_owners(client, mock_list_plots):
     response = client.get("/owners")
     assert response.status_code == 200
-    assert response.json() == mock_list_plots.return_value
+    payload = response.json()
+    expected = {entry["owner"]: entry for entry in mock_list_plots.return_value}
+
+    assert {entry["owner"] for entry in payload} == set(expected)
+
+    accounts_root = getattr(client.app.state, "accounts_root", None)
+    accounts_root = Path(accounts_root) if accounts_root else None
+
+    for entry in payload:
+        owner = entry["owner"]
+        expected_entry = expected[owner]
+        assert entry["full_name"] == expected_entry["full_name"]
+
+        actual_accounts = set(entry.get("accounts", []))
+        provided_accounts = set(expected_entry.get("accounts", []))
+        extras = actual_accounts - provided_accounts
+
+        if not extras:
+            continue
+
+        if accounts_root is None:
+            pytest.fail(
+                f"Unexpected synthetic accounts {sorted(extras)} for owner '{owner}'"
+            )
+
+        owner_dir = accounts_root / owner
+        for account in extras:
+            assert (owner_dir / f"{account}.json").exists(), (
+                f"Unexpected synthetic account '{account}' for owner '{owner}'"
+            )
 
 
 def test_groups(client, mock_list_groups):

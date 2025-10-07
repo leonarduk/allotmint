@@ -1,4 +1,5 @@
 import { Suspense, useState, useEffect } from "react";
+import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type { Portfolio, Account } from "../types";
 import { AccountBlock } from "./AccountBlock";
@@ -20,6 +21,7 @@ type Props = {
   data: Portfolio | null;
   loading?: boolean;
   error?: string | null;
+  onDateChange?: (isoDate: string | null) => void;
 };
 
 /**
@@ -29,9 +31,10 @@ type Props = {
  * relies on its parent for data fetching. Conditional branches early-return to
  * keep the JSX at the bottom easy to follow.
  */
-export function PortfolioView({ data, loading, error }: Props) {
+export function PortfolioView({ data, loading, error, onDateChange }: Props) {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [hasWarnings, setHasWarnings] = useState(false);
+  const [pendingDate, setPendingDate] = useState<string>("");
   const { baseCurrency } = useConfig();
 
   const accountKey = (acct: Account, idx: number) => `${acct.account_type}-${idx}`;
@@ -39,6 +42,10 @@ export function PortfolioView({ data, loading, error }: Props) {
   useEffect(() => {
     setSelectedAccounts(data ? data.accounts.map(accountKey) : []);
   }, [data]);
+
+  useEffect(() => {
+    setPendingDate(data?.as_of ?? "");
+  }, [data?.as_of]);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,13 +84,51 @@ export function PortfolioView({ data, loading, error }: Props) {
     0
   );
 
+  const asOfDate = data.as_of ? new Date(data.as_of) : null;
+  const todayIso = formatDateISO(new Date());
+  const daysSince = asOfDate
+    ? Math.floor((Date.now() - asOfDate.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  const showForward7d = daysSince >= 7;
+  const showForward30d = daysSince >= 30;
+
+  const handleDateSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = pendingDate.trim();
+    onDateChange?.(trimmed ? trimmed : null);
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section className="rounded-lg border border-gray-800 bg-gray-900/70 p-4 md:p-6">
-          <div className="mb-4 text-sm text-gray-300">
-            As of {formatDateISO(new Date(data.as_of))}
-          </div>
+          <form
+            onSubmit={handleDateSubmit}
+            className="mb-4 flex flex-wrap items-center gap-2 text-sm text-gray-300"
+          >
+            <label htmlFor="portfolio-as-of" className="flex items-center gap-2">
+              <span>As of</span>
+              <input
+                id="portfolio-as-of"
+                type="date"
+                value={pendingDate}
+                max={todayIso}
+                onChange={(e) => setPendingDate(e.target.value)}
+                className="rounded border border-gray-700 bg-gray-800 p-1 text-white"
+              />
+            </label>
+            <button
+              type="submit"
+              className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+            >
+              Go
+            </button>
+            {data.as_of && (
+              <span className="text-xs text-gray-400">
+                Showing {formatDateISO(new Date(data.as_of))}
+              </span>
+            )}
+          </form>
           <div className="mb-6 text-lg font-semibold text-white">
             Approx Total: {money(totalValue, baseCurrency)}
           </div>
@@ -131,6 +176,8 @@ export function PortfolioView({ data, loading, error }: Props) {
                           : [...prev, key]
                       )
                     }
+                    showForward7d={showForward7d}
+                    showForward30d={showForward30d}
                   />
                 </div>
               );
@@ -139,7 +186,7 @@ export function PortfolioView({ data, loading, error }: Props) {
         </section>
         <section className="rounded-lg border border-gray-800 bg-gray-900/70 p-4 md:p-6">
           <Suspense fallback={<PortfolioDashboardSkeleton />}>
-            <PerformanceDashboard owner={data.owner} />
+            <PerformanceDashboard owner={data.owner} asOf={data.as_of} />
           </Suspense>
         </section>
       </div>

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from backend.agent import trading_agent
 from backend.agent.models import TradingSignal
 from backend.auth import decode_token
+from backend.config import config
 from backend.common import instrument_api
 from backend.routes.portfolio import (
     _ALLOWED_DAYS as _PORTFOLIO_ALLOWED_DAYS,
@@ -124,16 +125,17 @@ async def get_opportunities(
 
     context: OpportunitiesContext
     if has_group:
-        if not token:
+        if token:
+            user = decode_token(token)
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication credentials",
+                )
+        elif not config.disable_auth:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required",
-            )
-        user = decode_token(token)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
             )
         movers = _group_opportunities(group, days=days, limit=limit, min_weight=min_weight)
         context = OpportunitiesContext(source="group", group=group, days=days)

@@ -176,16 +176,34 @@ export const getOwners = () =>
   fetchJson<OwnerSummary[]>(`${API_BASE}/owners`);
 
 /** Fetch the portfolio tree for a single owner. */
-export const getPortfolio = (owner: string) =>
-  fetchJson<Portfolio>(`${API_BASE}/portfolio/${owner}`);
+export const getPortfolio = (
+  owner: string,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  return fetchJson<Portfolio>(
+    `${API_BASE}/portfolio/${owner}${qs ? `?${qs}` : ""}`,
+  );
+};
 
 /** List the configured groups (e.g. "adults", "children"). */
 export const getGroups = () =>
   fetchJson<GroupSummary[]>(`${API_BASE}/groups`);
 
 /** Get the aggregated portfolio for a group of owners. */
-export const getGroupPortfolio = (slug: string) =>
-  fetchJson<GroupPortfolio>(`${API_BASE}/portfolio-group/${slug}`);
+export const getGroupPortfolio = (
+  slug: string,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  return fetchJson<GroupPortfolio>(
+    `${API_BASE}/portfolio-group/${slug}${qs ? `?${qs}` : ""}`,
+  );
+};
 
 /** Trigger a price refresh in the backend and return snapshot metadata. */
 export const refreshPrices = () =>
@@ -359,10 +377,13 @@ export type GroupInstrumentFilters = {
   account_type?: string;
 };
 
+type GroupDataOptions = { asOf?: string | null };
+
 const cacheKeyForGroupInstruments = (
   slug: string,
   { owner, account_type: accountType }: GroupInstrumentFilters,
-) => `${slug}::${owner ?? ""}::${accountType ?? ""}`;
+  opts: GroupDataOptions = {},
+) => `${slug}::${owner ?? ""}::${accountType ?? ""}::${opts.asOf ?? ""}`;
 
 type GroupInstrumentCacheEntry = {
   promise: Promise<InstrumentSummary[]>;
@@ -375,11 +396,13 @@ const groupInstrumentCache = new Map<string, GroupInstrumentCacheEntry>();
 export const getGroupInstruments = (
   slug: string,
   filters: GroupInstrumentFilters = {},
+  opts: GroupDataOptions = {},
 ) => {
   const params = new URLSearchParams();
   if (filters.owner) params.set("owner", filters.owner);
   const accountType = filters.account_type;
   if (accountType) params.set("account_type", accountType);
+  if (opts.asOf) params.set("as_of", opts.asOf);
   const query = params.toString();
   const url = query
     ? `${API_BASE}/portfolio-group/${slug}/instruments?${query}`
@@ -390,8 +413,9 @@ export const getGroupInstruments = (
 export const getCachedGroupInstruments = (
   slug: string,
   filters: GroupInstrumentFilters = {},
+  opts: GroupDataOptions = {},
 ) => {
-  const key = cacheKeyForGroupInstruments(slug, filters);
+  const key = cacheKeyForGroupInstruments(slug, filters, opts);
   const existing = groupInstrumentCache.get(key);
   if (existing?.value) {
     return Promise.resolve(existing.value);
@@ -404,7 +428,7 @@ export const getCachedGroupInstruments = (
     });
   }
 
-  const promise = getGroupInstruments(slug, filters).then((rows) => {
+  const promise = getGroupInstruments(slug, filters, opts).then((rows) => {
     const entry = groupInstrumentCache.get(key);
     if (entry) entry.value = rows;
     return rows;
@@ -428,38 +452,67 @@ export const clearGroupInstrumentCache = (slug?: string) => {
 };
 
 /** Retrieve return contribution aggregated by sector for a group portfolio. */
-export const getGroupSectorContributions = (slug: string) =>
-  fetchJson<SectorContribution[]>(
-    `${API_BASE}/portfolio-group/${slug}/sectors`
-  );
+export const getGroupSectorContributions = (
+  slug: string,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  const url = qs
+    ? `${API_BASE}/portfolio-group/${slug}/sectors?${qs}`
+    : `${API_BASE}/portfolio-group/${slug}/sectors`;
+  return fetchJson<SectorContribution[]>(url);
+};
 
 /** Retrieve return contribution aggregated by region for a group portfolio. */
-export const getGroupRegionContributions = (slug: string) =>
-  fetchJson<RegionContribution[]>(
-    `${API_BASE}/portfolio-group/${slug}/regions`
-  );
+export const getGroupRegionContributions = (
+  slug: string,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  const url = qs
+    ? `${API_BASE}/portfolio-group/${slug}/regions?${qs}`
+    : `${API_BASE}/portfolio-group/${slug}/regions`;
+  return fetchJson<RegionContribution[]>(url);
+};
 
 /** Fetch performance metrics for an owner */
 export const getPerformance = (
   owner: string,
   days = 365,
   excludeCash = false,
+  opts: { asOf?: string | null } = {},
 ): Promise<PerformanceResponse> => {
   const params = new URLSearchParams({ days: String(days) });
   if (excludeCash) params.set("exclude_cash", "1");
-  const base = fetchJson<{ owner: string; history: PerformancePoint[] }>(
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const base = fetchJson<{
+    owner: string;
+    history: PerformancePoint[];
+    reporting_date?: string | null;
+    previous_date?: string | null;
+  }>(
     `${API_BASE}/performance/${owner}?${params.toString()}`,
   );
   const twr = fetchJson<{ owner: string; time_weighted_return: number | null }>(
-    `${API_BASE}/performance/${owner}/twr?days=${days}`,
+    `${API_BASE}/performance/${owner}/twr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
   );
   const xirr = fetchJson<{ owner: string; xirr: number | null }>(
-    `${API_BASE}/performance/${owner}/xirr?days=${days}`,
+    `${API_BASE}/performance/${owner}/xirr?days=${days}${
+      opts.asOf ? `&as_of=${encodeURIComponent(opts.asOf)}` : ""
+    }`,
   );
   return Promise.all([base, twr, xirr]).then(([p, t, x]) => ({
     history: p.history,
     time_weighted_return: t.time_weighted_return,
     xirr: x.xirr,
+    reportingDate: p.reporting_date ?? null,
+    previousDate: p.previous_date ?? null,
   }));
 };
 
@@ -467,10 +520,14 @@ export const getAlphaVsBenchmark = (
   owner: string,
   benchmark: string,
   days = 365,
-) =>
-  fetchJson<AlphaResponse>(
-    `${API_BASE}/performance/${owner}/alpha?benchmark=${benchmark}&days=${days}`,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams({ benchmark, days: String(days) });
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  return fetchJson<AlphaResponse>(
+    `${API_BASE}/performance/${owner}/alpha?${params.toString()}`,
   );
+};
 
 export const getPortfolioHoldings = (owner: string, date: string) =>
   fetchJson<{ owner: string; date: string; holdings: HoldingValue[] }>(
@@ -481,15 +538,26 @@ export const getTrackingError = (
   owner: string,
   benchmark: string,
   days = 365,
-) =>
-  fetchJson<TrackingErrorResponse>(
-    `${API_BASE}/performance/${owner}/tracking-error?benchmark=${benchmark}&days=${days}`,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams({ benchmark, days: String(days) });
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  return fetchJson<TrackingErrorResponse>(
+    `${API_BASE}/performance/${owner}/tracking-error?${params.toString()}`,
   );
+};
 
-export const getMaxDrawdown = (owner: string, days = 365) =>
-  fetchJson<MaxDrawdownResponse>(
-    `${API_BASE}/performance/${owner}/max-drawdown?days=${days}`,
+export const getMaxDrawdown = (
+  owner: string,
+  days = 365,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams({ days: String(days) });
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  return fetchJson<MaxDrawdownResponse>(
+    `${API_BASE}/performance/${owner}/max-drawdown?${params.toString()}`,
   );
+};
 
 export const getReturnComparison = (owner: string, days = 365) =>
   fetchJson<ReturnComparisonResponse>(
@@ -726,6 +794,11 @@ export const saveTimeseries = (ticker: string, exchange: string, rows: PriceEntr
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(rows),
   });
+
+export const getInstrumentMetadata = (ticker: string, exchange: string) =>
+  fetchJson<(InstrumentMetadata & Record<string, unknown>) | null>(
+    `${API_BASE}/instrument/admin/${encodeURIComponent(exchange)}/${encodeURIComponent(ticker)}`,
+  );
 
 export const listTimeseries = () =>
   fetchJson<TimeseriesSummary[]>(`${API_BASE}/timeseries/admin`);

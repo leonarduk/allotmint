@@ -57,7 +57,7 @@ function segmentToMode(segment: string | undefined, segmentCount: number): Mode 
     case "alert-settings":
       return "alertsettings";
     case "trade-compliance":
-      return "tradecompliance";
+      return "trade-compliance";
     case "trail":
       return "trail";
     case "support":
@@ -133,7 +133,7 @@ export function useRouteMode(): RouteState {
         return "/alert-settings";
       case "instrumentadmin":
         return "/instrumentadmin";
-      case "tradecompliance":
+      case "trade-compliance":
         return "/trade-compliance";
       case "trail":
         return "/trail";
@@ -151,10 +151,12 @@ export function useRouteMode(): RouteState {
     const params = new URLSearchParams(location.search);
     const newMode = segmentToMode(segs[0], segs.length);
 
-    if (tabs[newMode] !== true || disabledTabs?.includes(newMode)) {
+    const isDisabled =
+      tabs[newMode] === false || disabledTabs?.includes(newMode);
+    if (isDisabled) {
       const firstEnabled = Object.entries(tabs).find(
         ([m, enabled]) =>
-          enabled === true && !disabledTabs?.includes(m as Mode),
+          enabled !== false && !disabledTabs?.includes(m as Mode),
       )?.[0] as Mode | undefined;
 
       if (firstEnabled) {

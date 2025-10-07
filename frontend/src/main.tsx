@@ -1,4 +1,13 @@
-import { StrictMode, useEffect, useState, Suspense, lazy } from 'react'
+import {
+  StrictMode,
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { createRoot } from 'react-dom/client'
 import { HelmetProvider } from 'react-helmet-async'
 import { ToastContainer } from 'react-toastify'
@@ -34,9 +43,34 @@ const AlertSettings = lazy(() => import('./pages/AlertSettings'))
 const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'))
 const SmokeTest = lazy(() => import('./pages/SmokeTest'))
 
+const routeMarkerStyle: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  border: 0,
+  opacity: 0,
+  pointerEvents: 'none',
+  clip: 'rect(0 0 0 0)',
+  clipPath: 'inset(50%)',
+  overflow: 'hidden',
+}
+
+const renderRouteMarker = (pathname: string, mode: string) => (
+  <div
+    data-route-marker="bootstrap"
+    data-testid="route-bootstrap-marker"
+    data-mode={mode}
+    data-pathname={pathname}
+    style={routeMarkerStyle}
+  />
+)
+
 export function Root() {
   const [configLoading, setConfigLoading] = useState(true)
   const [configError, setConfigError] = useState<Error | null>(null)
+  const [retryScheduled, setRetryScheduled] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
   const [clientId, setClientId] = useState('')
   const [authed, setAuthed] = useState(Boolean(storedToken))
@@ -44,6 +78,16 @@ export function Root() {
   const { setProfile } = useUser()
   const navigate = useNavigate()
   const location = useLocation()
+  const activeRequest = useRef<AbortController | null>(null)
+  const retryTimer = useRef<number | null>(null)
+  const isMounted = useRef(true)
+
+  const clearRetryTimer = useCallback(() => {
+    if (retryTimer.current !== null) {
+      window.clearTimeout(retryTimer.current)
+      retryTimer.current = null
+    }
+  }, [])
 
   const logout = () => {
     apiLogout()
@@ -61,66 +105,132 @@ export function Root() {
     if (existingProfile) setProfile(existingProfile)
   }, [setProfile, setUser, storedToken])
 
+  const fetchConfig = useCallback(
+    (attempt = 0, { manual = false }: { manual?: boolean } = {}) => {
+      if (!isMounted.current) return
+
+      clearRetryTimer()
+
+      const previousController = activeRequest.current
+      const controller = new AbortController()
+      activeRequest.current = controller
+      if (previousController && previousController !== controller) {
+        previousController.abort()
+      }
+
+      const timeoutMs = Math.min(60000, 30000 + attempt * 10000)
+      const timeoutId = window.setTimeout(() => {
+        controller.abort()
+      }, timeoutMs)
+
+      setConfigLoading(true)
+      if (manual) {
+        setConfigError(null)
+        setRetryScheduled(false)
+      }
+
+      let shouldRetry = false
+      let retryDelay = 0
+      let nextAttempt = attempt
+
+      getConfig<Record<string, unknown>>({ signal: controller.signal })
+        .then(cfg => {
+          if (!isMounted.current || activeRequest.current !== controller) return
+          setNeedsAuth(Boolean((cfg as any).google_auth_enabled))
+          setClientId(String((cfg as any).google_client_id || ''))
+          setConfigError(null)
+          setRetryScheduled(false)
+        })
+        .catch(err => {
+          if (!isMounted.current || activeRequest.current !== controller) return
+          console.error('Failed to load configuration', err)
+          const error =
+            err instanceof DOMException && err.name === 'AbortError'
+              ? new Error('Request timed out while loading configuration.')
+              : err instanceof Error
+              ? err
+              : new Error(String(err))
+          setConfigError(error)
+
+          shouldRetry = true
+          nextAttempt = attempt + 1
+          retryDelay = Math.min(30000, 2000 * 2 ** attempt)
+        })
+        .finally(() => {
+          window.clearTimeout(timeoutId)
+          const isCurrent = isMounted.current && activeRequest.current === controller
+          if (isCurrent) {
+            activeRequest.current = null
+            setConfigLoading(false)
+            if (shouldRetry) {
+              setRetryScheduled(true)
+            }
+          }
+          if (shouldRetry && isMounted.current) {
+            retryTimer.current = window.setTimeout(() => {
+              fetchConfig(nextAttempt)
+            }, retryDelay)
+          }
+        })
+    },
+    [clearRetryTimer],
+  )
+
   useEffect(() => {
-    let isMounted = true
-    const controller = new AbortController()
-    const timeoutId = window.setTimeout(() => {
-      controller.abort()
-    }, 10000)
-
-    setConfigLoading(true)
-    setConfigError(null)
-    getConfig<Record<string, unknown>>({ signal: controller.signal })
-      .then(cfg => {
-        if (!isMounted) return
-        setNeedsAuth(Boolean((cfg as any).google_auth_enabled))
-        setClientId(String((cfg as any).google_client_id || ''))
-      })
-      .catch(err => {
-        if (!isMounted) return
-        console.error('Failed to load configuration', err)
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          setConfigError(new Error('Request timed out while loading configuration.'))
-        } else {
-          setConfigError(err instanceof Error ? err : new Error(String(err)))
-        }
-      })
-      .finally(() => {
-        clearTimeout(timeoutId)
-        if (isMounted) {
-          setConfigLoading(false)
-        }
-      })
-
+    isMounted.current = true
+    fetchConfig()
     return () => {
-      isMounted = false
-      clearTimeout(timeoutId)
-      controller.abort()
+      isMounted.current = false
+      clearRetryTimer()
+      activeRequest.current?.abort()
     }
-  }, [])
+  }, [clearRetryTimer, fetchConfig])
 
-  if (configLoading) {
+  const handleRetry = useCallback(() => {
+    fetchConfig(0, { manual: true })
+  }, [fetchConfig])
+
+  if (configLoading && !retryScheduled) {
     return (
-      <div role="status" className="app-loading">
-        Loading configuration...
-      </div>
+      <>
+        {renderRouteMarker(location.pathname, 'loading')}
+        <div role="status" className="app-loading">
+          Loading configuration...
+        </div>
+      </>
     )
   }
 
-  if (configError) {
+  if (configError && !retryScheduled) {
     return (
-      <div role="alert" className="app-offline">
-        <p>Unable to load configuration.</p>
-        <p>Please check your connection and try again.</p>
-      </div>
+      <>
+        {renderRouteMarker(location.pathname, 'config-error')}
+        <div role="alert" className="app-offline">
+          <p>Unable to load configuration.</p>
+          <p>Please check your connection and try again.</p>
+          <button type="button" onClick={handleRetry}>
+            Retry
+          </button>
+        </div>
+      </>
     )
   }
   if (needsAuth && !authed) {
     if (!clientId) {
       console.error('Google client ID is missing; login disabled')
-      return <div>Google login is not configured.</div>
+      return (
+        <>
+          {renderRouteMarker(location.pathname, 'auth')}
+          <div>Google login is not configured.</div>
+        </>
+      )
     }
-    return <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
+    return (
+      <>
+        {renderRouteMarker(location.pathname, 'auth')}
+        <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
+      </>
+    )
   }
 
   return (

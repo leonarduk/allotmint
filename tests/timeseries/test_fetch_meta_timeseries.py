@@ -1,5 +1,6 @@
 import re
 from datetime import date
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -13,9 +14,76 @@ from backend.timeseries.fetch_meta_timeseries import (
     _resolve_exchange_from_metadata,
     _resolve_loader_exchange,
     _resolve_ticker_exchange,
+    _metadata_entry_exists,
     fetch_meta_timeseries,
 )
 from backend.utils.timeseries_helpers import STANDARD_COLUMNS
+
+
+def _scenario_override_instruments_dir(meta, tmp_path, monkeypatch, _default_dir):
+    data_root_instruments = tmp_path / "data" / "instruments"
+    data_root_instruments.mkdir(parents=True)
+
+    custom_dir = tmp_path / "custom_instruments"
+    custom_dir.mkdir()
+
+    monkeypatch.setattr(meta, "INSTRUMENTS_DIR", custom_dir)
+
+    result = meta._instrument_dirs()
+    assert result == [custom_dir.resolve()]
+
+
+def _scenario_default_and_data_root(meta, tmp_path, monkeypatch, default_dir):
+    data_root_instruments = tmp_path / "data" / "instruments"
+    data_root_instruments.mkdir(parents=True)
+    default_dir.mkdir(parents=True, exist_ok=True)
+
+    result = meta._instrument_dirs()
+    expected = [data_root_instruments.resolve(), default_dir.resolve()]
+    assert result == expected
+
+
+def _scenario_skip_broken_candidate(meta, tmp_path, monkeypatch, default_dir):
+    data_root_instruments = tmp_path / "data" / "instruments"
+    data_root_instruments.mkdir(parents=True)
+    default_dir.mkdir(parents=True, exist_ok=True)
+
+    sentinel = default_dir
+    original_resolve = Path.resolve
+
+    def flaky_resolve(self, *args, **kwargs):
+        if self == sentinel:
+            raise OSError("boom")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", flaky_resolve)
+
+    result = meta._instrument_dirs()
+    assert result == [data_root_instruments.resolve()]
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        pytest.param(_scenario_override_instruments_dir, id="custom_override_only"),
+        pytest.param(_scenario_default_and_data_root, id="default_and_data_root"),
+        pytest.param(_scenario_skip_broken_candidate, id="skip_broken_candidate"),
+    ],
+)
+def test_instrument_dirs_handles_overrides(tmp_path, monkeypatch, scenario):
+    import backend.timeseries.fetch_meta_timeseries as meta
+
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(meta, "config", SimpleNamespace(data_root=data_root))
+
+    default_dir = tmp_path / "default_instruments"
+    default_dir.mkdir(parents=True)
+    monkeypatch.setattr(meta, "_DEFAULT_INSTRUMENTS_DIR", default_dir)
+    monkeypatch.setattr(meta, "INSTRUMENTS_DIR", default_dir)
+
+    meta._resolve_exchange_from_metadata_cached.cache_clear()
+    scenario(meta, tmp_path, monkeypatch, default_dir)
+    meta._resolve_exchange_from_metadata_cached.cache_clear()
 
 
 def test_resolve_exchange_from_metadata(tmp_path):
@@ -128,6 +196,40 @@ def test_resolve_loader_exchange(ticker, exchange_arg, resolved_exchange, expect
         _resolve_loader_exchange(ticker, exchange_arg, ticker.split(".")[0], resolved_exchange)
         == expected
     )
+
+
+def test_metadata_entry_exists_requires_symbol_and_exchange(tmp_path):
+    instruments_root = tmp_path / "instruments"
+    (instruments_root / "L").mkdir(parents=True)
+    (instruments_root / "L" / "ABC.json").write_text("{}")
+
+    directories = (str(instruments_root),)
+
+    assert _metadata_entry_exists("", "L", directories) is False
+    assert _metadata_entry_exists("ABC", "", directories) is False
+
+
+def test_metadata_entry_exists_skips_problem_directories(tmp_path, monkeypatch):
+    broken_root = tmp_path / "broken"
+    broken_root.mkdir()
+
+    working_root = tmp_path / "working"
+    (working_root / "L").mkdir(parents=True)
+    (working_root / "L" / "ABC.json").write_text("{}")
+
+    target_path = broken_root / "L" / "ABC.json"
+    original_is_file = Path.is_file
+
+    def flaky_is_file(self):
+        if self == target_path:
+            raise OSError("boom")
+        return original_is_file(self)
+
+    monkeypatch.setattr(Path, "is_file", flaky_is_file)
+
+    directories = (str(broken_root), str(working_root))
+
+    assert _metadata_entry_exists("abc", "l", directories) is True
 
 
 @pytest.mark.parametrize(

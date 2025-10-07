@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 const baseUrl = process.env.SMOKE_URL ?? 'http://localhost:5173';
 const authToken = process.env.SMOKE_AUTH_TOKEN ?? process.env.TEST_ID_TOKEN ?? null;
@@ -16,6 +16,12 @@ const applyAuth = async (page: Page) => {
   }, authToken);
 };
 
+const getActiveRouteMarker = (page: Page) =>
+  page.locator('[data-route-marker="active"], [data-testid="active-route-marker"]');
+
+const getBootstrapMarker = (page: Page) =>
+  page.locator('[data-route-marker="bootstrap"], [data-testid="route-bootstrap-marker"]');
+
 type ModeAssertion = { kind: 'mode'; mode: string };
 type HeadingAssertion = {
   kind: 'heading';
@@ -28,6 +34,8 @@ type TestIdAssertion = { kind: 'testId'; value: string };
 type RouteConfig = {
   path: string;
   assertion: ModeAssertion | HeadingAssertion | TextAssertion | TestIdAssertion;
+  setup?: (page: Page, target: URL) => Promise<void> | void;
+  extraAssertions?: (page: Page, target: URL) => Promise<void> | void;
 };
 
 const ROUTES: RouteConfig[] = [
@@ -43,6 +51,7 @@ const ROUTES: RouteConfig[] = [
   { path: '/transactions', assertion: { kind: 'mode', mode: 'transactions' } },
   { path: '/trading', assertion: { kind: 'mode', mode: 'trading' } },
   { path: '/screener', assertion: { kind: 'mode', mode: 'screener' } },
+  { path: '/settings', assertion: { kind: 'mode', mode: 'settings' } },
   { path: '/timeseries', assertion: { kind: 'mode', mode: 'timeseries' } },
   { path: '/watchlist', assertion: { kind: 'mode', mode: 'watchlist' } },
   { path: '/market', assertion: { kind: 'mode', mode: 'market' } },
@@ -59,7 +68,47 @@ const ROUTES: RouteConfig[] = [
   { path: '/scenario', assertion: { kind: 'mode', mode: 'scenario' } },
   { path: '/pension/forecast', assertion: { kind: 'mode', mode: 'pension' } },
   { path: '/research/AAA', assertion: { kind: 'mode', mode: 'research' } },
-  { path: '/virtual', assertion: { kind: 'heading', name: 'Virtual Portfolios' } },
+  {
+    path: '/virtual',
+    assertion: { kind: 'heading', name: 'Virtual Portfolios' },
+    setup: async (page) => {
+      let handled = false;
+      await page.route('**/virtual-portfolios', async (route) => {
+        if (!handled) {
+          handled = true;
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            { id: 101, name: 'Slow path demo', accounts: [], holdings: [] },
+          ]),
+        });
+      });
+      await page.route('**/owners', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['Account A'] },
+          ]),
+        });
+      });
+    },
+    extraAssertions: async (page) => {
+      const loader = page.getByTestId('virtual-portfolio-loader');
+      await expect(loader).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Virtual Portfolios' }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('option', { name: 'Slow path demo' }),
+      ).toBeVisible();
+      await expect(loader).not.toBeVisible();
+    },
+  },
   { path: '/support', assertion: { kind: 'heading', name: 'Support' } },
   { path: '/alerts', assertion: { kind: 'testId', value: 'alerts-page-marker' } },
   { path: '/alert-settings', assertion: { kind: 'heading', name: 'Alert Settings' } },
@@ -137,6 +186,30 @@ test.describe('pension forecast page', () => {
   });
 });
 
+test.describe('pension forecast routing', () => {
+  test('keeps pension mode when config tab state is indeterminate', async ({ page }) => {
+    await applyAuth(page);
+
+    await page.route('**/config', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          tabs: { pension: null },
+          disabled_tabs: [],
+        }),
+      });
+    });
+
+    await page.goto(pensionForecastPath);
+
+    const marker = getActiveRouteMarker(page);
+    await expect(marker).toHaveAttribute('data-mode', 'pension');
+    await expect(marker).toHaveAttribute('data-pathname', '/pension/forecast');
+    await expect(page.getByRole('heading', { name: 'Pension Forecast' })).toBeVisible();
+  });
+});
+
 test.describe('public route smoke coverage', () => {
   for (const route of ROUTES) {
     test(`renders ${route.path}`, async ({ page }) => {
@@ -148,11 +221,15 @@ test.describe('public route smoke coverage', () => {
 
       await applyAuth(page);
 
+      if (route.setup) {
+        await route.setup(page, target);
+      }
+
       await page.goto(target.href);
       await expect(page).toHaveURL(target.href);
 
       if (route.assertion.kind === 'mode') {
-        const marker = page.getByTestId('active-route-marker');
+        const marker = getActiveRouteMarker(page);
         await expect(marker).toHaveAttribute('data-mode', route.assertion.mode);
         await expect(marker).toHaveAttribute('data-pathname', target.pathname);
       } else if (route.assertion.kind === 'heading') {
@@ -170,7 +247,111 @@ test.describe('public route smoke coverage', () => {
         ).toBeVisible();
       }
 
+      if (route.extraAssertions) {
+        await route.extraAssertions(page, target);
+      }
+
       expect(pageErrors).toHaveLength(0);
     });
   }
+});
+
+test.describe('config bootstrap', () => {
+  test('exposes the route marker while configuration is loading', async ({ page }) => {
+    await applyAuth(page);
+
+    const target = new URL('/portfolio', baseUrl);
+
+    const handler = async (route: Route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({}),
+      });
+    };
+
+    await page.route('**/config', handler);
+
+    const navigation = page.goto(target.href);
+
+    const marker = getBootstrapMarker(page);
+    await expect(marker).toHaveAttribute('data-mode', 'loading');
+    await expect(marker).toHaveAttribute('data-pathname', '/portfolio');
+
+    await expect(page.getByText('Loading configuration...')).toBeVisible();
+
+    await navigation;
+
+    await page.unroute('**/config', handler);
+  });
+
+  test('renders the route marker after retrying config load', async ({ page }) => {
+    await applyAuth(page);
+
+    const rootUrl = new URL('/', baseUrl).toString();
+    let attempt = 0;
+
+    const handler = async (route: Route) => {
+      attempt += 1;
+      if (attempt === 1) {
+        await route.abort('failed');
+        return;
+      }
+      await route.continue();
+    };
+
+    await page.route('**/config', handler);
+
+    const firstFailure = page.waitForEvent('requestfailed', (request) =>
+      request.url().endsWith('/config'),
+    );
+    const secondResponse = page.waitForResponse((response) =>
+      response.url().endsWith('/config') && response.ok(),
+    );
+
+    await page.goto(rootUrl);
+
+    await firstFailure;
+    await secondResponse;
+
+    await expect.poll(() => attempt).toBeGreaterThan(1);
+
+    const marker = getActiveRouteMarker(page);
+    await expect(marker).toBeVisible();
+    await expect(marker).toHaveAttribute('data-mode', 'group');
+    await expect(marker).toHaveAttribute('data-pathname', '/');
+
+    await page.unroute('**/config', handler);
+  });
+});
+
+test.describe('timeseries edit resilience', () => {
+  test('keeps the route marker visible when the edit load fails', async ({ page }) => {
+    await applyAuth(page);
+
+    const target = new URL('/timeseries?ticker=FAIL&exchange=L', baseUrl);
+    let requested = false;
+
+    await page.route('**/timeseries/edit?*', async (route) => {
+      requested = true;
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'upstream failed' }),
+      });
+    });
+
+    await page.goto(target.href);
+
+    const loadButton = page.getByRole('button', { name: 'Load' });
+    await expect(loadButton).toBeEnabled();
+    await loadButton.click();
+
+    await expect.poll(() => requested).toBeTruthy();
+
+    const marker = getActiveRouteMarker(page);
+    await expect(marker).toHaveAttribute('data-mode', 'timeseries');
+    await expect(marker).toHaveAttribute('data-pathname', '/timeseries');
+  });
 });

@@ -6,10 +6,11 @@ import inspect
 import logging
 import os
 import secrets
+from collections.abc import Mapping
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Set
+from typing import Any, Callable, Optional, Set, Tuple, cast
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
@@ -203,6 +204,171 @@ async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
     return _user_from_token(token)
 
 
+def _iter_override_mappings(request: Request) -> list[Mapping[Any, Callable[..., Any]]]:
+    """Return override mappings in FastAPI's resolution order."""
+
+    owners = [getattr(request, "app", None)]
+    app = owners[0]
+    router = getattr(app, "router", None) if app is not None else None
+    if router is not None:
+        owners.append(router)
+
+    seen_mappings: Set[int] = set()
+    mappings: list[Mapping[Any, Callable[..., Any]]] = []
+
+    def _register_mapping(candidate: Any) -> None:
+        if candidate is None:
+            return
+        mapping: Mapping[Any, Callable[..., Any]] | None = None
+        if isinstance(candidate, Mapping):
+            mapping = cast(Mapping[Any, Callable[..., Any]], candidate)
+        elif hasattr(candidate, "get"):
+            mapping = cast(Mapping[Any, Callable[..., Any]], candidate)
+        if mapping is None:
+            return
+        mapping_id = id(mapping)
+        if mapping_id in seen_mappings:
+            return
+        seen_mappings.add(mapping_id)
+        mappings.append(mapping)
+
+    for owner in owners:
+        if owner is None:
+            continue
+        _register_mapping(getattr(owner, "dependency_overrides", None))
+
+    seen_providers: Set[int] = set()
+    queue: list[Any] = []
+    for owner in owners:
+        if owner is None:
+            continue
+        queue.append(getattr(owner, "dependency_overrides_provider", None))
+
+    while queue:
+        provider = queue.pop()
+        if provider is None:
+            continue
+        provider_id = id(provider)
+        if provider_id in seen_providers:
+            continue
+        seen_providers.add(provider_id)
+
+        _register_mapping(getattr(provider, "dependency_overrides", None))
+
+        nested = getattr(provider, "dependency_overrides_provider", None)
+        if not nested:
+            continue
+        if isinstance(nested, (list, tuple, set, frozenset)):
+            queue.extend(nested)
+        else:
+            queue.append(nested)
+
+    return mappings
+
+
+def _find_override(
+    request: Request, dependency: Callable[..., Any]
+) -> Callable[..., Any] | None:
+    """Return the override callable for ``dependency`` if configured."""
+
+    targets = {dependency}
+    target_identities: set[tuple[str | None, str | None]] = set()
+
+    def _identity(func: Callable[..., Any]) -> tuple[str | None, str | None] | None:
+        module = getattr(func, "__module__", None)
+        qualname = getattr(func, "__qualname__", None)
+        if module is None or qualname is None:
+            return None
+        return module, qualname
+
+    try:
+        unwrapped_dependency = inspect.unwrap(dependency)
+    except Exception:  # pragma: no cover - defensive
+        unwrapped_dependency = dependency
+    else:
+        targets.add(unwrapped_dependency)
+
+    for candidate in list(targets):
+        identity = _identity(candidate)
+        if identity is not None:
+            target_identities.add(identity)
+
+    for mapping in _iter_override_mappings(request):
+        getter = getattr(mapping, "get", None)
+        if callable(getter):
+            candidate = getter(dependency)
+            if candidate is not None:
+                return candidate
+
+        items = getattr(mapping, "items", None)
+        if not callable(items):
+            continue
+        try:
+            entries = list(items())
+        except Exception:  # pragma: no cover - defensive
+            entries = []
+        for declared_dependency, override in entries:
+            if declared_dependency in targets:
+                return override
+            identity = _identity(declared_dependency)
+            if identity in target_identities:
+                return override
+            try:
+                unwrapped = inspect.unwrap(declared_dependency)
+            except Exception:  # pragma: no cover - defensive
+                unwrapped = declared_dependency
+            if unwrapped in targets:
+                return override
+            identity = _identity(unwrapped)
+            if identity in target_identities:
+                return override
+    return None
+
+
+async def _invoke_override(
+    override: Callable[..., Any], *, request: Request, token: str | None
+) -> Any:
+    """Invoke a dependency override supporting ``request``/``token`` kwargs."""
+
+    kwargs: dict[str, Any] = {}
+    try:
+        signature = inspect.signature(override)
+    except (TypeError, ValueError):  # pragma: no cover - defensive
+        signature = None
+
+    if signature is not None:
+        for name, parameter in signature.parameters.items():
+            if parameter.kind is inspect.Parameter.POSITIONAL_ONLY:
+                continue
+            annotation = parameter.annotation
+            if name == "request":
+                kwargs[name] = request
+            elif name == "token":
+                kwargs[name] = token
+            elif annotation is not inspect._empty:
+                try:
+                    if issubclass(annotation, Request):  # type: ignore[arg-type]
+                        kwargs[name] = request
+                except TypeError:  # pragma: no cover - defensive
+                    pass
+    result = override(**kwargs) if kwargs else override()
+    if inspect.isawaitable(result):
+        result = await result
+    return result
+
+
+async def resolve_current_user_override(
+    request: Request, *, token: str | None = None
+) -> Tuple[bool, Any]:
+    """Return the configured override result for ``get_current_user`` if any."""
+
+    override = _find_override(request, get_current_user)
+    if override is None:
+        return False, None
+    result = await _invoke_override(override, request=request, token=token)
+    return True, result
+
+
 async def get_active_user(
     request: Request, token: str | None = Depends(oauth2_scheme)
 ) -> str | None:
@@ -221,18 +387,24 @@ async def get_active_user(
     router can be exercised easily in unit tests.
     """
 
-    override = request.app.dependency_overrides.get(get_current_user)
-    if override:
-        result = override()
-        if inspect.isawaitable(result):
-            result = await result
-        return result
+    has_override, override_result = await resolve_current_user_override(
+        request, token=token
+    )
+    if has_override:
+        current_user.set(override_result)
+        return override_result
 
     if config.disable_auth:
         if token:
-            return _user_from_token(token)
+            user = _user_from_token(token)
+            current_user.set(user)
+            return user
+        current_user.set(None)
         return None
-    return _user_from_token(token)
+
+    user = _user_from_token(token)
+    current_user.set(user)
+    return user
 
 
 def verify_google_token(token: str) -> str:

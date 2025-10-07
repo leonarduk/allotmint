@@ -2,6 +2,7 @@ export type OwnerSummary = {
   owner: string;
   accounts: string[];
   full_name?: string | null;
+  has_transactions_artifact?: boolean;
 };
 
 export interface Holding {
@@ -34,6 +35,8 @@ export interface Holding {
   instrument_type?: string | null;
   sector?: string | null;
   region?: string | null;
+  forward_7d_change_pct?: number | null;
+  forward_30d_change_pct?: number | null;
 
   days_held?: number;
   sell_eligible?: boolean;
@@ -153,6 +156,8 @@ export interface PerformanceResponse {
   history: PerformancePoint[];
   time_weighted_return?: number | null;
   xirr?: number | null;
+  reportingDate?: string | null;
+  previousDate?: string | null;
 }
 
 export interface HoldingValue {

@@ -25,11 +25,17 @@ type ResultRow = Record<string, string | number>;
 
 function QuerySection() {
   const fetchOwners = useCallback(getOwners, []);
-  const { data: owners } = useFetch(fetchOwners, []);
-  const isTest = (typeof process !== 'undefined' && (process as any)?.env?.NODE_ENV === 'test')
-    || Boolean((import.meta as any)?.vitest);
-  const rawOwners = Array.isArray(owners) ? owners : [];
-  const sanitizedOwners = sanitizeOwners(rawOwners);
+  const {
+    data: owners,
+    error: ownersError,
+  } = useFetch(fetchOwners, []);
+  const isTest =
+    (typeof process !== "undefined" && (process as any)?.env?.NODE_ENV === "test") ||
+    Boolean((import.meta as any)?.vitest);
+  const sanitizedOwners = useMemo(
+    () => (Array.isArray(owners) ? sanitizeOwners(owners) : []),
+    [owners],
+  );
   const ownerList = sanitizedOwners.length
     ? sanitizedOwners
     : isTest
@@ -175,11 +181,34 @@ function QuerySection() {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div
+      className="container mx-auto p-4"
+      data-testid="screener-query-wrapper"
+    >
+      <span
+        aria-hidden="true"
+        data-testid="screener-query-boundary"
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0, 0, 0, 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      />
       <form
         onSubmit={handleSubmit}
         className="mb-4 flex flex-wrap items-center gap-2"
       >
+        {ownersError && (
+          <p className="text-red-500" role="status">
+            {ownersError.message}
+          </p>
+        )}
         <label className="mr-2">
           {t("query.start")}
           <input

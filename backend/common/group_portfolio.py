@@ -10,6 +10,7 @@ Virtual "group portfolio" builder.
 
 import datetime as dt
 import logging
+from datetime import date
 from typing import Any, Dict, List
 
 from backend.common.approvals import load_approvals
@@ -20,6 +21,7 @@ from backend.common.constants import (
 )
 from backend.common.holding_utils import enrich_holding
 from backend.common.user_config import load_user_config
+from backend.utils.pricing_dates import PricingDateCalculator
 
 logger = logging.getLogger("group_portfolio")
 
@@ -68,7 +70,7 @@ def list_groups() -> List[Dict[str, Any]]:
 
 
 # ───────────────────────── core builder ─────────────────────────
-def build_group_portfolio(slug: str) -> Dict[str, Any]:
+def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dict[str, Any]:
     groups = {g["slug"]: g for g in list_groups()}
     grp = groups.get(slug)
     if not grp:
@@ -81,10 +83,22 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
 
     portfolios_to_merge = [pf for pf in list_portfolios() if (pf.get(OWNER, "") or "").lower() in wanted]
 
-    approvals_map = {pf[OWNER]: load_approvals(pf[OWNER]) for pf in portfolios_to_merge}
-    user_cfg_map = {pf[OWNER]: load_user_config(pf[OWNER]) for pf in portfolios_to_merge}
+    approvals_map: Dict[str, Dict[str, dt.date]] = {}
+    user_cfg_map: Dict[str, Any] = {}
+    for pf in portfolios_to_merge:
+        owner = pf[OWNER]
+        try:
+            approvals_map[owner] = load_approvals(owner)
+        except FileNotFoundError:
+            approvals_map[owner] = {}
+        try:
+            user_cfg_map[owner] = load_user_config(owner)
+        except FileNotFoundError:
+            user_cfg_map[owner] = None
 
-    today = dt.date.today()
+    calc = PricingDateCalculator(reporting_date=pricing_date)
+    today = calc.today
+    pricing_date = calc.reporting_date
     price_cache: dict[str, float] = {}
 
     merged_accounts: List[Dict[str, Any]] = []
@@ -103,6 +117,7 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
                     price_cache,
                     approvals_map.get(owner),
                     user_cfg_map.get(owner),
+                    calc=calc,
                 )
                 for h in holdings
             ]
@@ -125,7 +140,7 @@ def build_group_portfolio(slug: str) -> Dict[str, Any]:
         "slug": slug,
         "name": grp["name"],
         "members": grp.get("members", []),
-        "as_of": today.isoformat(),
+        "as_of": pricing_date.isoformat(),
         "total_value_estimate_gbp": total_value,
         ACCOUNTS: merged_accounts,
     }

@@ -35,6 +35,7 @@ export interface TabsConfig {
   trail: boolean;
   alertsettings: boolean;
   taxtools: boolean;
+  'trade-compliance': boolean;
   reports: boolean;
   scenario: boolean;
 }
@@ -84,6 +85,7 @@ const defaultTabs: TabsConfig = {
   trail: true,
   alertsettings: true,
   taxtools: true,
+  'trade-compliance': true,
   reports: true,
   scenario: true,
 };
@@ -141,15 +143,19 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const refreshConfig = useCallback(async () => {
     try {
       const cfg = await getConfig<RawConfig>();
-      const tabs = { ...defaultTabs, ...(cfg.tabs ?? {}) } as TabsConfig;
+      const tabs: TabsConfig = { ...defaultTabs };
+      if (cfg.tabs && typeof cfg.tabs === "object") {
+        for (const [tab, value] of Object.entries(cfg.tabs)) {
+          if (typeof value === "boolean") {
+            (tabs as Record<string, boolean>)[tab] = value;
+          }
+        }
+      }
       const disabledTabs = new Set<string>(
         Array.isArray(cfg.disabled_tabs) ? cfg.disabled_tabs : [],
       );
-      for (const [tab, enabled] of Object.entries(tabs) as [
-        string,
-        boolean,
-      ][]) {
-        if (!enabled) disabledTabs.add(String(tab));
+      for (const [tab, enabled] of Object.entries(tabs)) {
+        if (enabled === false) disabledTabs.add(String(tab));
       }
       const theme = isTheme(cfg.theme) ? cfg.theme : "system";
       const stored =
@@ -191,12 +197,13 @@ export function useConfig() {
 }
 
 export const SUPPORTED_CURRENCIES = [
-  "GBP",
-  "USD",
-  "EUR",
-  "CHF",
-  "JPY",
   "CAD",
+  "CHF",
+  "EUR",
+  "GBP",
+  "GBX",
+  "JPY",
+  "USD",
 ];
 
 export function BaseCurrencySelector() {

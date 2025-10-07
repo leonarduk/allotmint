@@ -16,6 +16,15 @@ def _fixed_today(monkeypatch):
     monkeypatch.setattr(ia.dt, "date", FixedDate)
 
 
+def _set_today(monkeypatch, target: dt.date) -> None:
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return target
+
+    monkeypatch.setattr(ia.dt, "date", FixedDate)
+
+
 def test_price_change_pct_unresolved(monkeypatch):
     _fixed_today(monkeypatch)
     monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: None)
@@ -141,3 +150,47 @@ def test_intraday_timeseries_fallback(monkeypatch):
     res = ia.intraday_timeseries_for_ticker("AAA.L")
     assert res["last_price_time"] == "2024-01-02T00:00:00"
     assert len(res["prices"]) == 2
+
+
+def test_top_movers_weekend_reporting_date(monkeypatch):
+    _set_today(monkeypatch, dt.date(2024, 3, 3))  # Sunday
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: ("AAA", "L"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda t, d: 1.5)
+    monkeypatch.setattr(ia, "get_security_meta", lambda t: {"name": "AAA Inc"})
+
+    calls = []
+
+    def fake_close_on(sym: str, ex: str, d: dt.date) -> float:
+        calls.append(d)
+        return 101.0
+
+    monkeypatch.setattr(ia, "_close_on", fake_close_on)
+
+    res = ia.top_movers(["AAA"], 7)
+
+    assert res["gainers"][0]["last_price_date"] == "2024-03-01"
+    assert calls == [dt.date(2024, 3, 1)]
+
+
+def test_price_and_changes_weekend_reporting_date(monkeypatch):
+    _set_today(monkeypatch, dt.date(2024, 3, 3))  # Sunday
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda t, latest: ("ABC", "L"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda t, d: 2.0)
+    from backend.common import portfolio_utils as pu
+
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {})
+
+    calls = []
+
+    def fake_close_on(sym: str, ex: str, d: dt.date) -> float:
+        calls.append(d)
+        return 55.0
+
+    monkeypatch.setattr(ia, "_close_on", fake_close_on)
+    ia._price_and_changes.cache_clear()
+
+    res = ia._price_and_changes("ABC")
+
+    assert res["last_price_date"] == "2024-03-01"
+    assert res["last_price_gbp"] == 55.0
+    assert calls == [dt.date(2024, 3, 1)]

@@ -90,7 +90,7 @@ def mock_google_verify(monkeypatch, request):
 
     def fake_verify(token: str):
         if token == "good":
-            return "lucy@example.com"
+            return "user@example.com"
         if token == "other":
             raise HTTPException(status_code=403, detail="Unauthorized email")
         raise HTTPException(status_code=401, detail="Invalid token")

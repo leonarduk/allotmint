@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getVirtualPortfolios,
   getVirtualPortfolio,
@@ -21,6 +21,24 @@ import {
   getOwnerDisplayName,
 } from "../utils/owners";
 
+const MAX_INITIAL_LOAD_ATTEMPTS = 3;
+const INITIAL_RETRY_BASE_DELAY_MS = 500;
+const INITIAL_RETRY_MAX_DELAY_MS = 2000;
+
+let initialDataPromise: Promise<[VP[], OwnerSummary[]]> | null = null;
+
+async function resolveInitialData() {
+  if (!initialDataPromise) {
+    initialDataPromise = Promise.all([getVirtualPortfolios(), getOwners()]);
+  }
+
+  try {
+    return await initialDataPromise;
+  } finally {
+    initialDataPromise = null;
+  }
+}
+
 export function VirtualPortfolio() {
   const [portfolios, setPortfolios] = useState<VP[]>([]);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
@@ -30,56 +48,125 @@ export function VirtualPortfolio() {
   const [holdings, setHoldings] = useState<SyntheticHolding[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [hasLoadedInitialData, setHasLoadedInitialData] = useState(false);
+  const [initialLoadInProgress, setInitialLoadInProgress] = useState(true);
+  const isMountedRef = useRef(true);
+  const initialLoadStartedRef = useRef(false);
+  const initialLoadInFlightRef = useRef(false);
   const ownerLookup = useMemo(
     () => createOwnerDisplayLookup(owners),
     [owners],
   );
 
-  const track = (
-    event: VirtualPortfolioAnalyticsEvent,
-    metadata?: Record<string, unknown>,
-  ) => {
-    logAnalyticsEvent({
-      source: "virtual_portfolio",
-      event,
-      metadata,
-    }).catch(() => undefined);
-  };
+  const track = useCallback(
+    (
+      event: VirtualPortfolioAnalyticsEvent,
+      metadata?: Record<string, unknown>,
+    ) => {
+      const maybePromise = logAnalyticsEvent({
+        source: "virtual_portfolio",
+        event,
+        metadata,
+      });
+
+      void maybePromise?.catch?.(() => undefined);
+    },
+    [],
+  );
 
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const [ps, os] = await Promise.all([
-          getVirtualPortfolios(),
-          getOwners(),
-        ]);
-        if (!cancelled) {
-          setPortfolios(ps);
-          setOwners(sanitizeOwners(os));
-          track("view", { portfolio_count: ps.length });
-        }
-      } catch (e) {
-        if (!cancelled) {
-          const err = e instanceof Error ? e.message : String(e);
-          setError(
-            navigator.onLine
-              ? err || "Unable to load virtual portfolios. Please try again."
-              : "You appear to be offline.",
-          );
-          errorToast(e);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
+    isMountedRef.current = true;
     return () => {
-      cancelled = true;
+      isMountedRef.current = false;
     };
   }, []);
+
+  const loadInitialData = useCallback(async () => {
+    if (!isMountedRef.current) return;
+
+    if (initialLoadInFlightRef.current) {
+      return;
+    }
+
+    initialLoadInFlightRef.current = true;
+
+    setHasLoadedInitialData(false);
+    setLoading(true);
+    setInitialLoadInProgress(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      for (let attempt = 0; attempt < MAX_INITIAL_LOAD_ATTEMPTS; attempt += 1) {
+        try {
+          const [ps, os] = await resolveInitialData();
+
+          if (!isMountedRef.current) {
+            return;
+          }
+
+          const normalizedPortfolios = Array.isArray(ps) ? ps : [];
+          const normalizedOwners = Array.isArray(os) ? os : [];
+
+          setPortfolios(normalizedPortfolios);
+          setOwners(sanitizeOwners(normalizedOwners));
+          track("view", { portfolio_count: normalizedPortfolios.length });
+          setLoading(false);
+          setHasLoadedInitialData(true);
+          setInitialLoadInProgress(false);
+          return;
+        } catch (e) {
+          const err = e instanceof Error ? e : new Error(String(e));
+
+          if (!isMountedRef.current) {
+            return;
+          }
+
+          const isFinalAttempt = attempt === MAX_INITIAL_LOAD_ATTEMPTS - 1;
+          if (isFinalAttempt) {
+            setError(
+              navigator.onLine
+                ? "Unable to load virtual portfolios. Please try again."
+                : "You appear to be offline.",
+            );
+            setLoading(false);
+            setInitialLoadInProgress(false);
+            errorToast(err);
+            return;
+          }
+
+          const delay = Math.min(
+            INITIAL_RETRY_BASE_DELAY_MS * 2 ** attempt,
+            INITIAL_RETRY_MAX_DELAY_MS,
+          );
+
+          if (delay > 0) {
+            await new Promise<void>((resolve) => setTimeout(resolve, delay));
+            if (!isMountedRef.current) {
+              return;
+            }
+          }
+        }
+      }
+    } finally {
+      initialLoadInFlightRef.current = false;
+    }
+  }, [track]);
+
+  useEffect(() => {
+    if (initialLoadStartedRef.current) {
+      return;
+    }
+
+    initialLoadStartedRef.current = true;
+    loadInitialData();
+  }, [loadInitialData]);
+
+  const handleInitialRetry = useCallback(() => {
+    if (loading) return;
+    loadInitialData();
+  }, [loadInitialData, loading]);
 
   async function load(id: number) {
     try {
@@ -164,34 +251,51 @@ export function VirtualPortfolio() {
     }
   }
 
-  const isInitialLoading = loading && portfolios.length === 0 && owners.length === 0;
+  const isInitialLoading = initialLoadInProgress && !hasLoadedInitialData;
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-4 text-2xl md:text-4xl">Virtual Portfolios</h1>
 
-      {isInitialLoading && <p>Loading...</p>}
-      {error && <p className="text-red-500">{error}</p>}
+      {isInitialLoading && <p data-testid="virtual-portfolio-loader">Loading...</p>}
+      {error && (
+        <div className="mb-2">
+          <p className="text-red-500">{error}</p>
+          {!hasLoadedInitialData && (
+            <button
+              type="button"
+              onClick={handleInitialRetry}
+              disabled={loading}
+              className="mt-2 rounded border border-red-300 px-3 py-1 text-sm text-red-600 transition disabled:opacity-50"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
       {message && <p className="text-green-600">{message}</p>}
 
       <div className="mb-4">
         <label>
           Select
-          <select
-            value={selected ?? ""}
-            onChange={(e) => {
-              const id = e.target.value ? Number(e.target.value) : null;
-              if (id) load(id);
-            }}
-            className="ml-2"
-          >
-            <option value="">New…</option>
-            {portfolios.map((p) => (
-              <option key={p.id} value={p.id ?? ""}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          {!isInitialLoading && (
+            <select
+              value={selected ?? ""}
+              onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : null;
+                if (id) load(id);
+              }}
+              className="ml-2"
+              size={Math.min(6, Math.max(1, portfolios.length + 1))}
+            >
+              <option value="">New…</option>
+              {portfolios.map((p) => (
+                <option key={p.id} value={p.id ?? ""}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
       </div>
 

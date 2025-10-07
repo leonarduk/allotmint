@@ -29,11 +29,14 @@ def validate_tabs(tabs_raw: Any) -> TabsConfig:
     tabs_data = asdict(TabsConfig())
     if isinstance(tabs_raw, dict):
         for key, val in tabs_raw.items():
-            if key not in tabs_data:
+            normalised_key = key.replace("-", "_")
+            if normalised_key == "tradecompliance":
+                normalised_key = "trade_compliance"
+            if normalised_key not in tabs_data:
                 raise ConfigValidationError(f"Unknown tab '{key}'")
             if not isinstance(val, bool):
                 raise ConfigValidationError(f"Tab '{key}' must be a boolean")
-            tabs_data[key] = val
+            tabs_data[normalised_key] = val
     return TabsConfig(**tabs_data)
 
 
@@ -59,7 +62,7 @@ class TabsConfig:
     support: bool = True
     settings: bool = True
     alertsettings: bool = True
-    tradecompliance: bool = True
+    trade_compliance: bool = True
     trail: bool = True
     taxtools: bool = True
     profile: bool = False
@@ -313,12 +316,14 @@ def load_config() -> Config:
             )
 
     google_client_id = data.get("google_client_id")
-    env_client_id = os.getenv("GOOGLE_CLIENT_ID")
-    if env_client_id is not None:
-        google_client_id = env_client_id
-
     if isinstance(google_client_id, str):
         google_client_id = google_client_id.strip() or None
+
+    env_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if env_client_id is not None:
+        env_val = env_client_id.strip()
+        if env_val:
+            google_client_id = env_val
 
     allowed_emails_raw = _parse_str_list(data.get("allowed_emails"))
     allowed_emails = None

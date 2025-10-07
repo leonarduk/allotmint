@@ -106,7 +106,11 @@ def test_performance_with_synthetic_holdings(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(portfolio_utils.portfolio_mod, "build_owner_portfolio", lambda owner: portfolio)
+    monkeypatch.setattr(
+        portfolio_utils.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
 
     def fake_load_meta_timeseries(ticker, exchange, days):
         dates = pd.date_range("2024-01-01", periods=3, freq="D")

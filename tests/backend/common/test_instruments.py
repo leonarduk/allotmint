@@ -1,5 +1,7 @@
+import importlib
 import io
 import json
+import pathlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -199,6 +201,90 @@ def test_list_group_definitions_returns_empty_when_missing(monkeypatch, tmp_path
         instruments.list_group_definitions.cache_clear()
 
 
+@pytest.mark.parametrize(
+    (
+        "configured_exists",
+        "patch_module_path",
+        "fallback_exists",
+        "expected_source",
+        "warning_fragment",
+    ),
+    [
+        (True, False, False, "configured", None),
+        (False, True, True, "fallback", "falling back to"),
+        (False, True, False, "configured", "not found"),
+    ],
+    ids=[
+        "configured-directory",
+        "packaged-fallback",
+        "missing-everywhere",
+    ],
+)
+def test_instruments_dir_resolution(
+    monkeypatch,
+    tmp_path,
+    caplog,
+    configured_exists: bool,
+    patch_module_path: bool,
+    fallback_exists: bool,
+    expected_source: str,
+    warning_fragment: str | None,
+) -> None:
+    original_data_root = instruments.config.data_root
+    module_path = Path(instruments.__file__).resolve()
+
+    configured_root = tmp_path / "configured"
+    configured_root.mkdir()
+    configured_dir = configured_root / "instruments"
+    if configured_exists:
+        configured_dir.mkdir()
+
+    fake_root = tmp_path / "package_root"
+    fake_module_path = fake_root / "pkg" / "backend" / "common" / "instruments.py"
+    fake_module_path.parent.mkdir(parents=True)
+    fake_module_path.write_text("# dummy module placeholder\n")
+    fallback_dir = fake_root / "pkg" / "data" / "instruments"
+    if fallback_exists:
+        fallback_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(instruments.config, "data_root", configured_root)
+    path_cls = type(Path())
+    original_resolve = path_cls.resolve
+
+    def reload_module() -> object:
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            if patch_module_path:
+                def fake_resolve(self, *args, **kwargs):  # type: ignore[override]
+                    resolved = original_resolve(self, *args, **kwargs)
+                    if resolved == module_path:
+                        return pathlib.Path(fake_module_path)
+                    return resolved
+
+                with monkeypatch.context() as ctx:
+                    ctx.setattr(path_cls, "resolve", fake_resolve)
+                    return importlib.reload(instruments)
+            return importlib.reload(instruments)
+
+    module = reload_module()
+
+    try:
+        expected_dir = fallback_dir if expected_source == "fallback" else configured_dir
+        assert module._INSTRUMENTS_DIR == expected_dir
+
+        if warning_fragment is None:
+            assert not caplog.records
+        else:
+            messages = [record.getMessage() for record in caplog.records]
+            assert any(warning_fragment in message for message in messages)
+    finally:
+        if module is not None:
+            module.get_instrument_meta.cache_clear()
+        monkeypatch.setattr(instruments.config, "data_root", original_data_root)
+        restored = importlib.reload(instruments)
+        restored.get_instrument_meta.cache_clear()
+
+
 def test_save_instrument_meta_variants(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(instruments, "_INSTRUMENTS_DIR", tmp_path)
     monkeypatch.setattr(instruments.config, "data_root", tmp_path)
@@ -226,6 +312,84 @@ def test_save_instrument_meta_variants(monkeypatch, tmp_path) -> None:
 
     with pytest.raises(ValueError):
         instruments.save_instrument_meta("ABC", {"name": "ABC"})
+
+
+def test_fetch_metadata_from_yahoo_builds_normalized_payload(monkeypatch) -> None:
+    expected_info = {
+        "shortName": "Alpha plc  ",
+        "currency": "gbp",
+        "sector": " Technology ",
+        "industry": " Software",
+        "region": "United Kingdom ",
+        "quoteType": "EQUITY",
+    }
+
+    def fake_ticker(symbol: str):
+        assert symbol == "ABC.L"
+
+        class _FakeTicker:
+            def get_info(self):
+                return dict(expected_info)
+
+        return _FakeTicker()
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=fake_ticker))
+
+    result = instruments._fetch_metadata_from_yahoo("abc", "L")
+
+    assert result == {
+        "name": "Alpha plc",
+        "currency": "GBP",
+        "sector": "Technology",
+        "region": "United Kingdom",
+        "asset_class": "Equity",
+        "industry": "Software",
+        "instrument_type": "EQUITY",
+    }
+
+
+@pytest.mark.parametrize("fast_info_kind", ["object", "dict"])
+def test_fetch_metadata_from_yahoo_falls_back_to_info_and_fast_info(monkeypatch, fast_info_kind: str) -> None:
+    def build_fast_info():
+        if fast_info_kind == "object":
+            return SimpleNamespace(currency="usd")
+        return {"currency": "usd"}
+
+    class _FallbackTicker:
+        info = {
+            "longName": "Beta Fund",
+            "industryDisp": " Diversified ",
+            "country": "US ",
+            "quoteType": "MUTUALFUND",
+            "category": " Index ",
+        }
+
+        def __init__(self, symbol: str) -> None:
+            assert symbol == "BETA"
+            self.fast_info = build_fast_info()
+
+        def get_info(self):
+            raise RuntimeError("boom")
+
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=_FallbackTicker))
+
+    result = instruments._fetch_metadata_from_yahoo("beta", "NASDAQ")
+
+    assert result == {
+        "name": "Beta Fund",
+        "currency": "USD",
+        "sector": "Index",
+        "region": "US",
+        "asset_class": "Fund",
+        "industry": "Diversified",
+        "instrument_type": "MUTUALFUND",
+    }
+
+
+def test_fetch_metadata_from_yahoo_rejects_unknown_exchange(monkeypatch) -> None:
+    monkeypatch.setitem(sys.modules, "yfinance", SimpleNamespace(Ticker=lambda symbol: None))
+
+    assert instruments._fetch_metadata_from_yahoo("abc", "MARS") is None
 
 
 def test_auto_create_instrument_meta_merges_payload(monkeypatch, tmp_path) -> None:
@@ -308,3 +472,61 @@ def test_list_group_definitions_loads_json(monkeypatch, tmp_path) -> None:
         assert "invalid" not in defs
     finally:
         instruments.list_group_definitions.cache_clear()
+@pytest.mark.parametrize(
+    "value,upper,expected",
+    [
+        ("  spaced  ", False, "spaced"),
+        ("lower", True, "LOWER"),
+        (123, False, "123"),
+        ("  ", False, None),
+        (None, True, None),
+    ],
+)
+def test_clean_str_variants(value, upper, expected) -> None:
+    assert instruments._clean_str(value, upper=upper) == expected
+
+
+@pytest.mark.parametrize(
+    "quote_type,expected",
+    [
+        ("equity", "Equity"),
+        ("mutualfund", "Fund"),
+        ("cryptoCurrency", "Crypto"),
+        ("unknown_type", "Unknown Type"),
+        (None, None),
+    ],
+)
+def test_asset_class_from_quote_type_variants(quote_type, expected) -> None:
+    assert instruments._asset_class_from_quote_type(quote_type) == expected
+
+
+@pytest.mark.parametrize(
+    "exchange,expected",
+    [
+        ("LSE", ".L"),
+        ("lse", ".L"),
+        ("NASDAQ", ""),
+        ("fx", "=X"),
+    ],
+)
+def test_yahoo_suffix_for_exchange(exchange, expected) -> None:
+    assert instruments._yahoo_suffix_for_exchange(exchange) == expected
+
+
+def test_yahoo_suffix_for_exchange_unknown() -> None:
+    with pytest.raises(ValueError):
+        instruments._yahoo_suffix_for_exchange("unsupported")
+
+
+@pytest.mark.parametrize(
+    "symbol,exchange,expected",
+    [
+        ("abc", "lse", "ABC.L"),
+        ("abc.l", "LSE", "ABC.L"),
+        ("usdgbp=x", "fx", "USDGBP=X"),
+        ("spy", "NYSE", "SPY"),
+    ],
+)
+def test_build_yahoo_symbol(symbol, exchange, expected) -> None:
+    assert instruments._build_yahoo_symbol(symbol, exchange) == expected
+

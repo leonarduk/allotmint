@@ -38,6 +38,11 @@ const mockScreenerData = [
   },
 ];
 
+vi.mock("@/utils/errorToast", () => ({
+  __esModule: true,
+  default: vi.fn(),
+}));
+
 vi.mock("@/api", () => ({
   API_BASE: "http://api",
   getOwners: vi.fn().mockResolvedValue([
@@ -62,7 +67,7 @@ vi.mock("@/api", () => ({
   getScreener: vi.fn(),
 }));
 
-import { getScreener, runCustomQuery } from "@/api";
+import { getOwners, getScreener, listSavedQueries, runCustomQuery } from "@/api";
 import { ScreenerQuery } from "@/pages/ScreenerQuery";
 
 function renderWithI18n(ui: ReactElement) {
@@ -82,6 +87,23 @@ describe("Screener & Query page", () => {
     // default API mocks to resolve to empty arrays
     runCustomQuery.mockResolvedValue([]);
     getScreener.mockResolvedValue([]);
+    getOwners.mockResolvedValue([
+      { owner: "alice", full_name: "Alice Example", accounts: [] },
+      { owner: "bob", full_name: "Bob Example", accounts: [] },
+    ]);
+    listSavedQueries.mockResolvedValue([
+      {
+        id: "1",
+        name: "Saved1",
+        params: {
+          start: "2024-01-01",
+          end: "2024-01-31",
+          owners: ["bob"],
+          tickers: ["BBB"],
+          metrics: ["market_value_gbp"],
+        },
+      },
+    ]);
   });
   it("runs screener and displays results", async () => {
     getScreener.mockResolvedValue(mockScreenerData);
@@ -194,6 +216,18 @@ describe("Screener & Query page", () => {
     const btn = await screen.findByText("Saved1");
     fireEvent.click(btn);
     expect(screen.getByLabelText(i18n.t("query.start"))).toHaveValue("2024-01-01");
+  });
+
+  it("renders wrapper and marker even when owner and saved query fetches fail", async () => {
+    getOwners.mockRejectedValueOnce(new Error("owners down"));
+    listSavedQueries.mockRejectedValueOnce(new Error("queries down"));
+
+    renderWithI18n(<ScreenerQuery />);
+
+    expect(screen.getByTestId("screener-query-wrapper")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("screener-query-boundary"),
+    ).toBeInTheDocument();
   });
 
   it("initializes form from query string", async () => {

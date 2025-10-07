@@ -10,12 +10,14 @@ import {
 } from "../api";
 import type { PerformancePoint } from "../types";
 import { percent, percentOrNa } from "../lib/money";
+import { formatDateISO } from "../lib/date";
 
 type Props = {
   owner: string | null;
+  asOf?: string | null;
 };
 
-export function PerformanceDashboard({ owner }: Props) {
+export function PerformanceDashboard({ owner, asOf }: Props) {
   const [data, setData] = useState<PerformancePoint[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [days, setDays] = useState<number>(365);
@@ -27,6 +29,8 @@ export function PerformanceDashboard({ owner }: Props) {
   );
   const [xirr, setXirr] = useState<number | null>(null);
   const [excludeCash, setExcludeCash] = useState<boolean>(false);
+  const [reportingDate, setReportingDate] = useState<string | null>(null);
+  const [previousDate, setPreviousDate] = useState<string | null>(null);
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
@@ -34,12 +38,15 @@ export function PerformanceDashboard({ owner }: Props) {
     if (!owner) return;
     setErr(null);
     setData([]);
+    setReportingDate(null);
+    setPreviousDate(null);
     const reqDays = days === 0 ? 36500 : days;
+    const opts = asOf ? { asOf } : undefined;
     Promise.all([
-      getAlphaVsBenchmark(owner, "VWRL.L", reqDays),
-      getTrackingError(owner, "VWRL.L", reqDays),
-      getMaxDrawdown(owner, reqDays),
-      getPerformance(owner, reqDays, excludeCash),
+      getAlphaVsBenchmark(owner, "VWRL.L", reqDays, opts),
+      getTrackingError(owner, "VWRL.L", reqDays, opts),
+      getMaxDrawdown(owner, reqDays, opts),
+      getPerformance(owner, reqDays, excludeCash, opts),
     ])
       .then(([alphaRes, teRes, mdRes, perf]) => {
         setData(perf.history);
@@ -48,9 +55,11 @@ export function PerformanceDashboard({ owner }: Props) {
         setMaxDrawdown(mdRes.max_drawdown);
         setTimeWeightedReturn(perf.time_weighted_return ?? null);
         setXirr(perf.xirr ?? null);
+        setReportingDate(perf.reportingDate ?? null);
+        setPreviousDate(perf.previousDate ?? null);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-  }, [owner, days, excludeCash]);
+  }, [owner, days, excludeCash, asOf]);
 
   if (!owner) return <p>{t("dashboard.selectMember")}</p>;
   if (err) return <p style={{ color: "red" }}>{err}</p>;
@@ -72,6 +81,13 @@ export function PerformanceDashboard({ owner }: Props) {
       : timeWeightedReturn;
   const safeXirr =
     xirr != null && Math.abs(xirr) > 1 ? xirr / 100 : xirr;
+
+  const formatSummaryDate = (value: string | null) => {
+    if (!value) return "—";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return formatDateISO(parsed);
+  };
 
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -99,6 +115,29 @@ export function PerformanceDashboard({ owner }: Props) {
             style={{ marginLeft: "0.25rem" }}
           />
         </label>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap: "1rem",
+          flexWrap: "wrap",
+          fontSize: "0.9rem",
+          color: "#aaa",
+          marginBottom: "0.75rem",
+        }}
+      >
+        <div data-testid="reporting-date-summary">
+          <span style={{ fontWeight: 600 }}>
+            {t("dashboard.reportingDate")}:
+          </span>{" "}
+          {formatSummaryDate(reportingDate)}
+        </div>
+        <div data-testid="previous-date-summary">
+          <span style={{ fontWeight: 600 }}>
+            {t("dashboard.previousDate")}:
+          </span>{" "}
+          {formatSummaryDate(previousDate)}
+        </div>
       </div>
       <div
         style={{

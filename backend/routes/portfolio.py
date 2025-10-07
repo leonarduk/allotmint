@@ -10,8 +10,8 @@ Owners / groups / portfolio endpoints (shared).
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
-from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -32,6 +32,7 @@ from backend.common import (
 from backend.common import portfolio as portfolio_mod
 from backend.config import config
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
+from backend.utils.pricing_dates import PricingDateCalculator
 
 log = logging.getLogger("routes.portfolio")
 router = APIRouter(tags=["portfolio"])
@@ -46,12 +47,34 @@ KEY_LOSERS = "losers"
 
 
 # ──────────────────────────────────────────────────────────────
+# Helpers
+# ──────────────────────────────────────────────────────────────
+def _resolve_pricing_date(as_of: str | None) -> dt.date | None:
+    """Validate an ``as_of`` query parameter and return a pricing date."""
+
+    if not as_of:
+        return None
+
+    try:
+        candidate = dt.date.fromisoformat(as_of)
+    except ValueError as exc:  # pragma: no cover - validation guard
+        raise HTTPException(status_code=400, detail="Invalid as_of date") from exc
+
+    if candidate > dt.date.today():
+        raise HTTPException(status_code=400, detail="Date cannot be in the future")
+
+    calc = PricingDateCalculator()
+    return calc.resolve_weekday(candidate, forward=False)
+
+
+# ──────────────────────────────────────────────────────────────
 # Pydantic models for validation
 # ──────────────────────────────────────────────────────────────
 class OwnerSummary(BaseModel):
     owner: str
     full_name: str
     accounts: List[str]
+    has_transactions_artifact: bool = False
 
 
 class GroupSummary(BaseModel):
@@ -89,6 +112,7 @@ _DEFAULT_DEMO_OWNER: Dict[str, Any] = {
     "owner": "demo",
     "full_name": "Demo",
     "accounts": list(_CONVENTIONAL_ACCOUNT_EXTRAS),
+    "has_transactions_artifact": False,
 }
 
 
@@ -132,20 +156,41 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
 
 
 def _has_transactions_artifact(owner_dir: Optional[Path], owner: str) -> bool:
-    """Return ``True`` when a transactions file or directory exists for ``owner``."""
+    """Return ``True`` when ``owner_dir`` exposes a transactions export."""
 
-    if not owner_dir or not owner:
+    if not owner_dir:
         return False
 
-    target = f"{owner}{_TRANSACTIONS_SUFFIX}".casefold()
+    owner_slug = str(owner or "").strip()
+    candidate_slugs: list[str] = []
+    seen_slugs_cf: set[str] = set()
+    if owner_slug:
+        candidate_slugs.append(owner_slug)
+        seen_slugs_cf.add(owner_slug.casefold())
+
+    dir_name = owner_dir.name.strip() if owner_dir.name else ""
+    dir_name_cf = dir_name.casefold() if dir_name else ""
+    if dir_name and dir_name_cf not in seen_slugs_cf:
+        candidate_slugs.append(dir_name)
+        seen_slugs_cf.add(dir_name_cf)
+
+    if not candidate_slugs:
+        return False
+
+    target_files = {f"{slug}{_TRANSACTIONS_SUFFIX}.json".casefold() for slug in candidate_slugs}
+    target_dirs = {f"{slug}{_TRANSACTIONS_SUFFIX}".casefold() for slug in candidate_slugs}
 
     try:
-        for entry in owner_dir.iterdir():
-            name = entry.stem if entry.is_file() else entry.name
-            if name.casefold() == target:
-                return True
+        entries = list(owner_dir.iterdir())
     except OSError:
-        return False
+        entries = []
+
+    for entry in entries:
+        name_cf = entry.name.casefold()
+        if name_cf in target_files and entry.is_file():
+            return True
+        if name_cf in target_dirs and entry.is_dir():
+            return True
 
     return False
 
@@ -206,12 +251,6 @@ def _normalise_owner_entry(
                 continue
             _append(stripped)
 
-    for extra in _CONVENTIONAL_ACCOUNT_EXTRAS:
-        _append(extra)
-
-    if _has_transactions_artifact(owner_dir, owner):
-        _append(f"{owner}{_TRANSACTIONS_SUFFIX}")
-
     resolved_meta = meta
     if resolved_meta is None:
         try:
@@ -223,6 +262,7 @@ def _normalise_owner_entry(
         "owner": owner,
         "full_name": _resolve_full_name(owner, entry, resolved_meta),
         "accounts": accounts,
+        "has_transactions_artifact": _has_transactions_artifact(owner_dir, owner),
     }
 
     return summary
@@ -244,8 +284,11 @@ def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
         full_name = summary.get("full_name")
         if isinstance(full_name, str) and full_name.casefold() == "demo":
             summary["full_name"] = _DEFAULT_DEMO_OWNER["full_name"]
+        summary["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, "demo")
         return summary
-    return _DEFAULT_DEMO_OWNER.copy()
+    fallback = _DEFAULT_DEMO_OWNER.copy()
+    fallback["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, "demo")
+    return fallback
 
 
 def _list_owner_summaries(
@@ -322,7 +365,7 @@ async def groups():
 # Owner / group portfolios
 # ──────────────────────────────────────────────────────────────
 @router.get("/portfolio/{owner}")
-async def portfolio(owner: str, request: Request):
+async def portfolio(owner: str, request: Request, as_of: str | None = None):
     """Return the fully expanded portfolio for ``owner``.
 
     The helper function :func:`build_owner_portfolio` loads account data from
@@ -334,8 +377,12 @@ async def portfolio(owner: str, request: Request):
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
+    pricing_date = _resolve_pricing_date(as_of)
+
     try:
-        return portfolio_mod.build_owner_portfolio(owner, accounts_root)
+        return portfolio_mod.build_owner_portfolio(
+            owner, accounts_root, pricing_date=pricing_date
+        )
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Owner not found")
 
@@ -370,9 +417,10 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, e
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    calc = PricingDateCalculator()
     return {
         "owner": owner,
-        "as_of": date.today().isoformat(),
+        "as_of": calc.reporting_date.isoformat(),
         "var": var,
         "sharpe_ratio": sharpe,
     }
@@ -391,9 +439,10 @@ async def portfolio_var_breakdown(owner: str, days: int = 365, confidence: float
         raise HTTPException(status_code=404, detail="Owner not found")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    calc = PricingDateCalculator()
     return {
         "owner": owner,
-        "as_of": date.today().isoformat(),
+        "as_of": calc.reporting_date.isoformat(),
         "var": var,
         "breakdown": breakdown,
     }
@@ -418,7 +467,7 @@ async def portfolio_var_recompute(owner: str, days: int = 365, confidence: float
 
 
 @router.get("/portfolio-group/{slug}")
-async def portfolio_group(slug: str):
+async def portfolio_group(slug: str, as_of: str | None = None):
     """Return the aggregated portfolio for a group.
 
     Groups are defined in configuration and simply reference a list of owner
@@ -426,7 +475,8 @@ async def portfolio_group(slug: str):
     """
 
     try:
-        return group_portfolio.build_group_portfolio(slug)
+        pricing_date = _resolve_pricing_date(as_of)
+        return group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
     except Exception as e:
         log.warning(f"Failed to load group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
@@ -476,6 +526,7 @@ async def group_instruments(
         None,
         description="Filter holdings to specific account type(s).",
     ),
+    as_of: str | None = None,
 ):
     """Return holdings for the group aggregated by ticker.
 
@@ -485,7 +536,8 @@ async def group_instruments(
     """
 
     try:
-        gp = group_portfolio.build_group_portfolio(slug)
+        pricing_date = _resolve_pricing_date(as_of)
+        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
@@ -513,20 +565,22 @@ async def group_instruments(
 
 
 @router.get("/portfolio-group/{slug}/sectors")
-async def group_sectors(slug: str):
+async def group_sectors(slug: str, as_of: str | None = None):
     """Return return contribution aggregated by sector."""
     try:
-        gp = group_portfolio.build_group_portfolio(slug)
+        pricing_date = _resolve_pricing_date(as_of)
+        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_sector(gp)
 
 
 @router.get("/portfolio-group/{slug}/regions")
-async def group_regions(slug: str):
+async def group_regions(slug: str, as_of: str | None = None):
     """Return return contribution aggregated by region."""
     try:
-        gp = group_portfolio.build_group_portfolio(slug)
+        pricing_date = _resolve_pricing_date(as_of)
+        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_region(gp)

@@ -45,7 +45,7 @@ def client():
 def test_owner_metrics_success(client, monkeypatch, path, func, key, expected_value, breakdown):
     def fake(owner, *args, **kwargs):
         assert owner == "alice"
-        assert kwargs == {"include_breakdown": True}
+        assert kwargs == {"include_breakdown": True, "pricing_date": None}
         return expected_value, breakdown
 
     monkeypatch.setattr(portfolio_utils, func, fake)
@@ -70,7 +70,7 @@ def test_owner_metrics_success(client, monkeypatch, path, func, key, expected_va
 )
 def test_owner_metrics_not_found(client, monkeypatch, path, func):
     def fake(*args, **kwargs):
-        assert kwargs == {"include_breakdown": True}
+        assert kwargs == {"include_breakdown": True, "pricing_date": None}
         raise FileNotFoundError
 
     monkeypatch.setattr(portfolio_utils, func, fake)
@@ -149,6 +149,8 @@ def test_performance_summary_success(client, monkeypatch):
     result = {
         "history": [{"date": "2024-01-01", "cumulative_return": 0.07}],
         "max_drawdown": -0.4,
+        "reporting_date": "2024-01-01",
+        "previous_date": "2023-12-29",
     }
 
     def fake(owner, *args, **kwargs):
@@ -208,7 +210,7 @@ def test_group_alpha_handles_near_zero_benchmark(client, monkeypatch):
     dates = pd.to_datetime(["2024-01-01", "2024-01-02"]).date
     port_series = pd.Series([100.0, 101.0], index=dates)
 
-    def fake_portfolio_value_series(name, days, *, group=False):
+    def fake_portfolio_value_series(name, days, *, group=False, pricing_date=None):
         assert name == "test-group"
         assert group is True
         assert days == 365

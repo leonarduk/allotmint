@@ -9,6 +9,7 @@ from backend.common.approvals import load_approvals, save_approvals
 from backend.common.compliance import check_owner
 from backend.common.holding_utils import enrich_holding
 from backend.config import config
+from backend.utils.pricing_dates import PricingDateCalculator
 
 
 def test_enrich_holding_requires_approval(monkeypatch):
@@ -26,11 +27,42 @@ def test_enrich_holding_requires_approval(monkeypatch):
     )
     out = enrich_holding(holding, today, {}, {})
     assert out["sell_eligible"] is False
-    expect_date = (date.fromisoformat(acq) + timedelta(days=config.hold_days_min)).isoformat()
+    calc = PricingDateCalculator(today=today)
+    hold_end = date.fromisoformat(acq) + timedelta(days=config.hold_days_min)
+    expect_date = calc.resolve_weekday(hold_end, forward=True).isoformat()
     assert out["next_eligible_sell_date"] == expect_date
 
     approvals = {"ADM.L": today}
     out = enrich_holding(holding, today, {}, approvals)
+    assert out["sell_eligible"] is True
+
+
+def test_enrich_holding_weekend_anniversary(monkeypatch):
+    today = date(2024, 5, 10)  # Friday before weekend anniversary
+    acq_date = date(2024, 4, 12)
+    holding = {
+        "ticker": "ADM.L",
+        "acquired_date": acq_date.isoformat(),
+        "units": 1,
+        "cost_basis_gbp": 1.0,
+    }
+    monkeypatch.setattr(
+        "backend.common.holding_utils._get_price_for_date_scaled",
+        lambda *a, **k: (1.0, None),
+    )
+    calc = PricingDateCalculator(today=today)
+    expected_next_date = calc.resolve_weekday(
+        acq_date + timedelta(days=config.hold_days_min), forward=True
+    )
+
+    out = enrich_holding(holding, today, {}, {})
+    assert out["sell_eligible"] is False
+    assert out["next_eligible_sell_date"] == expected_next_date.isoformat()
+    assert out["days_until_eligible"] == (expected_next_date - today).days
+
+    monday = expected_next_date
+    approvals = {"ADM.L": monday}
+    out = enrich_holding(holding, monday, {}, approvals)
     assert out["sell_eligible"] is True
 
 

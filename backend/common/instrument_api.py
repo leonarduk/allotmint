@@ -32,19 +32,11 @@ from backend.timeseries.cache import (
 )
 from backend.timeseries.fetch_meta_timeseries import run_all_tickers
 from backend.timeseries.fetch_yahoo_timeseries import fetch_yahoo_timeseries_period
+from backend.utils.pricing_dates import PricingDateCalculator
+from backend.utils.timeseries_helpers import _nearest_weekday
 
 
 logger = logging.getLogger("instrument_api")
-
-
-# ───────────────────────────────────────────────────────────────
-# Local helpers
-# ───────────────────────────────────────────────────────────────
-def _nearest_weekday(d: dt.date, forward: bool) -> dt.date:
-    """Move to the nearest weekday in the chosen direction (no weekends)."""
-    while d.weekday() >= 5:
-        d += dt.timedelta(days=1 if forward else -1)
-    return d
 
 
 def _build_exchange_map(tickers: List[str]) -> Dict[str, str]:
@@ -255,8 +247,10 @@ def timeseries_for_ticker(ticker: str, days: int = 365) -> Dict[str, Any]:
             pass
 
     today = dt.date.today()
-    end_date = today - dt.timedelta(days=1)
-    start_date = end_date - dt.timedelta(days=max(1, days))
+    yday = today - dt.timedelta(days=1)
+    lookback_days = max(1, days)
+    start_date = yday - dt.timedelta(days=lookback_days)
+    end_date = yday
 
     df = load_meta_timeseries_range(sym, ex, start_date=start_date, end_date=end_date)
     if df is None or df.empty:
@@ -402,6 +396,14 @@ def price_change_pct(ticker: str, days: int) -> Optional[float]:
     return pct
 
 
+def _resolve_last_price_date(calc: PricingDateCalculator) -> dt.date:
+    """Return the appropriate last price date for the calculator context."""
+
+    if calc.today.weekday() == 0:  # Monday
+        return calc.today - dt.timedelta(days=1)
+    return calc.reporting_date
+
+
 def top_movers(
     tickers: List[str],
     days: int,
@@ -422,8 +424,8 @@ def top_movers(
         Optional mapping of ``ticker -> weight_percent`` used for filtering.
     """
 
-    today = dt.date.today()
-    yday = today - dt.timedelta(days=1)
+    calc = PricingDateCalculator(today=dt.date.today(), weekday_func=_nearest_weekday)
+    last_price_date = _resolve_last_price_date(calc)
     rows: List[Dict[str, Any]] = []
     anomalies: List[str] = []
 
@@ -439,7 +441,7 @@ def top_movers(
             continue
         sym, ex = resolved
         full = f"{sym}.{ex}" if ex else sym
-        last_px = _close_on(sym, ex, yday)
+        last_px = _close_on(sym, ex, last_price_date)
         meta = get_security_meta(full) or {}
         rows.append(
             {
@@ -447,7 +449,7 @@ def top_movers(
                 "name": meta.get("name", full),
                 "change_pct": change,
                 "last_price_gbp": last_px,
-                "last_price_date": yday.isoformat(),
+                "last_price_date": last_price_date.isoformat(),
             }
         )
 
@@ -468,8 +470,8 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
     """
     Return last price and common percentage changes for ``ticker``.
     """
-    today = dt.date.today()
-    yday = today - dt.timedelta(days=1)
+    calc = PricingDateCalculator(today=dt.date.today(), weekday_func=_nearest_weekday)
+    last_price_date = _resolve_last_price_date(calc)
 
     resolved = _resolve_full_ticker(ticker, _LATEST_PRICES)
     if not resolved:
@@ -491,13 +493,13 @@ def _price_and_changes(ticker: str) -> Dict[str, Any]:
         last_time = snap.get("last_price_time")
         is_stale = bool(snap.get("is_stale", False))
     else:
-        last_px = _close_on(sym, ex, yday)
+        last_px = _close_on(sym, ex, last_price_date)
         last_time = None
         is_stale = True
 
     return {
         "last_price_gbp": last_px,
-        "last_price_date": yday.isoformat(),
+        "last_price_date": last_price_date.isoformat(),
         "last_price_time": last_time,
         "is_stale": is_stale,
         "change_7d_pct": price_change_pct(ticker, 7),

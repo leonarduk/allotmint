@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   Fragment,
+  type ChangeEvent,
 } from "react";
 
 import type {
@@ -38,6 +39,7 @@ import { getGroupDisplayName } from "../utils/groups";
 import { RelativeViewToggle } from "./RelativeViewToggle";
 import { preloadInstrumentHistory } from "../hooks/useInstrumentHistory";
 import { isCashInstrument } from "../lib/instruments";
+import { formatDateISO } from "../lib/date";
 import { createOwnerDisplayLookup, getOwnerDisplayName } from "../utils/owners";
 import {
   PieChart,
@@ -64,38 +66,72 @@ const PIE_COLORS = [
   "#ffc0cb",
 ];
 
+const DAY_CHANGE_BASELINE_EPSILON = 1e-2;
+
+const computeDayChangePct = (value: number, delta: number): number | null => {
+  if (!Number.isFinite(value) || !Number.isFinite(delta)) {
+    return null;
+  }
+
+  const baseline = value - delta;
+
+  if (!Number.isFinite(baseline) || Math.abs(baseline) < DAY_CHANGE_BASELINE_EPSILON) {
+    return null;
+  }
+
+  return (delta / baseline) * 100;
+};
+
 type Props = {
   slug: string;
   owners?: OwnerSummary[];
-  onTradeInfo?: (info: { trades_this_month?: number; trades_remaining?: number } | null) => void;
+  onTradeInfo?: (
+    info:
+      | {
+          as_of?: string | null;
+          trades_this_month?: number | null;
+          trades_remaining?: number | null;
+        }
+      | null,
+  ) => void;
 };
 
 /* ────────────────────────────────────────────────────────────
  * Component
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
-  const fetchPortfolio = useCallback(() => getGroupPortfolio(slug), [slug]);
+  const { t } = useTranslation();
+  const { relativeViewEnabled, baseCurrency } = useConfig();
+  const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
+
+  const fetchPortfolio = useCallback(
+    () => getGroupPortfolio(slug, { asOf: asOfOverride ?? undefined }),
+    [slug, asOfOverride],
+  );
   const {
     data: portfolio,
     loading,
     error: portfolioError,
-  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug], !!slug);
+  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride], !!slug);
 
-  const fetchSector = useCallback(() => getGroupSectorContributions(slug), [slug]);
-  const fetchRegion = useCallback(() => getGroupRegionContributions(slug), [slug]);
+  const fetchSector = useCallback(
+    () => getGroupSectorContributions(slug, { asOf: asOfOverride ?? undefined }),
+    [slug, asOfOverride],
+  );
+  const fetchRegion = useCallback(
+    () => getGroupRegionContributions(slug, { asOf: asOfOverride ?? undefined }),
+    [slug, asOfOverride],
+  );
   const { data: sectorContrib } = useFetch<SectorContribution[]>(
     fetchSector,
-    [slug],
-    !!slug
+    [slug, asOfOverride],
+    !!slug,
   );
   const { data: regionContrib } = useFetch<RegionContribution[]>(
     fetchRegion,
-    [slug],
-    !!slug
+    [slug, asOfOverride],
+    !!slug,
   );
-
-  const { t } = useTranslation();
-  const { relativeViewEnabled, baseCurrency } = useConfig();
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
@@ -122,6 +158,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
   useEffect(() => {
     setActiveOwner(null);
+    setAsOfOverride(null);
   }, [slug]);
 
   const ownerTabs = useMemo<
@@ -181,6 +218,29 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const accountFilter =
     activeOwner && activeAccountType ? activeAccountType : undefined;
 
+  const handleDateChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const nextValue = event.target.value ? event.target.value : null;
+      setAsOfOverride((prev) => {
+        if (prev === nextValue) return prev;
+        return nextValue;
+      });
+    },
+    [],
+  );
+
+  const handleResetDate = useCallback(() => {
+    setAsOfOverride(null);
+  }, []);
+
+  useEffect(() => {
+    if (!portfolio?.as_of || !asOfOverride) return;
+    const resolved = formatDateISO(new Date(portfolio.as_of));
+    if (resolved !== asOfOverride) {
+      setAsOfOverride(resolved);
+    }
+  }, [portfolio?.as_of, asOfOverride]);
+
   useEffect(() => {
     if (!slug) {
       setInstrumentRows(null);
@@ -188,7 +248,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       setInstrumentError(null);
       return;
     }
-    const key = `${slug}::${ownerFilter ?? ""}::${accountFilter ?? ""}`;
+    const key = `${slug}::${ownerFilter ?? ""}::${accountFilter ?? ""}::${
+      asOfOverride ?? ""
+    }`;
     if (instrumentKeyRef.current !== key) {
       instrumentKeyRef.current = key;
       setInstrumentRows(null);
@@ -196,10 +258,14 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     let cancelled = false;
     setInstrumentLoading(true);
     setInstrumentError(null);
-    loadGroupInstruments(slug, {
-      owner: ownerFilter,
-      account_type: accountFilter,
-    })
+    loadGroupInstruments(
+      slug,
+      {
+        owner: ownerFilter,
+        account_type: accountFilter,
+      },
+      { asOf: asOfOverride ?? undefined },
+    )
       .then((rows) => {
         if (cancelled) return;
         setInstrumentRows(rows);
@@ -217,7 +283,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [slug, ownerFilter, accountFilter, loadGroupInstruments]);
+  }, [
+    slug,
+    ownerFilter,
+    accountFilter,
+    loadGroupInstruments,
+    asOfOverride,
+  ]);
 
   useEffect(() => {
     const tickers = portfolio?.accounts?.flatMap((acct) =>
@@ -252,6 +324,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       onTradeInfo(
         portfolio
           ? {
+              as_of: portfolio.as_of,
               trades_this_month: portfolio.trades_this_month,
               trades_remaining: portfolio.trades_remaining,
             }
@@ -371,19 +444,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
     const ownerRows = Object.entries(perOwner).map(([owner, data]) => {
       const gainPct = data.cost > 0 ? (data.gain / data.cost) * 100 : 0;
-      const dayChangePct =
-        data.value - data.dayChange !== 0
-          ? (data.dayChange / (data.value - data.dayChange)) * 100
-          : 0;
+      const dayChangePct = computeDayChangePct(data.value, data.dayChange);
       const valuePct = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
       const stockPct = totalValue > 0 ? (data.stock / totalValue) * 100 : 0;
       const cashPct = totalValue > 0 ? (data.cash / totalValue) * 100 : 0;
       const accounts = data.accounts.map((acct) => {
         const accountGainPct = acct.cost > 0 ? (acct.gain / acct.cost) * 100 : 0;
-        const accountDayChangePct =
-          acct.value - acct.dayChange !== 0
-            ? (acct.dayChange / (acct.value - acct.dayChange)) * 100
-            : 0;
+        const accountDayChangePct = computeDayChangePct(acct.value, acct.dayChange);
         const accountValuePct =
           totalValue > 0 ? (acct.value / totalValue) * 100 : 0;
         const accountStockPct =
@@ -471,17 +538,104 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const hasFilteredAccounts = filteredAccounts.length > 0;
 
   /* ── render ────────────────────────────────────────────── */
+  const pricingDate = portfolio.as_of
+    ? formatDateISO(new Date(portfolio.as_of))
+    : null;
+  const dateInputValue = asOfOverride ?? (pricingDate ?? "");
+  const todayIso = formatDateISO(new Date());
+  const showResetDate = Boolean(asOfOverride);
+  const dateInputId = `group-pricing-date-${slug || "group"}`;
+
   return (
     <div style={{ marginTop: "1rem" }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: "flex-end",
+          gap: "1rem",
         }}
       >
-        <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
-        <RelativeViewToggle />
+        <div>
+          <h2>{getGroupDisplayName(slug, portfolio.name, t)}</h2>
+          {pricingDate && (
+            <div
+              style={{
+                marginTop: "0.25rem",
+                fontSize: "0.85rem",
+                color: "#aaa",
+              }}
+            >
+              {t("group.pricingAsOf", { date: pricingDate })}
+            </div>
+          )}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: "0.75rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: "0.25rem",
+            }}
+          >
+            <label
+              htmlFor={dateInputId}
+              style={{ fontSize: "0.75rem", color: "#aaa" }}
+            >
+              {t("group.pricingDatePickerLabel")}
+            </label>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              <input
+                id={dateInputId}
+                type="date"
+                value={dateInputValue}
+                max={todayIso}
+                onChange={handleDateChange}
+                disabled={loading}
+                style={{
+                  backgroundColor: "#111",
+                  border: "1px solid #444",
+                  borderRadius: "4px",
+                  color: "#fff",
+                  padding: "0.25rem 0.5rem",
+                  fontSize: "0.85rem",
+                }}
+              />
+              {showResetDate && (
+                <button
+                  type="button"
+                  onClick={handleResetDate}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#66aaff",
+                    cursor: "pointer",
+                    fontSize: "0.75rem",
+                    textDecoration: "underline",
+                    padding: 0,
+                  }}
+                >
+                  {t("group.resetPricingDate")}
+                </button>
+              )}
+            </div>
+          </div>
+          <RelativeViewToggle />
+        </div>
       </div>
 
       {!relativeViewEnabled && hasFilteredAccounts && (

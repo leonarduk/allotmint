@@ -50,8 +50,26 @@ def test_post_json_and_get_format(tmp_path, monkeypatch):
     client = _make_client(tmp_path, monkeypatch)
 
     data = [
-        {"Date": "2024-01-01", "Open": 1.0, "High": 2.0, "Low": 0.5, "Close": 1.5, "Volume": 100},
-        {"Date": "2024-01-02", "Open": 1.1, "High": 2.1, "Low": 0.6, "Close": 1.6, "Volume": 110},
+        {
+            "Date": "2024-01-01",
+            "Open": 1.0,
+            "High": 2.0,
+            "Low": 0.5,
+            "Close": 1.5,
+            "Volume": 100,
+            "Ticker": "",
+            "Source": "",
+        },
+        {
+            "Date": "2024-01-02",
+            "Open": 1.1,
+            "High": 2.1,
+            "Low": 0.6,
+            "Close": 1.6,
+            "Volume": 110,
+            "Ticker": "",
+            "Source": "",
+        },
     ]
     resp = client.post("/timeseries/edit?ticker=ABC&exchange=L", json=data)
     assert resp.status_code == 200
@@ -61,6 +79,7 @@ def test_post_json_and_get_format(tmp_path, monkeypatch):
     df = pd.read_parquet(path)
     assert len(df) == 2
     assert list(df["Ticker"]) == ["ABC", "ABC"]
+    assert list(df["Source"]) == ["Manual", "Manual"]
 
     resp = client.get("/timeseries/edit?ticker=ABC&exchange=L")
     assert resp.status_code == 200
@@ -82,6 +101,8 @@ def test_post_csv_saves_parquet(tmp_path, monkeypatch):
     path = timeseries_edit.meta_timeseries_cache_path("XYZ", "L")
     df = pd.read_parquet(path)
     assert df.loc[0, "Close"] == 1.5
+    assert list(df["Ticker"]) == ["XYZ", "XYZ"]
+    assert list(df["Source"]) == ["Manual", "Manual"]
 
 
 def test_get_missing_file(tmp_path, monkeypatch):

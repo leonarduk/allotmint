@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, Suspense } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  Suspense,
+  type CSSProperties,
+} from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -65,6 +72,9 @@ const PerformanceDashboard = lazyWithDelay(
 const InstrumentResearch = lazyWithDelay(
   () => import("./pages/InstrumentResearch"),
 );
+const VirtualPortfolio = lazyWithDelay(
+  () => import("./pages/VirtualPortfolio"),
+);
 
 interface AppProps {
   onLogout?: () => void;
@@ -75,7 +85,8 @@ type Mode =
   | "pension"
   | "market"
   | "rebalance"
-  | "research";
+  | "research"
+  | "virtual";
 
 // derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
@@ -104,6 +115,8 @@ const initialMode: Mode =
     ? "market"
     : path[0] === "movers"
     ? "movers"
+    : path[0] === "virtual"
+    ? "virtual"
     : path[0] === "instrumentadmin"
     ? "instrumentadmin"
     : path[0] === "dataadmin"
@@ -130,6 +143,20 @@ const initialSlug = path[1] ?? "";
 
 type InstrumentMetadataWithSymbol = InstrumentMetadata & {
   symbol?: string | null;
+};
+
+const routeMarkerStyle: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  border: 0,
+  opacity: 0,
+  pointerEvents: "none",
+  clip: "rect(0 0 0 0)",
+  clipPath: "inset(50%)",
+  overflow: "hidden",
 };
 
 function metadataToInstrumentSummary(metadata: InstrumentMetadata): InstrumentSummary {
@@ -207,7 +234,7 @@ export default function App({ onLogout }: AppProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
-  const { tabs } = useConfig();
+  const { tabs, disabledTabs } = useConfig();
   const { lastRefresh } = usePriceRefresh();
 
   const params = new URLSearchParams(location.search);
@@ -230,10 +257,22 @@ export default function App({ onLogout }: AppProps) {
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [portfolioAsOf, setPortfolioAsOf] = useState<string | null>(null);
   const [instruments, setInstruments] = useState<InstrumentSummary[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const portfolioCache = useRef(
+    new Map<
+      string,
+      {
+        data: Portfolio;
+        fetchedAt: number;
+        lastRefresh: string | null;
+      }
+    >(),
+  );
 
   const [backendUnavailable, setBackendUnavailable] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -258,6 +297,17 @@ export default function App({ onLogout }: AppProps) {
     },
     [navigate],
   );
+
+
+  const handlePortfolioDateChange = useCallback((isoDate: string | null) => {
+    setPortfolioAsOf(isoDate);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    portfolioCache.current.clear();
+    setPortfolio(null);
+    onLogout?.();
+  }, [onLogout]);
 
   const ownersReq = useFetchWithRetry(getOwners, 500, 5, [retryNonce]);
   const groupsReq = useFetchWithRetry(getGroups, 500, 5, [retryNonce]);
@@ -303,6 +353,9 @@ export default function App({ onLogout }: AppProps) {
       case "movers":
         newMode = "movers";
         break;
+      case "virtual":
+        newMode = "virtual";
+        break;
       case "instrumentadmin":
         newMode = "instrumentadmin";
         break;
@@ -334,7 +387,9 @@ export default function App({ onLogout }: AppProps) {
         newMode = segs.length === 0 ? "group" : "movers";
     }
 
-    if (tabs[newMode] === false) {
+    const isDisabled =
+      tabs[newMode] === false || disabledTabs?.includes(newMode);
+    if (isDisabled) {
       setMode("group");
       navigate("/", { replace: true });
       return;
@@ -358,7 +413,7 @@ export default function App({ onLogout }: AppProps) {
     } else if (newMode === "research") {
       setResearchTicker(segs[1] ? decodeURIComponent(segs[1] ?? "") : "");
     }
-  }, [location.pathname, location.search, tabs, navigate]);
+  }, [location.pathname, location.search, tabs, disabledTabs, navigate]);
 
   useEffect(() => {
     if (!ownersReq.data) return;
@@ -450,13 +505,21 @@ export default function App({ onLogout }: AppProps) {
 
   // data fetching based on route
   useEffect(() => {
+
     if (mode === "owner" && selectedOwner) {
       setLoading(true);
       setErr(null);
-      getPortfolio(selectedOwner)
+      const opts = portfolioAsOf ? { asOf: portfolioAsOf } : undefined;
+      getPortfolio(selectedOwner, opts)
         .then(setPortfolio)
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));
+    }
+  }, [mode, selectedOwner, portfolioAsOf]);
+
+  useEffect(() => {
+    if (mode === "owner" && selectedOwner) {
+      setPortfolioAsOf(null);
     }
   }, [mode, selectedOwner]);
 
@@ -496,7 +559,7 @@ export default function App({ onLogout }: AppProps) {
           <Menu
             selectedOwner={selectedOwner}
             selectedGroup={selectedGroup}
-            onLogout={onLogout}
+            onLogout={handleLogout}
             style={{ margin: 0 }}
           />
           <InstrumentSearchBarToggle />
@@ -550,7 +613,12 @@ export default function App({ onLogout }: AppProps) {
               />
             </div>
             <ComplianceWarnings owners={selectedOwner ? [selectedOwner] : []} />
-            <PortfolioView data={portfolio} loading={loading} error={err} />
+            <PortfolioView
+              data={portfolio}
+              loading={loading}
+              error={err}
+              onDateChange={handlePortfolioDateChange}
+            />
           </>
         )}
 
@@ -592,6 +660,11 @@ export default function App({ onLogout }: AppProps) {
 
         {mode === "screener" && <ScreenerQuery />}
         {mode === "timeseries" && <TimeseriesEdit />}
+        {mode === "virtual" && (
+          <Suspense fallback={<p>{t("app.loading")}</p>}>
+            <VirtualPortfolio />
+          </Suspense>
+        )}
         {mode === "instrumentadmin" && <InstrumentAdmin />}
         {mode === "dataadmin" && <DataAdmin />}
         {mode === "watchlist" && <Watchlist />}
@@ -624,10 +697,11 @@ export default function App({ onLogout }: AppProps) {
     <div className="xl:flex xl:justify-center">
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
         <div
+          data-route-marker="active"
           data-testid="active-route-marker"
           data-mode={mode}
           data-pathname={location.pathname}
-          hidden
+          style={routeMarkerStyle}
         />
         {renderMainContent()}
       </main>

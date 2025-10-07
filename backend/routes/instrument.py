@@ -465,13 +465,14 @@ async def intraday(
 
     tkr, *exch = ticker.split(".", 1)
     full = f"{tkr}.{exch[0]}" if exch else tkr
+    detail_ticker = ticker.upper()
     try:
         stock = yf.Ticker(full)
         df = stock.history(period="2d", interval="5m")
     except Exception as exc:  # pragma: no cover - network/IO errors
         raise HTTPException(502, str(exc))
     if df.empty:
-        raise HTTPException(status_code=404, detail="no intraday data")
+        raise HTTPException(status_code=404, detail=f"No intraday data for {detail_ticker}")
 
     df = df.reset_index()
     prices = [

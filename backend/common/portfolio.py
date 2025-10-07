@@ -27,6 +27,7 @@ from backend.common.data_loader import (
 )
 from backend.common.holding_utils import enrich_holding
 from backend.common.user_config import load_user_config
+from backend.utils.pricing_dates import PricingDateCalculator
 from backend.config import config
 
 logger = logging.getLogger(__name__)
@@ -112,8 +113,18 @@ def list_owners(
 
 
 # ─────────────────────── owner-level builder ─────────────────────
-def build_owner_portfolio(owner: str, accounts_root: Optional[Path] = None) -> Dict[str, Any]:
-    today = dt.date.today()
+def build_owner_portfolio(
+    owner: str,
+    accounts_root: Optional[Path] = None,
+    *,
+    root: Optional[Path] = None,
+    pricing_date: Optional[dt.date] = None,
+) -> Dict[str, Any]:
+    if root is not None:
+        accounts_root = root
+    calc = PricingDateCalculator(reporting_date=pricing_date)
+    today = calc.today
+    pricing_date = calc.reporting_date
 
     plots = [p for p in list_plots(accounts_root) if p.get("owner") == owner]
     if not plots:
@@ -137,7 +148,17 @@ def build_owner_portfolio(owner: str, accounts_root: Optional[Path] = None) -> D
         raw = load_account(owner, meta, accounts_root)
         holdings_raw = raw.get("holdings", [])
 
-        enriched = [enrich_holding(h, today, price_cache, approvals, ucfg) for h in holdings_raw]
+        enriched = [
+            enrich_holding(
+                h,
+                today,
+                price_cache,
+                approvals,
+                ucfg,
+                calc=calc,
+            )
+            for h in holdings_raw
+        ]
         val_gbp = sum(float(h.get("market_value_gbp") or 0.0) for h in enriched)
 
         accounts.append(
@@ -169,7 +190,7 @@ def build_owner_portfolio(owner: str, accounts_root: Optional[Path] = None) -> D
 
     return {
         "owner": owner,
-        "as_of": today.isoformat(),
+        "as_of": pricing_date.isoformat(),
         "trades_this_month": trades_this,
         "trades_remaining": trades_rem,
         "accounts": accounts,

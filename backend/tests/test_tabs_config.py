@@ -22,3 +22,11 @@ def test_validate_tabs_accepts_new_keys():
 def test_validate_tabs_rejects_unknown_key():
     with pytest.raises(ConfigValidationError):
         validate_tabs({"unknown": True})
+
+
+def test_validate_tabs_supports_trade_compliance_aliases():
+    tabs = validate_tabs({"trade-compliance": False})
+    assert tabs.trade_compliance is False
+
+    legacy = validate_tabs({"tradecompliance": False})
+    assert legacy.trade_compliance is False

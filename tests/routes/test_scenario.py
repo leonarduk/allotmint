@@ -16,7 +16,7 @@ def test_run_scenario_multiple_owners_and_missing_data(monkeypatch):
 
     built = []
 
-    def fake_build_owner_portfolio(owner):
+    def fake_build_owner_portfolio(owner, *, pricing_date=None):
         built.append(owner)
         if owner == "alice":
             return {"total_value_estimate_gbp": 200.0, "accounts": []}
@@ -63,7 +63,7 @@ def test_run_historical_scenario_valid_horizons(monkeypatch):
         lambda: [{"owner": "alice", "full_name": "Alice Example", "accounts": [{"id": 1}]}],
     )
 
-    def fake_build_owner_portfolio(owner):
+    def fake_build_owner_portfolio(owner, *, pricing_date=None):
         return {
             "total_value_estimate_gbp": None,
             "accounts": [

@@ -67,3 +67,36 @@ def test_portfolio_health_empty_cache(monkeypatch):
     assert isinstance(generated, datetime)
     assert "stale" not in payload
     assert calls == [0.2]
+
+
+def test_portfolio_health_suggestions_added(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+
+    from backend.routes import support
+
+    snapshot = support._PortfolioHealthSnapshot(
+        threshold=0.4,
+        findings=[
+            {"message": "Instrument metadata accounts/foo/instrument.json not found"},
+            {"message": "approvals file for 'alice' not found"},
+            {"message": "All good"},
+        ],
+        generated_at=support._now(),
+    )
+
+    monkeypatch.setattr(support, "_portfolio_health_cache", snapshot)
+    monkeypatch.setattr(support, "_portfolio_health_refresh", None)
+    monkeypatch.setattr(support, "_cache_is_fresh", lambda cache, threshold: True)
+
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.post("/support/portfolio-health", json={"threshold": 0.4})
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    suggestions = [f.get("suggestion") for f in payload["findings"]]
+    assert suggestions == [
+        "Create accounts/foo/instrument.json with instrument details.",
+        "Add approvals.json under accounts/alice/.",
+        None,
+    ]

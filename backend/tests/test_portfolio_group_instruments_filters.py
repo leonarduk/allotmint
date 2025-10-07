@@ -1,3 +1,5 @@
+import datetime as dt
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -31,7 +33,7 @@ def test_group_instruments_without_filters(monkeypatch):
     monkeypatch.setattr(
         portfolio.group_portfolio,
         "build_group_portfolio",
-        lambda slug: portfolio_data,
+        lambda slug, **_: portfolio_data,
     )
 
     captured = {}
@@ -55,7 +57,7 @@ def test_group_instruments_filters_by_owner(monkeypatch):
     monkeypatch.setattr(
         portfolio.group_portfolio,
         "build_group_portfolio",
-        lambda slug: portfolio_data,
+        lambda slug, **_: portfolio_data,
     )
 
     captured = {}
@@ -85,7 +87,7 @@ def test_group_instruments_filters_by_account_type(monkeypatch):
     monkeypatch.setattr(
         portfolio.group_portfolio,
         "build_group_portfolio",
-        lambda slug: portfolio_data,
+        lambda slug, **_: portfolio_data,
     )
 
     captured = {}
@@ -105,4 +107,52 @@ def test_group_instruments_filters_by_account_type(monkeypatch):
 
     filtered_accounts = captured["portfolio"]["accounts"]
     assert filtered_accounts == portfolio_data["accounts"][:2]
+
+
+def test_group_endpoints_accept_as_of(monkeypatch):
+    client = _client()
+    captured: list[dt.date | None] = []
+
+    def _fake_build(slug: str, *, pricing_date=None, **_) -> dict:
+        captured.append(pricing_date)
+        return {**_sample_portfolio(), "slug": slug}
+
+    monkeypatch.setattr(
+        portfolio.group_portfolio,
+        "build_group_portfolio",
+        _fake_build,
+    )
+
+    monkeypatch.setattr(
+        portfolio.portfolio_utils,
+        "aggregate_by_ticker",
+        lambda data: [],
+    )
+    monkeypatch.setattr(
+        portfolio.portfolio_utils,
+        "aggregate_by_sector",
+        lambda data: [],
+    )
+    monkeypatch.setattr(
+        portfolio.portfolio_utils,
+        "aggregate_by_region",
+        lambda data: [],
+    )
+
+    params = {"as_of": "2024-01-15"}
+
+    resp = client.get("/portfolio-group/demo", params=params)
+    assert resp.status_code == 200
+
+    resp = client.get("/portfolio-group/demo/instruments", params=params)
+    assert resp.status_code == 200
+
+    resp = client.get("/portfolio-group/demo/sectors", params=params)
+    assert resp.status_code == 200
+
+    resp = client.get("/portfolio-group/demo/regions", params=params)
+    assert resp.status_code == 200
+
+    assert len(captured) == 4
+    assert all(date == dt.date(2024, 1, 15) for date in captured)
 

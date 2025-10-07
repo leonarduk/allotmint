@@ -127,6 +127,8 @@
   "group": {
     "atAGlance": "En un coup d'œil",
     "pricingAsOf": "Tarification au {{date}}",
+    "pricingDatePickerLabel": "Changer la date de tarification",
+    "resetPricingDate": "Réinitialiser sur la plus récente",
     "select": "Sélectionnez un groupe."
   },
   "holdingsTable": {

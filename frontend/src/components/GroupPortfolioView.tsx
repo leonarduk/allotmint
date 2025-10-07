@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   Fragment,
+  type ChangeEvent,
 } from "react";
 
 import type {
@@ -99,28 +100,38 @@ type Props = {
  * Component
  * ────────────────────────────────────────────────────────── */
 export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
-  const fetchPortfolio = useCallback(() => getGroupPortfolio(slug), [slug]);
+  const { t } = useTranslation();
+  const { relativeViewEnabled, baseCurrency } = useConfig();
+  const [asOfOverride, setAsOfOverride] = useState<string | null>(null);
+
+  const fetchPortfolio = useCallback(
+    () => getGroupPortfolio(slug, { asOf: asOfOverride ?? undefined }),
+    [slug, asOfOverride],
+  );
   const {
     data: portfolio,
     loading,
     error: portfolioError,
-  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug], !!slug);
+  } = useFetch<GroupPortfolio>(fetchPortfolio, [slug, asOfOverride], !!slug);
 
-  const fetchSector = useCallback(() => getGroupSectorContributions(slug), [slug]);
-  const fetchRegion = useCallback(() => getGroupRegionContributions(slug), [slug]);
+  const fetchSector = useCallback(
+    () => getGroupSectorContributions(slug, { asOf: asOfOverride ?? undefined }),
+    [slug, asOfOverride],
+  );
+  const fetchRegion = useCallback(
+    () => getGroupRegionContributions(slug, { asOf: asOfOverride ?? undefined }),
+    [slug, asOfOverride],
+  );
   const { data: sectorContrib } = useFetch<SectorContribution[]>(
     fetchSector,
-    [slug],
-    !!slug
+    [slug, asOfOverride],
+    !!slug,
   );
   const { data: regionContrib } = useFetch<RegionContribution[]>(
     fetchRegion,
-    [slug],
-    !!slug
+    [slug, asOfOverride],
+    !!slug,
   );
-
-  const { t } = useTranslation();
-  const { relativeViewEnabled, baseCurrency } = useConfig();
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
@@ -147,6 +158,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
 
   useEffect(() => {
     setActiveOwner(null);
+    setAsOfOverride(null);
   }, [slug]);
 
   const ownerTabs = useMemo<
@@ -206,6 +218,29 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const accountFilter =
     activeOwner && activeAccountType ? activeAccountType : undefined;
 
+  const handleDateChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const nextValue = event.target.value ? event.target.value : null;
+      setAsOfOverride((prev) => {
+        if (prev === nextValue) return prev;
+        return nextValue;
+      });
+    },
+    [],
+  );
+
+  const handleResetDate = useCallback(() => {
+    setAsOfOverride(null);
+  }, []);
+
+  useEffect(() => {
+    if (!portfolio?.as_of || !asOfOverride) return;
+    const resolved = formatDateISO(new Date(portfolio.as_of));
+    if (resolved !== asOfOverride) {
+      setAsOfOverride(resolved);
+    }
+  }, [portfolio?.as_of, asOfOverride]);
+
   useEffect(() => {
     if (!slug) {
       setInstrumentRows(null);
@@ -213,7 +248,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
       setInstrumentError(null);
       return;
     }
-    const key = `${slug}::${ownerFilter ?? ""}::${accountFilter ?? ""}`;
+    const key = `${slug}::${ownerFilter ?? ""}::${accountFilter ?? ""}::${
+      asOfOverride ?? ""
+    }`;
     if (instrumentKeyRef.current !== key) {
       instrumentKeyRef.current = key;
       setInstrumentRows(null);
@@ -221,10 +258,14 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     let cancelled = false;
     setInstrumentLoading(true);
     setInstrumentError(null);
-    loadGroupInstruments(slug, {
-      owner: ownerFilter,
-      account_type: accountFilter,
-    })
+    loadGroupInstruments(
+      slug,
+      {
+        owner: ownerFilter,
+        account_type: accountFilter,
+      },
+      { asOf: asOfOverride ?? undefined },
+    )
       .then((rows) => {
         if (cancelled) return;
         setInstrumentRows(rows);
@@ -242,7 +283,13 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [slug, ownerFilter, accountFilter, loadGroupInstruments]);
+  }, [
+    slug,
+    ownerFilter,
+    accountFilter,
+    loadGroupInstruments,
+    asOfOverride,
+  ]);
 
   useEffect(() => {
     const tickers = portfolio?.accounts?.flatMap((acct) =>
@@ -494,6 +541,10 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const pricingDate = portfolio.as_of
     ? formatDateISO(new Date(portfolio.as_of))
     : null;
+  const dateInputValue = asOfOverride ?? (pricingDate ?? "");
+  const todayIso = formatDateISO(new Date());
+  const showResetDate = Boolean(asOfOverride);
+  const dateInputId = `group-pricing-date-${slug || "group"}`;
 
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -519,7 +570,72 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             </div>
           )}
         </div>
-        <RelativeViewToggle />
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: "0.75rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              gap: "0.25rem",
+            }}
+          >
+            <label
+              htmlFor={dateInputId}
+              style={{ fontSize: "0.75rem", color: "#aaa" }}
+            >
+              {t("group.pricingDatePickerLabel")}
+            </label>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              <input
+                id={dateInputId}
+                type="date"
+                value={dateInputValue}
+                max={todayIso}
+                onChange={handleDateChange}
+                disabled={loading}
+                style={{
+                  backgroundColor: "#111",
+                  border: "1px solid #444",
+                  borderRadius: "4px",
+                  color: "#fff",
+                  padding: "0.25rem 0.5rem",
+                  fontSize: "0.85rem",
+                }}
+              />
+              {showResetDate && (
+                <button
+                  type="button"
+                  onClick={handleResetDate}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#66aaff",
+                    cursor: "pointer",
+                    fontSize: "0.75rem",
+                    textDecoration: "underline",
+                    padding: 0,
+                  }}
+                >
+                  {t("group.resetPricingDate")}
+                </button>
+              )}
+            </div>
+          </div>
+          <RelativeViewToggle />
+        </div>
       </div>
 
       {!relativeViewEnabled && hasFilteredAccounts && (

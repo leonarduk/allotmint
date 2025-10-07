@@ -47,6 +47,27 @@ KEY_LOSERS = "losers"
 
 
 # ──────────────────────────────────────────────────────────────
+# Helpers
+# ──────────────────────────────────────────────────────────────
+def _resolve_pricing_date(as_of: str | None) -> dt.date | None:
+    """Validate an ``as_of`` query parameter and return a pricing date."""
+
+    if not as_of:
+        return None
+
+    try:
+        candidate = dt.date.fromisoformat(as_of)
+    except ValueError as exc:  # pragma: no cover - validation guard
+        raise HTTPException(status_code=400, detail="Invalid as_of date") from exc
+
+    if candidate > dt.date.today():
+        raise HTTPException(status_code=400, detail="Date cannot be in the future")
+
+    calc = PricingDateCalculator()
+    return calc.resolve_weekday(candidate, forward=False)
+
+
+# ──────────────────────────────────────────────────────────────
 # Pydantic models for validation
 # ──────────────────────────────────────────────────────────────
 class OwnerSummary(BaseModel):
@@ -356,16 +377,7 @@ async def portfolio(owner: str, request: Request, as_of: str | None = None):
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
         owner = owner_dir.name
-    pricing_date: dt.date | None = None
-    if as_of:
-        try:
-            candidate = dt.date.fromisoformat(as_of)
-        except ValueError as exc:  # pragma: no cover - validation guard
-            raise HTTPException(status_code=400, detail="Invalid as_of date") from exc
-        if candidate > dt.date.today():
-            raise HTTPException(status_code=400, detail="Date cannot be in the future")
-        calc = PricingDateCalculator()
-        pricing_date = calc.resolve_weekday(candidate, forward=False)
+    pricing_date = _resolve_pricing_date(as_of)
 
     try:
         return portfolio_mod.build_owner_portfolio(
@@ -455,7 +467,7 @@ async def portfolio_var_recompute(owner: str, days: int = 365, confidence: float
 
 
 @router.get("/portfolio-group/{slug}")
-async def portfolio_group(slug: str):
+async def portfolio_group(slug: str, as_of: str | None = None):
     """Return the aggregated portfolio for a group.
 
     Groups are defined in configuration and simply reference a list of owner
@@ -463,7 +475,8 @@ async def portfolio_group(slug: str):
     """
 
     try:
-        return group_portfolio.build_group_portfolio(slug)
+        pricing_date = _resolve_pricing_date(as_of)
+        return group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
     except Exception as e:
         log.warning(f"Failed to load group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
@@ -513,6 +526,7 @@ async def group_instruments(
         None,
         description="Filter holdings to specific account type(s).",
     ),
+    as_of: str | None = None,
 ):
     """Return holdings for the group aggregated by ticker.
 
@@ -522,7 +536,8 @@ async def group_instruments(
     """
 
     try:
-        gp = group_portfolio.build_group_portfolio(slug)
+        pricing_date = _resolve_pricing_date(as_of)
+        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
@@ -550,20 +565,22 @@ async def group_instruments(
 
 
 @router.get("/portfolio-group/{slug}/sectors")
-async def group_sectors(slug: str):
+async def group_sectors(slug: str, as_of: str | None = None):
     """Return return contribution aggregated by sector."""
     try:
-        gp = group_portfolio.build_group_portfolio(slug)
+        pricing_date = _resolve_pricing_date(as_of)
+        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_sector(gp)
 
 
 @router.get("/portfolio-group/{slug}/regions")
-async def group_regions(slug: str):
+async def group_regions(slug: str, as_of: str | None = None):
     """Return return contribution aggregated by region."""
     try:
-        gp = group_portfolio.build_group_portfolio(slug)
+        pricing_date = _resolve_pricing_date(as_of)
+        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_region(gp)

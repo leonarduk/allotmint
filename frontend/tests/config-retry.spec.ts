@@ -43,7 +43,9 @@ test.describe('config bootstrap regression', () => {
 
     await expect.poll(() => attempt).toBeGreaterThan(1);
 
-    const marker = page.getByTestId('active-route-marker');
+    const marker = page.locator(
+      '[data-route-marker="active"], [data-testid="active-route-marker"]',
+    );
     await expect(marker).toHaveAttribute('data-mode', 'group');
     await expect(marker).toHaveAttribute('data-pathname', '/');
   });

@@ -269,7 +269,7 @@ test.describe('config bootstrap', () => {
 
     const navigation = page.goto(target.href);
 
-    const marker = page.getByTestId('active-route-marker');
+    const marker = page.getByTestId('route-bootstrap-marker');
     await expect(marker).toHaveAttribute('data-mode', 'loading');
     await expect(marker).toHaveAttribute('data-pathname', '/portfolio');
 

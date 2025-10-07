@@ -685,10 +685,10 @@ const SAMPLE_PATH_VALUES: Record<string, string> = {
   email: 'user@example.com',
   source: 'trail',
   id: '1',
-  vp_id: '1',
+  vp_id: 'test',
   quest_id: 'check-in',
   slug: 'demo-slug',
-  name: 'demo',
+  name: 'test',
   exchange: 'NASDAQ',
   ticker: 'PFE',
 };

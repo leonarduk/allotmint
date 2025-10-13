@@ -101,15 +101,17 @@ if (-not $SmokeUrl) {
   $SmokeUrl = $env:SMOKE_URL
 }
 
+if ($SmokeUrl) {
+  $SmokeUrl = $SmokeUrl.Trim()
+  if (-not $SmokeUrl) {
+    $SmokeUrl = $null
+  }
+}
+
 if ($trimmedUrls) {
   Invoke-UrlChecks -Targets $trimmedUrls
   exit 0
 }
 
-if ($SmokeUrl) {
-  Invoke-SmokeSuites -BaseUrl $SmokeUrl
-  exit 0
-}
-
-Write-Error "Usage: provide one or more URLs (./smoke-test.ps1 <url> [...]) or set SMOKE_URL to target a deployment."
-exit 1
+Invoke-SmokeSuites -BaseUrl $SmokeUrl
+exit 0

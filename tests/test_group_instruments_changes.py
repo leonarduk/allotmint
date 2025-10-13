@@ -25,7 +25,9 @@ def test_group_instruments_populates_change_fields(monkeypatch, client):
             }
         ]
     }
-    monkeypatch.setattr(group_portfolio, "build_group_portfolio", lambda slug: portfolio)
+    monkeypatch.setattr(
+        group_portfolio, "build_group_portfolio", lambda slug, **_: portfolio
+    )
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"AAA.L": {"last_price": 100.0}})
     monkeypatch.setattr(
         instrument_api,

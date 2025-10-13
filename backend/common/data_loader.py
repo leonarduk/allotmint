@@ -91,6 +91,15 @@ def _skip_owners() -> set[str]:
 def _extract_account_names(owner_dir: Path) -> List[str]:
     """Return de-duplicated account names for ``owner_dir``."""
 
+    def _score_variant(value: str) -> tuple[int, str]:
+        """Return a score for ``value`` to prefer canonical capitalisation."""
+
+        if value.isupper():
+            return (3, value)
+        if any(ch.isupper() for ch in value):
+            return (2, value)
+        return (1, value)
+
     acct_names: List[str] = []
     try:
         entries = sorted(owner_dir.iterdir())
@@ -108,13 +117,16 @@ def _extract_account_names(owner_dir: Path) -> List[str]:
             continue
         acct_names.append(stem)
 
-    seen: set[str] = set()
+    seen: dict[str, int] = {}
     dedup: List[str] = []
     for name in acct_names:
         lowered = name.lower()
         if lowered in seen:
+            idx = seen[lowered]
+            if _score_variant(name) > _score_variant(dedup[idx]):
+                dedup[idx] = name
             continue
-        seen.add(lowered)
+        seen[lowered] = len(dedup)
         dedup.append(name)
     return dedup
 
@@ -235,7 +247,12 @@ def _list_local_plots(
 
         return True
 
-    def _discover(root: Path, *, include_demo: bool = False) -> List[Dict[str, Any]]:
+    def _discover(
+        root: Path,
+        *,
+        include_demo: bool = False,
+        default_full_name: bool = False,
+    ) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         if not root.exists():
             return results
@@ -256,7 +273,11 @@ def _list_local_plots(
 
             accounts = _extract_account_names(owner_dir)
 
-            results.append(_build_owner_summary(owner, accounts, meta))
+            summary = _build_owner_summary(owner, accounts, meta)
+            if default_full_name and "full_name" not in summary:
+                summary["full_name"] = owner
+
+            results.append(summary)
 
         return results
 
@@ -309,7 +330,15 @@ def _list_local_plots(
         except Exception:
             include_demo_primary = False
 
-    results = _discover(primary_root, include_demo=include_demo_primary)
+    default_primary_full_name = bool(
+        explicit_root and not explicit_is_global and not explicit_matches_config
+    )
+
+    results = _discover(
+        primary_root,
+        include_demo=include_demo_primary,
+        default_full_name=default_primary_full_name,
+    )
 
     try:
         same_root = fallback_root.resolve() == primary_root.resolve()
@@ -322,7 +351,11 @@ def _list_local_plots(
     # data and mirrors the expectation that callers passing a custom root only
     # see data from that location.
     if not explicit_root and not results:
-        fallback_results = _discover(fallback_root, include_demo=True)
+        fallback_results = _discover(
+            fallback_root,
+            include_demo=True,
+            default_full_name=True,
+        )
         results.extend(fallback_results)
 
     owners_index = {

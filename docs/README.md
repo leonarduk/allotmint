@@ -356,6 +356,13 @@ open http://localhost:5173/
   - A previous username/password flow using `OAuth2PasswordRequestForm` has been
     removed. Reintroduce it manually if needed by recreating a login endpoint
     that validates credentials and issues tokens with `create_access_token`.
+  - When `disable_auth` is `true` (the default in `config.yaml`) the discovery
+    helpers expose every owner locally, regardless of whether account data is
+    read from the filesystem or an S3 bucket.
+  - In production environments set `disable_auth` to `false` and supply an
+    `X-API-Token` (or other configured authentication). S3 discovery will then
+    return only the current user's accounts or any owners that list the user as
+    a viewer, and unauthenticated requests receive an empty list.
   See the [Authentication](USER_README.md#authentication) section for details.
 
 ## Alerts

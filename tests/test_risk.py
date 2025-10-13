@@ -128,3 +128,48 @@ def test_compute_portfolio_var_breakdown_invalid_confidence(confidence):
 def test_compute_portfolio_var_breakdown_invalid_days():
     with pytest.raises(ValueError):
         risk.compute_portfolio_var_breakdown("owner", days=0)
+
+
+def test_compute_portfolio_var_invalid_days():
+    with pytest.raises(ValueError):
+        risk.compute_portfolio_var("owner", days=0)
+
+
+def test_compute_portfolio_var_invalid_confidence():
+    with pytest.raises(ValueError):
+        risk.compute_portfolio_var("owner", confidence=1.5)
+
+
+def test_compute_portfolio_var_returns_none_when_no_history(monkeypatch):
+    def fake_perf(owner, days=365, include_flagged=False, include_cash=True):
+        return {"history": []}
+
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "compute_owner_performance",
+        fake_perf,
+    )
+
+    result = risk.compute_portfolio_var("owner")
+
+    assert result == {"window_days": 365, "confidence": 0.95, "1d": None, "10d": None}
+
+
+def test_compute_portfolio_var_handles_empty_returns(monkeypatch):
+    history = [
+        {"value": 100.0, "daily_return": None},
+        {"value": 101.0, "daily_return": float("nan")},
+    ]
+
+    def fake_perf(owner, days=365, include_flagged=False, include_cash=True):
+        return history
+
+    monkeypatch.setattr(
+        risk.portfolio_utils,
+        "compute_owner_performance",
+        fake_perf,
+    )
+
+    result = risk.compute_portfolio_var("owner")
+
+    assert result == {"window_days": 365, "confidence": 0.95, "1d": None, "10d": None}

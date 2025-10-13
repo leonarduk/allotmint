@@ -21,6 +21,7 @@ def _prepare_group_portfolio(monkeypatch, portfolio, meta_map):
         return portfolio
 
     monkeypatch.setattr(group_portfolio, "build_group_portfolio", _fake_build_group_portfolio)
+
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: meta_map.get(ticker, {}))
     monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})

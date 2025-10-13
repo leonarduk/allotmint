@@ -10,6 +10,8 @@ from backend.common.data_loader import (
     _build_owner_summary,
     _list_local_plots,
     _load_demo_owner,
+    _extract_account_names,
+    _list_local_plots,
     _merge_accounts,
     _safe_json_load,
     list_plots,
@@ -44,7 +46,38 @@ def _write_owner(
     for account in accounts:
         (owner_dir / f"{account}.json").write_text("{}")
 
+class TestExtractAccountNames:
+    def test_dedupes_and_filters_metadata(self, tmp_path: Path) -> None:
+        owner_dir = tmp_path / "alice"
+        owner_dir.mkdir()
+        for filename in [
+            "isa.json",
+            "ISA.json",
+            "config.json",
+            "sipp_transactions.json",
+            "GIA.json",
+            "notes.txt",
+        ]:
+            path = owner_dir / filename
+            if path.suffix == ".json":
+                path.write_text("{}")
+            else:
+                path.write_text("")
 
+        result = _extract_account_names(owner_dir)
+
+        assert result == ["GIA", "ISA"]
+
+
+class TestMergeAccounts:
+    def test_merges_unique_accounts_and_full_name(self) -> None:
+        base = {"accounts": ["ISA"]}
+        extra = {"accounts": ["isa", "GIA", 123], "full_name": "Alice Example"}
+
+        _merge_accounts(base, extra)
+
+        assert base["full_name"] == "Alice Example"
+        assert base["accounts"] == ["ISA", "GIA"]
 
 
 class TestSafeJsonLoad:
@@ -321,6 +354,67 @@ class TestListLocalPlots:
         assert all("full_name" not in entry for entry in result)
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
+
+
+    def test_falls_back_to_repository_when_primary_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        primary_accounts = repo_root / "accounts"
+        fallback_accounts = tmp_path / "fallback" / "accounts"
+        primary_accounts.mkdir(parents=True, exist_ok=True)
+        fallback_accounts.mkdir(parents=True, exist_ok=True)
+        self._configure(monkeypatch, repo_root, primary_accounts, disable_auth=True)
+
+        _write_owner(fallback_accounts, "eve", ["gia"], viewers=[])
+
+        calls = {"count": 0}
+
+        def fake_resolve_paths(repo_root_value, accounts_root_value):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                return ResolvedPaths(repo_root, primary_accounts, repo_root / "virtual")
+            return ResolvedPaths(Path("fallback-repo"), fallback_accounts, Path("fallback-repo") / "virtual")
+
+        monkeypatch.setattr("backend.common.data_loader.resolve_paths", fake_resolve_paths)
+
+        result = _list_local_plots(current_user=None)
+
+        assert result == [
+            {"owner": "eve", "full_name": "eve", "accounts": ["gia"]},
+        ]
+
+    def test_explicit_root_does_not_merge_fallback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        primary_accounts = repo_root / "accounts"
+        fallback_accounts = tmp_path / "fallback" / "accounts"
+        primary_accounts.mkdir(parents=True, exist_ok=True)
+        fallback_accounts.mkdir(parents=True, exist_ok=True)
+        self._configure(monkeypatch, repo_root, primary_accounts, disable_auth=True)
+
+        explicit_root = tmp_path / "custom"
+        explicit_root.mkdir()
+        _write_owner(explicit_root, "zoe", ["isa"], viewers=[])
+        _write_owner(fallback_accounts, "eve", ["gia"], viewers=[])
+
+        calls = {"count": 0}
+
+        def fake_resolve_paths(repo_root_value, accounts_root_value):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                return ResolvedPaths(repo_root, primary_accounts, repo_root / "virtual")
+            return ResolvedPaths(Path("fallback-repo"), fallback_accounts, Path("fallback-repo") / "virtual")
+
+        monkeypatch.setattr("backend.common.data_loader.resolve_paths", fake_resolve_paths)
+
+        result = _list_local_plots(data_root=explicit_root, current_user=None)
+
+        assert result == [
+            {"owner": "zoe", "full_name": "zoe", "accounts": ["isa"]},
+        ]
+
     def test_list_plots_with_explicit_root_skips_demo(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         repo_root = tmp_path / "repo"
         accounts_root = repo_root / "accounts"
@@ -388,3 +482,55 @@ class TestLoadDemoOwner:
         result = _load_demo_owner(tmp_path)
 
         assert result is None
+def test_list_plots_prefers_aws_results(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    cfg = Config()
+    cfg.app_env = "aws"
+    cfg.disable_auth = True
+    cfg.repo_root = tmp_path
+    cfg.accounts_root = tmp_path / "accounts"
+    monkeypatch.setattr("backend.common.data_loader.config", cfg)
+    monkeypatch.delenv(DATA_BUCKET_ENV, raising=False)
+
+    expected = [{"owner": "aws", "full_name": "aws", "accounts": ["isa"]}]
+
+    monkeypatch.setattr(
+        "backend.common.data_loader._list_aws_plots",
+        lambda current_user=None: expected,
+    )
+    # Ensure local discovery would be different to verify the AWS path wins.
+    monkeypatch.setattr(
+        "backend.common.data_loader._list_local_plots",
+        lambda data_root, current_user=None: [{"owner": "local", "full_name": "local", "accounts": []}],
+    )
+
+    result = list_plots(data_root=None, current_user="user@example.com")
+
+    assert result == expected
+
+
+def test_list_plots_aws_falls_back_to_local(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    cfg = Config()
+    cfg.app_env = "aws"
+    cfg.disable_auth = True
+    cfg.repo_root = tmp_path
+    cfg.accounts_root = tmp_path / "accounts"
+    monkeypatch.setattr("backend.common.data_loader.config", cfg)
+    monkeypatch.delenv(DATA_BUCKET_ENV, raising=False)
+
+    monkeypatch.setattr(
+        "backend.common.data_loader._list_aws_plots",
+        lambda current_user=None: [],
+    )
+
+    captured: dict[str, tuple[Path | None, object]] = {}
+
+    def fake_local(data_root: Path | None, current_user=None):
+        captured["call"] = (data_root, current_user)
+        return [{"owner": "local", "full_name": "local", "accounts": ["isa"]}]
+
+    monkeypatch.setattr("backend.common.data_loader._list_local_plots", fake_local)
+
+    result = list_plots(data_root=tmp_path, current_user="viewer")
+
+    assert result == [{"owner": "local", "full_name": "local", "accounts": ["isa"]}]
+    assert captured["call"] == (tmp_path, "viewer")

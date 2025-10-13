@@ -11,6 +11,7 @@ Owners / groups / portfolio endpoints (shared).
 from __future__ import annotations
 
 import datetime as dt
+import inspect
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -65,6 +66,31 @@ def _resolve_pricing_date(as_of: str | None) -> dt.date | None:
 
     calc = PricingDateCalculator()
     return calc.resolve_weekday(candidate, forward=False)
+
+
+def _build_group_portfolio(slug: str, pricing_date: dt.date | None) -> Dict[str, Any]:
+    """Return a group portfolio, tolerating simplified test doubles.
+
+    Some tests monkeypatch :func:`backend.common.group_portfolio.build_group_portfolio`
+    with light-weight stand-ins that only accept the ``slug`` positional
+    argument.  The production implementation, however, exposes a keyword-only
+    ``pricing_date`` parameter.  Inspect the active callable to determine
+    whether the keyword is supported before attempting to pass it through so
+    that both scenarios continue to operate.
+    """
+
+    builder = group_portfolio.build_group_portfolio
+    kwargs: Dict[str, Any] = {}
+
+    try:
+        params = inspect.signature(builder).parameters
+    except (TypeError, ValueError):  # pragma: no cover - defensive
+        params = {}
+
+    if pricing_date is not None and "pricing_date" in params:
+        kwargs["pricing_date"] = pricing_date
+
+    return builder(slug, **kwargs)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -476,7 +502,7 @@ async def portfolio_group(slug: str, as_of: str | None = None):
 
     try:
         pricing_date = _resolve_pricing_date(as_of)
-        return group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
+        return _build_group_portfolio(slug, pricing_date)
     except Exception as e:
         log.warning(f"Failed to load group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
@@ -537,7 +563,7 @@ async def group_instruments(
 
     try:
         pricing_date = _resolve_pricing_date(as_of)
-        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
+        gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 
@@ -569,7 +595,7 @@ async def group_sectors(slug: str, as_of: str | None = None):
     """Return return contribution aggregated by sector."""
     try:
         pricing_date = _resolve_pricing_date(as_of)
-        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
+        gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_sector(gp)
@@ -580,7 +606,7 @@ async def group_regions(slug: str, as_of: str | None = None):
     """Return return contribution aggregated by region."""
     try:
         pricing_date = _resolve_pricing_date(as_of)
-        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
+        gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_region(gp)

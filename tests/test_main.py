@@ -24,7 +24,7 @@ mock_owners = [
     {
         "owner": "lucy",
         "full_name": "Lucy Example",
-        "accounts": ["isa", "pension-forecast"],
+        "accounts": ["isa"],
     },
     {"owner": "steve", "full_name": "Steve Example", "accounts": ["isa", "jpm", "sipp"]},
 ]

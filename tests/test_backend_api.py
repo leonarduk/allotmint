@@ -126,25 +126,25 @@ def validate_timeseries(prices):
 
 
 def _get_owners(client):
-    """Fetch owners and ensure the demo account is present."""
+    """Fetch owners and ensure the list is non-empty."""
     resp = client.get("/owners")
     assert resp.status_code == 200
     owners = resp.json()
-    assert any(o["owner"] == "demo" for o in owners)
+    assert owners, "No owners returned"
     return owners
 
 
 def _get_groups(client):
-    """Fetch groups and ensure the demo account is included as a member."""
+    """Fetch groups and ensure at least one grouping exists."""
     resp = client.get("/groups")
     assert resp.status_code == 200
     groups = resp.json()
-    assert any("demo" in g.get("members", []) for g in groups)
+    assert groups, "No groups returned"
     return groups
 
 
 def test_owners_in_disable_auth_mode(monkeypatch):
-    """When auth is disabled the demo owner should always be listed."""
+    """When auth is disabled demo is only shown if no other owners exist."""
 
     monkeypatch.setattr(config_module.config, "disable_auth", True, raising=False)
     monkeypatch.setattr(config_module.config, "skip_snapshot_warm", True, raising=False)
@@ -155,11 +155,18 @@ def test_owners_in_disable_auth_mode(monkeypatch):
 
     assert resp.status_code == 200
     owners = resp.json()
-    assert any(owner.get("owner") == "demo" for owner in owners)
+    assert owners, "Owners list should not be empty"
+    demo_lower = config_module.demo_identity().casefold()
+    names = {entry.get("owner", "").casefold() for entry in owners}
+    has_non_demo = any(name and name != demo_lower for name in names)
+    if has_non_demo:
+        assert demo_lower not in names
+    else:
+        assert demo_lower in names
 
 
 def test_demo_owner_present_with_explicit_root(monkeypatch, tmp_path):
-    """Disable auth with a custom accounts root still exposes the demo owner."""
+    """Disable auth with a custom accounts root exposes demo when alone."""
 
     demo_dir = tmp_path / "demo"
     demo_dir.mkdir()

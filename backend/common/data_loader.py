@@ -10,7 +10,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Optional
 
 from backend.common.virtual_portfolio import VirtualPortfolio
-from backend.config import config
+from backend.config import config, demo_identity as get_demo_identity
 
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,16 @@ _METADATA_STEMS = {
     "approvals",
     "approval_requests",
 }  # ignore these as accounts
-_SKIP_OWNERS = {".idea", "demo"}
+
+
+def _skip_owners() -> set[str]:
+    """Return owner identifiers that should be ignored when listing data."""
+
+    skipped = {".idea"}
+    identity = get_demo_identity()
+    if identity:
+        skipped.add(identity.lower())
+    return skipped
 
 
 def _extract_account_names(owner_dir: Path) -> List[str]:
@@ -134,10 +143,11 @@ def _build_owner_summary(
 
 
 def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
-    """Return the bundled ``demo`` owner description if available."""
+    """Return the bundled demo owner description if available."""
 
+    identity = get_demo_identity()
     try:
-        demo_dir = (root or Path()).expanduser() / "demo"
+        demo_dir = (root or Path()).expanduser() / identity
     except Exception:
         return None
 
@@ -145,8 +155,8 @@ def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
         return None
 
     accounts = _extract_account_names(demo_dir)
-    meta = load_person_meta("demo", root)
-    return _build_owner_summary("demo", accounts, meta)
+    meta = load_person_meta(identity, root)
+    return _build_owner_summary(identity, accounts, meta)
 
 
 def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> None:
@@ -196,6 +206,9 @@ def _list_local_plots(
         else current_user
     )
 
+    demo_owner = get_demo_identity()
+    demo_lower = demo_owner.lower()
+
     def _is_authorized(owner: str, meta: Dict[str, Any]) -> bool:
         viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
         if not isinstance(viewers, list):
@@ -227,9 +240,9 @@ def _list_local_plots(
         if not root.exists():
             return results
 
-        skip_owners = set(_SKIP_OWNERS)
+        skip_owners = _skip_owners()
         if include_demo:
-            skip_owners.discard("demo")
+            skip_owners.discard(get_demo_identity().lower())
 
         for owner_dir in sorted(root.iterdir()):
             if not owner_dir.is_dir():
@@ -329,22 +342,22 @@ def _list_local_plots(
         demo_entry = _load_demo_owner(root)
         if not demo_entry:
             return False
-        meta = load_person_meta("demo", root)
-        if not _is_authorized("demo", meta):
+        meta = load_person_meta(demo_owner, root)
+        if not _is_authorized(demo_owner, meta):
             return False
         results.append(demo_entry)
-        owners_index["demo"] = demo_entry
+        owners_index[demo_lower] = demo_entry
         return True
 
-    if "demo" in owners_index:
+    if demo_lower in owners_index:
         if allow_fallback_demo:
             fallback_demo = _load_demo_owner(fallback_root)
-            _merge_accounts(owners_index["demo"], fallback_demo)
+            _merge_accounts(owners_index[demo_lower], fallback_demo)
     else:
         if allow_fallback_demo and config.disable_auth:
             if _attach_demo_from(fallback_root):
                 allow_fallback_demo = False
-        if (config.disable_auth or include_demo_primary) and "demo" not in owners_index:
+        if (config.disable_auth or include_demo_primary) and demo_lower not in owners_index:
             _attach_demo_from(primary_root if include_demo_primary else fallback_root)
 
     def _lookup_meta(owner: str) -> Dict[str, Any]:
@@ -372,12 +385,12 @@ def _list_local_plots(
                 filtered_results.append(entry)
         return filtered_results
 
-    if "demo" not in owners_index and config.disable_auth:
+    if demo_lower not in owners_index and config.disable_auth:
         primary_demo = _load_demo_owner(primary_root)
         primary_meta = (
-            load_person_meta("demo", primary_root) if primary_demo else {}
+            load_person_meta(demo_owner, primary_root) if primary_demo else {}
         )
-        if primary_demo and _is_authorized("demo", primary_meta):
+        if primary_demo and _is_authorized(demo_owner, primary_meta):
             results.append(primary_demo)
 
     filtered_results: List[Dict[str, Any]] = []
@@ -451,7 +464,7 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
         else:
             break
 
-    for skip_owner in _SKIP_OWNERS:
+    for skip_owner in _skip_owners():
         owners.pop(skip_owner, None)
 
     user = current_user.get(None) if hasattr(current_user, "get") else current_user

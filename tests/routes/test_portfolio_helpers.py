@@ -93,10 +93,11 @@ def test_normalise_owner_entry_enriches_accounts(tmp_path: Path, monkeypatch: py
 
 
 def test_list_owner_summaries_merges_demo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    demo_dir = tmp_path / "demo"
+    identity = portfolio_routes.demo_identity()
+    demo_dir = tmp_path / identity
     demo_dir.mkdir()
     (demo_dir / "isa.json").write_text("{}", encoding="utf-8")
-    (demo_dir / "demo_transactions.json").write_text("{}", encoding="utf-8")
+    (demo_dir / f"{identity}_transactions.json").write_text("{}", encoding="utf-8")
 
     alex_dir = tmp_path / "alex"
     alex_dir.mkdir()
@@ -111,7 +112,7 @@ def test_list_owner_summaries_merges_demo(tmp_path: Path, monkeypatch: pytest.Mo
         assert accounts_root == tmp_path
         if owner == "alex":
             return {"display_name": "Alex Example"}
-        if owner == "demo":
+        if owner == identity:
             return {"full_name": "Demo Account"}
         return {}
 
@@ -129,11 +130,11 @@ def test_list_owner_summaries_merges_demo(tmp_path: Path, monkeypatch: pytest.Mo
     summaries = portfolio_routes._list_owner_summaries(request)
 
     owners = {summary.owner: summary for summary in summaries}
-    assert set(owners) == {"alex", "demo"}
+    assert set(owners) == {"alex", identity}
     assert owners["alex"].accounts == ["isa"]
     assert owners["alex"].full_name == "Alex Example"
-    assert owners["demo"].full_name == "Demo Account"
-    assert owners["demo"].has_transactions_artifact is True
+    assert owners[identity].full_name == "Demo Account"
+    assert owners[identity].has_transactions_artifact is True
 
 from backend.routes import portfolio
 

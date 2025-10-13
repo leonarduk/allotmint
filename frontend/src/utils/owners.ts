@@ -3,7 +3,16 @@ import type { OwnerSummary } from "../types";
 /** Remove any placeholder/system owners that should never appear in the UI. */
 export function sanitizeOwners(owners: OwnerSummary[]): OwnerSummary[] {
   const blockedOwners = new Set(["demo", ".idea"]);
-  return owners.filter((owner) => !blockedOwners.has(owner.owner));
+  const filtered = owners.filter((owner) => !blockedOwners.has(owner.owner));
+
+  if (filtered.length > 0) {
+    return filtered;
+  }
+
+  // When every owner is filtered out we still want to expose demo accounts so that
+  // local/test environments retain at least one selectable owner. System-only
+  // placeholders such as ``.idea`` should continue to be hidden.
+  return owners.filter((owner) => owner.owner !== ".idea");
 }
 
 export function createOwnerDisplayLookup(

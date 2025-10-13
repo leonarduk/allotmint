@@ -147,6 +147,20 @@ set the client ID via the `GOOGLE_CLIENT_ID` environment variable or
 `/token/google` and only issues API tokens for emails discovered in the
 accounts directory.
 
+### Demo identity fallback
+
+Local development typically leaves `auth.disable_auth` set to `true` in
+`config.yaml`, meaning requests run without authentication. In that mode the
+API loads demo data for the owner defined by `auth.demo_identity` (default:
+`demo`). Adjust the value to point at whichever demo account exists under your
+`data/` directory when you want to explore different fixtures.
+
+Production or AWS deployments should flip `auth.disable_auth` to `false` and
+enable Google sign-in. Once authentication is enforced the configured user from
+the incoming token is used instead, so the `demo_identity` value is ignored
+except as a fallback for unauthenticated requests (for example, smoke tests that
+explicitly disable auth).
+
 ### Push notification keys
 
 Web push uses VAPID credentials which can be generated and persisted to AWS

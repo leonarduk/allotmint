@@ -164,7 +164,7 @@ export default function MetricsExplanation() {
         <p className="text-sm text-gray-400">{t("metricsExplanation.loading")}</p>
       )}
 
-      <section className="space-y-4">
+        <section className="space-y-4">
         <h2 className="text-2xl font-semibold">
           {t("metricsExplanation.sections.alpha.title")}
         </h2>
@@ -242,7 +242,7 @@ export default function MetricsExplanation() {
         )}
       </section>
 
-      <section className="space-y-4">
+        <section className="space-y-4">
         <h2 className="text-2xl font-semibold">
           {t("metricsExplanation.sections.trackingError.title")}
         </h2>
@@ -313,7 +313,7 @@ export default function MetricsExplanation() {
         )}
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-4" id="max-drawdown">
         <h2 className="text-2xl font-semibold">
           {t("metricsExplanation.sections.maxDrawdown.title")}
         </h2>

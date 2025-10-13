@@ -21,6 +21,7 @@ from backend.common.constants import (
 )
 from backend.common.holding_utils import enrich_holding
 from backend.common.user_config import load_user_config
+from backend.config import demo_identity as get_demo_identity
 from backend.utils.pricing_dates import PricingDateCalculator
 
 logger = logging.getLogger("group_portfolio")
@@ -56,12 +57,14 @@ def list_groups() -> List[Dict[str, Any]]:
         },
     ]
 
-    demo_members = [o for o in owners if (o or "").lower() == "demo"]
+    demo_identity = get_demo_identity()
+    demo_lower = demo_identity.lower()
+    demo_members = [o for o in owners if (o or "").lower() == demo_lower]
     if demo_members:
         groups.append(
             {
-                "slug": "demo-slug",
-                "name": "Demo",
+                "slug": f"{demo_lower}-slug",
+                "name": demo_identity.title(),
                 "members": demo_members,
             }
         )

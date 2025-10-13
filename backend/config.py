@@ -115,6 +115,7 @@ class Config:
     offline_mode: Optional[bool] = None
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
+    demo_identity: str = "demo"
     google_client_id: Optional[str] = None
     allowed_emails: Optional[List[str]] = None
     relative_view_enabled: Optional[bool] = None
@@ -342,6 +343,12 @@ def load_config() -> Config:
     if alpha_key_env:
         data["alpha_vantage_key"] = alpha_key_env
 
+    demo_identity = data.get("demo_identity")
+    if isinstance(demo_identity, str):
+        demo_identity = demo_identity.strip()
+    if not demo_identity:
+        demo_identity = "demo"
+
     cfg = Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
@@ -364,6 +371,7 @@ def load_config() -> Config:
         google_auth_enabled=google_auth_enabled,
         google_client_id=google_client_id,
         allowed_emails=allowed_emails,
+        demo_identity=demo_identity,
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),
         timeseries_cache_base=timeseries_cache_base,
@@ -414,6 +422,17 @@ def reload_config() -> Config:
         return config
     config = settings = new_config
     return new_config
+
+
+def demo_identity(default: str = "demo") -> str:
+    """Return the configured demo identity or ``default`` when unset."""
+
+    identity = getattr(config, "demo_identity", None)
+    if isinstance(identity, str):
+        stripped = identity.strip()
+        if stripped:
+            return stripped
+    return default
 
 
 def __getattr__(name: str) -> Any:

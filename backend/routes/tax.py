@@ -11,7 +11,7 @@ from backend.common.allowances import (
     current_tax_year,
     remaining_allowances,
 )
-from backend.config import config
+from backend.config import config, demo_identity
 
 router = APIRouter(prefix="/tax", tags=["tax"])
 
@@ -40,11 +40,11 @@ if config.disable_auth:
         """Return remaining ISA and pension allowances for ``owner``.
 
         When authentication is disabled and ``owner`` is not provided the
-        "demo" account is used.
+        configured demo account is used.
         """
 
         if owner is None:
-            owner = "demo"
+            owner = demo_identity()
         tax_year = current_tax_year()
         data = remaining_allowances(owner, tax_year)
         return {"owner": owner, "tax_year": tax_year, "allowances": data}

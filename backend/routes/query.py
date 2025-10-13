@@ -220,7 +220,7 @@ def _format_saved_query(slug: str, payload: dict) -> dict:
 
 @router.get("/saved")
 async def list_saved_queries(detailed: bool | None = Query(None)):
-    wants_detailed = True if detailed is None else detailed
+    wants_detailed = bool(detailed)
     if config.app_env == "aws":
         slugs = _list_queries_s3()
         if not wants_detailed:

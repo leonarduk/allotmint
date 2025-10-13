@@ -10,6 +10,7 @@ paths:
 auth:
   google_auth_enabled: false
   disable_auth: true
+  demo_identity: demo
   google_client_id: ''
   allowed_emails:
   - user@example.com

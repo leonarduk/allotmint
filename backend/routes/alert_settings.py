@@ -7,8 +7,7 @@ from pydantic import BaseModel
 
 from backend import alerts as alert_utils
 from backend.auth import get_active_user, get_current_user
-
-DEMO_IDENTITY = "demo"
+from backend.config import demo_identity
 
 router = APIRouter(prefix="/alert-thresholds", tags=["alerts"])
 
@@ -53,7 +52,7 @@ async def _resolve_identity(
         if overridden is not None:
             return overridden
 
-    return DEMO_IDENTITY
+    return demo_identity()
 
 
 @router.get("/{user}")

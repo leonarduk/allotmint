@@ -31,7 +31,7 @@ from backend.common import (
     risk,
 )
 from backend.common import portfolio as portfolio_mod
-from backend.config import config
+from backend.config import config, demo_identity
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
 
@@ -134,12 +134,19 @@ _CONVENTIONAL_ACCOUNT_EXTRAS = (
     "settings",
 )
 _TRANSACTIONS_SUFFIX = "_transactions"
-_DEFAULT_DEMO_OWNER: Dict[str, Any] = {
-    "owner": "demo",
-    "full_name": "Demo",
-    "accounts": list(_CONVENTIONAL_ACCOUNT_EXTRAS),
-    "has_transactions_artifact": False,
-}
+def _default_demo_owner() -> Dict[str, Any]:
+    """Return a template summary for the configured demo identity."""
+
+    identity = demo_identity()
+    display_name = identity.replace("-", " ").strip() if identity else "Demo"
+    if not display_name:
+        display_name = "Demo"
+    return {
+        "owner": identity,
+        "full_name": display_name.title(),
+        "accounts": list(_CONVENTIONAL_ACCOUNT_EXTRAS),
+        "has_transactions_artifact": False,
+    }
 
 
 def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
@@ -295,25 +302,26 @@ def _normalise_owner_entry(
 
 
 def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
-    """Construct an owner summary for the demo account."""
+    """Construct an owner summary for the configured demo account."""
 
-    demo_dir = resolve_owner_directory(accounts_root, "demo")
+    identity = demo_identity()
+    demo_dir = resolve_owner_directory(accounts_root, identity)
     accounts = _collect_account_stems(demo_dir)
     try:
-        meta = data_loader.load_person_meta("demo", accounts_root)
+        meta = data_loader.load_person_meta(identity, accounts_root)
     except Exception:  # pragma: no cover - metadata lookup failures fall back to defaults
         meta = {}
 
-    entry = {"owner": "demo", "accounts": accounts}
+    entry = {"owner": identity, "accounts": accounts}
     summary = _normalise_owner_entry(entry, accounts_root, meta=meta)
     if summary:
         full_name = summary.get("full_name")
-        if isinstance(full_name, str) and full_name.casefold() == "demo":
-            summary["full_name"] = _DEFAULT_DEMO_OWNER["full_name"]
-        summary["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, "demo")
+        if isinstance(full_name, str) and full_name.casefold() == identity.casefold():
+            summary["full_name"] = _default_demo_owner()["full_name"]
+        summary["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, identity)
         return summary
-    fallback = _DEFAULT_DEMO_OWNER.copy()
-    fallback["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, "demo")
+    fallback = _default_demo_owner().copy()
+    fallback["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, identity)
     return fallback
 
 
@@ -332,7 +340,8 @@ def _list_owner_summaries(
         if normalised:
             summaries.append(normalised)
 
-    demo_present = any(summary["owner"].casefold() == "demo" for summary in summaries)
+    demo_owner = demo_identity().casefold()
+    demo_present = any(summary["owner"].casefold() == demo_owner for summary in summaries)
 
     if summaries and not demo_present:
         summaries.append(_build_demo_summary(accounts_root))

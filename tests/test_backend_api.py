@@ -42,7 +42,7 @@ def client(mock_google_verify):
 def mock_group_portfolio(monkeypatch):
     """Provide a lightweight group portfolio for known slugs."""
 
-    def _build(slug: str):
+    def _build(slug: str, pricing_date=None):
         if slug == "doesnotexist":
             raise HTTPException(status_code=404, detail="Group not found")
         return {

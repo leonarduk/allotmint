@@ -266,3 +266,75 @@ def test_pension_route_passes_accounts_root_positional(monkeypatch):
     assert resp.status_code == 200
     assert captured_meta == [("frank", sentinel_root)]
     assert captured_args == [(("frank", sentinel_root), {"pricing_date": None})]
+def test_pension_route_returns_400_on_forecast_error(monkeypatch):
+    monkeypatch.setattr(
+        "backend.routes.pension.load_person_meta",
+        lambda owner, root=None: {"dob": "1980-01-01"},
+    )
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio",
+        lambda owner, root=None: {"accounts": []},
+    )
+    monkeypatch.setattr("backend.routes.pension.state_pension_age_uk", lambda dob: 67)
+
+    def boom(**kwargs):  # pragma: no cover - signature passthrough
+        raise ValueError("bad input")
+
+    monkeypatch.setattr("backend.routes.pension.forecast_pension", boom)
+
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get(
+            "/pension/forecast",
+            params={"owner": "erin", "death_age": 90},
+        )
+
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "bad input"}
+
+
+def test_pension_route_includes_db_inputs(monkeypatch):
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "backend.routes.pension.load_person_meta",
+        lambda owner, root=None: {"dob": "1975-01-01"},
+    )
+    monkeypatch.setattr(
+        "backend.routes.pension.build_owner_portfolio",
+        lambda owner, root=None: {
+            "accounts": [
+                {"account_type": "SIPP", "value_estimate_gbp": 1000.0},
+                {"account_type": "isa", "value_estimate_gbp": 500.0},
+            ]
+        },
+    )
+    monkeypatch.setattr("backend.routes.pension.state_pension_age_uk", lambda dob: 65)
+
+    def fake_forecast(**kwargs):  # pragma: no cover - signature passthrough
+        captured.update(kwargs)
+        return {"forecast": []}
+
+    monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
+
+    app = create_app()
+    with TestClient(app) as client:
+        resp = client.get(
+            "/pension/forecast",
+            params={
+                "owner": "fred",
+                "death_age": 85,
+                "db_income_annual": 1200,
+                "db_normal_retirement_age": 60,
+                "state_pension_annual": 9000,
+                "desired_income_annual": 30000,
+            },
+        )
+
+    assert resp.status_code == 200
+    assert captured["db_pensions"] == [
+        {"annual_income_gbp": 1200.0, "normal_retirement_age": 60}
+    ]
+    body = resp.json()
+    assert body["pension_pot_gbp"] == 1000.0
+    assert captured["initial_pot"] == 1000.0

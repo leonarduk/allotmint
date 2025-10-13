@@ -489,7 +489,13 @@ async def portfolio_sectors(owner: str, request: Request, as_of: str | None = No
 
 
 @router.get("/var/{owner}")
-async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False):
+async def portfolio_var(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    confidence: float = 0.95,
+    exclude_cash: bool = False,
+):
     """Return historical-simulation VaR for ``owner``.
 
     Parameters
@@ -509,8 +515,10 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, e
     Raises 404 if the owner does not exist and 400 for invalid parameters.
     """
 
-    if owner not in portfolio_mod.list_owners():
-        raise HTTPException(status_code=404, detail="Owner not found")
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
@@ -528,11 +536,19 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, e
 
 
 @router.get("/var/{owner}/breakdown")
-async def portfolio_var_breakdown(owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False):
+async def portfolio_var_breakdown(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    confidence: float = 0.95,
+    exclude_cash: bool = False,
+):
     """Return VaR totals with per-ticker contribution breakdown."""
 
-    if owner not in portfolio_mod.list_owners():
-        raise HTTPException(status_code=404, detail="Owner not found")
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         breakdown = risk.compute_portfolio_var_breakdown(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
@@ -550,7 +566,12 @@ async def portfolio_var_breakdown(owner: str, days: int = 365, confidence: float
 
 
 @router.post("/var/{owner}/recompute")
-async def portfolio_var_recompute(owner: str, days: int = 365, confidence: float = 0.95):
+async def portfolio_var_recompute(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    confidence: float = 0.95,
+):
     """Force recomputation of VaR for ``owner``.
 
     This endpoint mirrors :func:`portfolio_var` but is intended to be called
@@ -558,6 +579,10 @@ async def portfolio_var_recompute(owner: str, days: int = 365, confidence: float
     result without additional metadata.
     """
 
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
     except FileNotFoundError:

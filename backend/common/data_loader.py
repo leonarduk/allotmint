@@ -75,6 +75,8 @@ _METADATA_STEMS = {
     "settings",
     "approvals",
     "approval_requests",
+    "pension-forecast",
+    "pension_forecast",
 }  # ignore these as accounts
 
 
@@ -336,9 +338,16 @@ def _list_local_plots(
 
     results = _discover(
         primary_root,
-        include_demo=include_demo_primary,
+        include_demo=False,
         default_full_name=default_primary_full_name,
     )
+
+    if include_demo_primary and not results:
+        results = _discover(
+            primary_root,
+            include_demo=True,
+            default_full_name=default_primary_full_name,
+        )
 
     try:
         same_root = fallback_root.resolve() == primary_root.resolve()
@@ -353,9 +362,15 @@ def _list_local_plots(
     if not explicit_root and not results:
         fallback_results = _discover(
             fallback_root,
-            include_demo=True,
+            include_demo=False,
             default_full_name=True,
         )
+        if config.disable_auth and not fallback_results:
+            fallback_results = _discover(
+                fallback_root,
+                include_demo=True,
+                default_full_name=True,
+            )
         results.extend(fallback_results)
 
     owners_index = {

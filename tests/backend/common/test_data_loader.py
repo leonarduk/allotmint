@@ -272,6 +272,22 @@ class TestListLocalPlots:
         ]
         assert all("full_name" not in entry for entry in result)
 
+    def test_respects_viewers_when_auth_disabled_and_user_provided(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        self._configure(monkeypatch, tmp_path, data_root, disable_auth=True)
+
+        _write_owner(data_root, "alice", ["alpha"], viewers=["viewer"])
+        _write_owner(data_root, "demo", ["demo1"], viewers=[])
+
+        result = _list_local_plots(data_root=data_root, current_user="viewer")
+
+        assert result == [
+            {"owner": "alice", "accounts": ["alpha"]},
+        ]
+        assert all("full_name" not in entry for entry in result)
+
     def test_accepts_contextvar_current_user(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         data_root = tmp_path / "accounts"
         self._configure(monkeypatch, tmp_path, data_root, disable_auth=False)

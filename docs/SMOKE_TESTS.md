@@ -46,4 +46,4 @@ SMOKE_URL=https://example.com TEST_ID_TOKEN=token npm run smoke:test:all
 
 Each command exits non-zero if any check fails, allowing CI to fail fast.
 
-The legacy `scripts/smoke-test.ps1` helper remains available for quick single-endpoint checks—provide one or more URLs via the `SMOKE_TEST_URLS` environment variable or as command-line arguments.
+The legacy `scripts/smoke-test.ps1` helper remains available: provide one or more URLs via the `SMOKE_TEST_URLS` environment variable or as command-line arguments for simple HTTP 200 checks, or set `SMOKE_URL` to delegate to the combined backend/frontend suites in environments where invoking Node.js is easier than shelling into npm directly.

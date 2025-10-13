@@ -14,6 +14,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import type { PieLabelRenderProps } from "recharts";
 
 const COLORS = [
   "#8884d8",
@@ -214,11 +215,21 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
               cy="50%"
               outerRadius="80%"
               // "percent" may be undefined for empty datasets; default it to 0
-              label={({ name, value, percent = 0 }) =>
-                relativeViewEnabled
-                  ? `${name}: ${(percent * 100).toFixed(2)}%`
-                  : `${name}: ${money(value, baseCurrency)} (${(percent * 100).toFixed(2)}%)`
-              }
+              label={(props) => {
+                const { name, value, percent: slicePercent } = props as PieLabelRenderProps;
+                const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
+                const percentValue = (slicePercent ?? 0) * 100;
+                const rawValue =
+                  typeof value === "number"
+                    ? value
+                    : typeof value === "string"
+                      ? Number(value)
+                      : 0;
+                const numericValue = Number.isFinite(rawValue) ? rawValue : 0;
+                return relativeViewEnabled
+                  ? `${labelName}: ${percentValue.toFixed(2)}%`
+                  : `${labelName}: ${money(numericValue, baseCurrency)} (${percentValue.toFixed(2)}%)`;
+              }}
             >
               {chartData.map((_, index) => (
                 <Cell
@@ -257,4 +268,3 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
 }
 
 export default AllocationCharts;
-

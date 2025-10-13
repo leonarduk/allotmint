@@ -53,6 +53,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 
 const PIE_COLORS = [
@@ -739,7 +740,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               <Pie
                 dataKey="value"
                 data={typeRows}
-                label={({ name, pct }) => `${name} ${percent(pct)}`}
+                label={(props) => {
+                  const { name, percent: slicePercent } = props as PieLabelRenderProps;
+                  const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
+                  return `${labelName} ${percent((slicePercent ?? 0) * 100)}`;
+                }}
               >
                 {typeRows.map((_, idx) => (
                   <Cell

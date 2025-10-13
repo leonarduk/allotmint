@@ -36,7 +36,6 @@ def test_portfolio_not_found(monkeypatch, tmp_path):
 
 def test_portfolio_var(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
-    monkeypatch.setattr("backend.routes.portfolio.portfolio_mod.list_owners", lambda: ["alice"])
     monkeypatch.setattr(
         "backend.routes.portfolio.risk.compute_portfolio_var",
         lambda owner, days, confidence, include_cash: {"1d": 1.0},
@@ -54,14 +53,16 @@ def test_portfolio_var(monkeypatch, tmp_path):
 
 def test_portfolio_var_owner_missing(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
-    monkeypatch.setattr("backend.routes.portfolio.portfolio_mod.list_owners", lambda: [])
+    monkeypatch.setattr(
+        "backend.routes.portfolio.risk.compute_portfolio_var",
+        lambda owner, days=365, confidence=0.95, include_cash=True: (_ for _ in ()).throw(FileNotFoundError()),
+    )
     resp = client.get("/var/alice")
     assert resp.status_code == 404
 
 
 def test_portfolio_var_bad_params(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
-    monkeypatch.setattr("backend.routes.portfolio.portfolio_mod.list_owners", lambda: ["alice"])
 
     def _raise(owner, days, confidence, include_cash):
         raise ValueError("bad")

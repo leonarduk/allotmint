@@ -81,7 +81,7 @@ _METADATA_STEMS = {
 def _skip_owners() -> set[str]:
     """Return owner identifiers that should be ignored when listing data."""
 
-    skipped = {".idea"}
+    skipped = {".idea", "demo"}
     identity = get_demo_identity()
     if identity:
         skipped.add(identity.lower())

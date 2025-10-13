@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+import backend.common.data_loader as data_loader
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     ResolvedPaths,
@@ -353,6 +354,21 @@ class TestListLocalPlots:
         ]
         assert all("full_name" not in entry for entry in result)
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
+
+    def test_overridden_demo_identity_hides_default_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        self._configure(monkeypatch, tmp_path, data_root, disable_auth=True)
+
+        data_loader.config.demo_identity = "steve"
+
+        _write_owner(data_root, "demo", ["demo1"], viewers=[])
+        _write_owner(data_root, "steve", ["growth"], viewers=[])
+
+        result = _list_local_plots(data_root=data_root, current_user=None)
+
+        assert result == []
 
 
 

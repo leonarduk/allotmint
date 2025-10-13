@@ -38,8 +38,8 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
         return requested_scaling
 
     repo_root = (
-        Path(config.repo_root)
-        if config.repo_root and ":" not in str(config.repo_root)
+        Path(config.repo_root).expanduser()
+        if getattr(config, "repo_root", None)
         else Path(__file__).resolve().parents[2]
     )
     path = repo_root / "data" / "scaling_overrides.json"

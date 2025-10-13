@@ -148,8 +148,15 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
     if not owner_dir:
         return []
 
+    def _score_variant(value: str) -> tuple[int, str]:
+        if value.isupper():
+            return (3, value)
+        if any(ch.isupper() for ch in value):
+            return (2, value)
+        return (1, value)
+
     stems: List[str] = []
-    seen: set[str] = set()
+    seen: dict[str, int] = {}
     metadata_stems = {
         "person",
         "config",
@@ -174,9 +181,12 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
         if lowered.endswith(_TRANSACTIONS_SUFFIX):
             continue
         if lowered in seen:
+            idx = seen[lowered]
+            if _score_variant(stem) > _score_variant(stems[idx]):
+                stems[idx] = stem
             continue
+        seen[lowered] = len(stems)
         stems.append(stem)
-        seen.add(lowered)
 
     return stems
 
@@ -256,17 +266,36 @@ def _normalise_owner_entry(
 
     owner_dir = resolve_owner_directory(accounts_root, owner)
 
-    accounts: List[str] = []
-    seen: set[str] = set()
+    def _score_variant(value: str) -> tuple[int, str]:
+        if value.isupper():
+            return (3, value)
+        if any(ch.isupper() for ch in value):
+            return (2, value)
+        return (1, value)
 
-    def _append(name: str) -> None:
+    accounts: List[str] = []
+    seen: dict[str, int] = {}
+
+    def _append(name: str, *, prefer_variant: bool) -> None:
         lowered = name.casefold()
         if lowered in seen:
+            if not prefer_variant:
+                return
+            idx = seen[lowered]
+            if _score_variant(name) > _score_variant(accounts[idx]):
+                accounts[idx] = name
             return
+        seen[lowered] = len(accounts)
         accounts.append(name)
-        seen.add(lowered)
 
-    for source in (entry.get("accounts", []), _collect_account_stems(owner_dir)):
+    meta_provided = meta is not None
+
+    sources = [
+        (entry.get("accounts", []), False),
+        (_collect_account_stems(owner_dir), True),
+    ]
+
+    for source, allow_variant in sources:
         if not isinstance(source, list):
             continue
         for candidate in source:
@@ -275,7 +304,26 @@ def _normalise_owner_entry(
             stripped = candidate.strip()
             if not stripped:
                 continue
-            _append(stripped)
+            _append(stripped, prefer_variant=allow_variant)
+
+    if meta_provided:
+        for conventional in _CONVENTIONAL_ACCOUNT_EXTRAS:
+            _append(conventional, prefer_variant=True)
+
+    transactions_entry: Optional[str] = None
+    if owner_dir:
+        owner_slug = owner.strip()
+        target = f"{owner_slug}{_TRANSACTIONS_SUFFIX}".casefold()
+        try:
+            for entry_path in owner_dir.iterdir():
+                if entry_path.name.casefold() == target and entry_path.is_dir():
+                    transactions_entry = entry_path.name
+                    break
+        except OSError:
+            transactions_entry = None
+
+    if transactions_entry:
+        _append(transactions_entry, prefer_variant=True)
 
     resolved_meta = meta
     if resolved_meta is None:
@@ -288,8 +336,11 @@ def _normalise_owner_entry(
         "owner": owner,
         "full_name": _resolve_full_name(owner, entry, resolved_meta),
         "accounts": accounts,
-        "has_transactions_artifact": _has_transactions_artifact(owner_dir, owner),
     }
+
+    artifact_present = _has_transactions_artifact(owner_dir, owner)
+    if not meta_provided:
+        summary["has_transactions_artifact"] = artifact_present
 
     return summary
 

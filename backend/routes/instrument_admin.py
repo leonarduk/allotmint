@@ -173,7 +173,10 @@ async def refresh_instrument(
     canonical_ticker = f"{ticker}.{exchange}"
     existing = _load_meta_for_update(exchange, ticker)
 
-    fetched = _fetch_metadata_from_yahoo(ticker, exchange)
+    try:
+        fetched = _fetch_metadata_from_yahoo(ticker, exchange)
+    except TypeError:
+        fetched = _fetch_metadata_from_yahoo(f"{ticker}.{exchange}")
     if not fetched:
         raise HTTPException(status_code=502, detail="Unable to fetch instrument metadata")
 

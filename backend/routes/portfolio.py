@@ -473,6 +473,26 @@ async def portfolio(owner: str, request: Request, as_of: str | None = None):
         raise HTTPException(status_code=404, detail="Owner not found")
 
 
+@router.get("/portfolio/{owner}/sectors")
+async def portfolio_sectors(owner: str, request: Request, as_of: str | None = None):
+    """Return return contribution aggregated by sector for an owner."""
+
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
+    pricing_date = _resolve_pricing_date(as_of)
+
+    try:
+        portfolio_data = portfolio_mod.build_owner_portfolio(
+            owner, accounts_root, pricing_date=pricing_date
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Owner not found")
+
+    return portfolio_utils.aggregate_by_sector(portfolio_data)
+
+
 @router.get("/var/{owner}")
 async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False):
     """Return historical-simulation VaR for ``owner``.

@@ -202,7 +202,12 @@ def _list_local_plots(
             viewers = []
 
         if config.disable_auth:
-            return True
+            if user is None:
+                return True
+            # Fall back to the identity checks below when a caller supplies a
+            # specific user.  This allows local "disable_auth" environments to
+            # emulate logged-in views and still respect per-account viewer
+            # permissions.
 
         if config.disable_auth is False and user is None:
             return False

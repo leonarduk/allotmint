@@ -277,7 +277,16 @@ def _list_local_plots(
 
             summary = _build_owner_summary(owner, accounts, meta)
             if default_full_name and "full_name" not in summary:
-                summary["full_name"] = owner
+                name_keys = ("full_name", "display_name", "preferred_name", "owner", "name")
+                has_name_hint = False
+                if isinstance(meta, dict):
+                    for key in name_keys:
+                        value = meta.get(key)
+                        if isinstance(value, str) and value.strip():
+                            has_name_hint = True
+                            break
+                if has_name_hint:
+                    summary["full_name"] = owner
 
             results.append(summary)
 
@@ -381,7 +390,19 @@ def _list_local_plots(
         allow_fallback_demo = False
     else:
         allow_fallback_demo = bool(config.disable_auth) or not results
-    if not allow_fallback_demo:
+
+    has_non_demo_owner = any(
+        owner and owner != demo_lower for owner in owners_index
+    )
+    demo_variant = f"{demo_lower}-owner"
+    has_demo_variant = demo_variant in owners_index
+    if has_demo_variant:
+        suppress_demo = has_non_demo_owner
+    else:
+        suppress_demo = has_non_demo_owner and (
+            (not explicit_root) or explicit_matches_fallback or (not allow_fallback_demo)
+        )
+    if not allow_fallback_demo and suppress_demo:
         return results
 
     def _attach_demo_from(root: Optional[Path]) -> bool:
@@ -402,11 +423,23 @@ def _list_local_plots(
             fallback_demo = _load_demo_owner(fallback_root)
             _merge_accounts(owners_index[demo_lower], fallback_demo)
     else:
-        if allow_fallback_demo and config.disable_auth:
+        if allow_fallback_demo and config.disable_auth and not suppress_demo:
             if _attach_demo_from(fallback_root):
                 allow_fallback_demo = False
-        if (config.disable_auth or include_demo_primary) and demo_lower not in owners_index:
-            _attach_demo_from(primary_root if include_demo_primary else fallback_root)
+        if (
+            (config.disable_auth or include_demo_primary)
+            and demo_lower not in owners_index
+            and not suppress_demo
+        ):
+            target_root: Optional[Path]
+            if include_demo_primary:
+                target_root = primary_root
+            elif allow_fallback_demo:
+                target_root = fallback_root
+            else:
+                target_root = None
+            if target_root:
+                _attach_demo_from(target_root)
 
     def _lookup_meta(owner: str) -> Dict[str, Any]:
         """Load metadata for ``owner`` from known search roots."""
@@ -433,13 +466,18 @@ def _list_local_plots(
                 filtered_results.append(entry)
         return filtered_results
 
-    if demo_lower not in owners_index and config.disable_auth:
+    if (
+        demo_lower not in owners_index
+        and config.disable_auth
+        and not suppress_demo
+    ):
         primary_demo = _load_demo_owner(primary_root)
         primary_meta = (
             load_person_meta(demo_owner, primary_root) if primary_demo else {}
         )
         if primary_demo and _is_authorized(demo_owner, primary_meta):
             results.append(primary_demo)
+            owners_index[demo_lower] = primary_demo
 
     filtered_results: List[Dict[str, Any]] = []
     for entry in results:

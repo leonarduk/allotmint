@@ -113,8 +113,8 @@ export default function PerformanceDiagnostics() {
             <div style={{ marginTop: "1rem" }}>
               <h2>Holdings on {selected}</h2>
               <ul>
-                {holdings.map((h) => (
-                  <li key={`${h.ticker}.${h.exchange}`}>
+                {holdings.map((h, index) => (
+                  <li key={`${h.ticker}.${h.exchange}.${index}`}>
                     <a
                       href={`/timeseries?ticker=${encodeURIComponent(
                         h.ticker,

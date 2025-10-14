@@ -54,7 +54,7 @@ const commands: Command[] = [
         label: 'frontend smoke suite',
       }
     : {
-        command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+        command: 'npm',
         args: ['--prefix', 'frontend', 'run', 'smoke:frontend'],
         label: 'frontend smoke suite',
       },

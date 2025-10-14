@@ -6,6 +6,9 @@ export interface SmokeEndpoint { method: string; path: string; query?: Record<st
 
 const DEFAULT_DEATH_AGE = '90';
 
+const accountsRoot =
+  process.env.ACCOUNTS_ROOT ?? path.resolve(__dirname, '../data/accounts');
+
 function statePensionAgeUk(dob: string): number {
   const birth = new Date(`${dob}T00:00:00Z`);
   if (Number.isNaN(birth.getTime())) {
@@ -18,29 +21,135 @@ function statePensionAgeUk(dob: string): number {
   return 68;
 }
 
-function computeDemoDeathAge(): string {
-  const accountsRoot = process.env.ACCOUNTS_ROOT ?? path.resolve(__dirname, '../data/accounts');
-  const personPath = path.join(accountsRoot, 'demo-owner', 'person.json');
+function readConfiguredDemoIdentity(): string | undefined {
+  const candidates = [
+    path.resolve(process.cwd(), 'config.yaml'),
+    path.resolve(__dirname, '../config.yaml'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      const contents = fs.readFileSync(candidate, 'utf8');
+      const match = contents.match(/^\s*demo_identity\s*:\s*([^#\n\r]+)/m);
+      if (match) {
+        const value = match[1].trim().replace(/^['"]|['"]$/g, '');
+        if (value) {
+          return value;
+        }
+      }
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err && err.code !== 'ENOENT') {
+        const reason = err.message ?? String(error);
+        console.warn(`Unable to read demo identity from ${candidate}: ${reason}`);
+      }
+    }
+  }
+  return undefined;
+}
 
+function discoverOwners(): string[] {
   try {
-    const meta = JSON.parse(fs.readFileSync(personPath, 'utf8')) as { dob?: unknown };
-    const dob = typeof meta.dob === 'string' ? meta.dob : null;
-    if (!dob) {
-      return DEFAULT_DEATH_AGE;
-    }
-    const retirementAge = statePensionAgeUk(dob);
-    return String(retirementAge + 20);
+    return fs
+      .readdirSync(accountsRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
   } catch (error) {
-    if (error instanceof Error) {
-      console.warn(`Falling back to default pension death age: ${error.message}`);
-    } else {
-      console.warn('Falling back to default pension death age due to unknown error');
+    const err = error as NodeJS.ErrnoException;
+    if (err && err.code !== 'ENOENT') {
+      const reason = err.message ?? String(error);
+      console.warn(`Unable to read accounts root at ${accountsRoot}: ${reason}`);
     }
-    return DEFAULT_DEATH_AGE;
+    return [];
   }
 }
 
-const demoPensionDeathAge = computeDemoDeathAge();
+function findOwnerMatch(target: string | undefined, owners: string[]): string | undefined {
+  if (!target) return undefined;
+  const trimmed = target.trim();
+  if (!trimmed) return undefined;
+  const lower = trimmed.toLowerCase();
+  for (const owner of owners) {
+    if (owner.toLowerCase() === lower) {
+      return owner;
+    }
+  }
+  // Support config values that omit a "-owner" suffix while the data uses it (or vice versa).
+  const alt = lower.endsWith('-owner') ? lower.replace(/-owner$/, '') : `${lower}-owner`;
+  for (const owner of owners) {
+    if (owner.toLowerCase() === alt) {
+      return owner;
+    }
+  }
+  return undefined;
+}
+
+function resolveSampleOwner(): string {
+  const owners = discoverOwners();
+  const envCandidates = [
+    process.env.SMOKE_OWNER,
+    process.env.SMOKE_DEMO_OWNER,
+    process.env.SMOKE_DEMO_IDENTITY,
+  ];
+  for (const candidate of envCandidates) {
+    const match = findOwnerMatch(candidate, owners);
+    if (match) {
+      return match;
+    }
+  }
+
+  const configCandidate = findOwnerMatch(readConfiguredDemoIdentity(), owners);
+  if (configCandidate) {
+    return configCandidate;
+  }
+
+  const preferred = ['demo', 'demo-owner', 'alice'];
+  for (const candidate of preferred) {
+    const match = findOwnerMatch(candidate, owners);
+    if (match) {
+      return match;
+    }
+  }
+
+  if (owners.length > 0) {
+    return owners[0];
+  }
+
+  return 'demo';
+}
+
+const sampleOwner = resolveSampleOwner();
+
+function computeDemoDeathAge(owner: string): string {
+  const candidates = [owner];
+  if (!owner.endsWith('-owner')) {
+    candidates.push(`${owner}-owner`);
+  }
+  candidates.push('demo-owner', 'demo');
+
+  for (const candidate of candidates) {
+    const personPath = path.join(accountsRoot, candidate, 'person.json');
+    try {
+      const meta = JSON.parse(fs.readFileSync(personPath, 'utf8')) as { dob?: unknown };
+      const dob = typeof meta.dob === 'string' ? meta.dob : null;
+      if (!dob) {
+        continue;
+      }
+      const retirementAge = statePensionAgeUk(dob);
+      return String(retirementAge + 20);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err && err.code !== 'ENOENT') {
+        const reason = err.message ?? String(error);
+        console.warn(`Falling back to default pension death age for ${candidate}: ${reason}`);
+      }
+    }
+  }
+
+  return DEFAULT_DEATH_AGE;
+}
+
+const demoPensionDeathAge = computeDemoDeathAge(sampleOwner);
+const sampleUser = process.env.SMOKE_USER?.trim() || sampleOwner;
 
 export const smokeEndpoints: SmokeEndpoint[] = [
   {
@@ -135,7 +244,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/compliance/validate",
     "body": {
-      "owner": "demo"
+      "owner": sampleOwner
     }
   },
   {
@@ -229,7 +338,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/holdings/import",
     "body": {
       "__form__": {
-        "owner": "demo",
+        "owner": sampleOwner,
         "account": "isa",
         "provider": "test",
         "file": "__file__"
@@ -369,7 +478,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/pension/forecast",
     "query": {
-      "owner": "demo",
+      "owner": sampleOwner,
       "death_age": demoPensionDeathAge
     }
   },
@@ -464,7 +573,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/returns/compare",
     "query": {
-      "owner": "demo"
+      "owner": sampleOwner
     }
   },
   {
@@ -599,7 +708,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/transactions/compliance",
     "query": {
-      "owner": "demo"
+      "owner": sampleOwner
     }
   },
   {
@@ -679,9 +788,9 @@ export const smokeEndpoints: SmokeEndpoint[] = [
 // Values are chosen based on common parameter names. Unknown names default to
 // `1` which parses as an integer or string.
 const SAMPLE_PATH_VALUES: Record<string, string> = {
-  owner: 'demo',
+  owner: sampleOwner,
   account: 'isa',
-  user: 'demo',
+  user: sampleUser,
   email: 'user@example.com',
   source: 'trail',
   id: '1',

@@ -12,6 +12,7 @@ const forwardedEnvironmentVariables = [
   'SMOKE_URL',
   'TEST_ID_TOKEN',
   'SMOKE_AUTH_TOKEN',
+  'SMOKE_IDENTITY',
 ] as const;
 
 const env: NodeJS.ProcessEnv = { ...process.env };

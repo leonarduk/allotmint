@@ -152,12 +152,20 @@ export interface PerformancePoint {
   drawdown?: number | null;
 }
 
+export interface DataQualityIssue {
+  date: string;
+  value: number;
+  previousValue: number;
+  nextValue: number;
+}
+
 export interface PerformanceResponse {
   history: PerformancePoint[];
   time_weighted_return?: number | null;
   xirr?: number | null;
   reportingDate?: string | null;
   previousDate?: string | null;
+  dataQualityIssues?: DataQualityIssue[];
 }
 
 export interface HoldingValue {

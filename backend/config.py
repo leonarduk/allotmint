@@ -348,7 +348,7 @@ def load_config() -> Config:
     if isinstance(demo_identity, str):
         demo_identity = demo_identity.strip()
     if not demo_identity:
-        demo_identity = "demo"
+        demo_identity = "steve"
 
     smoke_identity = data.get("smoke_identity")
     if isinstance(smoke_identity, str):
@@ -432,7 +432,7 @@ def reload_config() -> Config:
     return new_config
 
 
-def demo_identity(default: str = "demo") -> str:
+def demo_identity(default: str = "steve") -> str:
     """Return the configured demo identity or ``default`` when unset."""
 
     identity = getattr(config, "demo_identity", None)

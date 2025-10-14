@@ -508,6 +508,12 @@ export const getPerformance = (
     history: PerformancePoint[];
     reporting_date?: string | null;
     previous_date?: string | null;
+    data_quality_issues?: {
+      date: string;
+      value: number;
+      previous_value: number;
+      next_value: number;
+    }[];
   }>(
     `${API_BASE}/performance/${owner}?${params.toString()}`,
   );
@@ -527,6 +533,13 @@ export const getPerformance = (
     xirr: x.xirr,
     reportingDate: p.reporting_date ?? null,
     previousDate: p.previous_date ?? null,
+    dataQualityIssues:
+      p.data_quality_issues?.map((issue) => ({
+        date: issue.date,
+        value: issue.value,
+        previousValue: issue.previous_value,
+        nextValue: issue.next_value,
+      })) ?? [],
   }));
 };
 

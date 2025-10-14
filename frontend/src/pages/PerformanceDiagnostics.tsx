@@ -9,7 +9,11 @@ import {
   Tooltip,
 } from "recharts";
 import { getPerformance, getPortfolioHoldings } from "../api";
-import type { PerformancePoint, HoldingValue } from "../types";
+import type {
+  PerformancePoint,
+  HoldingValue,
+  DataQualityIssue,
+} from "../types";
 import { percent } from "../lib/money";
 import EmptyState from "../components/EmptyState";
 
@@ -20,6 +24,7 @@ export default function PerformanceDiagnostics() {
   const [history, setHistory] = useState<PerformancePoint[]>([]);
   const [holdings, setHoldings] = useState<HoldingValue[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [issues, setIssues] = useState<DataQualityIssue[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,6 +32,7 @@ export default function PerformanceDiagnostics() {
       setHistory([]);
       setHoldings([]);
       setSelected(null);
+      setIssues([]);
       setErr(null);
       return;
     }
@@ -36,17 +42,20 @@ export default function PerformanceDiagnostics() {
     setHistory([]);
     setHoldings([]);
     setSelected(null);
+    setIssues([]);
 
     getPerformance(owner)
       .then((res) => {
         if (cancelled) return;
         setHistory(res.history);
+        setIssues(res.dataQualityIssues ?? []);
       })
       .catch((e) => {
         if (cancelled) return;
         setHistory([]);
         setHoldings([]);
         setSelected(null);
+        setIssues([]);
         const message =
           navigator.onLine
             ? e instanceof Error
@@ -109,6 +118,33 @@ export default function PerformanceDiagnostics() {
               />
             </LineChart>
           </ResponsiveContainer>
+          {issues.length > 0 && (
+            <div style={{ marginTop: "1rem" }}>
+              <h2>Data quality report</h2>
+              <p style={{ color: "#4b5563" }}>
+                We ignored {issues.length === 1 ? "one date" : `${issues.length} dates`} where
+                the reconstructed portfolio value temporarily collapsed to nearly zero. Please
+                review pricing for:
+              </p>
+              <ul>
+                {issues.map((issue) => (
+                  <li key={issue.date}>
+                    <strong>{issue.date}</strong>: value {issue.value.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                    {" "}(prev {issue.previousValue.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}, next {issue.nextValue.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {selected && holdings.length > 0 && (
             <div style={{ marginTop: "1rem" }}>
               <h2>Holdings on {selected}</h2>

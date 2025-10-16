@@ -11,6 +11,7 @@ from backend.config import (
     demo_identity,
     reload_config,
     settings,
+    smoke_identity,
 )
 from backend.routes import config as routes_config
 
@@ -88,6 +89,26 @@ def test_demo_identity_override(monkeypatch, tmp_path):
     try:
         assert cfg.demo_identity == "steve"
         assert demo_identity() == "steve"
+        assert cfg.smoke_identity == "steve"
+        assert smoke_identity() == "steve"
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_smoke_identity_override(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("auth:\n  demo_identity: steve\n  smoke_identity: rachel\n")
+
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.demo_identity == "steve"
+        assert cfg.smoke_identity == "rachel"
+        assert demo_identity() == "steve"
+        assert smoke_identity() == "rachel"
     finally:
         monkeypatch.undo()
         reload_config()

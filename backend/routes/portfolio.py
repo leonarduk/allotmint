@@ -134,10 +134,10 @@ _CONVENTIONAL_ACCOUNT_EXTRAS = (
     "settings",
 )
 _TRANSACTIONS_SUFFIX = "_transactions"
-def _default_demo_owner() -> Dict[str, Any]:
+def _default_demo_owner(identity: str | None = None) -> Dict[str, Any]:
     """Return a template summary for the configured demo identity."""
 
-    identity = demo_identity()
+    identity = identity or demo_identity()
     display_name = identity.replace("-", " ").strip() if identity else "Demo"
     if not display_name:
         display_name = "Demo"
@@ -352,11 +352,21 @@ def _normalise_owner_entry(
     return summary
 
 
+def _resolve_demo_owner(accounts_root: Path) -> tuple[str, Path | None]:
+    """Return the preferred demo identity and resolved directory."""
+
+    for identity in data_loader.demo_identity_aliases():
+        owner_dir = resolve_owner_directory(accounts_root, identity)
+        if owner_dir:
+            return identity, owner_dir
+    identity = demo_identity()
+    return identity, resolve_owner_directory(accounts_root, identity)
+
+
 def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
     """Construct an owner summary for the configured demo account."""
 
-    identity = demo_identity()
-    demo_dir = resolve_owner_directory(accounts_root, identity)
+    identity, demo_dir = _resolve_demo_owner(accounts_root)
     accounts = _collect_account_stems(demo_dir)
     try:
         meta = data_loader.load_person_meta(identity, accounts_root)
@@ -368,10 +378,10 @@ def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
     if summary:
         full_name = summary.get("full_name")
         if isinstance(full_name, str) and full_name.casefold() == identity.casefold():
-            summary["full_name"] = _default_demo_owner()["full_name"]
+            summary["full_name"] = _default_demo_owner(identity)["full_name"]
         summary["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, identity)
         return summary
-    fallback = _default_demo_owner().copy()
+    fallback = _default_demo_owner(identity).copy()
     fallback["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, identity)
     return fallback
 
@@ -391,8 +401,14 @@ def _list_owner_summaries(
         if normalised:
             summaries.append(normalised)
 
+    demo_aliases = {alias.lower() for alias in data_loader.demo_identity_aliases()}
+
     if not summaries:
         summaries.append(_build_demo_summary(accounts_root))
+    else:
+        known = {summary["owner"].lower() for summary in summaries}
+        if not known.intersection(demo_aliases):
+            summaries.append(_build_demo_summary(accounts_root))
 
     return [OwnerSummary(**summary) for summary in summaries]
 

@@ -60,7 +60,7 @@ def list_groups() -> List[Dict[str, Any]]:
     demo_identity = get_demo_identity()
     demo_lower = demo_identity.lower()
     demo_members = [o for o in owners if (o or "").lower() == demo_lower]
-    if demo_members:
+    if demo_lower == "demo" and demo_members:
         groups.append(
             {
                 "slug": f"{demo_lower}-slug",

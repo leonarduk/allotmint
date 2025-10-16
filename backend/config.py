@@ -116,6 +116,7 @@ class Config:
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
     demo_identity: str = "demo"
+    smoke_identity: str = "demo"
     google_client_id: Optional[str] = None
     allowed_emails: Optional[List[str]] = None
     relative_view_enabled: Optional[bool] = None
@@ -347,7 +348,13 @@ def load_config() -> Config:
     if isinstance(demo_identity, str):
         demo_identity = demo_identity.strip()
     if not demo_identity:
-        demo_identity = "demo"
+        demo_identity = "steve"
+
+    smoke_identity = data.get("smoke_identity")
+    if isinstance(smoke_identity, str):
+        smoke_identity = smoke_identity.strip()
+    if not smoke_identity:
+        smoke_identity = demo_identity
 
     cfg = Config(
         app_env=data.get("app_env"),
@@ -372,6 +379,7 @@ def load_config() -> Config:
         google_client_id=google_client_id,
         allowed_emails=allowed_emails,
         demo_identity=demo_identity,
+        smoke_identity=smoke_identity,
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),
         timeseries_cache_base=timeseries_cache_base,
@@ -424,7 +432,7 @@ def reload_config() -> Config:
     return new_config
 
 
-def demo_identity(default: str = "demo") -> str:
+def demo_identity(default: str = "steve") -> str:
     """Return the configured demo identity or ``default`` when unset."""
 
     identity = getattr(config, "demo_identity", None)
@@ -433,6 +441,19 @@ def demo_identity(default: str = "demo") -> str:
         if stripped:
             return stripped
     return default
+
+
+def smoke_identity(default: Optional[str] = None) -> str:
+    """Return the configured smoke-test identity."""
+
+    identity = getattr(config, "smoke_identity", None)
+    if isinstance(identity, str):
+        stripped = identity.strip()
+        if stripped:
+            return stripped
+    if default is not None:
+        return default
+    return demo_identity()
 
 
 def __getattr__(name: str) -> Any:

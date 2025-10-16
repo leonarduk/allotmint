@@ -11,6 +11,8 @@ from backend.config import demo_identity
 
 router = APIRouter(prefix="/alert-thresholds", tags=["alerts"])
 
+DEMO_IDENTITY = demo_identity()
+
 
 class ThresholdPayload(BaseModel):
     threshold: float
@@ -52,7 +54,7 @@ async def _resolve_identity(
         if overridden is not None:
             return overridden
 
-    return demo_identity()
+    return DEMO_IDENTITY
 
 
 @router.get("/{user}")

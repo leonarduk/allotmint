@@ -1,16 +1,18 @@
-import { spawn } from 'child_process';
+import { spawn, type SpawnOptions } from 'child_process';
 import { createRequire } from 'module';
 
 type Command = {
   command: string;
   args: string[];
   label: string;
+  options?: SpawnOptions;
 };
 
 const forwardedEnvironmentVariables = [
   'SMOKE_URL',
   'TEST_ID_TOKEN',
   'SMOKE_AUTH_TOKEN',
+  'SMOKE_IDENTITY',
 ] as const;
 
 const env: NodeJS.ProcessEnv = { ...process.env };
@@ -54,18 +56,19 @@ const commands: Command[] = [
         label: 'frontend smoke suite',
       }
     : {
-        command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+        command: 'npm',
         args: ['--prefix', 'frontend', 'run', 'smoke:frontend'],
         label: 'frontend smoke suite',
+        options: process.platform === 'win32' ? { shell: true } : undefined,
       },
 ];
 
 async function runSequentially() {
   const failures: { label: string; exitCode: number | null }[] = [];
 
-  for (const { command, args, label } of commands) {
+  for (const { command, args, label, options } of commands) {
     console.log(`\n▶ Running ${label}...`);
-    const exitCode = await runCommand(command, args);
+    const exitCode = await runCommand(command, args, options);
 
     if (exitCode !== 0) {
       console.error(`✖ ${label} failed with exit code ${exitCode ?? 'null'}.`);
@@ -87,7 +90,11 @@ async function runSequentially() {
   console.log('\nAll smoke suites completed successfully.');
 }
 
-function runCommand(command: string, args: string[]): Promise<number | null> {
+function runCommand(
+  command: string,
+  args: string[],
+  options: Command['options'] = undefined,
+): Promise<number | null> {
   return new Promise((resolve) => {
     let child: ReturnType<typeof spawn>;
 
@@ -95,6 +102,7 @@ function runCommand(command: string, args: string[]): Promise<number | null> {
       child = spawn(command, args, {
         stdio: 'inherit',
         env,
+        ...options,
       });
     } catch (error) {
       console.error(`Failed to start command "${command}":`, error);

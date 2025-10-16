@@ -102,7 +102,27 @@ def _extract_account_names(owner_dir: Path) -> List[str]:
             return (2, value)
         return (1, value)
 
-    acct_names: List[str] = []
+    def _candidate_variants(stem: str, suffix: str) -> List[str]:
+        """Return potential case variants for ``stem`` that exist on disk."""
+
+        variants = [stem]
+        # Windows preserves but ignores case, so explicitly probe for upper-case
+        # variants to surface canonical ISA/SIPP names even when duplicates
+        # cannot coexist.
+        if stem.islower():
+            upper_variant = stem.upper()
+            if upper_variant != stem:
+                try:
+                    candidate = owner_dir / f"{upper_variant}{suffix}"
+                except Exception:
+                    candidate = None
+                if candidate and candidate.exists():
+                    variants.append(upper_variant)
+        return variants
+
+    ordered_keys: List[str] = []
+    variants_map: Dict[str, List[str]] = {}
+
     try:
         entries = sorted(owner_dir.iterdir())
     except OSError:
@@ -117,19 +137,21 @@ def _extract_account_names(owner_dir: Path) -> List[str]:
             continue
         if lowered.endswith("_transactions"):
             continue
-        acct_names.append(stem)
+        if lowered not in variants_map:
+            ordered_keys.append(lowered)
+            variants_map[lowered] = []
+        variants = variants_map[lowered]
+        for variant in _candidate_variants(stem, path.suffix):
+            if variant not in variants:
+                variants.append(variant)
 
-    seen: dict[str, int] = {}
     dedup: List[str] = []
-    for name in acct_names:
-        lowered = name.lower()
-        if lowered in seen:
-            idx = seen[lowered]
-            if _score_variant(name) > _score_variant(dedup[idx]):
-                dedup[idx] = name
+    for lowered in ordered_keys:
+        options = variants_map.get(lowered, [])
+        if not options:
             continue
-        seen[lowered] = len(dedup)
-        dedup.append(name)
+        best = max(options, key=_score_variant)
+        dedup.append(best)
     return dedup
 
 
@@ -159,18 +181,25 @@ def _build_owner_summary(
 def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
     """Return the bundled demo owner description if available."""
 
-    identity = get_demo_identity()
-    try:
-        demo_dir = (root or Path()).expanduser() / identity
-    except Exception:
-        return None
+    configured_identity = get_demo_identity()
+    candidates: List[str] = []
+    if isinstance(configured_identity, str) and configured_identity.strip():
+        candidates.append(configured_identity.strip())
+    if "demo" not in (identity.lower() for identity in candidates):
+        candidates.append("demo")
 
-    if not demo_dir.exists() or not demo_dir.is_dir():
-        return None
-
-    accounts = _extract_account_names(demo_dir)
-    meta = load_person_meta(identity, root)
-    return _build_owner_summary(identity, accounts, meta)
+    base = (root or Path()).expanduser()
+    for identity in candidates:
+        try:
+            demo_dir = base / identity
+        except Exception:
+            continue
+        if not demo_dir.exists() or not demo_dir.is_dir():
+            continue
+        accounts = _extract_account_names(demo_dir)
+        meta = load_person_meta(identity, root)
+        return _build_owner_summary(identity, accounts, meta)
+    return None
 
 
 def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> None:
@@ -560,12 +589,22 @@ def list_plots(
         ``accounts``.
     """
 
+    def _normalise_full_names(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        for entry in entries:
+            owner = entry.get("owner")
+            full_name = entry.get("full_name")
+            if not isinstance(owner, str) or not isinstance(full_name, str):
+                continue
+            if full_name.strip().lower() == owner.strip().lower():
+                entry.pop("full_name", None)
+        return entries
+
     if config.app_env == "aws":
         aws_results = _list_aws_plots(current_user)
         if data_root is None or aws_results:
-            return aws_results
-        return _list_local_plots(data_root, current_user)
-    return _list_local_plots(data_root, current_user)
+            return _normalise_full_names(aws_results)
+        return _normalise_full_names(_list_local_plots(data_root, current_user))
+    return _normalise_full_names(_list_local_plots(data_root, current_user))
 
 
 # ------------------------------------------------------------------

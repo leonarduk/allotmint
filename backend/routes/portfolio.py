@@ -391,6 +391,17 @@ def _list_owner_summaries(
         if normalised:
             summaries.append(normalised)
 
+    demo_owner = demo_identity().casefold()
+    has_demo = any(
+        isinstance(summary.get("owner"), str) and summary["owner"].casefold() == demo_owner
+        for summary in summaries
+    )
+
+    if not has_demo:
+        demo_summary = _build_demo_summary(accounts_root)
+        if demo_summary:
+            summaries.append(demo_summary)
+
     if not summaries:
         summaries.append(_build_demo_summary(accounts_root))
 

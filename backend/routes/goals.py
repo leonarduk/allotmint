@@ -11,6 +11,9 @@ from backend.config import config, demo_identity
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
+
+DEMO_OWNER = demo_identity()
+
 class GoalPayload(BaseModel):
     name: str
     target_amount: float
@@ -66,23 +69,23 @@ if config.disable_auth:
 
     @router.get("/")
     async def list_goals() -> List[GoalPayload]:
-        return _list_goals(demo_identity())
+        return _list_goals(DEMO_OWNER)
 
     @router.post("/")
     async def create_goal(payload: GoalPayload) -> GoalPayload:
-        return _create_goal(demo_identity(), payload)
+        return _create_goal(DEMO_OWNER, payload)
 
     @router.get("/{name}")
     async def get_goal(name: str, current_amount: float) -> GoalResponse:
-        return _get_goal(demo_identity(), name, current_amount)
+        return _get_goal(DEMO_OWNER, name, current_amount)
 
     @router.put("/{name}")
     async def update_goal(name: str, payload: GoalPayload) -> GoalPayload:
-        return _update_goal(demo_identity(), name, payload)
+        return _update_goal(DEMO_OWNER, name, payload)
 
     @router.delete("/{name}")
     async def remove_goal(name: str) -> dict:
-        return _remove_goal(demo_identity(), name)
+        return _remove_goal(DEMO_OWNER, name)
 
 else:
 

@@ -8,6 +8,8 @@ Run quick checks against critical backend endpoints and the frontend smoke test 
   frontend suites.
 - `TEST_ID_TOKEN` – optional ID token added as a `Bearer` token for backend endpoints requiring authentication.
 - `SMOKE_AUTH_TOKEN` – optional bearer token stored in the frontend's `localStorage`; falls back to `TEST_ID_TOKEN` when unset.
+- `SMOKE_IDENTITY` – overrides the owner slug used for generated backend smoke
+  requests (defaults to `auth.smoke_identity` from `config.yaml`).
 
 If the backend is offline you'll see an error similar to:
 

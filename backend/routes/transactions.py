@@ -249,37 +249,69 @@ def _prepare_updated_transaction(existing: Mapping[str, object], update: Mapping
 
 def _load_all_transactions() -> List[Transaction]:
     results: List[Transaction] = []
-    if not config.accounts_root:
-        return results
 
-    data_root = Path(config.accounts_root)
-    if not data_root.exists():
-        return results
-
-    # files look like data/accounts/<owner>/<ACCOUNT>_transactions.json
-    for path in data_root.glob("*/*_transactions.json"):
+    search_roots: list[Path] = []
+    configured_root = getattr(config, "accounts_root", None)
+    if configured_root:
         try:
-            data = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
+            configured_path = Path(configured_root).expanduser()
+        except (TypeError, ValueError, OSError):
+            configured_path = None
+        else:
+            if configured_path.exists():
+                search_roots.append(configured_path)
+
+    if not search_roots:
+        try:
+            resolved_primary = data_loader.resolve_paths(
+                getattr(config, "repo_root", None), configured_root
+            ).accounts_root
+        except Exception:
+            resolved_primary = None
+        if resolved_primary and resolved_primary.exists():
+            search_roots.append(resolved_primary)
+
+    if not search_roots:
+        try:
+            fallback_root = data_loader.resolve_paths(None, None).accounts_root
+        except Exception:
+            fallback_root = None
+        if fallback_root and fallback_root.exists():
+            search_roots.append(fallback_root)
+
+    seen_roots: set[Path] = set()
+    for root in search_roots:
+        try:
+            resolved_root = root.resolve()
+        except OSError:
             continue
-        owner = data.get("owner", path.parent.name)
-        account_raw = data.get("account_type") or path.stem.replace("_transactions", "")
-        account = account_raw.lower()
-        transactions = data.get("transactions", []) or []
-        for idx, t in enumerate(transactions):
-            t = dict(t)
-            t.pop("account", None)
-            instrument_name = _instrument_name_from_entry(t)
-            if instrument_name:
-                t["instrument_name"] = instrument_name
-            results.append(
-                Transaction(
-                    owner=owner,
-                    account=account,
-                    id=_build_transaction_id(owner, account_raw, idx),
-                    **t,
+        if resolved_root in seen_roots:
+            continue
+        seen_roots.add(resolved_root)
+
+        for path in resolved_root.glob("*/*_transactions.json"):
+            try:
+                data = json.loads(path.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            owner = data.get("owner", path.parent.name)
+            account_raw = data.get("account_type") or path.stem.replace("_transactions", "")
+            account = account_raw.lower()
+            transactions = data.get("transactions", []) or []
+            for idx, t in enumerate(transactions):
+                t = dict(t)
+                t.pop("account", None)
+                instrument_name = _instrument_name_from_entry(t)
+                if instrument_name:
+                    t["instrument_name"] = instrument_name
+                results.append(
+                    Transaction(
+                        owner=owner,
+                        account=account,
+                        id=_build_transaction_id(owner, account_raw, idx),
+                        **t,
+                    )
                 )
-            )
     return results
 
 

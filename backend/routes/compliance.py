@@ -59,10 +59,30 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
     else:
         allow_demo_injection = True
 
+    directory_owners: set[str] = set()
+    if accounts_root:
+        try:
+            root_path = Path(accounts_root)
+        except TypeError:
+            root_path = None
+        else:
+            try:
+                if root_path.exists():
+                    directory_owners = {
+                        child.name.lower()
+                        for child in root_path.iterdir()
+                        if child.is_dir()
+                    }
+            except OSError:
+                directory_owners = set()
+
     for entry in entries:
         owner = (entry.get("owner") or "").strip()
         if owner:
             owners.add(owner.lower())
+
+    if directory_owners:
+        owners.update(directory_owners)
 
     if owners:
         active_root_has_entries = True

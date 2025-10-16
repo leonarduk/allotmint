@@ -57,6 +57,8 @@ beforeEach(() => {
       rebalance: false,
       pension: true,
     },
+    allowed_emails: ["user@example.com", "demo@example.com"],
+    local_auth_email: "user@example.com",
   });
   mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
 });
@@ -83,6 +85,15 @@ describe("Support page", () => {
     expect(
       await screen.findByLabelText(new RegExp(en.owner.label))
     ).toBeInTheDocument();
+  });
+
+  it("allows selecting a local auth user", async () => {
+    render(<Support />, { wrapper: MemoryRouter });
+    await expandSection(en.support.auth.title);
+    const select = await screen.findByLabelText(en.support.auth.localUserLabel);
+    expect((select as HTMLSelectElement).value).toBe("user@example.com");
+    await userEvent.selectOptions(select, "demo@example.com");
+    expect((select as HTMLSelectElement).value).toBe("demo@example.com");
   });
 
   it("handles owner fetch failure gracefully", async () => {
@@ -124,6 +135,8 @@ describe("Support page", () => {
       rebalance: false,
       pension: true,
     },
+    allowed_emails: ["user@example.com"],
+    local_auth_email: "user@example.com",
   });
   mockGetConfig.mockResolvedValueOnce({
     flag: false,
@@ -142,6 +155,8 @@ describe("Support page", () => {
       rebalance: false,
       pension: true,
     },
+    allowed_emails: ["user@example.com", "demo@example.com"],
+    local_auth_email: "demo@example.com",
   });
     mockUpdateConfig.mockResolvedValue(undefined);
 
@@ -202,14 +217,17 @@ describe("Support page", () => {
         group: true,
         owner: true,
         instrument: true,
-      trading: true,
-      support: true,
-      reports: true,
-      market: true,
+        trading: true,
+        support: true,
+        reports: true,
+        market: true,
         allocation: true,
         rebalance: true,
         pension: true,
+        scenario: true,
       },
+      allowed_emails: ["user@example.com"],
+      local_auth_email: "user@example.com",
     });
     mockGetConfig.mockResolvedValueOnce({
       flag: true,
@@ -218,14 +236,17 @@ describe("Support page", () => {
         group: true,
         owner: true,
         instrument: false,
-      trading: true,
-      support: true,
-      reports: true,
-      market: true,
+        trading: true,
+        support: true,
+        reports: true,
+        market: true,
         allocation: true,
         rebalance: true,
         pension: true,
+        scenario: true,
       },
+      allowed_emails: ["user@example.com", "demo@example.com"],
+      local_auth_email: "demo@example.com",
     });
     mockUpdateConfig.mockResolvedValue(undefined);
 

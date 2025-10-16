@@ -155,6 +155,13 @@ API loads demo data for the owner defined by `auth.demo_identity` (default:
 `demo`). Adjust the value to point at whichever demo account exists under your
 `data/` directory when you want to explore different fixtures.
 
+When authentication is disabled the login endpoints still mint a JWT so the
+frontend can behave as though a user is signed in. The email embedded in that
+token defaults to the first entry in `auth.allowed_emails`, but you can pin a
+specific address via the `auth.local_auth_email` setting (also overridable via
+the `LOCAL_AUTH_EMAIL` environment variable). This is handy when testing roles
+locally without changing the allow list itself.
+
 Production or AWS deployments should flip `auth.disable_auth` to `false` and
 enable Google sign-in. Once authentication is enforced the configured user from
 the incoming token is used instead, so the `demo_identity` value is ignored

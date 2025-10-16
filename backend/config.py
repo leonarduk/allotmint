@@ -116,6 +116,7 @@ class Config:
     google_auth_enabled: Optional[bool] = None
     disable_auth: Optional[bool] = None
     demo_identity: str = "demo"
+    local_auth_email: Optional[str] = None
     google_client_id: Optional[str] = None
     allowed_emails: Optional[List[str]] = None
     relative_view_enabled: Optional[bool] = None
@@ -349,6 +350,15 @@ def load_config() -> Config:
     if not demo_identity:
         demo_identity = "demo"
 
+    local_auth_email = data.get("local_auth_email")
+    if isinstance(local_auth_email, str):
+        local_auth_email = local_auth_email.strip().lower() or None
+
+    env_local_auth = os.getenv("LOCAL_AUTH_EMAIL")
+    if env_local_auth is not None:
+        env_val = env_local_auth.strip().lower()
+        local_auth_email = env_val or None
+
     cfg = Config(
         app_env=data.get("app_env"),
         sns_topic_arn=data.get("sns_topic_arn"),
@@ -372,6 +382,7 @@ def load_config() -> Config:
         google_client_id=google_client_id,
         allowed_emails=allowed_emails,
         demo_identity=demo_identity,
+        local_auth_email=local_auth_email,
         relative_view_enabled=data.get("relative_view_enabled"),
         theme=data.get("theme"),
         timeseries_cache_base=timeseries_cache_base,

@@ -415,6 +415,13 @@
       "run": "Exécuter la vérification de santé du portefeuille",
       "title": "Santé du portefeuille"
     },
+    "auth": {
+      "title": "Authentication",
+      "localUserLabel": "Local login user",
+      "defaultOption": "Automatic (first allowed email)",
+      "description": "Choose which allowed email to use when authentication is disabled. Save the configuration to apply.",
+      "none": "No allowed users configured. Update auth.allowed_emails to enable selection."
+    },
     "notifications": {
       "denied": "Permission de push refusée.",
       "disable": "Désactiver les alertes Push",

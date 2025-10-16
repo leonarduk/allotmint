@@ -338,6 +338,17 @@ def create_app() -> FastAPI:
     class TokenIn(BaseModel):
         id_token: str | None = None
 
+    def _resolve_local_login_email() -> str:
+        configured = getattr(cfg, "local_auth_email", None)
+        if isinstance(configured, str) and configured:
+            return configured
+        allowed = getattr(cfg, "allowed_emails", None)
+        if isinstance(allowed, list):
+            for candidate in allowed:
+                if isinstance(candidate, str) and candidate:
+                    return candidate
+        return "user@example.com"
+
     @app.post("/token")
     async def login(body: TokenIn):
         id_token = body.id_token if body else None
@@ -351,7 +362,7 @@ def create_app() -> FastAPI:
                 logger.warning("User authentication failed: %s", exc.detail)
                 raise
         elif cfg.disable_auth:
-            email = "user@example.com"
+            email = _resolve_local_login_email()
         else:
             raise HTTPException(status_code=400, detail="Missing token")
 
@@ -377,7 +388,7 @@ def create_app() -> FastAPI:
     async def google_token(payload: dict):
         token = payload.get("token")
         if cfg.disable_auth:
-            email = "user@example.com"
+            email = _resolve_local_login_email()
         else:
             if not token:
                 raise HTTPException(status_code=400, detail="Missing token")

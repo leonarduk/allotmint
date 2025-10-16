@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -42,6 +42,8 @@ export default function Support() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [owner, setOwner] = useState("");
+  const [availableUsers, setAvailableUsers] = useState<string[]>([]);
+  const [localAuthUser, setLocalAuthUser] = useState("");
   const [pushStatus, setPushStatus] = useState<string | null>(null);
   const [health, setHealth] = useState<Finding[]>([]);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -77,6 +79,22 @@ export default function Support() {
             entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
           }
         });
+        const cfgRecord = cfg as Record<string, unknown>;
+        const rawAllowed = cfgRecord["allowed_emails"];
+        const allowedList = Array.isArray(rawAllowed)
+          ? (rawAllowed as unknown[])
+              .map((item) => (typeof item === "string" ? item.trim() : ""))
+              .filter((item) => item) as string[]
+          : [];
+        const configuredLocal =
+          typeof cfgRecord["local_auth_email"] === "string"
+            ? (cfgRecord["local_auth_email"] as string)
+            : "";
+        const userOptions = configuredLocal && !allowedList.includes(configuredLocal)
+          ? [...allowedList, configuredLocal]
+          : allowedList;
+        setAvailableUsers(userOptions);
+        setLocalAuthUser(configuredLocal);
         setConfig(entries);
         const tabConfig =
           cfg && typeof cfg === "object" && cfg.tabs && typeof cfg.tabs === "object"
@@ -115,6 +133,12 @@ export default function Support() {
 
   function handleTabChange(key: TabPluginId, value: boolean) {
     setTabs((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function handleLocalAuthChange(event: ChangeEvent<HTMLSelectElement>) {
+    const value = event.target.value;
+    setLocalAuthUser(value);
+    setConfig((prev) => ({ ...prev, local_auth_email: value }));
   }
 
   async function runHealthCheck() {
@@ -229,6 +253,22 @@ export default function Support() {
           entries[k] = typeof v === "boolean" ? v : v == null ? "" : String(v);
         }
       });
+      const freshRecord = fresh as Record<string, unknown>;
+      const freshAllowed = Array.isArray(freshRecord["allowed_emails"])
+        ? (freshRecord["allowed_emails"] as unknown[])
+            .map((item) => (typeof item === "string" ? item.trim() : ""))
+            .filter((item) => item) as string[]
+        : [];
+      const refreshedLocal =
+        typeof freshRecord["local_auth_email"] === "string"
+          ? (freshRecord["local_auth_email"] as string)
+          : "";
+      const refreshedOptions =
+        refreshedLocal && !freshAllowed.includes(refreshedLocal)
+          ? [...freshAllowed, refreshedLocal]
+          : freshAllowed;
+      setAvailableUsers(refreshedOptions);
+      setLocalAuthUser(refreshedLocal);
       setConfig(entries);
       const freshTabs =
         fresh && typeof fresh === "object" && fresh.tabs && typeof fresh.tabs === "object"
@@ -470,6 +510,32 @@ export default function Support() {
               <p>{t("support.notifications.error")}</p>
             )}
           </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title={t("support.auth.title")}>
+        {availableUsers.length ? (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium" htmlFor="local-auth-user">
+              {t("support.auth.localUserLabel")}
+            </label>
+            <select
+              id="local-auth-user"
+              value={localAuthUser}
+              onChange={handleLocalAuthChange}
+              className="w-full rounded border px-2 py-1"
+            >
+              <option value="">{t("support.auth.defaultOption")}</option>
+              {availableUsers.map((email) => (
+                <option key={email} value={email}>
+                  {email}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-600">{t("support.auth.description")}</p>
+          </div>
+        ) : (
+          <p>{t("support.auth.none")}</p>
         )}
       </SectionCard>
 

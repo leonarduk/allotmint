@@ -414,6 +414,13 @@
       "run": "Executar verificação de saúde do portfólio",
       "title": "Saúde do portfólio"
     },
+    "auth": {
+      "title": "Authentication",
+      "localUserLabel": "Local login user",
+      "defaultOption": "Automatic (first allowed email)",
+      "description": "Choose which allowed email to use when authentication is disabled. Save the configuration to apply.",
+      "none": "No allowed users configured. Update auth.allowed_emails to enable selection."
+    },
     "notifications": {
       "denied": "Permissão de push negada.",
       "disable": "Desativar alertas Push",

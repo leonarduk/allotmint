@@ -93,6 +93,17 @@ def test_demo_identity_override(monkeypatch, tmp_path):
         reload_config()
 
 
+def test_local_auth_email_defaults(monkeypatch):
+    cfg = reload_config()
+    assert cfg.local_auth_email == "user@example.com"
+
+    monkeypatch.setenv("LOCAL_AUTH_EMAIL", "ADMIN@Example.com")
+    cfg = reload_config()
+    assert cfg.local_auth_email == "admin@example.com"
+    monkeypatch.delenv("LOCAL_AUTH_EMAIL")
+    reload_config()
+
+
 def test_allowed_emails_loaded_lowercase():
     cfg = reload_config()
     assert cfg.allowed_emails == ["user@example.com"]

@@ -76,6 +76,35 @@ def test_google_token_rejects_when_no_accounts(monkeypatch, tmp_path):
     assert resp.status_code == 403
 
 
+def test_token_fallback_uses_local_auth_email(monkeypatch, tmp_path):
+    client = _setup_app(monkeypatch, tmp_path)
+    cfg_module = sys.modules["backend.config"]
+    monkeypatch.setattr(cfg_module.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(cfg_module.config, "local_auth_email", "demo@example.com", raising=False)
+    monkeypatch.setattr(cfg_module.config, "allowed_emails", ["demo@example.com"], raising=False)
+
+    resp = client.post("/token", json={})
+    assert resp.status_code == 200
+    assert auth.decode_token(resp.json()["access_token"]) == "demo@example.com"
+
+
+def test_token_fallback_defaults_to_first_allowed(monkeypatch, tmp_path):
+    client = _setup_app(monkeypatch, tmp_path)
+    cfg_module = sys.modules["backend.config"]
+    monkeypatch.setattr(cfg_module.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(cfg_module.config, "local_auth_email", None, raising=False)
+    monkeypatch.setattr(
+        cfg_module.config,
+        "allowed_emails",
+        ["primary@example.com", "secondary@example.com"],
+        raising=False,
+    )
+
+    resp = client.post("/token", json={})
+    assert resp.status_code == 200
+    assert auth.decode_token(resp.json()["access_token"]) == "primary@example.com"
+
+
 def test_startup_requires_google_client_id(monkeypatch):
     monkeypatch.setenv("GOOGLE_AUTH_ENABLED", "true")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "")

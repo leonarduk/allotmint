@@ -54,9 +54,6 @@ export function Portfolio() {
     if (ownerSlug && ownerSlug !== routeOwner) {
       setRouteOwner(ownerSlug);
     }
-    if (!ownerSlug && routeOwner) {
-      setRouteOwner("");
-    }
   }, [ownerSlug, routeOwner, setRouteOwner]);
 
   useEffect(() => {

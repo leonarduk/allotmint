@@ -17,7 +17,7 @@ def _app(tmp_path, monkeypatch, *, active_user: str | None = "alice", disable_au
     monkeypatch.setattr(goals_mod, "_STORAGE", storage)
     monkeypatch.setattr(routes_pkg.app_config, "disable_auth", disable_auth)
     module = importlib.reload(goals_route)
-    monkeypatch.setattr(module, "DEMO_OWNER", "demo", raising=False)
+    monkeypatch.setattr(module, "demo_owner", lambda: "demo", raising=False)
     app = FastAPI()
     app.include_router(module.router)
     if active_user is not None:

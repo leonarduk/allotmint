@@ -92,8 +92,10 @@ def test_goals_router_demo_mode(monkeypatch, request):
 
     request.addfinalizer(_restore)
 
+    monkeypatch.setattr(goals_module, "demo_owner", lambda: "demo")
+
     store = {
-        goals_module.DEMO_OWNER: [
+        goals_module.demo_owner(): [
             goals_module.Goal("Initial", 1000.0, date(2024, 1, 1)),
         ]
     }
@@ -128,7 +130,7 @@ def test_goals_router_demo_mode(monkeypatch, request):
     app.include_router(goals_module.router)
     client = TestClient(app)
 
-    initial_payload = [g.to_dict() for g in store[goals_module.DEMO_OWNER]]
+    initial_payload = [g.to_dict() for g in store[goals_module.demo_owner()]]
     resp = client.get("/goals")
     assert resp.status_code == 200
     assert resp.json() == initial_payload
@@ -160,10 +162,10 @@ def test_goals_router_demo_mode(monkeypatch, request):
     assert resp.json() == initial_payload
 
     assert calls["load"]
-    assert set(calls["load"]) == {goals_module.DEMO_OWNER}
+    assert set(calls["load"]) == {goals_module.demo_owner()}
     assert calls["add"]
-    assert {owner for owner, _ in calls["add"]} == {goals_module.DEMO_OWNER}
+    assert {owner for owner, _ in calls["add"]} == {goals_module.demo_owner()}
     assert calls["delete"]
-    assert {owner for owner, _ in calls["delete"]} == {goals_module.DEMO_OWNER}
+    assert {owner for owner, _ in calls["delete"]} == {goals_module.demo_owner()}
     assert calls["save"]
-    assert {owner for owner, _ in calls["save"]} == {goals_module.DEMO_OWNER}
+    assert {owner for owner, _ in calls["save"]} == {goals_module.demo_owner()}

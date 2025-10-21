@@ -1,11 +1,16 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configContext } from "@/ConfigContext";
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
 const mockGetGroups = vi.hoisted(() => vi.fn());
+const mockListTemplates = vi.hoisted(() => vi.fn());
+const mockCreateTemplate = vi.hoisted(() => vi.fn());
+const mockUpdateTemplate = vi.hoisted(() => vi.fn());
+const mockDeleteTemplate = vi.hoisted(() => vi.fn());
+const mockGetTemplate = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", () => ({
   API_BASE: "http://test",
@@ -26,6 +31,14 @@ vi.mock("@/api", () => ({
   getTradingSignals: vi.fn().mockResolvedValue([]),
   getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
   listTimeseries: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/api/reports", () => ({
+  listReportTemplates: mockListTemplates,
+  createReportTemplate: mockCreateTemplate,
+  updateReportTemplate: mockUpdateTemplate,
+  deleteReportTemplate: mockDeleteTemplate,
+  getReportTemplate: mockGetTemplate,
 }));
 
 const allTabs = {
@@ -55,16 +68,36 @@ const allTabs = {
 describe("Reports page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it("renders links when owner selected", async () => {
     mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
     mockGetGroups.mockResolvedValue([]);
+    mockListTemplates.mockResolvedValue([]);
+    mockCreateTemplate.mockResolvedValue({
+      id: "new-id",
+      name: "Created template",
+      metrics: ["performance"],
+      columns: ["owner", "ticker"],
+      filters: [],
+    });
+    mockUpdateTemplate.mockResolvedValue({
+      id: "tpl-1",
+      name: "Updated template",
+      metrics: ["performance"],
+      columns: ["owner", "ticker"],
+      filters: [],
+    });
+    mockDeleteTemplate.mockResolvedValue(undefined);
+    mockGetTemplate.mockResolvedValue({
+      id: "tpl-1",
+      name: "Loaded template",
+      metrics: ["performance"],
+      columns: ["owner", "ticker"],
+      filters: [],
+    });
+  });
 
-    window.history.pushState({}, "", "/reports");
+  async function renderReports(initialEntries: string[] = ["/reports"]) {
     const { default: Reports } = await import("@/pages/Reports");
-
-    render(
+    return render(
       <configContext.Provider
         value={{
           theme: "system",
@@ -77,53 +110,104 @@ describe("Reports page", () => {
           setBaseCurrency: () => {},
         }}
       >
-        <MemoryRouter initialEntries={["/reports"]}>
+        <MemoryRouter initialEntries={initialEntries}>
           <Reports />
         </MemoryRouter>
-      </configContext.Provider>
+      </configContext.Provider>,
     );
+  }
+
+  it("renders owner download links when owner selected", async () => {
+    await renderReports();
 
     const select = await screen.findByLabelText(/owner/i);
     fireEvent.change(select, { target: { value: "alex" } });
 
     const csv = await screen.findByText(/Download CSV/i);
-    expect(csv).toHaveAttribute(
-      "href",
-      expect.stringContaining("/reports/alex")
-    );
+    expect(csv).toHaveAttribute("href", expect.stringContaining("/reports/alex"));
   });
 
-  it("shows message when no owners", async () => {
-    mockGetOwners.mockResolvedValue([]);
-    mockGetGroups.mockResolvedValue([]);
+  it("creates a report template via the builder route", async () => {
+    mockCreateTemplate.mockResolvedValue({
+      id: "tpl-2",
+      name: "Quarterly Overview",
+      metrics: ["performance"],
+      columns: ["owner", "ticker", "gain_pct"],
+      filters: [],
+    });
 
-    window.history.pushState({}, "", "/reports");
-    const { default: Reports } = await import("@/pages/Reports");
+    await renderReports(["/reports/new"]);
 
-    render(
-      <configContext.Provider
-        value={{
-          theme: "system",
-          relativeViewEnabled: false,
-          tabs: allTabs,
-          disabledTabs: [],
-          refreshConfig: vi.fn(),
-          setRelativeViewEnabled: () => {},
-          baseCurrency: "GBP",
-          setBaseCurrency: () => {},
-        }}
-      >
-        <MemoryRouter initialEntries={["/reports"]}>
-          <Reports />
-        </MemoryRouter>
-      </configContext.Provider>
-    );
+    const nameInput = await screen.findByLabelText(/Template name/i);
+    fireEvent.change(nameInput, { target: { value: "Quarterly Overview" } });
 
-    const message = await screen.findByText(
-      /No owners available—check backend connection/i
-    );
-    expect(message).toBeInTheDocument();
-    expect(screen.queryByLabelText(/owner/i)).not.toBeInTheDocument();
+    const description = screen.getByLabelText(/Description/);
+    fireEvent.change(description, { target: { value: "All owners" } });
+
+    const createButton = screen.getByRole("button", { name: /Create template/i });
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(mockCreateTemplate).toHaveBeenCalledWith({
+        name: "Quarterly Overview",
+        description: "All owners",
+        metrics: expect.any(Array),
+        columns: expect.any(Array),
+        filters: [],
+      });
+    });
+
+    expect(await screen.findByText("Quarterly Overview")).toBeInTheDocument();
+  });
+
+  it("updates an existing template when editing", async () => {
+    mockListTemplates.mockResolvedValue([
+      {
+        id: "tpl-1",
+        name: "Performance pack",
+        metrics: ["performance", "risk"],
+        columns: ["owner", "ticker", "gain_pct"],
+        filters: [],
+      },
+    ]);
+
+    await renderReports(["/reports/tpl-1/edit"]);
+
+    const nameInput = await screen.findByLabelText(/Template name/i);
+    fireEvent.change(nameInput, { target: { value: "Updated template" } });
+
+    const saveButton = screen.getByRole("button", { name: /Save changes/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockUpdateTemplate).toHaveBeenCalledWith("tpl-1", {
+        name: "Updated template",
+        description: undefined,
+        metrics: expect.any(Array),
+        columns: expect.any(Array),
+        filters: [],
+      });
+    });
+  });
+
+  it("deletes an existing template from the builder", async () => {
+    mockListTemplates.mockResolvedValue([
+      {
+        id: "tpl-1",
+        name: "Performance pack",
+        metrics: ["performance"],
+        columns: ["owner", "ticker"],
+        filters: [],
+      },
+    ]);
+
+    await renderReports(["/reports/tpl-1/edit"]);
+
+    const deleteButton = await screen.findByRole("button", { name: /Delete template/i });
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(mockDeleteTemplate).toHaveBeenCalledWith("tpl-1");
+    });
   });
 });
-

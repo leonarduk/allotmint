@@ -81,7 +81,9 @@
     "other": "Other",
     "period": "Period:",
     "reason": "Reason",
-    "ticker": "Ticker"
+    "ticker": "Ticker",
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "dashboard": {
     "alphaVsBenchmark": "Alpha vs Benchmark",
@@ -451,7 +453,81 @@
     "csv": "Download CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Download PDF",
-    "title": "Reports"
+    "title": "Reports",
+    "templatesTitle": "Report templates",
+    "templatesDescription": "Save reusable report definitions for your team.",
+    "createTemplateButton": "New template",
+    "templatesLoading": "Loading templates…",
+    "templatesError": "Unable to load templates.",
+    "templatesEmpty": "No templates yet. Create one to get started.",
+    "templatesSaving": "Saving…",
+    "editTemplate": "Edit",
+    "templatesCount": {
+      "metrics_one": "{{count}} metric",
+      "metrics_other": "{{count}} metrics",
+      "columns_one": "{{count}} column",
+      "columns_other": "{{count}} columns",
+      "filters_zero": "No filters",
+      "filters_one": "{{count}} filter",
+      "filters_other": "{{count}} filters"
+    },
+    "builder": {
+      "headingCreate": "Create report template",
+      "headingEdit": "Edit report template",
+      "subheading": "Configure report columns, metrics, and optional filters before saving the template.",
+      "nameLabel": "Template name",
+      "descriptionLabel": "Description (optional)",
+      "metricsLabel": "Metrics",
+      "columnsLabel": "Columns",
+      "filtersLabel": "Filters (optional)",
+      "addFilter": "Add filter",
+      "noFilters": "No filters applied. Add a filter to limit results to specific accounts or holdings.",
+      "filterField": "Field",
+      "filterOperator": "Operator",
+      "filterValue": "Value",
+      "removeFilter": "Remove",
+      "create": "Create template",
+      "saveChanges": "Save changes",
+      "saving": "Saving…",
+      "delete": "Delete template",
+      "deleting": "Deleting…",
+      "saveError": "Unable to save the template. Try again.",
+      "deleteError": "Unable to delete the template. Try again.",
+      "loading": "Loading template…",
+      "missing": "We couldn't load that template.",
+      "loadError": "Unable to load the selected template.",
+      "validation": {
+        "name": "Name is required",
+        "metrics": "Select at least one metric",
+        "columns": "Select at least one column"
+      },
+      "metrics": {
+        "performance": "Performance summary",
+        "holdings": "Holdings breakdown",
+        "transactions": "Recent transactions",
+        "risk": "Risk metrics"
+      },
+      "columns": {
+        "owner": "Owner",
+        "account": "Account",
+        "ticker": "Ticker",
+        "value": "Value (£)",
+        "gain": "Gain %"
+      },
+      "filters": {
+        "accountType": "Account type",
+        "instrumentType": "Instrument type",
+        "region": "Region",
+        "sector": "Sector"
+      },
+      "operators": {
+        "equals": "Equals",
+        "notEquals": "Does not equal",
+        "contains": "Contains",
+        "gt": "Greater than",
+        "lt": "Less than"
+      }
+    }
   },
   "screener": {
     "loading": "Loading…",

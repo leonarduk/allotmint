@@ -366,7 +366,17 @@
     "csv": "Télécharger CSV",
     "noOwners": "Aucun propriétaire disponible — vérifiez la connexion au backend",
     "pdf": "Télécharger PDF",
-    "title": "Rapports"
+    "title": "Rapports",
+    "selectTemplate": "Sélectionnez un propriétaire et un modèle pour activer les téléchargements.",
+    "templates": {
+      "heading": "Modèles",
+      "loading": "Chargement des modèles…",
+      "error": "Impossible de charger les modèles de rapport.",
+      "none": "Aucun modèle de rapport disponible.",
+      "builtIn": "Modèles intégrés",
+      "custom": "Modèles personnalisés",
+      "fields": "Champs"
+    }
   },
   "screener": {
     "loading": "Chargement…",

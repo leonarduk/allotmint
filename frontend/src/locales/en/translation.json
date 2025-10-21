@@ -451,7 +451,17 @@
     "csv": "Download CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Download PDF",
-    "title": "Reports"
+    "title": "Reports",
+    "selectTemplate": "Select an owner and template to enable downloads.",
+    "templates": {
+      "heading": "Templates",
+      "loading": "Loading templates…",
+      "error": "We couldn't load report templates.",
+      "none": "No report templates available.",
+      "builtIn": "Built-in templates",
+      "custom": "Custom templates",
+      "fields": "Fields"
+    }
   },
   "screener": {
     "loading": "Loading…",

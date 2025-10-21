@@ -365,7 +365,17 @@
     "csv": "Baixar CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Baixar PDF",
-    "title": "Relatórios"
+    "title": "Relatórios",
+    "selectTemplate": "Selecione um titular e um modelo para habilitar os downloads.",
+    "templates": {
+      "heading": "Modelos",
+      "loading": "Carregando modelos…",
+      "error": "Não foi possível carregar os modelos de relatório.",
+      "none": "Nenhum modelo de relatório disponível.",
+      "builtIn": "Modelos integrados",
+      "custom": "Modelos personalizados",
+      "fields": "Campos"
+    }
   },
   "screener": {
     "loading": "Carregando…",

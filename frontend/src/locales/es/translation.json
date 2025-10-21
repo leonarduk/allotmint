@@ -365,7 +365,17 @@
     "csv": "Descargar CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Descargar PDF",
-    "title": "Informes"
+    "title": "Informes",
+    "selectTemplate": "Selecciona un titular y una plantilla para habilitar las descargas.",
+    "templates": {
+      "heading": "Plantillas",
+      "loading": "Cargando plantillas…",
+      "error": "No se pudieron cargar las plantillas de informes.",
+      "none": "No hay plantillas de informes disponibles.",
+      "builtIn": "Plantillas integradas",
+      "custom": "Plantillas personalizadas",
+      "fields": "Campos"
+    }
   },
   "screener": {
     "loading": "Cargando…",

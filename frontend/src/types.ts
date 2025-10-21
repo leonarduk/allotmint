@@ -5,6 +5,14 @@ export type OwnerSummary = {
   has_transactions_artifact?: boolean;
 };
 
+export type ReportTemplate = {
+  id: string;
+  name: string;
+  description?: string | null;
+  fields?: string[];
+  owner?: string | null;
+};
+
 export interface Holding {
   ticker: string;
   name: string;

@@ -47,6 +47,7 @@ import type {
   AnalyticsEventPayload,
   AnalyticsFunnelSummary,
   AnalyticsSource,
+  ReportTemplate,
 } from "./types";
 
 const cleanOptionalString = (value: unknown): string | null => {
@@ -174,6 +175,14 @@ export const fetchJson = defaultClient.fetchJson;
 /** List all owners and their available accounts. */
 export const getOwners = () =>
   fetchJson<OwnerSummary[]>(`${API_BASE}/owners`);
+
+export type ReportsCatalogResponse = {
+  builtIn?: ReportTemplate[];
+  custom?: ReportTemplate[];
+};
+
+export const getReportsCatalog = () =>
+  fetchJson<ReportsCatalogResponse>(`${API_BASE}/reports/templates`);
 
 /** Fetch the portfolio tree for a single owner. */
 export const getPortfolio = (

@@ -434,7 +434,17 @@
     "csv": "CSV herunterladen",
     "noOwners": "No owners available—check backend connection",
     "pdf": "PDF herunterladen",
-    "title": "Berichte"
+    "title": "Berichte",
+    "selectTemplate": "Wählen Sie einen Inhaber und eine Vorlage, um Downloads zu aktivieren.",
+    "templates": {
+      "heading": "Vorlagen",
+      "loading": "Vorlagen werden geladen…",
+      "error": "Berichtsvorlagen konnten nicht geladen werden.",
+      "none": "Keine Berichtsvorlagen verfügbar.",
+      "builtIn": "Integrierte Vorlagen",
+      "custom": "Benutzerdefinierte Vorlagen",
+      "fields": "Felder"
+    }
   },
   "screener": {
     "loading": "Laden…",

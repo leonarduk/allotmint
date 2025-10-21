@@ -366,7 +366,17 @@
     "csv": "Scarica CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Scarica PDF",
-    "title": "Segnalazioni"
+    "title": "Segnalazioni",
+    "selectTemplate": "Seleziona un titolare e un modello per abilitare i download.",
+    "templates": {
+      "heading": "Modelli",
+      "loading": "Caricamento dei modelli…",
+      "error": "Impossibile caricare i modelli di report.",
+      "none": "Nessun modello di report disponibile.",
+      "builtIn": "Modelli integrati",
+      "custom": "Modelli personalizzati",
+      "fields": "Campi"
+    }
   },
   "screener": {
     "loading": "Caricamento…",

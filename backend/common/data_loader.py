@@ -287,7 +287,6 @@ def _list_local_plots(
         root: Path,
         *,
         include_demo: bool = False,
-        default_full_name: bool = False,
     ) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         if not root.exists():
@@ -311,6 +310,7 @@ def _list_local_plots(
             accounts = _extract_account_names(owner_dir)
 
             summary = _build_owner_summary(owner, accounts, meta)
+
             if default_full_name and "full_name" not in summary:
                 name_keys = ("full_name", "display_name", "preferred_name", "owner", "name")
                 has_name_hint = False
@@ -322,6 +322,7 @@ def _list_local_plots(
                             break
                 if has_name_hint:
                     summary["full_name"] = owner
+
 
             results.append(summary)
 
@@ -386,14 +387,12 @@ def _list_local_plots(
     results = _discover(
         primary_root,
         include_demo=False,
-        default_full_name=default_primary_full_name,
     )
 
     if include_demo_primary and not results:
         results = _discover(
             primary_root,
             include_demo=True,
-            default_full_name=default_primary_full_name,
         )
 
     try:
@@ -410,13 +409,11 @@ def _list_local_plots(
         fallback_results = _discover(
             fallback_root,
             include_demo=False,
-            default_full_name=True,
         )
         if config.disable_auth and not fallback_results:
             fallback_results = _discover(
                 fallback_root,
                 include_demo=True,
-                default_full_name=True,
             )
         results.extend(fallback_results)
 

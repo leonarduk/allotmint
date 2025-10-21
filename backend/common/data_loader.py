@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Data loading helpers for AllotMint."""
 
+import inspect
 import json
 import logging
 import os
@@ -80,13 +81,33 @@ _METADATA_STEMS = {
 }  # ignore these as accounts
 
 
+def demo_identity_aliases() -> List[str]:
+    """Return configured demo identity aliases including the default."""
+
+    aliases: List[str] = []
+    seen: set[str] = set()
+    for candidate in (get_demo_identity(), "demo"):
+        if not isinstance(candidate, str):
+            continue
+        normalised = candidate.strip()
+        if not normalised:
+            continue
+        lowered = normalised.lower()
+        if lowered in seen:
+            continue
+        aliases.append(normalised)
+        seen.add(lowered)
+    if not aliases:
+        aliases.append("demo")
+    return aliases
+
+
 def _skip_owners() -> set[str]:
     """Return owner identifiers that should be ignored when listing data."""
 
-    skipped = {".idea", "demo"}
-    identity = get_demo_identity()
-    if identity:
-        skipped.add(identity.lower())
+    skipped = {".idea"}
+    for alias in demo_identity_aliases():
+        skipped.add(alias.lower())
     return skipped
 
 
@@ -159,18 +180,29 @@ def _build_owner_summary(
 def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
     """Return the bundled demo owner description if available."""
 
-    identity = get_demo_identity()
-    try:
-        demo_dir = (root or Path()).expanduser() / identity
-    except Exception:
-        return None
+    base_root = (root or Path()).expanduser()
 
-    if not demo_dir.exists() or not demo_dir.is_dir():
-        return None
+    for identity in demo_identity_aliases():
+        try:
+            demo_dir = base_root / identity
+        except Exception:
+            continue
 
-    accounts = _extract_account_names(demo_dir)
-    meta = load_person_meta(identity, root)
-    return _build_owner_summary(identity, accounts, meta)
+        try:
+            exists = demo_dir.exists() and demo_dir.is_dir()
+        except Exception:
+            continue
+
+        if not exists:
+            continue
+
+        accounts = _extract_account_names(demo_dir)
+        meta = load_person_meta(identity, root)
+        summary = _build_owner_summary(identity, accounts, meta)
+        if summary:
+            return summary
+
+    return None
 
 
 def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> None:
@@ -202,6 +234,8 @@ def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> No
 def _list_local_plots(
     data_root: Optional[Path] = None,
     current_user: Optional[str] = None,
+    *,
+    apply_default_full_name: bool = True,
 ) -> List[Dict[str, Any]]:
     """List available plots from the local filesystem.
 
@@ -220,8 +254,8 @@ def _list_local_plots(
         else current_user
     )
 
-    demo_owner = get_demo_identity()
-    demo_lower = demo_owner.lower()
+    demo_aliases = demo_identity_aliases()
+    demo_lower_aliases = {alias.lower() for alias in demo_aliases}
 
     def _is_authorized(owner: str, meta: Dict[str, Any]) -> bool:
         viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
@@ -261,7 +295,8 @@ def _list_local_plots(
 
         skip_owners = _skip_owners()
         if include_demo:
-            skip_owners.discard(get_demo_identity().lower())
+            for alias in demo_identity_aliases():
+                skip_owners.discard(alias.lower())
 
         for owner_dir in sorted(root.iterdir()):
             if not owner_dir.is_dir():
@@ -277,7 +312,16 @@ def _list_local_plots(
 
             summary = _build_owner_summary(owner, accounts, meta)
             if default_full_name and "full_name" not in summary:
-                summary["full_name"] = owner
+                name_keys = ("full_name", "display_name", "preferred_name", "owner", "name")
+                has_name_hint = False
+                if isinstance(meta, dict):
+                    for key in name_keys:
+                        value = meta.get(key)
+                        if isinstance(value, str) and value.strip():
+                            has_name_hint = True
+                            break
+                if has_name_hint:
+                    summary["full_name"] = owner
 
             results.append(summary)
 
@@ -333,7 +377,10 @@ def _list_local_plots(
             include_demo_primary = False
 
     default_primary_full_name = bool(
-        explicit_root and not explicit_is_global and not explicit_matches_config
+        apply_default_full_name
+        and explicit_root
+        and not explicit_is_global
+        and not explicit_matches_config
     )
 
     results = _discover(
@@ -381,7 +428,19 @@ def _list_local_plots(
         allow_fallback_demo = False
     else:
         allow_fallback_demo = bool(config.disable_auth) or not results
-    if not allow_fallback_demo:
+
+    has_non_demo_owner = any(
+        owner and owner != demo_lower for owner in owners_index
+    )
+    demo_variant = f"{demo_lower}-owner"
+    has_demo_variant = demo_variant in owners_index
+    if has_demo_variant:
+        suppress_demo = has_non_demo_owner
+    else:
+        suppress_demo = has_non_demo_owner and (
+            (not explicit_root) or explicit_matches_fallback or (not allow_fallback_demo)
+        )
+    if not allow_fallback_demo and suppress_demo:
         return results
 
     def _attach_demo_from(root: Optional[Path]) -> bool:
@@ -390,23 +449,49 @@ def _list_local_plots(
         demo_entry = _load_demo_owner(root)
         if not demo_entry:
             return False
-        meta = load_person_meta(demo_owner, root)
-        if not _is_authorized(demo_owner, meta):
+        owner_value = str(demo_entry.get("owner", "")).strip()
+        if not owner_value:
+            return False
+        meta = load_person_meta(owner_value, root)
+        if not _is_authorized(owner_value, meta):
             return False
         results.append(demo_entry)
-        owners_index[demo_lower] = demo_entry
+        owners_index[owner_value.lower()] = demo_entry
         return True
 
-    if demo_lower in owners_index:
+    existing_demo_key = next(
+        (alias for alias in demo_lower_aliases if alias in owners_index), None
+    )
+
+    if existing_demo_key:
         if allow_fallback_demo:
             fallback_demo = _load_demo_owner(fallback_root)
-            _merge_accounts(owners_index[demo_lower], fallback_demo)
+            if (
+                fallback_demo
+                and isinstance(fallback_demo.get("owner"), str)
+                and fallback_demo["owner"].strip().lower() == existing_demo_key
+            ):
+                _merge_accounts(owners_index[existing_demo_key], fallback_demo)
     else:
-        if allow_fallback_demo and config.disable_auth:
+        if allow_fallback_demo and config.disable_auth and not suppress_demo:
             if _attach_demo_from(fallback_root):
                 allow_fallback_demo = False
-        if (config.disable_auth or include_demo_primary) and demo_lower not in owners_index:
-            _attach_demo_from(primary_root if include_demo_primary else fallback_root)
+
+        include_demo = config.disable_auth or include_demo_primary
+        if (
+            include_demo
+            and not any(alias in owners_index for alias in demo_lower_aliases)
+            and not suppress_demo
+        ):
+            target_root: Optional[Path]
+            if include_demo_primary:
+                target_root = primary_root
+            elif allow_fallback_demo:
+                target_root = fallback_root
+            else:
+                target_root = None
+            if target_root:
+                _attach_demo_from(target_root)
 
     def _lookup_meta(owner: str) -> Dict[str, Any]:
         """Load metadata for ``owner`` from known search roots."""
@@ -433,13 +518,24 @@ def _list_local_plots(
                 filtered_results.append(entry)
         return filtered_results
 
-    if demo_lower not in owners_index and config.disable_auth:
+    if (
+        not any(alias in owners_index for alias in demo_lower_aliases) 
+        and demo_lower not in owners_index
+        and config.disable_auth
+        and not suppress_demo
+    ):
         primary_demo = _load_demo_owner(primary_root)
         primary_meta = (
             load_person_meta(demo_owner, primary_root) if primary_demo else {}
         )
-        if primary_demo and _is_authorized(demo_owner, primary_meta):
-            results.append(primary_demo)
+
+        if primary_demo:
+            owner_value = str(primary_demo.get("owner", "")).strip()
+            if owner_value:
+                primary_meta = load_person_meta(owner_value, primary_root)
+                if _is_authorized(owner_value, primary_meta):
+                    owners_index[owner_value.lower()] = primary_demo
+                    results.append(primary_demo)
 
     filtered_results: List[Dict[str, Any]] = []
     for entry in results:
@@ -564,8 +660,31 @@ def list_plots(
         aws_results = _list_aws_plots(current_user)
         if data_root is None or aws_results:
             return aws_results
-        return _list_local_plots(data_root, current_user)
-    return _list_local_plots(data_root, current_user)
+        local_loader = _list_local_plots
+        try:
+            params = inspect.signature(local_loader).parameters
+        except (TypeError, ValueError):  # pragma: no cover - defensive
+            params = {}
+        if "apply_default_full_name" in params:
+            return local_loader(
+                data_root,
+                current_user,
+                apply_default_full_name=False,
+            )
+        return local_loader(data_root, current_user)
+
+    local_loader = _list_local_plots
+    try:
+        params = inspect.signature(local_loader).parameters
+    except (TypeError, ValueError):  # pragma: no cover - defensive
+        params = {}
+    if "apply_default_full_name" in params:
+        return local_loader(
+            data_root,
+            current_user,
+            apply_default_full_name=False,
+        )
+    return local_loader(data_root, current_user)
 
 
 # ------------------------------------------------------------------

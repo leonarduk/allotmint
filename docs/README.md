@@ -152,8 +152,10 @@ accounts directory.
 Local development typically leaves `auth.disable_auth` set to `true` in
 `config.yaml`, meaning requests run without authentication. In that mode the
 API loads demo data for the owner defined by `auth.demo_identity` (default:
-`demo`). Adjust the value to point at whichever demo account exists under your
-`data/` directory when you want to explore different fixtures.
+`steve`). Adjust the value to point at whichever demo account exists under your
+`data/` directory when you want to explore different fixtures. Automated smoke
+checks look at `auth.smoke_identity` instead so that they can target a
+preconfigured dataset without disturbing the local default.
 
 Production or AWS deployments should flip `auth.disable_auth` to `false` and
 enable Google sign-in. Once authentication is enforced the configured user from

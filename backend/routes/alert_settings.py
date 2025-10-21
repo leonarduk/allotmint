@@ -14,6 +14,9 @@ router = APIRouter(prefix="/alert-thresholds", tags=["alerts"])
 DEMO_IDENTITY = demo_identity()
 
 
+DEMO_IDENTITY = demo_identity()
+
+
 class ThresholdPayload(BaseModel):
     threshold: float
 

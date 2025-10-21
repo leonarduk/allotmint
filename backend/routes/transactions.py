@@ -252,14 +252,18 @@ def _load_all_transactions() -> List[Transaction]:
 
     search_roots: list[Path] = []
     configured_root = getattr(config, "accounts_root", None)
-    if configured_root:
-        try:
-            configured_path = Path(configured_root).expanduser()
-        except (TypeError, ValueError, OSError):
-            configured_path = None
+    if not configured_root:
+        return []
+
+    try:
+        configured_path = Path(configured_root).expanduser()
+    except (TypeError, ValueError, OSError):
+        return []
+    else:
+        if configured_path.exists():
+            search_roots.append(configured_path)
         else:
-            if configured_path.exists():
-                search_roots.append(configured_path)
+            return []
 
     if not search_roots:
         try:

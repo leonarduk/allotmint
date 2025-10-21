@@ -11,6 +11,8 @@ from backend.config import demo_identity
 router = APIRouter(tags=["compliance"])
 logger = logging.getLogger(__name__)
 
+DEFAULT_DEMO_IDENTITY = (demo_identity.__defaults__ or ("demo",))[0]
+
 
 class KnownOwnerSet(set[str]):
     """Set of owners discovered for the active accounts root."""
@@ -30,8 +32,11 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
     def _ensure_demo_owner(owner_set: set[str]) -> None:
         """Ensure the bundled demo owner remains discoverable."""
 
-        identity = demo_identity().lower()
-        if not owner_set or identity in owner_set:
+        if not owner_set:
+            return
+
+        aliases = [alias.lower() for alias in data_loader.demo_identity_aliases()]
+        if any(alias in owner_set for alias in aliases):
             return
 
         try:
@@ -39,16 +44,18 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
         except Exception:
             return
 
-        try:
-            demo_dir = fallback_root / demo_identity()
-        except TypeError:
-            return
 
-        try:
-            if demo_dir.exists() and demo_dir.is_dir():
-                owner_set.add(identity)
-        except Exception:
-            return
+        for alias in aliases:
+            try:
+                demo_dir = fallback_root / alias
+            except TypeError:
+                continue
+            try:
+                if demo_dir.exists() and demo_dir.is_dir():
+                    owner_set.add(alias)
+                    return
+            except Exception:
+                continue
 
     list_plots_failed = False
     try:

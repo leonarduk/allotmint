@@ -5,7 +5,8 @@
     "@capacitor/cli": "^5.7.0",
     "concurrently": "^9.2.0",
     "postcss": "^8.5.6",
-    "tsx": "^4.20.5"
+    "tsx": "^4.20.5",
+    "yaml": "^2.8.1"
   },
   "dependencies": {
     "@capacitor/android": "^5.7.0",

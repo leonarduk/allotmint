@@ -35,41 +35,27 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
         if not owner_set:
             return
 
-        configured_identity = (demo_identity() or "").strip()
-        candidate_pairs: list[tuple[str, str]] = []
-
-        for candidate in (configured_identity, DEFAULT_DEMO_IDENTITY):
-            if not candidate:
-                continue
-            lower_candidate = candidate.lower()
-            if lower_candidate in owner_set:
-                return
-            candidate_pairs.append((candidate, lower_candidate))
+        aliases = [alias.lower() for alias in data_loader.demo_identity_aliases()]
+        if any(alias in owner_set for alias in aliases):
+            return
 
         try:
             fallback_root = data_loader.resolve_paths(None, None).accounts_root
         except Exception:
             return
 
-        for candidate, lower_candidate in candidate_pairs:
-            if lower_candidate in owner_set:
+
+        for alias in aliases:
+            try:
+                demo_dir = fallback_root / alias
+            except TypeError:
                 continue
-
-            for path_variant in {candidate, lower_candidate}:
-                try:
-                    demo_dir = fallback_root / path_variant
-                except TypeError:
-                    continue
-
-                try:
-                    if demo_dir.exists() and demo_dir.is_dir():
-                        owner_set.add(lower_candidate)
-                        break
-                except Exception:
-                    continue
-
-            if lower_candidate in owner_set:
-                break
+            try:
+                if demo_dir.exists() and demo_dir.is_dir():
+                    owner_set.add(alias)
+                    return
+            except Exception:
+                continue
 
     list_plots_failed = False
     try:

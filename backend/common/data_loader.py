@@ -477,11 +477,10 @@ def _list_local_plots(
             if _attach_demo_from(fallback_root):
                 allow_fallback_demo = False
 
+        include_demo = config.disable_auth or include_demo_primary
         if (
-            (config.disable_auth or include_demo_primary)
-            not any(
-            alias in owners_index for alias in demo_lower_aliases
-            )
+            include_demo
+            and not any(alias in owners_index for alias in demo_lower_aliases)
             and not suppress_demo
         ):
             target_root: Optional[Path]

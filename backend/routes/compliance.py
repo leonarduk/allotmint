@@ -43,7 +43,7 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
                 continue
             lower_candidate = candidate.lower()
             if lower_candidate in owner_set:
-                return
+                continue
             candidate_pairs.append((candidate, lower_candidate))
 
         try:

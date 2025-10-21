@@ -195,6 +195,14 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
         seen[lowered] = len(stems)
         stems.append(stem)
 
+    stems.sort(
+        key=lambda name: (
+            -_score_variant(name)[0],
+            name.casefold(),
+            name,
+        )
+    )
+
     return stems
 
 
@@ -401,9 +409,17 @@ def _list_owner_summaries(
         if normalised:
             summaries.append(normalised)
 
+    identity = demo_identity()
+    normalised_slugs = {summary["owner"].casefold() for summary in summaries}
+
+    if not summaries:
+        summaries.append(_build_demo_summary(accounts_root))
+
     demo_aliases = {alias.lower() for alias in data_loader.demo_identity_aliases()}
 
     if not summaries:
+        summaries.append(_build_demo_summary(accounts_root))
+    elif identity and identity.casefold() not in normalised_slugs:
         summaries.append(_build_demo_summary(accounts_root))
     else:
         known = {summary["owner"].lower() for summary in summaries}

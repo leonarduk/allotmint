@@ -80,6 +80,32 @@ _METADATA_STEMS = {
     "pension_forecast",
 }  # ignore these as accounts
 
+_ACCOUNT_CANONICAL_UPPER = {
+    "isa",
+    "sipp",
+    "gia",
+    "jisa",
+    "lisa",
+}
+
+
+def _canonicalise_account_variant(name: str) -> str:
+    """Return the preferred casing for ``name`` when known."""
+
+    lowered = name.lower()
+    if lowered in _ACCOUNT_CANONICAL_UPPER:
+        return lowered.upper()
+    return name
+
+
+def _normalise_local_account_name(name: str) -> str:
+    """Normalise account names for local listings."""
+
+    lowered = name.lower()
+    if lowered in _ACCOUNT_CANONICAL_UPPER:
+        return lowered
+    return name
+
 
 def demo_identity_aliases() -> List[str]:
     """Return configured demo identity aliases including the default."""
@@ -144,13 +170,14 @@ def _extract_account_names(owner_dir: Path) -> List[str]:
     dedup: List[str] = []
     for name in acct_names:
         lowered = name.lower()
+        canonical = _canonicalise_account_variant(name)
         if lowered in seen:
             idx = seen[lowered]
-            if _score_variant(name) > _score_variant(dedup[idx]):
-                dedup[idx] = name
+            if _score_variant(canonical) > _score_variant(dedup[idx]):
+                dedup[idx] = canonical
             continue
         seen[lowered] = len(dedup)
-        dedup.append(name)
+        dedup.append(canonical)
     return dedup
 
 
@@ -196,7 +223,10 @@ def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
         if not exists:
             continue
 
-        accounts = _extract_account_names(demo_dir)
+        accounts = [
+            _normalise_local_account_name(name)
+            for name in _extract_account_names(demo_dir)
+        ]
         meta = load_person_meta(identity, root)
         summary = _build_owner_summary(identity, accounts, meta)
         if summary:
@@ -256,6 +286,7 @@ def _list_local_plots(
 
     demo_aliases = demo_identity_aliases()
     demo_lower_aliases = {alias.lower() for alias in demo_aliases}
+    demo_lower = demo_aliases[0].lower() if demo_aliases else "demo"
 
     def _is_authorized(owner: str, meta: Dict[str, Any]) -> bool:
         viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
@@ -287,6 +318,7 @@ def _list_local_plots(
         root: Path,
         *,
         include_demo: bool = False,
+        default_full_name: bool = False,
     ) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         if not root.exists():
@@ -307,7 +339,10 @@ def _list_local_plots(
             if not _is_authorized(owner, meta):
                 continue
 
-            accounts = _extract_account_names(owner_dir)
+            accounts = [
+                _normalise_local_account_name(name)
+                for name in _extract_account_names(owner_dir)
+            ]
 
             summary = _build_owner_summary(owner, accounts, meta)
 
@@ -387,12 +422,14 @@ def _list_local_plots(
     results = _discover(
         primary_root,
         include_demo=False,
+        default_full_name=default_primary_full_name,
     )
 
     if include_demo_primary and not results:
         results = _discover(
             primary_root,
             include_demo=True,
+            default_full_name=default_primary_full_name,
         )
 
     try:

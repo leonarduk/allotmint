@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,6 +13,8 @@ import {
   refreshPrices,
 } from "../api";
 import { useConfig } from "../ConfigContext";
+import { useAuth } from "../AuthContext";
+import { useUser } from "../UserContext";
 import { OwnerSelector } from "../components/OwnerSelector";
 import SectionCard from "../components/SectionCard";
 import type { OwnerSummary } from "../types";
@@ -34,6 +36,8 @@ type ConfigState = Record<string, ConfigValue>;
 export default function Support() {
   const { t } = useTranslation();
   const { refreshConfig } = useConfig();
+  const { setUser } = useAuth();
+  const { setProfile } = useUser();
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [config, setConfig] = useState<ConfigState>({});
@@ -51,10 +55,86 @@ export default function Support() {
   const [logs, setLogs] = useState("");
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState<string | null>(null);
+  const [localLogin, setLocalLogin] = useState("");
+  const [localLoginStatus, setLocalLoginStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
   const { lastRefresh, setLastRefresh } = usePriceRefresh();
+  const localLoginResetTimer = useRef<number | null>(null);
 
   const envEntries = Object.entries(import.meta.env).sort();
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
+
+  const ownerEmailMap = useMemo(() => {
+    const map = new Map<string, { owner: OwnerSummary; email: string }>();
+    owners.forEach((entry) => {
+      if (!entry?.owner) return;
+      const trimmedEmail =
+        typeof entry.email === "string" ? entry.email.trim() : "";
+      const email = trimmedEmail || `${entry.owner}@local.test`;
+      map.set(email, { owner: entry, email });
+    });
+    return map;
+  }, [owners]);
+
+  const localLoginOptions = useMemo(
+    () =>
+      Array.from(ownerEmailMap.values())
+        .map(({ owner: entry, email }) => {
+          const displayName = entry.full_name?.trim() || entry.owner;
+          return {
+            value: email,
+            label: `${displayName} (${email})`,
+            name: displayName,
+          };
+        })
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [ownerEmailMap],
+  );
+
+  const scheduleLocalLoginStatusReset = useCallback(() => {
+    if (localLoginResetTimer.current !== null) {
+      window.clearTimeout(localLoginResetTimer.current);
+    }
+    localLoginResetTimer.current = window.setTimeout(() => {
+      setLocalLoginStatus("idle");
+      localLoginResetTimer.current = null;
+    }, 2000);
+  }, [localLoginResetTimer]);
+
+  const handleLocalLoginChange = useCallback(
+    async (value: string) => {
+      const trimmed = value.trim();
+      setLocalLogin(trimmed);
+      setLocalLoginStatus("saving");
+      const payload =
+        trimmed.length > 0
+          ? { auth: { local_login_email: trimmed } }
+          : { auth: { local_login_email: null } };
+      try {
+        await updateConfig(payload);
+        setConfig((prev) => ({ ...prev, local_login_email: trimmed }));
+        await refreshConfig();
+        if (trimmed) {
+          const entry = ownerEmailMap.get(trimmed);
+          const displayName =
+            entry?.owner.full_name?.trim() || entry?.owner.owner || trimmed;
+          setUser({ email: trimmed, name: displayName });
+          setProfile({ email: trimmed, name: displayName });
+        } else {
+          setUser(null);
+          setProfile(undefined);
+        }
+        setLocalLoginStatus("saved");
+      } catch (err) {
+        console.error("Failed to update local login override", err);
+        setLocalLoginStatus("error");
+      } finally {
+        scheduleLocalLoginStatusReset();
+      }
+    },
+    [ownerEmailMap, refreshConfig, scheduleLocalLoginStatusReset, setProfile, setUser],
+  );
 
   useEffect(() => {
     getOwners()
@@ -78,6 +158,12 @@ export default function Support() {
           }
         });
         setConfig(entries);
+        const rawLocalLogin = (cfg as Record<string, unknown>)[
+          "local_login_email"
+        ];
+        const configuredLocalLogin =
+          typeof rawLocalLogin === "string" ? rawLocalLogin : "";
+        setLocalLogin(configuredLocalLogin.trim());
         const tabConfig =
           cfg && typeof cfg === "object" && cfg.tabs && typeof cfg.tabs === "object"
             ? (cfg.tabs as Record<string, unknown>)
@@ -92,6 +178,15 @@ export default function Support() {
       .catch(() => {
         /* ignore */
       });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (localLoginResetTimer.current !== null) {
+        window.clearTimeout(localLoginResetTimer.current);
+        localLoginResetTimer.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -330,6 +425,62 @@ export default function Support() {
           {online ? t("support.onlineYes") : t("support.onlineNo")}
         </p>
       </header>
+
+      <SectionCard title={t("support.localLogin.title", "Local login override")}>
+        <p className="mb-2 text-sm text-gray-600">
+          {t(
+            "support.localLogin.description",
+            "Select which user email should be assumed when authentication is disabled.",
+          )}
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label
+            htmlFor="support-local-login-select"
+            className="text-sm font-medium"
+          >
+            {t("support.localLogin.label", "Active user")}
+          </label>
+          <select
+            id="support-local-login-select"
+            value={localLogin}
+            onChange={(event) => handleLocalLoginChange(event.target.value)}
+            disabled={
+              localLoginStatus === "saving" || localLoginOptions.length === 0
+            }
+            className="w-full rounded border border-gray-300 p-2 text-sm sm:w-auto"
+          >
+            <option value="">
+              {t("support.localLogin.none", "No override configured")}
+            </option>
+            {localLoginOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {localLoginOptions.length === 0 && (
+          <p className="mt-2 text-sm text-gray-500">
+            {t(
+              "support.localLogin.noOwners",
+              "No owners available to assume.",
+            )}
+          </p>
+        )}
+        {localLoginStatus !== "idle" && (
+          <p
+            className={`mt-2 text-sm ${
+              localLoginStatus === "error" ? "text-red-600" : "text-gray-600"
+            }`}
+          >
+            {localLoginStatus === "saving"
+              ? t("support.status.saving")
+              : localLoginStatus === "saved"
+              ? t("support.status.saved")
+              : t("support.status.error")}
+          </p>
+        )}
+      </SectionCard>
 
       <SectionCard title={t("support.environment")} items={envEntries}>
         <table className="w-full table-auto text-sm">

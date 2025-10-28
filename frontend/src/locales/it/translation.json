@@ -415,6 +415,13 @@
       "run": "Esegui controllo salute portafoglio",
       "title": "Salute del portafoglio"
     },
+    "localLogin": {
+      "title": "Local login override",
+      "description": "Select which user email should be assumed when authentication is disabled.",
+      "label": "Active user",
+      "none": "No override configured",
+      "noOwners": "No owners available to assume."
+    },
     "notifications": {
       "denied": "Permesso push negato.",
       "disable": "Disattiva avvisi Push",

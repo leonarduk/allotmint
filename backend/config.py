@@ -119,6 +119,7 @@ class Config:
     smoke_identity: str = "demo"
     google_client_id: Optional[str] = None
     allowed_emails: Optional[List[str]] = None
+    local_login_email: Optional[str] = None
     relative_view_enabled: Optional[bool] = None
     theme: Optional[str] = None
     timeseries_cache_base: Optional[str] = None
@@ -298,6 +299,18 @@ def load_config() -> Config:
     approval_exempt_tickers = _parse_str_list(data.get("approval_exempt_tickers"))
     allowed_emails = _parse_str_list(data.get("allowed_emails"))
 
+    raw_local_login = data.get("local_login_email")
+    local_login_email = None
+    if isinstance(raw_local_login, str):
+        stripped_local_login = raw_local_login.strip()
+        if stripped_local_login:
+            local_login_email = stripped_local_login
+
+    env_local_login = os.getenv("LOCAL_LOGIN_EMAIL")
+    if env_local_login is not None:
+        stripped_env_login = env_local_login.strip()
+        local_login_email = stripped_env_login or None
+
     env_allowed_emails = os.getenv("ALLOWED_EMAILS")
     if env_allowed_emails is not None:
         parsed_env_allowed = _parse_str_list(env_allowed_emails)
@@ -378,6 +391,7 @@ def load_config() -> Config:
         google_auth_enabled=google_auth_enabled,
         google_client_id=google_client_id,
         allowed_emails=allowed_emails,
+        local_login_email=local_login_email,
         demo_identity=demo_identity,
         smoke_identity=smoke_identity,
         relative_view_enabled=data.get("relative_view_enabled"),
@@ -436,6 +450,17 @@ def demo_identity(default: str = "steve") -> str:
     """Return the configured demo identity or ``default`` when unset."""
 
     identity = getattr(config, "demo_identity", None)
+    if isinstance(identity, str):
+        stripped = identity.strip()
+        if stripped:
+            return stripped
+    return default
+
+
+def local_login_identity(default: Optional[str] = None) -> Optional[str]:
+    """Return the configured local login email used when auth is disabled."""
+
+    identity = getattr(config, "local_login_email", None)
     if isinstance(identity, str):
         stripped = identity.strip()
         if stripped:

@@ -14,6 +14,7 @@ auth:
   disable_auth: true                  # Disable all authentication checks (DISABLE_AUTH) - use only for development
   demo_identity: steve                # Owner to assume when auth is disabled (ignored when auth is enforced)
   smoke_identity: demo                # Owner to assume when running smoke tests (SMOKE_IDENTITY)
+  local_login_email: ""             # Email identity to assume locally when auth is disabled (LOCAL_LOGIN_EMAIL)
   google_client_id: ""                # OAuth client id for Google auth (GOOGLE_CLIENT_ID)
   allowed_emails:                     # Whitelisted emails (ALLOWED_EMAILS)
     - user@example.com

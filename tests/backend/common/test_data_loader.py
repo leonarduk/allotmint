@@ -135,6 +135,14 @@ class TestBuildOwnerSummary:
             "accounts": accounts,
         }
 
+    def test_includes_email_when_present(self) -> None:
+        accounts = ["ISA"]
+        meta = {"email": "alex@example.com"}
+
+        result = _build_owner_summary("alex", accounts, meta)
+
+        assert result["email"] == "alex@example.com"
+
 
 class TestLoadPersonMeta:
     def test_malformed_person_json_returns_empty_meta(self, tmp_path: Path) -> None:
@@ -368,7 +376,6 @@ class TestListLocalPlots:
         assert result == [
             {"owner": "carol", "accounts": ["gamma"]},
         ]
-        assert all("full_name" not in entry for entry in result)
         assert all(entry["owner"] not in {"demo", ".idea"} for entry in result)
 
     def test_overridden_demo_identity_hides_default_directory(
@@ -413,7 +420,7 @@ class TestListLocalPlots:
         result = _list_local_plots(current_user=None)
 
         assert result == [
-            {"owner": "eve", "full_name": "eve", "accounts": ["gia"]},
+            {"owner": "eve", "accounts": ["gia"]},
         ]
 
     def test_explicit_root_does_not_merge_fallback(
@@ -444,7 +451,7 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=explicit_root, current_user=None)
 
         assert result == [
-            {"owner": "zoe", "full_name": "zoe", "accounts": ["isa"]},
+            {"owner": "zoe", "accounts": ["isa"]},
         ]
 
     def test_list_plots_with_explicit_root_skips_demo(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -483,7 +490,11 @@ class TestListLocalPlots:
         result = _list_local_plots(data_root=data_root, current_user="alice@example.com")
 
         assert result == [
-            {"owner": "alice", "accounts": ["alpha"]},
+            {
+                "owner": "alice",
+                "accounts": ["alpha"],
+                "email": "alice@example.com",
+            },
         ]
 
 

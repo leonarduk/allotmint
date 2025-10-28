@@ -576,6 +576,13 @@
       "run": "Run portfolio health check",
       "title": "Portfolio health"
     },
+    "localLogin": {
+      "title": "Local login override",
+      "description": "Select which user email should be assumed when authentication is disabled.",
+      "label": "Active user",
+      "none": "No override configured",
+      "noOwners": "No owners available to assume."
+    },
     "logs": {
       "empty": "No logs available.",
       "error": "Failed to load logs.",

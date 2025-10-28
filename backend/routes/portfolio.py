@@ -100,6 +100,7 @@ class OwnerSummary(BaseModel):
     owner: str
     full_name: str
     accounts: List[str]
+    email: Optional[str] = None
     has_transactions_artifact: bool = False
 
 
@@ -356,6 +357,11 @@ def _normalise_owner_entry(
     artifact_present = _has_transactions_artifact(owner_dir, owner)
     if not meta_provided:
         summary["has_transactions_artifact"] = artifact_present
+
+    if isinstance(resolved_meta, dict):
+        email = resolved_meta.get("email")
+        if isinstance(email, str) and email.strip():
+            summary["email"] = email.strip()
 
     return summary
 

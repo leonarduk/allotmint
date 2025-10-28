@@ -29,9 +29,19 @@ export default function Reports() {
   const [owner, setOwner] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const { builtIn, custom, templates, loading: catalogLoading, error: catalogError } =
+  const { builtIn, custom, loading: catalogLoading, error: catalogError } =
     useReportsCatalog();
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+
+  const filteredCustomTemplates = useMemo(
+    () => custom.filter((template) => template.owner === owner),
+    [custom, owner],
+  );
+
+  const availableTemplates = useMemo(
+    () => [...builtIn, ...filteredCustomTemplates],
+    [builtIn, filteredCustomTemplates],
+  );
 
   useEffect(() => {
     getOwners()
@@ -41,14 +51,20 @@ export default function Reports() {
   }, []);
 
   useEffect(() => {
-    if (!selectedTemplateId && templates.length > 0) {
-      setSelectedTemplateId(templates[0].id);
+    if (!selectedTemplateId && availableTemplates.length > 0) {
+      setSelectedTemplateId(availableTemplates[0].id);
     }
-  }, [selectedTemplateId, templates]);
+  }, [selectedTemplateId, availableTemplates]);
+
+  useEffect(() => {
+    if (selectedTemplateId && !availableTemplates.some((tpl) => tpl.id === selectedTemplateId)) {
+      setSelectedTemplateId(availableTemplates[0]?.id ?? "");
+    }
+  }, [availableTemplates, selectedTemplateId]);
 
   const selectedTemplate = useMemo(
-    () => templates.find((template) => template.id === selectedTemplateId) ?? null,
-    [templates, selectedTemplateId],
+    () => availableTemplates.find((template) => template.id === selectedTemplateId) ?? null,
+    [availableTemplates, selectedTemplateId],
   );
 
   const baseUrl = owner ? `${API_BASE}/reports/${owner}` : null;
@@ -131,12 +147,12 @@ export default function Reports() {
             <p role="alert" className="text-sm text-red-600">
               {t("reports.templates.error")}
             </p>
-          ) : templates.length === 0 ? (
+          ) : availableTemplates.length === 0 ? (
             <p>{t("reports.templates.none")}</p>
           ) : (
             <>
               {renderTemplateGroup(t("reports.templates.builtIn"), builtIn)}
-              {renderTemplateGroup(t("reports.templates.custom"), custom)}
+              {renderTemplateGroup(t("reports.templates.custom"), filteredCustomTemplates)}
             </>
           )}
         </div>

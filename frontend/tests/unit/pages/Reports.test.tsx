@@ -75,6 +75,7 @@ describe("Reports page", () => {
         name: "Cash Flow Detail",
         description: "Custom template",
         fields: ["Date", "Amount"],
+        owner: "alex",
       },
     ];
     mockUseReportsCatalog.mockReturnValue({
@@ -161,7 +162,7 @@ describe("Reports page", () => {
       "http://test/reports/alex?template=builtin-holdings&format=csv"
     );
 
-    const customTemplate = screen.getByLabelText(/Cash Flow Detail/);
+    const customTemplate = await screen.findByLabelText(/Cash Flow Detail/);
     fireEvent.click(customTemplate);
 
     await waitFor(() => {

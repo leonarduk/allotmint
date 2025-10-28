@@ -37,11 +37,11 @@ def get_scaling_override(ticker: str, exchange: str, requested_scaling: Optional
     if requested_scaling is not None:
         return requested_scaling
 
-    repo_root = (
-        Path(config.repo_root).expanduser()
-        if getattr(config, "repo_root", None)
-        else Path(__file__).resolve().parents[2]
-    )
+    repo_root = Path(__file__).resolve().parents[2]
+    if config.repo_root:
+        candidate = str(config.repo_root)
+        if "://" not in candidate:
+            repo_root = Path(config.repo_root)
     path = repo_root / "data" / "scaling_overrides.json"
     try:
         with path.open() as f:

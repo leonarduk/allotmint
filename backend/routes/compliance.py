@@ -11,6 +11,8 @@ from backend.config import demo_identity
 router = APIRouter(tags=["compliance"])
 logger = logging.getLogger(__name__)
 
+DEFAULT_DEMO_IDENTITY = (demo_identity.__defaults__ or ("demo",))[0]
+
 
 class KnownOwnerSet(set[str]):
     """Set of owners discovered for the active accounts root."""
@@ -41,6 +43,7 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
             fallback_root = data_loader.resolve_paths(None, None).accounts_root
         except Exception:
             return
+
 
         for alias in aliases:
             try:

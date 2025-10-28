@@ -3,7 +3,9 @@ Param(
   [string[]]$Urls,
 
   [Alias('BaseUrl', 'Base')]
-  [string]$SmokeUrl
+  [string]$SmokeUrl,
+
+  [switch]$UrlsOnly
 )
 
 function Resolve-RepoRoot {
@@ -108,10 +110,17 @@ if ($SmokeUrl) {
   }
 }
 
+$shouldRunSuites = -not $UrlsOnly.IsPresent
+
 if ($trimmedUrls) {
   Invoke-UrlChecks -Targets $trimmedUrls
-  exit 0
+  if (-not $shouldRunSuites) {
+    exit 0
+  }
 }
 
-Invoke-SmokeSuites -BaseUrl $SmokeUrl
+if ($shouldRunSuites) {
+  Invoke-SmokeSuites -BaseUrl $SmokeUrl
+}
+
 exit 0

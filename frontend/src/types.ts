@@ -595,3 +595,35 @@ export interface TrailResponse {
   daily_totals: Record<string, TrailCompletionTotals>;
   today: string;
 }
+
+export type ReportTemplateFilterOperator =
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "gt"
+  | "lt";
+
+export interface ReportTemplateFilter {
+  field: string;
+  operator: ReportTemplateFilterOperator;
+  value: string;
+}
+
+export interface ReportTemplate {
+  id: string;
+  name: string;
+  metrics: string[];
+  columns: string[];
+  filters: ReportTemplateFilter[];
+  description?: string | null;
+  updated_at?: string | null;
+  optimistic?: boolean;
+}
+
+export interface ReportTemplateInput {
+  name: string;
+  metrics: string[];
+  columns: string[];
+  filters: ReportTemplateFilter[];
+  description?: string | null;
+}

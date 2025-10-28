@@ -1,5 +1,7 @@
-import { spawn, type SpawnOptions } from 'child_process';
-import { createRequire } from 'module';
+import fs from "node:fs";
+import path from "node:path";
+import { spawn, type SpawnOptions } from "child_process";
+import { createRequire } from "module";
 
 type Command = {
   command: string;
@@ -9,10 +11,10 @@ type Command = {
 };
 
 const forwardedEnvironmentVariables = [
-  'SMOKE_URL',
-  'TEST_ID_TOKEN',
-  'SMOKE_AUTH_TOKEN',
-  'SMOKE_IDENTITY',
+  "SMOKE_URL",
+  "TEST_ID_TOKEN",
+  "SMOKE_AUTH_TOKEN",
+  "SMOKE_IDENTITY",
 ] as const;
 
 const env: NodeJS.ProcessEnv = { ...process.env };
@@ -24,7 +26,7 @@ for (const variable of forwardedEnvironmentVariables) {
   }
 }
 
-const scriptArgs = process.argv.slice(2).filter((arg) => arg !== '--');
+const scriptArgs = process.argv.slice(2).filter((arg) => arg !== "--");
 const cliBase = scriptArgs[0];
 
 if (cliBase) {
@@ -35,32 +37,92 @@ const targetBase = env.SMOKE_URL;
 
 const require = createRequire(import.meta.url);
 
-const tsxCliPath = require.resolve('tsx/cli');
+const tsxCliPath = require.resolve("tsx/cli");
 
 const backendArgs = targetBase
-  ? [tsxCliPath, 'scripts/frontend-backend-smoke.ts', targetBase]
-  : [tsxCliPath, 'scripts/frontend-backend-smoke.ts'];
+  ? [tsxCliPath, "scripts/frontend-backend-smoke.ts", targetBase]
+  : [tsxCliPath, "scripts/frontend-backend-smoke.ts"];
 
-const npmExecPath = env.npm_execpath;
+const npmArgs = ["--prefix", "frontend", "run", "smoke:frontend"] as const;
+
+function sanitizePath(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function createFrontendCommand(): Command {
+  const label = "frontend smoke suite";
+  const rawExecPath = sanitizePath(env.npm_execpath);
+
+  const runWithNode = (scriptPath: string): Command => ({
+    command: process.execPath,
+    args: [scriptPath, ...npmArgs],
+    label,
+  });
+
+  if (rawExecPath) {
+    const ext = path.extname(rawExecPath).toLowerCase();
+    if (ext === ".js" || ext === ".cjs" || ext === ".mjs") {
+      return runWithNode(rawExecPath);
+    }
+    if (ext === ".cmd" || ext === ".bat") {
+      return {
+        command: rawExecPath,
+        args: [...npmArgs],
+        label,
+        options: { shell: true },
+      };
+    }
+    return {
+      command: rawExecPath,
+      args: [...npmArgs],
+      label,
+    };
+  }
+
+  const bundledCli = path.join(
+    path.dirname(process.execPath),
+    "node_modules",
+    "npm",
+    "bin",
+    "npm-cli.js",
+  );
+
+  if (fs.existsSync(bundledCli)) {
+    return runWithNode(bundledCli);
+  }
+
+  if (process.platform === "win32") {
+    return {
+      command: "cmd",
+      args: ["/c", "npm", ...npmArgs],
+      label,
+    };
+  }
+
+  return {
+    command: "npm",
+    args: [...npmArgs],
+    label,
+  };
+}
 
 const commands: Command[] = [
   {
     command: process.execPath,
     args: backendArgs,
-    label: 'backend smoke suite',
+    label: "backend smoke suite",
   },
-  npmExecPath
-    ? {
-        command: process.execPath,
-        args: [npmExecPath, '--prefix', 'frontend', 'run', 'smoke:frontend'],
-        label: 'frontend smoke suite',
-      }
-    : {
-        command: 'npm',
-        args: ['--prefix', 'frontend', 'run', 'smoke:frontend'],
-        label: 'frontend smoke suite',
-        options: process.platform === 'win32' ? { shell: true } : undefined,
-      },
+  createFrontendCommand(),
 ];
 
 async function runSequentially() {
@@ -71,7 +133,7 @@ async function runSequentially() {
     const exitCode = await runCommand(command, args, options);
 
     if (exitCode !== 0) {
-      console.error(`✖ ${label} failed with exit code ${exitCode ?? 'null'}.`);
+      console.error(`✖ ${label} failed with exit code ${exitCode ?? "null"}.`);
       failures.push({ label, exitCode });
     } else {
       console.log(`✔ ${label} completed successfully.`);
@@ -79,28 +141,28 @@ async function runSequentially() {
   }
 
   if (failures.length > 0) {
-    console.error('\nSmoke suites completed with failures:');
+    console.error("\nSmoke suites completed with failures:");
     for (const { label, exitCode } of failures) {
-      console.error(`  • ${label} (exit code: ${exitCode ?? 'null'})`);
+      console.error(`  • ${label} (exit code: ${exitCode ?? "null"})`);
     }
 
     process.exit(1);
   }
 
-  console.log('\nAll smoke suites completed successfully.');
+  console.log("\nAll smoke suites completed successfully.");
 }
 
 function runCommand(
   command: string,
   args: string[],
-  options: Command['options'] = undefined,
+  options: Command["options"] = undefined,
 ): Promise<number | null> {
   return new Promise((resolve) => {
     let child: ReturnType<typeof spawn>;
 
     try {
       child = spawn(command, args, {
-        stdio: 'inherit',
+        stdio: "inherit",
         env,
         ...options,
       });
@@ -110,11 +172,11 @@ function runCommand(
       return;
     }
 
-    child.on('close', (code) => {
+    child.on("close", (code) => {
       resolve(code);
     });
 
-    child.on('error', (error) => {
+    child.on("error", (error) => {
       console.error(`Failed to start command \"${command}\":`, error);
       resolve(1);
     });
@@ -122,6 +184,6 @@ function runCommand(
 }
 
 runSequentially().catch((error) => {
-  console.error('Unexpected error while orchestrating smoke suites:', error);
+  console.error("Unexpected error while orchestrating smoke suites:", error);
   process.exit(1);
 });

@@ -352,16 +352,7 @@ def _list_local_plots(
             summary = _build_owner_summary(owner, accounts, meta)
 
             if default_full_name and "full_name" not in summary:
-                name_keys = ("full_name", "display_name", "preferred_name", "owner", "name")
-                has_name_hint = False
-                if isinstance(meta, dict):
-                    for key in name_keys:
-                        value = meta.get(key)
-                        if isinstance(value, str) and value.strip():
-                            has_name_hint = True
-                            break
-                if has_name_hint:
-                    summary["full_name"] = owner
+                summary["full_name"] = owner
 
 
             results.append(summary)
@@ -451,11 +442,13 @@ def _list_local_plots(
         fallback_results = _discover(
             fallback_root,
             include_demo=False,
+            default_full_name=bool(apply_default_full_name),
         )
         if config.disable_auth and not fallback_results:
             fallback_results = _discover(
                 fallback_root,
                 include_demo=True,
+                default_full_name=bool(apply_default_full_name),
             )
         results.extend(fallback_results)
 
@@ -558,15 +551,13 @@ def _list_local_plots(
         return filtered_results
 
     if (
-        not any(alias in owners_index for alias in demo_lower_aliases) 
+        not any(alias in owners_index for alias in demo_lower_aliases)
         and demo_lower not in owners_index
         and config.disable_auth
         and not suppress_demo
+        and (include_demo_primary or allow_fallback_demo)
     ):
         primary_demo = _load_demo_owner(primary_root)
-        primary_meta = (
-            load_person_meta(demo_owner, primary_root) if primary_demo else {}
-        )
 
         if primary_demo:
             owner_value = str(primary_demo.get("owner", "")).strip()

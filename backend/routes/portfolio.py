@@ -416,21 +416,17 @@ def _list_owner_summaries(
             summaries.append(normalised)
 
     identity = demo_identity()
-    normalised_slugs = {summary["owner"].casefold() for summary in summaries}
+
+    def _append_demo_summary() -> None:
+        summaries.append(_build_demo_summary(accounts_root))
 
     if not summaries:
-        summaries.append(_build_demo_summary(accounts_root))
+        _append_demo_summary()
 
     demo_aliases = {alias.lower() for alias in data_loader.demo_identity_aliases()}
-
-    if not summaries:
-        summaries.append(_build_demo_summary(accounts_root))
-    elif identity and identity.casefold() not in normalised_slugs:
-        summaries.append(_build_demo_summary(accounts_root))
-    else:
-        known = {summary["owner"].lower() for summary in summaries}
-        if not known.intersection(demo_aliases):
-            summaries.append(_build_demo_summary(accounts_root))
+    known = {summary["owner"].lower() for summary in summaries}
+    if not known.intersection(demo_aliases):
+        _append_demo_summary()
 
     return [OwnerSummary(**summary) for summary in summaries]
 

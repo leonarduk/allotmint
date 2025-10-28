@@ -11,6 +11,7 @@ from backend.common.allowances import (
     current_tax_year,
     remaining_allowances,
 )
+from backend.common import data_loader
 from backend.config import config, demo_identity
 
 router = APIRouter(prefix="/tax", tags=["tax"])
@@ -44,7 +45,9 @@ if config.disable_auth:
         """
 
         if owner is None:
-            owner = demo_identity()
+            aliases = data_loader.demo_identity_aliases()
+            preferred = next((alias for alias in aliases if alias.lower() == "demo"), None)
+            owner = preferred or (aliases[0] if aliases else demo_identity())
         tax_year = current_tax_year()
         data = remaining_allowances(owner, tax_year)
         return {"owner": owner, "tax_year": tax_year, "allowances": data}

@@ -291,6 +291,8 @@ def _list_local_plots(
     )
 
     demo_aliases = demo_identity_aliases()
+    demo_identity = get_demo_identity()
+    demo_lower = demo_identity.lower() if isinstance(demo_identity, str) else "demo"
     demo_lower_aliases = {alias.lower() for alias in demo_aliases}
     demo_lower = demo_aliases[0].lower() if demo_aliases else "demo"
 
@@ -329,7 +331,7 @@ def _list_local_plots(
         root: Path,
         *,
         include_demo: bool = False,
-        default_full_name: bool = False,
+        apply_default_full_name_flag: bool = False,
     ) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         if not root.exists():
@@ -357,7 +359,7 @@ def _list_local_plots(
 
             summary = _build_owner_summary(owner, accounts, meta)
 
-            if default_full_name and "full_name" not in summary:
+            if apply_default_full_name_flag and "full_name" not in summary:
                 name_keys = ("full_name", "display_name", "preferred_name", "owner", "name")
                 has_name_hint = False
                 if isinstance(meta, dict):
@@ -433,14 +435,14 @@ def _list_local_plots(
     results = _discover(
         primary_root,
         include_demo=False,
-        default_full_name=default_primary_full_name,
+        apply_default_full_name_flag=default_primary_full_name,
     )
 
     if include_demo_primary and not results:
         results = _discover(
             primary_root,
             include_demo=True,
-            default_full_name=default_primary_full_name,
+            apply_default_full_name_flag=default_primary_full_name,
         )
 
     try:
@@ -457,11 +459,13 @@ def _list_local_plots(
         fallback_results = _discover(
             fallback_root,
             include_demo=False,
+            default_full_name=bool(apply_default_full_name),
         )
         if config.disable_auth and not fallback_results:
             fallback_results = _discover(
                 fallback_root,
                 include_demo=True,
+                default_full_name=bool(apply_default_full_name),
             )
         results.extend(fallback_results)
 
@@ -526,6 +530,10 @@ def _list_local_plots(
 
         include_demo = config.disable_auth or include_demo_primary
         if (
+            (config.disable_auth or include_demo_primary)
+            and not any(
+                alias in owners_index for alias in demo_lower_aliases
+            )
             include_demo
             and not any(alias in owners_index for alias in demo_lower_aliases)
             and not suppress_demo
@@ -570,6 +578,7 @@ def _list_local_plots(
         and demo_lower not in owners_index
         and config.disable_auth
         and not suppress_demo
+        and (include_demo_primary or allow_fallback_demo)
     ):
         primary_demo = _load_demo_owner(primary_root)
         primary_meta: Dict[str, Any] = {}

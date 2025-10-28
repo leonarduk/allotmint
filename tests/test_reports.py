@@ -122,3 +122,101 @@ def test_load_transactions_requires_data_bucket(monkeypatch):
 
     with pytest.raises(RuntimeError, match="DATA_BUCKET environment variable is required in AWS"):
         reports._load_transactions("alice")
+
+
+def test_build_report_document_uses_context(monkeypatch):
+    history = [
+        {"date": "2024-01-01", "value": 100.0, "daily_return": 0.1, "weekly_return": 0.2, "cumulative_return": 0.3, "drawdown": 0.0},
+    ]
+    summary = reports.ReportData(
+        owner="alice",
+        start=None,
+        end=None,
+        realized_gains_gbp=15.0,
+        income_gbp=5.0,
+        cumulative_return=0.3,
+        max_drawdown=-0.1,
+        history=history,
+    )
+    performance = {"history": history, "reporting_date": "2024-01-01", "max_drawdown": -0.1}
+
+    monkeypatch.setattr(reports, "_compile_summary", lambda owner, start, end: (summary, performance))
+    monkeypatch.setattr(reports, "_load_transactions", lambda owner: [
+        {"date": "2024-01-01", "type": "SELL", "amount_minor": 1000, "currency": "GBP"}
+    ])
+    monkeypatch.setattr(
+        reports.portfolio_utils,
+        "portfolio_value_breakdown",
+        lambda owner, date: [
+            {"ticker": "ABC", "exchange": "L", "units": 2, "price": 10.5, "value": 21.0}
+        ],
+    )
+
+    document = reports.build_report_document("performance-summary", "alice")
+    assert document.template.template_id == "performance-summary"
+    metrics = {row["metric"]: row["value"] for row in document.sections[0].rows}
+    assert metrics["Realized gains"] == 15.0
+    assert metrics["Transactions"] == 1
+    history_rows = document.sections[1].rows
+    assert history_rows[0]["date"] == "2024-01-01"
+
+
+def test_list_template_metadata_merges_user_templates(tmp_path):
+    store = reports.FileTemplateStore(tmp_path)
+    definition = {
+        "template_id": "custom",
+        "name": "Custom",
+        "description": "",
+        "sections": [
+            {
+                "id": "metrics",
+                "title": "Metrics",
+                "source": "performance.metrics",
+                "columns": [
+                    {"key": "metric", "label": "Metric", "type": "string"},
+                ],
+            }
+        ],
+    }
+    store.create_template(definition)
+
+    templates = reports.list_template_metadata(store=store)
+    ids = {t["template_id"] for t in templates}
+    assert "performance-summary" in ids
+    assert "custom" in ids
+
+
+def test_create_update_delete_user_template(tmp_path):
+    store = reports.FileTemplateStore(tmp_path)
+    definition = {
+        "template_id": "custom",
+        "name": "Custom",
+        "description": "",
+        "sections": [
+            {
+                "id": "metrics",
+                "title": "Metrics",
+                "source": "performance.metrics",
+                "columns": [
+                    {"key": "metric", "label": "Metric", "type": "string"},
+                ],
+            }
+        ],
+    }
+
+    template = reports.create_user_template(definition, store=store)
+    assert template.template_id == "custom"
+
+    updated = reports.update_user_template(
+        "custom",
+        {
+            "name": "Custom v2",
+            "description": "",
+            "sections": definition["sections"],
+        },
+        store=store,
+    )
+    assert updated.name == "Custom v2"
+
+    reports.delete_user_template("custom", store=store)
+    assert store.get_template("custom") is None

@@ -9,6 +9,7 @@ from backend.config import (
     ConfigValidationError,
     config,
     demo_identity,
+    local_login_identity,
     reload_config,
     settings,
     smoke_identity,
@@ -109,6 +110,22 @@ def test_smoke_identity_override(monkeypatch, tmp_path):
         assert cfg.smoke_identity == "rachel"
         assert demo_identity() == "steve"
         assert smoke_identity() == "rachel"
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_local_login_email_override(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("auth:\n  local_login_email: user@example.com\n")
+
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.local_login_email == "user@example.com"
+        assert local_login_identity() == "user@example.com"
     finally:
         monkeypatch.undo()
         reload_config()

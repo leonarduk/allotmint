@@ -318,7 +318,7 @@ def _list_local_plots(
         root: Path,
         *,
         include_demo: bool = False,
-        default_full_name: bool = False,
+        apply_default_full_name_flag: bool = False,
     ) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
         if not root.exists():
@@ -346,7 +346,7 @@ def _list_local_plots(
 
             summary = _build_owner_summary(owner, accounts, meta)
 
-            if default_full_name and "full_name" not in summary:
+            if apply_default_full_name_flag and "full_name" not in summary:
                 name_keys = ("full_name", "display_name", "preferred_name", "owner", "name")
                 has_name_hint = False
                 if isinstance(meta, dict):
@@ -422,14 +422,14 @@ def _list_local_plots(
     results = _discover(
         primary_root,
         include_demo=False,
-        default_full_name=default_primary_full_name,
+        apply_default_full_name_flag=default_primary_full_name,
     )
 
     if include_demo_primary and not results:
         results = _discover(
             primary_root,
             include_demo=True,
-            default_full_name=default_primary_full_name,
+            apply_default_full_name_flag=default_primary_full_name,
         )
 
     try:

@@ -1,41 +1,159 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMatch, useNavigate } from "react-router-dom";
+import type { TFunction } from "i18next";
 
 import { API_BASE, getOwners } from "../api";
-import {
-  createReportTemplate,
-  deleteReportTemplate,
-  getReportTemplate,
-  listReportTemplates,
-  updateReportTemplate,
-} from "../api/reports";
 import { OwnerSelector } from "../components/OwnerSelector";
-import { ReportBuilder } from "../components/ReportBuilder";
-import type { OwnerSummary, ReportTemplate, ReportTemplateInput } from "../types";
+import { useReportsCatalog } from "../hooks/useReportsCatalog";
+import type {
+  OwnerSummary,
+  ReportTemplateMetadata,
+} from "../types";
 import { sanitizeOwners } from "../utils/owners";
+
+function buildFieldSummary(template: ReportTemplateMetadata, t: TFunction) {
+  const columnMap = new Map<string, string>();
+  for (const section of template.sections) {
+    for (const column of section.columns) {
+      if (!columnMap.has(column.key)) {
+        columnMap.set(column.key, column.label);
+      }
+    }
+  }
+
+  const labels = Array.from(columnMap.values());
+  if (labels.length === 0) {
+    return t("reports.catalog.noFields");
+  }
+
+  const preview = labels.slice(0, 4).join(", ");
+  const remaining = labels.length - Math.min(labels.length, 4);
+  const countKey = labels.length === 1 ? "one" : "other";
+  const summary = t(`reports.catalog.fieldsLabel_${countKey}`, {
+    count: labels.length,
+    fields: preview,
+  });
+
+  if (remaining <= 0) {
+    return summary;
+  }
+
+  const moreKey = remaining === 1 ? "one" : "other";
+  const moreLabel = t(`reports.catalog.moreFields_${moreKey}`, {
+    count: remaining,
+  });
+  return `${summary} ${moreLabel}`;
+}
+
+function TemplateGroup({
+  title,
+  templates,
+  selectedTemplateId,
+  onSelect,
+  t,
+}: {
+  title: string;
+  templates: ReportTemplateMetadata[];
+  selectedTemplateId: string | null;
+  onSelect: (templateId: string) => void;
+  t: TFunction;
+}) {
+  if (!templates.length) return null;
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+        {title}
+      </h3>
+      <ul className="space-y-4">
+        {templates.map((template) => {
+          const checked = template.template_id === selectedTemplateId;
+          const sectionsLabel = template.sections.length
+            ? t("reports.catalog.sectionsLabel", {
+                sections: template.sections
+                  .map((section) => section.title)
+                  .join(", "),
+              })
+            : null;
+          const fieldsLabel = buildFieldSummary(template, t);
+
+          return (
+            <li key={template.template_id}>
+              <label
+                className={`flex gap-4 rounded-lg border p-4 shadow-sm transition focus-within:ring-2 focus-within:ring-indigo-200 ${
+                  checked
+                    ? "border-indigo-500 ring-2 ring-indigo-200"
+                    : "border-gray-200 hover:border-indigo-300"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="report-template"
+                  value={template.template_id}
+                  checked={checked}
+                  onChange={() => onSelect(template.template_id)}
+                  className="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                  aria-label={t("reports.catalog.selectLabel", {
+                    name: template.name,
+                  })}
+                />
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-lg font-medium text-gray-900">
+                      {template.name}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
+                        template.builtin
+                          ? "bg-indigo-100 text-indigo-700"
+                          : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {t(
+                        `reports.catalog.badge.${
+                          template.builtin ? "builtin" : "custom"
+                        }`,
+                      )}
+                    </span>
+                    {checked ? (
+                      <span className="text-xs font-medium text-indigo-600">
+                        {t("reports.catalog.selected")}
+                      </span>
+                    ) : null}
+                  </div>
+                  {template.description ? (
+                    <p className="text-sm text-gray-600">
+                      {template.description}
+                    </p>
+                  ) : null}
+                  {sectionsLabel ? (
+                    <p className="text-xs uppercase tracking-wide text-gray-500">
+                      {sectionsLabel}
+                    </p>
+                  ) : null}
+                  <p className="text-sm text-gray-600">{fieldsLabel}</p>
+                </div>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 export default function Reports() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [ownersLoaded, setOwnersLoaded] = useState(false);
   const [owner, setOwner] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    null,
+  );
 
-  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
-  const [templatesLoading, setTemplatesLoading] = useState(true);
-  const [templatesError, setTemplatesError] = useState<string | null>(null);
-
-  const [fetchedTemplate, setFetchedTemplate] = useState<ReportTemplate | null>(null);
-  const [templateLoading, setTemplateLoading] = useState(false);
-  const [templateError, setTemplateError] = useState<string | null>(null);
-
-  const newMatch = useMatch("/reports/new");
-  const editMatch = useMatch("/reports/:templateId/edit");
-  const editingId = editMatch?.params?.templateId ?? null;
-  const builderOpen = Boolean(newMatch || editMatch);
+  const { templates, builtin, custom, loading, error } = useReportsCatalog();
 
   useEffect(() => {
     getOwners()
@@ -45,280 +163,139 @@ export default function Reports() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    setTemplatesLoading(true);
-    setTemplatesError(null);
-    listReportTemplates()
-      .then((data) => {
-        if (cancelled) return;
-        setTemplates(data);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        console.error("Failed to load report templates", error);
-        setTemplatesError(t("reports.templatesError"));
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setTemplatesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [t]);
+    if (templates.length === 0 || selectedTemplateId) return;
+    const preferred =
+      templates.find((template) => template.builtin) ?? templates[0];
+    setSelectedTemplateId(preferred.template_id);
+  }, [templates, selectedTemplateId]);
 
-  useEffect(() => {
-    if (!editingId) {
-      setFetchedTemplate(null);
-      setTemplateError(null);
-      setTemplateLoading(false);
-      return;
-    }
-    const existing = templates.find((tpl) => tpl.id === editingId);
-    if (existing) {
-      setFetchedTemplate(null);
-      setTemplateError(null);
-      setTemplateLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setTemplateLoading(true);
-    setTemplateError(null);
-    getReportTemplate(editingId)
-      .then((template) => {
-        if (cancelled) return;
-        setFetchedTemplate(template);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        console.error("Failed to fetch template", error);
-        setTemplateError(t("reports.builder.loadError"));
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setTemplateLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [editingId, templates, t]);
+  const selectedTemplate = useMemo(
+    () =>
+      templates.find((template) => template.template_id === selectedTemplateId) ??
+      null,
+    [selectedTemplateId, templates],
+  );
 
-  const baseUrl = owner ? `${API_BASE}/reports/${owner}` : null;
-  const params = new URLSearchParams();
-  if (start) params.set("start", start);
-  if (end) params.set("end", end);
-  const query = params.toString();
-
-  const editingTemplate = useMemo(() => {
-    if (!editingId) return null;
-    return templates.find((tpl) => tpl.id === editingId) ?? fetchedTemplate;
-  }, [editingId, templates, fetchedTemplate]);
-
-  const handleCloseBuilder = () => {
-    navigate("/reports", { replace: true });
+  const buildDownloadLink = (format: "csv" | "pdf") => {
+    if (!owner || !selectedTemplateId) return null;
+    const url = `${API_BASE}/reports/${owner}/${selectedTemplateId}`;
+    const params = new URLSearchParams();
+    if (start) params.set("start", start);
+    if (end) params.set("end", end);
+    params.set("format", format);
+    return `${url}?${params.toString()}`;
   };
 
-  const handleCreateTemplate = async (input: ReportTemplateInput) => {
-    const optimisticId = `temp-${Date.now()}`;
-    const optimisticTemplate: ReportTemplate = {
-      id: optimisticId,
-      name: input.name,
-      description: input.description,
-      metrics: input.metrics,
-      columns: input.columns,
-      filters: input.filters,
-      optimistic: true,
-    };
-    setTemplates((prev) => [...prev, optimisticTemplate]);
-    try {
-      const saved = await createReportTemplate(input);
-      setTemplates((prev) =>
-        prev.map((tpl) => (tpl.id === optimisticId ? saved : tpl)),
-      );
-    } catch (error) {
-      setTemplates((prev) => prev.filter((tpl) => tpl.id !== optimisticId));
-      throw error;
-    }
-  };
-
-  const handleUpdateTemplate = async (id: string, input: ReportTemplateInput) => {
-    const previous = templates.find((tpl) => tpl.id === id);
-    setTemplates((prev) =>
-      prev.map((tpl) =>
-        tpl.id === id
-          ? { ...tpl, ...input, filters: input.filters, optimistic: true }
-          : tpl,
-      ),
-    );
-    try {
-      const saved = await updateReportTemplate(id, input);
-      setTemplates((prev) => prev.map((tpl) => (tpl.id === id ? saved : tpl)));
-    } catch (error) {
-      if (previous) {
-        setTemplates((prev) => prev.map((tpl) => (tpl.id === id ? previous : tpl)));
-      }
-      throw error;
-    }
-  };
-
-  const handleDeleteTemplate = async (id: string) => {
-    let snapshot: ReportTemplate[] = [];
-    setTemplates((prev) => {
-      snapshot = prev;
-      return prev.filter((tpl) => tpl.id !== id);
-    });
-    try {
-      await deleteReportTemplate(id);
-    } catch (error) {
-      setTemplates(snapshot);
-      throw error;
-    }
-  };
-
-  const builderOverlay = (() => {
-    if (!builderOpen) return null;
-    if (editingId) {
-      if (templateLoading) {
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="rounded-lg bg-white p-6 shadow-xl">
-              <p>{t("reports.builder.loading")}</p>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleCloseBuilder}
-                  className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                >
-                  {t("common.close", "Close")}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      }
-      if (!editingTemplate) {
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="rounded-lg bg-white p-6 shadow-xl">
-              <p className="text-sm text-red-600">{templateError ?? t("reports.builder.missing")}</p>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleCloseBuilder}
-                  className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                >
-                  {t("common.close", "Close")}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      }
-    }
-    return (
-      <ReportBuilder
-        template={editingTemplate ?? undefined}
-        onCreate={handleCreateTemplate}
-        onUpdate={handleUpdateTemplate}
-        onDelete={handleDeleteTemplate}
-        onCancel={handleCloseBuilder}
-      />
-    );
-  })();
-
-  const templatesSummary = (template: ReportTemplate) => {
-    const metricsLabel = t("reports.templatesCount.metrics", { count: template.metrics.length });
-    const columnsLabel = t("reports.templatesCount.columns", { count: template.columns.length });
-    const filtersLabel = t("reports.templatesCount.filters", { count: template.filters.length });
-    return `${metricsLabel} • ${columnsLabel} • ${filtersLabel}`;
-  };
+  const csvLink = buildDownloadLink("csv");
+  const pdfLink = buildDownloadLink("pdf");
 
   return (
-    <div className="container mx-auto max-w-4xl p-4">
-      <h1 className="mb-4 text-2xl md:text-4xl">{t("reports.title")}</h1>
+    <div className="container mx-auto max-w-5xl p-4">
+      <h1 className="mb-6 text-2xl md:text-4xl">{t("reports.title")}</h1>
       {ownersLoaded && owners.length === 0 ? (
-        <p>{t("reports.noOwners")}</p>
+        <p className="text-sm text-gray-600">{t("reports.noOwners")}</p>
       ) : (
         <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
       )}
-      <div className="my-4 flex flex-col gap-2 md:flex-row md:items-center">
-        <label className="mr-2">
-          {t("query.start")}:{" "}
-          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+      <div className="my-6 flex flex-col gap-3 md:flex-row md:items-center">
+        <label className="mr-2 text-sm font-medium text-gray-700">
+          {t("query.start")}: {" "}
+          <input
+            type="date"
+            value={start}
+            onChange={(event) => setStart(event.target.value)}
+            className="rounded border border-gray-300 px-2 py-1"
+          />
         </label>
-        <label>
-          {t("query.end")}:{" "}
-          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+        <label className="text-sm font-medium text-gray-700">
+          {t("query.end")}: {" "}
+          <input
+            type="date"
+            value={end}
+            onChange={(event) => setEnd(event.target.value)}
+            className="rounded border border-gray-300 px-2 py-1"
+          />
         </label>
       </div>
-      {baseUrl && (
-        <p>
-          <a href={`${baseUrl}?${query}&format=csv`}>{t("reports.csv")}</a>
-          {" | "}
-          <a href={`${baseUrl}?${query}&format=pdf`}>{t("reports.pdf")}</a>
-        </p>
-      )}
 
-      <section className="mt-10">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <section className="mt-8 space-y-4">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold">{t("reports.templatesTitle")}</h2>
-            <p className="text-sm text-gray-600">{t("reports.templatesDescription")}</p>
+            <h2 className="text-xl font-semibold">
+              {t("reports.templatesTitle")}
+            </h2>
+            <p className="text-sm text-gray-600">
+              {t("reports.templatesDescription")}
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate("/reports/new")}
-            className="self-start rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-          >
-            {t("reports.createTemplateButton")}
-          </button>
         </div>
-        <div className="mt-4">
-          {templatesLoading ? (
-            <p>{t("reports.templatesLoading")}</p>
-          ) : templatesError ? (
-            <p className="text-sm text-red-600">{templatesError}</p>
+        <div className="space-y-8">
+          {loading ? (
+            <p className="text-sm text-gray-600">
+              {t("reports.templatesLoading")}
+            </p>
+          ) : error ? (
+            <p className="text-sm text-red-600">
+              {t("reports.templatesError")}
+            </p>
           ) : templates.length === 0 ? (
-            <p className="text-sm text-gray-600">{t("reports.templatesEmpty")}</p>
+            <p className="text-sm text-gray-600">
+              {t("reports.templatesEmpty")}
+            </p>
           ) : (
-            <ul className="space-y-4">
-              {templates.map((template) => (
-                <li
-                  key={template.id}
-                  className="rounded border border-gray-200 p-4 shadow-sm transition hover:border-indigo-300"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-medium">{template.name}</h3>
-                        {template.optimistic && (
-                          <span className="text-xs text-gray-500">{t("reports.templatesSaving")}</span>
-                        )}
-                      </div>
-                      {template.description && (
-                        <p className="text-sm text-gray-600">{template.description}</p>
-                      )}
-                      <p className="mt-2 text-xs uppercase tracking-wide text-gray-500">
-                        {templatesSummary(template)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/reports/${template.id}/edit`)}
-                        className="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                      >
-                        {t("reports.editTemplate")}
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <>
+              <TemplateGroup
+                title={t("reports.catalog.groups.builtin")}
+                templates={builtin}
+                selectedTemplateId={selectedTemplateId}
+                onSelect={setSelectedTemplateId}
+                t={t}
+              />
+              <TemplateGroup
+                title={t("reports.catalog.groups.custom")}
+                templates={custom}
+                selectedTemplateId={selectedTemplateId}
+                onSelect={setSelectedTemplateId}
+                t={t}
+              />
+            </>
           )}
         </div>
       </section>
-      {builderOverlay}
+
+      <section className="mt-10 space-y-3">
+        <h2 className="text-xl font-semibold">
+          {t("reports.downloadsTitle")}
+        </h2>
+        <p className="text-sm text-gray-600">
+          {t("reports.downloadsDescription")}
+        </p>
+        {owner && selectedTemplate ? (
+          <div className="flex flex-wrap items-center gap-4">
+            <a
+              href={csvLink ?? undefined}
+              className="inline-flex items-center rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500"
+            >
+              {t("reports.csv")}
+            </a>
+            <a
+              href={pdfLink ?? undefined}
+              className="inline-flex items-center rounded border border-indigo-600 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50"
+            >
+              {t("reports.pdf")}
+            </a>
+            <span className="text-xs text-gray-500">
+              {t("reports.catalog.selectedTemplate", {
+                name: selectedTemplate.name,
+              })}
+            </span>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">
+            {t("reports.downloadsDisabled")}
+          </p>
+        )}
+      </section>
     </div>
   );
 }

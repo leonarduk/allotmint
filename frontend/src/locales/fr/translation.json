@@ -366,7 +366,34 @@
     "csv": "Télécharger CSV",
     "noOwners": "Aucun propriétaire disponible — vérifiez la connexion au backend",
     "pdf": "Télécharger PDF",
-    "title": "Rapports"
+    "title": "Rapports",
+    "templatesTitle": "Modèles de rapport",
+    "templatesDescription": "Choisissez un modèle intégré ou personnalisé avant l'export.",
+    "templatesLoading": "Chargement des modèles…",
+    "templatesError": "Impossible de charger les modèles.",
+    "templatesEmpty": "Aucun modèle disponible.",
+    "catalog": {
+      "groups": {
+        "builtin": "Modèles intégrés",
+        "custom": "Modèles personnalisés"
+      },
+      "noFields": "Ce modèle ne définit aucun champ.",
+      "fieldsLabel_one": "{{count}} champ : {{fields}}",
+      "fieldsLabel_other": "{{count}} champs : {{fields}}",
+      "moreFields_one": "+{{count}} champ supplémentaire",
+      "moreFields_other": "+{{count}} champs supplémentaires",
+      "sectionsLabel": "Sections : {{sections}}",
+      "selectLabel": "Sélectionner le modèle {{name}}",
+      "badge": {
+        "builtin": "Intégré",
+        "custom": "Personnalisé"
+      },
+      "selected": "Sélectionné",
+      "selectedTemplate": "Modèle : {{name}}"
+    },
+    "downloadsTitle": "Télécharger les rapports",
+    "downloadsDescription": "Générez des exports CSV ou PDF avec le modèle et les dates sélectionnés.",
+    "downloadsDisabled": "Sélectionnez un propriétaire et un modèle pour activer les téléchargements."
   },
   "screener": {
     "loading": "Chargement…",

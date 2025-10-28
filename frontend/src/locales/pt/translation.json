@@ -365,7 +365,34 @@
     "csv": "Baixar CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Baixar PDF",
-    "title": "Relatórios"
+    "title": "Relatórios",
+    "templatesTitle": "Modelos de relatório",
+    "templatesDescription": "Escolha um modelo integrado ou personalizado antes de exportar.",
+    "templatesLoading": "Carregando modelos…",
+    "templatesError": "Não foi possível carregar os modelos.",
+    "templatesEmpty": "Nenhum modelo disponível.",
+    "catalog": {
+      "groups": {
+        "builtin": "Modelos integrados",
+        "custom": "Modelos personalizados"
+      },
+      "noFields": "Este modelo não define campos.",
+      "fieldsLabel_one": "{{count}} campo: {{fields}}",
+      "fieldsLabel_other": "{{count}} campos: {{fields}}",
+      "moreFields_one": "+{{count}} campo adicional",
+      "moreFields_other": "+{{count}} campos adicionais",
+      "sectionsLabel": "Seções: {{sections}}",
+      "selectLabel": "Selecionar modelo {{name}}",
+      "badge": {
+        "builtin": "Integrado",
+        "custom": "Personalizado"
+      },
+      "selected": "Selecionado",
+      "selectedTemplate": "Modelo: {{name}}"
+    },
+    "downloadsTitle": "Baixar relatórios",
+    "downloadsDescription": "Gere exports CSV ou PDF com o modelo e as datas selecionadas.",
+    "downloadsDisabled": "Selecione um proprietário e um modelo para habilitar os downloads."
   },
   "screener": {
     "loading": "Carregando…",

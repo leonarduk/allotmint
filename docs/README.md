@@ -157,6 +157,12 @@ API loads demo data for the owner defined by `auth.demo_identity` (default:
 checks look at `auth.smoke_identity` instead so that they can target a
 preconfigured dataset without disturbing the local default.
 
+When you want the API and UI to behave as though a specific user is logged in
+while authentication is disabled, set `auth.local_login_email` (or export
+`LOCAL_LOGIN_EMAIL`). The value should be the email address you want the app to
+assume for local sessions; the front end mirrors that value so profile- and
+owner-scoped features resolve correctly without issuing a token.
+
 Production or AWS deployments should flip `auth.disable_auth` to `false` and
 enable Google sign-in. Once authentication is enforced the configured user from
 the incoming token is used instead, so the `demo_identity` value is ignored

@@ -191,7 +191,11 @@ def _build_owner_summary(
     summary: Dict[str, Any] = {"owner": owner, "accounts": accounts}
 
     display_name: Optional[str] = None
+    email: Optional[str] = None
     if isinstance(meta, dict):
+        meta_email = meta.get("email")
+        if isinstance(meta_email, str) and meta_email.strip():
+            email = meta_email.strip()
         for key in ("full_name", "display_name", "preferred_name", "owner", "name"):
             value = meta.get(key)
             if isinstance(value, str) and value.strip():
@@ -200,6 +204,8 @@ def _build_owner_summary(
                     break
     if display_name:
         summary["full_name"] = display_name
+    if email:
+        summary["email"] = email
 
     return summary
 
@@ -445,12 +451,14 @@ def _list_local_plots(
             fallback_root,
             include_demo=False,
             apply_default_full_name_flag=apply_default_full_name,
+            default_full_name=bool(apply_default_full_name),
         )
         if config.disable_auth and not fallback_results:
             fallback_results = _discover(
                 fallback_root,
                 include_demo=True,
                 apply_default_full_name_flag=apply_default_full_name,
+                default_full_name=bool(apply_default_full_name),
             )
         results.extend(fallback_results)
 
@@ -485,6 +493,8 @@ def _list_local_plots(
             return False
         owner_value = str(demo_entry.get("owner", "")).strip()
         if not owner_value:
+            return False
+        if owner_value.lower() in _skip_owners():
             return False
         meta = load_person_meta(owner_value, root)
         if not _is_authorized(owner_value, meta):
@@ -554,11 +564,14 @@ def _list_local_plots(
     if (
         (include_demo_primary or allow_fallback_demo)
         and not any(alias in owners_index for alias in demo_lower_aliases)
+        not any(alias in owners_index for alias in demo_lower_aliases)
         and demo_lower not in owners_index
         and config.disable_auth
         and not suppress_demo
+        and (include_demo_primary or allow_fallback_demo)
     ):
         primary_demo = _load_demo_owner(primary_root)
+        primary_meta: Dict[str, Any] = {}
 
         if primary_demo:
             owner_value = str(primary_demo.get("owner", "")).strip()
@@ -576,6 +589,13 @@ def _list_local_plots(
         if not _is_authorized(owner, _lookup_meta(owner)):
             continue
         filtered_results.append(entry)
+
+    skip_aliases = _skip_owners()
+    filtered_results = [
+        entry
+        for entry in filtered_results
+        if str(entry.get("owner", "")).strip().lower() not in skip_aliases
+    ]
 
     return filtered_results
 

@@ -414,6 +414,13 @@
       "run": "Executar verificação de saúde do portfólio",
       "title": "Saúde do portfólio"
     },
+    "localLogin": {
+      "title": "Local login override",
+      "description": "Select which user email should be assumed when authentication is disabled.",
+      "label": "Active user",
+      "none": "No override configured",
+      "noOwners": "No owners available to assume."
+    },
     "notifications": {
       "denied": "Permissão de push negada.",
       "disable": "Desativar alertas Push",

@@ -695,7 +695,16 @@ async def group_instruments(
 
     try:
         pricing_date = _resolve_pricing_date(as_of)
-        gp = _build_group_portfolio(slug, pricing_date)
+        builder = group_portfolio.build_group_portfolio
+        try:
+            params = inspect.signature(builder).parameters
+        except (TypeError, ValueError):  # pragma: no cover - non-standard callables
+            params = {}
+
+        if "pricing_date" in params:
+            gp = builder(slug, pricing_date=pricing_date)
+        else:
+            gp = builder(slug)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
 

@@ -322,7 +322,7 @@ def _normalise_owner_entry(
                 continue
             _append(stripped, prefer_variant=allow_variant)
 
-    if meta_provided:
+    if meta_provided and not accounts:
         for conventional in _CONVENTIONAL_ACCOUNT_EXTRAS:
             _append(conventional, prefer_variant=True)
 

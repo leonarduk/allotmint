@@ -285,6 +285,8 @@ def _list_local_plots(
     )
 
     demo_aliases = demo_identity_aliases()
+    demo_identity = get_demo_identity()
+    demo_lower = demo_identity.lower() if isinstance(demo_identity, str) else "demo"
     demo_lower_aliases = {alias.lower() for alias in demo_aliases}
     demo_lower = demo_aliases[0].lower() if demo_aliases else "demo"
 
@@ -518,6 +520,10 @@ def _list_local_plots(
 
         include_demo = config.disable_auth or include_demo_primary
         if (
+            (config.disable_auth or include_demo_primary)
+            and not any(
+                alias in owners_index for alias in demo_lower_aliases
+            )
             include_demo
             and not any(alias in owners_index for alias in demo_lower_aliases)
             and not suppress_demo

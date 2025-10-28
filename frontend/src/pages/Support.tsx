@@ -65,31 +65,40 @@ export default function Support() {
   const envEntries = Object.entries(import.meta.env).sort();
   const online = typeof navigator !== "undefined" ? navigator.onLine : true;
 
-  const ownerEmailMap = useMemo(() => {
-    const map = new Map<string, { owner: OwnerSummary; email: string }>();
+  const ownerLoginMap = useMemo(() => {
+    const map = new Map<
+      string,
+      { owner: OwnerSummary; login: string; email?: string }
+    >();
     owners.forEach((entry) => {
       if (!entry?.owner) return;
       const trimmedEmail =
         typeof entry.email === "string" ? entry.email.trim() : "";
-      const email = trimmedEmail || `${entry.owner}@local.test`;
-      map.set(email, { owner: entry, email });
+      const login = trimmedEmail || entry.owner;
+      map.set(login, {
+        owner: entry,
+        login,
+        email: trimmedEmail || undefined,
+      });
     });
     return map;
   }, [owners]);
 
   const localLoginOptions = useMemo(
     () =>
-      Array.from(ownerEmailMap.values())
-        .map(({ owner: entry, email }) => {
+      Array.from(ownerLoginMap.values())
+        .map(({ owner: entry, login, email }) => {
           const displayName = entry.full_name?.trim() || entry.owner;
           return {
-            value: email,
-            label: `${displayName} (${email})`,
+            value: login,
+            label: email
+              ? `${displayName} (${email})`
+              : `${displayName} (${entry.owner})`,
             name: displayName,
           };
         })
         .sort((a, b) => a.label.localeCompare(b.label)),
-    [ownerEmailMap],
+    [ownerLoginMap],
   );
 
   const scheduleLocalLoginStatusReset = useCallback(() => {
@@ -116,11 +125,13 @@ export default function Support() {
         setConfig((prev) => ({ ...prev, local_login_email: trimmed }));
         await refreshConfig();
         if (trimmed) {
-          const entry = ownerEmailMap.get(trimmed);
+          const entry = ownerLoginMap.get(trimmed);
           const displayName =
             entry?.owner.full_name?.trim() || entry?.owner.owner || trimmed;
-          setUser({ email: trimmed, name: displayName });
-          setProfile({ email: trimmed, name: displayName });
+          const resolvedEmail =
+            entry?.email || entry?.owner.owner || trimmed;
+          setUser({ email: resolvedEmail, name: displayName });
+          setProfile({ email: resolvedEmail, name: displayName });
         } else {
           setUser(null);
           setProfile(undefined);
@@ -133,7 +144,7 @@ export default function Support() {
         scheduleLocalLoginStatusReset();
       }
     },
-    [ownerEmailMap, refreshConfig, scheduleLocalLoginStatusReset, setProfile, setUser],
+    [ownerLoginMap, refreshConfig, scheduleLocalLoginStatusReset, setProfile, setUser],
   );
 
   useEffect(() => {

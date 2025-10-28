@@ -366,7 +366,34 @@
     "csv": "Scarica CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Scarica PDF",
-    "title": "Segnalazioni"
+    "title": "Segnalazioni",
+    "templatesTitle": "Modelli di report",
+    "templatesDescription": "Scegli un modello integrato o personalizzato prima di esportare.",
+    "templatesLoading": "Caricamento dei modelli…",
+    "templatesError": "Impossibile caricare i modelli.",
+    "templatesEmpty": "Nessun modello disponibile.",
+    "catalog": {
+      "groups": {
+        "builtin": "Modelli integrati",
+        "custom": "Modelli personalizzati"
+      },
+      "noFields": "Questo modello non definisce campi.",
+      "fieldsLabel_one": "{{count}} campo: {{fields}}",
+      "fieldsLabel_other": "{{count}} campi: {{fields}}",
+      "moreFields_one": "+{{count}} campo aggiuntivo",
+      "moreFields_other": "+{{count}} campi aggiuntivi",
+      "sectionsLabel": "Sezioni: {{sections}}",
+      "selectLabel": "Seleziona il modello {{name}}",
+      "badge": {
+        "builtin": "Integrato",
+        "custom": "Personalizzato"
+      },
+      "selected": "Selezionato",
+      "selectedTemplate": "Modello: {{name}}"
+    },
+    "downloadsTitle": "Scarica report",
+    "downloadsDescription": "Genera esportazioni CSV o PDF con il modello e le date selezionate.",
+    "downloadsDisabled": "Seleziona un proprietario e un modello per abilitare i download."
   },
   "screener": {
     "loading": "Caricamento…",

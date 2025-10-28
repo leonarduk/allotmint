@@ -610,6 +610,28 @@ export interface ReportTemplateFilter {
   value: string;
 }
 
+export interface ReportTemplateColumnMetadata {
+  key: string;
+  label: string;
+  type: string;
+}
+
+export interface ReportTemplateSectionMetadata {
+  id: string;
+  title: string;
+  description?: string | null;
+  source: string;
+  columns: ReportTemplateColumnMetadata[];
+}
+
+export interface ReportTemplateMetadata {
+  template_id: string;
+  name: string;
+  description?: string | null;
+  builtin: boolean;
+  sections: ReportTemplateSectionMetadata[];
+}
+
 export interface ReportTemplate {
   id: string;
   name: string;

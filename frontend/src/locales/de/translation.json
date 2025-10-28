@@ -434,7 +434,34 @@
     "csv": "CSV herunterladen",
     "noOwners": "No owners available—check backend connection",
     "pdf": "PDF herunterladen",
-    "title": "Berichte"
+    "title": "Berichte",
+    "templatesTitle": "Berichtsvorlagen",
+    "templatesDescription": "Wählen Sie eine integrierte oder benutzerdefinierte Vorlage, bevor Sie exportieren.",
+    "templatesLoading": "Vorlagen werden geladen…",
+    "templatesError": "Vorlagen konnten nicht geladen werden.",
+    "templatesEmpty": "Keine Vorlagen verfügbar.",
+    "catalog": {
+      "groups": {
+        "builtin": "Integrierte Vorlagen",
+        "custom": "Benutzerdefinierte Vorlagen"
+      },
+      "noFields": "Für diese Vorlage sind keine Felder definiert.",
+      "fieldsLabel_one": "{{count}} Feld: {{fields}}",
+      "fieldsLabel_other": "{{count}} Felder: {{fields}}",
+      "moreFields_one": "+{{count}} weiteres Feld",
+      "moreFields_other": "+{{count}} weitere Felder",
+      "sectionsLabel": "Abschnitte: {{sections}}",
+      "selectLabel": "Vorlage {{name}} auswählen",
+      "badge": {
+        "builtin": "Integriert",
+        "custom": "Benutzerdefiniert"
+      },
+      "selected": "Ausgewählt",
+      "selectedTemplate": "Vorlage: {{name}}"
+    },
+    "downloadsTitle": "Berichte herunterladen",
+    "downloadsDescription": "Erstellen Sie CSV- oder PDF-Exporte mit der ausgewählten Vorlage und dem Datumsbereich.",
+    "downloadsDisabled": "Wählen Sie einen Eigentümer und eine Vorlage, um Downloads zu aktivieren."
   },
   "screener": {
     "loading": "Laden…",

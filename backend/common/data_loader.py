@@ -564,14 +564,12 @@ def _list_local_plots(
     if (
         (include_demo_primary or allow_fallback_demo)
         and not any(alias in owners_index for alias in demo_lower_aliases)
-        not any(alias in owners_index for alias in demo_lower_aliases)
         and demo_lower not in owners_index
         and config.disable_auth
         and not suppress_demo
         and (include_demo_primary or allow_fallback_demo)
     ):
         primary_demo = _load_demo_owner(primary_root)
-        primary_meta: Dict[str, Any] = {}
 
         if primary_demo:
             owner_value = str(primary_demo.get("owner", "")).strip()

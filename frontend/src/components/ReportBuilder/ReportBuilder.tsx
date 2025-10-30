@@ -229,11 +229,11 @@ export function ReportBuilder({
       <div className="max-h-full w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold" data-testid="report-builder-heading">
+            <h1 className="text-2xl font-semibold" data-testid="report-builder-heading">
               {isEdit
                 ? t("reports.builder.headingEdit")
                 : t("reports.builder.headingCreate")}
-            </h2>
+            </h1>
             <p className="text-sm text-gray-600">{t("reports.builder.subheading")}</p>
           </div>
           <button

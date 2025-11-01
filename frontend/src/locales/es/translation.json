@@ -365,7 +365,34 @@
     "csv": "Descargar CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Descargar PDF",
-    "title": "Informes"
+    "title": "Informes",
+    "templatesTitle": "Plantillas de informe",
+    "templatesDescription": "Elige una plantilla integrada o personalizada antes de exportar.",
+    "templatesLoading": "Cargando plantillas…",
+    "templatesError": "No se pudieron cargar las plantillas.",
+    "templatesEmpty": "No hay plantillas disponibles.",
+    "catalog": {
+      "groups": {
+        "builtin": "Plantillas integradas",
+        "custom": "Plantillas personalizadas"
+      },
+      "noFields": "Esta plantilla no define campos.",
+      "fieldsLabel_one": "{{count}} campo: {{fields}}",
+      "fieldsLabel_other": "{{count}} campos: {{fields}}",
+      "moreFields_one": "+{{count}} campo adicional",
+      "moreFields_other": "+{{count}} campos adicionales",
+      "sectionsLabel": "Secciones: {{sections}}",
+      "selectLabel": "Seleccionar plantilla {{name}}",
+      "badge": {
+        "builtin": "Integrada",
+        "custom": "Personalizada"
+      },
+      "selected": "Seleccionada",
+      "selectedTemplate": "Plantilla: {{name}}"
+    },
+    "downloadsTitle": "Descargar informes",
+    "downloadsDescription": "Genera exportaciones CSV o PDF con la plantilla y fechas seleccionadas.",
+    "downloadsDisabled": "Selecciona un propietario y una plantilla para habilitar las descargas."
   },
   "screener": {
     "loading": "Cargando…",

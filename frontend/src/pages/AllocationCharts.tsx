@@ -52,6 +52,8 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const allToggleRef = useRef<HTMLInputElement>(null);
+  const supportsResizeObserver =
+    typeof window !== "undefined" && typeof window.ResizeObserver === "function";
 
   // helper to derive a stable key for each account
   const accountKey = (acct: Account, idx: number) =>
@@ -205,63 +207,74 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
       )}
       {error && <p className="text-red-500">{error}</p>}
       <div style={{ width: "100%", height: 400 }}>
-        <ResponsiveContainer>
-          <PieChart>
-            <Pie
-              data={chartData}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius="80%"
-              // "percent" may be undefined for empty datasets; default it to 0
-              label={(props) => {
-                const { name, value, percent: slicePercent } = props as PieLabelRenderProps;
-                const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
-                const percentValue = (slicePercent ?? 0) * 100;
-                const rawValue =
-                  typeof value === "number"
-                    ? value
-                    : typeof value === "string"
-                      ? Number(value)
-                      : 0;
-                const numericValue = Number.isFinite(rawValue) ? rawValue : 0;
-                return relativeViewEnabled
-                  ? `${labelName}: ${percentValue.toFixed(2)}%`
-                  : `${labelName}: ${money(numericValue, baseCurrency)} (${percentValue.toFixed(2)}%)`;
-              }}
-            >
-              {chartData.map((_, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={COLORS[index % COLORS.length]}
-                />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(v: number, _n: string, item: any) =>
-                relativeViewEnabled
-                  ? `${
-                      total
-                        ? ((item?.payload?.value / total) * 100).toFixed(2)
-                        : "0.00"
-                    }%`
-                  : money(v, baseCurrency)
-              }
-            />
-            <Legend
-              formatter={(value: string, entry: any) =>
-                relativeViewEnabled
-                  ? `${value}: ${
-                      total
-                        ? ((entry?.payload?.value / total) * 100).toFixed(2)
-                        : "0.00"
-                    }%`
-                  : `${value}: ${money(entry?.payload?.value, baseCurrency)}`
-              }
-            />
-          </PieChart>
-        </ResponsiveContainer>
+        {supportsResizeObserver ? (
+          <ResponsiveContainer>
+            <PieChart>
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius="80%"
+                // "percent" may be undefined for empty datasets; default it to 0
+                label={(props) => {
+                  const { name, value, percent: slicePercent } = props as PieLabelRenderProps;
+                  const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
+                  const percentValue = (slicePercent ?? 0) * 100;
+                  const rawValue =
+                    typeof value === "number"
+                      ? value
+                      : typeof value === "string"
+                        ? Number(value)
+                        : 0;
+                  const numericValue = Number.isFinite(rawValue) ? rawValue : 0;
+                  return relativeViewEnabled
+                    ? `${labelName}: ${percentValue.toFixed(2)}%`
+                    : `${labelName}: ${money(numericValue, baseCurrency)} (${percentValue.toFixed(2)}%)`;
+                }}
+              >
+                {chartData.map((_, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={COLORS[index % COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v: number, _n: string, item: any) =>
+                  relativeViewEnabled
+                    ? `${
+                        total
+                          ? ((item?.payload?.value / total) * 100).toFixed(2)
+                          : "0.00"
+                      }%`
+                    : money(v, baseCurrency)
+                }
+              />
+              <Legend
+                formatter={(value: string, entry: any) =>
+                  relativeViewEnabled
+                    ? `${value}: ${
+                        total
+                          ? ((entry?.payload?.value / total) * 100).toFixed(2)
+                          : "0.00"
+                      }%`
+                    : `${value}: ${money(entry?.payload?.value, baseCurrency)}`
+                }
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div
+            data-testid="allocation-chart-fallback"
+            className="flex h-full items-center justify-center rounded border border-dashed border-gray-300 bg-gray-50 p-4 text-center text-sm text-gray-600"
+          >
+            {t("allocation.chartsUnavailable", {
+              defaultValue: "Charts are unavailable in this environment.",
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

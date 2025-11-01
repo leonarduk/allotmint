@@ -1,15 +1,20 @@
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import PortfolioPage from "@/pages/Portfolio";
 import type { Portfolio } from "@/types";
 import * as api from "@/api";
 
 vi.mock("@/api");
 const mockGetPortfolio = vi.mocked(api.getPortfolio);
+const mockGetOwners = vi.mocked(api.getOwners);
 
 describe("Portfolio page", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("fetches portfolio whenever owner changes", async () => {
     const router = createMemoryRouter(
       [
@@ -21,6 +26,9 @@ describe("Portfolio page", () => {
       { initialEntries: ["/portfolio/alice"] },
     );
 
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "alice", accounts: [] },
+    ]);
     mockGetPortfolio.mockResolvedValueOnce({
       owner: "alice",
       as_of: "2024-01-01",
@@ -54,5 +62,37 @@ describe("Portfolio page", () => {
 
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
     await screen.findByText(/Approx Total:/);
+  });
+
+  it("shows available owners excluding demo entries", async () => {
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/portfolio",
+          element: <PortfolioPage />,
+        },
+      ],
+      { initialEntries: ["/portfolio"] },
+    );
+
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "demo", accounts: [] },
+      { owner: "steve", accounts: [] },
+      { owner: "lucy", accounts: [] },
+    ]);
+
+    render(
+      <HelmetProvider>
+        <RouterProvider router={router} />
+      </HelmetProvider>,
+    );
+
+    const ownerSelect = await screen.findByLabelText(/Owner/i);
+    const values = Array.from(ownerSelect.querySelectorAll("option")).map(
+      (option) => option.value,
+    );
+    expect(values).toContain("steve");
+    expect(values).toContain("lucy");
+    expect(values).not.toContain("demo");
   });
 });

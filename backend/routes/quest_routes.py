@@ -7,13 +7,10 @@ from backend.auth import (
     get_current_user,
     resolve_current_user_override,
 )
-from backend.config import config
+from backend.config import config, demo_identity
 from backend import quests
 
 router = APIRouter(prefix="/quests", tags=["quests"])
-
-
-DEMO_IDENTITY = "demo"
 
 
 async def require_active_user(
@@ -29,7 +26,7 @@ async def require_active_user(
         return resolved
 
     if config.disable_auth:
-        return DEMO_IDENTITY
+        return demo_identity()
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"

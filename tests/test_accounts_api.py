@@ -39,6 +39,8 @@ def sample_accounts():
         "settings",
         "approvals",
         "approval_requests",
+        "pension-forecast",
+        "pension_forecast",
     }
     for owner_dir in root.iterdir():
         if owner_dir.is_dir():
@@ -58,11 +60,32 @@ def sample_accounts():
 def test_owners_endpoint_matches_sample_data(client):
     resp = client.get("/owners")
     assert resp.status_code == 200
-    owners = {o["owner"]: set(o["accounts"]) for o in resp.json()}
-    assert "demo" in owners
-    for owner, accounts in sample_accounts():
-        assert owner in owners
-        assert owners[owner] == set(accounts)
+    payload = resp.json()
+    owners_by_lower = {
+        entry["owner"].casefold(): (entry["owner"], set(entry.get("accounts", [])))
+        for entry in payload
+    }
+
+    sample = list(sample_accounts())
+    demo_lower = config.demo_identity.casefold()
+
+    non_demo = [
+        (owner, accounts)
+        for owner, accounts in sample
+        if owner.casefold() != demo_lower
+    ]
+
+    if non_demo:
+        assert demo_lower not in owners_by_lower
+    else:
+        # When only demo data exists we still expose the demo owner.
+        assert demo_lower in owners_by_lower
+
+    for owner, accounts in non_demo:
+        lowered = owner.casefold()
+        assert lowered in owners_by_lower
+        _, discovered_accounts = owners_by_lower[lowered]
+        assert discovered_accounts == set(accounts)
 
 
 @pytest.mark.parametrize("owner,accounts", list(sample_accounts()))
@@ -111,6 +134,8 @@ def test_account_route_adds_missing_account_type(tmp_path):
         owners_resp = c.get("/owners")
         assert owners_resp.status_code == 200
         owners = owners_resp.json()
-        assert any(o.get("owner") == "demo" for o in owners)
+        names = {entry.get("owner", "").casefold() for entry in owners}
+        assert "temp" in names
+        assert "demo" in names
     config.accounts_root = old_root
     reload(app_mod)

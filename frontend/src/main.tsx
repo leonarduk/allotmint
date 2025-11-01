@@ -136,8 +136,23 @@ export function Root() {
       getConfig<Record<string, unknown>>({ signal: controller.signal })
         .then(cfg => {
           if (!isMounted.current || activeRequest.current !== controller) return
-          setNeedsAuth(Boolean((cfg as any).google_auth_enabled))
+          const configAuthEnabled = Boolean((cfg as any).google_auth_enabled)
+          setNeedsAuth(configAuthEnabled)
           setClientId(String((cfg as any).google_client_id || ''))
+          const disableAuth = Boolean((cfg as any).disable_auth)
+          const localLoginRaw = (cfg as any).local_login_email
+          const localLoginEmail =
+            typeof localLoginRaw === 'string' ? localLoginRaw.trim() : ''
+          if (disableAuth && localLoginEmail) {
+            const storedUser = loadStoredAuthUser()
+            if (!storedUser || storedUser.email !== localLoginEmail) {
+              setUser({ email: localLoginEmail })
+            }
+            const storedProfile = loadStoredUserProfile()
+            if (!storedProfile || storedProfile.email !== localLoginEmail) {
+              setProfile({ email: localLoginEmail })
+            }
+          }
           setConfigError(null)
           setRetryScheduled(false)
         })

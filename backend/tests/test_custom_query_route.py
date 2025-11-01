@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-from backend.config import config
+from backend.config import config, demo_identity
 
 
 @pytest.fixture
@@ -36,7 +36,8 @@ def test_custom_query_routes_fallback_to_local(monkeypatch):
 
     try:
         with TestClient(app) as client:
-            resp = client.get("/custom-query/demo-slug")
+            demo_slug = f"{demo_identity().lower()}-slug"
+            resp = client.get(f"/custom-query/{demo_slug}")
             assert resp.status_code == 200
             assert resp.json()["tickers"] == ["PFE"]
 

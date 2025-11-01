@@ -3,6 +3,14 @@ import { describe, it, expect, vi } from "vitest";
 import { PortfolioView } from "@/components/PortfolioView";
 import type { Portfolio } from "@/types";
 
+vi.mock("@/api", () => ({
+  complianceForOwner: vi.fn().mockResolvedValue({ warnings: [] }),
+  getOwnerSectorContributions: vi.fn().mockResolvedValue([]),
+  getValueAtRisk: vi.fn().mockResolvedValue({ var: { "1d": 0, "10d": 0 } }),
+  recomputeValueAtRisk: vi.fn().mockResolvedValue(undefined),
+  getVarBreakdown: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("@/components/PerformanceDashboard", () => ({
   __esModule: true,
   default: () => <div data-testid="performance-dashboard" />,

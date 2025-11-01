@@ -106,7 +106,7 @@ def test_positions_for_ticker_matches(monkeypatch):
             }
         ]
     }
-    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug: gp)
+    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug, **_: gp)
     rows = ia.positions_for_ticker("grp", "ABC")
     assert rows == [
         {
@@ -158,7 +158,7 @@ def test_instrument_summaries_populate_grouping(monkeypatch):
         "CCC.L": {"region": "Region C"},
     }
 
-    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug: portfolio)
+    monkeypatch.setattr(ia, "build_group_portfolio", lambda slug, **_: portfolio)
     monkeypatch.setattr(ia, "get_security_meta", lambda t: meta.get(t, {}))
 
     def fake_price_and_changes(ticker: str) -> dict:

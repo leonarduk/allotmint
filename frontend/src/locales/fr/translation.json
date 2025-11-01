@@ -95,7 +95,18 @@
     "excludeCash": "Exclure la trésorerie",
     "maxDrawdown": "Drawdown maximal",
     "maxDrawdownHelp": "Le drawdown maximal est la plus forte baisse en pourcentage entre un sommet du portefeuille et la valeur de clôture la plus basse qui suit, calculée à partir des totaux quotidiens reconstruits de vos positions.",
+    "maxDrawdownDetailsHeading": "Détails du drawdown maximal",
+    "maxDrawdownExplain": "Expliquer cette baisse",
+    "maxDrawdownHide": "Masquer les détails du drawdown",
     "metricsExplanationLink": "Comment sont-ils calculés ?",
+    "drawdownRangeWithValues": "La plus forte baisse s'étend de {{start}} ({{startValue}}) à {{end}} ({{endValue}}).",
+    "drawdownRangeUnknown": "Nous n'avons pas pu identifier les dates de ce drawdown.",
+    "drawdownPercentSummary": "Le portefeuille a chuté de {{drawdown}} depuis son pic avant de rebondir.",
+    "drawdownSuspicious": "Les chutes supérieures à 90 % indiquent généralement des prix manquants ou incorrects. Vérifiez la période surlignée pour détecter des lacunes ou des données obsolètes.",
+    "drawdownChartDescription": "Le drawdown est calculé à partir de la courbe quotidienne du portefeuille. La zone ombrée montre la période pic-creux du drawdown maximal.",
+    "drawdownSeriesUnavailable": "Nous n'avons pas pu charger l'historique du drawdown pour cette période.",
+    "openDiagnostics": "Ouvrir les diagnostics",
+    "viewMetricsExplanation": "Lire l'explication complète",
     "portfolioValue": "Valeur du portefeuille",
     "reportingDate": "Date du reporting",
     "previousDate": "Date précédente",
@@ -355,7 +366,34 @@
     "csv": "Télécharger CSV",
     "noOwners": "Aucun propriétaire disponible — vérifiez la connexion au backend",
     "pdf": "Télécharger PDF",
-    "title": "Rapports"
+    "title": "Rapports",
+    "templatesTitle": "Modèles de rapport",
+    "templatesDescription": "Choisissez un modèle intégré ou personnalisé avant l'export.",
+    "templatesLoading": "Chargement des modèles…",
+    "templatesError": "Impossible de charger les modèles.",
+    "templatesEmpty": "Aucun modèle disponible.",
+    "catalog": {
+      "groups": {
+        "builtin": "Modèles intégrés",
+        "custom": "Modèles personnalisés"
+      },
+      "noFields": "Ce modèle ne définit aucun champ.",
+      "fieldsLabel_one": "{{count}} champ : {{fields}}",
+      "fieldsLabel_other": "{{count}} champs : {{fields}}",
+      "moreFields_one": "+{{count}} champ supplémentaire",
+      "moreFields_other": "+{{count}} champs supplémentaires",
+      "sectionsLabel": "Sections : {{sections}}",
+      "selectLabel": "Sélectionner le modèle {{name}}",
+      "badge": {
+        "builtin": "Intégré",
+        "custom": "Personnalisé"
+      },
+      "selected": "Sélectionné",
+      "selectedTemplate": "Modèle : {{name}}"
+    },
+    "downloadsTitle": "Télécharger les rapports",
+    "downloadsDescription": "Générez des exports CSV ou PDF avec le modèle et les dates sélectionnés.",
+    "downloadsDisabled": "Sélectionnez un propriétaire et un modèle pour activer les téléchargements."
   },
   "screener": {
     "loading": "Chargement…",
@@ -403,6 +441,13 @@
       "error": "Échec de la vérification de santé",
       "run": "Exécuter la vérification de santé du portefeuille",
       "title": "Santé du portefeuille"
+    },
+    "localLogin": {
+      "title": "Local login override",
+      "description": "Select which user email should be assumed when authentication is disabled.",
+      "label": "Active user",
+      "none": "No override configured",
+      "noOwners": "No owners available to assume."
     },
     "notifications": {
       "denied": "Permission de push refusée.",

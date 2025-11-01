@@ -96,6 +96,7 @@ def _normalise_config_structure(raw: Dict[str, Any]) -> Dict[str, Any]:
         "google_client_id",
         "disable_auth",
         "allowed_emails",
+        "local_login_email",
     ]:
         if key in data:
             auth_section[key] = data.pop(key)

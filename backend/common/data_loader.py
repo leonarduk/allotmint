@@ -271,7 +271,7 @@ def _list_local_plots(
     data_root: Optional[Path] = None,
     current_user: Optional[str] = None,
     *,
-    apply_default_full_name: bool = True,
+    apply_default_full_name: bool = False,
 ) -> List[Dict[str, Any]]:
     """List available plots from the local filesystem.
 
@@ -362,7 +362,6 @@ def _list_local_plots(
             if apply_default_full_name_flag and "full_name" not in summary:
                 summary["full_name"] = owner
 
-
             results.append(summary)
 
         return results
@@ -410,18 +409,15 @@ def _list_local_plots(
         not explicit_root or explicit_is_global
     )
 
+    default_primary_full_name = bool(
+        apply_default_full_name and not explicit_root
+    )
+
     if not explicit_root and not include_demo_primary:
         try:
             include_demo_primary = primary_root.resolve() == fallback_root.resolve()
         except Exception:
             include_demo_primary = False
-
-    default_primary_full_name = bool(
-        apply_default_full_name
-        and explicit_root
-        and not explicit_is_global
-        and not explicit_matches_config
-    )
 
     results = _discover(
         primary_root,
@@ -451,14 +447,12 @@ def _list_local_plots(
             fallback_root,
             include_demo=False,
             apply_default_full_name_flag=apply_default_full_name,
-            default_full_name=bool(apply_default_full_name),
         )
         if config.disable_auth and not fallback_results:
             fallback_results = _discover(
                 fallback_root,
                 include_demo=True,
                 apply_default_full_name_flag=apply_default_full_name,
-                default_full_name=bool(apply_default_full_name),
             )
         results.extend(fallback_results)
 
@@ -553,9 +547,12 @@ def _list_local_plots(
 
     if same_root:
         filtered_results: List[Dict[str, Any]] = []
+        skip_aliases = _skip_owners()
         for entry in results:
             owner = str(entry.get("owner", ""))
             if not owner:
+                continue
+            if owner.strip().lower() in skip_aliases:
                 continue
             if _is_authorized(owner, _lookup_meta(owner)):
                 filtered_results.append(entry)
@@ -567,8 +564,11 @@ def _list_local_plots(
         and demo_lower not in owners_index
         and config.disable_auth
         and not suppress_demo
-        and (include_demo_primary or allow_fallback_demo)
-    ):
+        and not any(alias in owners_index for alias in demo_lower_aliases)
+        and demo_lower not in owners_index
+    )
+
+    if should_attach_primary_demo:
         primary_demo = _load_demo_owner(primary_root)
 
         if primary_demo:

@@ -1,6 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
+import { createRequire } from 'node:module';
+
+type YamlModule = { parse?: (input: string) => unknown };
+
+let yamlModule: YamlModule | null = null;
+
+try {
+  const require = createRequire(import.meta.url);
+  const candidate = require('yaml') as YamlModule;
+  if (candidate && typeof candidate.parse === 'function') {
+    yamlModule = candidate;
+  } else {
+    console.warn('Installed yaml module does not expose a parse function; config.yaml parsing will be skipped.');
+  }
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`YAML parser not available; config.yaml parsing will be skipped: ${message}`);
+}
 
 const DEFAULT_DEATH_AGE = '90';
 
@@ -26,7 +43,19 @@ function resolveSmokeIdentity(): string {
 
   try {
     const raw = fs.readFileSync(configPath, 'utf8');
-    const parsed = (yaml.parse(raw) ?? {}) as Record<string, unknown>;
+    const parsed = (() => {
+      if (!yamlModule || typeof yamlModule.parse !== 'function') {
+        return {} as Record<string, unknown>;
+      }
+      try {
+        const result = yamlModule.parse(raw);
+        return (result && typeof result === 'object' ? result : {}) as Record<string, unknown>;
+      } catch (parseError) {
+        const message = parseError instanceof Error ? parseError.message : String(parseError);
+        console.warn(`Unable to parse config.yaml; falling back to defaults: ${message}`);
+        return {} as Record<string, unknown>;
+      }
+    })();
     const authSection =
       parsed && typeof parsed.auth === 'object' && parsed.auth !== null
         ? (parsed.auth as Record<string, unknown>)

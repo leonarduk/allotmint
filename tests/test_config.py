@@ -5,7 +5,15 @@ import yaml
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
-from backend.config import ConfigValidationError, config, reload_config, settings
+from backend.config import (
+    ConfigValidationError,
+    config,
+    demo_identity,
+    local_login_identity,
+    reload_config,
+    settings,
+    smoke_identity,
+)
 from backend.routes import config as routes_config
 
 
@@ -69,6 +77,58 @@ def test_auth_flags(monkeypatch):
     monkeypatch.delenv("DISABLE_AUTH")
     monkeypatch.delenv("GOOGLE_CLIENT_ID")
     reload_config()
+
+
+def test_demo_identity_override(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("auth:\n  demo_identity: steve\n")
+
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.demo_identity == "steve"
+        assert demo_identity() == "steve"
+        assert cfg.smoke_identity == "steve"
+        assert smoke_identity() == "steve"
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_smoke_identity_override(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("auth:\n  demo_identity: steve\n  smoke_identity: rachel\n")
+
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.demo_identity == "steve"
+        assert cfg.smoke_identity == "rachel"
+        assert demo_identity() == "steve"
+        assert smoke_identity() == "rachel"
+    finally:
+        monkeypatch.undo()
+        reload_config()
+
+
+def test_local_login_email_override(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("auth:\n  local_login_email: user@example.com\n")
+
+    monkeypatch.setattr(sys.modules["backend.config"], "_project_config_path", lambda: config_path)
+    monkeypatch.setattr(routes_config, "_project_config_path", lambda: config_path)
+
+    cfg = reload_config()
+    try:
+        assert cfg.local_login_email == "user@example.com"
+        assert local_login_identity() == "user@example.com"
+    finally:
+        monkeypatch.undo()
+        reload_config()
 
 
 def test_allowed_emails_loaded_lowercase():

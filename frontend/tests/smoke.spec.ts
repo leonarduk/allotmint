@@ -64,6 +64,10 @@ const ROUTES: RouteConfig[] = [
   },
   { path: '/dataadmin', assertion: { kind: 'mode', mode: 'dataadmin' } },
   { path: '/reports', assertion: { kind: 'mode', mode: 'reports' } },
+  {
+    path: '/reports/new',
+    assertion: { kind: 'heading', name: 'Create report template' },
+  },
   { path: '/tax-tools', assertion: { kind: 'mode', mode: 'taxtools' } },
   { path: '/scenario', assertion: { kind: 'mode', mode: 'scenario' } },
   { path: '/pension/forecast', assertion: { kind: 'mode', mode: 'pension' } },

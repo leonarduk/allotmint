@@ -163,8 +163,6 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
             return (2, value)
         return (1, value)
 
-    stems: List[str] = []
-    seen: dict[str, int] = {}
     metadata_stems = {
         "person",
         "config",
@@ -179,6 +177,8 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
     except OSError:
         entries = []
 
+    preferred: dict[str, str] = {}
+
     for path in entries:
         if not path.is_file() or path.suffix.lower() != ".json":
             continue
@@ -188,20 +188,18 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
             continue
         if lowered.endswith(_TRANSACTIONS_SUFFIX):
             continue
-        if lowered in seen:
-            idx = seen[lowered]
-            if _score_variant(stem) > _score_variant(stems[idx]):
-                stems[idx] = stem
-            continue
-        seen[lowered] = len(stems)
-        stems.append(stem)
 
-    stems.sort(
+        existing = preferred.get(lowered)
+        if not existing or _score_variant(stem) > _score_variant(existing):
+            preferred[lowered] = stem
+
+    stems = sorted(
+        preferred.values(),
         key=lambda name: (
             -_score_variant(name)[0],
             name.casefold(),
             name,
-        )
+        ),
     )
 
     return stems
@@ -322,7 +320,7 @@ def _normalise_owner_entry(
                 continue
             _append(stripped, prefer_variant=allow_variant)
 
-    if meta_provided and not accounts:
+    if meta_provided:
         for conventional in _CONVENTIONAL_ACCOUNT_EXTRAS:
             _append(conventional, prefer_variant=True)
 

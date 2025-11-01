@@ -566,9 +566,7 @@ def _list_local_plots(
         and not suppress_demo
         and not any(alias in owners_index for alias in demo_lower_aliases)
         and demo_lower not in owners_index
-    )
-
-    if should_attach_primary_demo:
+    ):
         primary_demo = _load_demo_owner(primary_root)
 
         if primary_demo:

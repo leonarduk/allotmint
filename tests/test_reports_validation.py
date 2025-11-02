@@ -119,6 +119,13 @@ def test_normalise_transaction_filters_outside_window():
     }
 
 
+def test_normalise_transaction_end_filter_excludes_future_dates():
+    item = {"date": "2024-04-01", "type": "sell", "amount_minor": 100}
+    end = reports.date(2024, 3, 31)
+
+    assert reports._normalise_transaction(item, None, end) is None
+
+
 def _example_section(source: str):
     return {
         "id": "metrics",
@@ -209,3 +216,59 @@ def test_materialise_template_creates_schema_objects():
     assert template.builtin is False
     assert template.sections[0].id == "metrics"
     assert template.sections[0].columns[0].label == "metric"
+
+
+def test_validate_template_payload_requires_object_payload():
+    with pytest.raises(ValueError, match="JSON object"):
+        reports._validate_template_payload("not-a-dict")
+
+
+def test_validate_template_payload_requires_sections_list():
+    payload = {"template_id": "custom", "name": "Example", "sections": None}
+
+    with pytest.raises(ValueError, match="at least one section"):
+        reports._validate_template_payload(payload)
+
+
+def test_validate_template_payload_requires_section_objects():
+    payload = {"template_id": "custom", "name": "Example", "sections": ["oops"]}
+
+    with pytest.raises(ValueError, match="must be a JSON object"):
+        reports._validate_template_payload(payload)
+
+
+def test_validate_template_payload_requires_section_title():
+    section = _example_section("performance.metrics")
+    section.pop("title")
+    payload = {"template_id": "custom", "name": "Example", "sections": [section]}
+
+    with pytest.raises(ValueError, match="requires a title"):
+        reports._validate_template_payload(payload)
+
+
+def test_validate_template_payload_requires_columns_list():
+    section = _example_section("performance.metrics")
+    section["columns"] = None
+    payload = {"template_id": "custom", "name": "Example", "sections": [section]}
+
+    with pytest.raises(ValueError, match="must define at least one column"):
+        reports._validate_template_payload(payload)
+
+
+def test_validate_template_payload_requires_column_key():
+    section = _example_section("performance.metrics")
+    section["columns"] = [{"label": "Metric"}]
+    payload = {"template_id": "custom", "name": "Example", "sections": [section]}
+
+    with pytest.raises(ValueError, match="column missing key"):
+        reports._validate_template_payload(payload)
+
+
+def test_validate_template_payload_default_column_type_for_blank():
+    section = _example_section("performance.metrics")
+    section["columns"][0]["type"] = "  "
+    payload = {"template_id": "custom", "name": "Example", "sections": [section]}
+
+    result = reports._validate_template_payload(payload)
+
+    assert result["sections"][0]["columns"][0]["type"] == "string"

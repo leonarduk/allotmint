@@ -169,6 +169,15 @@ def test_get_template_definition(client, monkeypatch):
     assert resp.json()["template_id"] == "performance-summary"
 
 
+def test_get_template_definition_missing(client, monkeypatch):
+    monkeypatch.setattr(reports_route, "get_template", lambda template_id: None)
+
+    resp = client.get("/reports/templates/unknown")
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Template not found"}
+
+
 def test_create_template_endpoint(client, monkeypatch):
     template = reports.ReportTemplate(
         template_id="custom",
@@ -196,6 +205,25 @@ def test_create_template_endpoint(client, monkeypatch):
     resp = client.post("/reports/templates", json=payload)
     assert resp.status_code == 201
     assert resp.json()["template_id"] == "custom"
+
+
+def test_create_template_endpoint_handles_validation_error(client, monkeypatch):
+    monkeypatch.setattr(
+        reports_route,
+        "create_user_template",
+        lambda payload: (_ for _ in ()).throw(ValueError("invalid")),
+    )
+
+    payload = {
+        "template_id": "custom",
+        "name": "Custom",
+        "sections": [],
+    }
+
+    resp = client.post("/reports/templates", json=payload)
+
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "invalid"}
 
 
 def test_update_template_endpoint(client, monkeypatch):
@@ -226,6 +254,58 @@ def test_update_template_endpoint(client, monkeypatch):
     assert resp.json()["name"] == "Updated"
 
 
+def test_update_template_endpoint_not_found(client, monkeypatch):
+    def raise_not_found(template_id, payload):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(reports_route, "update_user_template", raise_not_found)
+
+    payload = {
+        "name": "Updated",
+        "sections": [
+            {
+                "id": "metrics",
+                "title": "Metrics",
+                "source": "performance.metrics",
+                "columns": [
+                    {"key": "metric", "label": "Metric", "type": "string"}
+                ],
+            }
+        ],
+    }
+
+    resp = client.put("/reports/templates/custom", json=payload)
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Template not found"}
+
+
+def test_update_template_endpoint_validation_error(client, monkeypatch):
+    def raise_value_error(template_id, payload):
+        raise ValueError("bad data")
+
+    monkeypatch.setattr(reports_route, "update_user_template", raise_value_error)
+
+    payload = {
+        "name": "Updated",
+        "sections": [
+            {
+                "id": "metrics",
+                "title": "Metrics",
+                "source": "performance.metrics",
+                "columns": [
+                    {"key": "metric", "label": "Metric", "type": "string"}
+                ],
+            }
+        ],
+    }
+
+    resp = client.put("/reports/templates/custom", json=payload)
+
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "bad data"}
+
+
 def test_delete_template_endpoint(client, monkeypatch):
     called = {}
 
@@ -237,3 +317,89 @@ def test_delete_template_endpoint(client, monkeypatch):
     resp = client.delete("/reports/templates/custom")
     assert resp.status_code == 204
     assert called["template_id"] == "custom"
+
+
+def test_delete_template_endpoint_handles_errors(client, monkeypatch):
+    monkeypatch.setattr(
+        reports_route,
+        "delete_user_template",
+        lambda template_id: (_ for _ in ()).throw(ValueError("bad")),
+    )
+
+    resp = client.delete("/reports/templates/custom")
+
+    assert resp.status_code == 400
+    assert resp.json() == {"detail": "bad"}
+
+
+def test_owner_report_value_error(client, monkeypatch):
+    def fake_builder(template_id, owner, start=None, end=None):
+        raise ValueError("invalid range")
+
+    monkeypatch.setattr(reports_route, "build_report_document", fake_builder)
+
+    resp = client.get("/reports/lucy?start=bad")
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "invalid range"}
+
+
+def test_delete_template_endpoint_not_found(client, monkeypatch):
+    monkeypatch.setattr(
+        reports_route,
+        "delete_user_template",
+        lambda template_id: (_ for _ in ()).throw(FileNotFoundError()),
+    )
+
+    resp = client.delete("/reports/templates/custom")
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Template not found"}
+
+
+def test_owner_template_report_csv(client, monkeypatch):
+    document = _build_sample_document()
+    monkeypatch.setattr(reports_route, "build_report_document", lambda *args, **kwargs: document)
+    monkeypatch.setattr(reports_route, "report_to_csv", lambda doc: b"csv")
+
+    resp = client.get("/reports/lucy/transactions?format=csv")
+
+    assert resp.status_code == 200
+    assert resp.content == b"csv"
+
+
+def test_owner_template_report_pdf(client, monkeypatch):
+    document = _build_sample_document()
+    monkeypatch.setattr(reports_route, "build_report_document", lambda *args, **kwargs: document)
+    monkeypatch.setattr(reports_route, "report_to_pdf", lambda doc: b"pdf")
+
+    resp = client.get("/reports/lucy/transactions?format=pdf")
+
+    assert resp.status_code == 200
+    assert resp.content == b"pdf"
+
+
+def test_owner_template_report_not_found(client, monkeypatch):
+    monkeypatch.setattr(
+        reports_route,
+        "build_report_document",
+        lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError()),
+    )
+
+    resp = client.get("/reports/lucy/transactions")
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "Owner not found"}
+
+
+def test_owner_template_report_invalid_template(client, monkeypatch):
+    monkeypatch.setattr(
+        reports_route,
+        "build_report_document",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("bad template")),
+    )
+
+    resp = client.get("/reports/lucy/transactions")
+
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "bad template"}

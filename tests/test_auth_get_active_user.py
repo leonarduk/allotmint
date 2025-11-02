@@ -175,6 +175,22 @@ async def test_get_active_user_returns_none_when_disabled_without_token(
     assert await auth.get_active_user(request, token=None) is None
 
 
+@pytest.mark.anyio
+async def test_get_active_user_returns_local_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = FastAPI()
+    request = _make_request(app)
+
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(auth, "local_login_identity", lambda: "local@example.com")
+
+    def fail_user_from_token(token: str | None) -> str:  # pragma: no cover - safety guard
+        raise AssertionError("_user_from_token should not be called when identity is available")
+
+    monkeypatch.setattr(auth, "_user_from_token", fail_user_from_token)
+
+    assert await auth.get_active_user(request, token=None) == "local@example.com"
+
+
 def test_allowed_emails_missing_accounts_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

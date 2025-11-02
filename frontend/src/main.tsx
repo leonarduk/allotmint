@@ -121,12 +121,13 @@ const deriveModeFromPathname = (pathname: string): Mode => {
 
 const renderRouteMarker = (pathname: string, state: 'loading' | 'config-error' | 'auth') => {
   const mode = deriveModeFromPathname(pathname)
+  const bootstrapMode = state === 'loading' ? 'loading' : mode
   return (
     <>
       <div
         data-route-marker="bootstrap"
         data-testid="route-bootstrap-marker"
-        data-mode={mode}
+        data-mode={bootstrapMode}
         data-pathname={pathname}
         data-route-state={state}
         style={routeMarkerStyle}

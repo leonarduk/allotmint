@@ -76,6 +76,9 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
     ("POST", "/analytics/events"): {"source": "trail", "event": "view"},
     ("POST", "/compliance/validate"): {"owner": SMOKE_IDENTITY},
     ("POST", "/instrument/admin/groups"): {"name": SMOKE_IDENTITY},
+    ("POST", "/instrument/admin/{exchange}/{ticker}/group"): {
+        "group": SMOKE_IDENTITY,
+    },
     ("POST", "/user-config/{owner}"): {},
     (
         "POST",
@@ -172,7 +175,24 @@ def main() -> None:
 
     header = f"""import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'yaml';
+import {{ createRequire }} from 'node:module';
+
+type YamlModule = {{ parse?: (input: string) => unknown }};
+
+let yamlModule: YamlModule | null = null;
+
+try {{
+  const require = createRequire(import.meta.url);
+  const candidate = require('yaml') as YamlModule;
+  if (candidate && typeof candidate.parse === 'function') {{
+    yamlModule = candidate;
+  }} else {{
+    console.warn('Installed yaml module does not expose a parse function; config.yaml parsing will be skipped.');
+  }}
+}} catch (error) {{
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`YAML parser not available; config.yaml parsing will be skipped: ${{message}}`);
+}}
 
 const DEFAULT_DEATH_AGE = '90';
 
@@ -198,7 +218,19 @@ function resolveSmokeIdentity(): string {{
 
   try {{
     const raw = fs.readFileSync(configPath, 'utf8');
-    const parsed = (yaml.parse(raw) ?? {{}}) as Record<string, unknown>;
+    const parsed = (() => {{
+      if (!yamlModule || typeof yamlModule.parse !== 'function') {{
+        return {{}} as Record<string, unknown>;
+      }}
+      try {{
+        const result = yamlModule.parse(raw);
+        return (result && typeof result === 'object' ? result : {{}}) as Record<string, unknown>;
+      }} catch (parseError) {{
+        const message = parseError instanceof Error ? parseError.message : String(parseError);
+        console.warn(`Unable to parse config.yaml; falling back to defaults: ${{message}}`);
+        return {{}} as Record<string, unknown>;
+      }}
+    }})();
     const authSection =
       parsed && typeof parsed.auth === 'object' && parsed.auth !== null
         ? (parsed.auth as Record<string, unknown>)
@@ -274,7 +306,7 @@ const demoPensionDeathAge = computeSmokeDeathAge(smokeIdentity);
         "  vp_id: '1',\n"
         "  quest_id: 'check-in',\n"
         "  slug: `${smokeIdentity}-slug`,\n"
-        "  name: smokeIdentity,\n"
+        "  name: 'test',\n"
         "  exchange: 'NASDAQ',\n"
         "  ticker: 'PFE',\n"
         "};\n"

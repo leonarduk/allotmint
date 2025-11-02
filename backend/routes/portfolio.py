@@ -195,14 +195,20 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
 
     def _resolved_stem(candidate: Path) -> str:
         stem = candidate.stem
+        best_stem = stem
+        best_score = _score_variant(stem)
+
         try:
             resolved = candidate.resolve()
         except OSError:
             resolved = None
         else:
             if resolved.exists():
-                stem = resolved.stem
-        return stem
+                resolved_stem = resolved.stem
+                resolved_score = _score_variant(resolved_stem)
+                if resolved_score > best_score:
+                    best_stem = resolved_stem
+        return best_stem
 
     stems = sorted(
         (_resolved_stem(path) for path in preferred.values()),

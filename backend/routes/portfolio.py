@@ -177,7 +177,7 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
     except OSError:
         entries = []
 
-    preferred: dict[str, str] = {}
+    preferred: dict[str, Path] = {}
 
     for path in entries:
         if not path.is_file() or path.suffix.lower() != ".json":
@@ -190,11 +190,22 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
             continue
 
         existing = preferred.get(lowered)
-        if not existing or _score_variant(stem) > _score_variant(existing):
-            preferred[lowered] = stem
+        if not existing or _score_variant(stem) > _score_variant(existing.stem):
+            preferred[lowered] = path
+
+    def _resolved_stem(candidate: Path) -> str:
+        stem = candidate.stem
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            resolved = None
+        else:
+            if resolved.exists():
+                stem = resolved.stem
+        return stem
 
     stems = sorted(
-        preferred.values(),
+        (_resolved_stem(path) for path in preferred.values()),
         key=lambda name: (
             -_score_variant(name)[0],
             name.casefold(),
@@ -271,6 +282,7 @@ def _normalise_owner_entry(
     accounts_root: Path,
     *,
     meta: Optional[Dict[str, Any]] = None,
+    include_conventional_extras: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """Return a cleaned owner summary enriched with conventional accounts."""
 
@@ -320,7 +332,7 @@ def _normalise_owner_entry(
                 continue
             _append(stripped, prefer_variant=allow_variant)
 
-    if meta_provided:
+    if meta_provided and include_conventional_extras:
         for conventional in _CONVENTIONAL_ACCOUNT_EXTRAS:
             _append(conventional, prefer_variant=True)
 
@@ -386,7 +398,12 @@ def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
         meta = {}
 
     entry = {"owner": identity, "accounts": accounts}
-    summary = _normalise_owner_entry(entry, accounts_root, meta=meta)
+    summary = _normalise_owner_entry(
+        entry,
+        accounts_root,
+        meta=meta,
+        include_conventional_extras=False,
+    )
     if summary:
         full_name = summary.get("full_name")
         if isinstance(full_name, str) and full_name.casefold() == identity.casefold():

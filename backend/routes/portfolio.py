@@ -177,7 +177,24 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
     except OSError:
         entries = []
 
-    preferred: dict[str, Path] = {}
+    preferred: dict[str, str] = {}
+
+    def _best_variant(stem: str, path: Path) -> str:
+        candidate = stem
+        score = _score_variant(candidate)
+
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = None
+        else:
+            if resolved.exists():
+                resolved_stem = resolved.stem
+                resolved_score = _score_variant(resolved_stem)
+                if resolved_score > score:
+                    candidate = resolved_stem
+                    score = resolved_score
+        return candidate
 
     for path in entries:
         if not path.is_file() or path.suffix.lower() != ".json":
@@ -189,29 +206,13 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
         if lowered.endswith(_TRANSACTIONS_SUFFIX):
             continue
 
+        candidate = _best_variant(stem, path)
         existing = preferred.get(lowered)
-        if not existing or _score_variant(stem) > _score_variant(existing.stem):
-            preferred[lowered] = path
-
-    def _resolved_stem(candidate: Path) -> str:
-        stem = candidate.stem
-        best_stem = stem
-        best_score = _score_variant(stem)
-
-        try:
-            resolved = candidate.resolve()
-        except OSError:
-            resolved = None
-        else:
-            if resolved.exists():
-                resolved_stem = resolved.stem
-                resolved_score = _score_variant(resolved_stem)
-                if resolved_score > best_score:
-                    best_stem = resolved_stem
-        return best_stem
+        if not existing or _score_variant(candidate) > _score_variant(existing):
+            preferred[lowered] = candidate
 
     stems = sorted(
-        (_resolved_stem(path) for path in preferred.values()),
+        preferred.values(),
         key=lambda name: (
             -_score_variant(name)[0],
             name.casefold(),

@@ -813,8 +813,10 @@ export async function runSmoke(base: string) {
 
     // Allow 401/403 for endpoints that require roles; they still prove the route exists
     // Allow 409 for endpoints where we try to create data that may already exist.
+    // Allow 400 for endpoints which intentionally enforce required params (e.g. /instrument/search)
     if (
       res.status >= 400 &&
+      res.status !== 400 &&
       res.status !== 401 &&
       res.status !== 403 &&
       res.status !== 409

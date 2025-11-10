@@ -637,3 +637,76 @@ The script will produce `allotmint_video.mp4` in the repository root.
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
+## Windows Quick-start (cmd.exe / PowerShell)
+
+If you're developing on Windows use the following equivalents. These examples target
+`cmd.exe` and PowerShell where noted.
+
+- Create and activate a Python virtual environment:
+
+  - cmd.exe:
+
+  ```powershell
+  python -m venv .venv
+  .venv\Scripts\activate
+  pip install -r requirements.txt -r requirements-dev.txt
+  ```
+
+  - PowerShell (may require changing execution policy to run `Activate.ps1`):
+
+  ```powershell
+  python -m venv .venv
+  .\.venv\Scripts\Activate.ps1
+  pip install -r requirements.txt -r requirements-dev.txt
+  ```
+
+- Start the backend using the provided PowerShell helper (recommended on Windows):
+
+  ```powershell
+  .\run-backend.ps1
+  # or run the Unix-style helper if using WSL: ./run-local-api.sh
+  ```
+
+- From another terminal start the frontend (PowerShell/cmd equivalents):
+
+  - cmd.exe / PowerShell:
+
+  ```powershell
+  cd frontend
+  npm install
+  npm run dev
+  ```
+
+- Open the UI in your browser:
+
+  - cmd.exe:
+
+  ```cmd
+  start http://localhost:5173/
+  ```
+
+  - PowerShell:
+
+  ```powershell
+  Start-Process http://localhost:5173/
+  ```
+
+- Setting environment variables (examples):
+
+  - cmd.exe:
+
+  ```cmd
+  set VITE_ALLOTMINT_API_BASE=https://api.example.com
+  npm run dev
+  ```
+
+  - PowerShell:
+
+  ```powershell
+  $env:VITE_ALLOTMINT_API_BASE = 'https://api.example.com'
+  npm run dev
+  ```
+
+Notes:
+- Some shell examples in this README use POSIX syntax (for macOS/Linux). On Windows you can use Command Prompt, PowerShell, or WSL; the `run-backend.ps1` helper is provided for native PowerShell usage.
+- The `DATA_ROOT=$(pwd)/data` and similar POSIX-style snippets earlier in this document assume a Unix-like shell; on Windows replace `$(pwd)` with `%cd%` (cmd) or `(Get-Location).Path` (PowerShell), or use WSL for the POSIX forms.

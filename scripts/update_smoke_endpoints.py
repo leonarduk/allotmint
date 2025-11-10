@@ -11,6 +11,7 @@ from typing import Any, get_args, get_origin
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
 
 from backend.app import create_app
+from backend.config import smoke_identity as get_smoke_identity
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 
@@ -61,6 +62,10 @@ def _example_for_type(typ: Any) -> Any:
     return {}
 
 
+SMOKE_IDENTITY = get_smoke_identity()
+SMOKE_SLUG = f"{SMOKE_IDENTITY}-slug"
+
+
 MANUAL_BODIES: dict[tuple[str, str], Any] = {
     ("POST", "/accounts/{owner}/approval-requests"): {"ticker": "PFE"},
     ("POST", "/accounts/{owner}/approvals"): {
@@ -69,8 +74,11 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
     },
     ("DELETE", "/accounts/{owner}/approvals"): {"ticker": "PFE"},
     ("POST", "/analytics/events"): {"source": "trail", "event": "view"},
-    ("POST", "/compliance/validate"): {"owner": "demo"},
-    ("POST", "/instrument/admin/groups"): {"name": "demo"},
+    ("POST", "/compliance/validate"): {"owner": SMOKE_IDENTITY},
+    ("POST", "/instrument/admin/groups"): {"name": SMOKE_IDENTITY},
+    ("POST", "/instrument/admin/{exchange}/{ticker}/group"): {
+        "group": SMOKE_IDENTITY,
+    },
     ("POST", "/user-config/{owner}"): {},
     (
         "POST",
@@ -81,7 +89,7 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
         "/holdings/import",
     ): {
         "__form__": {
-            "owner": "demo",
+            "owner": SMOKE_IDENTITY,
             "account": "isa",
             "provider": "test",
             "file": "__file__",
@@ -92,7 +100,7 @@ MANUAL_BODIES: dict[tuple[str, str], Any] = {
 MANUAL_QUERIES: dict[tuple[str, str], dict[str, str]] = {}
 
 SAMPLE_QUERY_VALUES: dict[str, str] = {
-    "owner": "demo",
+    "owner": SMOKE_IDENTITY,
     "account": "isa",
     "user": "user@example.com",
     "email": "user@example.com",
@@ -102,8 +110,8 @@ SAMPLE_QUERY_VALUES: dict[str, str] = {
     "id": "1",
     "vp_id": "1",
     "quest_id": "check-in",
-    "slug": "demo-slug",
-    "name": "demo",
+    "slug": SMOKE_SLUG,
+    "name": SMOKE_IDENTITY,
 }
 
 
@@ -164,7 +172,118 @@ def main() -> None:
     endpoints.sort(key=lambda ep: (ep["path"], ep["method"]))
 
     smoke_ts = pathlib.Path(__file__).resolve().parent / "frontend-backend-smoke.ts"
-    content = "// Auto-generated via backend route metadata\n"
+
+    header = f"""import fs from 'node:fs';
+import path from 'node:path';
+import {{ createRequire }} from 'node:module';
+
+type YamlModule = {{ parse?: (input: string) => unknown }};
+
+let yamlModule: YamlModule | null = null;
+
+try {{
+  const require = createRequire(import.meta.url);
+  const candidate = require('yaml') as YamlModule;
+  if (candidate && typeof candidate.parse === 'function') {{
+    yamlModule = candidate;
+  }} else {{
+    console.warn('Installed yaml module does not expose a parse function; config.yaml parsing will be skipped.');
+  }}
+}} catch (error) {{
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`YAML parser not available; config.yaml parsing will be skipped: ${{message}}`);
+}}
+
+const DEFAULT_DEATH_AGE = '90';
+
+function statePensionAgeUk(dob: string): number {{
+  const birth = new Date(`${{dob}}T00:00:00Z`);
+  if (Number.isNaN(birth.getTime())) {{
+    throw new Error('Invalid dob');
+  }}
+
+  if (birth < new Date('1954-10-06T00:00:00Z')) return 65;
+  if (birth < new Date('1960-04-06T00:00:00Z')) return 66;
+  if (birth < new Date('1977-04-06T00:00:00Z')) return 67;
+  return 68;
+}}
+
+function resolveSmokeIdentity(): string {{
+  const envValue = process.env.SMOKE_IDENTITY?.trim();
+  if (envValue) {{
+    return envValue;
+  }}
+
+  const configPath = path.resolve(__dirname, '../config.yaml');
+
+  try {{
+    const raw = fs.readFileSync(configPath, 'utf8');
+    const parsed = (() => {{
+      if (!yamlModule || typeof yamlModule.parse !== 'function') {{
+        return {{}} as Record<string, unknown>;
+      }}
+      try {{
+        const result = yamlModule.parse(raw);
+        return (result && typeof result === 'object' ? result : {{}}) as Record<string, unknown>;
+      }} catch (parseError) {{
+        const message = parseError instanceof Error ? parseError.message : String(parseError);
+        console.warn(`Unable to parse config.yaml; falling back to defaults: ${{message}}`);
+        return {{}} as Record<string, unknown>;
+      }}
+    }})();
+    const authSection =
+      parsed && typeof parsed.auth === 'object' && parsed.auth !== null
+        ? (parsed.auth as Record<string, unknown>)
+        : {{}};
+    const smokeFromConfig =
+      typeof authSection.smoke_identity === 'string' ? authSection.smoke_identity.trim() : '';
+    const demoFromConfig =
+      typeof authSection.demo_identity === 'string' ? authSection.demo_identity.trim() : '';
+    if (smokeFromConfig) {{
+      return smokeFromConfig;
+    }}
+    if (demoFromConfig) {{
+      return demoFromConfig;
+    }}
+  }} catch (error) {{
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Falling back to configured smoke identity due to error reading config.yaml: ${{message}}`);
+  }}
+
+  return '{SMOKE_IDENTITY}';
+}}
+
+export const smokeIdentity = resolveSmokeIdentity();
+
+function computeSmokeDeathAge(identity: string): string {{
+  const accountsRoot = process.env.ACCOUNTS_ROOT ?? path.resolve(__dirname, '../data/accounts');
+  const candidates = Array.from(new Set([identity, `${{identity}}-owner`]));
+  for (const slug of candidates) {{
+    const personPath = path.join(accountsRoot, slug, 'person.json');
+
+    try {{
+      const meta = JSON.parse(fs.readFileSync(personPath, 'utf8')) as {{ dob?: unknown }};
+      const dob = typeof meta.dob === 'string' ? meta.dob : null;
+      if (!dob) {{
+        continue;
+      }}
+      const retirementAge = statePensionAgeUk(dob);
+      return String(retirementAge + 20);
+    }} catch (error) {{
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`Unable to derive smoke pension death age from ${{personPath}}: ${{message}}`);
+    }}
+  }}
+
+  return DEFAULT_DEATH_AGE;
+}}
+
+const demoPensionDeathAge = computeSmokeDeathAge(smokeIdentity);
+
+"""
+
+    content = header
+    content += "// Auto-generated via backend route metadata\n"
     content += (
         "export interface SmokeEndpoint { method: string; path: string; query?: Record<string, string>; body?: any }\n"
     )
@@ -178,16 +297,16 @@ def main() -> None:
         "// Values are chosen based on common parameter names. Unknown names default to\n"
         "// `1` which parses as an integer or string.\n"
         "const SAMPLE_PATH_VALUES: Record<string, string> = {\n"
-        "  owner: 'demo',\n"
+        "  owner: smokeIdentity,\n"
         "  account: 'isa',\n"
-        "  user: 'demo',\n"
+        "  user: smokeIdentity,\n"
         "  email: 'user@example.com',\n"
         "  source: 'trail',\n"
         "  id: '1',\n"
         "  vp_id: '1',\n"
         "  quest_id: 'check-in',\n"
-        "  slug: 'demo-slug',\n"
-        "  name: 'demo',\n"
+        "  slug: `${smokeIdentity}-slug`,\n"
+        "  name: 'test',\n"
         "  exchange: 'NASDAQ',\n"
         "  ticker: 'PFE',\n"
         "};\n"
@@ -256,7 +375,7 @@ def main() -> None:
         "      res.ok\n"
         "        ? \"✓\"\n"
         "        : res.status === 401 || res.status === 403\n"
-        "          ? \"○\"\n"
+          "? \"○\"\n"
         "          : res.status === 409\n"
         "            ? \"△\"\n"
         "            : \"•\";\n"
@@ -275,6 +394,8 @@ def main() -> None:
         "  });\n"
         "}\n"
     )
+    content = content.replace(f'"{SMOKE_IDENTITY}"', "smokeIdentity")
+    content = content.replace(f'"{SMOKE_SLUG}"', "`${smokeIdentity}-slug`")
     smoke_ts.write_text(content)
 
 

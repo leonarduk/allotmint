@@ -7,12 +7,10 @@ from pydantic import BaseModel
 from backend.common.goals import Goal, add_goal, delete_goal, load_goals, save_goals
 from backend.common.rebalance import suggest_trades
 from backend.auth import get_current_user
-from backend.config import config
+from backend.config import config, demo_identity
 
 router = APIRouter(prefix="/goals", tags=["goals"])
-
-DEMO_OWNER = "demo"
-
+DEMO_OWNER = demo_identity()
 
 class GoalPayload(BaseModel):
     name: str

@@ -81,7 +81,9 @@
     "other": "Other",
     "period": "Period:",
     "reason": "Reason",
-    "ticker": "Ticker"
+    "ticker": "Ticker",
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "dashboard": {
     "alphaVsBenchmark": "Alpha vs Benchmark",
@@ -89,7 +91,18 @@
     "excludeCash": "Exclude cash",
     "maxDrawdown": "Max Drawdown",
     "maxDrawdownHelp": "Max drawdown is the largest percentage drop from any portfolio peak to the lowest closing value that follows, calculated from the rebuilt daily totals of your holdings.",
+    "maxDrawdownDetailsHeading": "Max drawdown details",
+    "maxDrawdownExplain": "Explain this drop",
+    "maxDrawdownHide": "Hide drawdown details",
     "metricsExplanationLink": "How are these calculated?",
+    "drawdownRangeWithValues": "Largest drop runs from {{start}} ({{startValue}}) to {{end}} ({{endValue}}).",
+    "drawdownRangeUnknown": "We couldn't identify the dates for this drawdown.",
+    "drawdownPercentSummary": "The portfolio fell {{drawdown}} from its peak before recovering.",
+    "drawdownSuspicious": "Drops larger than 90% usually indicate missing or incorrect prices. Check the highlighted period for gaps or stale data.",
+    "drawdownChartDescription": "Drawdown is computed from the daily portfolio value curve. The shaded region shows the peak-to-trough span of the max drawdown.",
+    "drawdownSeriesUnavailable": "We couldn't load drawdown history for this period.",
+    "openDiagnostics": "Open diagnostics",
+    "viewMetricsExplanation": "Read the full explanation",
     "portfolioValue": "Portfolio Value",
     "reportingDate": "Reporting date",
     "previousDate": "Previous date",
@@ -440,7 +453,91 @@
     "csv": "Download CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Download PDF",
-    "title": "Reports"
+    "title": "Reports",
+  "templatesTitle": "Report templates",
+  "templatesDescription": "Choose a built-in or custom template before exporting.",
+  "templatesLoading": "Loading templates…",
+  "templatesError": "Unable to load templates.",
+  "templatesEmpty": "No templates available yet.",
+  "catalog": {
+    "groups": {
+      "builtin": "Built-in templates",
+      "custom": "Custom templates"
+    },
+    "noFields": "No fields defined for this template.",
+    "fieldsLabel_one": "{{count}} field: {{fields}}",
+    "fieldsLabel_other": "{{count}} fields: {{fields}}",
+    "moreFields_one": "+{{count}} more field",
+    "moreFields_other": "+{{count}} more fields",
+    "sectionsLabel": "Sections: {{sections}}",
+    "selectLabel": "Select {{name}} template",
+    "badge": {
+      "builtin": "Built-in",
+      "custom": "Custom"
+    },
+    "selected": "Selected",
+    "selectedTemplate": "Template: {{name}}"
+  },
+  "downloadsTitle": "Download reports",
+  "downloadsDescription": "Generate CSV or PDF exports with the selected template and dates.",
+  "downloadsDisabled": "Select an owner and template to enable downloads.",
+    "builder": {
+      "headingCreate": "Create report template",
+      "headingEdit": "Edit report template",
+      "subheading": "Configure report columns, metrics, and optional filters before saving the template.",
+      "nameLabel": "Template name",
+      "descriptionLabel": "Description (optional)",
+      "metricsLabel": "Metrics",
+      "columnsLabel": "Columns",
+      "filtersLabel": "Filters (optional)",
+      "addFilter": "Add filter",
+      "noFilters": "No filters applied. Add a filter to limit results to specific accounts or holdings.",
+      "filterField": "Field",
+      "filterOperator": "Operator",
+      "filterValue": "Value",
+      "removeFilter": "Remove",
+      "create": "Create template",
+      "saveChanges": "Save changes",
+      "saving": "Saving…",
+      "delete": "Delete template",
+      "deleting": "Deleting…",
+      "saveError": "Unable to save the template. Try again.",
+      "deleteError": "Unable to delete the template. Try again.",
+      "loading": "Loading template…",
+      "missing": "We couldn't load that template.",
+      "loadError": "Unable to load the selected template.",
+      "validation": {
+        "name": "Name is required",
+        "metrics": "Select at least one metric",
+        "columns": "Select at least one column"
+      },
+      "metrics": {
+        "performance": "Performance summary",
+        "holdings": "Holdings breakdown",
+        "transactions": "Recent transactions",
+        "risk": "Risk metrics"
+      },
+      "columns": {
+        "owner": "Owner",
+        "account": "Account",
+        "ticker": "Ticker",
+        "value": "Value (£)",
+        "gain": "Gain %"
+      },
+      "filters": {
+        "accountType": "Account type",
+        "instrumentType": "Instrument type",
+        "region": "Region",
+        "sector": "Sector"
+      },
+      "operators": {
+        "equals": "Equals",
+        "notEquals": "Does not equal",
+        "contains": "Contains",
+        "gt": "Greater than",
+        "lt": "Less than"
+      }
+    }
   },
   "screener": {
     "loading": "Loading…",
@@ -488,6 +585,13 @@
       "error": "Failed to run health check",
       "run": "Run portfolio health check",
       "title": "Portfolio health"
+    },
+    "localLogin": {
+      "title": "Local login override",
+      "description": "Select which user email should be assumed when authentication is disabled.",
+      "label": "Active user",
+      "none": "No override configured",
+      "noOwners": "No owners available to assume."
     },
     "logs": {
       "empty": "No logs available.",

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 from backend import auth
 
@@ -30,6 +30,14 @@ def test_get_current_user_invalid_token():
 def test_get_current_user_valid():
     token = auth.create_access_token("alice@example.com")
     assert asyncio.run(auth.get_current_user(token)) == "alice@example.com"
+
+
+def test_get_current_user_local_override(monkeypatch):
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(
+        auth.config, "local_login_email", "local@example.com", raising=False
+    )
+    assert asyncio.run(auth.get_current_user(None)) == "local@example.com"
 
 
 def test_verify_google_token_success(monkeypatch):
@@ -146,6 +154,16 @@ def test_allowed_emails_local(monkeypatch, tmp_path):
     )
     emails = auth._allowed_emails()
     assert "alice@example.com" in emails
+
+
+def test_get_active_user_returns_local_override(monkeypatch):
+    monkeypatch.setattr(auth.config, "disable_auth", True, raising=False)
+    monkeypatch.setattr(
+        auth.config, "local_login_email", "helper@example.com", raising=False
+    )
+
+    result = asyncio.run(auth.get_active_user(Request(scope={"type": "http"})))
+    assert result == "helper@example.com"
 
 
 def test_missing_jwt_secret_raises_error(monkeypatch):

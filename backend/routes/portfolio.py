@@ -31,7 +31,7 @@ from backend.common import (
     risk,
 )
 from backend.common import portfolio as portfolio_mod
-from backend.config import config
+from backend.config import config, demo_identity
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 from backend.utils.pricing_dates import PricingDateCalculator
 
@@ -68,6 +68,31 @@ def _resolve_pricing_date(as_of: str | None) -> dt.date | None:
     return calc.resolve_weekday(candidate, forward=False)
 
 
+def _build_group_portfolio(slug: str, pricing_date: dt.date | None) -> Dict[str, Any]:
+    """Return a group portfolio, tolerating simplified test doubles.
+
+    Some tests monkeypatch :func:`backend.common.group_portfolio.build_group_portfolio`
+    with light-weight stand-ins that only accept the ``slug`` positional
+    argument.  The production implementation, however, exposes a keyword-only
+    ``pricing_date`` parameter.  Inspect the active callable to determine
+    whether the keyword is supported before attempting to pass it through so
+    that both scenarios continue to operate.
+    """
+
+    builder = group_portfolio.build_group_portfolio
+    kwargs: Dict[str, Any] = {}
+
+    try:
+        params = inspect.signature(builder).parameters
+    except (TypeError, ValueError):  # pragma: no cover - defensive
+        params = {}
+
+    if pricing_date is not None and "pricing_date" in params:
+        kwargs["pricing_date"] = pricing_date
+
+    return builder(slug, **kwargs)
+
+
 # ──────────────────────────────────────────────────────────────
 # Pydantic models for validation
 # ──────────────────────────────────────────────────────────────
@@ -75,6 +100,7 @@ class OwnerSummary(BaseModel):
     owner: str
     full_name: str
     accounts: List[str]
+    email: Optional[str] = None
     has_transactions_artifact: bool = False
 
 
@@ -109,12 +135,19 @@ _CONVENTIONAL_ACCOUNT_EXTRAS = (
     "settings",
 )
 _TRANSACTIONS_SUFFIX = "_transactions"
-_DEFAULT_DEMO_OWNER: Dict[str, Any] = {
-    "owner": "demo",
-    "full_name": "Demo",
-    "accounts": list(_CONVENTIONAL_ACCOUNT_EXTRAS),
-    "has_transactions_artifact": False,
-}
+def _default_demo_owner(identity: str | None = None) -> Dict[str, Any]:
+    """Return a template summary for the configured demo identity."""
+
+    identity = identity or demo_identity()
+    display_name = identity.replace("-", " ").strip() if identity else "Demo"
+    if not display_name:
+        display_name = "Demo"
+    return {
+        "owner": identity,
+        "full_name": display_name.title(),
+        "accounts": list(_CONVENTIONAL_ACCOUNT_EXTRAS),
+        "has_transactions_artifact": False,
+    }
 
 
 def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
@@ -123,8 +156,13 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
     if not owner_dir:
         return []
 
-    stems: List[str] = []
-    seen: set[str] = set()
+    def _score_variant(value: str) -> tuple[int, str]:
+        if value.isupper():
+            return (3, value)
+        if any(ch.isupper() for ch in value):
+            return (2, value)
+        return (1, value)
+
     metadata_stems = {
         "person",
         "config",
@@ -139,6 +177,25 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
     except OSError:
         entries = []
 
+    preferred: dict[str, str] = {}
+
+    def _best_variant(stem: str, path: Path) -> str:
+        candidate = stem
+        score = _score_variant(candidate)
+
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = None
+        else:
+            if resolved.exists():
+                resolved_stem = resolved.stem
+                resolved_score = _score_variant(resolved_stem)
+                if resolved_score > score:
+                    candidate = resolved_stem
+                    score = resolved_score
+        return candidate
+
     for path in entries:
         if not path.is_file() or path.suffix.lower() != ".json":
             continue
@@ -148,10 +205,20 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
             continue
         if lowered.endswith(_TRANSACTIONS_SUFFIX):
             continue
-        if lowered in seen:
-            continue
-        stems.append(stem)
-        seen.add(lowered)
+
+        candidate = _best_variant(stem, path)
+        existing = preferred.get(lowered)
+        if not existing or _score_variant(candidate) > _score_variant(existing):
+            preferred[lowered] = candidate
+
+    stems = sorted(
+        preferred.values(),
+        key=lambda name: (
+            -_score_variant(name)[0],
+            name.casefold(),
+            name,
+        ),
+    )
 
     return stems
 
@@ -222,6 +289,7 @@ def _normalise_owner_entry(
     accounts_root: Path,
     *,
     meta: Optional[Dict[str, Any]] = None,
+    include_conventional_extras: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """Return a cleaned owner summary enriched with conventional accounts."""
 
@@ -231,17 +299,36 @@ def _normalise_owner_entry(
 
     owner_dir = resolve_owner_directory(accounts_root, owner)
 
-    accounts: List[str] = []
-    seen: set[str] = set()
+    def _score_variant(value: str) -> tuple[int, str]:
+        if value.isupper():
+            return (3, value)
+        if any(ch.isupper() for ch in value):
+            return (2, value)
+        return (1, value)
 
-    def _append(name: str) -> None:
+    accounts: List[str] = []
+    seen: dict[str, int] = {}
+
+    def _append(name: str, *, prefer_variant: bool) -> None:
         lowered = name.casefold()
         if lowered in seen:
+            if not prefer_variant:
+                return
+            idx = seen[lowered]
+            if _score_variant(name) > _score_variant(accounts[idx]):
+                accounts[idx] = name
             return
+        seen[lowered] = len(accounts)
         accounts.append(name)
-        seen.add(lowered)
 
-    for source in (entry.get("accounts", []), _collect_account_stems(owner_dir)):
+    meta_provided = meta is not None
+
+    sources = [
+        (entry.get("accounts", []), False),
+        (_collect_account_stems(owner_dir), True),
+    ]
+
+    for source, allow_variant in sources:
         if not isinstance(source, list):
             continue
         for candidate in source:
@@ -250,7 +337,26 @@ def _normalise_owner_entry(
             stripped = candidate.strip()
             if not stripped:
                 continue
-            _append(stripped)
+            _append(stripped, prefer_variant=allow_variant)
+
+    if meta_provided and include_conventional_extras:
+        for conventional in _CONVENTIONAL_ACCOUNT_EXTRAS:
+            _append(conventional, prefer_variant=True)
+
+    transactions_entry: Optional[str] = None
+    if owner_dir:
+        owner_slug = owner.strip()
+        target = f"{owner_slug}{_TRANSACTIONS_SUFFIX}".casefold()
+        try:
+            for entry_path in owner_dir.iterdir():
+                if entry_path.name.casefold() == target and entry_path.is_dir():
+                    transactions_entry = entry_path.name
+                    break
+        except OSError:
+            transactions_entry = None
+
+    if transactions_entry:
+        _append(transactions_entry, prefer_variant=True)
 
     resolved_meta = meta
     if resolved_meta is None:
@@ -263,32 +369,56 @@ def _normalise_owner_entry(
         "owner": owner,
         "full_name": _resolve_full_name(owner, entry, resolved_meta),
         "accounts": accounts,
-        "has_transactions_artifact": _has_transactions_artifact(owner_dir, owner),
     }
+
+    artifact_present = _has_transactions_artifact(owner_dir, owner)
+    if not meta_provided:
+        summary["has_transactions_artifact"] = artifact_present
+
+    if isinstance(resolved_meta, dict):
+        email = resolved_meta.get("email")
+        if isinstance(email, str) and email.strip():
+            summary["email"] = email.strip()
 
     return summary
 
 
-def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
-    """Construct an owner summary for the demo account."""
+def _resolve_demo_owner(accounts_root: Path) -> tuple[str, Path | None]:
+    """Return the preferred demo identity and resolved directory."""
 
-    demo_dir = resolve_owner_directory(accounts_root, "demo")
+    for identity in data_loader.demo_identity_aliases():
+        owner_dir = resolve_owner_directory(accounts_root, identity)
+        if owner_dir:
+            return identity, owner_dir
+    identity = demo_identity()
+    return identity, resolve_owner_directory(accounts_root, identity)
+
+
+def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
+    """Construct an owner summary for the configured demo account."""
+
+    identity, demo_dir = _resolve_demo_owner(accounts_root)
     accounts = _collect_account_stems(demo_dir)
     try:
-        meta = data_loader.load_person_meta("demo", accounts_root)
+        meta = data_loader.load_person_meta(identity, accounts_root)
     except Exception:  # pragma: no cover - metadata lookup failures fall back to defaults
         meta = {}
 
-    entry = {"owner": "demo", "accounts": accounts}
-    summary = _normalise_owner_entry(entry, accounts_root, meta=meta)
+    entry = {"owner": identity, "accounts": accounts}
+    summary = _normalise_owner_entry(
+        entry,
+        accounts_root,
+        meta=meta,
+        include_conventional_extras=False,
+    )
     if summary:
         full_name = summary.get("full_name")
-        if isinstance(full_name, str) and full_name.casefold() == "demo":
-            summary["full_name"] = _DEFAULT_DEMO_OWNER["full_name"]
-        summary["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, "demo")
+        if isinstance(full_name, str) and full_name.casefold() == identity.casefold():
+            summary["full_name"] = _default_demo_owner(identity)["full_name"]
+        summary["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, identity)
         return summary
-    fallback = _DEFAULT_DEMO_OWNER.copy()
-    fallback["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, "demo")
+    fallback = _default_demo_owner(identity).copy()
+    fallback["has_transactions_artifact"] = _has_transactions_artifact(demo_dir, identity)
     return fallback
 
 
@@ -307,12 +437,18 @@ def _list_owner_summaries(
         if normalised:
             summaries.append(normalised)
 
-    demo_present = any(summary["owner"].casefold() == "demo" for summary in summaries)
+    identity = demo_identity()
 
-    if summaries and not demo_present:
+    def _append_demo_summary() -> None:
         summaries.append(_build_demo_summary(accounts_root))
-    elif not summaries:
-        summaries.append(_build_demo_summary(accounts_root))
+
+    if not summaries:
+        _append_demo_summary()
+
+    demo_aliases = {alias.lower() for alias in data_loader.demo_identity_aliases()}
+    known = {summary["owner"].lower() for summary in summaries}
+    if not known.intersection(demo_aliases):
+        _append_demo_summary()
 
     return [OwnerSummary(**summary) for summary in summaries]
 
@@ -388,8 +524,34 @@ async def portfolio(owner: str, request: Request, as_of: str | None = None):
         raise HTTPException(status_code=404, detail="Owner not found")
 
 
+@router.get("/portfolio/{owner}/sectors")
+async def portfolio_sectors(owner: str, request: Request, as_of: str | None = None):
+    """Return return contribution aggregated by sector for an owner."""
+
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
+    pricing_date = _resolve_pricing_date(as_of)
+
+    try:
+        portfolio_data = portfolio_mod.build_owner_portfolio(
+            owner, accounts_root, pricing_date=pricing_date
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Owner not found")
+
+    return portfolio_utils.aggregate_by_sector(portfolio_data)
+
+
 @router.get("/var/{owner}")
-async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False):
+async def portfolio_var(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    confidence: float = 0.95,
+    exclude_cash: bool = False,
+):
     """Return historical-simulation VaR for ``owner``.
 
     Parameters
@@ -409,8 +571,10 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, e
     Raises 404 if the owner does not exist and 400 for invalid parameters.
     """
 
-    if owner not in portfolio_mod.list_owners():
-        raise HTTPException(status_code=404, detail="Owner not found")
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         sharpe = risk.compute_sharpe_ratio(owner, days=days)
@@ -428,11 +592,19 @@ async def portfolio_var(owner: str, days: int = 365, confidence: float = 0.95, e
 
 
 @router.get("/var/{owner}/breakdown")
-async def portfolio_var_breakdown(owner: str, days: int = 365, confidence: float = 0.95, exclude_cash: bool = False):
+async def portfolio_var_breakdown(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    confidence: float = 0.95,
+    exclude_cash: bool = False,
+):
     """Return VaR totals with per-ticker contribution breakdown."""
 
-    if owner not in portfolio_mod.list_owners():
-        raise HTTPException(status_code=404, detail="Owner not found")
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
         breakdown = risk.compute_portfolio_var_breakdown(owner, days=days, confidence=confidence, include_cash=not exclude_cash)
@@ -450,7 +622,12 @@ async def portfolio_var_breakdown(owner: str, days: int = 365, confidence: float
 
 
 @router.post("/var/{owner}/recompute")
-async def portfolio_var_recompute(owner: str, days: int = 365, confidence: float = 0.95):
+async def portfolio_var_recompute(
+    owner: str,
+    request: Request,
+    days: int = 365,
+    confidence: float = 0.95,
+):
     """Force recomputation of VaR for ``owner``.
 
     This endpoint mirrors :func:`portfolio_var` but is intended to be called
@@ -458,6 +635,10 @@ async def portfolio_var_recompute(owner: str, days: int = 365, confidence: float
     result without additional metadata.
     """
 
+    accounts_root = resolve_accounts_root(request)
+    owner_dir = resolve_owner_directory(accounts_root, owner)
+    if owner_dir:
+        owner = owner_dir.name
     try:
         var = risk.compute_portfolio_var(owner, days=days, confidence=confidence)
     except FileNotFoundError:
@@ -477,7 +658,7 @@ async def portfolio_group(slug: str, as_of: str | None = None):
 
     try:
         pricing_date = _resolve_pricing_date(as_of)
-        return group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
+        return _build_group_portfolio(slug, pricing_date)
     except Exception as e:
         log.warning(f"Failed to load group {slug}: {e}")
         raise HTTPException(status_code=404, detail="Group not found")
@@ -579,7 +760,7 @@ async def group_sectors(slug: str, as_of: str | None = None):
     """Return return contribution aggregated by sector."""
     try:
         pricing_date = _resolve_pricing_date(as_of)
-        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
+        gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_sector(gp)
@@ -590,7 +771,7 @@ async def group_regions(slug: str, as_of: str | None = None):
     """Return return contribution aggregated by region."""
     try:
         pricing_date = _resolve_pricing_date(as_of)
-        gp = group_portfolio.build_group_portfolio(slug, pricing_date=pricing_date)
+        gp = _build_group_portfolio(slug, pricing_date)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Group not found") from exc
     return portfolio_utils.aggregate_by_region(gp)

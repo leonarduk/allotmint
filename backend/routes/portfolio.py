@@ -161,7 +161,7 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
             return (3, value)
         if any(ch.isupper() for ch in value):
             return (2, value)
-        return (1, value)
+        return 1, value
 
     metadata_stems = {
         "person",

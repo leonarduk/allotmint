@@ -20,6 +20,5 @@
 - A root-level `logging.ini` exists only to tune third-party loggers like `yfinance`.
 
 ## Escalation Contacts
-- **Primary**: engineering@allotmint.example.com
-- **Backup**: ops@allotmint.example.com
-- **Emergency**: +44-20-0000-0000
+- **Primary**: steveleonard11@gmail.com
+- **Backup**: stephen_leonard@hotmail.com

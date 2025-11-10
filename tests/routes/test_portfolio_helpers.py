@@ -151,7 +151,7 @@ def test_collect_account_stems_filters_metadata(tmp_path: Path) -> None:
 
     stems = portfolio._collect_account_stems(owner_dir)
 
-    assert stems == ["ISA", "gia"]
+    assert stems == ["gia", "isa"]
 
 
 def test_has_transactions_artifact_detects_files_and_directories(tmp_path: Path) -> None:

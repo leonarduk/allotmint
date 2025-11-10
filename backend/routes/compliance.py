@@ -6,9 +6,12 @@ from fastapi import APIRouter, HTTPException, Request
 from backend.common import compliance, data_loader
 from backend.common.errors import handle_owner_not_found, raise_owner_not_found
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
+from backend.config import demo_identity
 
 router = APIRouter(tags=["compliance"])
 logger = logging.getLogger(__name__)
+
+DEFAULT_DEMO_IDENTITY = (demo_identity.__defaults__ or ("demo",))[0]
 
 
 class KnownOwnerSet(set[str]):
@@ -29,7 +32,11 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
     def _ensure_demo_owner(owner_set: set[str]) -> None:
         """Ensure the bundled demo owner remains discoverable."""
 
-        if not owner_set or "demo" in owner_set:
+        if not owner_set:
+            return
+
+        aliases = [alias.lower() for alias in data_loader.demo_identity_aliases()]
+        if any(alias in owner_set for alias in aliases):
             return
 
         try:
@@ -37,16 +44,18 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
         except Exception:
             return
 
-        try:
-            demo_dir = fallback_root / "demo"
-        except TypeError:
-            return
 
-        try:
-            if demo_dir.exists() and demo_dir.is_dir():
-                owner_set.add("demo")
-        except Exception:
-            return
+        for alias in aliases:
+            try:
+                demo_dir = fallback_root / alias
+            except TypeError:
+                continue
+            try:
+                if demo_dir.exists() and demo_dir.is_dir():
+                    owner_set.add(alias)
+                    return
+            except Exception:
+                continue
 
     list_plots_failed = False
     try:

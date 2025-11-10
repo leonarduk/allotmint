@@ -12,6 +12,8 @@ vi.mock("@/components/ValueAtRisk", () => ({
 }));
 vi.mock("@/api", () => ({
   getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
+  complianceForOwner: vi.fn().mockResolvedValue({ warnings: [] }),
+  getOwnerSectorContributions: vi.fn().mockResolvedValue([]),
 }));
 
 const defaultConfig: AppConfig = {

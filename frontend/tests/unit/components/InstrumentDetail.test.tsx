@@ -158,12 +158,12 @@ describe("InstrumentDetail", () => {
 
     expect(
       await screen.findByText(
-        `${i18n.t("instrumentDetail.change7d")} 30.0%`,
+        `${i18n.t("instrumentDetail.change7d")} £30.00 (30.0%)`,
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        `${i18n.t("instrumentDetail.change30d")} 30.0%`,
+        `${i18n.t("instrumentDetail.change30d")} £30.00 (30.0%)`,
       ),
     ).toBeInTheDocument();
   });
@@ -191,12 +191,12 @@ describe("InstrumentDetail", () => {
 
     expect(
       await screen.findByText(
-        `${i18n.t("instrumentDetail.change7d")} 30.0%`,
+        `${i18n.t("instrumentDetail.change7d")} £30.00 (30.0%)`,
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        `${i18n.t("instrumentDetail.change30d")} 30.0%`,
+        `${i18n.t("instrumentDetail.change30d")} £30.00 (30.0%)`,
       ),
     ).toBeInTheDocument();
   });

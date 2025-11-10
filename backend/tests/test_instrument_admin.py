@@ -84,8 +84,9 @@ def test_refresh_instrument_preview(monkeypatch):
             "currency": "USD",
         }
 
-    def fake_fetch(full_ticker: str) -> dict[str, Any]:
-        assert full_ticker == "ABC.NYSE"
+    def fake_fetch(ticker: str, exchange: str) -> dict[str, Any]:
+        assert ticker == "ABC"
+        assert exchange == "NYSE"
         return {"name": "Alpha Corp", "currency": "GBP", "instrument_type": "EQUITY"}
 
     monkeypatch.setattr(
@@ -130,7 +131,9 @@ def test_refresh_instrument_confirm(monkeypatch):
     def fake_get_instrument_meta(full_ticker: str) -> dict[str, Any]:
         return {"ticker": full_ticker, "exchange": "NYSE", "name": "Alpha", "currency": "USD"}
 
-    def fake_fetch(full_ticker: str) -> dict[str, Any]:
+    def fake_fetch(ticker: str, exchange: str) -> dict[str, Any]:
+        assert ticker == "ABC"
+        assert exchange == "NYSE"
         return {"name": "Alpha Corp", "currency": "GBP", "instrument_type": "EQUITY"}
 
     def fake_save(ticker: str, exchange: str, payload: dict[str, Any]) -> None:

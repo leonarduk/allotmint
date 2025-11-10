@@ -51,6 +51,7 @@ import ScenarioTester from "./pages/ScenarioTester";
 import UserConfigPage from "./pages/UserConfig";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import Reports from "./pages/Reports";
+import ReportTemplateCreator from "./pages/ReportTemplateCreator";
 import { orderedTabPlugins } from "./tabPlugins";
 import InstrumentSearchBarToggle from "./components/InstrumentSearchBar";
 import UserAvatar from "./components/UserAvatar";
@@ -238,6 +239,8 @@ export default function App({ onLogout }: AppProps) {
   const { lastRefresh } = usePriceRefresh();
 
   const params = new URLSearchParams(location.search);
+  const isReportCreationRoute =
+    location.pathname === "/reports/new" || location.pathname.startsWith("/reports/new/");
   const [mode, setMode] = useState<Mode>(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
     initialMode === "owner" || initialMode === "performance"
@@ -672,7 +675,7 @@ export default function App({ onLogout }: AppProps) {
         {mode === "rebalance" && <Rebalance />}
         {mode === "market" && <MarketOverview />}
         {mode === "movers" && <TopMovers />}
-        {mode === "reports" && <Reports />}
+        {mode === "reports" && (isReportCreationRoute ? <ReportTemplateCreator /> : <Reports />)}
         {mode === "taxtools" && <TaxTools />}
         {mode === "support" && <Support />}
         {mode === "settings" && <UserConfigPage />}

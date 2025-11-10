@@ -95,7 +95,18 @@
     "excludeCash": "Excluir caixa",
     "maxDrawdown": "Máxima queda",
     "maxDrawdownHelp": "A máxima queda é a maior redução percentual entre qualquer pico da carteira e o valor de fechamento mais baixo subsequente, calculada a partir dos totais diários reconstruídos das suas posições.",
+    "maxDrawdownDetailsHeading": "Detalhes da máxima queda",
+    "maxDrawdownExplain": "Explicar essa queda",
+    "maxDrawdownHide": "Ocultar detalhes da queda",
     "metricsExplanationLink": "Como isso é calculado?",
+    "drawdownRangeWithValues": "A maior queda vai de {{start}} ({{startValue}}) a {{end}} ({{endValue}}).",
+    "drawdownRangeUnknown": "Não conseguimos identificar as datas dessa queda.",
+    "drawdownPercentSummary": "A carteira caiu {{drawdown}} a partir do pico antes de se recuperar.",
+    "drawdownSuspicious": "Quedas superiores a 90% geralmente indicam preços ausentes ou incorretos. Revise o período destacado em busca de lacunas ou dados desatualizados.",
+    "drawdownChartDescription": "A queda é calculada a partir da curva diária do valor da carteira. A área sombreada mostra o intervalo pico-vale da máxima queda.",
+    "drawdownSeriesUnavailable": "Não conseguimos carregar o histórico de quedas para este período.",
+    "openDiagnostics": "Abrir diagnósticos",
+    "viewMetricsExplanation": "Ler a explicação completa",
     "portfolioValue": "Valor da carteira",
     "reportingDate": "Data do relatório",
     "previousDate": "Data anterior",
@@ -354,7 +365,34 @@
     "csv": "Baixar CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Baixar PDF",
-    "title": "Relatórios"
+    "title": "Relatórios",
+    "templatesTitle": "Modelos de relatório",
+    "templatesDescription": "Escolha um modelo integrado ou personalizado antes de exportar.",
+    "templatesLoading": "Carregando modelos…",
+    "templatesError": "Não foi possível carregar os modelos.",
+    "templatesEmpty": "Nenhum modelo disponível.",
+    "catalog": {
+      "groups": {
+        "builtin": "Modelos integrados",
+        "custom": "Modelos personalizados"
+      },
+      "noFields": "Este modelo não define campos.",
+      "fieldsLabel_one": "{{count}} campo: {{fields}}",
+      "fieldsLabel_other": "{{count}} campos: {{fields}}",
+      "moreFields_one": "+{{count}} campo adicional",
+      "moreFields_other": "+{{count}} campos adicionais",
+      "sectionsLabel": "Seções: {{sections}}",
+      "selectLabel": "Selecionar modelo {{name}}",
+      "badge": {
+        "builtin": "Integrado",
+        "custom": "Personalizado"
+      },
+      "selected": "Selecionado",
+      "selectedTemplate": "Modelo: {{name}}"
+    },
+    "downloadsTitle": "Baixar relatórios",
+    "downloadsDescription": "Gere exports CSV ou PDF com o modelo e as datas selecionadas.",
+    "downloadsDisabled": "Selecione um proprietário e um modelo para habilitar os downloads."
   },
   "screener": {
     "loading": "Carregando…",
@@ -402,6 +440,13 @@
       "error": "Falha ao executar verificação de saúde",
       "run": "Executar verificação de saúde do portfólio",
       "title": "Saúde do portfólio"
+    },
+    "localLogin": {
+      "title": "Local login override",
+      "description": "Select which user email should be assumed when authentication is disabled.",
+      "label": "Active user",
+      "none": "No override configured",
+      "noOwners": "No owners available to assume."
     },
     "notifications": {
       "denied": "Permissão de push negada.",

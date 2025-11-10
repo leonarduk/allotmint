@@ -7,10 +7,11 @@ from pydantic import BaseModel
 
 from backend import alerts as alert_utils
 from backend.auth import get_active_user, get_current_user
-
-DEMO_IDENTITY = "demo"
+from backend.config import demo_identity
 
 router = APIRouter(prefix="/alert-thresholds", tags=["alerts"])
+
+DEMO_IDENTITY = demo_identity()
 
 
 class ThresholdPayload(BaseModel):

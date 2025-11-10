@@ -53,6 +53,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { PieLabelRenderProps } from "recharts";
 import { BadgeCheck, LineChart, Shield } from "lucide-react";
 
 const PIE_COLORS = [
@@ -143,6 +144,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   const [instrumentLoading, setInstrumentLoading] = useState(false);
   const [instrumentError, setInstrumentError] = useState<Error | null>(null);
   const instrumentKeyRef = useRef<string | null>(null);
+  const lastPortfolioAsOfRef = useRef<string | null>(null);
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
 
   const loadGroupInstruments =
@@ -234,9 +236,20 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!portfolio?.as_of || !asOfOverride) return;
-    const resolved = formatDateISO(new Date(portfolio.as_of));
-    if (resolved !== asOfOverride) {
+    const rawAsOf = portfolio?.as_of ?? null;
+    if (!rawAsOf) {
+      lastPortfolioAsOfRef.current = null;
+      return;
+    }
+
+    const resolved = formatDateISO(new Date(rawAsOf));
+    if (lastPortfolioAsOfRef.current === resolved) {
+      return;
+    }
+
+    lastPortfolioAsOfRef.current = resolved;
+
+    if (asOfOverride && resolved !== asOfOverride) {
       setAsOfOverride(resolved);
     }
   }, [portfolio?.as_of, asOfOverride]);
@@ -739,7 +752,11 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
               <Pie
                 dataKey="value"
                 data={typeRows}
-                label={({ name, pct }) => `${name} ${percent(pct)}`}
+                label={(props) => {
+                  const { name, percent: slicePercent } = props as PieLabelRenderProps;
+                  const labelName = typeof name === "string" ? name : name != null ? String(name) : "";
+                  return `${labelName} ${percent((slicePercent ?? 0) * 100)}`;
+                }}
               >
                 {typeRows.map((_, idx) => (
                   <Cell

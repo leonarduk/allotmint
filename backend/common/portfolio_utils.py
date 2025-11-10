@@ -16,7 +16,7 @@ import os
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -868,6 +868,7 @@ def compute_owner_performance(
             "max_drawdown": None,
             "reporting_date": calc.reporting_date.isoformat(),
             "previous_date": calc.previous_pricing_date.isoformat(),
+            "data_quality_issues": [],
         }
 
     effective_days = _effective_days(
@@ -891,12 +892,14 @@ def compute_owner_performance(
             "max_drawdown": None,
             "reporting_date": calc.reporting_date.isoformat(),
             "previous_date": calc.previous_pricing_date.isoformat(),
+            "data_quality_issues": [],
         }
 
     total = total.sort_index()
     total = total[total.index <= calc.reporting_date]
     if days:
         total = total.tail(days)
+    total, data_quality_issues = _detect_single_day_flash_crash(total)
     perf = total.sort_index().to_frame(name="value")
     perf = perf.loc[[idx.weekday() < 5 for idx in perf.index]]
 
@@ -906,6 +909,7 @@ def compute_owner_performance(
             "max_drawdown": None,
             "reporting_date": calc.reporting_date.isoformat(),
             "previous_date": calc.previous_pricing_date.isoformat(),
+            "data_quality_issues": data_quality_issues,
         }
 
 
@@ -959,6 +963,7 @@ def compute_owner_performance(
         "max_drawdown": max_drawdown,
         "reporting_date": reporting_date_iso,
         "previous_date": previous_date_iso,
+        "data_quality_issues": data_quality_issues,
     }
 
 
@@ -1018,6 +1023,59 @@ def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:
         result.append(row)
 
     return result
+
+
+def _detect_single_day_flash_crash(
+    series: pd.Series,
+    *,
+    absolute_threshold: float = 1.0,
+    relative_threshold: float = 0.01,
+) -> Tuple[pd.Series, List[Dict[str, Any]]]:
+    """Remove isolated single-day collapses and report them.
+
+    Some instruments occasionally publish a zero (or near-zero) close price for a
+    single session before rebounding to normal levels the following day.  These
+    artefacts wreak havoc on drawdown calculations and should be excluded from
+    the reconstructed portfolio curve while still surfacing a report for data
+    remediation.
+    """
+
+    if series.empty:
+        return series, []
+
+    values = series.sort_index()
+    issues: List[Dict[str, Any]] = []
+    drop_indices: List[Any] = []
+
+    for idx in range(1, len(values) - 1):
+        current = float(values.iloc[idx])
+        prev = float(values.iloc[idx - 1])
+        nxt = float(values.iloc[idx + 1])
+
+        if not math.isfinite(current) or not math.isfinite(prev) or not math.isfinite(nxt):
+            continue
+        if prev <= 0 or nxt <= 0:
+            continue
+
+        min_neighbor = min(prev, nxt)
+        if current <= absolute_threshold or current <= min_neighbor * relative_threshold:
+            label = values.index[idx]
+            iso_date = label.isoformat() if hasattr(label, "isoformat") else str(label)
+            issues.append(
+                {
+                    "date": iso_date,
+                    "value": round(current, 2),
+                    "previous_value": round(prev, 2),
+                    "next_value": round(nxt, 2),
+                }
+            )
+            drop_indices.append(label)
+
+    if not drop_indices:
+        return values, issues
+
+    cleaned = values.drop(index=drop_indices)
+    return cleaned, issues
 
 
 def _portfolio_value_series(
@@ -1080,6 +1138,7 @@ def _portfolio_value_series(
     total = total[total.index <= calc.reporting_date]
     if days:
         total = total.tail(days)
+    total, _issues = _detect_single_day_flash_crash(total)
     return total
 
 

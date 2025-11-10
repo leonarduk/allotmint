@@ -403,14 +403,37 @@ export function InstrumentDetail({
 
   const close7 = lookup(7);
   const close30 = lookup(30);
+  const change7dValue =
+    Number.isFinite(latestClose) && Number.isFinite(close7)
+      ? latestClose - close7
+      : NaN;
   const change7dPct =
     Number.isFinite(latestClose) && Number.isFinite(close7)
-      ? ((latestClose / close7 - 1) * 100)
+      ? (latestClose / close7 - 1) * 100
+      : NaN;
+  const change30dValue =
+    Number.isFinite(latestClose) && Number.isFinite(close30)
+      ? latestClose - close30
       : NaN;
   const change30dPct =
     Number.isFinite(latestClose) && Number.isFinite(close30)
-      ? ((latestClose / close30 - 1) * 100)
+      ? (latestClose / close30 - 1) * 100
       : NaN;
+
+  const formatChangeSummary = (absoluteChange: number, percentChange: number) => {
+    const parts: string[] = [];
+
+    if (Number.isFinite(absoluteChange)) {
+      parts.push(money(absoluteChange, baseCurrency));
+    }
+
+    if (Number.isFinite(percentChange)) {
+      const pctText = percent(percentChange, 1);
+      parts.push(parts.length ? `(${pctText})` : pctText);
+    }
+
+    return parts.length ? parts.join(" ") : "—";
+  };
 
   const positions = data?.positions ?? [];
 
@@ -473,7 +496,9 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          {t("instrumentDetail.change7d")} {loading ? t("app.loading") : percent(change7dPct, 1)}
+          {t("instrumentDetail.change7d")} {loading
+            ? t("app.loading")
+            : formatChangeSummary(change7dValue, change7dPct)}
         </span>
         {" • "}
         <span
@@ -485,7 +510,9 @@ export function InstrumentDetail({
               : undefined,
           }}
         >
-          {t("instrumentDetail.change30d")} {loading ? t("app.loading") : percent(change30dPct, 1)}
+          {t("instrumentDetail.change30d")} {loading
+            ? t("app.loading")
+            : formatChangeSummary(change30dValue, change30dPct)}
         </span>
       </div>
       {err && <p style={{ color: palette.negative }}>{err}</p>}

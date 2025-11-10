@@ -1,1 +1,1 @@
-{"start": "1970-01-01", "end": "1970-01-01", "owners": null, "tickers": null, "metrics": [], "name": null, "format": "json"}
+{"start": "1970-01-01", "end": "1970-01-01", "owners": null, "tickers": ["PFE"], "metrics": [], "name": null, "format": "json"}

@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 from datetime import date, timedelta
+import datetime as dt
 
 from backend.common import instrument_api
 from backend.common import portfolio_utils as pu
@@ -293,4 +294,55 @@ def test_compute_owner_performance_respects_flagged_and_cash(monkeypatch):
         assert "previous_date" in payload
         date.fromisoformat(payload["reporting_date"])
         date.fromisoformat(payload["previous_date"])
+
+
+def test_compute_owner_performance_filters_single_day_zero(monkeypatch):
+    portfolio = {"accounts": [{"holdings": [{"ticker": "ERR.L", "units": 10}]}]}
+
+    real_calc = pu.PricingDateCalculator
+
+    def fake_calc(*args, **kwargs):
+        return real_calc(today=dt.date(2024, 1, 10))
+
+    monkeypatch.setattr(pu, "PricingDateCalculator", fake_calc)
+
+    monkeypatch.setattr(
+        pu.portfolio_mod,
+        "build_owner_portfolio",
+        lambda owner, *, pricing_date=None, **_: portfolio,
+    )
+
+    monkeypatch.setattr(pu, "_PRICE_SNAPSHOT", {}, raising=False)
+
+    monkeypatch.setattr(
+        instrument_api,
+        "_resolve_full_ticker",
+        lambda ticker, snapshot: tuple(ticker.split(".", 1)) if "." in ticker else (ticker, None),
+    )
+
+    dates = pd.date_range("2024-01-01", periods=3, freq="D")
+    frames = {
+        ("ERR", "L"): pd.DataFrame({"Date": dates, "Close": [100.0, 0.0, 102.0]}),
+    }
+
+    def fake_load_meta_timeseries(ticker: str, exchange: str, days: int) -> pd.DataFrame:
+        return frames.get((ticker, exchange), pd.DataFrame()).copy()
+
+    monkeypatch.setattr(pu, "load_meta_timeseries", fake_load_meta_timeseries)
+
+    result = pu.compute_owner_performance("owner", days=10)
+
+    assert [row["date"] for row in result["history"]] == ["2024-01-01", "2024-01-03"]
+    assert result["history"][0]["value"] == pytest.approx(1000.0)
+    assert result["history"][1]["value"] == pytest.approx(1020.0)
+
+    issues = result["data_quality_issues"]
+    assert issues == [
+        {
+            "date": "2024-01-02",
+            "value": 0.0,
+            "previous_value": 1000.0,
+            "next_value": 1020.0,
+        }
+    ]
 

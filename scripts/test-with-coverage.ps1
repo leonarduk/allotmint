@@ -73,11 +73,15 @@ finally {
 & $PYTHON -m coverage html
 & $PYTHON -m coverage report
 
+$reportMessage = $null
 $report = Join-Path $REPO_ROOT 'htmlcov\index.html'
 if (Test-Path $report) {
-  Write-Host ("HTML coverage report: {0}" -f (Resolve-Path $report)) -ForegroundColor Green
+  $resolvedReport = Resolve-Path $report
+  $reportPath = $resolvedReport.Path
+  $reportUri = 'file:///' + ($reportPath -replace '\\', '/')
+  $reportMessage = "HTML coverage report: $reportUri"
   if ($Open) {
-    Start-Process (Resolve-Path $report)
+    Start-Process $reportPath
   }
 }
 
@@ -103,6 +107,10 @@ if ($exitCode -ne 0 -and $testOutput) {
     $startIndex = $failureStart.LineNumber - 1
     $testOutput[$startIndex..($testOutput.Count - 1)] | ForEach-Object { Write-Host $_ -ForegroundColor Red }
   }
+}
+
+if ($reportMessage) {
+  Write-Host $reportMessage -ForegroundColor Green
 }
 
 exit $exitCode

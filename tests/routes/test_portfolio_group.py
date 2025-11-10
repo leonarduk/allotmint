@@ -48,7 +48,7 @@ def test_group_instruments_filters_accounts(monkeypatch):
         {"id": 3, "owner": "bob", "account_type": "isa"},
     ]
 
-    def fake_group(slug: str):
+    def fake_group(slug: str, *, pricing_date=None):
         assert slug == "demo"
         return {"slug": slug, "accounts": accounts}
 

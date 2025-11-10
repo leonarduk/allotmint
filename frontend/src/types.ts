@@ -2,6 +2,7 @@ export type OwnerSummary = {
   owner: string;
   accounts: string[];
   full_name?: string | null;
+  email?: string | null;
   has_transactions_artifact?: boolean;
 };
 
@@ -152,12 +153,20 @@ export interface PerformancePoint {
   drawdown?: number | null;
 }
 
+export interface DataQualityIssue {
+  date: string;
+  value: number;
+  previousValue: number;
+  nextValue: number;
+}
+
 export interface PerformanceResponse {
   history: PerformancePoint[];
   time_weighted_return?: number | null;
   xirr?: number | null;
   reportingDate?: string | null;
   previousDate?: string | null;
+  dataQualityIssues?: DataQualityIssue[];
 }
 
 export interface HoldingValue {
@@ -586,4 +595,58 @@ export interface TrailResponse {
   streak: number;
   daily_totals: Record<string, TrailCompletionTotals>;
   today: string;
+}
+
+export type ReportTemplateFilterOperator =
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "gt"
+  | "lt";
+
+export interface ReportTemplateFilter {
+  field: string;
+  operator: ReportTemplateFilterOperator;
+  value: string;
+}
+
+export interface ReportTemplateColumnMetadata {
+  key: string;
+  label: string;
+  type: string;
+}
+
+export interface ReportTemplateSectionMetadata {
+  id: string;
+  title: string;
+  description?: string | null;
+  source: string;
+  columns: ReportTemplateColumnMetadata[];
+}
+
+export interface ReportTemplateMetadata {
+  template_id: string;
+  name: string;
+  description?: string | null;
+  builtin: boolean;
+  sections: ReportTemplateSectionMetadata[];
+}
+
+export interface ReportTemplate {
+  id: string;
+  name: string;
+  metrics: string[];
+  columns: string[];
+  filters: ReportTemplateFilter[];
+  description?: string | null;
+  updated_at?: string | null;
+  optimistic?: boolean;
+}
+
+export interface ReportTemplateInput {
+  name: string;
+  metrics: string[];
+  columns: string[];
+  filters: ReportTemplateFilter[];
+  description?: string | null;
 }

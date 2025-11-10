@@ -25,6 +25,7 @@ import { UserProvider, useUser } from './UserContext'
 import ErrorBoundary from './ErrorBoundary'
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
 import { RouteProvider } from './RouteContext'
+import type { Mode } from './modes'
 
 const storedToken = getStoredAuthToken()
 if (storedToken) setAuthToken(storedToken)
@@ -57,15 +58,91 @@ const routeMarkerStyle: CSSProperties = {
   overflow: 'hidden',
 }
 
-const renderRouteMarker = (pathname: string, mode: string) => (
-  <div
-    data-route-marker="bootstrap"
-    data-testid="route-bootstrap-marker"
-    data-mode={mode}
-    data-pathname={pathname}
-    style={routeMarkerStyle}
-  />
-)
+const deriveModeFromPathname = (pathname: string): Mode => {
+  const segments = pathname.split('/').filter(Boolean)
+  const [first] = segments
+  switch (first) {
+    case undefined:
+      return 'group'
+    case 'portfolio':
+      return 'owner'
+    case 'instrument':
+      return 'instrument'
+    case 'transactions':
+      return 'transactions'
+    case 'trading':
+      return 'trading'
+    case 'performance':
+      return 'performance'
+    case 'screener':
+      return 'screener'
+    case 'timeseries':
+      return 'timeseries'
+    case 'watchlist':
+      return 'watchlist'
+    case 'allocation':
+      return 'allocation'
+    case 'rebalance':
+      return 'rebalance'
+    case 'market':
+      return 'market'
+    case 'movers':
+      return 'movers'
+    case 'instrumentadmin':
+      return 'instrumentadmin'
+    case 'dataadmin':
+      return 'dataadmin'
+    case 'virtual':
+      return 'virtual'
+    case 'reports':
+      return 'reports'
+    case 'alert-settings':
+      return 'alertsettings'
+    case 'trade-compliance':
+      return 'trade-compliance'
+    case 'trail':
+      return 'trail'
+    case 'support':
+      return 'support'
+    case 'pension':
+      return 'pension'
+    case 'tax-tools':
+      return 'taxtools'
+    case 'settings':
+      return 'settings'
+    case 'scenario':
+      return 'scenario'
+    case 'research':
+      return 'research'
+    default:
+      return segments.length === 0 ? 'group' : 'movers'
+  }
+}
+
+const renderRouteMarker = (pathname: string, state: 'loading' | 'config-error' | 'auth') => {
+  const mode = deriveModeFromPathname(pathname)
+  const bootstrapMode = state === 'loading' ? 'loading' : mode
+  return (
+    <>
+      <div
+        data-route-marker="bootstrap"
+        data-testid="route-bootstrap-marker"
+        data-mode={bootstrapMode}
+        data-pathname={pathname}
+        data-route-state={state}
+        style={routeMarkerStyle}
+      />
+      <div
+        data-route-marker="active"
+        data-testid="active-route-marker"
+        data-mode={mode}
+        data-pathname={pathname}
+        data-route-state={state}
+        style={routeMarkerStyle}
+      />
+    </>
+  )
+}
 
 export function Root() {
   const [configLoading, setConfigLoading] = useState(true)
@@ -136,8 +213,23 @@ export function Root() {
       getConfig<Record<string, unknown>>({ signal: controller.signal })
         .then(cfg => {
           if (!isMounted.current || activeRequest.current !== controller) return
-          setNeedsAuth(Boolean((cfg as any).google_auth_enabled))
+          const configAuthEnabled = Boolean((cfg as any).google_auth_enabled)
+          setNeedsAuth(configAuthEnabled)
           setClientId(String((cfg as any).google_client_id || ''))
+          const disableAuth = Boolean((cfg as any).disable_auth)
+          const localLoginRaw = (cfg as any).local_login_email
+          const localLoginEmail =
+            typeof localLoginRaw === 'string' ? localLoginRaw.trim() : ''
+          if (disableAuth && localLoginEmail) {
+            const storedUser = loadStoredAuthUser()
+            if (!storedUser || storedUser.email !== localLoginEmail) {
+              setUser({ email: localLoginEmail })
+            }
+            const storedProfile = loadStoredUserProfile()
+            if (!storedProfile || storedProfile.email !== localLoginEmail) {
+              setProfile({ email: localLoginEmail })
+            }
+          }
           setConfigError(null)
           setRetryScheduled(false)
         })

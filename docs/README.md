@@ -147,6 +147,28 @@ set the client ID via the `GOOGLE_CLIENT_ID` environment variable or
 `/token/google` and only issues API tokens for emails discovered in the
 accounts directory.
 
+### Demo identity fallback
+
+Local development typically leaves `auth.disable_auth` set to `true` in
+`config.yaml`, meaning requests run without authentication. In that mode the
+API loads demo data for the owner defined by `auth.demo_identity` (default:
+`steve`). Adjust the value to point at whichever demo account exists under your
+`data/` directory when you want to explore different fixtures. Automated smoke
+checks look at `auth.smoke_identity` instead so that they can target a
+preconfigured dataset without disturbing the local default.
+
+When you want the API and UI to behave as though a specific user is logged in
+while authentication is disabled, set `auth.local_login_email` (or export
+`LOCAL_LOGIN_EMAIL`). The value should be the email address you want the app to
+assume for local sessions; the front end mirrors that value so profile- and
+owner-scoped features resolve correctly without issuing a token.
+
+Production or AWS deployments should flip `auth.disable_auth` to `false` and
+enable Google sign-in. Once authentication is enforced the configured user from
+the incoming token is used instead, so the `demo_identity` value is ignored
+except as a fallback for unauthenticated requests (for example, smoke tests that
+explicitly disable auth).
+
 ### Push notification keys
 
 Web push uses VAPID credentials which can be generated and persisted to AWS
@@ -342,6 +364,13 @@ open http://localhost:5173/
   - A previous username/password flow using `OAuth2PasswordRequestForm` has been
     removed. Reintroduce it manually if needed by recreating a login endpoint
     that validates credentials and issues tokens with `create_access_token`.
+  - When `disable_auth` is `true` (the default in `config.yaml`) the discovery
+    helpers expose every owner locally, regardless of whether account data is
+    read from the filesystem or an S3 bucket.
+  - In production environments set `disable_auth` to `false` and supply an
+    `X-API-Token` (or other configured authentication). S3 discovery will then
+    return only the current user's accounts or any owners that list the user as
+    a viewer, and unauthenticated requests receive an empty list.
   See the [Authentication](USER_README.md#authentication) section for details.
 
 ## Alerts

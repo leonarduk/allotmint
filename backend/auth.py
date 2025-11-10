@@ -35,7 +35,7 @@ from backend.common.data_loader import (
     load_person_meta,
     resolve_paths,
 )
-from backend.config import config
+from backend.config import config, local_login_identity
 
 logger = logging.getLogger(__name__)
 
@@ -201,13 +201,28 @@ def _user_from_token(token: str | None) -> str:
 async def get_current_user(token: str | None = Depends(oauth2_scheme)) -> str:
     """Return the authenticated user extracted from the bearer token."""
 
-    return _user_from_token(token)
+    if config.disable_auth:
+        if isinstance(token, str) and token:
+            user = _user_from_token(token)
+            current_user.set(user)
+            return user
+        fallback = local_login_identity()
+        if fallback:
+            current_user.set(fallback)
+            return fallback
+        current_user.set(None)
+    token_str = token if isinstance(token, str) else None
+    return _user_from_token(token_str)
 
 
 def _iter_override_mappings(request: Request) -> list[Mapping[Any, Callable[..., Any]]]:
     """Return override mappings in FastAPI's resolution order."""
 
-    owners = [getattr(request, "app", None)]
+    try:
+        app_owner = getattr(request, "app")
+    except KeyError:
+        app_owner = None
+    owners = [app_owner]
     app = owners[0]
     router = getattr(app, "router", None) if app is not None else None
     if router is not None:
@@ -395,14 +410,19 @@ async def get_active_user(
         return override_result
 
     if config.disable_auth:
-        if token:
+        if isinstance(token, str) and token:
             user = _user_from_token(token)
             current_user.set(user)
             return user
+        fallback = local_login_identity()
+        if fallback:
+            current_user.set(fallback)
+            return fallback
         current_user.set(None)
         return None
 
-    user = _user_from_token(token)
+    token_str = token if isinstance(token, str) else None
+    user = _user_from_token(token_str)
     current_user.set(user)
     return user
 

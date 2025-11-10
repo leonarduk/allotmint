@@ -188,6 +188,20 @@ export const getPortfolio = (
   );
 };
 
+/** Retrieve return contribution aggregated by sector for an owner portfolio. */
+export const getOwnerSectorContributions = (
+  owner: string,
+  opts: { asOf?: string | null } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.asOf) params.set("as_of", opts.asOf);
+  const qs = params.toString();
+  const url = qs
+    ? `${API_BASE}/portfolio/${owner}/sectors?${qs}`
+    : `${API_BASE}/portfolio/${owner}/sectors`;
+  return fetchJson<SectorContribution[]>(url);
+};
+
 /** List the configured groups (e.g. "adults", "children"). */
 export const getGroups = () =>
   fetchJson<GroupSummary[]>(`${API_BASE}/groups`);
@@ -494,6 +508,12 @@ export const getPerformance = (
     history: PerformancePoint[];
     reporting_date?: string | null;
     previous_date?: string | null;
+    data_quality_issues?: {
+      date: string;
+      value: number;
+      previous_value: number;
+      next_value: number;
+    }[];
   }>(
     `${API_BASE}/performance/${owner}?${params.toString()}`,
   );
@@ -513,6 +533,13 @@ export const getPerformance = (
     xirr: x.xirr,
     reportingDate: p.reporting_date ?? null,
     previousDate: p.previous_date ?? null,
+    dataQualityIssues:
+      p.data_quality_issues?.map((issue) => ({
+        date: issue.date,
+        value: issue.value,
+        previousValue: issue.previous_value,
+        nextValue: issue.next_value,
+      })) ?? [],
   }));
 };
 

@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Link } from "react-router-dom";
+import {
+  Line,
+  LineChart,
+  ReferenceArea,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import {
   getPerformance,
   getAlphaVsBenchmark,
@@ -11,6 +19,7 @@ import {
 import type { PerformancePoint } from "../types";
 import { percent, percentOrNa } from "../lib/money";
 import { formatDateISO } from "../lib/date";
+import type { DrawdownExtrema, DrawdownSeriesPoint } from "../types";
 
 type Props = {
   owner: string | null;
@@ -24,6 +33,10 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
   const [alpha, setAlpha] = useState<number | null>(null);
   const [trackingError, setTrackingError] = useState<number | null>(null);
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(null);
+  const [drawdownSeries, setDrawdownSeries] = useState<DrawdownSeriesPoint[]>([]);
+  const [drawdownPeak, setDrawdownPeak] = useState<DrawdownExtrema | null>(null);
+  const [drawdownTrough, setDrawdownTrough] = useState<DrawdownExtrema | null>(null);
+  const [showDrawdownDetails, setShowDrawdownDetails] = useState(false);
   const [timeWeightedReturn, setTimeWeightedReturn] = useState<number | null>(
     null,
   );
@@ -32,7 +45,6 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
   const [reportingDate, setReportingDate] = useState<string | null>(null);
   const [previousDate, setPreviousDate] = useState<string | null>(null);
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (!owner) return;
@@ -40,6 +52,10 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
     setData([]);
     setReportingDate(null);
     setPreviousDate(null);
+    setDrawdownSeries([]);
+    setDrawdownPeak(null);
+    setDrawdownTrough(null);
+    setShowDrawdownDetails(false);
     const reqDays = days === 0 ? 36500 : days;
     const opts = asOf ? { asOf } : undefined;
     Promise.all([
@@ -53,10 +69,23 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
         setAlpha(alphaRes.alpha_vs_benchmark);
         setTrackingError(teRes.tracking_error);
         setMaxDrawdown(mdRes.max_drawdown);
+        setDrawdownSeries(mdRes.series ?? []);
+        setDrawdownPeak(mdRes.peak ?? null);
+        setDrawdownTrough(mdRes.trough ?? null);
         setTimeWeightedReturn(perf.time_weighted_return ?? null);
         setXirr(perf.xirr ?? null);
         setReportingDate(perf.reportingDate ?? null);
         setPreviousDate(perf.previousDate ?? null);
+        const normalizedDrawdown =
+          mdRes.max_drawdown != null && Math.abs(mdRes.max_drawdown) > 1
+            ? mdRes.max_drawdown / 100
+            : mdRes.max_drawdown;
+        if (
+          typeof normalizedDrawdown === "number" &&
+          Math.abs(normalizedDrawdown) >= 0.9
+        ) {
+          setShowDrawdownDetails(true);
+        }
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, [owner, days, excludeCash, asOf]);
@@ -88,6 +117,46 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
     if (Number.isNaN(parsed.getTime())) return value;
     return formatDateISO(parsed);
   };
+
+  const formatDrawdownDate = (value: string | undefined | null) => {
+    if (!value) return "—";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return formatDateISO(parsed);
+  };
+
+  const formatDrawdownNumber = (value: number | undefined | null) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+    return new Intl.NumberFormat(i18n.language, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const normalizedDrawdown = safeMaxDrawdown;
+  const drawdownPercentText =
+    typeof normalizedDrawdown === "number"
+      ? percent(normalizedDrawdown * 100, 2, i18n.language)
+      : null;
+  const severeDrawdown =
+    typeof normalizedDrawdown === "number" &&
+    Math.abs(normalizedDrawdown) >= 0.9;
+
+  const drawdownRangeText =
+    drawdownPeak && drawdownTrough
+      ? t("dashboard.drawdownRangeWithValues", {
+          start: formatDrawdownDate(drawdownPeak.date),
+          end: formatDrawdownDate(drawdownTrough.date),
+          startValue: formatDrawdownNumber(drawdownPeak.value),
+          endValue: formatDrawdownNumber(drawdownTrough.value),
+        })
+      : t("dashboard.drawdownRangeUnknown");
+
+  const diagnosticsHref = owner
+    ? `/performance/${encodeURIComponent(owner)}/diagnostics`
+    : "#";
+
+  const drawdownDetailsAvailable = drawdownSeries.length > 0;
 
   return (
     <div style={{ marginTop: "1rem" }}>
@@ -160,8 +229,30 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
         </div>
         <div>
           <div style={{ fontSize: "0.9rem", color: "#aaa" }}>{t("dashboard.maxDrawdown")}</div>
-          <div style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
-            {percentOrNa(safeMaxDrawdown)}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <span style={{ fontSize: "1.1rem", fontWeight: "bold" }}>
+              {percentOrNa(safeMaxDrawdown)}
+            </span>
+            {drawdownDetailsAvailable && (
+              <button
+                type="button"
+                onClick={() => setShowDrawdownDetails((prev) => !prev)}
+                style={{
+                  alignSelf: "flex-start",
+                  fontSize: "0.8rem",
+                  color: "#60a5fa",
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                {showDrawdownDetails
+                  ? t("dashboard.maxDrawdownHide")
+                  : t("dashboard.maxDrawdownExplain")}
+              </button>
+            )}
           </div>
         </div>
         <div>
@@ -177,6 +268,117 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
           </div>
         </div>
       </div>
+      {showDrawdownDetails && (
+        <div
+          style={{
+            marginBottom: "1.5rem",
+            border: "1px solid #374151",
+            background: "rgba(17, 24, 39, 0.6)",
+            borderRadius: "0.75rem",
+            padding: "1rem",
+          }}
+        >
+          <h3
+            style={{
+              marginTop: 0,
+              marginBottom: "0.5rem",
+              fontSize: "1rem",
+              fontWeight: 600,
+              color: "#f9fafb",
+            }}
+          >
+            {t("dashboard.maxDrawdownDetailsHeading")}
+          </h3>
+          <p style={{ fontSize: "0.85rem", color: "#d1d5db", marginBottom: "0.5rem" }}>
+            {drawdownRangeText}
+          </p>
+          {drawdownPercentText && (
+            <p style={{ fontSize: "0.85rem", color: "#d1d5db", marginBottom: "0.5rem" }}>
+              {t("dashboard.drawdownPercentSummary", {
+                drawdown: drawdownPercentText,
+              })}
+            </p>
+          )}
+          {severeDrawdown && (
+            <p style={{ fontSize: "0.85rem", color: "#facc15", marginBottom: "0.75rem" }}>
+              {t("dashboard.drawdownSuspicious")}
+            </p>
+          )}
+          {drawdownDetailsAvailable ? (
+            <div style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={drawdownSeries}>
+                  <XAxis dataKey="date" />
+                  <YAxis
+                    tickFormatter={(v) => percent(v * 100, 1, i18n.language)}
+                  />
+                  <Tooltip
+                    formatter={(value: number) =>
+                      percent(value * 100, 2, i18n.language)
+                    }
+                  />
+                  {drawdownPeak && drawdownTrough && (
+                    <ReferenceArea
+                      x1={drawdownPeak.date}
+                      x2={drawdownTrough.date}
+                      fill="rgba(239,68,68,0.1)"
+                      strokeOpacity={0}
+                    />
+                  )}
+                  <Line
+                    type="monotone"
+                    dataKey="drawdown"
+                    stroke="#f97316"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p style={{ fontSize: "0.85rem", color: "#9ca3af", marginBottom: 0 }}>
+              {t("dashboard.drawdownSeriesUnavailable")}
+            </p>
+          )}
+          <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.75rem" }}>
+            {t("dashboard.drawdownChartDescription")}
+          </p>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.75rem",
+              marginTop: "0.75rem",
+            }}
+          >
+            {owner && (
+              <Link
+                to={diagnosticsHref}
+                style={{
+                  display: "inline-block",
+                  padding: "0.5rem 0.85rem",
+                  borderRadius: "0.5rem",
+                  backgroundColor: "#2563eb",
+                  color: "#fff",
+                  textDecoration: "none",
+                  fontSize: "0.85rem",
+                }}
+              >
+                {t("dashboard.openDiagnostics")}
+              </Link>
+            )}
+            <Link
+              to="/metrics-explained#max-drawdown"
+              style={{
+                alignSelf: "center",
+                fontSize: "0.85rem",
+                color: "#60a5fa",
+              }}
+            >
+              {t("dashboard.viewMetricsExplanation")}
+            </Link>
+          </div>
+        </div>
+      )}
       <h2>{t("dashboard.portfolioValue")}</h2>
       <ResponsiveContainer width="100%" height={240}>
         <LineChart data={data}>
@@ -201,14 +403,23 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
           />
         </LineChart>
       </ResponsiveContainer>
-      <div style={{ marginTop: "1rem" }}>
-        <button
-          disabled={!owner}
-          onClick={() => owner && navigate(`/performance/${owner}/diagnostics`)}
-        >
-          Drill down
-        </button>
-      </div>
+      {owner && (
+        <div style={{ marginTop: "1rem" }}>
+          <Link
+            to={diagnosticsHref}
+            style={{
+              display: "inline-block",
+              padding: "0.5rem 0.85rem",
+              borderRadius: "0.5rem",
+              backgroundColor: "#2563eb",
+              color: "#fff",
+              textDecoration: "none",
+            }}
+          >
+            {t("dashboard.openDiagnostics")}
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

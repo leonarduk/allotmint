@@ -95,7 +95,18 @@
     "excludeCash": "Escludere contanti",
     "maxDrawdown": "Drawdown massimo",
     "maxDrawdownHelp": "Il drawdown massimo è il maggiore calo percentuale da qualsiasi picco del portafoglio al valore di chiusura più basso successivo, calcolato a partire dai totali giornalieri ricostruiti delle tue posizioni.",
+    "maxDrawdownDetailsHeading": "Dettagli del drawdown massimo",
+    "maxDrawdownExplain": "Spiega questo calo",
+    "maxDrawdownHide": "Nascondi dettagli del drawdown",
     "metricsExplanationLink": "Come vengono calcolati?",
+    "drawdownRangeWithValues": "Il calo più grande va da {{start}} ({{startValue}}) a {{end}} ({{endValue}}).",
+    "drawdownRangeUnknown": "Non siamo riusciti a identificare le date di questo drawdown.",
+    "drawdownPercentSummary": "Il portafoglio è sceso di {{drawdown}} dal picco prima di riprendersi.",
+    "drawdownSuspicious": "I cali superiori al 90% indicano spesso prezzi mancanti o errati. Controlla il periodo evidenziato per lacune o dati obsoleti.",
+    "drawdownChartDescription": "Il drawdown è calcolato dalla curva giornaliera del valore del portafoglio. L'area ombreggiata mostra l'intervallo tra il picco e il minimo del drawdown massimo.",
+    "drawdownSeriesUnavailable": "Non siamo riusciti a caricare la cronologia del drawdown per questo periodo.",
+    "openDiagnostics": "Apri diagnostica",
+    "viewMetricsExplanation": "Leggi la spiegazione completa",
     "portfolioValue": "Valore del portafoglio",
     "reportingDate": "Data di rendicontazione",
     "previousDate": "Data precedente",
@@ -355,7 +366,34 @@
     "csv": "Scarica CSV",
     "noOwners": "No owners available—check backend connection",
     "pdf": "Scarica PDF",
-    "title": "Segnalazioni"
+    "title": "Segnalazioni",
+    "templatesTitle": "Modelli di report",
+    "templatesDescription": "Scegli un modello integrato o personalizzato prima di esportare.",
+    "templatesLoading": "Caricamento dei modelli…",
+    "templatesError": "Impossibile caricare i modelli.",
+    "templatesEmpty": "Nessun modello disponibile.",
+    "catalog": {
+      "groups": {
+        "builtin": "Modelli integrati",
+        "custom": "Modelli personalizzati"
+      },
+      "noFields": "Questo modello non definisce campi.",
+      "fieldsLabel_one": "{{count}} campo: {{fields}}",
+      "fieldsLabel_other": "{{count}} campi: {{fields}}",
+      "moreFields_one": "+{{count}} campo aggiuntivo",
+      "moreFields_other": "+{{count}} campi aggiuntivi",
+      "sectionsLabel": "Sezioni: {{sections}}",
+      "selectLabel": "Seleziona il modello {{name}}",
+      "badge": {
+        "builtin": "Integrato",
+        "custom": "Personalizzato"
+      },
+      "selected": "Selezionato",
+      "selectedTemplate": "Modello: {{name}}"
+    },
+    "downloadsTitle": "Scarica report",
+    "downloadsDescription": "Genera esportazioni CSV o PDF con il modello e le date selezionate.",
+    "downloadsDisabled": "Seleziona un proprietario e un modello per abilitare i download."
   },
   "screener": {
     "loading": "Caricamento…",
@@ -403,6 +441,13 @@
       "error": "Impossibile eseguire il controllo della salute",
       "run": "Esegui controllo salute portafoglio",
       "title": "Salute del portafoglio"
+    },
+    "localLogin": {
+      "title": "Local login override",
+      "description": "Select which user email should be assumed when authentication is disabled.",
+      "label": "Active user",
+      "none": "No override configured",
+      "noOwners": "No owners available to assume."
     },
     "notifications": {
       "denied": "Permesso push negato.",

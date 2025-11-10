@@ -95,7 +95,18 @@
     "excludeCash": "Bargeld ausschließen",
     "maxDrawdown": "Max Drawdown",
     "maxDrawdownHelp": "Der maximale Drawdown ist der größte prozentuale Rückgang vom bisherigen Höchststand des Portfolios bis zum darauffolgenden Tief, berechnet auf Basis der rekonstruierten täglichen Schlusswerte Ihrer Positionen.",
+    "maxDrawdownDetailsHeading": "Max-Drawdown-Details",
+    "maxDrawdownExplain": "Diesen Einbruch erklären",
+    "maxDrawdownHide": "Drawdown-Details ausblenden",
     "metricsExplanationLink": "Wie werden diese Werte berechnet?",
+    "drawdownRangeWithValues": "Größter Rückgang von {{start}} ({{startValue}}) bis {{end}} ({{endValue}}).",
+    "drawdownRangeUnknown": "Wir konnten die Daten für diesen Drawdown nicht ermitteln.",
+    "drawdownPercentSummary": "Das Portfolio fiel um {{drawdown}} vom Hoch, bevor es sich erholte.",
+    "drawdownSuspicious": "Rückgänge von mehr als 90 % deuten meist auf fehlende oder fehlerhafte Preise hin. Prüfen Sie den markierten Zeitraum auf Lücken oder veraltete Daten.",
+    "drawdownChartDescription": "Der Drawdown wird aus der täglichen Portfoliokurve berechnet. Der markierte Bereich zeigt den Peak-to-Trough-Verlauf des maximalen Drawdowns.",
+    "drawdownSeriesUnavailable": "Wir konnten für diesen Zeitraum keine Drawdown-Historie laden.",
+    "openDiagnostics": "Diagnose öffnen",
+    "viewMetricsExplanation": "Ausführliche Erklärung lesen",
     "portfolioValue": "Portfoliowert",
     "reportingDate": "Berichtsdatum",
     "previousDate": "Vorheriges Datum",
@@ -423,7 +434,34 @@
     "csv": "CSV herunterladen",
     "noOwners": "No owners available—check backend connection",
     "pdf": "PDF herunterladen",
-    "title": "Berichte"
+    "title": "Berichte",
+    "templatesTitle": "Berichtsvorlagen",
+    "templatesDescription": "Wählen Sie eine integrierte oder benutzerdefinierte Vorlage, bevor Sie exportieren.",
+    "templatesLoading": "Vorlagen werden geladen…",
+    "templatesError": "Vorlagen konnten nicht geladen werden.",
+    "templatesEmpty": "Keine Vorlagen verfügbar.",
+    "catalog": {
+      "groups": {
+        "builtin": "Integrierte Vorlagen",
+        "custom": "Benutzerdefinierte Vorlagen"
+      },
+      "noFields": "Für diese Vorlage sind keine Felder definiert.",
+      "fieldsLabel_one": "{{count}} Feld: {{fields}}",
+      "fieldsLabel_other": "{{count}} Felder: {{fields}}",
+      "moreFields_one": "+{{count}} weiteres Feld",
+      "moreFields_other": "+{{count}} weitere Felder",
+      "sectionsLabel": "Abschnitte: {{sections}}",
+      "selectLabel": "Vorlage {{name}} auswählen",
+      "badge": {
+        "builtin": "Integriert",
+        "custom": "Benutzerdefiniert"
+      },
+      "selected": "Ausgewählt",
+      "selectedTemplate": "Vorlage: {{name}}"
+    },
+    "downloadsTitle": "Berichte herunterladen",
+    "downloadsDescription": "Erstellen Sie CSV- oder PDF-Exporte mit der ausgewählten Vorlage und dem Datumsbereich.",
+    "downloadsDisabled": "Wählen Sie einen Eigentümer und eine Vorlage, um Downloads zu aktivieren."
   },
   "screener": {
     "loading": "Laden…",
@@ -471,6 +509,13 @@
       "error": "Fehler beim Ausführen der Gesundheitsprüfung",
       "run": "Portfolio-Gesundheitsprüfung ausführen",
       "title": "Portfoliozustand"
+    },
+    "localLogin": {
+      "title": "Local login override",
+      "description": "Select which user email should be assumed when authentication is disabled.",
+      "label": "Active user",
+      "none": "No override configured",
+      "noOwners": "No owners available to assume."
     },
     "notifications": {
       "denied": "Push-Berechtigung verweigert.",

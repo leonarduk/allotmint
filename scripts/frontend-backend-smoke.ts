@@ -1,8 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 
-// Auto-generated via backend route metadata
-export interface SmokeEndpoint { method: string; path: string; query?: Record<string, string>; body?: any }
+type YamlModule = { parse?: (input: string) => unknown };
+
+let yamlModule: YamlModule | null = null;
+
+try {
+  const require = createRequire(import.meta.url);
+  const candidate = require('yaml') as YamlModule;
+  if (candidate && typeof candidate.parse === 'function') {
+    yamlModule = candidate;
+  } else {
+    console.warn('Installed yaml module does not expose a parse function; config.yaml parsing will be skipped.');
+  }
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`YAML parser not available; config.yaml parsing will be skipped: ${message}`);
+}
 
 const DEFAULT_DEATH_AGE = '90';
 
@@ -18,30 +33,80 @@ function statePensionAgeUk(dob: string): number {
   return 68;
 }
 
-function computeDemoDeathAge(): string {
-  const accountsRoot = process.env.ACCOUNTS_ROOT ?? path.resolve(__dirname, '../data/accounts');
-  const personPath = path.join(accountsRoot, 'demo-owner', 'person.json');
+function resolveSmokeIdentity(): string {
+  const envValue = process.env.SMOKE_IDENTITY?.trim();
+  if (envValue) {
+    return envValue;
+  }
+
+  const configPath = path.resolve(__dirname, '../config.yaml');
 
   try {
-    const meta = JSON.parse(fs.readFileSync(personPath, 'utf8')) as { dob?: unknown };
-    const dob = typeof meta.dob === 'string' ? meta.dob : null;
-    if (!dob) {
-      return DEFAULT_DEATH_AGE;
+    const raw = fs.readFileSync(configPath, 'utf8');
+    const parsed = (() => {
+      if (!yamlModule || typeof yamlModule.parse !== 'function') {
+        return {} as Record<string, unknown>;
+      }
+      try {
+        const result = yamlModule.parse(raw);
+        return (result && typeof result === 'object' ? result : {}) as Record<string, unknown>;
+      } catch (parseError) {
+        const message = parseError instanceof Error ? parseError.message : String(parseError);
+        console.warn(`Unable to parse config.yaml; falling back to defaults: ${message}`);
+        return {} as Record<string, unknown>;
+      }
+    })();
+    const authSection =
+      parsed && typeof parsed.auth === 'object' && parsed.auth !== null
+        ? (parsed.auth as Record<string, unknown>)
+        : {};
+    const smokeFromConfig =
+      typeof authSection.smoke_identity === 'string' ? authSection.smoke_identity.trim() : '';
+    const demoFromConfig =
+      typeof authSection.demo_identity === 'string' ? authSection.demo_identity.trim() : '';
+    if (smokeFromConfig) {
+      return smokeFromConfig;
     }
-    const retirementAge = statePensionAgeUk(dob);
-    return String(retirementAge + 20);
+    if (demoFromConfig) {
+      return demoFromConfig;
+    }
   } catch (error) {
-    if (error instanceof Error) {
-      console.warn(`Falling back to default pension death age: ${error.message}`);
-    } else {
-      console.warn('Falling back to default pension death age due to unknown error');
-    }
-    return DEFAULT_DEATH_AGE;
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Falling back to configured smoke identity due to error reading config.yaml: ${message}`);
   }
+
+  return 'demo';
 }
 
-const demoPensionDeathAge = computeDemoDeathAge();
+export const smokeIdentity = resolveSmokeIdentity();
 
+function computeSmokeDeathAge(identity: string): string {
+  const accountsRoot = process.env.ACCOUNTS_ROOT ?? path.resolve(__dirname, '../data/accounts');
+  const candidates = Array.from(new Set([identity, `${identity}-owner`]));
+  for (const slug of candidates) {
+    const personPath = path.join(accountsRoot, slug, 'person.json');
+
+    try {
+      const meta = JSON.parse(fs.readFileSync(personPath, 'utf8')) as { dob?: unknown };
+      const dob = typeof meta.dob === 'string' ? meta.dob : null;
+      if (!dob) {
+        continue;
+      }
+      const retirementAge = statePensionAgeUk(dob);
+      return String(retirementAge + 20);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`Unable to derive smoke pension death age from ${personPath}: ${message}`);
+    }
+  }
+
+  return DEFAULT_DEATH_AGE;
+}
+
+const demoPensionDeathAge = computeSmokeDeathAge(smokeIdentity);
+
+// Auto-generated via backend route metadata
+export interface SmokeEndpoint { method: string; path: string; query?: Record<string, string>; body?: any }
 export const smokeEndpoints: SmokeEndpoint[] = [
   {
     "method": "GET",
@@ -135,7 +200,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/compliance/validate",
     "body": {
-      "owner": "demo"
+      "owner": smokeIdentity
     }
   },
   {
@@ -229,7 +294,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "path": "/holdings/import",
     "body": {
       "__form__": {
-        "owner": "demo",
+        "owner": smokeIdentity,
         "account": "isa",
         "provider": "test",
         "file": "__file__"
@@ -259,27 +324,21 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/instrument/admin/groups",
     "body": {
-      "name": "demo"
+      "name": smokeIdentity
     }
   },
   {
     "method": "DELETE",
     "path": "/instrument/admin/{exchange}/{ticker}"
   },
-  // Call the POST before any GET that could trigger `_auto_create_instrument_meta`
-  // via the admin endpoint; otherwise the POST would fail with a conflict. Seed
-  // minimal metadata so the subsequent GET reads a non-empty payload.
-  {
-    "method": "POST",
-    "path": "/instrument/admin/{exchange}/{ticker}",
-    "body": {
-      "ticker": "PFE.NASDAQ",
-      "exchange": "NASDAQ"
-    }
-  },
   {
     "method": "GET",
     "path": "/instrument/admin/{exchange}/{ticker}"
+  },
+  {
+    "method": "POST",
+    "path": "/instrument/admin/{exchange}/{ticker}",
+    "body": {}
   },
   {
     "method": "PUT",
@@ -294,7 +353,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "POST",
     "path": "/instrument/admin/{exchange}/{ticker}/group",
     "body": {
-      "group": "demo"
+      "group": smokeIdentity
     }
   },
   {
@@ -369,8 +428,8 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/pension/forecast",
     "query": {
-      "owner": "demo",
-      "death_age": demoPensionDeathAge
+      "owner": smokeIdentity,
+      "death_age": "0"
     }
   },
   {
@@ -446,6 +505,10 @@ export const smokeEndpoints: SmokeEndpoint[] = [
   },
   {
     "method": "GET",
+    "path": "/portfolio/{owner}/sectors"
+  },
+  {
+    "method": "GET",
     "path": "/prices/refresh"
   },
   {
@@ -464,7 +527,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/returns/compare",
     "query": {
-      "owner": "demo"
+      "owner": smokeIdentity
     }
   },
   {
@@ -599,7 +662,7 @@ export const smokeEndpoints: SmokeEndpoint[] = [
     "method": "GET",
     "path": "/transactions/compliance",
     "query": {
-      "owner": "demo"
+      "owner": smokeIdentity
     }
   },
   {
@@ -679,15 +742,15 @@ export const smokeEndpoints: SmokeEndpoint[] = [
 // Values are chosen based on common parameter names. Unknown names default to
 // `1` which parses as an integer or string.
 const SAMPLE_PATH_VALUES: Record<string, string> = {
-  owner: 'demo',
+  owner: smokeIdentity,
   account: 'isa',
-  user: 'demo',
+  user: smokeIdentity,
   email: 'user@example.com',
   source: 'trail',
   id: '1',
-  vp_id: 'test',
+  vp_id: '1',
   quest_id: 'check-in',
-  slug: 'demo-slug',
+  slug: `${smokeIdentity}-slug`,
   name: 'test',
   exchange: 'NASDAQ',
   ticker: 'PFE',
@@ -762,7 +825,7 @@ export async function runSmoke(base: string) {
       res.ok
         ? "✓"
         : res.status === 401 || res.status === 403
-          ? "○"
+? "○"
           : res.status === 409
             ? "△"
             : "•";

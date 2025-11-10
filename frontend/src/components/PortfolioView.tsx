@@ -1,16 +1,26 @@
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
-import type { Portfolio, Account } from "../types";
+import type { Portfolio, Account, SectorContribution } from "../types";
 import { AccountBlock } from "./AccountBlock";
 import { ValueAtRisk } from "./ValueAtRisk";
 import { money } from "../lib/money";
 import { formatDateISO } from "../lib/date";
 import { useConfig } from "../ConfigContext";
-import { complianceForOwner } from "../api";
+import { complianceForOwner, getOwnerSectorContributions } from "../api";
 import { getGrowthStage } from "../utils/growthStage";
 import lazyWithDelay from "../utils/lazyWithDelay";
 import PortfolioDashboardSkeleton from "./skeletons/PortfolioDashboardSkeleton";
+import { useFetch } from "../hooks/useFetch";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+} from "recharts";
 
 const PerformanceDashboard = lazyWithDelay(
   () => import("@/components/PerformanceDashboard"),
@@ -47,15 +57,29 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
     setPendingDate(data?.as_of ?? "");
   }, [data?.as_of]);
 
+  const owner = data?.owner ?? null;
+  const asOf = data?.as_of ?? null;
+
+  const fetchSectorContribution = useCallback(() => {
+    if (!owner) return Promise.resolve([] as SectorContribution[]);
+    return getOwnerSectorContributions(owner, { asOf: asOf ?? undefined });
+  }, [owner, asOf]);
+
+  const {
+    data: sectorContrib,
+    loading: sectorLoading,
+    error: sectorError,
+  } = useFetch<SectorContribution[]>(fetchSectorContribution, [], Boolean(owner));
+
   useEffect(() => {
     let cancelled = false;
     async function check() {
-      if (!data?.owner) {
+      if (!owner) {
         setHasWarnings(false);
         return;
       }
       try {
-        const res = await complianceForOwner(data.owner);
+        const res = await complianceForOwner(owner);
         if (!cancelled) setHasWarnings(res.warnings.length > 0);
       } catch {
         if (!cancelled) setHasWarnings(false);
@@ -65,7 +89,7 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [data?.owner]);
+  }, [owner]);
 
   if (loading) return <div>Loading portfolio…</div>; // show a quick spinner
   if (error) return <div className="text-error">{error}</div>; // bubble errors
@@ -144,6 +168,38 @@ export function PortfolioView({ data, loading, error, onDateChange }: Props) {
           )}
           <div className="mb-6 rounded-lg border border-gray-800 bg-black/30 p-4">
             <ValueAtRisk owner={data.owner} />
+          </div>
+          <div className="mb-6 rounded-lg border border-gray-800 bg-black/30 p-4">
+            <h3 className="mb-3 text-base font-semibold text-white">
+              Sector contribution
+            </h3>
+            {sectorLoading ? (
+              <p className="text-sm text-gray-400">Loading sector data…</p>
+            ) : sectorError ? (
+              <p className="text-sm text-red-500">
+                Failed to load sector contribution
+              </p>
+            ) : sectorContrib && sectorContrib.length > 0 ? (
+              <div className="h-64 w-full">
+                <ResponsiveContainer>
+                  <BarChart data={sectorContrib}>
+                    <XAxis dataKey="sector" interval={0} angle={-35} textAnchor="end" height={70} />
+                    <YAxis />
+                    <Tooltip formatter={(v: number) => money(v, baseCurrency)} />
+                    <Bar dataKey="gain_gbp">
+                      {sectorContrib.map((row, idx) => (
+                        <Cell
+                          key={`${row.sector}-${idx}`}
+                          fill={row.gain_gbp >= 0 ? "#22c55e" : "#ef4444"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No sector data available.</p>
+            )}
           </div>
           <div className="space-y-4">
             {data.accounts.map((acct, idx) => {

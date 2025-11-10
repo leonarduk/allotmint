@@ -1,16 +1,16 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configContext } from "@/ConfigContext";
 
 const mockGetOwners = vi.hoisted(() => vi.fn());
-const mockGetGroups = vi.hoisted(() => vi.fn());
+const mockListTemplates = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api", () => ({
   API_BASE: "http://test",
   getOwners: mockGetOwners,
-  getGroups: mockGetGroups,
+  getGroups: vi.fn(),
   getGroupInstruments: vi.fn().mockResolvedValue([]),
   getPortfolio: vi.fn(),
   refreshPrices: vi.fn(),
@@ -26,6 +26,10 @@ vi.mock("@/api", () => ({
   getTradingSignals: vi.fn().mockResolvedValue([]),
   getTopMovers: vi.fn().mockResolvedValue({ gainers: [], losers: [] }),
   listTimeseries: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/api/reports", () => ({
+  listReportTemplates: mockListTemplates,
 }));
 
 const allTabs = {
@@ -52,55 +56,58 @@ const allTabs = {
   scenario: true,
 };
 
+const builtinTemplate = {
+  template_id: "performance-summary",
+  name: "Performance summary",
+  description: "Portfolio performance overview",
+  builtin: true,
+  sections: [
+    {
+      id: "metrics",
+      title: "Performance metrics",
+      description: null,
+      source: "performance.metrics",
+      columns: [
+        { key: "metric", label: "Metric", type: "string" },
+        { key: "value", label: "Value", type: "number" },
+        { key: "units", label: "Units", type: "string" },
+      ],
+    },
+  ],
+} as const;
+
+const customTemplate = {
+  template_id: "custom-holdings",
+  name: "Custom holdings",
+  description: "Snapshot of holdings with status metadata",
+  builtin: false,
+  sections: [
+    {
+      id: "holdings",
+      title: "Holdings",
+      description: null,
+      source: "allocation",
+      columns: [
+        { key: "ticker", label: "Ticker", type: "string" },
+        { key: "name", label: "Name", type: "string" },
+        { key: "value", label: "Value", type: "number" },
+        { key: "currency", label: "Currency", type: "string" },
+        { key: "status", label: "Status", type: "string" },
+      ],
+    },
+  ],
+} as const;
+
 describe("Reports page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it("renders links when owner selected", async () => {
     mockGetOwners.mockResolvedValue([{ owner: "alex", accounts: [] }]);
-    mockGetGroups.mockResolvedValue([]);
-
-    window.history.pushState({}, "", "/reports");
-    const { default: Reports } = await import("@/pages/Reports");
-
-    render(
-      <configContext.Provider
-        value={{
-          theme: "system",
-          relativeViewEnabled: false,
-          tabs: allTabs,
-          disabledTabs: [],
-          refreshConfig: vi.fn(),
-          setRelativeViewEnabled: () => {},
-          baseCurrency: "GBP",
-          setBaseCurrency: () => {},
-        }}
-      >
-        <MemoryRouter initialEntries={["/reports"]}>
-          <Reports />
-        </MemoryRouter>
-      </configContext.Provider>
-    );
-
-    const select = await screen.findByLabelText(/owner/i);
-    fireEvent.change(select, { target: { value: "alex" } });
-
-    const csv = await screen.findByText(/Download CSV/i);
-    expect(csv).toHaveAttribute(
-      "href",
-      expect.stringContaining("/reports/alex")
-    );
+    mockListTemplates.mockResolvedValue([builtinTemplate, customTemplate]);
   });
 
-  it("shows message when no owners", async () => {
-    mockGetOwners.mockResolvedValue([]);
-    mockGetGroups.mockResolvedValue([]);
-
-    window.history.pushState({}, "", "/reports");
+  async function renderReports(initialEntries: string[] = ["/reports"]) {
     const { default: Reports } = await import("@/pages/Reports");
-
-    render(
+    return render(
       <configContext.Provider
         value={{
           theme: "system",
@@ -113,17 +120,70 @@ describe("Reports page", () => {
           setBaseCurrency: () => {},
         }}
       >
-        <MemoryRouter initialEntries={["/reports"]}>
+        <MemoryRouter initialEntries={initialEntries}>
           <Reports />
         </MemoryRouter>
-      </configContext.Provider>
+      </configContext.Provider>,
     );
+  }
 
-    const message = await screen.findByText(
-      /No owners available—check backend connection/i
+  it("renders the reports catalog with template metadata", async () => {
+    await renderReports();
+
+    expect(
+      await screen.findByRole("radio", {
+        name: "Select Performance summary template",
+      }),
+    ).toBeChecked();
+
+    expect(screen.getByText("Performance summary")).toBeInTheDocument();
+    expect(
+      screen.getByText("3 fields: Metric, Value, Units"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "5 fields: Ticker, Name, Value, Currency +1 more field",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("switches selection when choosing a different template", async () => {
+    await renderReports();
+
+    const builtinRadio = await screen.findByRole("radio", {
+      name: "Select Performance summary template",
+    });
+    const customRadio = await screen.findByRole("radio", {
+      name: "Select Custom holdings template",
+    });
+
+    expect(builtinRadio).toBeChecked();
+    fireEvent.click(customRadio);
+    expect(customRadio).toBeChecked();
+    expect(builtinRadio).not.toBeChecked();
+  });
+
+  it("includes the chosen template ID in download links", async () => {
+    await renderReports();
+
+    const ownerSelect = await screen.findByLabelText(/Owner/i);
+    fireEvent.change(ownerSelect, { target: { value: "alex" } });
+
+    const customRadio = await screen.findByRole("radio", {
+      name: "Select Custom holdings template",
+    });
+    fireEvent.click(customRadio);
+
+    const csvLink = await screen.findByRole("link", { name: /Download CSV/i });
+    const pdfLink = await screen.findByRole("link", { name: /Download PDF/i });
+
+    expect(csvLink).toHaveAttribute(
+      "href",
+      "http://test/reports/alex/custom-holdings?format=csv",
     );
-    expect(message).toBeInTheDocument();
-    expect(screen.queryByLabelText(/owner/i)).not.toBeInTheDocument();
+    expect(pdfLink).toHaveAttribute(
+      "href",
+      "http://test/reports/alex/custom-holdings?format=pdf",
+    );
   });
 });
-

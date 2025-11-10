@@ -14,9 +14,9 @@ describe('sanitizeOwners', () => {
     expect(sanitizeOwners(owners)).toEqual([makeOwner('alice'), makeOwner('bob')]);
   });
 
-  it('returns empty list when only placeholder owners provided', () => {
+  it('retains demo owner when it is the only available option', () => {
     const owners = [makeOwner('demo'), makeOwner('.idea')];
-    expect(sanitizeOwners(owners)).toEqual([]);
+    expect(sanitizeOwners(owners)).toEqual([makeOwner('demo')]);
   });
 
   it('returns empty list when no owners provided', () => {

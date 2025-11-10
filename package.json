@@ -10,7 +10,8 @@
   "dependencies": {
     "@capacitor/android": "^5.7.0",
     "@capacitor/core": "^5.7.0",
-    "@capacitor/ios": "^5.7.0"
+    "@capacitor/ios": "^5.7.0",
+    "yaml": "^2.8.1"
   },
   "scripts": {
     "test": "cd frontend && npm test --",

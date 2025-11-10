@@ -41,8 +41,11 @@ export default defineConfig(({ command }) => {
       ...files.map((file) => `/${path.basename(file, '.tsx').toLowerCase()}`)
     )
     const prerenderFlag = process.env.ENABLE_PRERENDER
-    const skipPrerender = prerenderFlag === 'false'
+    const lifecycleEvent = process.env.npm_lifecycle_event
     const forcePrerender = prerenderFlag === 'true'
+    const skipPrerender =
+      !forcePrerender &&
+      (prerenderFlag === 'false' || lifecycleEvent === 'build:preview')
     if (!skipPrerender) {
       let canPrerender = true
       if (!forcePrerender) {

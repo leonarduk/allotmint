@@ -3,7 +3,7 @@ from collections.abc import Mapping
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.auth import get_current_user
-from backend.config import config
+from backend.config import config, demo_identity
 from backend.quests import trail
 
 router = APIRouter(prefix="/trail", tags=["trail"])
@@ -13,8 +13,8 @@ if config.disable_auth:
 
     @router.get("")
     async def list_tasks():
-        """Return tasks for the demo user when authentication is disabled."""
-        return trail.get_tasks("demo")
+        """Return tasks for the configured demo user when auth is disabled."""
+        return trail.get_tasks(demo_identity())
 
     @router.post("/{task_id}/complete")
     async def complete_task(task_id: str):
@@ -23,7 +23,7 @@ if config.disable_auth:
         Returns the updated Trail payload including XP, streak, and daily totals.
         """
         try:
-            result = trail.mark_complete("demo", task_id)
+            result = trail.mark_complete(demo_identity(), task_id)
             if isinstance(result, Mapping) and "tasks" in result:
                 return result
             return {"tasks": result}

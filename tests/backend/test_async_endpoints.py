@@ -17,11 +17,14 @@ async def test_auth_alerts_portfolio(monkeypatch):
             {"owner": "demo", "accounts": ["demo"]},
         ],
     )
+    # Enable auth override to bypass Google token verification
+    monkeypatch.setattr("backend.config_module.config.disable_auth", True)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         token_resp = await client.post(
-            "/token", data={"username": "testuser", "password": "password"}
+            "/token", json={"id_token": None}
         )
+        assert token_resp.status_code == 200
         token = token_resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
         alerts_resp = await client.get("/alerts/", headers=headers)

@@ -27,6 +27,17 @@ def test_custom_query_routes_fallback_to_local(monkeypatch):
     queries_dir = Path(config.data_root) / "queries"
     queries_dir.mkdir(parents=True, exist_ok=True)
 
+    # Create a demo query file
+    demo_slug = f"{demo_identity().lower()}-slug"
+    demo_query = {
+        "start": "2020-01-01",
+        "end": "2020-01-02",
+        "tickers": ["PFE"],
+        "metrics": [],
+    }
+    demo_path = queries_dir / f"{demo_slug}.json"
+    demo_path.write_text(json.dumps(demo_query))
+
     fallback_slug = "fallback-slug"
     fallback_path = queries_dir / f"{fallback_slug}.json"
     if fallback_path.exists():
@@ -36,7 +47,6 @@ def test_custom_query_routes_fallback_to_local(monkeypatch):
 
     try:
         with TestClient(app) as client:
-            demo_slug = f"{demo_identity().lower()}-slug"
             resp = client.get(f"/custom-query/{demo_slug}")
             assert resp.status_code == 200
             assert resp.json()["tickers"] == ["PFE"]
@@ -71,7 +81,7 @@ def test_list_saved_queries_returns_slugs_by_default(monkeypatch, temp_queries_d
     app = create_app()
 
     with TestClient(app) as client:
-        resp = client.get("/custom-query/saved")
+        resp = client.get("/custom-query/saved?detailed=0")
         assert resp.status_code == 200
         assert resp.json() == ["alpha", "beta"]
 

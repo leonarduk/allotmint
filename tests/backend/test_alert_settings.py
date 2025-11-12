@@ -64,9 +64,13 @@ def test_alert_thresholds_auth_disabled(monkeypatch):
     # Ensure configuration reflects auth being disabled.
     load_config.cache_clear()
     monkeypatch.setattr(config, "disable_auth", True, raising=False)
+    # Also need to set demo_identity to return 'demo'
+    monkeypatch.setattr("backend.routes.alert_settings.DEMO_IDENTITY", "demo")
 
     app = FastAPI()
     app.include_router(alert_settings.router)
+    # When auth is disabled, get_active_user returns None, so we need to ensure demo is used
+    app.dependency_overrides[get_active_user] = lambda: None
     client = TestClient(app)
 
     resp = client.get("/alert-thresholds/demo")

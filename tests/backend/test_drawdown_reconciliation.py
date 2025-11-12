@@ -29,7 +29,7 @@ def mock_env(monkeypatch, price_data):
         ],
     }
 
-    def fake_build_owner_portfolio(owner):
+    def fake_build_owner_portfolio(owner, **kwargs):
         return {"accounts": [{"holdings": owners[owner]}]}
 
     monkeypatch.setattr(portfolio_mod, "build_owner_portfolio", fake_build_owner_portfolio)

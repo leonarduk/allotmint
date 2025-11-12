@@ -4,10 +4,14 @@ from fastapi.testclient import TestClient
 import backend.common.instrument_api as ia
 import backend.routes.portfolio as portfolio
 from backend.local_api.main import app
+from backend.config import config
+
+# Ensure auth is disabled for tests
+config.disable_auth = True
 
 client = TestClient(app)
 token = client.post(
-    "/token", data={"username": "testuser", "password": "password"}
+    "/token", json={"id_token": None}
 ).json()["access_token"]
 client.headers.update({"Authorization": f"Bearer {token}"})
 

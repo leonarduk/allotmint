@@ -333,7 +333,18 @@ def create_app() -> FastAPI:
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         """Return 422 for body errors and 400 for query errors."""
         status = 422 if exc.body is not None else 400
-        return JSONResponse(status_code=status, content={"detail": exc.errors()})
+        errors = exc.errors()
+        # Convert any bytes objects to strings to ensure JSON serializability
+        for error in errors:
+            for key, value in error.items():
+                if isinstance(value, bytes):
+                    error[key] = value.decode('utf-8', errors='replace')
+                elif isinstance(value, (list, tuple)):
+                    error[key] = [
+                        v.decode('utf-8', errors='replace') if isinstance(v, bytes) else v
+                        for v in value
+                    ]
+        return JSONResponse(status_code=status, content={"detail": errors})
 
     class TokenIn(BaseModel):
         id_token: str | None = None

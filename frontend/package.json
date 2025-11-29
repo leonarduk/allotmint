@@ -30,7 +30,7 @@
     "react-toastify": "^10.0.0",
     "react-window": "^1.8.11",
     "recharts": "^3.3.0",
-    "sharp": "^0.34.4",
+    "sharp": "^0.34.5",
     "vite-plugin-ssr": "^0.4.142"
   },
   "devDependencies": {

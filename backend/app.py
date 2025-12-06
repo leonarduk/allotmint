@@ -339,7 +339,19 @@ def create_app() -> FastAPI:
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         """Return 422 for body errors and 400 for query errors."""
         status = 422 if exc.body is not None else 400
-        return JSONResponse(status_code=status, content={"detail": exc.errors()})
+        
+        # Convert any bytes in error details to strings for JSON serialization
+        def sanitize_error(error):
+            if isinstance(error, dict):
+                return {k: sanitize_error(v) for k, v in error.items()}
+            elif isinstance(error, (list, tuple)):
+                return [sanitize_error(item) for item in error]
+            elif isinstance(error, bytes):
+                return error.decode('utf-8', errors='replace')
+            return error
+        
+        errors = sanitize_error(exc.errors())
+        return JSONResponse(status_code=status, content={"detail": errors})
 
     class TokenIn(BaseModel):
         id_token: str | None = None

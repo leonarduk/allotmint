@@ -11,6 +11,9 @@ from backend.routes import compliance, trading_agent, rebalance
 def test_all_routes_registered():
     missing = []
     for _, name, _ in pkgutil.iter_modules(routes_pkg.__path__):
+        # Skip private/helper modules that start with underscore
+        if name.startswith('_'):
+            continue
         module = importlib.import_module(f"backend.routes.{name}")
         router = getattr(module, "router", None)
         if not isinstance(router, APIRouter) or not router.routes:
@@ -34,7 +37,7 @@ def test_compliance_routes(monkeypatch):
 
     monkeypatch.setattr(
         "backend.common.compliance.check_trade",
-        lambda trade, root: {"warnings": ["ok"]},
+        lambda trade, root, scaffold_missing=False: {"warnings": ["ok"]},
     )
     with TestClient(app) as client:
         resp2 = client.post("/compliance/validate", json={"owner": "alice"})

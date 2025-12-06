@@ -8,12 +8,13 @@ by FastAPI.
 """
 
 import asyncio
-import shutil
 import logging
 import os
+import shutil
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,13 +26,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
-from backend.auth import (
-    authenticate_user,
-    create_access_token,
-    get_current_user,
-)
 import backend.auth as auth
-
+from backend import config_module
 from backend.common.data_loader import resolve_paths
 from backend.common.portfolio_utils import (
     _load_snapshot,
@@ -40,33 +36,33 @@ from backend.common.portfolio_utils import (
 )
 from backend.common.transaction_reconciliation import reconcile_transactions_with_holdings
 from backend.config import reload_config
-from backend import config_module
-
+# Routers
 from backend.routes.agent import router as agent_router
 from backend.routes.alert_settings import router as alert_settings_router
 from backend.routes.alerts import router as alerts_router
+from backend.routes.analytics import router as analytics_router
 from backend.routes.approvals import router as approvals_router
 from backend.routes.compliance import router as compliance_router
 from backend.routes.config import router as config_router
+from backend.routes.events import router as events_router
 from backend.routes.goals import router as goals_router
 from backend.routes.instrument import router as instrument_router
 from backend.routes.instrument_admin import router as instrument_admin_router
 from backend.routes.logs import router as logs_router
-from backend.routes.metrics import router as metrics_router
-from backend.routes.movers import router as movers_router
-from backend.routes.models import router as models_router
-from backend.routes.nudges import router as nudges_router
-from backend.routes.news import router as news_router
 from backend.routes.market import router as market_router
-from backend.routes.analytics import router as analytics_router
+from backend.routes.metrics import router as metrics_router
+from backend.routes.models import router as models_router
+from backend.routes.movers import router as movers_router
+from backend.routes.news import router as news_router
+from backend.routes.nudges import router as nudges_router
+from backend.routes.opportunities import router as opportunities_router
 from backend.routes.pension import router as pension_router
 from backend.routes.performance import router as performance_router
-from backend.routes.opportunities import router as opportunities_router
 from backend.routes.portfolio import public_router as public_portfolio_router
 from backend.routes.portfolio import router as portfolio_router
 from backend.routes.query import router as query_router
+from backend.routes.quest_routes import router as quest_router
 from backend.routes.quotes import router as quotes_router
-from backend.routes.events import router as events_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
 from backend.routes.support import router as support_router
@@ -75,14 +71,24 @@ from backend.routes.timeseries_admin import router as timeseries_admin_router
 from backend.routes.timeseries_edit import router as timeseries_edit_router
 from backend.routes.timeseries_meta import router as timeseries_router
 from backend.routes.trading_agent import router as trading_agent_router
+from backend.routes.trail import router as trail_router
 from backend.routes.transactions import router as transactions_router
 from backend.routes.user_config import router as user_config_router
 from backend.routes.virtual_portfolio import router as virtual_portfolio_router
-from backend.routes.quest_routes import router as quest_router
-from backend.routes.trail import router as trail_router
 from backend.utils import page_cache
 
 logger = logging.getLogger(__name__)
+
+
+def normalize(obj: Any) -> Any:
+    """Recursively convert bytes to strings for JSON serialization."""
+    if isinstance(obj, bytes):
+        return obj.decode("utf-8")
+    if isinstance(obj, dict):
+        return {k: normalize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [normalize(v) for v in obj]
+    return obj
 
 
 def create_app() -> FastAPI:

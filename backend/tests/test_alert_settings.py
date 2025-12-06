@@ -67,6 +67,8 @@ def test_alert_thresholds_auth_disabled(monkeypatch):
 
     app = FastAPI()
     app.include_router(alert_settings.router)
+    # Override get_active_user to return None (simulating disabled auth)
+    app.dependency_overrides[get_active_user] = lambda: None
     client = TestClient(app)
 
     resp = client.get("/alert-thresholds/demo")

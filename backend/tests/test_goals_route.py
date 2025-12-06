@@ -19,9 +19,12 @@ def _app(tmp_path, monkeypatch, *, active_user: str | None = "alice", disable_au
     module = importlib.reload(goals_route)
     monkeypatch.setattr(module, "DEMO_OWNER", "demo", raising=False)
     app = FastAPI()
-    app.include_router(module.router)
     if active_user is not None:
-        app.dependency_overrides[get_current_user] = lambda: active_user
+        # Override before including router
+        async def override_user():
+            return active_user
+        app.dependency_overrides[get_current_user] = override_user
+    app.include_router(module.router)
     return TestClient(app)
 
 

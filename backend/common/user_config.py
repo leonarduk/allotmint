@@ -11,7 +11,7 @@ from backend.config import config
 
 def _parse_str_list(val: object) -> Optional[List[str]]:
     if isinstance(val, list):
-        items = [str(v).strip() for v in val if str(v).strip()]
+        items = [str(v).strip() for v in val if v is not None and str(v).strip()]
         return items or []
     if isinstance(val, str):
         items = [s.strip() for s in val.split(",") if s.strip()]

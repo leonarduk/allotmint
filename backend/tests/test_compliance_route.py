@@ -19,7 +19,7 @@ def test_validate_demo_owner_available_with_testing(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         "backend.common.compliance.check_trade",
-        lambda trade, root: {"owner": trade["owner"]},
+        lambda trade, root, scaffold_missing=False: {"owner": trade["owner"]},
     )
 
     with TestClient(app) as client:

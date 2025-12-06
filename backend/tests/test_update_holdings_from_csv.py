@@ -18,8 +18,8 @@ def test_update_from_csv_returns_case_sensitive_path(monkeypatch, tmp_path):
         SimpleNamespace(rebuild_account_holdings=lambda *a, **k: None),
     )
 
-    path = update_holdings_from_csv.update_from_csv("Alice", "ISA", "dummy", b"")
+    result = update_holdings_from_csv.update_from_csv("Alice", "ISA", "dummy", b"")
 
     expected = tmp_path / "Alice" / "ISA.json"
-    assert path == str(expected)
+    assert result == {"path": str(expected)}
     assert expected.exists()

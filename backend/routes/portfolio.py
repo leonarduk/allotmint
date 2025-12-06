@@ -852,39 +852,14 @@ async def group_movers(
     tickers, weight_map, market_values = _calculate_weights_and_market_values(summaries)
     total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries)
 
-    market_values = {}
-    tickers = []
-    weight_values = {}
-    total_mv = 0.0
-    for s in summaries:
-        t = s.get(KEY_TICKER)
-        if not t:
-            continue
-        tickers.append(t)
-        mv = s.get(KEY_MARKET_VALUE_GBP)
-        if mv is not None:
-            t_upper = t.upper()
-            market_values[t_upper] = mv
-            market_values[t_upper.split(".")[0]] = mv
-            weight_values[t] = mv
-            total_mv += mv
-            base = t.upper().split(".")[0]
-            market_values[base] = mv
-
     if not tickers:
         return {KEY_GAINERS: [], KEY_LOSERS: []}
 
-    # Compute weights in percent for filtering
-    total_mv = sum(float(s.get("market_value_gbp") or 0.0) for s in summaries if s.get("ticker"))
-
     # Compute weights in percent proportional to each instrument's market value.
-    # ``total_mv`` is the sum of all ``market_value_gbp`` values.
-
+    # If total_mv is zero, use equal weighting instead.
     if total_mv:
-        weight_map = {t: mv / total_mv * 100.0 for t, mv in weight_values.items()}
-    else:
-        n = len(tickers)
-        weight_map = {t: 100.0 / n for t in tickers}
+        weight_map = {t: (market_values.get(t.upper(), 0.0) / total_mv * 100.0) for t in tickers}
+    # else: weight_map already contains equal weights from helper function
 
     movers = instrument_api.top_movers(
         tickers,

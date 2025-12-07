@@ -345,7 +345,7 @@ def _list_local_plots(
         for owner_dir in sorted(root.iterdir()):
             if not owner_dir.is_dir():
                 continue
-            if owner_dir.name in skip_owners:
+            if owner_dir.name.lower() in skip_owners:
                 continue
             owner = owner_dir.name
             meta = load_person_meta(owner, root)

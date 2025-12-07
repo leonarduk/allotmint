@@ -314,8 +314,17 @@ def test_post_transaction_persists_and_updates_portfolio(client):
     assert owners, "No owners returned"
     owner = owners[0]["owner"]
 
+    # Ensure the owner has at least one account
+    resp = client.post(
+        "/accounts",
+        json={"owner": owner, "account_type": "pension"},
+    )
+    assert resp.status_code in (200, 201)
+
     portfolio = client.get(f"/portfolio/{owner}").json()
-    account = portfolio["accounts"][0]["account_type"]
+    accounts = portfolio.get("accounts", [])
+    assert accounts, "Portfolio has no accounts"
+    account = accounts[0]["account_type"]
     before = portfolio["total_value_estimate_gbp"]
 
     resp = _post_sample_tx(client, owner, account)
@@ -326,7 +335,6 @@ def test_post_transaction_persists_and_updates_portfolio(client):
 
     after = client.get(f"/portfolio/{owner}").json()["total_value_estimate_gbp"]
     assert after == pytest.approx(before + 10.0)
-
 
 @pytest.mark.parametrize(
     "field,value",

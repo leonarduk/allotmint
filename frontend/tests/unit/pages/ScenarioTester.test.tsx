@@ -1,18 +1,31 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import ScenarioTester from "@/pages/ScenarioTester";
-import * as api from "@/api";
 import type { ScenarioResult } from "@/types";
 
-vi.mock("@/api");
+// Create mocks before vi.mock call
+const mockGetEvents = vi.fn();
+const mockGetOwners = vi.fn();
+const mockGetPortfolio = vi.fn();
+const mockRunScenario = vi.fn();
 
-const mockGetEvents = vi.mocked(api.getEvents);
-const mockRunScenario = vi.mocked(api.runScenario);
+vi.mock("@/api", () => ({
+  getEvents: () => mockGetEvents(),
+  getOwners: () => mockGetOwners(),
+  getPortfolio: () => mockGetPortfolio(),
+  runScenario: (params: any) => mockRunScenario(params),
+}));
 
 describe("ScenarioTester page", () => {
   beforeEach(() => {
     mockGetEvents.mockReset();
+    mockGetOwners.mockReset();
+    mockGetPortfolio.mockReset();
     mockRunScenario.mockReset();
+    
+    // Provide default mock implementations
+    mockGetOwners.mockResolvedValue([]);
+    mockGetPortfolio.mockResolvedValue({ holdings: [], cash: [] } as any);
   });
 
   it("fetches events and populates dropdown", async () => {
@@ -126,4 +139,3 @@ describe("ScenarioTester page", () => {
     expect(await screen.findByText("fail")).toBeInTheDocument();
   });
 });
-

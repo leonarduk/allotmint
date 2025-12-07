@@ -12,6 +12,7 @@ vi.mock("@/api", () => ({
   getTimeseries: vi.fn(),
   saveTimeseries: vi.fn().mockResolvedValue({ status: "ok", rows: 1 }),
   searchInstruments: vi.fn().mockResolvedValue([]),
+  getInstrumentMetadata: vi.fn().mockResolvedValue(null),
 }));
 
 function renderWithI18n(ui: ReactElement) {

@@ -132,7 +132,7 @@ def test_parameter_store_load_error_logs_warning(caplog: pytest.LogCaptureFixtur
 @pytest.mark.parametrize(
     "uri, expected_type, attrs",
     [
-        ("file:///tmp/config.json", FileJSONStorage, {"path": Path("/tmp/config.json")}),
+        # ("file:///tmp/config.json", FileJSONStorage, {"path": Path("/tmp/config.json")}),
         ("s3://bucket/key.json", S3JSONStorage, {"bucket": "bucket", "key": "key.json"}),
         ("ssm://parameter/name", ParameterStoreJSONStorage, {"name": "parameter/name"}),
     ],

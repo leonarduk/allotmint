@@ -52,7 +52,7 @@ try {
     npm install
 
     Write-Host 'Running frontend coverage tests...' -ForegroundColor Cyan
-    npm run coverage
+    npm run coverage 2>&1 | tee ..\coverage.log
 }
 finally {
     Pop-Location

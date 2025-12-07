@@ -392,15 +392,17 @@ def _auto_create_instrument_meta(ticker: str) -> Optional[Dict[str, Any]]:
     if not exch or not sym or sym == "CASH":
         return None
 
-    if os.environ.get("TESTING"):
-        return None
-
     # Avoid triggering live lookups when the application is running in offline
     # mode.  Tests exercise the auto-create behaviour by monkeypatching
     # ``_fetch_metadata_from_yahoo``; allow those callers through even when the
     # real configuration is offline by checking that the helper has been
     # replaced.
     if config.offline_mode and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA:
+        return None
+
+    # Skip auto-creation during tests unless _fetch_metadata_from_yahoo has been
+    # monkeypatched to allow testing the auto-creation logic.
+    if os.environ.get("TESTING") and _fetch_metadata_from_yahoo is _ORIGINAL_FETCH_METADATA:
         return None
 
     full = f"{sym}.{exch}"

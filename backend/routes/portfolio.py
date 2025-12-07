@@ -157,11 +157,12 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
         return []
 
     def _score_variant(value: str) -> tuple[int, str]:
-        if value.isupper():
+        # Prefer lowercase, then mixed case, then uppercase
+        if value.islower():
             return (3, value)
         if any(ch.isupper() for ch in value):
             return (2, value)
-        return 1, value
+        return (1, value)
 
     metadata_stems = {
         "person",
@@ -214,8 +215,8 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
     stems = sorted(
         preferred.values(),
         key=lambda name: (
-            -_score_variant(name)[0],
             name.casefold(),
+            -_score_variant(name)[0],
             name,
         ),
     )

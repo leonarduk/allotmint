@@ -1,3 +1,5 @@
+import pytest
+
 from backend.agent import trading_agent
 from backend.config import TradingAgentConfig
 

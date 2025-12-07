@@ -1,5 +1,6 @@
 import importlib
 import pkgutil
+from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
@@ -25,6 +26,19 @@ def test_compliance_routes(monkeypatch):
     app = FastAPI()
     app.state.accounts_root = ""
     app.include_router(compliance.router)
+
+    # Mock resolve_owner_directory to return a valid path for "alice"
+    monkeypatch.setattr(
+        "backend.routes.compliance.resolve_owner_directory",
+        lambda root, owner: Path(f"/fake/{owner}") if owner == "alice" else None,
+    )
+    
+    # Mock _known_owners to return alice as a known owner
+    from backend.routes.compliance import KnownOwnerSet
+    monkeypatch.setattr(
+        "backend.routes.compliance._known_owners",
+        lambda root: KnownOwnerSet(["alice"], active_root_has_entries=True),
+    )
 
     monkeypatch.setattr(
         "backend.common.compliance.check_owner",

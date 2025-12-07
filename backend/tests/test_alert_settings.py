@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.auth import get_active_user
+from backend.auth import get_active_user, get_current_user
 from backend.config import load_config, config
 from backend.routes import alert_settings
 
@@ -67,10 +67,18 @@ def test_alert_thresholds_auth_disabled(monkeypatch):
 
     app = FastAPI()
     app.include_router(alert_settings.router)
+    
     # Override get_active_user to return None (simulating disabled auth)
     async def override_active_user():
         return None
     app.dependency_overrides[get_active_user] = override_active_user
+    
+    # Also override get_current_user to return "demo" 
+    # This allows the _resolve_identity fallback to work
+    async def override_current_user():
+        return "demo"
+    app.dependency_overrides[get_current_user] = override_current_user
+    
     client = TestClient(app)
 
     resp = client.get("/alert-thresholds/demo")

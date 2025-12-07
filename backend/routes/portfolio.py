@@ -195,7 +195,7 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
                 if resolved_score > score:
                     candidate = resolved_stem
                     score = resolved_score
-        return candidate
+        return candidate.lower()
 
     for path in entries:
         if not path.is_file() or path.suffix.lower() != ".json":

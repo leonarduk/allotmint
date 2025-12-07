@@ -42,7 +42,7 @@ def test_collect_account_stems_filters_noise(tmp_owner_dir: Path) -> None:
 
     stems = portfolio_routes._collect_account_stems(tmp_owner_dir)
 
-    assert stems == ["GIA", "ISA"]
+    assert stems == ["gia", "isa"]
 
 
 @pytest.mark.parametrize(

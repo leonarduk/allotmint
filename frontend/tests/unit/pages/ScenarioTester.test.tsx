@@ -65,10 +65,10 @@ describe("ScenarioTester page", () => {
     fireEvent.click(screen.getByLabelText("1d"));
     fireEvent.click(screen.getByLabelText("1w"));
 
-    const apply = screen.getByText("Apply");
-    expect(apply).not.toBeDisabled();
+    const runButton = screen.getByText("Run stress test");
+    expect(runButton).not.toBeDisabled();
 
-    fireEvent.click(apply);
+    fireEvent.click(runButton);
 
     await waitFor(() =>
       expect(mockRunScenario).toHaveBeenCalledWith({
@@ -110,16 +110,16 @@ describe("ScenarioTester page", () => {
     render(<ScenarioTester />);
 
     await screen.findByRole("combobox");
-    const apply = screen.getByText("Apply");
+    const runButton = screen.getByText("Run stress test");
 
-    expect(apply).toBeDisabled();
+    expect(runButton).toBeDisabled();
     fireEvent.change(screen.getByRole("combobox"), {
       target: { value: "e1" },
     });
-    expect(apply).toBeDisabled();
+    expect(runButton).toBeDisabled();
     fireEvent.click(screen.getByLabelText("1d"));
-    expect(apply).not.toBeDisabled();
-    fireEvent.click(apply);
+    expect(runButton).not.toBeDisabled();
+    fireEvent.click(runButton);
     await waitFor(() => expect(mockRunScenario).toHaveBeenCalled());
     expect(screen.getByText("Test Owner")).toBeInTheDocument();
   });
@@ -134,7 +134,7 @@ describe("ScenarioTester page", () => {
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "e1" } });
     fireEvent.click(screen.getByLabelText("1d"));
 
-    fireEvent.click(screen.getByText("Apply"));
+    fireEvent.click(screen.getByText("Run stress test"));
 
     expect(await screen.findByText("fail")).toBeInTheDocument();
   });

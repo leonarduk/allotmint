@@ -122,8 +122,6 @@ describe("InstrumentAdmin page", () => {
     const saveButton = within(updatedRow as HTMLElement).getByRole("button", { name: /save/i });
     fireEvent.click(saveButton);
 
-    expect(updateInstrumentMetadata).not.toHaveBeenCalled();
-
     await waitFor(() =>
       expect(createInstrumentMetadata).toHaveBeenCalledWith(
         "CCC",
@@ -131,6 +129,8 @@ describe("InstrumentAdmin page", () => {
         expect.objectContaining({ grouping: "Income" }),
       ),
     );
+
+    expect(updateInstrumentMetadata).not.toHaveBeenCalled();
   });
 });
 

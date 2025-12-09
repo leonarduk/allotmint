@@ -5,6 +5,14 @@ pipeline {
     string(name: 'AI_INSTRUCTION',
            defaultValue: 'Refactor backend logging',
            description: 'Describe what you want the AI to do')
+
+        // Add a string parameter for target paths
+        string(
+            name: 'TARGET_PATHS',
+            defaultValue: 'frontend',
+            description: 'Directories to include in AI context (e.g. frontend, backend, frontend/src)'
+        )
+
   }
 
   environment {
@@ -15,7 +23,6 @@ pipeline {
     LM_API_BASE = 'http://host.docker.internal:1234'
     MODEL_NAME  = 'Qwen2.5-Coder'
     OUTPUT_MODE = 'patch'  // or 'file'
-    TARGET_PATHS = 'backend frontend/src'
     PROMPT_FILE = '.ci/prompt.md'
     
     // Branch naming
@@ -91,11 +98,12 @@ pipeline {
           
           chmod +x .ci/ai_apply.sh
           
-          MODEL_NAME="${MODEL_NAME}" \
-          LM_API_BASE="${LM_API_BASE}" \
-          OUTPUT_MODE="${OUTPUT_MODE}" \
-          TARGET_PATHS="${TARGET_PATHS}" \
-          PROMPT_FILE="${PROMPT_FILE}" \
+              MODEL_NAME="$MODEL_NAME" \
+              LM_API_BASE="$LM_API_BASE" \
+              OUTPUT_MODE="$OUTPUT_MODE" \
+              TARGET_PATHS="$TARGET_PATHS" \
+              PROMPT_FILE="$PROMPT_FILE" \
+
             ./.ci/ai_apply.sh
         '''
       }

@@ -121,3 +121,33 @@ chunk_recent_changes() {
   echo "=== Chunking recent changes only ==="
   chunk_file="$WORK_DIR/.ci/chunk_recent.txt"
   : > "$chunk_file"
+  git diff --name-only HEAD~"$NUM_COMMITS"..HEAD | grep -E '\.(py|ts|tsx|js|jsx)$' | while read file; do
+    if [ -f "$file" ]; then
+      echo "=== BEGIN $file ===" >> "$chunk_file"
+      cat "$file" >> "$chunk_file"
+      echo "\n=== END $file ===\n" >> "$chunk_file"
+    fi
+  done
+  if [ -s "$chunk_file" ]; then
+    process_chunk "recent" "$chunk_file"
+  else
+    echo "No recent changes found, falling back to size-based chunking"
+    chunk_by_directory
+  fi
+  rm -f "$chunk_file"
+}
+
+# === Main Execution ===
+case "$CHUNK_STRATEGY" in
+  directory) chunk_by_directory ;;
+  recent) chunk_recent_changes ;;
+  *) echo "Unknown strategy: $CHUNK_STRATEGY"; exit 1 ;;
+esac
+
+if [ "$OUTPUT_MODE" = "file" ]; then
+  echo "=== Merging AI outputs ==="
+  cat "$WORK_DIR"/.ci/ai_output_*.txt > "$AI_OUTPUT_FILE" 2>/dev/null || touch "$AI_OUTPUT_FILE"
+  echo "Merged output saved to $AI_OUTPUT_FILE"
+fi
+
+echo "=== Complete ==="

@@ -76,12 +76,14 @@ pipeline {
       }
     }
 
+
     stage('AI Code Generation') {
       steps {
         sh '''
           echo "=== Starting AI code generation with chunked strategy ==="
           chmod +x .ci/ai_apply_chunked.sh
 
+          # Run script with Bash to support arrays and advanced syntax
           MODEL_NAME="$MODEL_NAME" \
           LM_API_BASE="$LM_API_BASE" \
           OUTPUT_MODE="$OUTPUT_MODE" \
@@ -91,7 +93,7 @@ pipeline {
           CHUNK_STRATEGY="$CHUNK_STRATEGY" \
           MAX_CONTEXT_LINES="$MAX_CONTEXT_LINES" \
           NUM_COMMITS="$NUM_COMMITS" \
-            ./.ci/ai_apply_chunked.sh
+            bash .ci/ai_apply_chunked.sh
         '''
       }
     }

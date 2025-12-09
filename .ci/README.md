@@ -1,149 +1,131 @@
-# AI Dev Build Setup for allotmint
+# AI Dev Build - Quick Reference
 
-## Current Status
-✅ Scripts configured for your project structure  
-✅ Jenkinsfile.ai updated with correct repo URL  
-✅ Validation script adapted for Python + Node.js monorepo  
-✅ Prompt template customized for allotmint
+## Chunking Strategies
 
-## Prerequisites Checklist
+### 1. **recent** (Default - Recommended)
+- Analyzes only files changed in last N commits (default: 10)
+- **Use when:** You want to improve recent work
+- **Pros:** Fast, focused, fits in context easily
+- **Cons:** Might miss related files not recently changed
 
-### On Jenkins Node
-- [ ] LM Studio running with local server enabled (default: http://localhost:1234)
-- [ ] Model loaded (e.g., Qwen2.5-Coder or similar code-capable model)
-- [ ] Jenkins has access to: `git`, `gh` (GitHub CLI), `jq`, `curl`
-- [ ] Jenkins has access to: `python3`, `pip`, `node`, `npm`
-- [ ] GitHub credentials configured in Jenkins as 'GITHUB_TOKEN'
+### 2. **size**
+- Packs files into chunks by size, small files first
+- **Use when:** You want comprehensive analysis but need even token distribution
+- **Pros:** Efficient packing, processes entire codebase
+- **Cons:** Unrelated files grouped together, less context coherence
 
-### GitHub Setup
-- [ ] Personal Access Token (PAT) with repo permissions
-- [ ] Token added to Jenkins credentials as 'GITHUB_TOKEN'
-- [ ] gh CLI authenticated on Jenkins node
+### 3. **directory**
+- Processes each directory as a separate chunk
+- **Use when:** Your code is well-organized by module/feature
+- **Pros:** Maintains logical context, good for modular codebases
+- **Cons:** Large directories might exceed token limits
 
-## Jenkins Job Configuration
+### 4. **filetype**
+- Groups by extension (.py, .ts, etc.)
+- **Use when:** You want to apply language-specific improvements
+- **Pros:** Consistent changes across one language
+- **Cons:** Loses cross-file context
 
-1. **Create new Pipeline job** in Jenkins
-2. **Name it**: `allotmint-ai-dev-build` (or similar)
-3. **Pipeline section**:
-   - Definition: `Pipeline script from SCM`
-   - SCM: `Git`
-   - Repository URL: `https://github.com/leonarduk/allotmint.git`
-   - Credentials: Select your `GITHUB_TOKEN`
-   - Branch: `*/main`
-   - Script Path: `.ci/Jenkinsfile.ai`
-4. **Build Triggers**: Leave empty (manual only)
-5. **Save**
+## Configuration
 
-## How to Use
+### Environment Variables (set in Jenkinsfile.ai or shell)
 
-### Manual Trigger
-1. Go to Jenkins job
-2. Click "Build Now"
-3. Watch the pipeline stages:
-   - Checkout code
-   - Verify LM Studio is accessible
-   - Create AI branch (ai-changes-XXX)
-   - Call LM Studio to generate improvements
-   - Run validation (tests + linting)
-   - Commit changes
-   - Push branch
-   - Create PR
+```bash
+# Required
+LM_API_BASE="http://localhost:1234"      # Your LM Studio endpoint
+MODEL_NAME="Qwen2.5-Coder"               # Model name in LM Studio
 
-### Customizing AI Behavior
+# Chunking (optional)
+CHUNK_STRATEGY="recent"                   # recent|size|directory|filetype
+MAX_CONTEXT_LINES="800"                   # Lines per chunk (~20-25k tokens)
+NUM_COMMITS="10"                          # For 'recent' strategy
 
-**Edit `.ci/prompt.md`** to change what the AI focuses on:
-- Add specific files to modify
-- Request particular improvements (performance, security, etc.)
-- Set constraints
-
-**Environment variables** in Jenkinsfile.ai:
-```groovy
-MODEL_NAME = 'Qwen2.5-Coder'      // Your LM Studio model
-LM_API_BASE = 'http://localhost:1234'  // LM Studio URL
-OUTPUT_MODE = 'patch'             // or 'file'
-TARGET_PATHS = 'backend frontend/src'  // Directories to scan
+# Output (optional)
+OUTPUT_MODE="patch"                       # patch|file
+TARGET_PATHS="backend frontend/src"       # Paths to analyze
 ```
+
+## Token Estimation
+
+- **1 line ≈ 25-30 tokens** (average)
+- **32k context** ≈ 1000-1200 lines of code
+- **Safe chunk size:** 800 lines (leaves room for prompt + response)
+
+## Running Locally
+
+### Test chunking without LM Studio:
+```bash
+cd /path/to/allotmint
+export CHUNK_STRATEGY=recent
+export MAX_CONTEXT_LINES=800
+export TARGET_PATHS="backend/routes frontend/src/components"
+
+# Dry run - just build chunks, don't call API
+.ci/ai_apply.sh
+ls -lh .ci/chunk_*.txt
+```
+
+### Run with LM Studio:
+```bash
+# Make sure LM Studio is running on localhost:1234
+export LM_API_BASE="http://localhost:1234"
+export MODEL_NAME="Qwen2.5-Coder"
+export CHUNK_STRATEGY=recent
+
+.ci/ai_apply.sh
+```
+
+## Jenkins Parameters
+
+When you trigger "Build with Parameters" in Jenkins:
+
+| Parameter | Options | Description |
+|-----------|---------|-------------|
+| CHUNK_STRATEGY | recent, size, directory, filetype | How to split code |
+| MAX_CONTEXT_LINES | 800 (default) | Lines per chunk |
+| NUM_COMMITS | 10 (default) | For "recent" strategy only |
 
 ## Troubleshooting
 
-### "Cannot reach LM Studio"
-- Ensure LM Studio is running on the Jenkins node
-- Check "Local Server" is enabled in LM Studio
-- Verify the port (default 1234)
-- Test: `curl http://localhost:1234/v1/models`
+### "Chunk may exceed model context window"
+- Reduce MAX_CONTEXT_LINES (try 600 or 400)
+- Use 'recent' strategy to analyze fewer files
+- Target specific paths: `TARGET_PATHS="backend/routes"`
 
-### "gh: command not found"
-Install GitHub CLI on Jenkins node:
-```bash
-# Debian/Ubuntu
-sudo apt install gh
+### "No files found to process"
+- Check TARGET_PATHS points to actual directories
+- Verify file extensions match: .py, .ts, .tsx, .js, .jsx
 
-# RHEL/CentOS
-sudo yum install gh
-
-# Or download from: https://github.com/cli/cli/releases
-```
-
-### "Validation failed"
-Check which stage failed:
-- **Backend tests**: Check Python dependencies in `backend/requirements.txt`
-- **Frontend tests**: Check Node modules, might need `cd frontend && npm ci`
-- **Linting**: Review ESLint/Ruff errors
+### "Patch failed"
+- Model might not be generating valid diffs
+- Try OUTPUT_MODE="file" (less reliable but more forgiving)
+- Improve prompt.md to be more explicit about patch format
 
 ### "PR creation failed"
-- Verify `gh auth status` on Jenkins node
-- Check GitHub token has `repo` scope
-- Ensure token isn't expired
+- Check `gh auth status` on Jenkins node
+- Verify GITHUB_TOKEN credential exists in Jenkins
+- Ensure token has repo write permissions
 
-### "No changes detected"
-The AI might not have found anything to improve. Try:
-- Being more specific in `.ci/prompt.md`
-- Adjusting the temperature in `ai_apply.sh`
-- Checking `.ci/ai_output.txt` to see what the model generated
+## Best Practices
 
-## File Structure
-```
-.ci/
-├── Jenkinsfile.ai    # AI dev pipeline
-├── ai_apply.sh       # Calls LM Studio and applies changes
-├── validate.sh       # Runs tests and linting
-├── prompt.md         # Instructions for the AI model
-├── context.txt       # Generated: code sent to AI
-└── ai_output.txt     # Generated: AI response
-```
+1. **Start small:** Use `recent` strategy with last 5 commits
+2. **Iterate:** Run multiple times with different chunks
+3. **Review:** Always review the PR before merging
+4. **Tune prompts:** Adjust `.ci/prompt.md` for your needs
+5. **Monitor tokens:** Check `.ci/chunk_*.txt` sizes before processing
 
-## Next Steps
+## Example Workflow
 
-1. **Test the pipeline**: Run it once manually to verify everything works
-2. **Tune the prompt**: Adjust `.ci/prompt.md` for your specific needs
-3. **Set limits**: Consider limiting files processed to avoid timeout
-4. **Add approval gate**: Uncomment the approval stage if you want manual review before PR creation
+```bash
+# 1. Recent changes only (safest)
+CHUNK_STRATEGY=recent NUM_COMMITS=5 .ci/ai_apply.sh
 
-## Advanced Options
+# 2. Specific module
+CHUNK_STRATEGY=directory TARGET_PATHS="backend/routes" .ci/ai_apply.sh
 
-### Limit to specific files
-In Jenkinsfile.ai, change:
-```groovy
-TARGET_PATHS = 'backend/routes backend/utils frontend/src/components'
-```
+# 3. All Python files
+CHUNK_STRATEGY=filetype TARGET_PATHS="backend" .ci/ai_apply.sh
 
-### Use file replacement instead of patches
-In Jenkinsfile.ai, change:
-```groovy
-OUTPUT_MODE = 'file'  // AI returns complete file contents
-```
-
-### Reduce context size
-In `ai_apply.sh`, modify the find command to include only certain file types or limit depth.
-
-### Add manual approval
-Add this stage before "Create Pull Request":
-```groovy
-stage('Approval Gate') {
-  steps {
-    timeout(time: 10, unit: 'MINUTES') {
-      input message: 'Review changes. Create PR?', ok: 'Proceed'
-    }
-  }
-}
+# 4. Full repo (many chunks)
+CHUNK_STRATEGY=size MAX_CONTEXT_LINES=600 .ci/ai_apply.sh
 ```

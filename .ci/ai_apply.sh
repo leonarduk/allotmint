@@ -11,6 +11,7 @@ EXTRA_INSTRUCTION="${EXTRA_INSTRUCTION:-}"  # Jenkins parameter override
 WORK_DIR="$(pwd)"
 CONTEXT_FILE="${WORK_DIR}/.ci/context.txt"
 COMBINED_FILE="${WORK_DIR}/.ci/full_prompt.txt"
+REQUEST_FILE="${WORK_DIR}/.ci/request.json"
 AI_OUTPUT_FILE="${WORK_DIR}/.ci/ai_output.txt"
 
 echo "=== Building context from: ${TARGET_PATHS} ==="
@@ -54,16 +55,17 @@ echo "Context built: $(wc -l < "${CONTEXT_FILE}") lines"
 
 echo "=== Preparing LM Studio request ==="
 
-REQUEST_PAYLOAD=$(jq -n \
+jq -n \
   --arg model "${MODEL_NAME}" \
   --rawfile prompt "${COMBINED_FILE}" \
-  '{model: $model, prompt: $prompt, temperature: 0.2, max_tokens: 4000}')
+  '{model: $model, prompt: $prompt, temperature: 0.2, max_tokens: 4000}' \
+  > "${REQUEST_FILE}"
 
 # Call LM Studio API
 echo "=== Calling LM Studio at ${LM_API_BASE} ==="
 HTTP_CODE=$(curl -sS -w "%{http_code}" -o "${AI_OUTPUT_FILE}.raw" -X POST "${LM_API_BASE}/v1/completions" \
   -H "Content-Type: application/json" \
-  -d "${REQUEST_PAYLOAD}")
+  --data @"${REQUEST_FILE}")
 
 if [ "${HTTP_CODE}" != "200" ]; then
   echo "Error: LM Studio API returned HTTP ${HTTP_CODE}"

@@ -49,3 +49,4 @@ backend.log
 /tests/.coverage
 /.coverage
 /.coveragerc
+/coverage/

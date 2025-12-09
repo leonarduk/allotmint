@@ -12,7 +12,7 @@ pipeline {
     GITHUB_TOKEN = credentials('GITHUB_TOKEN')
     
     // LM Studio configuration
-    LM_API_BASE = 'http://localhost:1234'
+    LM_API_BASE = 'http://host.docker.internal:1234'
     MODEL_NAME  = 'Qwen2.5-Coder'
     OUTPUT_MODE = 'patch'  // or 'file'
     TARGET_PATHS = 'backend frontend/src'

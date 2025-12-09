@@ -10,6 +10,7 @@ EXTRA_INSTRUCTION="${EXTRA_INSTRUCTION:-}"  # Jenkins parameter override
 
 WORK_DIR="$(pwd)"
 CONTEXT_FILE="${WORK_DIR}/.ci/context.txt"
+COMBINED_FILE="${WORK_DIR}/.ci/full_prompt.txt"
 AI_OUTPUT_FILE="${WORK_DIR}/.ci/ai_output.txt"
 
 echo "=== Building context from: ${TARGET_PATHS} ==="
@@ -25,8 +26,6 @@ for path in ${TARGET_PATHS}; do
   fi
 
   echo "Scanning ${path}..."
-
-  # Find Python and TypeScript/JavaScript files
   find "${path}" -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) \
     -not -path "*/node_modules/*" \
     -not -path "*/.venv/*" \
@@ -44,21 +43,20 @@ fi
 
 echo "Context built: $(wc -l < "${CONTEXT_FILE}") lines"
 
-# Compose request
-echo "=== Preparing LM Studio request ==="
-PROMPT_CONTENT=$(cat "${PROMPT_FILE}")
-CONTEXT_CONTENT=$(cat "${CONTEXT_FILE}")
+# Compose combined prompt file
+{
+  cat "${PROMPT_FILE}"
+  if [ -n "${EXTRA_INSTRUCTION}" ]; then
+    echo -e "\n\nUser instruction: ${EXTRA_INSTRUCTION}"
+  fi
+  cat "${CONTEXT_FILE}"
+} > "${COMBINED_FILE}"
 
-# Merge baseline prompt + Jenkins parameter + code context
-FULL_PROMPT="${PROMPT_CONTENT}"
-if [ -n "${EXTRA_INSTRUCTION}" ]; then
-  FULL_PROMPT="${FULL_PROMPT}\n\nUser instruction: ${EXTRA_INSTRUCTION}"
-fi
-FULL_PROMPT="${FULL_PROMPT}\n\n${CONTEXT_CONTENT}"
+echo "=== Preparing LM Studio request ==="
 
 REQUEST_PAYLOAD=$(jq -n \
   --arg model "${MODEL_NAME}" \
-  --arg prompt "${FULL_PROMPT}" \
+  --rawfile prompt "${COMBINED_FILE}" \
   '{model: $model, prompt: $prompt, temperature: 0.2, max_tokens: 4000}')
 
 # Call LM Studio API
@@ -93,14 +91,12 @@ if [[ "${OUTPUT_MODE}" == "patch" ]]; then
   fi
 else
   echo "=== Applying as file replacements ==="
-  # Parse for file markers and overwrite files
-  # Format: "=== BEGIN path === ... === END path ==="
   awk '
     /^=== BEGIN / {
       inblock=1
       file=$3
       sub(/===/, "", file)
-      gsub(/^[ \t]+|[ \t]+$/, "", file)  # trim whitespace
+      gsub(/^[ \t]+|[ \t]+$/, "", file)
       next
     }
     /^=== END / {

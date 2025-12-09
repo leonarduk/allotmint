@@ -13,11 +13,11 @@
 - [ ] Model loaded (e.g., Qwen2.5-Coder or similar code-capable model)
 - [ ] Jenkins has access to: `git`, `gh` (GitHub CLI), `jq`, `curl`
 - [ ] Jenkins has access to: `python3`, `pip`, `node`, `npm`
-- [ ] GitHub credentials configured in Jenkins as 'github_pat'
+- [ ] GitHub credentials configured in Jenkins as 'GITHUB_TOKEN'
 
 ### GitHub Setup
 - [ ] Personal Access Token (PAT) with repo permissions
-- [ ] Token added to Jenkins credentials as 'github_pat'
+- [ ] Token added to Jenkins credentials as 'GITHUB_TOKEN'
 - [ ] gh CLI authenticated on Jenkins node
 
 ## Jenkins Job Configuration
@@ -28,7 +28,7 @@
    - Definition: `Pipeline script from SCM`
    - SCM: `Git`
    - Repository URL: `https://github.com/leonarduk/allotmint.git`
-   - Credentials: Select your `github_pat`
+   - Credentials: Select your `GITHUB_TOKEN`
    - Branch: `*/main`
    - Script Path: `.ci/Jenkinsfile.ai`
 4. **Build Triggers**: Leave empty (manual only)

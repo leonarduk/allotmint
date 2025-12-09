@@ -1,6 +1,12 @@
 pipeline {
   agent any
 
+  parameters {
+    string(name: 'AI_INSTRUCTION',
+           defaultValue: 'Refactor backend logging',
+           description: 'Describe what you want the AI to do')
+  }
+
   environment {
     // GitHub credentials
     GITHUB_TOKEN = credentials('GITHUB_TOKEN')

@@ -6,6 +6,8 @@ LM_API_BASE="${LM_API_BASE:-http://localhost:1234}"
 OUTPUT_MODE="${OUTPUT_MODE:-file}" # "file" or "patch"
 TARGET_PATHS="${TARGET_PATHS:-backend frontend/src}"  # Updated for your project structure
 PROMPT_FILE="${PROMPT_FILE:-.ci/prompt.md}"
+EXTRA_INSTRUCTION="${EXTRA_INSTRUCTION:-}"  # Jenkins parameter override
+
 WORK_DIR="$(pwd)"
 CONTEXT_FILE="${WORK_DIR}/.ci/context.txt"
 AI_OUTPUT_FILE="${WORK_DIR}/.ci/ai_output.txt"
@@ -21,14 +23,17 @@ for path in ${TARGET_PATHS}; do
     echo "Warning: ${path} does not exist, skipping"
     continue
   fi
-  
+
   echo "Scanning ${path}..."
-  
+
   # Find Python and TypeScript/JavaScript files
-  find "${path}" -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) -not -path "*/node_modules/*" -not -path "*/.venv/*" -not -path "*/__pycache__/*" | while read -r file; do
-    echo "=== BEGIN ${file} ===" >> "${CONTEXT_FILE}"
-    cat "${file}" >> "${CONTEXT_FILE}"
-    echo -e "\n=== END ${file} ===\n" >> "${CONTEXT_FILE}"
+  find "${path}" -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \) \
+    -not -path "*/node_modules/*" \
+    -not -path "*/.venv/*" \
+    -not -path "*/__pycache__/*" | while read -r file; do
+      echo "=== BEGIN ${file} ===" >> "${CONTEXT_FILE}"
+      cat "${file}" >> "${CONTEXT_FILE}"
+      echo -e "\n=== END ${file} ===\n" >> "${CONTEXT_FILE}"
   done
 done
 
@@ -44,9 +49,16 @@ echo "=== Preparing LM Studio request ==="
 PROMPT_CONTENT=$(cat "${PROMPT_FILE}")
 CONTEXT_CONTENT=$(cat "${CONTEXT_FILE}")
 
+# Merge baseline prompt + Jenkins parameter + code context
+FULL_PROMPT="${PROMPT_CONTENT}"
+if [ -n "${EXTRA_INSTRUCTION}" ]; then
+  FULL_PROMPT="${FULL_PROMPT}\n\nUser instruction: ${EXTRA_INSTRUCTION}"
+fi
+FULL_PROMPT="${FULL_PROMPT}\n\n${CONTEXT_CONTENT}"
+
 REQUEST_PAYLOAD=$(jq -n \
   --arg model "${MODEL_NAME}" \
-  --arg prompt "${PROMPT_CONTENT}\n\n${CONTEXT_CONTENT}" \
+  --arg prompt "${FULL_PROMPT}" \
   '{model: $model, prompt: $prompt, temperature: 0.2, max_tokens: 4000}')
 
 # Call LM Studio API
@@ -84,14 +96,14 @@ else
   # Parse for file markers and overwrite files
   # Format: "=== BEGIN path === ... === END path ==="
   awk '
-    /^=== BEGIN / { 
+    /^=== BEGIN / {
       inblock=1
       file=$3
       sub(/===/, "", file)
       gsub(/^[ \t]+|[ \t]+$/, "", file)  # trim whitespace
       next
     }
-    /^=== END / { 
+    /^=== END / {
       inblock=0
       close(file)
       if (file != "") {
@@ -99,7 +111,7 @@ else
       }
       next
     }
-    inblock { 
+    inblock {
       if (file != "") {
         print > file
       }

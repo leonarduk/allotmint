@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  backend:
+    image: python:3.11
+    container_name: allotmint-backend
+    working_dir: /app
+    volumes:
+      - ../:/app
+      - C:/Users/steph/workspace/GitHub/allotmint-data:/app/data
+    ports:
+      - "8000:8000"
+    command: bash -c "pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install jinja2 python-multipart && python -m backend.app"
+    environment:
+      - DISABLE_AUTH=true
+      - ACCOUNTS_ROOT=/app/data
+    restart: unless-stopped
+    networks:
+      - allotmint
+
+  frontend:
+    image: node:20
+    container_name: allotmint-frontend
+    working_dir: /app
+    volumes:
+      - ../frontend:/app
+    ports:
+      - "3000:3000"
+    command: bash -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    restart: unless-stopped
+    networks:
+      - allotmint
+    depends_on:
+      - backend
+
+networks:
+  allotmint:
+    driver: bridge

@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/leonarduk/allotmint.git',
+                        credentialsId: 'GITHUB_TOKEN'
+                    ]]
+                ])
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                script {
+                    bat 'if not exist "C:\\Users\\steph\\workspace\\GitHub\\allotmint-data" mkdir "C:\\Users\\steph\\workspace\\GitHub\\allotmint-data"'
+                    bat 'docker-compose down'
+                    bat 'docker-compose up -d'
+                    bat 'timeout /t 15 /nobreak'
+                    bat 'docker-compose ps'
+                    bat 'curl http://localhost:8000/health || echo Backend not ready yet'
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo '════════════════════════════════════════'
+            echo 'Deployment successful!'
+            echo '════════════════════════════════════════'
+            echo 'Backend:  http://localhost:8000'
+            echo 'Frontend: http://localhost:3000'
+            echo 'API Docs: http://localhost:8000/docs'
+            echo 'Data dir: C:\\Users\\steph\\workspace\\GitHub\\allotmint-data'
+            echo '════════════════════════════════════════'
+        }
+        failure {
+            echo 'Deployment failed!'
+            echo 'Check logs: docker-compose logs'
+        }
+    }
+}

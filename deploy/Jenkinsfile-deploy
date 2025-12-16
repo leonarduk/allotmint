@@ -19,10 +19,10 @@ pipeline {
             steps {
                 script {
                     sh 'mkdir -p /c/Users/steph/workspace/GitHub/allotmint-data'
-                    sh 'docker-compose down || true'
-                    sh 'docker-compose up -d'
+                    sh 'docker compose down || true'
+                    sh 'docker compose up -d'
                     sh 'sleep 15'
-                    sh 'docker-compose ps'
+                    sh 'docker compose ps'
                     sh 'curl http://localhost:8000/health || echo Backend not ready yet'
                 }
             }

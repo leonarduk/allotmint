@@ -18,12 +18,12 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    bat 'if not exist "C:\\Users\\steph\\workspace\\GitHub\\allotmint-data" mkdir "C:\\Users\\steph\\workspace\\GitHub\\allotmint-data"'
-                    bat 'docker-compose down'
-                    bat 'docker-compose up -d'
-                    bat 'timeout /t 15 /nobreak'
-                    bat 'docker-compose ps'
-                    bat 'curl http://localhost:8000/health || echo Backend not ready yet'
+                    sh 'mkdir -p /c/Users/steph/workspace/GitHub/allotmint-data'
+                    sh 'docker-compose down || true'
+                    sh 'docker-compose up -d'
+                    sh 'sleep 15'
+                    sh 'docker-compose ps'
+                    sh 'curl http://localhost:8000/health || echo Backend not ready yet'
                 }
             }
         }

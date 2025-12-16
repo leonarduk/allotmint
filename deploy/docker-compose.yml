@@ -7,7 +7,7 @@ services:
     working_dir: /app
     volumes:
       - ../:/app
-      - C:/Users/steph/workspace/GitHub/allotmint-data:/app/data
+      - /c/Users/steph/workspace/GitHub/allotmint-data:/app/data
     ports:
       - "8000:8000"
     command: bash -c "pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install jinja2 python-multipart && python -m backend.app"

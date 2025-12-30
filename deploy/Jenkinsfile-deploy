@@ -19,6 +19,17 @@ pipeline {
             }
         }
 
+        stage('Build') {
+            steps {
+                script {
+                    dir('deploy') {
+                        echo 'Building Docker images...'
+                        sh 'docker compose build --no-cache'
+                    }
+                }
+            }
+        }
+
         stage('Deploy') {
             steps {
                 script {
@@ -26,10 +37,10 @@ pipeline {
                         sh 'docker compose down || true'
                         sh 'docker compose up -d'
                         
-                        // Wait for containers to be running (not restarting)
+                        echo 'Waiting for services to be healthy...'
                         sh '''
-                            echo "Waiting for containers to be healthy..."
-                            for i in {1..30}; do
+                            i=1
+                            while [ $i -le 30 ]; do
                                 if docker compose ps | grep -q "Restarting"; then
                                     echo "Containers still restarting, waiting... ($i/30)"
                                     sleep 2
@@ -43,10 +54,10 @@ pipeline {
                                     docker compose logs --tail=50
                                     exit 1
                                 fi
+                                i=$((i + 1))
                             done
                         '''
                         
-                        // Verify containers are actually up
                         sh '''
                             if ! docker compose ps | grep -E "allotmint-backend.*Up"; then
                                 echo "Backend container not running!"
@@ -63,18 +74,20 @@ pipeline {
                         sh 'docker compose ps'
                     }
                     
-                    // Health check that actually fails on error
+                    echo 'Waiting for backend to be healthy...'
                     sh '''
-                        echo "Checking backend health..."
-                        for i in {1..10}; do
-                            if curl -f http://localhost:8000/health; then
+                        i=1
+                        while [ $i -le 20 ]; do
+                            if curl -f http://localhost:8000/health 2>/dev/null; then
                                 echo "Backend is healthy!"
                                 exit 0
                             fi
-                            echo "Backend not ready, attempt $i/10"
-                            sleep 3
+                            echo "Backend not ready, attempt $i/20"
+                            sleep 5
+                            i=$((i + 1))
                         done
-                        echo "Backend health check failed after 30 seconds"
+                        echo "Backend health check failed after 100 seconds"
+                        cd deploy && docker compose logs backend --tail=50
                         exit 1
                     '''
                 }

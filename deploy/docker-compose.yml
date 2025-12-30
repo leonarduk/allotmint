@@ -1,38 +1,45 @@
 services:
 
   backend:
-    image: python:3.11
+    build:
+      context: /c/Users/steph/workspace/GitHub/allotmint/backend
+      dockerfile: Dockerfile
+    image: allotmint-backend:latest
     container_name: allotmint-backend
-    working_dir: /app
     volumes:
-      - /c/Users/steph/workspace/GitHub/allotmint/backend:/app
+      # Mount only data directory, not the code
       - /c/Users/steph/workspace/GitHub/allotmint-data:/app/data
     ports:
       - "8000:8000"
-    command: bash -c "pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install jinja2 python-multipart && python -m app"
     environment:
       - DISABLE_AUTH=true
       - ACCOUNTS_ROOT=/app/data
     restart: unless-stopped
     networks:
       - allotmint
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   frontend:
-    image: node:20
+    build:
+      context: /c/Users/steph/workspace/GitHub/allotmint/frontend
+      dockerfile: Dockerfile
+    image: allotmint-frontend:latest
     container_name: allotmint-frontend
-    working_dir: /app
-    volumes:
-      - /c/Users/steph/workspace/GitHub/allotmint/frontend:/app
     ports:
       - "3000:3000"
-    command: bash -c "npm ci && npm run dev -- --host 0.0.0.0"
     environment:
       - VITE_API_URL=http://localhost:8000
     restart: unless-stopped
     networks:
       - allotmint
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 networks:
   allotmint:

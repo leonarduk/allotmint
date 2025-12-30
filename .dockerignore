@@ -6,7 +6,7 @@ tests/
 docs/
 cdk/
 infra/
-scripts/
+# Note: scripts/ is NOT excluded because backend imports from it
 *.md
 *.ps1
 *.sh

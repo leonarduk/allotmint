@@ -1,9 +1,7 @@
-
 pipeline {
     agent any
 
     environment {
-        // Use Docker Desktop TCP endpoint
         DOCKER_HOST = 'tcp://host.docker.internal:2375'
     }
 
@@ -27,10 +25,58 @@ pipeline {
                     dir('deploy') {
                         sh 'docker compose down || true'
                         sh 'docker compose up -d'
-                        sh 'sleep 15'
+                        
+                        // Wait for containers to be running (not restarting)
+                        sh '''
+                            echo "Waiting for containers to be healthy..."
+                            for i in {1..30}; do
+                                if docker compose ps | grep -q "Restarting"; then
+                                    echo "Containers still restarting, waiting... ($i/30)"
+                                    sleep 2
+                                else
+                                    echo "Containers no longer restarting"
+                                    break
+                                fi
+                                if [ $i -eq 30 ]; then
+                                    echo "Containers failed to stabilize"
+                                    docker compose ps
+                                    docker compose logs --tail=50
+                                    exit 1
+                                fi
+                            done
+                        '''
+                        
+                        // Verify containers are actually up
+                        sh '''
+                            if ! docker compose ps | grep -E "allotmint-backend.*Up"; then
+                                echo "Backend container not running!"
+                                docker compose logs backend
+                                exit 1
+                            fi
+                            if ! docker compose ps | grep -E "allotmint-frontend.*Up"; then
+                                echo "Frontend container not running!"
+                                docker compose logs frontend
+                                exit 1
+                            fi
+                        '''
+                        
                         sh 'docker compose ps'
                     }
-                    sh 'curl http://localhost:8000/health || echo Backend not ready yet'
+                    
+                    // Health check that actually fails on error
+                    sh '''
+                        echo "Checking backend health..."
+                        for i in {1..10}; do
+                            if curl -f http://localhost:8000/health; then
+                                echo "Backend is healthy!"
+                                exit 0
+                            fi
+                            echo "Backend not ready, attempt $i/10"
+                            sleep 3
+                        done
+                        echo "Backend health check failed after 30 seconds"
+                        exit 1
+                    '''
                 }
             }
         }
@@ -48,8 +94,13 @@ pipeline {
             echo '════════════════════════════════════════'
         }
         failure {
-            echo 'Deployment failed!'
-            echo 'Check logs: docker-compose logs'
+            echo '════════════════════════════════════════'
+            echo 'Deployment FAILED!'
+            echo '════════════════════════════════════════'
+            dir('deploy') {
+                sh 'docker compose ps || true'
+                sh 'docker compose logs --tail=100 || true'
+            }
         }
     }
 }

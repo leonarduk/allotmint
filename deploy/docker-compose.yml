@@ -1,16 +1,17 @@
 version: '3.8'
 
 services:
+
   backend:
     image: python:3.11
     container_name: allotmint-backend
     working_dir: /app
     volumes:
-      - ../:/app
+      - ../backend:/app
       - /var/jenkins_home/workspace/GitHub/Allotmint/Allotmint - deploy/data:/app/data
     ports:
       - "8000:8000"
-    command: bash -c "pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install jinja2 python-multipart && python -m backend.app"
+    command: bash -c "pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install jinja2 python-multipart && python -m app"
     environment:
       - DISABLE_AUTH=true
       - ACCOUNTS_ROOT=/app/data

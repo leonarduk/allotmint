@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
 
   backend:
@@ -7,8 +5,8 @@ services:
     container_name: allotmint-backend
     working_dir: /app
     volumes:
-      - ../backend:/app
-      - /var/jenkins_home/workspace/GitHub/Allotmint/Allotmint - deploy/data:/app/data
+      - /c/Users/steph/workspace/GitHub/allotmint/backend:/app
+      - /c/Users/steph/workspace/GitHub/allotmint-data:/app/data
     ports:
       - "8000:8000"
     command: bash -c "pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install jinja2 python-multipart && python -m app"
@@ -24,7 +22,7 @@ services:
     container_name: allotmint-frontend
     working_dir: /app
     volumes:
-      - ../frontend:/app
+      - /c/Users/steph/workspace/GitHub/allotmint/frontend:/app
     ports:
       - "3000:3000"
     command: bash -c "npm ci && npm run dev -- --host 0.0.0.0"

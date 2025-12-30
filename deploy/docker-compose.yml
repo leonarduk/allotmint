@@ -2,8 +2,8 @@ services:
 
   backend:
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..  # Build from repo root to access both backend and scripts
+      dockerfile: backend/Dockerfile
     image: allotmint-backend:latest
     container_name: allotmint-backend
     volumes:

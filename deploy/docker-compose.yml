@@ -9,11 +9,16 @@ services:
     volumes:
       # Mount external data directory where backend expects it
       - ../../allotmint-data:/workspace/backend/data
+      # Mount config file
+      - ../config.yaml:/workspace/backend/config.yaml:ro
     ports:
       - "8000:8000"
     environment:
       - DISABLE_AUTH=true
       - ACCOUNTS_ROOT=/workspace/backend/data
+      - TIMESERIES_CACHE_BASE=/workspace/backend/data/timeseries
+      - DATA_ROOT=/workspace/backend/data
+      - APP_ENV=local
     restart: unless-stopped
     networks:
       - allotmint

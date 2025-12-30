@@ -2,18 +2,18 @@ services:
 
   backend:
     build:
-      context: /c/Users/steph/workspace/GitHub/allotmint/backend
+      context: ../backend
       dockerfile: Dockerfile
     image: allotmint-backend:latest
     container_name: allotmint-backend
     volumes:
-      # Mount only data directory, not the code
-      - /c/Users/steph/workspace/GitHub/allotmint-data:/app/data
+      # Mount external data directory where backend expects it
+      - ../../allotmint-data:/workspace/backend/data
     ports:
       - "8000:8000"
     environment:
       - DISABLE_AUTH=true
-      - ACCOUNTS_ROOT=/app/data
+      - ACCOUNTS_ROOT=/workspace/backend/data
     restart: unless-stopped
     networks:
       - allotmint
@@ -26,12 +26,12 @@ services:
 
   frontend:
     build:
-      context: /c/Users/steph/workspace/GitHub/allotmint/frontend
+      context: ../frontend
       dockerfile: Dockerfile
     image: allotmint-frontend:latest
     container_name: allotmint-frontend
     ports:
-      - "3000:3000"
+      - "3000:5173"
     environment:
       - VITE_API_URL=http://localhost:8000
     restart: unless-stopped

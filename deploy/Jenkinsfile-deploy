@@ -1,6 +1,12 @@
+
 pipeline {
     agent any
-    
+
+    environment {
+        // Use Docker Desktop TCP endpoint
+        DOCKER_HOST = 'tcp://localhost:2375'
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -14,7 +20,7 @@ pipeline {
                 ])
             }
         }
-        
+
         stage('Deploy') {
             steps {
                 script {
@@ -29,7 +35,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         success {
             echo '════════════════════════════════════════'

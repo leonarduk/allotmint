@@ -71,25 +71,19 @@ pipeline {
                             fi
                         '''
                         
+                        echo 'Verifying backend health status...'
+                        sh '''
+                            if docker compose ps | grep -E "allotmint-backend.*(healthy)"; then
+                                echo "Backend is healthy!"
+                            else
+                                echo "Backend health check did not pass"
+                                docker compose logs backend --tail=50
+                                exit 1
+                            fi
+                        '''
+                        
                         sh 'docker compose ps'
                     }
-                    
-                    echo 'Waiting for backend to be healthy...'
-                    sh '''
-                        i=1
-                        while [ $i -le 20 ]; do
-                            if curl -f http://localhost:8000/health 2>/dev/null; then
-                                echo "Backend is healthy!"
-                                exit 0
-                            fi
-                            echo "Backend not ready, attempt $i/20"
-                            sleep 5
-                            i=$((i + 1))
-                        done
-                        echo "Backend health check failed after 100 seconds"
-                        cd deploy && docker compose logs backend --tail=50
-                        exit 1
-                    '''
                 }
             }
         }

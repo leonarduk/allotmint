@@ -8,9 +8,9 @@ services:
     container_name: allotmint-backend
     volumes:
       # Mount external data directory where backend expects it
-      - ../../allotmint-data:/workspace/backend/data
+      - /host_mnt/c/Users/steph/workspace/GitHub/allotmint-data:/workspace/backend/data
       # Mount config file
-      - ../config.yaml:/workspace/backend/config.yaml:ro
+      - ../config.yaml:/workspace/backend/config.yaml:rw
     ports:
       - "8000:8000"
     environment:

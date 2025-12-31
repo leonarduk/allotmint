@@ -1,8 +1,10 @@
+
 pipeline {
     agent any
 
     environment {
         DOCKER_HOST = 'tcp://host.docker.internal:2375'
+        DATA_DIR = '/host_mnt/c/Users/steph/workspace/GitHub/allotmint-data' // Host data directory
     }
 
     stages {
@@ -36,7 +38,7 @@ pipeline {
                     dir('deploy') {
                         sh 'docker compose down || true'
                         sh 'docker compose up -d'
-                        
+
                         echo 'Waiting for services to be healthy...'
                         sh '''
                             i=1
@@ -57,7 +59,8 @@ pipeline {
                                 i=$((i + 1))
                             done
                         '''
-                        
+
+                        # Validate containers are running
                         sh '''
                             if ! docker compose ps | grep -E "allotmint-backend.*Up"; then
                                 echo "Backend container not running!"
@@ -70,7 +73,7 @@ pipeline {
                                 exit 1
                             fi
                         '''
-                        
+
                         echo 'Verifying backend health status...'
                         sh '''
                             if docker compose ps | grep -E "allotmint-backend.*(healthy)"; then
@@ -81,7 +84,19 @@ pipeline {
                                 exit 1
                             fi
                         '''
-                        
+
+                        # Validate data directory inside container
+                        echo 'Checking data directory inside backend container...'
+                        sh '''
+                            if [ "$(docker exec allotmint-backend ls -A /workspace/backend/data)" ]; then
+                                echo "Data directory is populated."
+                            else
+                                echo "ERROR: Data directory is empty!"
+                                docker exec allotmint-backend ls -l /workspace/backend/data
+                                exit 1
+                            fi
+                        '''
+
                         sh 'docker compose ps'
                     }
                 }
@@ -97,7 +112,8 @@ pipeline {
             echo 'Backend:  http://localhost:8000'
             echo 'Frontend: http://localhost:3000'
             echo 'API Docs: http://localhost:8000/docs'
-            echo 'Data dir: C:\\Users\\steph\\workspace\\GitHub\\allotmint-data'
+            echo "Host Data Dir: ${env.DATA_DIR}"
+            echo 'Container Data Dir: /workspace/backend/data'
             echo '════════════════════════════════════════'
         }
         failure {

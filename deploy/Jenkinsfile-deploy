@@ -4,7 +4,7 @@ pipeline {
 
     environment {
         DOCKER_HOST = 'tcp://host.docker.internal:2375'
-        DATA_DIR = '/host_mnt/c/Users/steph/workspace/GitHub/allotmint-data' // Host data directory
+        DATA_DIR = '/host_mnt/c/Users/steph/workspace/GitHub/allotmint-data'
     }
 
     stages {
@@ -60,7 +60,7 @@ pipeline {
                             done
                         '''
 
-                        # Validate containers are running
+                        // Validate containers are running
                         sh '''
                             if ! docker compose ps | grep -E "allotmint-backend.*Up"; then
                                 echo "Backend container not running!"
@@ -85,7 +85,7 @@ pipeline {
                             fi
                         '''
 
-                        # Validate data directory inside container
+                        // Validate data directory inside container
                         echo 'Checking data directory inside backend container...'
                         sh '''
                             if [ "$(docker exec allotmint-backend ls -A /workspace/backend/data)" ]; then

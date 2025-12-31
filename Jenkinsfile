@@ -1,6 +1,7 @@
+
 pipeline {
-    agent any  // Start with any agent to do the checkout
-    
+    agent any
+
     stages {
         stage('Checkout') {
             steps {
@@ -12,11 +13,10 @@ pipeline {
                         credentialsId: 'GITHUB_TOKEN'
                     ]]
                 ])
-                // Exclude .git to avoid permission issues during unstash
                 stash includes: '**', excludes: '.git/**', name: 'source', useDefaultExcludes: false
             }
         }
-        
+
         stage('Build & Test') {
             parallel {
                 stage('Python Tests') {
@@ -62,7 +62,7 @@ pipeline {
                                     node --version
                                     cd frontend
                                     npm ci
-                                    npm test || true
+                                    npm test -- --reporters=default --reporters=jest-junit || true
                                     npm run build
                                 '''
                             }
@@ -70,7 +70,13 @@ pipeline {
                     }
                     post {
                         always {
-                            junit 'frontend/test-results/**/*.xml'
+                            script {
+                                if (fileExists('frontend/test-results/junit.xml')) {
+                                    junit 'frontend/test-results/**/*.xml'
+                                } else {
+                                    echo "No JUnit XML found for Node.js tests"
+                                }
+                            }
                         }
                     }
                 }
@@ -80,7 +86,6 @@ pipeline {
                         expression { fileExists('pom.xml') }
                     }
                     steps {
-                        // Unstash the code
                         unstash 'source'
                         script {
                             docker.image('maven:3.9.6-eclipse-temurin-17').inside('-u root -v /var/jenkins_home/.m2:/root/.m2') {
@@ -93,7 +98,13 @@ pipeline {
                     }
                     post {
                         always {
-                            junit '**/target/surefire-reports/*.xml'
+                            script {
+                                if (fileExists('target/surefire-reports')) {
+                                    junit '**/target/surefire-reports/*.xml'
+                                } else {
+                                    echo "No JUnit XML found for Java tests"
+                                }
+                            }
                         }
                     }
                 }

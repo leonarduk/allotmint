@@ -91,6 +91,15 @@ export default defineConfig(({ command }) => {
         '@': path.resolve(__dirname, 'src')
       }
     },
+    server: {
+      proxy: {
+        '/api': {
+          target: 'http://backend:8000', // Docker internal hostname
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, '') // Optional: strip /api prefix
+        }
+      }
+    },
     build: {
       cssCodeSplit: false,
       cssMinify: 'esbuild' as const,

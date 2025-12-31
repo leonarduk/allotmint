@@ -20,24 +20,20 @@ pipeline {
         stage('Build & Test') {
             parallel {
                 stage('Python Tests') {
-                    agent {
-                        docker {
-                            image 'python:3.11'
-                            args '-u root'
-                        }
-                    }
                     steps {
-                        // Unstash the code
                         unstash 'source'
-                        sh '''
-                            apt-get update && apt-get install -y git
-                            python --version
-                            pip install --upgrade pip setuptools wheel
-                            pip install -r requirements.txt
-                            pip install pytest pytest-cov
-                            pip install jinja2 python-multipart
-                            pytest tests --cov=backend --cov-report=html
-                        '''
+                        script {
+                            docker.image('python:3.11').inside('-u root') {
+                                sh '''
+                                    apt-get update && apt-get install -y git
+                                    python --version
+                                    pip install --upgrade pip setuptools wheel
+                                    pip install -r requirements.txt
+                                    pip install pytest pytest-cov jinja2 python-multipart
+                                    pytest tests --cov=backend --cov-report=html
+                                '''
+                            }
+                        }
                     }
                     post {
                         always {
@@ -54,41 +50,38 @@ pipeline {
                     }
                 }
                 stage('Node.js Build') {
-                    agent {
-                        docker {
-                            image 'node:20'
-                            args '-u root'
+                    steps {
+                        unstash 'source'
+                        script {
+                            docker.image('node:20').inside('-u root') {
+                                sh '''
+                                    apt-get update && apt-get install -y git
+                                    node --version
+                                    cd frontend
+                                    npm ci
+                                    npm test
+                                    npm run build
+                                '''
+                            }
                         }
                     }
-                    steps {
-                        // Unstash the code
-                        unstash 'source'
-                        sh '''
-                            apt-get update && apt-get install -y git
-                            node --version
-                            cd frontend
-                            npm ci
-                            npm test
-                        '''
-                    }
                 }
+
                 stage('Java Build') {
                     when {
                         expression { fileExists('pom.xml') }
                     }
-                    agent {
-                        docker {
-                            image 'maven:3.9.6-eclipse-temurin-17'
-                            args '-u root'
-                        }
-                    }
                     steps {
                         // Unstash the code
                         unstash 'source'
-                        sh '''
-                            apt-get update && apt-get install -y git
-                            mvn clean install
-                        '''
+                        script {
+                            docker.image('maven:3.9.6-eclipse-temurin-17').inside('-u root') {
+                                sh '''
+                                    apt-get update && apt-get install -y git
+                                    mvn clean install
+                                '''
+                            }
+                        }
                     }
                 }
             }

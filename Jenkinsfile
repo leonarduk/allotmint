@@ -30,7 +30,12 @@ pipeline {
                                     pip install --upgrade pip setuptools wheel
                                     pip install --no-cache-dir -r requirements.txt
                                     pip install --no-cache-dir pytest pytest-cov jinja2 python-multipart
-                                    pytest tests --cov=backend --cov-report=html || true
+                                    
+                                    # Set test environment to skip config validation
+                                    export ENVIRONMENT=test
+                                    export GOOGLE_AUTH_ENABLED=false
+                                    
+                                    pytest tests --cov=backend --cov-report=html --cov-report=xml --junit-xml=test-results/junit.xml
                                 '''
                             }
                         }
@@ -38,11 +43,20 @@ pipeline {
                     post {
                         always {
                             script {
+                                // Publish test results
+                                if (fileExists('test-results/junit.xml')) {
+                                    junit 'test-results/junit.xml'
+                                }
+                                
+                                // Publish coverage report
                                 if (fileExists('htmlcov/index.html')) {
                                     publishHTML([
                                         reportDir: 'htmlcov',
                                         reportFiles: 'index.html',
-                                        reportName: 'Python Coverage Report'
+                                        reportName: 'Python Coverage Report',
+                                        allowMissing: false,
+                                        alwaysLinkToLastBuild: true,
+                                        keepAll: true
                                     ])
                                 } else {
                                     echo "Coverage report not found"

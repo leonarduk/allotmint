@@ -350,7 +350,10 @@ def load_config() -> Config:
         env_allowed = [item.strip().lower() for item in env_allowed_emails.split(",") if item.strip()]
         allowed_emails = env_allowed or []
 
-    validate_google_auth(google_auth_enabled, google_client_id)
+    # Only validate Google auth in non-test environments
+    environment = os.getenv('ENVIRONMENT', '').lower()
+    if environment not in ('test', 'testing'):
+        validate_google_auth(google_auth_enabled, google_client_id)
 
     # Optional env override for Alpha Vantage API key to avoid committing secrets
     alpha_key_env = os.getenv("ALPHA_VANTAGE_KEY")

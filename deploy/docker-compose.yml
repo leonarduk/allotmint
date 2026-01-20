@@ -1,51 +1,53 @@
+version: '3.8'
+
 services:
 
-  backend:
-    build:
-      context: ..  # Build from repo root to access both backend and scripts
-      dockerfile: backend/Dockerfile
-    image: allotmint-backend:latest
-    container_name: allotmint-backend
-    volumes:
-      # Mount external data directory where backend expects it
-      - /host_mnt/c/Users/steph/workspace/GitHub/allotmint-data:/workspace/backend/data
-      # Mount config file
-      - ../config.yaml:/workspace/backend/config.yaml:rw
-    ports:
-      - "8000:8000"
-    environment:
-      - DISABLE_AUTH=true
-      - ACCOUNTS_ROOT=/workspace/backend/data
-      - TIMESERIES_CACHE_BASE=/workspace/backend/data/timeseries
-      - DATA_ROOT=/workspace/backend/data
-      - APP_ENV=local
-    restart: unless-stopped
-    networks:
-      - allotmint
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
+    backend:
+      build:
+        context: ..  # Build from repo root to access both backend and scripts
+        dockerfile: backend/Dockerfile
+      image: allotmint-backend:latest
+      container_name: allotmint-backend
+      volumes:
+        # Mount external data directory where backend expects it
+        - /host_mnt/c/Users/steph/workspace/GitHub/allotmint-data:/workspace/backend/data
+        # Mount config file
+        - ../config.yaml:/workspace/backend/config.yaml:rw
+      ports:
+        - "8000:8000"
+      environment:
+        - DISABLE_AUTH=false
+        - ACCOUNTS_ROOT=/workspace/backend/data
+        - TIMESERIES_CACHE_BASE=/workspace/backend/data/timeseries
+        - DATA_ROOT=/workspace/backend/data
+        - APP_ENV=local
+      restart: unless-stopped
+      networks:
+        - allotmint
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+        start_period: 40s
 
-  frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
-    image: allotmint-frontend:latest
-    container_name: allotmint-frontend
-    ports:
-      - "3000:5173"
-    environment:
-      - VITE_API_URL=http://localhost:8000
-    restart: unless-stopped
-    networks:
-      - allotmint
-    depends_on:
-      backend:
-        condition: service_healthy
+    frontend:
+      build:
+        context: ../frontend
+        dockerfile: Dockerfile
+      image: allotmint-frontend:latest
+      container_name: allotmint-frontend
+      ports:
+        - "3000:5173"
+      environment:
+        - VITE_API_URL=http://backend:8000
+      restart: unless-stopped
+      networks:
+        - allotmint
+      depends_on:
+        backend:
+          condition: service_healthy
 
-networks:
-  allotmint:
-    driver: bridge
+  networks:
+    allotmint:
+      driver: bridge

@@ -17,6 +17,8 @@ __pycache__/
 .venv/
 venv/
 .env/
+.pytest_cache/
+htmlcov/
 
 # CDK / CloudFormation
 # Root-level CDK outputs (if ever generated)
@@ -50,3 +52,6 @@ backend.log
 /.coverage
 /.coveragerc
 /coverage/
+
+# Jenkins
+jenkins_home/

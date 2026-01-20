@@ -26,7 +26,7 @@ pipeline {
                 script {
                     dir('deploy') {
                         echo 'Building Docker images...'
-                        sh 'docker compose build --no-cache'
+                        sh 'docker-compose build --no-cache'
                     }
                 }
             }
@@ -36,14 +36,14 @@ pipeline {
             steps {
                 script {
                     dir('deploy') {
-                        sh 'docker compose down || true'
-                        sh 'docker compose up -d'
+                        sh 'docker-compose down || true'
+                        sh 'docker-compose up -d'
 
                         echo 'Waiting for services to be healthy...'
                         sh '''
                             i=1
                             while [ $i -le 30 ]; do
-                                if docker compose ps | grep -q "Restarting"; then
+                                if docker-compose ps | grep -q "Restarting"; then
                                     echo "Containers still restarting, waiting... ($i/30)"
                                     sleep 2
                                 else
@@ -52,8 +52,8 @@ pipeline {
                                 fi
                                 if [ $i -eq 30 ]; then
                                     echo "Containers failed to stabilize"
-                                    docker compose ps
-                                    docker compose logs --tail=50
+                                    docker-compose ps
+                                    docker-compose logs --tail=50
                                     exit 1
                                 fi
                                 i=$((i + 1))
@@ -62,25 +62,25 @@ pipeline {
 
                         // Validate containers are running
                         sh '''
-                            if ! docker compose ps | grep -E "allotmint-backend.*Up"; then
+                            if ! docker-compose ps | grep -E "allotmint-backend.*Up"; then
                                 echo "Backend container not running!"
-                                docker compose logs backend
+                                docker-compose logs backend
                                 exit 1
                             fi
-                            if ! docker compose ps | grep -E "allotmint-frontend.*Up"; then
+                            if ! docker-compose ps | grep -E "allotmint-frontend.*Up"; then
                                 echo "Frontend container not running!"
-                                docker compose logs frontend
+                                docker-compose logs frontend
                                 exit 1
                             fi
                         '''
 
                         echo 'Verifying backend health status...'
                         sh '''
-                            if docker compose ps | grep -E "allotmint-backend.*(healthy)"; then
+                            if docker-compose ps | grep -E "allotmint-backend.*(healthy)"; then
                                 echo "Backend is healthy!"
                             else
                                 echo "Backend health check did not pass"
-                                docker compose logs backend --tail=50
+                                docker-compose logs backend --tail=50
                                 exit 1
                             fi
                         '''
@@ -97,7 +97,7 @@ pipeline {
                             fi
                         '''
 
-                        sh 'docker compose ps'
+                        sh 'docker-compose ps'
                     }
                 }
             }
@@ -121,8 +121,8 @@ pipeline {
             echo 'Deployment FAILED!'
             echo '════════════════════════════════════════'
             dir('deploy') {
-                sh 'docker compose ps || true'
-                sh 'docker compose logs --tail=100 || true'
+                sh 'docker-compose ps || true'
+                sh 'docker-compose logs --tail=100 || true'
             }
         }
     }

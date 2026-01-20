@@ -20,9 +20,6 @@ RUN apt-get update && \
 RUN curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && \
     chmod +x /usr/local/bin/docker-compose
 
-# Verify Docker is accessible
-RUN usermod -aG docker jenkins
-
 USER jenkins
 
 # Pre-install plugins

@@ -29,7 +29,7 @@
     "react-router-dom": "^7.10.1",
     "react-toastify": "^10.0.0",
     "react-window": "^1.8.11",
-    "recharts": "^3.5.1",
+    "recharts": "^3.6.0",
     "sharp": "^0.34.5",
     "vite-plugin-ssr": "^0.4.142"
   },

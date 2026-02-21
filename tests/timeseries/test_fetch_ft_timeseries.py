@@ -46,6 +46,7 @@ def test_fetch_ft_timeseries_range_cookie_banner(monkeypatch):
 
     class FakeChrome:
         def __init__(self):
+            self.url = None
             self.quit_called = False
             self.cookie_clicked = False
 

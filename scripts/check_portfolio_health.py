@@ -41,77 +41,41 @@ def notify_slack(message: str) -> None:
     except Exception as exc:  # pragma: no cover - best effort notification
         logger.warning("Failed to send Slack notification: %s", exc)
 
-
-def run_check(threshold: float) -> list[dict]:
-    """Run the portfolio health check and return structured findings.
-
-    ``threshold`` is the absolute drawdown percentage that triggers an alert.
-    """
-
-    findings: list[dict] = []
-
+def run_owner_checks(threshold: float) -> list[dict]:
+    findings = []
     owners = portfolio.list_owners()
     for owner in owners:
         dd = portfolio_utils.compute_max_drawdown(owner)
-        entry: dict = {
-            "type": "owner",
-            "name": owner,
-            "drawdown": dd,
-            "alert": bool(dd is not None and dd < -threshold),
-        }
-        if dd is None:
-            entry.update(
-                {
-                    "level": "info",
-                    "message": f"Owner {owner} max drawdown unavailable",
-                }
-            )
+        entry = create_entry("owner", owner, dd, threshold)
+        if dd is None or dd >= -threshold:
+            logger.info(entry["message"])
         else:
-            msg = f"Owner {owner} max drawdown {dd*100:.2f}%"
-            if dd < -threshold:
-                msg = (
-                    f"Owner {owner} drawdown {dd*100:.2f}% exceeds "
-                    f"{threshold*100:.2f}%"
-                )
-                publish_alert({"message": msg})
-                notify_slack(msg)
-                entry["level"] = "warning"
-            else:
-                entry["level"] = "info"
-            entry["message"] = msg
+            logger.warning(entry["message"])
+            publish_alert({"message": entry["message"]})
+            notify_slack(entry["message"])
         findings.append(entry)
+    return findings
 
+
+def run_group_checks(threshold: float) -> list[dict]:
+    findings = []
     for grp in group_portfolio.list_groups():
         slug = grp.get("slug")
         dd = portfolio_utils.compute_group_max_drawdown(slug)
-        entry: dict = {
-            "type": "group",
-            "name": slug,
-            "drawdown": dd,
-            "alert": bool(dd is not None and dd < -threshold),
-        }
-        if dd is None:
-            entry.update(
-                {
-                    "level": "info",
-                    "message": f"Group {slug} max drawdown unavailable",
-                }
-            )
+        entry = create_entry("group", slug, dd, threshold)
+        if dd is None or dd >= -threshold:
+            logger.info(entry["message"])
         else:
-            msg = f"Group {slug} max drawdown {dd*100:.2f}%"
-            if dd < -threshold:
-                msg = (
-                    f"Group {slug} drawdown {dd*100:.2f}% exceeds "
-                    f"{threshold*100:.2f}%"
-                )
-                publish_alert({"message": msg})
-                notify_slack(msg)
-                entry["level"] = "warning"
-            else:
-                entry["level"] = "info"
-            entry["message"] = msg
+            logger.warning(entry["message"])
+            publish_alert({"message": entry["message"]})
+            notify_slack(entry["message"])
         findings.append(entry)
+    return findings
 
+
+def run_approvals_checks() -> list[dict]:
+    findings = []
+    owners = portfolio.list_owners()
     for owner in owners:
         try:
             path = approvals.approvals_path(owner)
@@ -128,7 +92,11 @@ def run_check(threshold: float) -> list[dict]:
                     "message": msg,
                 }
             )
+    return findings
 
+
+def run_metadata_checks() -> list[dict]:
+    findings = []
     for path in sorted(portfolio_utils._MISSING_META):
         msg = f"Instrument metadata {path} not found"
         findings.append(
@@ -139,7 +107,40 @@ def run_check(threshold: float) -> list[dict]:
                 "message": msg,
             }
         )
+    return findings
 
+
+def create_entry(type_: str, name: str, dd: Optional[float], threshold: float) -> dict:
+    entry = {
+        "type": type_,
+        "name": name,
+        "drawdown": dd,
+        "alert": bool(dd is not None and dd < -threshold),
+    }
+    if dd is None:
+        entry.update(
+            {
+                "level": "info",
+                "message": f"{type_.capitalize()} {name} max drawdown unavailable",
+            }
+        )
+    else:
+        msg = f"{type_.capitalize()} {name} max drawdown {dd*100:.2f}%"
+        if dd < -threshold:
+            msg = (
+                f"{type_.capitalize()} {name} drawdown {dd*100:.2f}% exceeds "
+                f"{threshold*100:.2f}%"
+            )
+        entry["message"] = msg
+    return entry
+
+
+def run_check(threshold: float) -> list[dict]:
+    findings = []
+    findings.extend(run_owner_checks(threshold))
+    findings.extend(run_group_checks(threshold))
+    findings.extend(run_approvals_checks())
+    findings.extend(run_metadata_checks())
     return findings
 
 

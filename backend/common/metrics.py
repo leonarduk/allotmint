@@ -8,8 +8,9 @@ from typing import Any, Dict, List, Optional
 
 from backend.common import portfolio as portfolio_mod
 from backend.common.compliance import load_transactions
+from backend.config import config
 
-METRICS_DIR = Path(__file__).resolve().parents[2] / "data" / "metrics"
+METRICS_DIR = (config.data_root / "metrics") if config.data_root else Path(__file__).resolve().parents[2] / "data" / "metrics"
 
 
 @dataclass

@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
+from backend.config import config
 
 # Directory for storing virtual portfolio JSON files
-VIRTUAL_PORTFOLIO_DIR = Path(__file__).resolve().parents[2] / "data" / "virtual_portfolios"
+VIRTUAL_PORTFOLIO_DIR = (config.data_root / "virtual_portfolios") if config.data_root else Path(__file__).resolve().parents[2] / "data" / "virtual_portfolios"
 
 
 class VirtualHolding(BaseModel):

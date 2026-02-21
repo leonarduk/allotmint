@@ -3,8 +3,9 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 from typing import Dict, Iterable, List
+from backend.config import config
 
-TRADE_LOG_PATH = Path(__file__).resolve().parents[2] / "data" / "trade_log.csv"
+TRADE_LOG_PATH = (config.data_root / "trade_log.csv") if config.data_root else Path(__file__).resolve().parents[2] / "data" / "trade_log.csv"
 
 
 def load_trades(path: Path = TRADE_LOG_PATH) -> List[Dict[str, str]]:

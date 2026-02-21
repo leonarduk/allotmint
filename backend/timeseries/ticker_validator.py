@@ -6,11 +6,12 @@ from functools import lru_cache
 from pathlib import Path
 
 from backend.common.instruments import get_instrument_meta
+from backend.config import config
 
 logger = logging.getLogger("ticker_validator")
 
 # File to record skipped tickers for auditing
-SKIPPED_TICKERS_FILE = Path(__file__).resolve().parents[2] / "data" / "skipped_tickers.log"
+SKIPPED_TICKERS_FILE = (config.data_root / "skipped_tickers.log") if config.data_root else Path(__file__).resolve().parents[2] / "data" / "skipped_tickers.log"
 
 
 @lru_cache(maxsize=4096)

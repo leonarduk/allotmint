@@ -363,7 +363,7 @@ def get_security_meta(ticker: str) -> Dict | None:
 # ----------------------------------------------------------------------
 # list_all_unique_tickers
 # ----------------------------------------------------------------------
-ACCOUNTS_DIR = Path(__file__).resolve().parents[2] / "data" / "accounts"
+ACCOUNTS_DIR = config.accounts_root or Path(__file__).resolve().parents[2] / "data" / "accounts"
 
 
 def list_all_unique_tickers() -> List[str]:

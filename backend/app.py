@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -336,7 +336,7 @@ def create_app() -> FastAPI:
     app.include_router(pension_router)
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    async def validation_exception_handler(exc: RequestValidationError):
         """Return 422 for body errors and 400 for query errors."""
         status = 422 if exc.body is not None else 400
         
@@ -353,7 +353,6 @@ def create_app() -> FastAPI:
         errors = sanitize_error(exc.errors())
         return JSONResponse(status_code=status, content={"detail": errors})
 
-    from fastapi.security import OAuth2PasswordRequestForm
     from fastapi import Form
     
     class TokenIn(BaseModel):
@@ -362,8 +361,7 @@ def create_app() -> FastAPI:
     @app.post("/token")
     async def login(
         body: TokenIn | None = None,
-        username: str | None = Form(None),
-        password: str | None = Form(None)
+        username: str | None = Form(None)
     ):
         """Handle both JSON (id_token) and form (username/password) authentication."""
         # Check for form data first (for OAuth2 password flow, used in tests)

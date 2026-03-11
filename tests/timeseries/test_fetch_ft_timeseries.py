@@ -91,6 +91,7 @@ def test_fetch_ft_timeseries_range_cookie_banner(monkeypatch):
 def test_fetch_ft_timeseries_range_find_element_failure(monkeypatch):
     class FailingChrome:
         def __init__(self):
+            self.url = None
             self.quit_called = False
 
         def get(self, url: str):

@@ -13,12 +13,39 @@ For contributor workflow guidance, start with the [Repository Guidelines](../AGE
 
 ---
 
-## MVP Scope
+## Current Status
+
+AllotMint has moved well beyond the original MVP. The current codebase now
+ships a broader family-investing platform with a React/Vite frontend, a
+FastAPI backend, and local plus AWS deployment paths.
+
+### Implemented today
+
+- **Core portfolio experience** – owner and group portfolio views, performance
+  dashboards, allocation views, reports, transactions, and goal tracking.
+- **Research and idea generation** – market pages, movers/opportunities,
+  watchlist flows, screener routes, quote/news endpoints, and instrument
+  research pages.
+- **Planning and analysis** – scenario analysis, pension and tax tools, plus
+  analytics and metrics endpoints.
+- **Operations and workflow support** – alerts, user settings, approvals,
+  support diagnostics, timeseries admin/edit flows, and instrument admin tools.
+- **Automation and experimentation** – agent/trading-agent routes, nudges,
+  quest/trail flows, and virtual portfolio support.
+
+### Still in progress
+
+The repository still carries an active backlog for onboarding improvements and
+menu/product follow-up work in `TODO.md` and `docs/menu_codex_tasks.md`. In
+practice, that means the project is **active and expanding**, rather than a
+finished frozen product.
+
+### Original MVP, for reference
 1. **Portfolio Viewer** – individual / adults / whole family.
-2. **Compliance Engine** – 30‑day sell lock & monthly trade counter.
+2. **Compliance Engine** – 30-day sell lock & monthly trade counter.
 3. **Stock Screener v1** – PEG < 1, P/E < 20, low D/E, positive FCF.
-4. **Scenario Tester (Lite)** – single‑asset price shocks.
-5. **Lucy DB Pension Forecast** – inflation‑linked income overlay.
+4. **Scenario Tester (Lite)** – single-asset price shocks.
+5. **Lucy DB Pension Forecast** – inflation-linked income overlay.
 
 ---
 

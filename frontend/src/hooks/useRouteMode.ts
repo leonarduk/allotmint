@@ -12,6 +12,14 @@ import {
   buildPathForMode,
   deriveModeFromPathname,
 } from "../pageManifest";
+import { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useConfig } from '../ConfigContext';
+import type { Mode } from '../modes';
+import useFetch from './useFetch';
+import { getGroups } from '../api';
+import { normaliseGroupSlug } from '../utils/groups';
+import { deriveModeFromPathname, pathForMode } from '../pageManifest';
 
 interface RouteState {
   mode: Mode;
@@ -23,13 +31,15 @@ interface RouteState {
 }
 
 function deriveInitial() {
-  const path = window.location.pathname.split("/").filter(Boolean);
+  const path = window.location.pathname.split('/').filter(Boolean);
   const params = new URLSearchParams(window.location.search);
   const mode = deriveModeFromPathname(window.location.pathname);
   const slug = path[1] ?? "";
   const owner = mode === "owner" || mode === "performance" ? slug : "";
+  const slug = path[1] ?? '';
+  const owner = mode === 'owner' || mode === 'performance' ? slug : '';
   const group =
-    mode === "instrument" ? "" : normaliseGroupSlug(params.get("group"));
+    mode === 'instrument' ? '' : normaliseGroupSlug(params.get('group'));
   return { mode, owner, group };
 }
 
@@ -46,7 +56,7 @@ export function useRouteMode(): RouteState {
 
 
   useEffect(() => {
-    const segs = location.pathname.split("/").filter(Boolean);
+    const segs = location.pathname.split('/').filter(Boolean);
     const params = new URLSearchParams(location.search);
     const newMode = deriveModeFromPathname(location.pathname);
 
@@ -55,7 +65,7 @@ export function useRouteMode(): RouteState {
     if (isDisabled) {
       const firstEnabled = Object.entries(tabs).find(
         ([m, enabled]) =>
-          enabled !== false && !disabledTabs?.includes(m as Mode),
+          enabled !== false && !disabledTabs?.includes(m as Mode)
       )?.[0] as Mode | undefined;
 
       if (firstEnabled) {
@@ -65,21 +75,30 @@ export function useRouteMode(): RouteState {
           navigate(targetPath, { replace: true });
       } else {
         console.warn("No enabled tabs available for navigation");
+        const targetPath = pathForMode(firstEnabled, {
+          selectedOwner,
+          selectedGroup,
+        });
+        if (location.pathname !== targetPath)
+          navigate(targetPath, { replace: true });
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn('No enabled tabs available for navigation');
       }
       return;
     }
-    if (newMode === "movers" && location.pathname !== "/movers") {
-      setMode("movers");
-      navigate("/movers", { replace: true });
+    if (newMode === 'movers' && location.pathname !== '/movers') {
+      setMode('movers');
+      navigate('/movers', { replace: true });
       return;
     }
     setMode(newMode);
-    if (newMode === "owner" || newMode === "performance") {
-      setSelectedOwner(segs[1] ?? "");
-    } else if (newMode === "instrument") {
-      const slug = segs[1] ?? "";
+    if (newMode === 'owner' || newMode === 'performance') {
+      setSelectedOwner(segs[1] ?? '');
+    } else if (newMode === 'instrument') {
+      const slug = segs[1] ?? '';
       if (!slug) {
-        setSelectedGroup("");
+        setSelectedGroup('');
       } else if (groups) {
         const isValid = groups.some((g) => g.slug === slug);
         if (isValid) {
@@ -89,12 +108,9 @@ export function useRouteMode(): RouteState {
           return;
         }
       }
-    } else if (newMode === "group") {
-      const groupParam = params.get("group");
+    } else if (newMode === 'group') {
+      const groupParam = params.get('group');
       setSelectedGroup(normaliseGroupSlug(groupParam));
-      if (groupParam && isDefaultGroupSlug(groupParam) && location.search) {
-        navigate("/", { replace: true });
-      }
     }
   }, [
     location.pathname,
@@ -103,6 +119,8 @@ export function useRouteMode(): RouteState {
     disabledTabs,
     navigate,
     groups,
+    selectedGroup,
+    selectedOwner,
   ]);
 
   return {
@@ -114,4 +132,3 @@ export function useRouteMode(): RouteState {
     setSelectedGroup,
   };
 }
-

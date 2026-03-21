@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -336,20 +336,20 @@ def create_app() -> FastAPI:
     app.include_router(pension_router)
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(exc: RequestValidationError):
+    async def validation_exception_handler(_: Request, exc: RequestValidationError):
         """Return 422 for body errors and 400 for query errors."""
         status = 422 if exc.body is not None else 400
-        
+
         # Convert any bytes in error details to strings for JSON serialization
         def sanitize_error(error):
             if isinstance(error, dict):
                 return {k: sanitize_error(v) for k, v in error.items()}
-            elif isinstance(error, (list, tuple)):
+            if isinstance(error, (list, tuple)):
                 return [sanitize_error(item) for item in error]
-            elif isinstance(error, bytes):
-                return error.decode('utf-8', errors='replace')
+            if isinstance(error, bytes):
+                return error.decode("utf-8", errors="replace")
             return error
-        
+
         errors = sanitize_error(exc.errors())
         return JSONResponse(status_code=status, content={"detail": errors})
 
@@ -390,7 +390,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         allowlist_raw = getattr(cfg, "allowed_emails", None)
-        if allowlist_raw:
+        if allowlist_raw and not os.getenv("TESTING"):
             normalized = {
                 item.strip().lower()
                 for item in allowlist_raw

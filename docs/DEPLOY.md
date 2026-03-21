@@ -20,6 +20,11 @@ Copy `.env.example` to `.env` and supply the following values:
 | `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
 | `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign‑in is enabled |
 
+The advisory AI review workflows run on pull request `opened`, `reopened`, and `synchronize`
+events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub
+repository secrets if you want review comments to be posted, but they remain advisory-only and
+use `continue-on-error` so review outages do not block merges.
+
 ## API rate limiting
 
 The backend throttles requests per client using SlowAPI. The default limit is

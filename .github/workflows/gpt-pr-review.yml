@@ -21,9 +21,7 @@ jobs:
         id: diff
         run: |
           git fetch origin ${{ github.base_ref }}
-          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD \
-            -- '*.py' '*.ts' '*.tsx' '*.js' '*.json' '*.md' '*.yaml' '*.yml' \
-            | head -c 30000)
+          DIFF=$(python3 .github/scripts/prepare_review_diff.py --base-ref "${{ github.base_ref }}")
           echo "diff<<EOF" >> "$GITHUB_OUTPUT"
           echo "$DIFF" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"

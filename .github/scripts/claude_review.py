@@ -1,100 +1,69 @@
 """Claude AI code review script called by claude-pr-review.yml."""
 
+from __future__ import annotations
+
 import json
-import os
 import sys
 import urllib.error
 import urllib.request
+from typing import Any
 
-api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-if not api_key:
-    print("ERROR: ANTHROPIC_API_KEY not set", file=sys.stderr)
-    sys.exit(1)
+from review_common import build_prompt, emit_empty_diff_notice, finalize_review, load_review_context
 
-pr_title = os.environ.get("PR_TITLE", "")
-diff = os.environ.get("DIFF", "")
-issue_body = os.environ.get(
-    "ISSUE_BODY", "No linked issue found. Review code on its own merits."
-)
 
-prompt = f"""You are a senior engineer reviewing a pull request for **allotmint**,
-a family investment management app.
+ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"  # Update here when Anthropic promotes the next stable Sonnet model.
 
-The stack is Python/FastAPI backend + React/Vite TypeScript frontend + AWS Lambda/CDK infrastructure.
-Key constraints: preserve portfolio/compliance correctness, keep backend/frontend contracts aligned,
-and avoid regressions in CI/deployment workflows.
 
-## Linked issue / acceptance criteria
-{issue_body}
+def extract_claude_review(data: dict[str, Any]) -> str:
+    """Extract review text from Anthropic messages responses."""
+    content = data.get("content", [])
+    return "\n".join(block.get("text", "") for block in content if block.get("type") == "text").strip()
 
-## PR title
-{pr_title}
 
-## Diff (Python, TypeScript, JavaScript, JSON, Markdown, config files — truncated at 30k chars)
-{diff}
+def fetch_claude_review(api_key: str, prompt: str) -> str:
+    """Call Anthropic and return the advisory review body.
 
-If the diff is empty, this is likely a docs-only or config-only PR whose file types
-were not captured. In that case, review the PR based solely on the linked issue
-acceptance criteria and PR title, and note that no diff was available.
+    The workflow is expected to provide `ANTHROPIC_API_KEY`; HTTP errors are surfaced with a non-zero
+    exit code so the advisory workflow can post a skip/failure notice instead of silently succeeding.
+    """
+    payload = {
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": 1500,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    request = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=json.dumps(payload).encode(),
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
 
-Review this PR across these dimensions. Be direct and specific — cite line numbers
-or function names where relevant. If something looks fine, say so briefly.
-Spend your words on real concerns.
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            data = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        # Keep the provider response in stderr so maintainers can distinguish auth, quota, and API failures.
+        body = exc.read().decode()
+        print(f"ERROR: Claude API returned {exc.code}: {body}", file=sys.stderr)
+        raise SystemExit(1) from exc
 
-### 1. Acceptance criteria
-Does the diff satisfy every AC in the linked issue? Call out any gaps explicitly.
-If no diff is available, assess whether the PR title and issue description suggest
-the work is complete and correctly scoped.
+    return extract_claude_review(data)
 
-### 2. Bugs and logic errors
-Any incorrect behaviour, edge cases that aren't handled, or off-by-one errors?
-For documentation PRs: are there factual errors, contradictions, or dangerously
-misleading statements?
 
-### 3. API, data, and workflow safety
-- Do backend/frontend payload shapes still line up?
-- Could this break local smoke tests, deployment workflows, or repo scripts?
-- Are secrets, permissions, or CI assumptions handled safely?
+def main() -> int:
+    """Run the advisory Claude review flow."""
+    context = load_review_context("ANTHROPIC_API_KEY")
+    if not context.diff.strip():
+        return emit_empty_diff_notice("Claude")
 
-### 4. Test coverage
-Are the acceptance criteria actually exercised by tests or validation steps? Any obvious missing cases?
-Not applicable for documentation-only PRs, but note if validation is missing.
+    prompt = build_prompt(context.pr_title, context.diff, context.issue_body)
+    review = fetch_claude_review(context.api_key, prompt)
+    return finalize_review(review, "ERROR: Claude API returned an empty review")
 
-### 5. Minor issues (optional)
-Style, naming, docs — only flag if they would cause future confusion.
 
-End with a one-line summary verdict: **APPROVE**, **REQUEST CHANGES**,
-or **COMMENT** (no blocking concerns but worth noting).
-"""
-
-payload = {
-    "model": "claude-sonnet-4-20250514",
-    "max_tokens": 1500,
-    "messages": [{"role": "user", "content": prompt}],
-}
-
-req = urllib.request.Request(
-    "https://api.anthropic.com/v1/messages",
-    data=json.dumps(payload).encode(),
-    headers={
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-    },
-    method="POST",
-)
-
-try:
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read())
-except urllib.error.HTTPError as e:
-    body = e.read().decode()
-    print(f"ERROR: Claude API returned {e.code}: {body}", file=sys.stderr)
-    sys.exit(1)
-
-review = data["content"][0]["text"].strip()
-if not review:
-    print("ERROR: Claude API returned an empty review", file=sys.stderr)
-    sys.exit(1)
-
-print(review)
+if __name__ == "__main__":
+    raise SystemExit(main())

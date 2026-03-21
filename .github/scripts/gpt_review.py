@@ -1,119 +1,76 @@
-"""GPT AI code review script called by gpt-pr-review.yml.
+"""GPT AI code review script called by gpt-pr-review.yml."""
 
-Reads PR_TITLE, DIFF, ISSUE_BODY from environment variables,
-calls the OpenAI Chat Completions API, and prints the review to stdout.
-The workflow captures stdout and posts it as a PR comment.
-"""
+from __future__ import annotations
 
 import json
-import os
 import sys
 import urllib.error
 import urllib.request
+from typing import Any
 
-api_key = os.environ.get("OPENAI_API_KEY", "")
-if not api_key:
-    print("ERROR: OPENAI_API_KEY not set", file=sys.stderr)
-    sys.exit(1)
+from review_common import build_prompt, emit_empty_diff_notice, finalize_review, load_review_context
 
-pr_title = os.environ.get("PR_TITLE", "")
-diff = os.environ.get("DIFF", "")
-issue_body = os.environ.get(
-    "ISSUE_BODY", "No linked issue found. Review code on its own merits."
-)
 
-prompt = f"""You are a senior engineer reviewing a pull request for **allotmint**,
-a family investment management app.
+def extract_openai_review(data: dict[str, Any]) -> str:
+    """Extract review text from OpenAI chat-completions responses."""
+    choices = data.get("choices", [])
+    if not choices:
+        return ""
 
-The stack is Python/FastAPI backend + React/Vite TypeScript frontend + AWS Lambda/CDK infrastructure.
-Key constraints: preserve portfolio/compliance correctness, keep backend/frontend contracts aligned,
-and avoid regressions in CI/deployment workflows.
-
-## Linked issue / acceptance criteria
-{issue_body}
-
-## PR title
-{pr_title}
-
-## Diff (Python, TypeScript, JavaScript, JSON, Markdown, config files — truncated at 30k chars)
-{diff}
-
-If the diff is empty, this is likely a docs-only or config-only PR whose file types
-were not captured. In that case, review the PR based solely on the linked issue
-acceptance criteria and PR title, and note that no diff was available.
-
-Review this PR across these dimensions. Be direct and specific — cite line numbers
-or function names where relevant. If something looks fine, say so briefly.
-Spend your words on real concerns.
-
-### 1. Acceptance criteria
-Does the diff satisfy every AC in the linked issue? Call out any gaps explicitly.
-If no diff is available, assess whether the PR title and issue description suggest
-the work is complete and correctly scoped.
-
-### 2. Bugs and logic errors
-Any incorrect behaviour, edge cases that aren't handled, or off-by-one errors?
-For documentation PRs: are there factual errors, contradictions, or dangerously
-misleading statements?
-
-### 3. API, data, and workflow safety
-- Do backend/frontend payload shapes still line up?
-- Could this break local smoke tests, deployment workflows, or repo scripts?
-- Are secrets, permissions, or CI assumptions handled safely?
-
-### 4. Test coverage
-Are the acceptance criteria actually exercised by tests or validation steps? Any obvious missing cases?
-Not applicable for documentation-only PRs, but note if validation is missing.
-
-### 5. Minor issues (optional)
-Style, naming, docs — only flag if they would cause future confusion.
-
-End with a one-line summary verdict: **APPROVE**, **REQUEST CHANGES**,
-or **COMMENT** (no blocking concerns but worth noting)."""
-
-payload = {
-    "model": "gpt-4o-mini",
-    "messages": [
-        {
-            "role": "user",
-            "content": prompt,
-        }
-    ],
-    "temperature": 0.2,
-}
-
-req = urllib.request.Request(
-    "https://api.openai.com/v1/chat/completions",
-    data=json.dumps(payload).encode(),
-    headers={
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    },
-    method="POST",
-)
-
-try:
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read())
-except urllib.error.HTTPError as e:
-    body = e.read().decode()
-    print(f"ERROR: OpenAI API returned {e.code}: {body}", file=sys.stderr)
-    sys.exit(1)
-
-choices = data.get("choices", [])
-review = ""
-if choices:
     message = choices[0].get("message", {})
     content = message.get("content", "")
     if isinstance(content, list):
-        review = "\n".join(
+        return "\n".join(
             part.get("text", "") for part in content if part.get("type") == "text"
         ).strip()
-    elif isinstance(content, str):
-        review = content.strip()
+    if isinstance(content, str):
+        return content.strip()
+    return ""
 
-if not review:
-    print("ERROR: OpenAI API returned an empty review", file=sys.stderr)
-    sys.exit(1)
 
-print(review)
+def fetch_openai_review(api_key: str, prompt: str) -> str:
+    """Call OpenAI and return the advisory review body.
+
+    The workflow is expected to provide `OPENAI_API_KEY`; HTTP errors are surfaced with a non-zero
+    exit code so the advisory workflow can post a skip/failure notice instead of silently succeeding.
+    """
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.2,
+    }
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=json.dumps(payload).encode(),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            data = json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        # Keep the provider response in stderr so maintainers can distinguish auth, quota, and API failures.
+        body = exc.read().decode()
+        print(f"ERROR: OpenAI API returned {exc.code}: {body}", file=sys.stderr)
+        raise SystemExit(1) from exc
+
+    return extract_openai_review(data)
+
+
+def main() -> int:
+    """Run the advisory GPT review flow."""
+    context = load_review_context("OPENAI_API_KEY")
+    if not context.diff.strip():
+        return emit_empty_diff_notice("GPT")
+
+    prompt = build_prompt(context.pr_title, context.diff, context.issue_body)
+    review = fetch_openai_review(context.api_key, prompt)
+    return finalize_review(review, "ERROR: OpenAI API returned an empty review")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

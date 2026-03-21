@@ -60,6 +60,10 @@ finished frozen product.
 
 The backend, CI/CD workflows, and tests all target Python 3.12.
 
+For advisory AI pull-request reviews, the repository includes `.github/workflows/gpt-pr-review.yml`
+and `.github/workflows/claude-pr-review.yml`. Configure both `OPENAI_API_KEY` and
+`ANTHROPIC_API_KEY` in repository secrets before expecting those workflows to comment on PRs.
+
 ## Watchlist
 
 The repo includes a lightweight Yahoo Finance watchlist. Run it locally with:

@@ -230,8 +230,7 @@ def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
             continue
 
         accounts = [
-            _normalise_local_account_name(name)
-            for name in _extract_account_names(demo_dir)
+            _normalise_local_account_name(name) for name in _extract_account_names(demo_dir)
         ]
         meta = load_person_meta(identity, root)
         summary = _build_owner_summary(identity, accounts, meta)
@@ -284,11 +283,7 @@ def _list_local_plots(
         Username of the authenticated user or ``None`` when unauthenticated.
     """
 
-    user = (
-        current_user.get(None)
-        if hasattr(current_user, "get")
-        else current_user
-    )
+    user = current_user.get(None) if hasattr(current_user, "get") else current_user
 
     demo_aliases = demo_identity_aliases()
     demo_identity = get_demo_identity()
@@ -317,9 +312,7 @@ def _list_local_plots(
             email = meta.get("email") if isinstance(meta, dict) else None
             if isinstance(email, str) and email:
                 allowed_identities.add(email.lower())
-            allowed_identities.update(
-                v.lower() for v in viewers if isinstance(v, str)
-            )
+            allowed_identities.update(v.lower() for v in viewers if isinstance(v, str))
             return user.lower() in allowed_identities
 
         if user and user != owner and user not in viewers:
@@ -353,8 +346,7 @@ def _list_local_plots(
                 continue
 
             accounts = [
-                _normalise_local_account_name(name)
-                for name in _extract_account_names(owner_dir)
+                _normalise_local_account_name(name) for name in _extract_account_names(owner_dir)
             ]
 
             summary = _build_owner_summary(owner, accounts, meta)
@@ -376,8 +368,7 @@ def _list_local_plots(
 
     try:
         explicit_matches_fallback = (
-            explicit_root
-            and Path(data_root).expanduser().resolve() == fallback_root.resolve()
+            explicit_root and Path(data_root).expanduser().resolve() == fallback_root.resolve()
         )
     except Exception:
         explicit_matches_fallback = False
@@ -395,8 +386,7 @@ def _list_local_plots(
     try:
         config_repo_matches_fallback = (
             getattr(config, "repo_root", None)
-            and Path(config.repo_root).expanduser().resolve()
-            == fallback_paths.repo_root.resolve()
+            and Path(config.repo_root).expanduser().resolve() == fallback_paths.repo_root.resolve()
         )
     except Exception:
         config_repo_matches_fallback = False
@@ -405,13 +395,9 @@ def _list_local_plots(
         explicit_matches_config and config_repo_matches_fallback
     )
 
-    include_demo_primary = bool(config.disable_auth) and (
-        not explicit_root or explicit_is_global
-    )
+    include_demo_primary = bool(config.disable_auth) and (not explicit_root or explicit_is_global)
 
-    default_primary_full_name = bool(
-        apply_default_full_name and not explicit_root
-    )
+    default_primary_full_name = bool(apply_default_full_name and not explicit_root)
 
     if not explicit_root and not include_demo_primary:
         try:
@@ -456,18 +442,14 @@ def _list_local_plots(
             )
         results.extend(fallback_results)
 
-    owners_index = {
-        str(entry.get("owner", "")).lower(): entry for entry in results
-    }
+    owners_index = {str(entry.get("owner", "")).lower(): entry for entry in results}
 
     if explicit_root and not explicit_is_global:
         allow_fallback_demo = False
     else:
         allow_fallback_demo = bool(config.disable_auth) or not results
 
-    has_non_demo_owner = any(
-        owner and owner != demo_lower for owner in owners_index
-    )
+    has_non_demo_owner = any(owner and owner != demo_lower for owner in owners_index)
     demo_variant = f"{demo_lower}-owner"
     has_demo_variant = demo_variant in owners_index
     if has_demo_variant:
@@ -497,9 +479,7 @@ def _list_local_plots(
         owners_index[owner_value.lower()] = demo_entry
         return True
 
-    existing_demo_key = next(
-        (alias for alias in demo_lower_aliases if alias in owners_index), None
-    )
+    existing_demo_key = next((alias for alias in demo_lower_aliases if alias in owners_index), None)
 
     if existing_demo_key:
         if allow_fallback_demo:
@@ -516,9 +496,7 @@ def _list_local_plots(
                 allow_fallback_demo = False
 
         include_demo = config.disable_auth or include_demo_primary
-        demo_missing = not any(
-            alias in owners_index for alias in demo_lower_aliases
-        )
+        demo_missing = not any(alias in owners_index for alias in demo_lower_aliases)
         if include_demo and demo_missing and not suppress_demo:
             target_root: Optional[Path]
             if include_demo_primary:
@@ -665,15 +643,21 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
         # and no user is authenticated, do not expose any accounts.  If the
         # configuration failed to load ``disable_auth`` will be ``None``;
         # treating that as "auth disabled" avoids filtering everything.
-        if (
-            config.disable_auth is False
-            and current_user is None
-        ):
+        if config.disable_auth is False and current_user is None:
             continue
         meta = load_person_meta(owner)
-        if current_user and current_user != owner:
-            viewers = meta.get("viewers", [])
-            if user not in viewers:
+        if current_user:
+            viewers = meta.get("viewers", []) if isinstance(meta, dict) else []
+            if not isinstance(viewers, list):
+                viewers = []
+            allowed_identities = {owner.lower()}
+            email = meta.get("email") if isinstance(meta, dict) else None
+            if isinstance(email, str) and email.strip():
+                allowed_identities.add(email.strip().lower())
+            allowed_identities.update(
+                viewer.lower() for viewer in viewers if isinstance(viewer, str)
+            )
+            if not isinstance(user, str) or user.lower() not in allowed_identities:
                 continue
         results.append(_build_owner_summary(owner, accounts, meta))
     return results
@@ -759,9 +743,7 @@ def load_account(
 
     if config.app_env == "aws":
         if not bucket:
-            raise FileNotFoundError(
-                f"Missing {DATA_BUCKET_ENV} env var for AWS account loading"
-            )
+            raise FileNotFoundError(f"Missing {DATA_BUCKET_ENV} env var for AWS account loading")
 
     local_root: Optional[Path] = data_root
     if local_root is None:

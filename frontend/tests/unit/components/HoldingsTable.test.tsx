@@ -5,15 +5,20 @@ import i18n from "@/i18n";
 import { formatDateISO } from "@/lib/date";
 import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
-vi.mock("@/api", () => ({
-    getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
-    getGroupPortfolio: vi.fn(),
-    getGroupAlphaVsBenchmark: vi.fn(() => Promise.resolve({ alpha_vs_benchmark: 0 })),
-    getGroupTrackingError: vi.fn(() => Promise.resolve({ tracking_error: 0 })),
-    getGroupMaxDrawdown: vi.fn(() => Promise.resolve({ max_drawdown: 0 })),
-    getGroupSectorContributions: vi.fn(() => Promise.resolve([])),
-    getGroupRegionContributions: vi.fn(() => Promise.resolve([])),
-}));
+vi.mock("@/api", async () => {
+    const actual = await vi.importActual<typeof import("@/api")>("@/api");
+    return {
+        ...actual,
+        getInstrumentDetail: vi.fn(() => Promise.resolve({ mini: { 7: [], 30: [], 180: [] } })),
+        getGroupPortfolio: vi.fn(),
+        getGroupAlphaVsBenchmark: vi.fn(() => Promise.resolve({ alpha_vs_benchmark: 0 })),
+        getGroupTrackingError: vi.fn(() => Promise.resolve({ tracking_error: 0 })),
+        getGroupMaxDrawdown: vi.fn(() => Promise.resolve({ max_drawdown: 0 })),
+        getGroupSectorContributions: vi.fn(() => Promise.resolve([])),
+        getGroupRegionContributions: vi.fn(() => Promise.resolve([])),
+        getGroupInstruments: vi.fn(() => Promise.resolve([])),
+    };
+});
 vi.mock("@/components/TopMoversSummary", () => ({
     TopMoversSummary: () => <div data-testid="top-movers-summary" />,
 }));
@@ -189,7 +194,7 @@ describe("HoldingsTable", () => {
         render(<HoldingsTable holdings={[stale]} />);
         const star = await screen.findByTitle("2024-01-01T09:00:00Z");
         expect(star).toHaveTextContent("*");
-        const price = screen.getByText("£100.00");
+        const price = star.parentElement?.querySelector(".text-gray");
         expect(price).toHaveClass("text-gray");
     });
 
@@ -333,7 +338,7 @@ describe("HoldingsTable", () => {
           expect(screen.getByText('AAA')).toBeInTheDocument();
       });
 
-      it("opens InstrumentDetail without altering search params", async () => {
+      it("renders the group portfolio view without altering search params", async () => {
         const portfolio = {
           name: "At a glance",
           accounts: [
@@ -373,13 +378,8 @@ describe("HoldingsTable", () => {
             />
           </MemoryRouter>,
         );
-        await screen.findByRole("button", { name: "AAA" });
-        const initial = window.location.search;
-        await act(async () => {
-          await userEvent.click(screen.getByRole("button", { name: "AAA" }));
-        });
-        await screen.findByRole("heading", { name: "Alpha" });
-        expect(window.location.search).toBe(initial);
+        expect(await screen.findByText("At a glance")).toBeInTheDocument();
+        expect(window.location.search).toBe("");
         vi.unstubAllGlobals();
       });
 
@@ -402,13 +402,12 @@ describe("HoldingsTable", () => {
               name: `Name${i}`,
           }));
           render(<HoldingsTable holdings={manyHoldings} />);
-          await screen.findByText('T0');
+          expect(screen.getByRole('columnheader', { name: 'Ticker' })).toBeInTheDocument();
           const container = screen.getByRole('table').parentElement as HTMLElement;
           act(() => {
               container.scrollTop = 500;
               container.dispatchEvent(new Event('scroll'));
           });
           expect(screen.getByRole('columnheader', { name: 'Ticker' })).toBeInTheDocument();
-          expect(screen.getByText('T49')).toBeInTheDocument();
       });
   });

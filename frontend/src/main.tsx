@@ -7,6 +7,25 @@ import {
   useRef,
   useState,
   type CSSProperties,
+} from 'react'
+import { createRoot } from 'react-dom/client'
+import { HelmetProvider } from 'react-helmet-async'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import './index.css'
+import './styles/responsive.css'
+import './i18n'
+import { ConfigProvider } from './ConfigContext'
+import { PriceRefreshProvider } from './PriceRefreshContext'
+import { AuthProvider, useAuth } from './AuthContext'
+import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
+import LoginPage from './LoginPage'
+import { UserProvider, useUser } from './UserContext'
+import ErrorBoundary from './ErrorBoundary'
+import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
+import { RouteProvider } from './RouteContext'
+import { deriveModeFromPathname } from './pageManifest'
 } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
@@ -36,7 +55,7 @@ import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { deriveModeFromPathname } from './pageManifest';
+import { deriveModeFromPathname, standalonePageRoutes } from './pageManifest';
 
 const storedToken = getStoredAuthToken();
 if (storedToken) setAuthToken(storedToken);
@@ -69,6 +88,11 @@ const routeMarkerStyle: CSSProperties = {
   clip: 'rect(0 0 0 0)',
   clipPath: 'inset(50%)',
   overflow: 'hidden',
+};
+
+const renderRouteMarker = (pathname: string, state: 'loading' | 'config-error' | 'auth') => {
+  const mode = deriveModeFromPathname(pathname)
+  const bootstrapMode = state === 'loading' ? 'loading' : mode
 };
 
 const renderRouteMarker = (
@@ -175,6 +199,8 @@ export function Root() {
           setNeedsAuth(!disableAuth);
           setGoogleLoginEnabled(configAuthEnabled);
           setClientId(String((cfg as any).google_client_id || ''));
+          setNeedsAuth(configAuthEnabled);
+          const disableAuth = Boolean((cfg as any).disable_auth);
           const localLoginRaw = (cfg as any).local_login_email;
           const localLoginEmail =
             typeof localLoginRaw === 'string' ? localLoginRaw.trim() : '';
@@ -274,6 +300,9 @@ export function Root() {
       console.error(
         'Authentication is enforced but Google login is not fully configured'
       );
+  if (needsAuth && !authed) {
+    if (!clientId) {
+      console.error('Google client ID is missing; login disabled');
       return (
         <>
           {renderRouteMarker(location.pathname, 'auth')}
@@ -293,7 +322,6 @@ export function Root() {
     <ErrorBoundary key={location.pathname}>
       <Suspense fallback={<div>Loading...</div>}>
         <Routes>
-          <Route path="/support" element={<Support />} />
           <Route path="/virtual" element={<VirtualPortfolio />} />
           <Route path="/compliance" element={<ComplianceWarnings />} />
           <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
@@ -302,10 +330,38 @@ export function Root() {
             path="/trade-compliance/:owner"
             element={<TradeCompliance />}
           />
+          {standalonePageRoutes.flatMap((route) => {
+            if (
+              route.routePath === '/virtual' ||
+              !route.routePath ||
+              !route.lazyComponent
+            ) {
+              return [];
+            }
+
+            const Component = route.lazyComponent;
+            return [
+              <Route
+                key={route.routePath}
+                path={route.routePath}
+                element={<Component />}
+              />,
+            ];
+          })}
+          {(() => {
+            const TradeCompliancePage = standalonePageRoutes.find(
+              (route) => route.mode === 'trade-compliance'
+            )?.lazyComponent;
+
+            return TradeCompliancePage ? (
+              <Route
+                path="/trade-compliance/:owner"
+                element={<TradeCompliancePage />}
+              />
+            ) : null;
+          })()}
           <Route path="/alerts" element={<Alerts />} />
-          <Route path="/alert-settings" element={<AlertSettings />} />
           <Route path="/goals" element={<Goals />} />
-          <Route path="/trail" element={<Trail />} />
           <Route path="/smoke-test" element={<SmokeTest />} />
           <Route
             path="/performance/:owner/diagnostics"

@@ -22,18 +22,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          pip install awscli
 
-      - name: Configure AWS credentials
+      # Optional: sync real S3 fixture data when credentials are available.
+      # Skipped on forks and any env where the OIDC role / DATA_BUCKET secret
+      # is absent. The pytest suite does not require this to pass - all AWS
+      # interactions in tests/*_aws.py are covered by monkeypatched boto3 stubs.
+      - name: Configure AWS credentials (optional)
+        id: aws-auth
+        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Sync data from S3
+      - name: Sync data from S3 (optional)
+        if: ${{ steps.aws-auth.outcome == 'success' && secrets.DATA_BUCKET != '' }}
         env:
           DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
-        run: aws s3 sync s3://$DATA_BUCKET/ data/
+        run: |
+          pip install awscli
+          aws s3 sync s3://$DATA_BUCKET/ data/
 
       - name: Run tests
         env:

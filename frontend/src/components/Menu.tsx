@@ -1,4 +1,3 @@
-// src/components/Menu.tsx
 import { useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +12,13 @@ import {
 } from '../pageManifest';
 
 const SUPPORT_ONLY_TABS: TabPluginId[] = [];
+import {
+  deriveModeFromPathname,
+  menuCategories,
+  pageManifestByMode,
+  pathForMode,
+} from '../pageManifest';
+import { orderedTabPlugins } from '../tabPlugins';
 
 interface MenuProps {
   selectedOwner?: string;
@@ -42,8 +48,13 @@ export default function Menu({
   const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
 
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
+  const mode = deriveModeFromPathname(location.pathname);
+  const isSupportMode = orderedTabPlugins.some(
+    (plugin) => plugin.id === mode && plugin.section === 'support'
+  );
   const inSupport = mode === 'support';
-  const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
+  const supportEnabled =
+    tabs.support !== false && !disabledTabs?.includes('support');
 
   const categoryDefinitions = useMemo<MenuCategoryDefinition[]>(() => {
     const section = isSupportMode ? 'support' : 'user';
@@ -82,23 +93,66 @@ export default function Menu({
 
     return categories;
   }, [availableTabs, categoryDefinitions, onLogout, supportEnabled]);
+  type TabDefinition = (typeof orderedTabPlugins)[number];
+  type CategorizedMenu = {
+    id: string;
+    titleKey: string;
+    tabs: TabDefinition[];
+  };
+
+  const availableTabs = useMemo(
+    () =>
+      orderedTabPlugins.filter((plugin) => {
+        if (plugin.section !== (isSupportMode ? 'support' : 'user'))
+          return false;
+        if (plugin.id === 'support') return false;
+        const enabled =
+          (tabs as Record<string, boolean | undefined>)[plugin.id] === true;
+        return enabled && !disabledTabs?.includes(plugin.id);
+      }),
+    [disabledTabs, isSupportMode, tabs]
+  );
+
+  const categoryDefinitions = isSupportMode
+    ? menuCategories.support
+    : menuCategories.user;
+
+  const categoriesToRender: CategorizedMenu[] = useMemo(
+    () =>
+      categoryDefinitions
+        .map((category) => ({
+          ...category,
+          tabs: availableTabs.filter(
+            (tab) => pageManifestByMode[tab.id].menuCategory === category.id
+          ),
+        }))
+        .filter((category) => {
+          if (category.tabs.length > 0) return true;
+          if (category.id === 'preferences') {
+            return supportEnabled || Boolean(onLogout);
+          }
+          return false;
+        }),
+    [availableTabs, categoryDefinitions, onLogout, supportEnabled]
+  );
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const firstLinkRefs = useRef<Record<string, HTMLElement | null>>({});
 
-  const registerFirstFocusable = (categoryId: string) => (element: HTMLElement | null) => {
-    if (!element) {
-      if (firstLinkRefs.current[categoryId]?.isConnected === false) {
-        firstLinkRefs.current[categoryId] = null;
+  const registerFirstFocusable =
+    (categoryId: string) => (element: HTMLElement | null) => {
+      if (!element) {
+        if (firstLinkRefs.current[categoryId]?.isConnected === false) {
+          firstLinkRefs.current[categoryId] = null;
+        }
+        return;
       }
-      return;
-    }
 
-    const current = firstLinkRefs.current[categoryId];
-    if (!current || current.isConnected === false) {
-      firstLinkRefs.current[categoryId] = element;
-    }
-  };
+      const current = firstLinkRefs.current[categoryId];
+      if (!current || current.isConnected === false) {
+        firstLinkRefs.current[categoryId] = element;
+      }
+    };
 
   return (
     <nav className="mb-4" style={style}>
@@ -106,6 +160,9 @@ export default function Menu({
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
           const containsActiveTab = category.tabs.some((tab) => tab.mode === mode);
+          const containsActiveTab = category.tabs.some(
+            (tab) => tab.id === mode
+          );
           const buttonId = `menu-trigger-${category.id}`;
           const panelId = `menu-panel-${category.id}`;
           const assignFirstFocusable = registerFirstFocusable(category.id);
@@ -123,7 +180,9 @@ export default function Menu({
                     : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
                 onClick={() =>
-                  setOpenCategory((current) => (current === category.id ? null : category.id))
+                  setOpenCategory((current) =>
+                    current === category.id ? null : category.id
+                  )
                 }
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowDown') {
@@ -172,6 +231,9 @@ export default function Menu({
                         to={buildPathForMode(tab.mode, {
                           owner: selectedOwner,
                           group: selectedGroup,
+                        to={pathForMode(tab.id, {
+                          selectedOwner,
+                          selectedGroup,
                         })}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           mode === tab.mode
@@ -205,9 +267,7 @@ export default function Menu({
                         ref={(element) => assignFirstFocusable(element)}
                         type="button"
                         role="menuitem"
-                        onClick={() => {
-                          onLogout();
-                        }}
+                        onClick={onLogout}
                         className="block w-full rounded px-2 py-1 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
                       >
                         {t('app.logout')}

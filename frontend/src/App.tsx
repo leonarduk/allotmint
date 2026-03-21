@@ -510,15 +510,35 @@ export default function App({ onLogout }: AppProps) {
   useEffect(() => {
 
     if (mode === "owner" && selectedOwner) {
+      const cacheKey = `${selectedOwner}::${portfolioAsOf ?? ""}::${lastRefresh ?? ""}`;
+      const cached = portfolioCache.current.get(cacheKey);
+
+      if (cached) {
+        setPortfolio(cached.data);
+        setErr(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setErr(null);
-      const opts = portfolioAsOf ? { asOf: portfolioAsOf } : undefined;
-      getPortfolio(selectedOwner, opts)
-        .then(setPortfolio)
+      const request = portfolioAsOf
+        ? getPortfolio(selectedOwner, { asOf: portfolioAsOf })
+        : getPortfolio(selectedOwner);
+
+      request
+        .then((data) => {
+          portfolioCache.current.set(cacheKey, {
+            data,
+            fetchedAt: Date.now(),
+            lastRefresh,
+          });
+          setPortfolio(data);
+        })
         .catch((e) => setErr(String(e)))
         .finally(() => setLoading(false));
     }
-  }, [mode, selectedOwner, portfolioAsOf]);
+  }, [mode, selectedOwner, portfolioAsOf, lastRefresh]);
 
   useEffect(() => {
     if (mode === "owner" && selectedOwner) {

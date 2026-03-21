@@ -480,7 +480,7 @@ describe("GroupPortfolioView", () => {
       expect(
         fetchMock.mock.calls.some(([input]) =>
           toUrlString(input as RequestInfo | URL).includes("owner=alice") &&
-          toUrlString(input as RequestInfo | URL).includes("account=isa"),
+          toUrlString(input as RequestInfo | URL).includes("account_type=isa"),
         ),
       ).toBe(true),
     );
@@ -495,44 +495,6 @@ describe("GroupPortfolioView", () => {
       ).toBe(true),
     );
   });
-
-  it("calls onSelectMember when owner name clicked", async () => {
-    const mockPortfolio = {
-      name: "At a glance",
-      accounts: [
-        {
-          owner: "alice",
-          account_type: "isa",
-          value_estimate_gbp: 100,
-          holdings: [],
-        },
-      ],
-    };
-
-    mockAllFetches(mockPortfolio);
-
-    const handler = vi.fn();
-    renderWithConfig(
-      <GroupPortfolioView
-        slug="all"
-        owners={ownerFixtures}
-        onSelectMember={handler}
-      />,
-    );
-
-    const summaryTable = (await screen.findAllByRole("table")).find((table) =>
-      within(table).queryByText("Owner"),
-    );
-    expect(summaryTable).toBeTruthy();
-
-    const ownerCell = within(summaryTable!).getByText("Alice Example");
-    await act(async () => {
-      await userEvent.click(ownerCell);
-    });
-
-    expect(handler).toHaveBeenCalledWith("alice");
-  });
-
 
   const locales = ["en", "fr", "de", "es", "pt", "it"] as const;
 

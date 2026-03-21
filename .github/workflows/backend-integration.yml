@@ -8,6 +8,10 @@ on:
 jobs:
   integration-tests:
     runs-on: ubuntu-latest
+    env:
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,16 +33,14 @@ jobs:
       # interactions in tests/*_aws.py are covered by monkeypatched boto3 stubs.
       - name: Configure AWS credentials (optional)
         id: aws-auth
-        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
+        if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Sync data from S3 (optional)
-        if: ${{ steps.aws-auth.outcome == 'success' && secrets.DATA_BUCKET != '' }}
-        env:
-          DATA_BUCKET: ${{ secrets.DATA_BUCKET }}
+        if: ${{ steps.aws-auth.outcome == 'success' && env.DATA_BUCKET != '' }}
         run: |
           pip install awscli
           aws s3 sync s3://$DATA_BUCKET/ data/

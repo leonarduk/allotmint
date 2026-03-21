@@ -52,7 +52,6 @@ import UserConfigPage from "./pages/UserConfig";
 import BackendUnavailableCard from "./components/BackendUnavailableCard";
 import Reports from "./pages/Reports";
 import ReportTemplateCreator from "./pages/ReportTemplateCreator";
-import { orderedTabPlugins } from "./tabPlugins";
 import InstrumentSearchBarToggle from "./components/InstrumentSearchBar";
 import UserAvatar from "./components/UserAvatar";
 import AllocationCharts from "./pages/AllocationCharts";
@@ -67,6 +66,7 @@ import {
   isDefaultGroupSlug,
   normaliseGroupSlug,
 } from "./utils/groups";
+import { deriveModeFromPathname } from "./pageManifest";
 const PerformanceDashboard = lazyWithDelay(
   () => import("./components/PerformanceDashboard"),
 );
@@ -81,65 +81,8 @@ interface AppProps {
   onLogout?: () => void;
 }
 
-type Mode =
-  | (typeof orderedTabPlugins)[number]["id"]
-  | "pension"
-  | "market"
-  | "rebalance"
-  | "research"
-  | "virtual";
-
-// derive initial mode + id from path
 const path = window.location.pathname.split("/").filter(Boolean);
-const initialMode: Mode =
-  path[0] === "portfolio"
-    ? "owner"
-    : path[0] === "instrument"
-    ? "instrument"
-    : path[0] === "transactions"
-    ? "transactions"
-    : path[0] === "trading"
-    ? "trading"
-    : path[0] === "performance"
-    ? "performance"
-    : path[0] === "screener"
-    ? "screener"
-    : path[0] === "timeseries"
-    ? "timeseries"
-    : path[0] === "watchlist"
-    ? "watchlist"
-    : path[0] === "allocation"
-    ? "allocation"
-    : path[0] === "rebalance"
-    ? "rebalance"
-    : path[0] === "market"
-    ? "market"
-    : path[0] === "movers"
-    ? "movers"
-    : path[0] === "virtual"
-    ? "virtual"
-    : path[0] === "instrumentadmin"
-    ? "instrumentadmin"
-    : path[0] === "dataadmin"
-    ? "dataadmin"
-    : path[0] === "support"
-    ? "support"
-    : path[0] === "tax-tools"
-    ? "taxtools"
-    : path[0] === "settings"
-    ? "settings"
-    : path[0] === "reports"
-    ? "reports"
-    : path[0] === "scenario"
-    ? "scenario"
-    : path[0] === "research"
-    ? "research"
-    : path[0] === "pension"
-    ? "pension"
-    : path.length === 0
-    ? "group"
-    : "movers";
-
+const initialMode = deriveModeFromPathname(window.location.pathname);
 const initialSlug = path[1] ?? "";
 
 type InstrumentMetadataWithSymbol = InstrumentMetadata & {
@@ -241,7 +184,7 @@ export default function App({ onLogout }: AppProps) {
   const params = new URLSearchParams(location.search);
   const isReportCreationRoute =
     location.pathname === "/reports/new" || location.pathname.startsWith("/reports/new/");
-  const [mode, setMode] = useState<Mode>(initialMode);
+  const [mode, setMode] = useState(initialMode);
   const [selectedOwner, setSelectedOwner] = useState(
     initialMode === "owner" || initialMode === "performance"
       ? initialSlug
@@ -318,77 +261,7 @@ export default function App({ onLogout }: AppProps) {
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
     const params = new URLSearchParams(location.search);
-    let newMode: Mode;
-    switch (segs[0]) {
-      case "portfolio":
-        newMode = "owner";
-        break;
-      case "instrument":
-        newMode = "instrument";
-        break;
-      case "transactions":
-        newMode = "transactions";
-        break;
-      case "trading":
-        newMode = "trading";
-        break;
-      case "performance":
-        newMode = "performance";
-        break;
-      case "screener":
-        newMode = "screener";
-        break;
-      case "timeseries":
-        newMode = "timeseries";
-        break;
-      case "watchlist":
-        newMode = "watchlist";
-        break;
-      case "allocation":
-        newMode = "allocation";
-        break;
-      case "rebalance":
-        newMode = "rebalance";
-        break;
-      case "market":
-        newMode = "market";
-        break;
-      case "movers":
-        newMode = "movers";
-        break;
-      case "virtual":
-        newMode = "virtual";
-        break;
-      case "instrumentadmin":
-        newMode = "instrumentadmin";
-        break;
-      case "dataadmin":
-        newMode = "dataadmin";
-        break;
-      case "support":
-        newMode = "support";
-        break;
-      case "research":
-        newMode = "research";
-        break;
-      case "pension":
-        newMode = "pension";
-        break;
-      case "tax-tools":
-        newMode = "taxtools";
-        break;
-      case "settings":
-        newMode = "settings";
-        break;
-      case "reports":
-        newMode = "reports";
-        break;
-      case "scenario":
-        newMode = "scenario";
-        break;
-      default:
-        newMode = segs.length === 0 ? "group" : "movers";
-    }
+    const newMode = deriveModeFromPathname(location.pathname);
 
     const isDisabled =
       tabs[newMode] === false || disabledTabs?.includes(newMode);
@@ -503,6 +376,7 @@ export default function App({ onLogout }: AppProps) {
     owners,
     groups,
     navigate,
+    location.pathname,
     location.search,
   ]);
 

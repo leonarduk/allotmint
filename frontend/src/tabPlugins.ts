@@ -1,61 +1,21 @@
-export const tabPluginMap = {
-  group: {},
-  market: {},
-  owner: {},
-  instrument: {},
-  performance: {},
-  transactions: {},
-  trading: {},
-  screener: {},
-  timeseries: {},
-  watchlist: {},
-  allocation: {},
-  rebalance: {},
-  movers: {},
-  instrumentadmin: {},
-  dataadmin: {},
-  virtual: {},
-  support: {},
-  alertsettings: {},
-  "trade-compliance": {},
-  settings: {},
-  pension: {},
-  trail: {},
-  taxtools: {},
-  reports: {},
-  scenario: {},
-};
+import { PAGE_MANIFEST } from "./pageManifest";
+
+export const tabPluginMap = Object.fromEntries(
+  PAGE_MANIFEST.filter((entry) => entry.menu).map((entry) => [entry.mode, {}]),
+) as Record<string, Record<string, never>>;
 export type TabPluginId = keyof typeof tabPluginMap;
-export const orderedTabPlugins = [
-  { id: "group", priority: 0, section: "user" },
-  { id: "market", priority: 5, section: "user" },
-  { id: "movers", priority: 10, section: "user" },
-  { id: "instrument", priority: 20, section: "user" },
-  { id: "owner", priority: 30, section: "user" },
-  { id: "performance", priority: 40, section: "user" },
-  { id: "transactions", priority: 50, section: "user" },
-  { id: "trading", priority: 55, section: "user" },
-  { id: "screener", priority: 60, section: "user" },
-  { id: "timeseries", priority: 70, section: "support" },
-  { id: "watchlist", priority: 80, section: "user" },
-  { id: "allocation", priority: 85, section: "user" },
-  { id: "rebalance", priority: 86, section: "user" },
-  { id: "instrumentadmin", priority: 85, section: "support" },
-  { id: "dataadmin", priority: 90, section: "support" },
-  { id: "reports", priority: 100, section: "user" },
-  { id: "alertsettings", priority: 104, section: "user" },
-  { id: "settings", priority: 105, section: "user" },
-  { id: "pension", priority: 107, section: "user" },
-  { id: "taxtools", priority: 108, section: "user" },
-  { id: "trail", priority: 102, section: "user" },
-  { id: "trade-compliance", priority: 110, section: "user" },
-  { id: "support", priority: 110, section: "support" },
-  { id: "scenario", priority: 120, section: "user" },
-] as const;
+
+export const orderedTabPlugins = PAGE_MANIFEST.filter((entry) => entry.menu).map((entry) => ({
+  id: entry.mode as TabPluginId,
+  priority: entry.order,
+  section: entry.menu!.section,
+  category: entry.menu!.category,
+}));
+
 export const USER_TABS = orderedTabPlugins
-  .filter((p) => p.section === "user")
-  .map((p) => p.id);
+  .filter((plugin) => plugin.section === "user")
+  .map((plugin) => plugin.id);
 export const SUPPORT_TABS = orderedTabPlugins
-  .filter((p) => p.section === "support")
-  .map((p) => p.id);
-export type TabPlugin = typeof orderedTabPlugins[number];
+  .filter((plugin) => plugin.section === "support")
+  .map((plugin) => plugin.id);
+export type TabPlugin = (typeof orderedTabPlugins)[number];

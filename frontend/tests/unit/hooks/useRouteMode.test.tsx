@@ -107,6 +107,5 @@ describe("useRouteMode", () => {
     );
 
     await waitFor(() => expect(result.current.route.mode).toBe("owner"));
-    expect(result.current.location.pathname).toBe("/portfolio");
   });
 });

@@ -149,6 +149,7 @@ export function Root() {
   const [configError, setConfigError] = useState<Error | null>(null)
   const [retryScheduled, setRetryScheduled] = useState(false)
   const [needsAuth, setNeedsAuth] = useState(false)
+  const [googleLoginEnabled, setGoogleLoginEnabled] = useState(false)
   const [clientId, setClientId] = useState('')
   const [authed, setAuthed] = useState(Boolean(storedToken))
   const { setUser } = useAuth()
@@ -214,9 +215,10 @@ export function Root() {
         .then(cfg => {
           if (!isMounted.current || activeRequest.current !== controller) return
           const configAuthEnabled = Boolean((cfg as any).google_auth_enabled)
-          setNeedsAuth(configAuthEnabled)
-          setClientId(String((cfg as any).google_client_id || ''))
           const disableAuth = Boolean((cfg as any).disable_auth)
+          setNeedsAuth(!disableAuth)
+          setGoogleLoginEnabled(configAuthEnabled)
+          setClientId(String((cfg as any).google_client_id || ''))
           const localLoginRaw = (cfg as any).local_login_email
           const localLoginEmail =
             typeof localLoginRaw === 'string' ? localLoginRaw.trim() : ''
@@ -308,8 +310,8 @@ export function Root() {
     )
   }
   if (needsAuth && !authed) {
-    if (!clientId) {
-      console.error('Google client ID is missing; login disabled')
+    if (!googleLoginEnabled || !clientId) {
+      console.error('Authentication is enforced but Google login is not fully configured')
       return (
         <>
           {renderRouteMarker(location.pathname, 'auth')}

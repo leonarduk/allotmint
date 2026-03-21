@@ -22,6 +22,7 @@ describe('Root login behaviour', () => {
       return {
         ...mod,
         getConfig: vi.fn().mockResolvedValue({
+          disable_auth: false,
           google_auth_enabled: true,
           google_client_id: ''
         }),
@@ -54,6 +55,7 @@ describe('Root login behaviour', () => {
       return {
         ...mod,
         getConfig: vi.fn().mockResolvedValue({
+          disable_auth: false,
           google_auth_enabled: true,
           google_client_id: 'mock-client'
         }),
@@ -88,6 +90,81 @@ describe('Root login behaviour', () => {
     )
 
     expect(await screen.findByTestId('app-shell')).toBeInTheDocument()
+    expect(loginRender).not.toHaveBeenCalled()
+  })
+
+  it('does not show the login screen when backend auth is disabled', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          disable_auth: true,
+          google_auth_enabled: true,
+          google_client_id: 'mock-client',
+          local_login_email: 'demo@example.com'
+        }),
+        getStoredAuthToken: vi.fn(() => null)
+      }
+    })
+
+    const loginRender = vi.fn(() => <div data-testid="login-page">login</div>)
+    vi.doMock('@/LoginPage', () => ({
+      default: loginRender
+    }))
+
+    vi.doMock('@/App.tsx', () => ({
+      default: () => <div data-testid="app-shell">app-shell</div>
+    }))
+
+    document.body.innerHTML = '<div id="root"></div>'
+    const { Root } = await import('@/main')
+    render(
+      <BrowserRouter>
+        <Root />
+      </BrowserRouter>,
+    )
+
+    expect(await screen.findByTestId('app-shell')).toBeInTheDocument()
+    expect(loginRender).not.toHaveBeenCalled()
+  })
+
+  it('shows configuration error when auth is enforced without Google sign-in', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          disable_auth: false,
+          google_auth_enabled: false,
+          google_client_id: ''
+        }),
+        getStoredAuthToken: vi.fn(() => null)
+      }
+    })
+
+    const loginRender = vi.fn(() => <div data-testid="login-page">login</div>)
+    vi.doMock('@/LoginPage', () => ({
+      default: loginRender
+    }))
+
+    document.body.innerHTML = '<div id="root"></div>'
+    const { Root } = await import('@/main')
+    render(
+      <BrowserRouter>
+        <Root />
+      </BrowserRouter>,
+    )
+
+    expect(await screen.findByText(/google login is not configured/i)).toBeInTheDocument()
     expect(loginRender).not.toHaveBeenCalled()
   })
 })

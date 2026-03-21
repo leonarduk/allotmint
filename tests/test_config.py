@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from backend.app import create_app
 from backend.config import (
     ConfigValidationError,
+    _project_config_path,
     config,
     demo_identity,
     local_login_identity,
@@ -132,8 +133,12 @@ def test_local_login_email_override(monkeypatch, tmp_path):
 
 
 def test_allowed_emails_loaded_lowercase():
+    expected = [
+        email.lower()
+        for email in yaml.safe_load(_project_config_path().read_text())["auth"]["allowed_emails"]
+    ]
     cfg = reload_config()
-    assert cfg.allowed_emails == ["user@example.com"]
+    assert cfg.allowed_emails == expected
 
 
 def test_allowed_emails_env_override(monkeypatch):
@@ -219,4 +224,3 @@ def test_update_config_merges_ui_section(monkeypatch, tmp_path):
 
     cfg = reload_config()
     assert cfg.tabs.instrument is False
-

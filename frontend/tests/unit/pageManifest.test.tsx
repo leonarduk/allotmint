@@ -6,6 +6,7 @@ import {
   getMenuEntries,
   MENU_CATEGORY_ORDER,
   PAGE_MANIFEST,
+  STANDALONE_PAGE_ROUTES,
   validatePageManifest,
 } from "@/pageManifest";
 
@@ -15,6 +16,7 @@ describe("pageManifest", () => {
 
     expect(validation.duplicateModes).toEqual([]);
     expect(validation.duplicateSegments).toEqual([]);
+    expect(validation.duplicateRoutes).toEqual([]);
     expect(PAGE_MANIFEST.map((entry) => entry.mode).sort()).toEqual([...MODES].sort());
   });
 
@@ -37,5 +39,19 @@ describe("pageManifest", () => {
     expect(buildPathForMode("group", { group: "kids" })).toBe("/?group=kids");
     expect(buildPathForMode("owner", { owner: "alex" })).toBe("/portfolio/alex");
     expect(buildPathForMode("pension")).toBe("/pension/forecast");
+  });
+
+  it("keeps standalone lazy routes aligned with canonical page routes", () => {
+    const standalonePaths = STANDALONE_PAGE_ROUTES.map((route) => route.path);
+
+    expect(standalonePaths).toContain("/support");
+    expect(standalonePaths).toContain("/virtual");
+    expect(standalonePaths).toContain("/trade-compliance");
+    expect(standalonePaths).toContain("/alert-settings");
+
+    for (const entry of PAGE_MANIFEST) {
+      if (!entry.menu && entry.mode !== "virtual") continue;
+      expect(entry.routePatterns.length).toBeGreaterThan(0);
+    }
   });
 });

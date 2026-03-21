@@ -82,23 +82,15 @@ If neither is provided the app falls back to `http://localhost:8000`.
 
 Runtime feature flags and tab visibility come from the backend's `config.yaml`. See the [backend setup instructions](../README.md#local-quick-start) for configuring and running the server.
 
-## Tab plugins
+## Page manifest
 
-Tabs in the navigation bar are driven by a small plugin system. A plugin
-provides the component to render and optional metadata such as a
-`priority` value. Plugins are registered in `src/pluginRegistry.ts`.
+Navigation, route-mode ownership, and standalone lazy route registration
+are defined in `src/pageManifest.tsx`.
 
-```ts
-import { registerTabPlugin } from './pluginRegistry';
-import MyTab from './pages/MyTab';
+- `PAGE_MANIFEST` owns canonical mode metadata such as route segments,
+  route patterns, menu placement, and path builders.
+- `STANDALONE_PAGE_ROUTES` owns the lazily loaded top-level routes that
+  are rendered directly from `src/main.tsx`.
 
-registerTabPlugin({
-  id: 'myTab',
-  Component: MyTab,
-  priority: 50, // higher numbers appear earlier
-});
-```
-
-Plugins with higher priority numbers are displayed before lower ones. A
-plugin can be disabled by setting `isEnabled` to `false` or providing a
-function that returns `false`.
+See `../docs/frontend-page-manifest.md` for the workflow to add or retire
+a page feature safely.

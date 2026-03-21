@@ -25,25 +25,12 @@ import { UserProvider, useUser } from './UserContext'
 import ErrorBoundary from './ErrorBoundary'
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
 import { RouteProvider } from './RouteContext'
-import { deriveModeFromPathname } from './pageManifest'
+import { deriveModeFromPathname, STANDALONE_PAGE_ROUTES } from './pageManifest'
 
 const storedToken = getStoredAuthToken()
 if (storedToken) setAuthToken(storedToken)
 
 const App = lazy(() => import('./App.tsx'))
-const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))
-const Support = lazy(() => import('./pages/Support'))
-const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
-const TradeCompliance = lazy(() => import('./pages/TradeCompliance'))
-const Alerts = lazy(() => import('./pages/Alerts'))
-const Goals = lazy(() => import('./pages/Goals'))
-const Trail = lazy(() => import('./pages/Trail'))
-const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'))
-const ReturnComparison = lazy(() => import('./pages/ReturnComparison'))
-const AlertSettings = lazy(() => import('./pages/AlertSettings'))
-const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'))
-const SmokeTest = lazy(() => import('./pages/SmokeTest'))
-
 const routeMarkerStyle: CSSProperties = {
   position: 'absolute',
   width: 1,
@@ -268,20 +255,10 @@ export function Root() {
     <ErrorBoundary key={location.pathname}>
       <Suspense fallback={<div>Loading...</div>}>
         <Routes>
-          <Route path="/support" element={<Support />} />
-          <Route path="/virtual" element={<VirtualPortfolio />} />
-          <Route path="/compliance" element={<ComplianceWarnings />} />
-          <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
-          <Route path="/trade-compliance" element={<TradeCompliance />} />
-          <Route path="/trade-compliance/:owner" element={<TradeCompliance />} />
-          <Route path="/alerts" element={<Alerts />} />
-          <Route path="/alert-settings" element={<AlertSettings />} />
-          <Route path="/goals" element={<Goals />} />
-          <Route path="/trail" element={<Trail />} />
-          <Route path="/smoke-test" element={<SmokeTest />} />
-          <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
-          <Route path="/returns/compare" element={<ReturnComparison />} />
-          <Route path="/metrics-explained" element={<MetricsExplanation />} />
+          {STANDALONE_PAGE_ROUTES.map((route) => {
+            const Component = route.component
+            return <Route key={route.path} path={route.path} element={<Component />} />
+          })}
           <Route
             path="/*"
             element={

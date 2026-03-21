@@ -7,42 +7,55 @@ import {
   useRef,
   useState,
   type CSSProperties,
-} from 'react'
-import { createRoot } from 'react-dom/client'
-import { HelmetProvider } from 'react-helmet-async'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
-import './index.css'
-import './styles/responsive.css'
-import './i18n'
-import { ConfigProvider } from './ConfigContext'
-import { PriceRefreshProvider } from './PriceRefreshContext'
-import { AuthProvider, useAuth } from './AuthContext'
-import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
-import LoginPage from './LoginPage'
-import { UserProvider, useUser } from './UserContext'
-import ErrorBoundary from './ErrorBoundary'
-import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
-import { RouteProvider } from './RouteContext'
-import type { Mode } from './modes'
+} from 'react';
+import { createRoot } from 'react-dom/client';
+import { HelmetProvider } from 'react-helmet-async';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+} from 'react-router-dom';
+import './index.css';
+import './styles/responsive.css';
+import './i18n';
+import { ConfigProvider } from './ConfigContext';
+import { PriceRefreshProvider } from './PriceRefreshContext';
+import { AuthProvider, useAuth } from './AuthContext';
+import {
+  getConfig,
+  logout as apiLogout,
+  getStoredAuthToken,
+  setAuthToken,
+} from './api';
+import LoginPage from './LoginPage';
+import { UserProvider, useUser } from './UserContext';
+import ErrorBoundary from './ErrorBoundary';
+import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
+import { RouteProvider } from './RouteContext';
+import { deriveModeFromPathname } from './pageManifest';
 
-const storedToken = getStoredAuthToken()
-if (storedToken) setAuthToken(storedToken)
+const storedToken = getStoredAuthToken();
+if (storedToken) setAuthToken(storedToken);
 
-const App = lazy(() => import('./App.tsx'))
-const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'))
-const Support = lazy(() => import('./pages/Support'))
-const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'))
-const TradeCompliance = lazy(() => import('./pages/TradeCompliance'))
-const Alerts = lazy(() => import('./pages/Alerts'))
-const Goals = lazy(() => import('./pages/Goals'))
-const Trail = lazy(() => import('./pages/Trail'))
-const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'))
-const ReturnComparison = lazy(() => import('./pages/ReturnComparison'))
-const AlertSettings = lazy(() => import('./pages/AlertSettings'))
-const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'))
-const SmokeTest = lazy(() => import('./pages/SmokeTest'))
+const App = lazy(() => import('./App.tsx'));
+const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'));
+const Support = lazy(() => import('./pages/Support'));
+const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'));
+const TradeCompliance = lazy(() => import('./pages/TradeCompliance'));
+const Alerts = lazy(() => import('./pages/Alerts'));
+const Goals = lazy(() => import('./pages/Goals'));
+const Trail = lazy(() => import('./pages/Trail'));
+const PerformanceDiagnostics = lazy(
+  () => import('./pages/PerformanceDiagnostics')
+);
+const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
+const AlertSettings = lazy(() => import('./pages/AlertSettings'));
+const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'));
+const SmokeTest = lazy(() => import('./pages/SmokeTest'));
 
 const routeMarkerStyle: CSSProperties = {
   position: 'absolute',
@@ -56,72 +69,14 @@ const routeMarkerStyle: CSSProperties = {
   clip: 'rect(0 0 0 0)',
   clipPath: 'inset(50%)',
   overflow: 'hidden',
-}
+};
 
-const deriveModeFromPathname = (pathname: string): Mode => {
-  const segments = pathname.split('/').filter(Boolean)
-  const [first] = segments
-  switch (first) {
-    case undefined:
-      return 'group'
-    case 'portfolio':
-      return 'owner'
-    case 'instrument':
-      return 'instrument'
-    case 'transactions':
-      return 'transactions'
-    case 'trading':
-      return 'trading'
-    case 'performance':
-      return 'performance'
-    case 'screener':
-      return 'screener'
-    case 'timeseries':
-      return 'timeseries'
-    case 'watchlist':
-      return 'watchlist'
-    case 'allocation':
-      return 'allocation'
-    case 'rebalance':
-      return 'rebalance'
-    case 'market':
-      return 'market'
-    case 'movers':
-      return 'movers'
-    case 'instrumentadmin':
-      return 'instrumentadmin'
-    case 'dataadmin':
-      return 'dataadmin'
-    case 'virtual':
-      return 'virtual'
-    case 'reports':
-      return 'reports'
-    case 'alert-settings':
-      return 'alertsettings'
-    case 'trade-compliance':
-      return 'trade-compliance'
-    case 'trail':
-      return 'trail'
-    case 'support':
-      return 'support'
-    case 'pension':
-      return 'pension'
-    case 'tax-tools':
-      return 'taxtools'
-    case 'settings':
-      return 'settings'
-    case 'scenario':
-      return 'scenario'
-    case 'research':
-      return 'research'
-    default:
-      return segments.length === 0 ? 'group' : 'movers'
-  }
-}
-
-const renderRouteMarker = (pathname: string, state: 'loading' | 'config-error' | 'auth') => {
-  const mode = deriveModeFromPathname(pathname)
-  const bootstrapMode = state === 'loading' ? 'loading' : mode
+const renderRouteMarker = (
+  pathname: string,
+  state: 'loading' | 'config-error' | 'auth'
+) => {
+  const mode = deriveModeFromPathname(pathname);
+  const bootstrapMode = state === 'loading' ? 'loading' : mode;
   return (
     <>
       <div
@@ -141,146 +96,153 @@ const renderRouteMarker = (pathname: string, state: 'loading' | 'config-error' |
         style={routeMarkerStyle}
       />
     </>
-  )
-}
+  );
+};
 
 export function Root() {
-  const [configLoading, setConfigLoading] = useState(true)
-  const [configError, setConfigError] = useState<Error | null>(null)
-  const [retryScheduled, setRetryScheduled] = useState(false)
-  const [needsAuth, setNeedsAuth] = useState(false)
-  const [clientId, setClientId] = useState('')
-  const [authed, setAuthed] = useState(Boolean(storedToken))
-  const { setUser } = useAuth()
-  const { setProfile } = useUser()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const activeRequest = useRef<AbortController | null>(null)
-  const retryTimer = useRef<number | null>(null)
-  const isMounted = useRef(true)
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState<Error | null>(null);
+  const [retryScheduled, setRetryScheduled] = useState(false);
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const [googleLoginEnabled, setGoogleLoginEnabled] = useState(false);
+  const [clientId, setClientId] = useState('');
+  const [authed, setAuthed] = useState(Boolean(storedToken));
+  const { setUser } = useAuth();
+  const { setProfile } = useUser();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeRequest = useRef<AbortController | null>(null);
+  const retryTimer = useRef<number | null>(null);
+  const isMounted = useRef(true);
 
   const clearRetryTimer = useCallback(() => {
     if (retryTimer.current !== null) {
-      window.clearTimeout(retryTimer.current)
-      retryTimer.current = null
+      window.clearTimeout(retryTimer.current);
+      retryTimer.current = null;
     }
-  }, [])
+  }, []);
 
   const logout = () => {
-    apiLogout()
-    setUser(null)
-    setProfile(undefined)
-    setAuthed(false)
-    navigate('/')
-  }
+    apiLogout();
+    setUser(null);
+    setProfile(undefined);
+    setAuthed(false);
+    navigate('/');
+  };
 
   useEffect(() => {
-    if (!storedToken) return
-    const existingUser = loadStoredAuthUser()
-    if (existingUser) setUser(existingUser)
-    const existingProfile = loadStoredUserProfile()
-    if (existingProfile) setProfile(existingProfile)
-  }, [setProfile, setUser, storedToken])
+    if (!storedToken) return;
+    const existingUser = loadStoredAuthUser();
+    if (existingUser) setUser(existingUser);
+    const existingProfile = loadStoredUserProfile();
+    if (existingProfile) setProfile(existingProfile);
+  }, [setProfile, setUser, storedToken]);
 
   const fetchConfig = useCallback(
     (attempt = 0, { manual = false }: { manual?: boolean } = {}) => {
-      if (!isMounted.current) return
+      if (!isMounted.current) return;
 
-      clearRetryTimer()
+      clearRetryTimer();
 
-      const previousController = activeRequest.current
-      const controller = new AbortController()
-      activeRequest.current = controller
+      const previousController = activeRequest.current;
+      const controller = new AbortController();
+      activeRequest.current = controller;
       if (previousController && previousController !== controller) {
-        previousController.abort()
+        previousController.abort();
       }
 
-      const timeoutMs = Math.min(60000, 30000 + attempt * 10000)
+      const timeoutMs = Math.min(60000, 30000 + attempt * 10000);
       const timeoutId = window.setTimeout(() => {
-        controller.abort()
-      }, timeoutMs)
+        controller.abort();
+      }, timeoutMs);
 
-      setConfigLoading(true)
+      setConfigLoading(true);
       if (manual) {
-        setConfigError(null)
-        setRetryScheduled(false)
+        setConfigError(null);
+        setRetryScheduled(false);
       }
 
-      let shouldRetry = false
-      let retryDelay = 0
-      let nextAttempt = attempt
+      let shouldRetry = false;
+      let retryDelay = 0;
+      let nextAttempt = attempt;
 
       getConfig<Record<string, unknown>>({ signal: controller.signal })
-        .then(cfg => {
-          if (!isMounted.current || activeRequest.current !== controller) return
-          const configAuthEnabled = Boolean((cfg as any).google_auth_enabled)
-          setNeedsAuth(configAuthEnabled)
-          setClientId(String((cfg as any).google_client_id || ''))
-          const disableAuth = Boolean((cfg as any).disable_auth)
-          const localLoginRaw = (cfg as any).local_login_email
+        .then((cfg) => {
+          if (!isMounted.current || activeRequest.current !== controller)
+            return;
+          const configAuthEnabled = Boolean((cfg as any).google_auth_enabled);
+          const disableAuth = Boolean((cfg as any).disable_auth);
+          setNeedsAuth(!disableAuth);
+          setGoogleLoginEnabled(configAuthEnabled);
+          setClientId(String((cfg as any).google_client_id || ''));
+          const localLoginRaw = (cfg as any).local_login_email;
           const localLoginEmail =
-            typeof localLoginRaw === 'string' ? localLoginRaw.trim() : ''
+            typeof localLoginRaw === 'string' ? localLoginRaw.trim() : '';
           if (disableAuth && localLoginEmail) {
-            const storedUser = loadStoredAuthUser()
+            const storedUser = loadStoredAuthUser();
             if (!storedUser || storedUser.email !== localLoginEmail) {
-              setUser({ email: localLoginEmail })
+              setUser({ email: localLoginEmail });
             }
-            const storedProfile = loadStoredUserProfile()
+            const storedProfile = loadStoredUserProfile();
             if (!storedProfile || storedProfile.email !== localLoginEmail) {
-              setProfile({ email: localLoginEmail })
+              setProfile({ email: localLoginEmail });
             }
           }
-          setConfigError(null)
-          setRetryScheduled(false)
+          setConfigError(null);
+          setRetryScheduled(false);
         })
-        .catch(err => {
-          if (!isMounted.current || activeRequest.current !== controller) return
-          console.error('Failed to load configuration', err)
+        .catch((err) => {
+          if (!isMounted.current || activeRequest.current !== controller)
+            return;
+          console.error('Failed to load configuration', err);
           const error =
             err instanceof DOMException && err.name === 'AbortError'
               ? new Error('Request timed out while loading configuration.')
               : err instanceof Error
-              ? err
-              : new Error(String(err))
-          setConfigError(error)
+                ? err
+                : new Error(String(err));
+          setConfigError(error);
 
-          shouldRetry = true
-          nextAttempt = attempt + 1
-          retryDelay = Math.min(30000, 2000 * 2 ** attempt)
+          shouldRetry = true;
+          nextAttempt = attempt + 1;
+          retryDelay = Math.min(30000, 2000 * 2 ** attempt);
         })
         .finally(() => {
-          window.clearTimeout(timeoutId)
-          const isCurrent = isMounted.current && activeRequest.current === controller
+          window.clearTimeout(timeoutId);
+          const isCurrent =
+            isMounted.current && activeRequest.current === controller;
           if (isCurrent) {
-            activeRequest.current = null
-            setConfigLoading(false)
+            activeRequest.current = null;
+            setConfigLoading(false);
             if (shouldRetry) {
-              setRetryScheduled(true)
+              setRetryScheduled(true);
             }
           }
           if (shouldRetry && isMounted.current) {
             retryTimer.current = window.setTimeout(() => {
-              fetchConfig(nextAttempt)
-            }, retryDelay)
+              fetchConfig(nextAttempt);
+            }, retryDelay);
           }
-        })
+        });
     },
-    [clearRetryTimer],
-  )
+    [clearRetryTimer]
+  );
 
   useEffect(() => {
-    isMounted.current = true
-    fetchConfig()
+    isMounted.current = true;
+    fetchConfig();
     return () => {
-      isMounted.current = false
-      clearRetryTimer()
-      activeRequest.current?.abort()
-    }
-  }, [clearRetryTimer, fetchConfig])
+      isMounted.current = false;
+      clearRetryTimer();
+      activeRequest.current?.abort();
+    };
+  }, [clearRetryTimer, fetchConfig]);
 
   const handleRetry = useCallback(() => {
-    fetchConfig(0, { manual: true })
-  }, [fetchConfig])
+    fetchConfig(0, { manual: true });
+  }, [fetchConfig]);
+
+  const isPublicSupportRoute = location.pathname === '/support';
 
   if (configLoading && !retryScheduled) {
     return (
@@ -290,7 +252,7 @@ export function Root() {
           Loading configuration...
         </div>
       </>
-    )
+    );
   }
 
   if (configError && !retryScheduled) {
@@ -305,24 +267,26 @@ export function Root() {
           </button>
         </div>
       </>
-    )
+    );
   }
-  if (needsAuth && !authed) {
-    if (!clientId) {
-      console.error('Google client ID is missing; login disabled')
+  if (needsAuth && !authed && !isPublicSupportRoute) {
+    if (!googleLoginEnabled || !clientId) {
+      console.error(
+        'Authentication is enforced but Google login is not fully configured'
+      );
       return (
         <>
           {renderRouteMarker(location.pathname, 'auth')}
           <div>Google login is not configured.</div>
         </>
-      )
+      );
     }
     return (
       <>
         {renderRouteMarker(location.pathname, 'auth')}
         <LoginPage clientId={clientId} onSuccess={() => setAuthed(true)} />
       </>
-    )
+    );
   }
 
   return (
@@ -334,13 +298,19 @@ export function Root() {
           <Route path="/compliance" element={<ComplianceWarnings />} />
           <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
           <Route path="/trade-compliance" element={<TradeCompliance />} />
-          <Route path="/trade-compliance/:owner" element={<TradeCompliance />} />
+          <Route
+            path="/trade-compliance/:owner"
+            element={<TradeCompliance />}
+          />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/alert-settings" element={<AlertSettings />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/trail" element={<Trail />} />
           <Route path="/smoke-test" element={<SmokeTest />} />
-          <Route path="/performance/:owner/diagnostics" element={<PerformanceDiagnostics />} />
+          <Route
+            path="/performance/:owner/diagnostics"
+            element={<PerformanceDiagnostics />}
+          />
           <Route path="/returns/compare" element={<ReturnComparison />} />
           <Route path="/metrics-explained" element={<MetricsExplanation />} />
           <Route
@@ -354,7 +324,7 @@ export function Root() {
         </Routes>
       </Suspense>
     </ErrorBoundary>
-  )
+  );
 }
 
 const rootEl = document.getElementById('root');
@@ -375,8 +345,8 @@ createRoot(rootEl).render(
         </PriceRefreshProvider>
       </ConfigProvider>
     </HelmetProvider>
-  </StrictMode>,
-)
+  </StrictMode>
+);
 
 if (
   'serviceWorker' in navigator &&
@@ -385,6 +355,8 @@ if (
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/service-worker.js')
-      .catch(err => console.error('Service worker registration failed:', err))
-  })
+      .catch((err) =>
+        console.error('Service worker registration failed:', err)
+      );
+  });
 }

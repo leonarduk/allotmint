@@ -7,6 +7,25 @@ import {
   useRef,
   useState,
   type CSSProperties,
+} from 'react'
+import { createRoot } from 'react-dom/client'
+import { HelmetProvider } from 'react-helmet-async'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import './index.css'
+import './styles/responsive.css'
+import './i18n'
+import { ConfigProvider } from './ConfigContext'
+import { PriceRefreshProvider } from './PriceRefreshContext'
+import { AuthProvider, useAuth } from './AuthContext'
+import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
+import LoginPage from './LoginPage'
+import { UserProvider, useUser } from './UserContext'
+import ErrorBoundary from './ErrorBoundary'
+import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
+import { RouteProvider } from './RouteContext'
+import { deriveModeFromPathname } from './pageManifest'
 } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
@@ -65,6 +84,11 @@ const routeMarkerStyle: CSSProperties = {
   clip: 'rect(0 0 0 0)',
   clipPath: 'inset(50%)',
   overflow: 'hidden',
+}
+
+const renderRouteMarker = (pathname: string, state: 'loading' | 'config-error' | 'auth') => {
+  const mode = deriveModeFromPathname(pathname)
+  const bootstrapMode = state === 'loading' ? 'loading' : mode
 };
 
 const renderRouteMarker = (

@@ -2,6 +2,16 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
+import type { TabPluginId } from '../tabPlugins';
+import { SUPPORT_TABS } from '../tabPlugins';
+import {
+  buildPathForMode,
+  deriveModeFromPathname,
+  getMenuEntries,
+  MENU_CATEGORY_ORDER,
+} from '../pageManifest';
+
+const SUPPORT_ONLY_TABS: TabPluginId[] = [];
 import {
   deriveModeFromPathname,
   menuCategories,
@@ -17,6 +27,15 @@ interface MenuProps {
   style?: React.CSSProperties;
 }
 
+type MenuCategoryDefinition = {
+  id: string;
+  titleKey: string;
+};
+
+type CategorizedMenu = MenuCategoryDefinition & {
+  tabs: ReturnType<typeof getMenuEntries>;
+};
+
 export default function Menu({
   selectedOwner = '',
   selectedGroup = '',
@@ -26,6 +45,9 @@ export default function Menu({
   const location = useLocation();
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
+  const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
+
+  const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
   const mode = deriveModeFromPathname(location.pathname);
   const isSupportMode = orderedTabPlugins.some(
     (plugin) => plugin.id === mode && plugin.section === 'support'
@@ -34,6 +56,43 @@ export default function Menu({
   const supportEnabled =
     tabs.support !== false && !disabledTabs?.includes('support');
 
+  const categoryDefinitions = useMemo<MenuCategoryDefinition[]>(() => {
+    const section = isSupportMode ? 'support' : 'user';
+    return MENU_CATEGORY_ORDER[section].map((category) => ({
+      id: category,
+      titleKey: category,
+    }));
+  }, [isSupportMode]);
+
+  const availableTabs = useMemo(
+    () =>
+      getMenuEntries(isSupportMode ? 'support' : 'user').filter((entry) => {
+        if (entry.mode === 'support') return false;
+        if (!inSupport && SUPPORT_ONLY_TABS.includes(entry.mode as TabPluginId)) {
+          return false;
+        }
+        const enabled = tabs[entry.mode] === true;
+        return enabled && !disabledTabs?.includes(entry.mode);
+      }),
+    [disabledTabs, inSupport, isSupportMode, tabs],
+  );
+
+  const categoriesToRender: CategorizedMenu[] = useMemo(() => {
+    const categories = categoryDefinitions
+      .map((category) => ({
+        ...category,
+        tabs: availableTabs.filter((tab) => tab.menu?.category === category.id),
+      }))
+      .filter((category) => {
+        if (category.tabs.length > 0) return true;
+        if (category.id === 'preferences') {
+          return supportEnabled || Boolean(onLogout);
+        }
+        return false;
+      });
+
+    return categories;
+  }, [availableTabs, categoryDefinitions, onLogout, supportEnabled]);
   type TabDefinition = (typeof orderedTabPlugins)[number];
   type CategorizedMenu = {
     id: string;
@@ -100,6 +159,7 @@ export default function Menu({
       <ul className="flex list-none flex-wrap items-center gap-4 border-b border-gray-200 pb-4">
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
+          const containsActiveTab = category.tabs.some((tab) => tab.mode === mode);
           const containsActiveTab = category.tabs.some(
             (tab) => tab.id === mode
           );
@@ -164,21 +224,24 @@ export default function Menu({
               >
                 <ul className="flex list-none flex-col gap-1">
                   {category.tabs.map((tab) => (
-                    <li key={tab.id}>
+                    <li key={tab.mode}>
                       <Link
                         ref={assignFirstFocusable}
                         role="menuitem"
+                        to={buildPathForMode(tab.mode, {
+                          owner: selectedOwner,
+                          group: selectedGroup,
                         to={pathForMode(tab.id, {
                           selectedOwner,
                           selectedGroup,
                         })}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
-                          mode === tab.id
+                          mode === tab.mode
                             ? 'font-semibold text-gray-900'
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                         }`}
                       >
-                        {t(`app.modes.${tab.id}`)}
+                        {t(`app.modes.${tab.mode}`)}
                       </Link>
                     </li>
                   ))}
@@ -187,7 +250,7 @@ export default function Menu({
                       <Link
                         ref={assignFirstFocusable}
                         role="menuitem"
-                        to={inSupport ? '/' : '/support'}
+                        to={inSupport ? buildPathForMode('group', { group: selectedGroup }) : buildPathForMode('support')}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           inSupport
                             ? 'font-semibold text-gray-900'

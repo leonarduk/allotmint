@@ -1,3 +1,17 @@
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useConfig } from "../ConfigContext";
+import type { Mode } from "../modes";
+import useFetch from "./useFetch";
+import { getGroups } from "../api";
+import {
+  isDefaultGroupSlug,
+  normaliseGroupSlug,
+} from "../utils/groups";
+import {
+  buildPathForMode,
+  deriveModeFromPathname,
+} from "../pageManifest";
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useConfig } from '../ConfigContext';
@@ -20,6 +34,8 @@ function deriveInitial() {
   const path = window.location.pathname.split('/').filter(Boolean);
   const params = new URLSearchParams(window.location.search);
   const mode = deriveModeFromPathname(window.location.pathname);
+  const slug = path[1] ?? "";
+  const owner = mode === "owner" || mode === "performance" ? slug : "";
   const slug = path[1] ?? '';
   const owner = mode === 'owner' || mode === 'performance' ? slug : '';
   const group =
@@ -38,6 +54,7 @@ export function useRouteMode(): RouteState {
   const [selectedOwner, setSelectedOwner] = useState(initial.owner);
   const [selectedGroup, setSelectedGroup] = useState(initial.group);
 
+
   useEffect(() => {
     const segs = location.pathname.split('/').filter(Boolean);
     const params = new URLSearchParams(location.search);
@@ -53,6 +70,11 @@ export function useRouteMode(): RouteState {
 
       if (firstEnabled) {
         if (mode !== firstEnabled) setMode(firstEnabled);
+        const targetPath = buildPathForMode(firstEnabled, { owner: selectedOwner, group: selectedGroup });
+        if (location.pathname !== targetPath)
+          navigate(targetPath, { replace: true });
+      } else {
+        console.warn("No enabled tabs available for navigation");
         const targetPath = pathForMode(firstEnabled, {
           selectedOwner,
           selectedGroup,

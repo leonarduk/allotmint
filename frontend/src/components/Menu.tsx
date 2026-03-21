@@ -1,13 +1,14 @@
-// src/components/Menu.tsx
 import { useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
-import { isDefaultGroupSlug } from '../utils/groups';
-import type { TabPluginId } from '../tabPlugins';
-import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
-
-const SUPPORT_ONLY_TABS: TabPluginId[] = [];
+import {
+  deriveModeFromPathname,
+  menuCategories,
+  pageManifestByMode,
+  pathForMode,
+} from '../pageManifest';
+import { orderedTabPlugins } from '../tabPlugins';
 
 interface MenuProps {
   selectedOwner?: string;
@@ -25,238 +26,83 @@ export default function Menu({
   const location = useLocation();
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
-  const path = location.pathname.split('/').filter(Boolean);
-
-  let mode: TabPluginId;
-  switch (path[0]) {
-    case 'portfolio':
-      mode = 'owner';
-      break;
-    case 'instrument':
-      mode = 'instrument';
-      break;
-    case 'transactions':
-      mode = 'transactions';
-      break;
-    case 'trading':
-      mode = 'trading';
-      break;
-    case 'performance':
-      mode = 'performance';
-      break;
-    case 'screener':
-      mode = 'screener';
-      break;
-    case 'timeseries':
-      mode = 'timeseries';
-      break;
-    case 'watchlist':
-      mode = 'watchlist';
-      break;
-    case 'allocation':
-      mode = 'allocation';
-      break;
-    case 'market':
-      mode = 'market';
-      break;
-    case 'movers':
-      mode = 'movers';
-      break;
-    case 'instrumentadmin':
-      mode = 'instrumentadmin';
-      break;
-    case 'dataadmin':
-      mode = 'dataadmin';
-      break;
-    case 'virtual':
-      mode = 'virtual';
-      break;
-    case 'reports':
-      mode = 'reports';
-      break;
-    case 'alert-settings':
-      mode = 'alertsettings';
-      break;
-    case 'pension':
-      mode = 'pension';
-      break;
-    case 'tax-tools':
-      mode = 'taxtools';
-      break;
-    case 'trade-compliance':
-      mode = 'trade-compliance';
-      break;
-    case 'support':
-      mode = 'support';
-      break;
-    case 'settings':
-      mode = 'settings';
-      break;
-    case 'scenario':
-      mode = 'scenario';
-      break;
-    default:
-      mode = path.length === 0 ? 'group' : 'movers';
-  }
-
-  const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
+  const mode = deriveModeFromPathname(location.pathname);
+  const isSupportMode = orderedTabPlugins.some(
+    (plugin) => plugin.id === mode && plugin.section === 'support'
+  );
   const inSupport = mode === 'support';
-  const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
+  const supportEnabled =
+    tabs.support !== false && !disabledTabs?.includes('support');
 
   type TabDefinition = (typeof orderedTabPlugins)[number];
-
-  type MenuCategory = {
+  type CategorizedMenu = {
     id: string;
     titleKey: string;
-    tabIds: TabPluginId[];
-  };
-
-  type CategorizedMenu = MenuCategory & {
     tabs: TabDefinition[];
   };
 
-  const USER_MENU_CATEGORIES: MenuCategory[] = [
-    {
-      id: 'dashboard',
-      titleKey: 'dashboard',
-      tabIds: ['group', 'market', 'movers', 'owner', 'performance', 'allocation', 'transactions', 'reports'],
-    },
-    {
-      id: 'insights',
-      titleKey: 'insights',
-      tabIds: [
-        'instrument',
-        'screener',
-        'watchlist',
-        'scenario',
-        'trading',
-        'rebalance',
-      ],
-    },
-    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail', 'trade-compliance'] },
-    { id: 'preferences', titleKey: 'preferences', tabIds: ['alertsettings', 'settings'] },
-  ];
-
-  const SUPPORT_MENU_CATEGORIES: MenuCategory[] = [
-    {
-      id: 'operations',
-      titleKey: 'operations',
-      tabIds: ['instrumentadmin', 'dataadmin', 'timeseries', 'support'],
-    },
-    { id: 'preferences', titleKey: 'preferences', tabIds: [] },
-  ];
-
   const availableTabs = useMemo(
     () =>
-      orderedTabPlugins
-        .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
-        .slice()
-        .sort((a, b) => a.priority - b.priority)
-        .filter((p) => {
-          if (p.id === 'support') return false;
-          if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
-          const enabled = (tabs as Record<string, boolean | undefined>)[p.id] === true;
-          return enabled && !disabledTabs?.includes(p.id);
+      orderedTabPlugins.filter((plugin) => {
+        if (plugin.section !== (isSupportMode ? 'support' : 'user'))
+          return false;
+        if (plugin.id === 'support') return false;
+        const enabled =
+          (tabs as Record<string, boolean | undefined>)[plugin.id] === true;
+        return enabled && !disabledTabs?.includes(plugin.id);
+      }),
+    [disabledTabs, isSupportMode, tabs]
+  );
+
+  const categoryDefinitions = isSupportMode
+    ? menuCategories.support
+    : menuCategories.user;
+
+  const categoriesToRender: CategorizedMenu[] = useMemo(
+    () =>
+      categoryDefinitions
+        .map((category) => ({
+          ...category,
+          tabs: availableTabs.filter(
+            (tab) => pageManifestByMode[tab.id].menuCategory === category.id
+          ),
+        }))
+        .filter((category) => {
+          if (category.tabs.length > 0) return true;
+          if (category.id === 'preferences') {
+            return supportEnabled || Boolean(onLogout);
+          }
+          return false;
         }),
-    [disabledTabs, inSupport, isSupportMode, tabs],
+    [availableTabs, categoryDefinitions, onLogout, supportEnabled]
   );
-
-  const categoryDefinitions = isSupportMode ? SUPPORT_MENU_CATEGORIES : USER_MENU_CATEGORIES;
-  const categorizedTabIds = useMemo(
-    () => new Set(categoryDefinitions.flatMap((category) => category.tabIds)),
-    [categoryDefinitions],
-  );
-
-  const categoriesToRender: CategorizedMenu[] = useMemo(() => {
-    const categories = categoryDefinitions
-      .map((category) => ({
-        ...category,
-        tabs: availableTabs.filter((tab) => category.tabIds.includes(tab.id)),
-      }))
-      .filter((category) => {
-        if (category.tabs.length > 0) return true;
-        if (category.id === 'preferences') {
-          return supportEnabled || Boolean(onLogout);
-        }
-        return false;
-      });
-
-    const uncategorizedTabs = availableTabs.filter((tab) => !categorizedTabIds.has(tab.id));
-
-    if (uncategorizedTabs.length > 0) {
-      categories.push({
-        id: 'other',
-        titleKey: 'other',
-        tabIds: uncategorizedTabs.map((tab) => tab.id),
-        tabs: uncategorizedTabs,
-      });
-    }
-
-    return categories;
-  }, [availableTabs, categorizedTabIds, categoryDefinitions, onLogout, supportEnabled]);
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const firstLinkRefs = useRef<Record<string, HTMLElement | null>>({});
 
-  const registerFirstFocusable = (categoryId: string) => (element: HTMLElement | null) => {
-    if (!element) {
-      if (firstLinkRefs.current[categoryId]?.isConnected === false) {
-        firstLinkRefs.current[categoryId] = null;
+  const registerFirstFocusable =
+    (categoryId: string) => (element: HTMLElement | null) => {
+      if (!element) {
+        if (firstLinkRefs.current[categoryId]?.isConnected === false) {
+          firstLinkRefs.current[categoryId] = null;
+        }
+        return;
       }
-      return;
-    }
 
-    const current = firstLinkRefs.current[categoryId];
-    if (!current || current.isConnected === false) {
-      firstLinkRefs.current[categoryId] = element;
-    }
-  };
-
-  function pathFor(m: any) {
-    switch (m) {
-      case 'group':
-        return selectedGroup && !isDefaultGroupSlug(selectedGroup)
-          ? `/?group=${selectedGroup}`
-          : '/';
-      case 'instrument':
-        return selectedGroup ? `/instrument/${selectedGroup}` : '/instrument';
-      case 'owner':
-        return selectedOwner ? `/portfolio/${selectedOwner}` : '/portfolio';
-      case 'performance':
-        return selectedOwner ? `/performance/${selectedOwner}` : '/performance';
-      case 'movers':
-        return '/movers';
-      case 'trading':
-        return '/trading';
-      case 'scenario':
-        return '/scenario';
-      case 'reports':
-        return '/reports';
-      case 'alertsettings':
-        return '/alert-settings';
-      case 'settings':
-        return '/settings';
-      case 'allocation':
-        return '/allocation';
-      case 'rebalance':
-        return '/rebalance';
-      case 'instrumentadmin':
-        return '/instrumentadmin';
-      case 'pension':
-        return '/pension/forecast';
-      case 'taxtools':
-        return '/tax-tools';
-      default:
-        return `/${m}`;
-    }
-  }
+      const current = firstLinkRefs.current[categoryId];
+      if (!current || current.isConnected === false) {
+        firstLinkRefs.current[categoryId] = element;
+      }
+    };
 
   return (
     <nav className="mb-4" style={style}>
       <ul className="flex list-none flex-wrap items-center gap-4 border-b border-gray-200 pb-4">
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
-          const containsActiveTab = category.tabs.some((tab) => tab.id === mode);
+          const containsActiveTab = category.tabs.some(
+            (tab) => tab.id === mode
+          );
           const buttonId = `menu-trigger-${category.id}`;
           const panelId = `menu-panel-${category.id}`;
           const assignFirstFocusable = registerFirstFocusable(category.id);
@@ -274,7 +120,9 @@ export default function Menu({
                     : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
                 onClick={() =>
-                  setOpenCategory((current) => (current === category.id ? null : category.id))
+                  setOpenCategory((current) =>
+                    current === category.id ? null : category.id
+                  )
                 }
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowDown') {
@@ -313,7 +161,6 @@ export default function Menu({
                     setOpenCategory(null);
                   }
                 }}
-
               >
                 <ul className="flex list-none flex-col gap-1">
                   {category.tabs.map((tab) => (
@@ -321,7 +168,10 @@ export default function Menu({
                       <Link
                         ref={assignFirstFocusable}
                         role="menuitem"
-                        to={pathFor(tab.id as string)}
+                        to={pathForMode(tab.id, {
+                          selectedOwner,
+                          selectedGroup,
+                        })}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           mode === tab.id
                             ? 'font-semibold text-gray-900'
@@ -354,9 +204,7 @@ export default function Menu({
                         ref={(element) => assignFirstFocusable(element)}
                         type="button"
                         role="menuitem"
-                        onClick={() => {
-                          onLogout();
-                        }}
+                        onClick={onLogout}
                         className="block w-full rounded px-2 py-1 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
                       >
                         {t('app.logout')}

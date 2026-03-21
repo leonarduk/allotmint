@@ -3,9 +3,14 @@ import { useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
-import { isDefaultGroupSlug } from '../utils/groups';
 import type { TabPluginId } from '../tabPlugins';
-import { orderedTabPlugins, SUPPORT_TABS } from '../tabPlugins';
+import { SUPPORT_TABS } from '../tabPlugins';
+import {
+  buildPathForMode,
+  deriveModeFromPathname,
+  getMenuEntries,
+  MENU_CATEGORY_ORDER,
+} from '../pageManifest';
 
 const SUPPORT_ONLY_TABS: TabPluginId[] = [];
 
@@ -16,6 +21,15 @@ interface MenuProps {
   style?: React.CSSProperties;
 }
 
+type MenuCategoryDefinition = {
+  id: string;
+  titleKey: string;
+};
+
+type CategorizedMenu = MenuCategoryDefinition & {
+  tabs: ReturnType<typeof getMenuEntries>;
+};
+
 export default function Menu({
   selectedOwner = '',
   selectedGroup = '',
@@ -25,153 +39,38 @@ export default function Menu({
   const location = useLocation();
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
-  const path = location.pathname.split('/').filter(Boolean);
-
-  let mode: TabPluginId;
-  switch (path[0]) {
-    case 'portfolio':
-      mode = 'owner';
-      break;
-    case 'instrument':
-      mode = 'instrument';
-      break;
-    case 'transactions':
-      mode = 'transactions';
-      break;
-    case 'trading':
-      mode = 'trading';
-      break;
-    case 'performance':
-      mode = 'performance';
-      break;
-    case 'screener':
-      mode = 'screener';
-      break;
-    case 'timeseries':
-      mode = 'timeseries';
-      break;
-    case 'watchlist':
-      mode = 'watchlist';
-      break;
-    case 'allocation':
-      mode = 'allocation';
-      break;
-    case 'market':
-      mode = 'market';
-      break;
-    case 'movers':
-      mode = 'movers';
-      break;
-    case 'instrumentadmin':
-      mode = 'instrumentadmin';
-      break;
-    case 'dataadmin':
-      mode = 'dataadmin';
-      break;
-    case 'virtual':
-      mode = 'virtual';
-      break;
-    case 'reports':
-      mode = 'reports';
-      break;
-    case 'alert-settings':
-      mode = 'alertsettings';
-      break;
-    case 'pension':
-      mode = 'pension';
-      break;
-    case 'tax-tools':
-      mode = 'taxtools';
-      break;
-    case 'trade-compliance':
-      mode = 'trade-compliance';
-      break;
-    case 'support':
-      mode = 'support';
-      break;
-    case 'settings':
-      mode = 'settings';
-      break;
-    case 'scenario':
-      mode = 'scenario';
-      break;
-    default:
-      mode = path.length === 0 ? 'group' : 'movers';
-  }
+  const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
 
   const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
   const inSupport = mode === 'support';
   const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
 
-  type TabDefinition = (typeof orderedTabPlugins)[number];
-
-  type MenuCategory = {
-    id: string;
-    titleKey: string;
-    tabIds: TabPluginId[];
-  };
-
-  type CategorizedMenu = MenuCategory & {
-    tabs: TabDefinition[];
-  };
-
-  const USER_MENU_CATEGORIES: MenuCategory[] = [
-    {
-      id: 'dashboard',
-      titleKey: 'dashboard',
-      tabIds: ['group', 'market', 'movers', 'owner', 'performance', 'allocation', 'transactions', 'reports'],
-    },
-    {
-      id: 'insights',
-      titleKey: 'insights',
-      tabIds: [
-        'instrument',
-        'screener',
-        'watchlist',
-        'scenario',
-        'trading',
-        'rebalance',
-      ],
-    },
-    { id: 'goals', titleKey: 'goals', tabIds: ['pension', 'taxtools', 'trail', 'trade-compliance'] },
-    { id: 'preferences', titleKey: 'preferences', tabIds: ['alertsettings', 'settings'] },
-  ];
-
-  const SUPPORT_MENU_CATEGORIES: MenuCategory[] = [
-    {
-      id: 'operations',
-      titleKey: 'operations',
-      tabIds: ['instrumentadmin', 'dataadmin', 'timeseries', 'support'],
-    },
-    { id: 'preferences', titleKey: 'preferences', tabIds: [] },
-  ];
+  const categoryDefinitions = useMemo<MenuCategoryDefinition[]>(() => {
+    const section = isSupportMode ? 'support' : 'user';
+    return MENU_CATEGORY_ORDER[section].map((category) => ({
+      id: category,
+      titleKey: category,
+    }));
+  }, [isSupportMode]);
 
   const availableTabs = useMemo(
     () =>
-      orderedTabPlugins
-        .filter((p) => p.section === (isSupportMode ? 'support' : 'user'))
-        .slice()
-        .sort((a, b) => a.priority - b.priority)
-        .filter((p) => {
-          if (p.id === 'support') return false;
-          if (!inSupport && SUPPORT_ONLY_TABS.includes(p.id)) return false;
-          const enabled = (tabs as Record<string, boolean | undefined>)[p.id] === true;
-          return enabled && !disabledTabs?.includes(p.id);
-        }),
+      getMenuEntries(isSupportMode ? 'support' : 'user').filter((entry) => {
+        if (entry.mode === 'support') return false;
+        if (!inSupport && SUPPORT_ONLY_TABS.includes(entry.mode as TabPluginId)) {
+          return false;
+        }
+        const enabled = tabs[entry.mode] === true;
+        return enabled && !disabledTabs?.includes(entry.mode);
+      }),
     [disabledTabs, inSupport, isSupportMode, tabs],
-  );
-
-  const categoryDefinitions = isSupportMode ? SUPPORT_MENU_CATEGORIES : USER_MENU_CATEGORIES;
-  const categorizedTabIds = useMemo(
-    () => new Set(categoryDefinitions.flatMap((category) => category.tabIds)),
-    [categoryDefinitions],
   );
 
   const categoriesToRender: CategorizedMenu[] = useMemo(() => {
     const categories = categoryDefinitions
       .map((category) => ({
         ...category,
-        tabs: availableTabs.filter((tab) => category.tabIds.includes(tab.id)),
+        tabs: availableTabs.filter((tab) => tab.menu?.category === category.id),
       }))
       .filter((category) => {
         if (category.tabs.length > 0) return true;
@@ -181,19 +80,8 @@ export default function Menu({
         return false;
       });
 
-    const uncategorizedTabs = availableTabs.filter((tab) => !categorizedTabIds.has(tab.id));
-
-    if (uncategorizedTabs.length > 0) {
-      categories.push({
-        id: 'other',
-        titleKey: 'other',
-        tabIds: uncategorizedTabs.map((tab) => tab.id),
-        tabs: uncategorizedTabs,
-      });
-    }
-
     return categories;
-  }, [availableTabs, categorizedTabIds, categoryDefinitions, onLogout, supportEnabled]);
+  }, [availableTabs, categoryDefinitions, onLogout, supportEnabled]);
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const firstLinkRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -212,51 +100,12 @@ export default function Menu({
     }
   };
 
-  function pathFor(m: any) {
-    switch (m) {
-      case 'group':
-        return selectedGroup && !isDefaultGroupSlug(selectedGroup)
-          ? `/?group=${selectedGroup}`
-          : '/';
-      case 'instrument':
-        return selectedGroup ? `/instrument/${selectedGroup}` : '/instrument';
-      case 'owner':
-        return selectedOwner ? `/portfolio/${selectedOwner}` : '/portfolio';
-      case 'performance':
-        return selectedOwner ? `/performance/${selectedOwner}` : '/performance';
-      case 'movers':
-        return '/movers';
-      case 'trading':
-        return '/trading';
-      case 'scenario':
-        return '/scenario';
-      case 'reports':
-        return '/reports';
-      case 'alertsettings':
-        return '/alert-settings';
-      case 'settings':
-        return '/settings';
-      case 'allocation':
-        return '/allocation';
-      case 'rebalance':
-        return '/rebalance';
-      case 'instrumentadmin':
-        return '/instrumentadmin';
-      case 'pension':
-        return '/pension/forecast';
-      case 'taxtools':
-        return '/tax-tools';
-      default:
-        return `/${m}`;
-    }
-  }
-
   return (
     <nav className="mb-4" style={style}>
       <ul className="flex list-none flex-wrap items-center gap-4 border-b border-gray-200 pb-4">
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
-          const containsActiveTab = category.tabs.some((tab) => tab.id === mode);
+          const containsActiveTab = category.tabs.some((tab) => tab.mode === mode);
           const buttonId = `menu-trigger-${category.id}`;
           const panelId = `menu-panel-${category.id}`;
           const assignFirstFocusable = registerFirstFocusable(category.id);
@@ -313,22 +162,24 @@ export default function Menu({
                     setOpenCategory(null);
                   }
                 }}
-
               >
                 <ul className="flex list-none flex-col gap-1">
                   {category.tabs.map((tab) => (
-                    <li key={tab.id}>
+                    <li key={tab.mode}>
                       <Link
                         ref={assignFirstFocusable}
                         role="menuitem"
-                        to={pathFor(tab.id as string)}
+                        to={buildPathForMode(tab.mode, {
+                          owner: selectedOwner,
+                          group: selectedGroup,
+                        })}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
-                          mode === tab.id
+                          mode === tab.mode
                             ? 'font-semibold text-gray-900'
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                         }`}
                       >
-                        {t(`app.modes.${tab.id}`)}
+                        {t(`app.modes.${tab.mode}`)}
                       </Link>
                     </li>
                   ))}
@@ -337,7 +188,7 @@ export default function Menu({
                       <Link
                         ref={assignFirstFocusable}
                         role="menuitem"
-                        to={inSupport ? '/' : '/support'}
+                        to={inSupport ? buildPathForMode('group', { group: selectedGroup }) : buildPathForMode('support')}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           inSupport
                             ? 'font-semibold text-gray-900'

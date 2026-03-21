@@ -8,6 +8,10 @@ import {
   isDefaultGroupSlug,
   normaliseGroupSlug,
 } from "../utils/groups";
+import {
+  buildPathForMode,
+  deriveModeFromPathname,
+} from "../pageManifest";
 
 interface RouteState {
   mode: Mode;
@@ -18,69 +22,10 @@ interface RouteState {
   setSelectedGroup: (s: string) => void;
 }
 
-function segmentToMode(segment: string | undefined, segmentCount: number): Mode {
-  switch (segment) {
-    case undefined:
-      return "group";
-    case "portfolio":
-      return "owner";
-    case "instrument":
-      return "instrument";
-    case "transactions":
-      return "transactions";
-    case "trading":
-      return "trading";
-    case "performance":
-      return "performance";
-    case "screener":
-      return "screener";
-    case "timeseries":
-      return "timeseries";
-    case "watchlist":
-      return "watchlist";
-    case "allocation":
-      return "allocation";
-    case "rebalance":
-      return "rebalance";
-    case "market":
-      return "market";
-    case "movers":
-      return "movers";
-    case "instrumentadmin":
-      return "instrumentadmin";
-    case "dataadmin":
-      return "dataadmin";
-    case "virtual":
-      return "virtual";
-    case "reports":
-      return "reports";
-    case "alert-settings":
-      return "alertsettings";
-    case "trade-compliance":
-      return "trade-compliance";
-    case "trail":
-      return "trail";
-    case "support":
-      return "support";
-    case "pension":
-      return "pension";
-    case "tax-tools":
-      return "taxtools";
-    case "settings":
-      return "settings";
-    case "scenario":
-      return "scenario";
-    case "research":
-      return "research";
-    default:
-      return segmentCount === 0 ? "group" : "movers";
-  }
-}
-
 function deriveInitial() {
   const path = window.location.pathname.split("/").filter(Boolean);
   const params = new URLSearchParams(window.location.search);
-  const mode = segmentToMode(path[0], path.length);
+  const mode = deriveModeFromPathname(window.location.pathname);
   const slug = path[1] ?? "";
   const owner = mode === "owner" || mode === "performance" ? slug : "";
   const group =
@@ -99,57 +44,11 @@ export function useRouteMode(): RouteState {
   const [selectedOwner, setSelectedOwner] = useState(initial.owner);
   const [selectedGroup, setSelectedGroup] = useState(initial.group);
 
-  function pathFor(m: Mode) {
-    switch (m) {
-      case "group":
-        return selectedGroup && !isDefaultGroupSlug(selectedGroup)
-          ? `/?group=${selectedGroup}`
-          : "/";
-      case "instrument":
-        return selectedGroup ? `/instrument/${selectedGroup}` : "/instrument";
-      case "owner":
-        return selectedOwner ? `/portfolio/${selectedOwner}` : "/portfolio";
-      case "performance":
-        return selectedOwner
-          ? `/performance/${selectedOwner}`
-          : "/performance";
-      case "allocation":
-        return "/allocation";
-      case "rebalance":
-        return "/rebalance";
-      case "market":
-        return "/market";
-      case "movers":
-        return "/movers";
-      case "trading":
-        return "/trading";
-      case "scenario":
-        return "/scenario";
-      case "reports":
-        return "/reports";
-      case "settings":
-        return "/settings";
-      case "alertsettings":
-        return "/alert-settings";
-      case "instrumentadmin":
-        return "/instrumentadmin";
-      case "trade-compliance":
-        return "/trade-compliance";
-      case "trail":
-        return "/trail";
-      case "taxtools":
-        return "/tax-tools";
-      case "pension":
-        return "/pension/forecast";
-      default:
-        return `/${m}`;
-    }
-  }
 
   useEffect(() => {
     const segs = location.pathname.split("/").filter(Boolean);
     const params = new URLSearchParams(location.search);
-    const newMode = segmentToMode(segs[0], segs.length);
+    const newMode = deriveModeFromPathname(location.pathname);
 
     const isDisabled =
       tabs[newMode] === false || disabledTabs?.includes(newMode);
@@ -161,11 +60,10 @@ export function useRouteMode(): RouteState {
 
       if (firstEnabled) {
         if (mode !== firstEnabled) setMode(firstEnabled);
-        const targetPath = pathFor(firstEnabled);
+        const targetPath = buildPathForMode(firstEnabled, { owner: selectedOwner, group: selectedGroup });
         if (location.pathname !== targetPath)
           navigate(targetPath, { replace: true });
       } else {
-        // eslint-disable-next-line no-console
         console.warn("No enabled tabs available for navigation");
       }
       return;

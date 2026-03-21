@@ -25,7 +25,7 @@ import { UserProvider, useUser } from './UserContext'
 import ErrorBoundary from './ErrorBoundary'
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
 import { RouteProvider } from './RouteContext'
-import type { Mode } from './modes'
+import { deriveModeFromPathname } from './pageManifest'
 
 const storedToken = getStoredAuthToken()
 if (storedToken) setAuthToken(storedToken)
@@ -56,67 +56,6 @@ const routeMarkerStyle: CSSProperties = {
   clip: 'rect(0 0 0 0)',
   clipPath: 'inset(50%)',
   overflow: 'hidden',
-}
-
-const deriveModeFromPathname = (pathname: string): Mode => {
-  const segments = pathname.split('/').filter(Boolean)
-  const [first] = segments
-  switch (first) {
-    case undefined:
-      return 'group'
-    case 'portfolio':
-      return 'owner'
-    case 'instrument':
-      return 'instrument'
-    case 'transactions':
-      return 'transactions'
-    case 'trading':
-      return 'trading'
-    case 'performance':
-      return 'performance'
-    case 'screener':
-      return 'screener'
-    case 'timeseries':
-      return 'timeseries'
-    case 'watchlist':
-      return 'watchlist'
-    case 'allocation':
-      return 'allocation'
-    case 'rebalance':
-      return 'rebalance'
-    case 'market':
-      return 'market'
-    case 'movers':
-      return 'movers'
-    case 'instrumentadmin':
-      return 'instrumentadmin'
-    case 'dataadmin':
-      return 'dataadmin'
-    case 'virtual':
-      return 'virtual'
-    case 'reports':
-      return 'reports'
-    case 'alert-settings':
-      return 'alertsettings'
-    case 'trade-compliance':
-      return 'trade-compliance'
-    case 'trail':
-      return 'trail'
-    case 'support':
-      return 'support'
-    case 'pension':
-      return 'pension'
-    case 'tax-tools':
-      return 'taxtools'
-    case 'settings':
-      return 'settings'
-    case 'scenario':
-      return 'scenario'
-    case 'research':
-      return 'research'
-    default:
-      return segments.length === 0 ? 'group' : 'movers'
-  }
 }
 
 const renderRouteMarker = (pathname: string, state: 'loading' | 'config-error' | 'auth') => {

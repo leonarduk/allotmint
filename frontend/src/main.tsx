@@ -62,13 +62,17 @@ if (storedToken) setAuthToken(storedToken);
 
 const App = lazy(() => import('./App.tsx'));
 const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'));
+const Support = lazy(() => import('./pages/Support'));
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'));
+const TradeCompliance = lazy(() => import('./pages/TradeCompliance'));
 const Alerts = lazy(() => import('./pages/Alerts'));
 const Goals = lazy(() => import('./pages/Goals'));
+const Trail = lazy(() => import('./pages/Trail'));
 const PerformanceDiagnostics = lazy(
   () => import('./pages/PerformanceDiagnostics')
 );
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
+const AlertSettings = lazy(() => import('./pages/AlertSettings'));
 const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'));
 const SmokeTest = lazy(() => import('./pages/SmokeTest'));
 
@@ -84,7 +88,7 @@ const routeMarkerStyle: CSSProperties = {
   clip: 'rect(0 0 0 0)',
   clipPath: 'inset(50%)',
   overflow: 'hidden',
-}
+};
 
 const renderRouteMarker = (pathname: string, state: 'loading' | 'config-error' | 'auth') => {
   const mode = deriveModeFromPathname(pathname)
@@ -124,6 +128,7 @@ export function Root() {
   const [configError, setConfigError] = useState<Error | null>(null);
   const [retryScheduled, setRetryScheduled] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
+  const [googleLoginEnabled, setGoogleLoginEnabled] = useState(false);
   const [clientId, setClientId] = useState('');
   const [authed, setAuthed] = useState(Boolean(storedToken));
   const { setUser } = useAuth();
@@ -190,8 +195,11 @@ export function Root() {
           if (!isMounted.current || activeRequest.current !== controller)
             return;
           const configAuthEnabled = Boolean((cfg as any).google_auth_enabled);
-          setNeedsAuth(configAuthEnabled);
+          const disableAuth = Boolean((cfg as any).disable_auth);
+          setNeedsAuth(!disableAuth);
+          setGoogleLoginEnabled(configAuthEnabled);
           setClientId(String((cfg as any).google_client_id || ''));
+          setNeedsAuth(configAuthEnabled);
           const disableAuth = Boolean((cfg as any).disable_auth);
           const localLoginRaw = (cfg as any).local_login_email;
           const localLoginEmail =
@@ -260,6 +268,8 @@ export function Root() {
     fetchConfig(0, { manual: true });
   }, [fetchConfig]);
 
+  const isPublicSupportRoute = location.pathname === '/support';
+
   if (configLoading && !retryScheduled) {
     return (
       <>
@@ -285,6 +295,11 @@ export function Root() {
       </>
     );
   }
+  if (needsAuth && !authed && !isPublicSupportRoute) {
+    if (!googleLoginEnabled || !clientId) {
+      console.error(
+        'Authentication is enforced but Google login is not fully configured'
+      );
   if (needsAuth && !authed) {
     if (!clientId) {
       console.error('Google client ID is missing; login disabled');
@@ -310,6 +325,11 @@ export function Root() {
           <Route path="/virtual" element={<VirtualPortfolio />} />
           <Route path="/compliance" element={<ComplianceWarnings />} />
           <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
+          <Route path="/trade-compliance" element={<TradeCompliance />} />
+          <Route
+            path="/trade-compliance/:owner"
+            element={<TradeCompliance />}
+          />
           {standalonePageRoutes.flatMap((route) => {
             if (
               route.routePath === '/virtual' ||

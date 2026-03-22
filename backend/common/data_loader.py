@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Optional
 
+from pydantic import ValidationError
+
+from backend.common.account_models import AccountRecord, OwnerSummaryRecord, PersonMetadata
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config, demo_identity as get_demo_identity
 
@@ -207,7 +210,7 @@ def _build_owner_summary(
     if email:
         summary["email"] = email
 
-    return summary
+    return OwnerSummaryRecord.model_validate(summary).model_dump(exclude_none=True)
 
 
 def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
@@ -264,6 +267,10 @@ def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> No
             continue
         existing.append(name)
         seen.add(lowered)
+
+    validated = OwnerSummaryRecord.model_validate(base)
+    base.clear()
+    base.update(validated.model_dump(exclude_none=True))
 
 
 def _list_local_plots(
@@ -731,6 +738,23 @@ def _safe_json_load(path: Path) -> Dict[str, Any]:
     return json.loads(txt)
 
 
+def load_account_record(
+    owner: str,
+    account: str,
+    data_root: Optional[Path] = None,
+) -> AccountRecord:
+    """Load and validate an account document."""
+
+    data = load_account(owner, account, data_root)
+    return AccountRecord.model_validate(data)
+
+
+def load_person_metadata(owner: str, data_root: Optional[Path] = None) -> PersonMetadata:
+    """Load owner metadata validated into a typed model."""
+
+    return PersonMetadata.model_validate(load_person_meta(owner, data_root))
+
+
 # ------------------------------------------------------------------
 # Account loaders
 # ------------------------------------------------------------------
@@ -775,7 +799,7 @@ def load_account(
                 if not txt:
                     raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
                 data = json.loads(txt)
-                return data
+                return AccountRecord.model_validate(data).model_dump(exclude_none=True)
 
     if not local_root:
         raise FileNotFoundError(f"No account data available for owner '{owner}'")
@@ -783,7 +807,7 @@ def load_account(
     root = local_root
     path = root / owner / f"{account}.json"
     data = _safe_json_load(path)
-    return data
+    return AccountRecord.model_validate(data).model_dump(exclude_none=True)
 
 
 def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:
@@ -793,24 +817,8 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     """
 
     def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
-        meta: Dict[str, Any] = {}
-        allowed_keys = {
-            "owner",
-            "full_name",
-            "display_name",
-            "preferred_name",
-            "dob",
-            "email",
-            "holdings",
-            "viewers",
-        }
-        for key in allowed_keys:
-            if key in data:
-                meta[key] = data[key]
-        if "viewers" not in meta:
-            # Preserve account access viewers if present
-            meta["viewers"] = data.get("viewers", [])
-        return meta
+        validated = PersonMetadata.model_validate(data)
+        return validated.model_dump(exclude_none=True)
 
     local_root: Optional[Path] = data_root
     if local_root is None:
@@ -835,6 +843,9 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                     return {}
                 data = json.loads(txt)
                 return _extract(data)
+            except ValidationError:
+                logger.warning("Invalid person metadata for owner '%s' in s3://%s/%s", owner, bucket, key)
+                return {}
             except Exception as exc:
                 logger.warning(
                     "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
@@ -859,7 +870,11 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         data = _safe_json_load(path)
     except Exception:
         return {}
-    return _extract(data)
+    try:
+        return _extract(data)
+    except ValidationError:
+        logger.warning("Invalid person metadata for owner '%s' in %s", owner, path)
+        return {}
 
 
 # ------------------------------------------------------------------

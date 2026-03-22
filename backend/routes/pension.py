@@ -2,7 +2,7 @@ import inspect
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from backend.common.data_loader import load_person_meta
+from backend.common.data_loader import load_person_metadata
 from backend.common.pension import (
     _age_from_dob,
     forecast_pension,
@@ -35,8 +35,8 @@ def pension_forecast(
 ):
     accounts_root = resolve_accounts_root(request)
 
-    meta = load_person_meta(owner, accounts_root)
-    dob = meta.get("dob")
+    meta = load_person_metadata(owner, accounts_root)
+    dob = meta.dob
     current_age = _age_from_dob(dob)
     if current_age is None:
         raise HTTPException(status_code=400, detail="missing or invalid dob")

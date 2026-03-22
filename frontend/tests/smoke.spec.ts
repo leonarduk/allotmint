@@ -214,6 +214,71 @@ test.describe('pension forecast routing', () => {
   });
 });
 
+
+test.describe('bootstrap to portfolio happy path', () => {
+  test('redirects from /portfolio to the only available owner portfolio', async ({ page }) => {
+    await applyAuth(page);
+
+    await page.route('**/config', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          google_auth_enabled: false,
+          google_client_id: '',
+          disable_auth: true,
+          local_login_email: 'demo@example.com',
+          tabs: {},
+          disabled_tabs: [],
+        }),
+      });
+    });
+
+    await page.route('**/owners', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { owner: 'demo-owner', full_name: 'Demo Owner', accounts: ['ISA'] },
+        ]),
+      });
+    });
+
+    await page.route('**/groups', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{ slug: 'all', name: 'All portfolios' }]),
+      });
+    });
+
+    await page.route('**/portfolio/demo-owner', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          owner: 'demo-owner',
+          as_of: '2026-03-22',
+          accounts: [
+            {
+              account_type: 'ISA',
+              holdings: [],
+            },
+          ],
+          total_value_estimate_gbp: 1000,
+        }),
+      });
+    });
+
+    await page.goto(new URL('/portfolio', baseUrl).toString());
+
+    await expect(page).toHaveURL(new URL('/portfolio/demo-owner', baseUrl).toString());
+    await expect(getActiveRouteMarker(page)).toHaveAttribute('data-mode', 'owner');
+    await expect(getActiveRouteMarker(page)).toHaveAttribute('data-pathname', '/portfolio/demo-owner');
+    await expect(page.getByTestId('portfolio-owner-selector')).toBeVisible();
+  });
+});
+
 test.describe('public route smoke coverage', () => {
   for (const route of ROUTES) {
     test(`renders ${route.path}`, async ({ page }) => {
@@ -354,7 +419,7 @@ test.describe('timeseries edit resilience', () => {
     try {
       await expect(loadButton).toBeEnabled();
       await loadButton.click();
-    } catch (err) {
+    } catch {
       const fallback = page.locator("text=Load");
       if (await fallback.count() > 0) {
         await expect(fallback.first()).toBeVisible();

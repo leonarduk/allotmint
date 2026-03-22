@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -11,7 +12,17 @@ from typing import Any
 from review_common import build_prompt, emit_empty_diff_notice, finalize_review, load_review_context
 
 
-ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"  # Update here when Anthropic promotes the next stable Sonnet model.
+DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
+
+
+def get_anthropic_model() -> str:
+    """Return the Claude model ID to call for advisory reviews.
+
+    Anthropic's current models page lists `claude-sonnet-4-6` as the latest Sonnet API alias,
+    so we default to that stable alias and allow `ANTHROPIC_MODEL` to override it if the
+    workflow needs to pin or roll forward without another code change.
+    """
+    return os.environ.get("ANTHROPIC_MODEL", DEFAULT_ANTHROPIC_MODEL)
 
 
 def extract_claude_review(data: dict[str, Any]) -> str:
@@ -27,7 +38,7 @@ def fetch_claude_review(api_key: str, prompt: str) -> str:
     exit code so the advisory workflow can post a skip/failure notice instead of silently succeeding.
     """
     payload = {
-        "model": ANTHROPIC_MODEL,
+        "model": get_anthropic_model(),
         "max_tokens": 1500,
         "messages": [{"role": "user", "content": prompt}],
     }

@@ -38,6 +38,17 @@ class FakeResponse:
         return None
 
 
+def test_claude_review_uses_current_default_model_and_allows_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script_module("claude_review_model", "claude_review.py")
+
+    assert module.get_anthropic_model() == "claude-sonnet-4-6"
+
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+    assert module.get_anthropic_model() == "claude-sonnet-4-5"
+
+
 @pytest.mark.parametrize(
     ("module_name", "file_name", "api_env"),
     [

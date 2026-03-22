@@ -53,32 +53,22 @@ def test_tax_allowances_route(monkeypatch):
 
 
 def test_tax_allowances_route_with_auth(monkeypatch):
-    import importlib
-
     import backend.auth as auth_module
-    import backend.routes.tax as tax_module
-    import backend.app as app_module
 
-    original_disable_auth = config.disable_auth
-    original_skip_snapshot = config.skip_snapshot_warm
-    config.disable_auth = False
-    config.skip_snapshot_warm = True
-
-    tax_module = importlib.reload(tax_module)
-    app_module = importlib.reload(app_module)
-
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
+    monkeypatch.setattr(config, "disable_auth", False)
+    monkeypatch.setattr("backend.routes.tax.current_tax_year", lambda: 2024)
     allowances = {"isa": {"limit": 20000, "used": 5000, "remaining": 15000}}
-    monkeypatch.setattr(tax_module, "current_tax_year", lambda: 2024)
     monkeypatch.setattr(
-        tax_module,
-        "remaining_allowances",
+        "backend.routes.tax.remaining_allowances",
         lambda owner, tax_year: allowances,
     )
 
+    from backend.app import create_app
+    app = create_app()
+    # Override get_current_user so the auth path returns "alice" without a real token
+    app.dependency_overrides[auth_module.get_current_user] = lambda: "alice"
     try:
-        app = app_module.create_app()
-        # Override FastAPI's dependency injection so get_current_user returns "alice"
-        app.dependency_overrides[auth_module.get_current_user] = lambda: "alice"
         with TestClient(app) as client:
             resp = client.get("/tax/allowances")
             assert resp.status_code == 200
@@ -97,7 +87,3 @@ def test_tax_allowances_route_with_auth(monkeypatch):
             }
     finally:
         app.dependency_overrides.clear()
-        config.disable_auth = original_disable_auth
-        config.skip_snapshot_warm = original_skip_snapshot
-        importlib.reload(tax_module)
-        importlib.reload(app_module)

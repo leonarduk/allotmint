@@ -1,0 +1,9 @@
+[
+  {
+    "owner": "alice",
+    "full_name": "Alice Example",
+    "accounts": ["ISA", "GIA"],
+    "email": "alice@example.com",
+    "has_transactions_artifact": true
+  }
+]

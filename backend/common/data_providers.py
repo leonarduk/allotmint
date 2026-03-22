@@ -56,7 +56,7 @@ class LocalDataProvider:
         path = root / owner / f"{account}.json"
         try:
             data = _safe_json_load(path)
-        except json.JSONDecodeError as exc:
+        except (json.JSONDecodeError, InvalidPayload) as exc:
             raise InvalidPayload(f"Invalid JSON file: {path}") from exc
         return AccountObject(owner=owner, account=account, data=data)
 
@@ -66,7 +66,7 @@ class LocalDataProvider:
             raise MissingData(str(path))
         try:
             data = _safe_json_load(path)
-        except json.JSONDecodeError as exc:
+        except (json.JSONDecodeError, InvalidPayload) as exc:
             raise InvalidPayload(f"Invalid JSON file: {path}") from exc
         return OwnerMetadata(owner=owner, metadata=_extract_person_meta(data))
 
@@ -152,8 +152,11 @@ class S3DataProvider:
 
 
 def _safe_json_load(path: Path) -> Dict[str, Any]:
-    if not path.exists() or path.stat().st_size == 0:
+    """Load JSON from *path*, raising MissingData if absent and InvalidPayload if unreadable."""
+    if not path.exists():
         raise MissingData(str(path))
+    if path.stat().st_size == 0:
+        raise InvalidPayload(f"Empty JSON file: {path}")
     with open(path, "r", encoding="utf-8-sig") as handle:
         txt = handle.read().strip()
     if not txt:

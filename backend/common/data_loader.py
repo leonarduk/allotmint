@@ -758,6 +758,8 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     """Load per-owner metadata including optional email.
 
     Returns an empty dict if no metadata exists or parsing fails.
+    Person metadata is always optional; provider and payload failures
+    degrade gracefully to an empty dict rather than propagating.
     """
 
     local_root: Optional[Path] = data_root
@@ -774,7 +776,17 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
         except MissingData:
             return {}
         except InvalidPayload:
-            raise
+            # person.json is optional metadata — a malformed file degrades gracefully.
+            logger.warning(
+                "data_loader.person_meta_invalid_payload",
+                extra={
+                    "event": "data_loader.person_meta_invalid_payload",
+                    "owner": owner,
+                    "provider": "s3",
+                },
+                exc_info=True,
+            )
+            return {}
         except ProviderUnavailable:
             logger.warning(
                 "data_loader.person_meta_provider_unavailable",
@@ -787,7 +799,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                 exc_info=True,
             )
             if not has_local_fallback:
-                raise
+                return {}
 
     if not local_root:
         return {}

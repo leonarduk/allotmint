@@ -190,6 +190,20 @@ test.describe('pension forecast page', () => {
   });
 });
 
+
+
+test.describe('bootstrap happy path', () => {
+  test('reaches a portfolio screen after configuration loads', async ({ page }) => {
+    await applyAuth(page)
+
+    const target = new URL('/portfolio/demo-owner', baseUrl)
+    await page.goto(target.href)
+
+    await expect(getBootstrapMarker(page)).toHaveAttribute('data-pathname', '/portfolio/demo-owner')
+    await expect(getActiveRouteMarker(page)).toHaveAttribute('data-mode', 'owner')
+    await expect(getActiveRouteMarker(page)).toHaveAttribute('data-pathname', '/portfolio/demo-owner')
+  })
+})
 test.describe('pension forecast routing', () => {
   test('keeps pension mode when config tab state is indeterminate', async ({ page }) => {
     await applyAuth(page);
@@ -354,7 +368,7 @@ test.describe('timeseries edit resilience', () => {
     try {
       await expect(loadButton).toBeEnabled();
       await loadButton.click();
-    } catch (err) {
+    } catch {
       const fallback = page.locator("text=Load");
       if (await fallback.count() > 0) {
         await expect(fallback.first()).toBeVisible();

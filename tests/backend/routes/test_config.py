@@ -56,6 +56,27 @@ def _spy_validate(monkeypatch: pytest.MonkeyPatch) -> List[Tuple[bool | None, st
 pytestmark = pytest.mark.asyncio
 
 
+async def test_read_config_exposes_frontend_bootstrap_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+    dummy_config = routes_config.config_module.Config(
+        disable_auth=True,
+        google_auth_enabled=False,
+        google_client_id=None,
+        local_login_email="demo@example.com",
+        disabled_tabs=["trade_compliance"],
+    )
+    dummy_config.tabs.trade_compliance = True
+    monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
+
+    result = await routes_config.read_config()
+
+    assert result["disable_auth"] is True
+    assert result["google_auth_enabled"] is False
+    assert result["google_client_id"] is None
+    assert result["local_login_email"] == "demo@example.com"
+    assert result["tabs"]["trade-compliance"] is True
+    assert result["disabled_tabs"] == ["trade-compliance"]
+
+
 async def test_update_config_rejects_invalid_google_auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     _write_config(config_path)

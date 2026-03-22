@@ -7,14 +7,104 @@ import json
 import logging
 import os
 from dataclasses import dataclass
+from threading import RLock
 from pathlib import Path, PureWindowsPath
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config, demo_identity as get_demo_identity
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _LocalOwnerRecord:
+    owner: str
+    accounts: Tuple[str, ...]
+    meta: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _LocalOwnerIndex:
+    signature: Tuple[Tuple[str, int, int], ...]
+    owners: Dict[str, _LocalOwnerRecord]
+
+
+_LOCAL_OWNER_INDEX_CACHE: dict[str, _LocalOwnerIndex] = {}
+_LOCAL_OWNER_INDEX_LOCK = RLock()
+
+
+def _safe_stat_signature(path: Path) -> tuple[int, int]:
+    try:
+        stat = path.stat()
+    except OSError:
+        return (0, 0)
+    return (int(stat.st_mtime_ns), stat.st_size)
+
+
+def _collect_local_owner_signature(root: Path) -> Tuple[Tuple[str, int, int], ...]:
+    signature: list[tuple[str, int, int]] = []
+
+    try:
+        owner_entries = sorted(root.iterdir(), key=lambda entry: entry.name.casefold())
+    except OSError:
+        owner_entries = []
+
+    for owner_dir in owner_entries:
+        if not owner_dir.is_dir():
+            continue
+        owner_key = owner_dir.name.casefold()
+        signature.append((f"dir:{owner_key}", *_safe_stat_signature(owner_dir)))
+        signature.append((f"person:{owner_key}", *_safe_stat_signature(owner_dir / "person.json")))
+
+    return tuple(signature)
+
+
+def _build_local_owner_index(root: Path, signature: Tuple[Tuple[str, int, int], ...] | None = None) -> _LocalOwnerIndex:
+    owners: Dict[str, _LocalOwnerRecord] = {}
+
+    try:
+        owner_entries = sorted(root.iterdir(), key=lambda entry: entry.name.casefold())
+    except OSError:
+        owner_entries = []
+
+    for owner_dir in owner_entries:
+        if not owner_dir.is_dir():
+            continue
+        owner = owner_dir.name
+        owner_key = owner.casefold()
+
+        person_path = owner_dir / "person.json"
+        accounts = tuple(_normalise_local_account_name(name) for name in _extract_account_names(owner_dir))
+        meta = {}
+        if person_path.exists():
+            try:
+                meta = _safe_json_load(person_path)
+            except Exception:
+                meta = {}
+        owners[owner_key] = _LocalOwnerRecord(owner=owner, accounts=accounts, meta=meta)
+
+    return _LocalOwnerIndex(signature=signature or _collect_local_owner_signature(root), owners=owners)
+
+
+def _get_local_owner_index(root: Path) -> _LocalOwnerIndex:
+    cache_key = str(root.expanduser())
+    signature = _collect_local_owner_signature(root)
+    with _LOCAL_OWNER_INDEX_LOCK:
+        cached = _LOCAL_OWNER_INDEX_CACHE.get(cache_key)
+        if cached is not None and cached.signature == signature:
+            return cached
+
+    fresh_index = _build_local_owner_index(root, signature)
+    with _LOCAL_OWNER_INDEX_LOCK:
+        _LOCAL_OWNER_INDEX_CACHE[cache_key] = fresh_index
+    return fresh_index
+
+
+def clear_local_owner_index_cache() -> None:
+    with _LOCAL_OWNER_INDEX_LOCK:
+        _LOCAL_OWNER_INDEX_CACHE.clear()
 
 
 # ------------------------------------------------------------------
@@ -229,10 +319,12 @@ def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
         if not exists:
             continue
 
-        accounts = [
-            _normalise_local_account_name(name) for name in _extract_account_names(demo_dir)
-        ]
-        meta = load_person_meta(identity, root)
+        owner_index = _get_local_owner_index(base_root)
+        record = owner_index.owners.get(identity.casefold())
+        if record is None:
+            continue
+        accounts = list(record.accounts)
+        meta = _extract_person_meta(record.meta)
         summary = _build_owner_summary(identity, accounts, meta)
         if summary:
             return summary
@@ -335,21 +427,17 @@ def _list_local_plots(
             for alias in demo_identity_aliases():
                 skip_owners.discard(alias.lower())
 
-        for owner_dir in sorted(root.iterdir()):
-            if not owner_dir.is_dir():
+        owner_index = _get_local_owner_index(root)
+        for owner_key in sorted(owner_index.owners):
+            if owner_key in skip_owners:
                 continue
-            if owner_dir.name.lower() in skip_owners:
-                continue
-            owner = owner_dir.name
-            meta = load_person_meta(owner, root)
+            record = owner_index.owners[owner_key]
+            owner = record.owner
+            meta = _extract_person_meta(record.meta)
             if not _is_authorized(owner, meta):
                 continue
 
-            accounts = [
-                _normalise_local_account_name(name) for name in _extract_account_names(owner_dir)
-            ]
-
-            summary = _build_owner_summary(owner, accounts, meta)
+            summary = _build_owner_summary(owner, list(record.accounts), meta)
 
             if apply_default_full_name_flag and "full_name" not in summary:
                 summary["full_name"] = owner
@@ -731,6 +819,26 @@ def _safe_json_load(path: Path) -> Dict[str, Any]:
     return json.loads(txt)
 
 
+def _extract_person_meta(data: Dict[str, Any]) -> Dict[str, Any]:
+    meta: Dict[str, Any] = {}
+    allowed_keys = {
+        "owner",
+        "full_name",
+        "display_name",
+        "preferred_name",
+        "dob",
+        "email",
+        "holdings",
+        "viewers",
+    }
+    for key in allowed_keys:
+        if key in data:
+            meta[key] = data[key]
+    if "viewers" not in meta:
+        meta["viewers"] = data.get("viewers", [])
+    return meta
+
+
 # ------------------------------------------------------------------
 # Account loaders
 # ------------------------------------------------------------------
@@ -792,26 +900,6 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     Returns an empty dict if no metadata exists or parsing fails.
     """
 
-    def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
-        meta: Dict[str, Any] = {}
-        allowed_keys = {
-            "owner",
-            "full_name",
-            "display_name",
-            "preferred_name",
-            "dob",
-            "email",
-            "holdings",
-            "viewers",
-        }
-        for key in allowed_keys:
-            if key in data:
-                meta[key] = data[key]
-        if "viewers" not in meta:
-            # Preserve account access viewers if present
-            meta["viewers"] = data.get("viewers", [])
-        return meta
-
     local_root: Optional[Path] = data_root
     if local_root is None:
         try:
@@ -834,7 +922,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                 if not txt:
                     return {}
                 data = json.loads(txt)
-                return _extract(data)
+                return _extract_person_meta(data)
             except Exception as exc:
                 logger.warning(
                     "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
@@ -851,15 +939,12 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     if not local_root:
         return {}
 
-    root = local_root
-    path = root / owner / "person.json"
-    if not path.exists():
+    owner_index = _get_local_owner_index(Path(local_root))
+    record = owner_index.owners.get(owner.casefold())
+    if record is None:
         return {}
-    try:
-        data = _safe_json_load(path)
-    except Exception:
-        return {}
-    return _extract(data)
+    return _extract_person_meta(record.meta)
+
 
 
 # ------------------------------------------------------------------

@@ -4,10 +4,11 @@ import io
 import logging
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from backend.common import instrument_api
+from backend.common.errors import InternalServiceError, ValidationFailure
 from backend.timeseries.cache import (
     EXPECTED_COLS,
     _ensure_schema,
@@ -21,7 +22,7 @@ logger = logging.getLogger("routes.timeseries")
 def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, str]:
     t = (ticker or "").upper()
     if not t:
-        raise HTTPException(status_code=400, detail="Ticker is required")
+        raise ValidationFailure("Ticker is required", extra={"field": "ticker"})
 
     if exchange:
         sym = t.split(".", 1)[0]
@@ -39,8 +40,9 @@ def _resolve_ticker_exchange(ticker: str, exchange: str | None) -> tuple[str, st
     )
     if not resolved:
         logger.debug("Could not infer exchange for %s", t)
-        raise HTTPException(
-            status_code=400, detail=f"Exchange not provided and could not be inferred for {ticker}"
+        raise ValidationFailure(
+            f"Exchange not provided and could not be inferred for {ticker}",
+            extra={"field": "exchange", "ticker": ticker},
         )
     sym, ex = resolved
     logger.debug("Resolved %s.%s (inferred exchange)", sym, ex)
@@ -53,7 +55,10 @@ def _load_timeseries(ticker: str, exchange: str) -> pd.DataFrame:
         try:
             return _ensure_schema(pd.read_parquet(path))
         except Exception as exc:  # pragma: no cover - defensive
-            raise HTTPException(status_code=500, detail=str(exc))
+            raise InternalServiceError(
+                f"Failed to load cached timeseries for {ticker}.{exchange}",
+                extra={"ticker": ticker, "exchange": exchange},
+            ) from exc
     return pd.DataFrame(columns=EXPECTED_COLS)
 
 
@@ -86,7 +91,10 @@ async def post_timeseries_edit(
             else:
                 raise ValueError("JSON payload must be a list of records")
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise ValidationFailure(
+            str(exc),
+            extra={"ticker": ticker, "exchange": exchange, "content_type": content_type},
+        ) from exc
 
     df = _ensure_schema(df)
     for col in ("Ticker", "Source"):

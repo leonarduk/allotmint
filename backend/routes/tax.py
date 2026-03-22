@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 
-from backend.auth import get_current_user
+from backend.auth import get_active_user
 from backend.common.tax import harvest_losses
 from backend.common.allowances import (
     current_tax_year,
     remaining_allowances,
 )
 from backend.common import data_loader
-from backend.config import config, demo_identity
+from backend.config import demo_identity
 
 router = APIRouter(prefix="/tax", tags=["tax"])
 
@@ -34,40 +34,21 @@ async def harvest(req: HarvestRequest) -> dict:
     return {"trades": trades}
 
 
-if config.disable_auth:
+@router.get("/allowances")
+async def allowances(request: Request, owner: str | None = Query(None)) -> dict:
+    """Return remaining ISA and pension allowances for ``owner``.
 
-    @router.get("/allowances")
-    async def allowances(owner: str | None = Query(None)) -> dict:
-        """Return remaining ISA and pension allowances for ``owner``.
-
-        When authentication is disabled and ``owner`` is not provided the
-        configured demo account is used.
-        """
-
-        if owner is None:
+    When auth is enabled and ``owner`` is not provided, the authenticated user
+    is used.  When auth is disabled, the configured demo account is used.
+    """
+    active_user = await get_active_user(request)
+    if owner is None:
+        if active_user is not None:
+            owner = active_user
+        else:
             aliases = data_loader.demo_identity_aliases()
-            preferred = next((alias for alias in aliases if alias.lower() == "demo"), None)
+            preferred = next((a for a in aliases if a.lower() == "demo"), None)
             owner = preferred or (aliases[0] if aliases else demo_identity())
-        tax_year = current_tax_year()
-        data = remaining_allowances(owner, tax_year)
-        return {"owner": owner, "tax_year": tax_year, "allowances": data}
-
-else:
-
-    @router.get("/allowances")
-    async def allowances(
-        owner: str | None = Query(None),
-        current_user: str = Depends(get_current_user),
-    ) -> dict:
-        """Return remaining ISA and pension allowances for ``owner``.
-
-        If ``owner`` is not provided the currently authenticated user is used.
-        The response contains ``used``, ``limit`` and ``remaining`` totals for
-        each supported account type in the current UK tax year.
-        """
-
-        if owner is None:
-            owner = current_user
-        tax_year = current_tax_year()
-        data = remaining_allowances(owner, tax_year)
-        return {"owner": owner, "tax_year": tax_year, "allowances": data}
+    tax_year = current_tax_year()
+    data = remaining_allowances(owner, tax_year)
+    return {"owner": owner, "tax_year": tax_year, "allowances": data}

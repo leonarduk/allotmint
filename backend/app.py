@@ -7,175 +7,45 @@ it easy for tests to create isolated apps and mirrors the pattern recommended
 by FastAPI.
 """
 
-import asyncio
+from __future__ import annotations
+
 import logging
 import os
-import shutil
-import tempfile
 from contextlib import asynccontextmanager
-from pathlib import Path
-from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Form, HTTPException
 from pydantic import BaseModel
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
 
 import backend.auth as auth
-from backend import config_module
-from backend.common.data_loader import resolve_paths
 from backend.common.portfolio_utils import (
     _load_snapshot,
     refresh_snapshot_async,
     refresh_snapshot_in_memory,
 )
-from backend.common.transaction_reconciliation import reconcile_transactions_with_holdings
+from backend.bootstrap import (
+    AppLifecycleService,
+    configure_runtime_paths,
+    load_runtime_config,
+    register_middleware,
+    register_routers,
+)
 from backend.config import reload_config
-# Routers
-from backend.routes.agent import router as agent_router
-from backend.routes.alert_settings import router as alert_settings_router
-from backend.routes.alerts import router as alerts_router
-from backend.routes.analytics import router as analytics_router
-from backend.routes.approvals import router as approvals_router
-from backend.routes.compliance import router as compliance_router
-from backend.routes.config import router as config_router
-from backend.routes.events import router as events_router
-from backend.routes.goals import router as goals_router
-from backend.routes.instrument import router as instrument_router
-from backend.routes.instrument_admin import router as instrument_admin_router
-from backend.routes.logs import router as logs_router
-from backend.routes.market import router as market_router
-from backend.routes.metrics import router as metrics_router
-from backend.routes.models import router as models_router
-from backend.routes.movers import router as movers_router
-from backend.routes.news import router as news_router
-from backend.routes.nudges import router as nudges_router
-from backend.routes.opportunities import router as opportunities_router
-from backend.routes.pension import router as pension_router
-from backend.routes.performance import router as performance_router
-from backend.routes.portfolio import public_router as public_portfolio_router
-from backend.routes.portfolio import router as portfolio_router
-from backend.routes.query import router as query_router
-from backend.routes.quest_routes import router as quest_router
-from backend.routes.quotes import router as quotes_router
-from backend.routes.scenario import router as scenario_router
-from backend.routes.screener import router as screener_router
-from backend.routes.support import router as support_router
-from backend.routes.tax import router as tax_router
-from backend.routes.timeseries_admin import router as timeseries_admin_router
-from backend.routes.timeseries_edit import router as timeseries_edit_router
-from backend.routes.timeseries_meta import router as timeseries_router
-from backend.routes.trading_agent import router as trading_agent_router
-from backend.routes.trail import router as trail_router
-from backend.routes.transactions import router as transactions_router
-from backend.routes.user_config import router as user_config_router
-from backend.routes.virtual_portfolio import router as virtual_portfolio_router
-from backend.utils import page_cache
 
 logger = logging.getLogger(__name__)
 
 
-def normalize(obj: Any) -> Any:
-    """Recursively convert bytes to strings for JSON serialization."""
-    if isinstance(obj, bytes):
-        return obj.decode("utf-8")
-    if isinstance(obj, dict):
-        return {k: normalize(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [normalize(v) for v in obj]
-    return obj
-
-
 def create_app() -> FastAPI:
-    """Create and configure the FastAPI application.
+    """Create and configure the FastAPI application."""
 
-    The function wires together middleware, registers routers and primes the
-    in-memory price snapshot so the first request is quick. Returning the app
-    instance instead of creating it at module import time keeps things
-    test-friendly and avoids accidental state sharing between invocations.
-    The configuration object is fetched lazily to ensure the latest values are
-    used, even if other tests reload or replace it.
-    """
-
-    # Reload configuration but preserve any values that have been explicitly
-    # overridden on the existing ``config`` object. Tests often monkeypatch
-    # attributes like ``accounts_root`` or ``disable_auth`` before invoking
-    # ``create_app`` and those should take precedence over values loaded from
-    # disk or environment variables.
-    prev_cfg = config_module.config
-    overrides = {}
-    if isinstance(prev_cfg, type(config_module.config)):
-        for attr in (
-            "accounts_root",
-            "offline_mode",
-            "disable_auth",
-            "skip_snapshot_warm",
-            "snapshot_warm_days",
-            "app_env",
-            "base_currency",
-        ):
-            overrides[attr] = getattr(prev_cfg, attr, None)
-
-    cfg = reload_config()
-    for attr, val in overrides.items():
-        if val is not None:
-            setattr(cfg, attr, val)
-
-    if cfg.google_auth_enabled and not cfg.google_client_id:
-        raise RuntimeError("google_client_id required when google_auth_enabled is true")
-
-    # The FastAPI constructor accepts a few descriptive fields that end up in
-    # the autogenerated OpenAPI/Swagger documentation. Startup and shutdown
-    # logic is handled via a lifespan context manager to ensure all background
-    # tasks are registered and later cleaned up.
-
-    temp_dirs: list[Path] = []
+    cfg = load_runtime_config()
+    runtime_paths = configure_runtime_paths(cfg)
+    lifecycle = AppLifecycleService(cfg=cfg, temp_dirs=runtime_paths.temp_dirs)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        if not cfg.skip_snapshot_warm:
-            # Pre-fetch recent price data so the first request is fast.
-            try:
-                result = _load_snapshot()
-                if not isinstance(result, tuple) or len(result) != 2 or not isinstance(result[0], dict):
-                    raise ValueError("Malformed snapshot")
-                snapshot, ts = result
-            except Exception as exc:
-                logger.error("Failed to load price snapshot: %s", exc)
-                snapshot, ts = {}, None
-            refresh_snapshot_in_memory(snapshot, ts)
-            # Seed instrument API with the on-disk snapshot to avoid network
-            # calls before the background refresh completes.
-            from backend.common import instrument_api
-
-            instrument_api.update_latest_prices_from_snapshot(snapshot)
-            await asyncio.to_thread(instrument_api.prime_latest_prices)
-
-        task = refresh_snapshot_async(days=cfg.snapshot_warm_days)
-        if isinstance(task, (asyncio.Task, asyncio.Future)):
-            app.state.background_tasks.append(task)
+        await lifecycle.startup(app)
         yield
-        # cancel any running background tasks
-        tasks = list(app.state.background_tasks)
-        for task in tasks:
-            task.cancel()
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        await page_cache.cancel_refresh_tasks()
-        for handler in logging.getLogger().handlers:
-            try:
-                handler.flush()
-            except Exception:
-                pass
-        logging.shutdown()
-
-        for temp_dir in temp_dirs:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+        await lifecycle.shutdown(app)
 
     app = FastAPI(
         title="Allotmint API",
@@ -184,202 +54,31 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.background_tasks = []
+    app.state.repo_root = runtime_paths.paths.repo_root
+    app.state.accounts_root = runtime_paths.accounts_root
+    app.state.accounts_root_is_global = runtime_paths.accounts_root_is_global
+    app.state.virtual_pf_root = runtime_paths.paths.virtual_pf_root
 
-    # ────────────────────────── CORS ──────────────────────────
-    storage_uri = "memory://"
-    if cfg.app_env in {"production", "aws"}:
-        redis_url = os.getenv("REDIS_URL")
-        if redis_url:
-            storage_uri = redis_url
+    register_middleware(app, cfg)
+    register_routers(app, cfg)
 
-    limiter = Limiter(
-        key_func=get_remote_address,
-        default_limits=[f"{cfg.rate_limit_per_minute}/minute"],
-        storage_uri=storage_uri,
-    )
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-    configured_root = getattr(cfg, "accounts_root", None)
-    fallback_used = False
-    try:
-        if configured_root:
-            configured_path = Path(configured_root).expanduser()
-            if not configured_path.exists():
-                fallback_used = True
-        else:
-            fallback_used = True
-    except (TypeError, ValueError, OSError):
-        fallback_used = True
-
-    paths = resolve_paths(cfg.repo_root, cfg.accounts_root)
-    accounts_root = paths.accounts_root
-    original_accounts_root = accounts_root
-
-    try:
-        global_accounts_root = resolve_paths(None, None).accounts_root.resolve()
-        fallback_used = fallback_used or accounts_root.resolve() == global_accounts_root
-    except Exception:
-        pass
-
-    if os.getenv("TESTING"):
-        try:
-            accounts_root.relative_to(paths.repo_root)
-        except ValueError:
-            pass
-        else:
-            try:
-                temp_root = Path(tempfile.mkdtemp(prefix="allotmint-accounts-"))
-                isolated_root = temp_root / accounts_root.name
-                shutil.copytree(accounts_root, isolated_root, dirs_exist_ok=True)
-            except Exception as exc:  # pragma: no cover - best effort cleanup
-                logger.warning("Failed to isolate accounts root for tests: %s", exc)
-            else:
-                temp_dirs.append(temp_root)
-                accounts_root = isolated_root
-                cfg.accounts_root = accounts_root
-                tx_output = getattr(cfg, "transactions_output_root", None)
-                if tx_output and Path(tx_output) == original_accounts_root:
-                    cfg.transactions_output_root = accounts_root
-
-    try:
-        reconcile_transactions_with_holdings(accounts_root)
-    except Exception:
-        logger.exception("Failed to reconcile holdings with transactions")
-    app.state.repo_root = paths.repo_root
-    app.state.accounts_root = accounts_root
-    app.state.accounts_root_is_global = fallback_used
-    app.state.virtual_pf_root = paths.virtual_pf_root
-
-    # ───────────────────────────── CORS ─────────────────────────────
-    # The frontend origin varies by environment. Read the whitelist from
-    # configuration and fall back to the production site plus the local
-    # development servers if none are provided to avoid blocking dev requests.
-    from urllib.parse import urlparse
-
-    def _validate_cors_origins(origins: list[str]) -> list[str]:
-        """Ensure each origin uses http(s) and has a concrete host."""
-        validated: list[str] = []
-        for origin in origins:
-            parsed = urlparse(origin)
-            if parsed.scheme in {"http", "https"} and parsed.netloc and "*" not in parsed.netloc:
-                validated.append(origin)
-            else:
-                raise ValueError(f"Invalid CORS origin: {origin}")
-        return validated
-
-    default_cors = [
-        "https://app.allotmint.io",
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ]
-    cors_origins = _validate_cors_origins(list(dict.fromkeys((cfg.cors_origins or []) + default_cors)))
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        allow_credentials=True,
-    )
-    # Register SlowAPIMiddleware after CORSMiddleware so CORS preflight requests
-    # are handled before rate limiting or other middleware runs.
-    app.add_middleware(SlowAPIMiddleware)
-
-    # ──────────────────────────── Routers ────────────────────────────
-    # The API surface is composed of a few routers grouped by concern.
-    # Sensitive routes are guarded by a JWT-based dependency.
-    if cfg.disable_auth:
-        protected = []
-    else:
-        protected = [Depends(auth.get_current_user)]
-    # Public endpoints (e.g., demo access) are registered without authentication
-    app.include_router(public_portfolio_router)
-    app.include_router(portfolio_router, dependencies=protected)
-    app.include_router(performance_router, dependencies=protected)
-    app.include_router(opportunities_router)
-    app.include_router(instrument_router)
-    # Administrative endpoints for editing instrument definitions. Authentication
-    # is applied at include-time so `cfg.disable_auth` can skip it during
-    # tests.
-    app.include_router(instrument_admin_router, dependencies=protected)
-    app.include_router(timeseries_router)
-    app.include_router(timeseries_edit_router)
-    app.include_router(timeseries_admin_router, dependencies=protected)
-    app.include_router(transactions_router)
-    app.include_router(alert_settings_router, dependencies=protected)
-    app.include_router(alerts_router, dependencies=protected)
-    app.include_router(nudges_router, dependencies=protected)
-    app.include_router(quest_router, dependencies=protected)
-    app.include_router(trail_router, dependencies=protected)
-    app.include_router(compliance_router)
-    app.include_router(screener_router)
-    app.include_router(support_router)
-    app.include_router(query_router, dependencies=protected)
-    app.include_router(virtual_portfolio_router, dependencies=protected)
-    app.include_router(metrics_router)
-    app.include_router(analytics_router, dependencies=protected)
-    app.include_router(agent_router)
-    app.include_router(trading_agent_router, dependencies=protected)
-    app.include_router(config_router)
-    app.include_router(quotes_router)
-    app.include_router(news_router)
-    app.include_router(market_router)
-    app.include_router(movers_router)
-    app.include_router(models_router)
-    app.include_router(user_config_router, dependencies=protected)
-    app.include_router(approvals_router, dependencies=protected)
-    app.include_router(events_router)
-    app.include_router(scenario_router)
-    app.include_router(logs_router)
-    app.include_router(goals_router, dependencies=protected)
-    app.include_router(tax_router)
-    app.include_router(pension_router)
-
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(_: Request, exc: RequestValidationError):
-        """Return 422 for body errors and 400 for query errors."""
-        status = 422 if exc.body is not None else 400
-
-        # Convert any bytes in error details to strings for JSON serialization
-        def sanitize_error(error):
-            if isinstance(error, dict):
-                return {k: sanitize_error(v) for k, v in error.items()}
-            if isinstance(error, (list, tuple)):
-                return [sanitize_error(item) for item in error]
-            if isinstance(error, bytes):
-                return error.decode("utf-8", errors="replace")
-            return error
-
-        errors = sanitize_error(exc.errors())
-        return JSONResponse(status_code=status, content={"detail": errors})
-
-    from fastapi import Form
-    
     class TokenIn(BaseModel):
         id_token: str | None = None
 
     @app.post("/token")
-    async def login(
-        body: TokenIn | None = None,
-        username: str | None = Form(None)
-    ):
+    async def login(body: TokenIn | None = None, username: str | None = Form(None)):
         """Handle both JSON (id_token) and form (username/password) authentication."""
-        # Check for form data first (for OAuth2 password flow, used in tests)
         if username is not None:
             if cfg.disable_auth or os.getenv("TESTING"):
-                # In test/dev mode, accept any username/password
                 email = "user@example.com"
             else:
                 raise HTTPException(status_code=400, detail="Password auth not supported in production")
-        # Then check for JSON body with id_token
         elif body and body.id_token:
-            id_token = body.id_token
             try:
-                email = auth.authenticate_user(id_token)
+                email = auth.authenticate_user(body.id_token)
             except HTTPException as exc:
                 logger.warning("User authentication failed: %s", exc.detail)
                 raise
-        # Fallback for disable_auth mode with no credentials
         elif cfg.disable_auth:
             email = "user@example.com"
         else:
@@ -391,11 +90,7 @@ def create_app() -> FastAPI:
 
         allowlist_raw = getattr(cfg, "allowed_emails", None)
         if allowlist_raw and not os.getenv("TESTING"):
-            normalized = {
-                item.strip().lower()
-                for item in allowlist_raw
-                if isinstance(item, str) and item.strip()
-            }
+            normalized = {item.strip().lower() for item in allowlist_raw if isinstance(item, str) and item.strip()}
             if normalized and email.lower() not in normalized:
                 logger.warning("Email %s not authorized for login", email)
                 raise HTTPException(status_code=403, detail="email not authorized")
@@ -419,7 +114,6 @@ def create_app() -> FastAPI:
         jwt_token = auth.create_access_token(email)
         return {"access_token": jwt_token, "token_type": "bearer"}
 
-    # ────────────────────── Health-check endpoint ─────────────────────
     @app.get("/health")
     async def health():
         """Return a small payload used by tests and uptime monitors."""
@@ -429,7 +123,6 @@ def create_app() -> FastAPI:
     return app
 
 
-# optional local test:  python -m backend.app
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 

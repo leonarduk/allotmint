@@ -69,7 +69,7 @@ export const holdingContractSchema = z
     market_value_gbp: nullableNumber,
     market_value_currency: nullableString,
     gain_gbp: nullableNumber,
-    gain_currency: nullableNumber,
+    gain_currency: nullableString,
     gain_pct: nullableNumber,
     current_price_gbp: nullableNumber,
     current_price_currency: nullableString,

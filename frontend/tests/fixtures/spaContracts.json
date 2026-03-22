@@ -73,7 +73,7 @@
             "market_value_gbp": 1000,
             "market_value_currency": "GBP",
             "gain_gbp": 100,
-            "gain_currency": 100,
+            "gain_currency": "GBP",
             "gain_pct": 11.11,
             "current_price_gbp": 100,
             "current_price_currency": "GBP",

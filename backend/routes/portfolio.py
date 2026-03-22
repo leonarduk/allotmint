@@ -879,6 +879,20 @@ async def get_account(owner: str, account: str, request: Request):
 
     try:
         data = data_loader.load_account(owner, account, root)
+    except data_loader.ProviderUnavailable as exc:
+        log.warning(
+            "portfolio.account_provider_unavailable",
+            extra={"event": "portfolio.account_provider_unavailable", "owner": owner, "account": account},
+            exc_info=True,
+        )
+        raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
+    except data_loader.InvalidPayload as exc:
+        log.warning(
+            "portfolio.account_invalid_payload",
+            extra={"event": "portfolio.account_invalid_payload", "owner": owner, "account": account},
+            exc_info=True,
+        )
+        raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc
     except FileNotFoundError:
         search_root = root
         owner_dir = search_root / owner
@@ -897,7 +911,12 @@ async def get_account(owner: str, account: str, request: Request):
         )
         if not match:
             raise HTTPException(status_code=404, detail="Account not found")
-        data = data_loader.load_account(owner, match, search_root)
+        try:
+            data = data_loader.load_account(owner, match, search_root)
+        except data_loader.ProviderUnavailable as exc:
+            raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
+        except data_loader.InvalidPayload as exc:
+            raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc
         account = match
 
     original_account_field = data.get("account")

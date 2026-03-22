@@ -79,7 +79,7 @@ def test_pension_forecast_counts_prefixed_sipp_accounts(monkeypatch: MonkeyPatch
     config.offline_mode = True
 
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta",
+        "backend.routes.pension.load_person_metadata",
         lambda owner, root: {"dob": "1980-01-01"},
     )
     monkeypatch.setattr(

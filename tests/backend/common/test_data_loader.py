@@ -197,6 +197,23 @@ class TestLoadPersonMeta:
         assert meta.email == "alice@example.com"
         assert meta.viewers == ["bob@example.com"]
 
+    def test_load_person_metadata_rejects_malformed_viewers(self, tmp_path: Path) -> None:
+        owner_dir = tmp_path / "alice"
+        owner_dir.mkdir()
+        (owner_dir / "person.json").write_text(
+            json.dumps({"dob": "1980-01-01", "viewers": " bob@example.com "})
+        )
+
+        with pytest.raises(Exception, match="viewers must be a list"):
+            load_person_metadata("alice", data_root=tmp_path)
+
+    def test_person_metadata_accepts_date_like_dob_values(self) -> None:
+        from datetime import date
+
+        meta = data_loader.PersonMetadata.model_validate({"dob": date(1980, 1, 1)})
+
+        assert meta.dob == "1980-01-01"
+
 
 class TestLoadAccountRecord:
     def test_load_account_record_returns_typed_model(self, tmp_path: Path) -> None:

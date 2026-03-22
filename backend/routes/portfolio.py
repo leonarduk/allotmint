@@ -48,6 +48,29 @@ KEY_GAINERS = "gainers"
 KEY_LOSERS = "losers"
 
 
+def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | None) -> OwnerSummaryRecord:
+    """Accept typed or legacy dict owner summaries for helper callers."""
+
+    if isinstance(entry, OwnerSummaryRecord):
+        return entry
+    payload = dict(entry or {})
+    return OwnerSummaryRecord.model_construct(
+        owner=str(payload.get("owner", "")),
+        accounts=list(payload.get("accounts", [])) if isinstance(payload.get("accounts", []), list) else [],
+        full_name=payload.get("full_name").strip() if isinstance(payload.get("full_name"), str) and payload.get("full_name").strip() else None,
+        email=payload.get("email").strip() if isinstance(payload.get("email"), str) and payload.get("email").strip() else None,
+        has_transactions_artifact=bool(payload.get("has_transactions_artifact", False)),
+    )
+
+
+def _coerce_person_metadata(meta: PersonMetadata | Dict[str, Any] | None) -> PersonMetadata | None:
+    """Accept typed or legacy dict metadata for helper callers."""
+
+    if meta is None or isinstance(meta, PersonMetadata):
+        return meta
+    return PersonMetadata.model_validate(meta)
+
+
 # ──────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────
@@ -267,16 +290,19 @@ def _has_transactions_artifact(owner_dir: Optional[Path], owner: str) -> bool:
 
 def _resolve_full_name(
     owner: str,
-    entry: OwnerSummaryRecord,
-    meta: PersonMetadata | None,
+    entry: OwnerSummaryRecord | Dict[str, Any] | None,
+    meta: PersonMetadata | Dict[str, Any] | None,
 ) -> str:
     """Determine the preferred display name for ``owner``."""
 
-    if entry.full_name:
-        return entry.full_name
+    entry_record = _coerce_owner_summary_entry(entry)
+    meta_record = _coerce_person_metadata(meta)
 
-    if meta:
-        for value in (meta.full_name, meta.display_name, meta.preferred_name, meta.owner):
+    if entry_record.full_name:
+        return entry_record.full_name
+
+    if meta_record:
+        for value in (meta_record.full_name, meta_record.display_name, meta_record.preferred_name, meta_record.owner):
             if isinstance(value, str) and value.strip():
                 return value.strip()
 
@@ -284,7 +310,7 @@ def _resolve_full_name(
 
 
 def _normalise_owner_entry(
-    entry: OwnerSummaryRecord,
+    entry: OwnerSummaryRecord | Dict[str, Any] | None,
     accounts_root: Path,
     *,
     meta: PersonMetadata | None = None,
@@ -292,7 +318,8 @@ def _normalise_owner_entry(
 ) -> Optional[Dict[str, Any]]:
     """Return a cleaned owner summary enriched with conventional accounts."""
 
-    owner = entry.owner.strip()
+    entry_record = _coerce_owner_summary_entry(entry)
+    owner = entry_record.owner.strip()
     if not owner:
         return None
 
@@ -323,7 +350,7 @@ def _normalise_owner_entry(
     meta_provided = meta is not None
 
     sources = [
-        (entry.accounts, False),
+        (entry_record.accounts, False),
         (_collect_account_stems(owner_dir), True),
     ]
 
@@ -357,10 +384,10 @@ def _normalise_owner_entry(
     if transactions_entry:
         _append(transactions_entry, prefer_variant=True)
 
-    resolved_meta = meta
+    resolved_meta = _coerce_person_metadata(meta)
     if resolved_meta is None:
         try:
-            resolved_meta = data_loader.load_person_metadata(owner, accounts_root)
+            resolved_meta = _coerce_person_metadata(data_loader.load_person_metadata(owner, accounts_root))
         except Exception:  # pragma: no cover - metadata lookup failures are tolerated
             resolved_meta = PersonMetadata()
 

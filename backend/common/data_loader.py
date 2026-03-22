@@ -210,7 +210,7 @@ def _build_owner_summary(
     if email:
         summary["email"] = email
 
-    return OwnerSummaryRecord.model_validate(summary).model_dump(exclude_none=True)
+    return OwnerSummaryRecord.model_validate(summary).model_dump(exclude_none=True, exclude_defaults=True)
 
 
 def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
@@ -270,7 +270,7 @@ def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> No
 
     validated = OwnerSummaryRecord.model_validate(base)
     base.clear()
-    base.update(validated.model_dump(exclude_none=True))
+    base.update(validated.model_dump(exclude_none=True, exclude_defaults=True))
 
 
 def _list_local_plots(
@@ -750,9 +750,38 @@ def load_account_record(
 
 
 def load_person_metadata(owner: str, data_root: Optional[Path] = None) -> PersonMetadata:
-    """Load owner metadata validated into a typed model."""
+    """Load owner metadata validated into a typed model.
 
-    return PersonMetadata.model_validate(load_person_meta(owner, data_root))
+    Unlike ``load_person_meta``, this helper is intentionally strict: malformed
+    metadata should raise validation/parsing errors so callers can fail fast at
+    the boundary when they opt into typed access.
+    """
+
+    local_root: Optional[Path] = data_root
+    if local_root is None:
+        try:
+            local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+        except Exception:  # pragma: no cover - extremely defensive
+            local_root = None
+
+    bucket = os.getenv(DATA_BUCKET_ENV)
+    if config.app_env == "aws" and bucket:
+        key = f"{PLOTS_PREFIX}{owner}/person.json"
+        import boto3  # type: ignore
+
+        obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+        body = obj.get("Body")
+        txt = body.read().decode("utf-8-sig").strip() if body else ""
+        if not txt:
+            raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
+        return PersonMetadata.model_validate(json.loads(txt))
+
+    if not local_root:
+        raise FileNotFoundError(f"No person metadata available for owner {owner!r}")
+
+    path = local_root / owner / "person.json"
+    data = _safe_json_load(path)
+    return PersonMetadata.model_validate(data)
 
 
 # ------------------------------------------------------------------

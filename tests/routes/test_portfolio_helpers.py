@@ -68,15 +68,15 @@ def test_normalise_owner_entry_enriches_accounts(tmp_path: Path, monkeypatch: py
     (owner_dir / "sipp.json").write_text("{}", encoding="utf-8")
     (owner_dir / "alex_transactions.json").write_text("{}", encoding="utf-8")
 
-    def fake_load_person_meta(owner: str, accounts_root: Path):
+    def fake_load_person_metadata(owner: str, accounts_root: Path):
         assert owner == "Alex"
         assert accounts_root == tmp_path
         return {"preferred_name": "Alexandra"}
 
     monkeypatch.setattr(
         portfolio_routes.data_loader,
-        "load_person_meta",
-        fake_load_person_meta,
+        "load_person_metadata",
+        fake_load_person_metadata,
     )
 
     result = portfolio_routes._normalise_owner_entry(
@@ -108,7 +108,7 @@ def test_list_owner_summaries_merges_demo(tmp_path: Path, monkeypatch: pytest.Mo
         assert current_user is None
         return [{"owner": "alex", "accounts": ["isa", ""]}]
 
-    def fake_load_person_meta(owner: str, accounts_root: Path):
+    def fake_load_person_metadata(owner: str, accounts_root: Path):
         assert accounts_root == tmp_path
         if owner == "alex":
             return {"display_name": "Alex Example"}
@@ -121,8 +121,8 @@ def test_list_owner_summaries_merges_demo(tmp_path: Path, monkeypatch: pytest.Mo
     )
     monkeypatch.setattr(
         portfolio_routes.data_loader,
-        "load_person_meta",
-        fake_load_person_meta,
+        "load_person_metadata",
+        fake_load_person_metadata,
     )
 
     request = _make_request_with_root(tmp_path)

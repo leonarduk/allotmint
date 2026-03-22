@@ -31,17 +31,17 @@ def test_pension_forecast_success(monkeypatch: pytest.MonkeyPatch, request_with_
     def fake_resolve_accounts_root(request: Request) -> Path:
         return Path(request.app.state.accounts_root)
 
-    def fake_load_person_meta(owner: str, accounts_root: Path) -> dict:
+    def fake_load_person_metadata(owner: str, accounts_root: Path) -> dict:
         assert owner == "alex"
         assert accounts_root == Path(request_with_root.app.state.accounts_root)
-        return {"dob": date(1985, 7, 1)}
+        return {"dob": "1985-07-01"}
 
     def fake_age_from_dob(dob):
-        assert dob == date(1985, 7, 1)
+        assert dob == "1985-07-01"
         return 40
 
     def fake_state_pension_age_uk(dob):
-        assert dob == date(1985, 7, 1)
+        assert dob == "1985-07-01"
         return 68
 
     captured_args = {}
@@ -63,7 +63,7 @@ def test_pension_forecast_success(monkeypatch: pytest.MonkeyPatch, request_with_
         return {"projection": [kwargs]}
 
     monkeypatch.setattr(pension, "resolve_accounts_root", fake_resolve_accounts_root)
-    monkeypatch.setattr(pension, "load_person_meta", fake_load_person_meta)
+    monkeypatch.setattr(pension, "load_person_metadata", fake_load_person_metadata)
     monkeypatch.setattr(pension, "_age_from_dob", fake_age_from_dob)
     monkeypatch.setattr(pension, "state_pension_age_uk", fake_state_pension_age_uk)
     monkeypatch.setattr(pension, "build_owner_portfolio", fake_build_owner_portfolio)
@@ -92,8 +92,8 @@ def test_pension_forecast_invalid_death_age(monkeypatch: pytest.MonkeyPatch, req
     monkeypatch.setattr(pension, "resolve_accounts_root", lambda request: Path("."))
     monkeypatch.setattr(
         pension,
-        "load_person_meta",
-        lambda owner, accounts_root: {"dob": date(1990, 1, 1)},
+        "load_person_metadata",
+        lambda owner, accounts_root: {"dob": "1990-01-01"},
     )
     monkeypatch.setattr(pension, "_age_from_dob", lambda dob: 30)
     monkeypatch.setattr(pension, "state_pension_age_uk", lambda dob: 67)
@@ -117,7 +117,7 @@ def test_pension_forecast_invalid_death_age(monkeypatch: pytest.MonkeyPatch, req
 
 def test_pension_forecast_missing_dob(monkeypatch: pytest.MonkeyPatch, request_with_root: Request) -> None:
     monkeypatch.setattr(pension, "resolve_accounts_root", lambda request: Path("."))
-    monkeypatch.setattr(pension, "load_person_meta", lambda owner, accounts_root: {})
+    monkeypatch.setattr(pension, "load_person_metadata", lambda owner, accounts_root: {"dob": None})
 
     with pytest.raises(HTTPException) as exc:
         pension.pension_forecast(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -62,7 +63,6 @@ class PersonMetadata(BaseModel):
         "full_name",
         "display_name",
         "preferred_name",
-        "dob",
         "email",
         mode="before",
     )
@@ -75,17 +75,51 @@ class PersonMetadata(BaseModel):
         cleaned = value.strip()
         return cleaned or None
 
+    @field_validator("dob", mode="before")
+    @classmethod
+    def _normalise_dob(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            value = value.date()
+        if isinstance(value, date):
+            return value.isoformat()
+        if not isinstance(value, str):
+            raise ValueError("expected string")
+        cleaned = value.strip()
+        return cleaned or None
+
+    @field_validator("holdings", mode="before")
+    @classmethod
+    def _normalise_holdings(cls, value: Any) -> list[Any]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError("holdings must be a list")
+        return value
+
     @field_validator("viewers", mode="before")
     @classmethod
     def _normalise_viewers(cls, value: Any) -> list[str]:
         if value is None:
             return []
+        if isinstance(value, tuple | set):
+            value = list(value)
         if not isinstance(value, list):
             raise ValueError("viewers must be a list")
         viewers: list[str] = []
+        seen: set[str] = set()
         for item in value:
-            if isinstance(item, str) and item.strip():
-                viewers.append(item.strip())
+            if not isinstance(item, str):
+                continue
+            cleaned = item.strip()
+            if not cleaned:
+                continue
+            key = cleaned.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            viewers.append(cleaned)
         return viewers
 
 

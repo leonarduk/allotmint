@@ -1,7 +1,9 @@
 import inspect
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import ValidationError
 
+from backend.common.account_models import PersonMetadata
 from backend.common.data_loader import load_person_metadata
 from backend.common.pension import (
     _age_from_dob,
@@ -35,7 +37,11 @@ def pension_forecast(
 ):
     accounts_root = resolve_accounts_root(request)
 
-    meta = load_person_metadata(owner, accounts_root)
+    try:
+        meta = PersonMetadata.model_validate(load_person_metadata(owner, accounts_root))
+    except (FileNotFoundError, ValidationError) as exc:
+        raise HTTPException(status_code=400, detail="missing or invalid dob") from exc
+
     dob = meta.dob
     current_age = _age_from_dob(dob)
     if current_age is None:

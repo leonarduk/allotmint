@@ -10,7 +10,7 @@ def test_health_env_variable(monkeypatch):
     monkeypatch.setattr(config, "app_env", "staging")
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
-    with patch("backend.app.refresh_snapshot_async") as mock_refresh:
+    with patch("backend.bootstrap.startup.refresh_snapshot_async") as mock_refresh:
         app = create_app()
         with TestClient(app) as client:
             resp = client.get("/health")
@@ -23,9 +23,9 @@ def test_startup_warms_snapshot(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", False)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with (
-        patch("backend.app.refresh_snapshot_async") as mock_refresh,
-        patch("backend.app._load_snapshot", return_value=({}, None)) as mock_load,
-        patch("backend.app.refresh_snapshot_in_memory") as mock_mem,
+        patch("backend.bootstrap.startup.refresh_snapshot_async") as mock_refresh,
+        patch("backend.bootstrap.startup._load_snapshot", return_value=({}, None)) as mock_load,
+        patch("backend.bootstrap.startup.refresh_snapshot_in_memory") as mock_mem,
         patch("backend.common.instrument_api.update_latest_prices_from_snapshot") as mock_update,
         patch("backend.common.instrument_api.prime_latest_prices") as mock_prime,
     ):
@@ -43,8 +43,8 @@ def test_skip_snapshot_warm(monkeypatch):
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     monkeypatch.setattr(config, "snapshot_warm_days", 30)
     with (
-        patch("backend.app.refresh_snapshot_async") as mock_refresh,
-        patch("backend.app._load_snapshot") as mock_load,
+        patch("backend.bootstrap.startup.refresh_snapshot_async") as mock_refresh,
+        patch("backend.bootstrap.startup._load_snapshot") as mock_load,
         patch("backend.common.instrument_api.update_latest_prices_from_snapshot") as mock_update,
         patch("backend.common.instrument_api.prime_latest_prices") as mock_prime,
     ):

@@ -21,6 +21,7 @@ from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 
 from backend.auth import get_current_user
+from backend.common.account_models import OwnerSummaryRecord, PersonMetadata
 from backend.common import (
     constants,
     data_loader,
@@ -45,6 +46,29 @@ KEY_TICKER = constants.TICKER
 KEY_MARKET_VALUE_GBP = constants.MARKET_VALUE_GBP
 KEY_GAINERS = "gainers"
 KEY_LOSERS = "losers"
+
+
+def _coerce_owner_summary_entry(entry: OwnerSummaryRecord | Dict[str, Any] | None) -> OwnerSummaryRecord:
+    """Accept typed or legacy dict owner summaries for helper callers."""
+
+    if isinstance(entry, OwnerSummaryRecord):
+        return entry
+    payload = dict(entry or {})
+    return OwnerSummaryRecord.model_construct(
+        owner=str(payload.get("owner", "")),
+        accounts=list(payload.get("accounts", [])) if isinstance(payload.get("accounts", []), list) else [],
+        full_name=payload.get("full_name").strip() if isinstance(payload.get("full_name"), str) and payload.get("full_name").strip() else None,
+        email=payload.get("email").strip() if isinstance(payload.get("email"), str) and payload.get("email").strip() else None,
+        has_transactions_artifact=bool(payload.get("has_transactions_artifact", False)),
+    )
+
+
+def _coerce_person_metadata(meta: PersonMetadata | Dict[str, Any] | None) -> PersonMetadata | None:
+    """Accept typed or legacy dict metadata for helper callers."""
+
+    if meta is None or isinstance(meta, PersonMetadata):
+        return meta
+    return PersonMetadata.model_validate(meta)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -266,19 +290,19 @@ def _has_transactions_artifact(owner_dir: Optional[Path], owner: str) -> bool:
 
 def _resolve_full_name(
     owner: str,
-    entry: Dict[str, Any],
-    meta: Optional[Dict[str, Any]],
+    entry: OwnerSummaryRecord | Dict[str, Any] | None,
+    meta: PersonMetadata | Dict[str, Any] | None,
 ) -> str:
     """Determine the preferred display name for ``owner``."""
 
-    full_name = entry.get("full_name")
-    if isinstance(full_name, str) and full_name.strip():
-        return full_name.strip()
+    entry_record = _coerce_owner_summary_entry(entry)
+    meta_record = _coerce_person_metadata(meta)
 
-    meta = meta or {}
-    if isinstance(meta, dict):
-        for key in ("full_name", "display_name", "preferred_name", "owner", "name"):
-            value = meta.get(key)
+    if entry_record.full_name:
+        return entry_record.full_name
+
+    if meta_record:
+        for value in (meta_record.full_name, meta_record.display_name, meta_record.preferred_name, meta_record.owner):
             if isinstance(value, str) and value.strip():
                 return value.strip()
 
@@ -286,15 +310,16 @@ def _resolve_full_name(
 
 
 def _normalise_owner_entry(
-    entry: Dict[str, Any],
+    entry: OwnerSummaryRecord | Dict[str, Any] | None,
     accounts_root: Path,
     *,
-    meta: Optional[Dict[str, Any]] = None,
+    meta: PersonMetadata | None = None,
     include_conventional_extras: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """Return a cleaned owner summary enriched with conventional accounts."""
 
-    owner = str(entry.get("owner", "")).strip()
+    entry_record = _coerce_owner_summary_entry(entry)
+    owner = entry_record.owner.strip()
     if not owner:
         return None
 
@@ -325,7 +350,7 @@ def _normalise_owner_entry(
     meta_provided = meta is not None
 
     sources = [
-        (entry.get("accounts", []), False),
+        (entry_record.accounts, False),
         (_collect_account_stems(owner_dir), True),
     ]
 
@@ -359,12 +384,12 @@ def _normalise_owner_entry(
     if transactions_entry:
         _append(transactions_entry, prefer_variant=True)
 
-    resolved_meta = meta
+    resolved_meta = _coerce_person_metadata(meta)
     if resolved_meta is None:
         try:
-            resolved_meta = data_loader.load_person_meta(owner, accounts_root)
+            resolved_meta = _coerce_person_metadata(data_loader.load_person_metadata(owner, accounts_root))
         except Exception:  # pragma: no cover - metadata lookup failures are tolerated
-            resolved_meta = {}
+            resolved_meta = PersonMetadata()
 
     summary: Dict[str, Any] = {
         "owner": owner,
@@ -376,10 +401,8 @@ def _normalise_owner_entry(
     if not meta_provided:
         summary["has_transactions_artifact"] = artifact_present
 
-    if isinstance(resolved_meta, dict):
-        email = resolved_meta.get("email")
-        if isinstance(email, str) and email.strip():
-            summary["email"] = email.strip()
+    if resolved_meta and resolved_meta.email:
+        summary["email"] = resolved_meta.email.strip()
 
     return summary
 
@@ -401,11 +424,11 @@ def _build_demo_summary(accounts_root: Path) -> Dict[str, Any]:
     identity, demo_dir = _resolve_demo_owner(accounts_root)
     accounts = _collect_account_stems(demo_dir)
     try:
-        meta = data_loader.load_person_meta(identity, accounts_root)
+        meta = data_loader.load_person_metadata(identity, accounts_root)
     except Exception:  # pragma: no cover - metadata lookup failures fall back to defaults
-        meta = {}
+        meta = PersonMetadata()
 
-    entry = {"owner": identity, "accounts": accounts}
+    entry = OwnerSummaryRecord(owner=identity, accounts=accounts)
     summary = _normalise_owner_entry(
         entry,
         accounts_root,
@@ -430,7 +453,10 @@ def _list_owner_summaries(
 
     accounts_root = resolve_accounts_root(request, allow_missing=True)
 
-    raw_entries = data_loader.list_plots(accounts_root, current_user)
+    raw_entries = [
+        OwnerSummaryRecord.model_validate(entry)
+        for entry in data_loader.list_plots(accounts_root, current_user)
+    ]
     summaries: List[Dict[str, Any]] = []
 
     for entry in raw_entries:
@@ -893,6 +919,7 @@ async def get_account(owner: str, account: str, request: Request):
             exc_info=True,
         )
         raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc
+        data = data_loader.load_account_record(owner, account, root).model_dump(exclude_none=True)
     except FileNotFoundError:
         search_root = root
         owner_dir = search_root / owner
@@ -917,6 +944,7 @@ async def get_account(owner: str, account: str, request: Request):
             raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
         except data_loader.InvalidPayload as exc:
             raise HTTPException(status_code=502, detail="Account data payload is invalid") from exc
+        data = data_loader.load_account_record(owner, match, search_root).model_dump(exclude_none=True)
         account = match
 
     original_account_field = data.get("account")

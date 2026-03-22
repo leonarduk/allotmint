@@ -149,8 +149,8 @@ def test_allowed_emails_local(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         auth,
-        "load_person_meta",
-        lambda owner, data_root=None: {"email": f"{owner}@example.com"},
+        "load_person_metadata",
+        lambda owner, data_root=None: type("Meta", (), {"email": f"{owner}@example.com"})(),
     )
     emails = auth._allowed_emails()
     assert "alice@example.com" in emails

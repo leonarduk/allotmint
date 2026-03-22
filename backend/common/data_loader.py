@@ -18,6 +18,9 @@ from backend.common.data_providers import (
     S3DataProvider,
     _safe_json_load,
 )
+from pydantic import ValidationError
+
+from backend.common.account_models import AccountRecord, OwnerSummaryRecord, PersonMetadata
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config, demo_identity as get_demo_identity
 
@@ -210,7 +213,7 @@ def _build_owner_summary(
     if email:
         summary["email"] = email
 
-    return summary
+    return OwnerSummaryRecord.model_validate(summary).model_dump(exclude_none=True, exclude_defaults=True)
 
 
 def _load_demo_owner(root: Path) -> Optional[Dict[str, Any]]:
@@ -267,6 +270,10 @@ def _merge_accounts(base: Dict[str, Any], extra: Optional[Dict[str, Any]]) -> No
             continue
         existing.append(name)
         seen.add(lowered)
+
+    validated = OwnerSummaryRecord.model_validate(base)
+    base.clear()
+    base.update(validated.model_dump(exclude_none=True, exclude_defaults=True))
 
 
 def _list_local_plots(
@@ -706,6 +713,65 @@ def list_plots(
 
 
 # ------------------------------------------------------------------
+# Load JSON w/ safe parser (strip BOM, allow empty)
+# ------------------------------------------------------------------
+def _safe_json_load(path: Path) -> Dict[str, Any]:
+    if not path.exists() or path.stat().st_size == 0:
+        raise FileNotFoundError(str(path))
+    with open(path, "r", encoding="utf-8-sig") as f:  # utf-8-sig strips BOM
+        txt = f.read().strip()
+    if not txt:
+        raise ValueError(f"Empty JSON file: {path}")
+    return json.loads(txt)
+
+
+def load_account_record(
+    owner: str,
+    account: str,
+    data_root: Optional[Path] = None,
+) -> AccountRecord:
+    """Load and validate an account document."""
+
+    data = load_account(owner, account, data_root)
+    return AccountRecord.model_validate(data)
+
+
+def load_person_metadata(owner: str, data_root: Optional[Path] = None) -> PersonMetadata:
+    """Load owner metadata validated into a typed model.
+
+    Unlike ``load_person_meta``, this helper is intentionally strict: malformed
+    metadata should raise validation/parsing errors so callers can fail fast at
+    the boundary when they opt into typed access.
+    """
+
+    local_root: Optional[Path] = data_root
+    if local_root is None:
+        try:
+            local_root = resolve_paths(config.repo_root, config.accounts_root).accounts_root
+        except Exception:  # pragma: no cover - extremely defensive
+            local_root = None
+
+    bucket = os.getenv(DATA_BUCKET_ENV)
+    if config.app_env == "aws" and bucket:
+        key = f"{PLOTS_PREFIX}{owner}/person.json"
+        import boto3  # type: ignore
+
+        obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+        body = obj.get("Body")
+        txt = body.read().decode("utf-8-sig").strip() if body else ""
+        if not txt:
+            raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
+        return PersonMetadata.model_validate(json.loads(txt))
+
+    if not local_root:
+        raise FileNotFoundError(f"No person metadata available for owner {owner!r}")
+
+    path = local_root / owner / "person.json"
+    data = _safe_json_load(path)
+    return PersonMetadata.model_validate(data)
+
+
+# ------------------------------------------------------------------
 # Account loaders
 # ------------------------------------------------------------------
 def load_account(
@@ -747,11 +813,38 @@ def load_account(
             if not local_root:
                 raise
             return LocalDataProvider().load_account(owner, account, local_root).data
+        if bucket:
+            key = f"{PLOTS_PREFIX}{owner}/{account}.json"
+            try:
+                import boto3  # type: ignore
+
+                obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load account data from s3://%s/%s: %s; falling back to local file",
+                    bucket,
+                    key,
+                    exc,
+                    exc_info=True,
+                )
+                if not local_root:
+                    raise FileNotFoundError(f"s3://{bucket}/{key}") from exc
+            else:
+                body = obj.get("Body")
+                txt = body.read().decode("utf-8-sig").strip() if body else ""
+                if not txt:
+                    raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
+                data = json.loads(txt)
+                return AccountRecord.model_validate(data).model_dump(exclude_none=True)
 
     if not local_root:
         raise MissingData(f"No account data available for owner '{owner}'")
 
     return LocalDataProvider().load_account(owner, account, local_root).data
+    root = local_root
+    path = root / owner / f"{account}.json"
+    data = _safe_json_load(path)
+    return AccountRecord.model_validate(data).model_dump(exclude_none=True)
 
 
 def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:
@@ -761,6 +854,10 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     Person metadata is always optional; provider and payload failures
     degrade gracefully to an empty dict rather than propagating.
     """
+
+    def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
+        validated = PersonMetadata.model_validate(data)
+        return validated.model_dump(exclude_none=True)
 
     local_root: Optional[Path] = data_root
     if local_root is None:
@@ -786,6 +883,35 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                 },
                 exc_info=True,
             )
+    bucket = os.getenv(DATA_BUCKET_ENV)
+
+    if config.app_env == "aws" or bucket:
+        if bucket:
+            key = f"{PLOTS_PREFIX}{owner}/person.json"
+            try:
+                import boto3  # type: ignore
+
+                obj = boto3.client("s3").get_object(Bucket=bucket, Key=key)
+                body = obj.get("Body")
+                txt = body.read().decode("utf-8-sig").strip() if body else ""
+                if not txt:
+                    return {}
+                data = json.loads(txt)
+                return _extract(data)
+            except ValidationError:
+                logger.warning("Invalid person metadata for owner '%s' in s3://%s/%s", owner, bucket, key)
+                return {}
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load person metadata from s3://%s/%s: %s; falling back to local file",
+                    bucket,
+                    key,
+                    exc,
+                    exc_info=True,
+                )
+                if config.app_env == "aws" and not has_local_fallback:
+                    return {}
+        elif config.app_env == "aws" and not has_local_fallback:
             return {}
         except ProviderUnavailable:
             logger.warning(
@@ -809,6 +935,11 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     except MissingData:
         return {}
     except InvalidPayload:
+        return {}
+    try:
+        return _extract(data)
+    except ValidationError:
+        logger.warning("Invalid person metadata for owner '%s' in %s", owner, path)
         return {}
 
 

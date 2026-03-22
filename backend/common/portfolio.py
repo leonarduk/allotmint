@@ -22,7 +22,7 @@ from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     PLOTS_PREFIX,
     list_plots,
-    load_account,
+    load_account_record,
     resolve_paths,
 )
 from backend.common.holding_utils import enrich_holding
@@ -145,8 +145,8 @@ def build_owner_portfolio(
 
     accounts: List[Dict[str, Any]] = []
     for meta in accounts_meta:
-        raw = load_account(owner, meta, accounts_root)
-        holdings_raw = raw.get("holdings", [])
+        raw = load_account_record(owner, meta, accounts_root)
+        holdings_raw = raw.holdings
 
         enriched = [
             enrich_holding(
@@ -163,9 +163,9 @@ def build_owner_portfolio(
 
         accounts.append(
             {
-                "account_type": raw.get("account_type", str(meta).upper()),
-                "currency": raw.get("currency", "GBP"),
-                "last_updated": raw.get("last_updated"),
+                "account_type": raw.account_type or str(meta).upper(),
+                "currency": raw.currency or "GBP",
+                "last_updated": raw.last_updated,
                 "value_estimate_gbp": val_gbp,
                 "holdings": enriched,
             }

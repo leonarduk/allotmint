@@ -9,6 +9,7 @@ import {
   runScenario,
   getPortfolio,
   getPensionForecast,
+  getConfig,
 } from "@/api";
 
 describe("auth token handling", () => {
@@ -128,6 +129,18 @@ describe("portfolio holdings", () => {
     const holding = data.accounts[0].holdings[0];
     expect(holding.last_price_time).toBe("2024-01-01T10:00:00Z");
     expect(holding.is_stale).toBe(true);
+  });
+});
+
+describe("contract validation", () => {
+  it("rejects invalid config responses", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ app_env: 123 }) });
+    // @ts-ignore
+    global.fetch = mockFetch;
+
+    await expect(getConfig()).rejects.toThrow();
   });
 });
 

@@ -1,30 +1,25 @@
-import { z } from "zod";
+import { toJSONSchema, z } from "zod";
 
 export const API_CONTRACT_VERSION = "v1" as const;
 
 const nullableString = z.string().nullable();
 const nullableNumber = z.number().nullable();
+const tabsSchema = z.record(z.string(), z.boolean());
 
-export const configContractSchema = z.object({
-  app_name: z.string(),
-  app_env: z.string(),
-  demo_mode: z.boolean(),
-  theme: z.string(),
-  tabs: z.record(z.string(), z.boolean()),
-  disabled_tabs: z.array(z.string()),
-  ui: z.object({
+export const configContractSchema = z
+  .object({
+    app_env: z.string(),
     theme: z.string(),
+    tabs: tabsSchema,
     relative_view_enabled: z.boolean(),
-    tabs: z.record(z.string(), z.boolean()),
-  }),
-  auth: z.object({
     google_auth_enabled: z.boolean().nullable(),
     google_client_id: nullableString,
     disable_auth: z.boolean(),
     allowed_emails: z.array(z.string()),
     local_login_email: nullableString,
-  }),
-}).passthrough();
+    disabled_tabs: z.array(z.string()).nullable().optional(),
+  })
+  .passthrough();
 
 export const ownerSummarySchema = z.object({
   owner: z.string(),
@@ -36,11 +31,13 @@ export const ownerSummarySchema = z.object({
 
 export const ownersContractSchema = z.array(ownerSummarySchema);
 
-export const groupsContractSchema = z.array(z.object({
-  slug: z.string(),
-  name: z.string(),
-  members: z.array(z.string()),
-}));
+export const groupsContractSchema = z.array(
+  z.object({
+    slug: z.string(),
+    name: z.string(),
+    members: z.array(z.string()),
+  }),
+);
 
 export const holdingContractSchema = z.object({
   ticker: z.string(),
@@ -81,7 +78,7 @@ export const accountContractSchema = z.object({
   owner: z.string().optional(),
   account_type: z.string(),
   currency: z.string(),
-  last_updated: z.string().optional(),
+  last_updated: z.string().nullable().optional(),
   value_estimate_gbp: z.number(),
   value_estimate_currency: nullableString.optional(),
   holdings: z.array(holdingContractSchema),
@@ -121,3 +118,15 @@ export const transactionContractSchema = z.object({
 });
 
 export const transactionsContractSchema = z.array(transactionContractSchema);
+
+export const apiContractSchemas = {
+  config: configContractSchema,
+  owners: ownersContractSchema,
+  groups: groupsContractSchema,
+  portfolio: portfolioContractSchema,
+  transactions: transactionsContractSchema,
+} as const;
+
+export const apiContractJsonSchemas = Object.fromEntries(
+  Object.entries(apiContractSchemas).map(([name, schema]) => [name, toJSONSchema(schema)]),
+) as Record<keyof typeof apiContractSchemas, ReturnType<typeof toJSONSchema>>;

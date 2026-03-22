@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import configFixture from "@/contracts/fixtures/config.v1.json";
-import ownersFixture from "@/contracts/fixtures/owners.v1.json";
 import groupsFixture from "@/contracts/fixtures/groups.v1.json";
+import ownersFixture from "@/contracts/fixtures/owners.v1.json";
 import portfolioFixture from "@/contracts/fixtures/portfolio.v1.json";
 import transactionsFixture from "@/contracts/fixtures/transactions.v1.json";
 import {
+  apiContractJsonSchemas,
   configContractSchema,
   groupsContractSchema,
   ownersContractSchema,
@@ -31,5 +32,25 @@ describe("API contract fixtures", () => {
 
   it("validates the transactions fixture", () => {
     expect(() => transactionsContractSchema.parse(transactionsFixture)).not.toThrow();
+  });
+
+  it("exports machine-readable JSON Schema definitions", () => {
+    expect(apiContractJsonSchemas.config).toMatchObject({
+      type: "object",
+      required: expect.arrayContaining(["app_env", "tabs", "theme"]),
+    });
+    expect(apiContractJsonSchemas.owners).toMatchObject({ type: "array" });
+    expect(apiContractJsonSchemas.portfolio).toMatchObject({ type: "object" });
+  });
+
+  it("treats fixtures as examples instead of exact snapshots", () => {
+    const owners = structuredClone(ownersFixture);
+    owners[0] = {
+      ...owners[0],
+      email: null,
+    };
+
+    expect(() => ownersContractSchema.parse(owners)).not.toThrow();
+    expect(owners).not.toEqual(ownersFixture);
   });
 });

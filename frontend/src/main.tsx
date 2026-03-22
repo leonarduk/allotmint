@@ -7,72 +7,35 @@ import {
   useRef,
   useState,
   type CSSProperties,
-} from 'react'
-import { createRoot } from 'react-dom/client'
-import { HelmetProvider } from 'react-helmet-async'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
-import './index.css'
-import './styles/responsive.css'
-import './i18n'
-import { ConfigProvider } from './ConfigContext'
-import { PriceRefreshProvider } from './PriceRefreshContext'
-import { AuthProvider, useAuth } from './AuthContext'
-import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api'
-import LoginPage from './LoginPage'
-import { UserProvider, useUser } from './UserContext'
-import ErrorBoundary from './ErrorBoundary'
-import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage'
-import { RouteProvider } from './RouteContext'
-import { deriveModeFromPathname } from './pageManifest'
 } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HelmetProvider } from 'react-helmet-async';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  useNavigate,
-  useLocation,
-} from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import './index.css';
 import './styles/responsive.css';
 import './i18n';
 import { ConfigProvider } from './ConfigContext';
 import { PriceRefreshProvider } from './PriceRefreshContext';
 import { AuthProvider, useAuth } from './AuthContext';
-import {
-  getConfig,
-  logout as apiLogout,
-  getStoredAuthToken,
-  setAuthToken,
-} from './api';
+import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api';
 import LoginPage from './LoginPage';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
 import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
-import { deriveModeFromPathname, standalonePageRoutes } from './pageManifest';
+import { deriveBootstrapMode, deriveModeFromPathname, standalonePageRoutes } from './pageManifest';
 
 const storedToken = getStoredAuthToken();
 if (storedToken) setAuthToken(storedToken);
 
 const App = lazy(() => import('./App.tsx'));
-const VirtualPortfolio = lazy(() => import('./pages/VirtualPortfolio'));
-const Support = lazy(() => import('./pages/Support'));
 const ComplianceWarnings = lazy(() => import('./pages/ComplianceWarnings'));
-const TradeCompliance = lazy(() => import('./pages/TradeCompliance'));
 const Alerts = lazy(() => import('./pages/Alerts'));
 const Goals = lazy(() => import('./pages/Goals'));
-const Trail = lazy(() => import('./pages/Trail'));
-const PerformanceDiagnostics = lazy(
-  () => import('./pages/PerformanceDiagnostics')
-);
+const PerformanceDiagnostics = lazy(() => import('./pages/PerformanceDiagnostics'));
 const ReturnComparison = lazy(() => import('./pages/ReturnComparison'));
-const AlertSettings = lazy(() => import('./pages/AlertSettings'));
 const MetricsExplanation = lazy(() => import('./pages/MetricsExplanation'));
 const SmokeTest = lazy(() => import('./pages/SmokeTest'));
 
@@ -90,17 +53,13 @@ const routeMarkerStyle: CSSProperties = {
   overflow: 'hidden',
 };
 
-const renderRouteMarker = (pathname: string, state: 'loading' | 'config-error' | 'auth') => {
-  const mode = deriveModeFromPathname(pathname)
-  const bootstrapMode = state === 'loading' ? 'loading' : mode
-};
-
 const renderRouteMarker = (
   pathname: string,
-  state: 'loading' | 'config-error' | 'auth'
+  state: 'loading' | 'config-error' | 'auth',
 ) => {
   const mode = deriveModeFromPathname(pathname);
-  const bootstrapMode = state === 'loading' ? 'loading' : mode;
+  const bootstrapMode = deriveBootstrapMode(pathname, state);
+
   return (
     <>
       <div
@@ -160,7 +119,7 @@ export function Root() {
     if (existingUser) setUser(existingUser);
     const existingProfile = loadStoredUserProfile();
     if (existingProfile) setProfile(existingProfile);
-  }, [setProfile, setUser, storedToken]);
+  }, [setProfile, setUser]);
 
   const fetchConfig = useCallback(
     (attempt = 0, { manual = false }: { manual?: boolean } = {}) => {
@@ -192,18 +151,18 @@ export function Root() {
 
       getConfig<Record<string, unknown>>({ signal: controller.signal })
         .then((cfg) => {
-          if (!isMounted.current || activeRequest.current !== controller)
-            return;
-          const configAuthEnabled = Boolean((cfg as any).google_auth_enabled);
-          const disableAuth = Boolean((cfg as any).disable_auth);
-          setNeedsAuth(!disableAuth);
+          if (!isMounted.current || activeRequest.current !== controller) return;
+
+          const configAuthEnabled = Boolean((cfg as { google_auth_enabled?: unknown }).google_auth_enabled);
+          const disableAuth = Boolean((cfg as { disable_auth?: unknown }).disable_auth);
+          const configuredClientId = String((cfg as { google_client_id?: unknown }).google_client_id || '');
+          const localLoginRaw = (cfg as { local_login_email?: unknown }).local_login_email;
+          const localLoginEmail = typeof localLoginRaw === 'string' ? localLoginRaw.trim() : '';
+
           setGoogleLoginEnabled(configAuthEnabled);
-          setClientId(String((cfg as any).google_client_id || ''));
-          setNeedsAuth(configAuthEnabled);
-          const disableAuth = Boolean((cfg as any).disable_auth);
-          const localLoginRaw = (cfg as any).local_login_email;
-          const localLoginEmail =
-            typeof localLoginRaw === 'string' ? localLoginRaw.trim() : '';
+          setClientId(configuredClientId);
+          setNeedsAuth(!disableAuth);
+
           if (disableAuth && localLoginEmail) {
             const storedUser = loadStoredAuthUser();
             if (!storedUser || storedUser.email !== localLoginEmail) {
@@ -214,12 +173,13 @@ export function Root() {
               setProfile({ email: localLoginEmail });
             }
           }
+
           setConfigError(null);
           setRetryScheduled(false);
         })
         .catch((err) => {
-          if (!isMounted.current || activeRequest.current !== controller)
-            return;
+          if (!isMounted.current || activeRequest.current !== controller) return;
+
           console.error('Failed to load configuration', err);
           const error =
             err instanceof DOMException && err.name === 'AbortError'
@@ -228,21 +188,17 @@ export function Root() {
                 ? err
                 : new Error(String(err));
           setConfigError(error);
-
           shouldRetry = true;
           nextAttempt = attempt + 1;
           retryDelay = Math.min(30000, 2000 * 2 ** attempt);
         })
         .finally(() => {
           window.clearTimeout(timeoutId);
-          const isCurrent =
-            isMounted.current && activeRequest.current === controller;
+          const isCurrent = isMounted.current && activeRequest.current === controller;
           if (isCurrent) {
             activeRequest.current = null;
             setConfigLoading(false);
-            if (shouldRetry) {
-              setRetryScheduled(true);
-            }
+            if (shouldRetry) setRetryScheduled(true);
           }
           if (shouldRetry && isMounted.current) {
             retryTimer.current = window.setTimeout(() => {
@@ -251,7 +207,7 @@ export function Root() {
           }
         });
     },
-    [clearRetryTimer]
+    [clearRetryTimer, setProfile, setUser],
   );
 
   useEffect(() => {
@@ -295,14 +251,10 @@ export function Root() {
       </>
     );
   }
+
   if (needsAuth && !authed && !isPublicSupportRoute) {
     if (!googleLoginEnabled || !clientId) {
-      console.error(
-        'Authentication is enforced but Google login is not fully configured'
-      );
-  if (needsAuth && !authed) {
-    if (!clientId) {
-      console.error('Google client ID is missing; login disabled');
+      console.error('Authentication is enforced but Google login is not fully configured');
       return (
         <>
           {renderRouteMarker(location.pathname, 'auth')}
@@ -310,6 +262,7 @@ export function Root() {
         </>
       );
     }
+
     return (
       <>
         {renderRouteMarker(location.pathname, 'auth')}
@@ -322,44 +275,18 @@ export function Root() {
     <ErrorBoundary key={location.pathname}>
       <Suspense fallback={<div>Loading...</div>}>
         <Routes>
-          <Route path="/virtual" element={<VirtualPortfolio />} />
           <Route path="/compliance" element={<ComplianceWarnings />} />
           <Route path="/compliance/:owner" element={<ComplianceWarnings />} />
-          <Route path="/trade-compliance" element={<TradeCompliance />} />
-          <Route
-            path="/trade-compliance/:owner"
-            element={<TradeCompliance />}
-          />
           {standalonePageRoutes.flatMap((route) => {
-            if (
-              route.routePath === '/virtual' ||
-              !route.routePath ||
-              !route.lazyComponent
-            ) {
+            if (route.routePath === '/virtual' || !route.lazyComponent) {
               return [];
             }
 
             const Component = route.lazyComponent;
             return [
-              <Route
-                key={route.routePath}
-                path={route.routePath}
-                element={<Component />}
-              />,
+              <Route key={route.routePath} path={route.routePath} element={<Component />} />,
             ];
           })}
-          {(() => {
-            const TradeCompliancePage = standalonePageRoutes.find(
-              (route) => route.mode === 'trade-compliance'
-            )?.lazyComponent;
-
-            return TradeCompliancePage ? (
-              <Route
-                path="/trade-compliance/:owner"
-                element={<TradeCompliancePage />}
-              />
-            ) : null;
-          })()}
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/smoke-test" element={<SmokeTest />} />
@@ -401,18 +328,13 @@ createRoot(rootEl).render(
         </PriceRefreshProvider>
       </ConfigProvider>
     </HelmetProvider>
-  </StrictMode>
+  </StrictMode>,
 );
 
-if (
-  'serviceWorker' in navigator &&
-  (import.meta.env.PROD || import.meta.env.VITE_ENABLE_SW)
-) {
+if ('serviceWorker' in navigator && (import.meta.env.PROD || import.meta.env.VITE_ENABLE_SW)) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/service-worker.js')
-      .catch((err) =>
-        console.error('Service worker registration failed:', err)
-      );
+      .catch((err) => console.error('Service worker registration failed:', err));
   });
 }

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MODES } from '@/modes';
 import {
+  deriveBootstrapMode,
   deriveModeFromPathname,
+  deriveRouteFromPathname,
   menuCategories,
   pageManifest,
   pageManifestByMode,
@@ -16,9 +18,7 @@ const menuCategoryIds = new Set([
 
 describe('page manifest', () => {
   it('defines one manifest entry for every mode', () => {
-    expect(pageManifest.map((page) => page.mode).sort()).toEqual(
-      [...MODES].sort()
-    );
+    expect(pageManifest.map((page) => page.mode).sort()).toEqual([...MODES].sort());
   });
 
   it('keeps route segments unique and mode derivation aligned', () => {
@@ -26,14 +26,28 @@ describe('page manifest', () => {
 
     for (const page of pageManifest) {
       if (page.routeSegment === null) {
-        expect(deriveModeFromPathname('/')).toBe(page.mode);
+        expect(deriveRouteFromPathname('/')).toEqual({
+          mode: page.mode,
+          routeSegment: null,
+          slug: '',
+        });
         continue;
       }
 
       expect(seenSegments.has(page.routeSegment)).toBe(false);
       seenSegments.add(page.routeSegment);
-      expect(deriveModeFromPathname(`/${page.routeSegment}`)).toBe(page.mode);
+
+      const pathname = `/${page.routeSegment}/example-slug`;
+      const derivedRoute = deriveRouteFromPathname(pathname);
+      expect(derivedRoute.mode).toBe(page.mode);
+      expect(derivedRoute.routeSegment).toBe(page.routeSegment);
+      expect(deriveModeFromPathname(pathname)).toBe(page.mode);
+      expect(deriveBootstrapMode(pathname, 'auth')).toBe(page.mode);
+      expect(deriveBootstrapMode(pathname, 'config-error')).toBe(page.mode);
+      expect(deriveBootstrapMode(pathname, 'loading')).toBe('loading');
     }
+
+    expect(deriveModeFromPathname('/totally-unknown')).toBe('movers');
   });
 
   it('keeps menu metadata and default paths consistent for navigable pages', () => {

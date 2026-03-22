@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.common.data_loader import list_plots
+from backend.common.data_loader import ProviderUnavailable, list_plots
 from backend.common.portfolio import build_owner_portfolio
 from backend.utils.scenario_tester import (
     _HORIZONS,
@@ -22,7 +22,10 @@ def run_scenario(
 ):
     """Apply a percentage price shock to all portfolios for ``ticker``."""
     results = []
-    owners = [p["owner"] for p in list_plots() if p.get("accounts")]
+    try:
+        owners = [p["owner"] for p in list_plots() if p.get("accounts")]
+    except ProviderUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
     for owner in owners:
         try:
             pf = build_owner_portfolio(owner)
@@ -91,7 +94,10 @@ def run_historical_scenario(
     parsed = [days for _, days in label_pairs]
 
     results = []
-    owners = [p["owner"] for p in list_plots() if p.get("accounts")]
+    try:
+        owners = [p["owner"] for p in list_plots() if p.get("accounts")]
+    except ProviderUnavailable as exc:
+        raise HTTPException(status_code=503, detail="Account data provider unavailable") from exc
     for owner in owners:
         try:
             pf = build_owner_portfolio(owner)

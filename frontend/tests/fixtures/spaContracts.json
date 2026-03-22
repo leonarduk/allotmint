@@ -1,0 +1,124 @@
+{
+  "version": "2026-03-22",
+  "config": {
+    "app_env": "local",
+    "google_auth_enabled": false,
+    "google_client_id": null,
+    "disable_auth": true,
+    "local_login_email": "demo@example.com",
+    "theme": "dark",
+    "relative_view_enabled": true,
+    "base_currency": "GBP",
+    "tabs": {
+      "portfolio": true,
+      "transactions": true,
+      "goals": true,
+      "tax": true,
+      "alerts": true,
+      "performance": true,
+      "wizard": true,
+      "ideas": true,
+      "reports": true,
+      "settings": true,
+      "queries": true,
+      "compliance": true,
+      "trade-compliance": true,
+      "pension": true
+    },
+    "disabled_tabs": []
+  },
+  "owners": [
+    {
+      "owner": "alice",
+      "full_name": "Alice Example",
+      "accounts": ["isa", "sipp"],
+      "email": "alice@example.com",
+      "has_transactions_artifact": true
+    }
+  ],
+  "groups": [
+    {
+      "slug": "adults",
+      "name": "Adults",
+      "members": ["alice"]
+    }
+  ],
+  "portfolio": {
+    "owner": "alice",
+    "as_of": "2026-03-20",
+    "trades_this_month": 1,
+    "trades_remaining": 4,
+    "total_value_estimate_gbp": 1234.56,
+    "total_value_estimate_currency": "GBP",
+    "accounts": [
+      {
+        "account_type": "isa",
+        "currency": "GBP",
+        "last_updated": "2026-03-20",
+        "value_estimate_gbp": 1234.56,
+        "value_estimate_currency": "GBP",
+        "owner": "alice",
+        "holdings": [
+          {
+            "ticker": "VWRL.L",
+            "name": "Vanguard FTSE All-World",
+            "units": 10,
+            "acquired_date": "2024-01-01",
+            "currency": "GBP",
+            "price": 100,
+            "cost_basis_gbp": 900,
+            "cost_basis_currency": "GBP",
+            "effective_cost_basis_gbp": 900,
+            "effective_cost_basis_currency": "GBP",
+            "market_value_gbp": 1000,
+            "market_value_currency": "GBP",
+            "gain_gbp": 100,
+            "gain_currency": 100,
+            "gain_pct": 11.11,
+            "current_price_gbp": 100,
+            "current_price_currency": "GBP",
+            "last_price_date": "2026-03-20",
+            "last_price_time": "2026-03-20T16:00:00Z",
+            "is_stale": false,
+            "latest_source": "snapshot",
+            "day_change_gbp": 5,
+            "day_change_currency": "GBP",
+            "instrument_type": "ETF",
+            "sector": "Global",
+            "region": "World",
+            "forward_7d_change_pct": null,
+            "forward_30d_change_pct": null,
+            "days_held": 100,
+            "sell_eligible": true,
+            "days_until_eligible": 0,
+            "next_eligible_sell_date": "2024-01-31"
+          }
+        ]
+      }
+    ]
+  },
+  "transactions": [
+    {
+      "owner": "alice",
+      "account": "isa",
+      "id": "alice:isa:0",
+      "date": "2026-03-01",
+      "ticker": "VWRL.L",
+      "type": "BUY",
+      "kind": null,
+      "amount_minor": null,
+      "currency": "GBP",
+      "security_ref": null,
+      "price_gbp": 100,
+      "price": 100,
+      "shares": null,
+      "units": 10,
+      "fees": 1.5,
+      "comments": null,
+      "reason": "Initial allocation",
+      "reason_to_buy": null,
+      "synthetic": false,
+      "instrument_name": "Vanguard FTSE All-World"
+    }
+  ]
+}

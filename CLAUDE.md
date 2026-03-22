@@ -5,6 +5,7 @@ This file gives Claude-style coding agents a fast, practical overview for workin
 ## Quick start
 
 - Root guide of record: `AGENTS.md`
+- Contributor onboarding/run modes: `docs/CONTRIBUTOR_RUNBOOK.md`
 - Backend app factory: `backend.app:create_app`
 - Local backend app: `backend.local_api.main:app`
 - Frontend app entry: `frontend/src/main.tsx`

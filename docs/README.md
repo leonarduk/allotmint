@@ -11,6 +11,8 @@ For setup and usage instructions, see the [USER_README](USER_README.md).
 
 For contributor workflow guidance, start with the [Repository Guidelines](../AGENTS.md).
 
+For a single setup and validation path covering local, auth-enabled, test, smoke, and deployment-oriented workflows, use the [Contributor Runbook](CONTRIBUTOR_RUNBOOK.md).
+
 ---
 
 ## Current Status

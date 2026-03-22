@@ -22,9 +22,10 @@ jobs:
         run: |
           git fetch origin ${{ github.base_ref }}
           DIFF=$(python3 .github/scripts/prepare_review_diff.py --base-ref "${{ github.base_ref }}")
-          echo "diff<<EOF" >> "$GITHUB_OUTPUT"
+          DELIM="EOF_$(uuidgen | tr -d '-')"
+          echo "diff<<$DELIM" >> "$GITHUB_OUTPUT"
           echo "$DIFF" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "$DELIM" >> "$GITHUB_OUTPUT"
 
       - name: Get linked issue body
         id: issue
@@ -39,9 +40,10 @@ jobs:
           else
             ISSUE_BODY="No linked issue found. Review code on its own merits."
           fi
-          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+          DELIM="EOF_$(uuidgen | tr -d '-')"
+          echo "body<<$DELIM" >> "$GITHUB_OUTPUT"
           echo "$ISSUE_BODY" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "$DELIM" >> "$GITHUB_OUTPUT"
 
       - name: Call Claude API
         env:

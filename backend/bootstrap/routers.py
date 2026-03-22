@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from importlib import import_module
+
 from fastapi import Depends, FastAPI
 
 import backend.auth as auth
@@ -35,7 +37,6 @@ from backend.routes.quotes import router as quotes_router
 from backend.routes.scenario import router as scenario_router
 from backend.routes.screener import router as screener_router
 from backend.routes.support import router as support_router
-from backend.routes.tax import router as tax_router
 from backend.routes.timeseries_admin import router as timeseries_admin_router
 from backend.routes.timeseries_edit import router as timeseries_edit_router
 from backend.routes.timeseries_meta import router as timeseries_router
@@ -87,5 +88,5 @@ def register_routers(app: FastAPI, cfg: Config) -> None:
     app.include_router(scenario_router)
     app.include_router(logs_router)
     app.include_router(goals_router, dependencies=protected)
-    app.include_router(tax_router)
+    app.include_router(import_module("backend.routes.tax").router)
     app.include_router(pension_router)

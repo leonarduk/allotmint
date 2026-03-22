@@ -17,6 +17,11 @@ from fastapi import FastAPI, Form, HTTPException
 from pydantic import BaseModel
 
 import backend.auth as auth
+from backend.common.portfolio_utils import (
+    _load_snapshot,
+    refresh_snapshot_async,
+    refresh_snapshot_in_memory,
+)
 from backend.bootstrap import (
     AppLifecycleService,
     configure_runtime_paths,

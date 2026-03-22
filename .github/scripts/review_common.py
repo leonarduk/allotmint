@@ -146,6 +146,10 @@ def truncate_diff(diff_text: str, limit: int = MAX_DIFF_CHARS) -> tuple[str, boo
     The 30k-character cap exists to stay within model context and comment-size budgets. When the
     diff is too large, we keep only complete file blocks that fit and append a short summary rather
     than slicing through a line or partial YAML/JSON structure.
+
+    If every file block individually exceeds the limit (e.g. a single enormous file), we fall back
+    to a hard line-boundary truncation of the first block so callers always receive non-empty output
+    for a non-empty diff.
     """
     if len(diff_text) <= limit:
         return diff_text, False
@@ -164,10 +168,14 @@ def truncate_diff(diff_text: str, limit: int = MAX_DIFF_CHARS) -> tuple[str, boo
         used = projected
 
     if not kept:
-        first_fitting = next((block for block in blocks if len(block) <= limit), "")
-        if not first_fitting:
-            return "", True
-        kept = [first_fitting]
+        # Every block exceeds the limit individually.  Hard-truncate the first block at the
+        # nearest line boundary so we still send something useful to the model.
+        first_block = blocks[0] if blocks else diff_text
+        hard_cut = first_block[:limit]
+        if "\n" in hard_cut:
+            hard_cut = hard_cut[: hard_cut.rfind("\n") + 1]
+        notice = TRUNCATION_NOTICE_TEMPLATE.format(kept_files=0, skipped_files=len(blocks))
+        return f"{hard_cut.rstrip()}{notice}", True
 
     skipped_files = max(len(blocks) - len(kept), 0)
     notice = TRUNCATION_NOTICE_TEMPLATE.format(

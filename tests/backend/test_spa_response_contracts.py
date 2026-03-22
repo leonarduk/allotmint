@@ -115,7 +115,7 @@ def test_target_spa_endpoints_match_contracts(monkeypatch, tmp_path):
                             "market_value_gbp": 1000.0,
                             "market_value_currency": "GBP",
                             "gain_gbp": 100.0,
-                            "gain_currency": 100.0,
+                            "gain_currency": "GBP",
                             "gain_pct": 11.11,
                             "current_price_gbp": 100.0,
                             "current_price_currency": "GBP",

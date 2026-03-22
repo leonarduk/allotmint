@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
@@ -12,19 +12,12 @@ import {
 } from '../pageManifest';
 
 const SUPPORT_ONLY_TABS: TabPluginId[] = [];
-import {
-  deriveModeFromPathname,
-  menuCategories,
-  pageManifestByMode,
-  pathForMode,
-} from '../pageManifest';
-import { orderedTabPlugins } from '../tabPlugins';
 
 interface MenuProps {
   selectedOwner?: string;
   selectedGroup?: string;
   onLogout?: () => void;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 type MenuCategoryDefinition = {
@@ -32,9 +25,8 @@ type MenuCategoryDefinition = {
   titleKey: string;
 };
 
-type CategorizedMenu = MenuCategoryDefinition & {
-  tabs: ReturnType<typeof getMenuEntries>;
-};
+type MenuEntry = ReturnType<typeof getMenuEntries>[number];
+type CategorizedMenu = MenuCategoryDefinition & { tabs: MenuEntry[] };
 
 export default function Menu({
   selectedOwner = '',
@@ -46,15 +38,9 @@ export default function Menu({
   const { t } = useTranslation();
   const { tabs, disabledTabs } = useConfig();
   const mode = deriveModeFromPathname(location.pathname) as TabPluginId;
-
-  const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode as string);
-  const mode = deriveModeFromPathname(location.pathname);
-  const isSupportMode = orderedTabPlugins.some(
-    (plugin) => plugin.id === mode && plugin.section === 'support'
-  );
+  const isSupportMode = (SUPPORT_TABS as readonly string[]).includes(mode);
   const inSupport = mode === 'support';
-  const supportEnabled =
-    tabs.support !== false && !disabledTabs?.includes('support');
+  const supportEnabled = tabs.support !== false && !disabledTabs?.includes('support');
 
   const categoryDefinitions = useMemo<MenuCategoryDefinition[]>(() => {
     const section = isSupportMode ? 'support' : 'user';
@@ -71,69 +57,24 @@ export default function Menu({
         if (!inSupport && SUPPORT_ONLY_TABS.includes(entry.mode as TabPluginId)) {
           return false;
         }
-        const enabled = tabs[entry.mode] === true;
-        return enabled && !disabledTabs?.includes(entry.mode);
+
+        return tabs[entry.mode] === true && !disabledTabs?.includes(entry.mode);
       }),
     [disabledTabs, inSupport, isSupportMode, tabs],
   );
 
-  const categoriesToRender: CategorizedMenu[] = useMemo(() => {
-    const categories = categoryDefinitions
-      .map((category) => ({
-        ...category,
-        tabs: availableTabs.filter((tab) => tab.menu?.category === category.id),
-      }))
-      .filter((category) => {
-        if (category.tabs.length > 0) return true;
-        if (category.id === 'preferences') {
-          return supportEnabled || Boolean(onLogout);
-        }
-        return false;
-      });
-
-    return categories;
-  }, [availableTabs, categoryDefinitions, onLogout, supportEnabled]);
-  type TabDefinition = (typeof orderedTabPlugins)[number];
-  type CategorizedMenu = {
-    id: string;
-    titleKey: string;
-    tabs: TabDefinition[];
-  };
-
-  const availableTabs = useMemo(
-    () =>
-      orderedTabPlugins.filter((plugin) => {
-        if (plugin.section !== (isSupportMode ? 'support' : 'user'))
-          return false;
-        if (plugin.id === 'support') return false;
-        const enabled =
-          (tabs as Record<string, boolean | undefined>)[plugin.id] === true;
-        return enabled && !disabledTabs?.includes(plugin.id);
-      }),
-    [disabledTabs, isSupportMode, tabs]
-  );
-
-  const categoryDefinitions = isSupportMode
-    ? menuCategories.support
-    : menuCategories.user;
-
-  const categoriesToRender: CategorizedMenu[] = useMemo(
+  const categoriesToRender = useMemo<CategorizedMenu[]>(
     () =>
       categoryDefinitions
         .map((category) => ({
           ...category,
-          tabs: availableTabs.filter(
-            (tab) => pageManifestByMode[tab.id].menuCategory === category.id
-          ),
+          tabs: availableTabs.filter((tab) => tab.menuCategory === category.id),
         }))
         .filter((category) => {
           if (category.tabs.length > 0) return true;
-          if (category.id === 'preferences') {
-            return supportEnabled || Boolean(onLogout);
-          }
-          return false;
+          return category.id === 'preferences' && (supportEnabled || Boolean(onLogout));
         }),
-    [availableTabs, categoryDefinitions, onLogout, supportEnabled]
+    [availableTabs, categoryDefinitions, onLogout, supportEnabled],
   );
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
@@ -160,9 +101,6 @@ export default function Menu({
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
           const containsActiveTab = category.tabs.some((tab) => tab.mode === mode);
-          const containsActiveTab = category.tabs.some(
-            (tab) => tab.id === mode
-          );
           const buttonId = `menu-trigger-${category.id}`;
           const panelId = `menu-panel-${category.id}`;
           const assignFirstFocusable = registerFirstFocusable(category.id);
@@ -180,9 +118,7 @@ export default function Menu({
                     : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`}
                 onClick={() =>
-                  setOpenCategory((current) =>
-                    current === category.id ? null : category.id
-                  )
+                  setOpenCategory((current) => (current === category.id ? null : category.id))
                 }
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowDown') {
@@ -199,9 +135,7 @@ export default function Menu({
                   }
                 }}
               >
-                <span className="truncate">
-                  {t(`app.menuCategories.${category.titleKey}`)}
-                </span>
+                <span className="truncate">{t(`app.menuCategories.${category.titleKey}`)}</span>
                 <span aria-hidden="true" className="text-xs">
                   {isOpen ? '▴' : '▾'}
                 </span>
@@ -231,9 +165,6 @@ export default function Menu({
                         to={buildPathForMode(tab.mode, {
                           owner: selectedOwner,
                           group: selectedGroup,
-                        to={pathForMode(tab.id, {
-                          selectedOwner,
-                          selectedGroup,
                         })}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           mode === tab.mode

@@ -19,9 +19,18 @@ class AppError(Exception):
     log_level = logging.ERROR
     safe_detail = "Internal server error"
 
-    def __init__(self, detail: str | None = None, *, extra: dict[str, Any] | None = None) -> None:
-        super().__init__(detail or self.safe_detail)
-        self.detail = detail or self.safe_detail
+    def __init__(
+        self,
+        detail: str | None = None,
+        *,
+        safe_detail: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        internal_detail = detail or self.safe_detail
+        response_detail = safe_detail or self.safe_detail
+        super().__init__(internal_detail)
+        self.detail = internal_detail
+        self.safe_detail = response_detail
         self.extra = extra or {}
 
 
@@ -32,6 +41,10 @@ class ValidationFailure(AppError):
     log_level = logging.WARNING
     safe_detail = "Invalid request"
 
+    def __init__(self, detail: str | None = None, *, extra: dict[str, Any] | None = None) -> None:
+        resolved = detail or self.safe_detail
+        super().__init__(resolved, safe_detail=resolved, extra=extra)
+
 
 class ResourceNotFoundError(AppError):
     status_code = 404
@@ -39,6 +52,10 @@ class ResourceNotFoundError(AppError):
     error_category = "client"
     log_level = logging.INFO
     safe_detail = "Resource not found"
+
+    def __init__(self, detail: str | None = None, *, extra: dict[str, Any] | None = None) -> None:
+        resolved = detail or self.safe_detail
+        super().__init__(resolved, safe_detail=resolved, extra=extra)
 
 
 class PermissionDeniedError(AppError):
@@ -99,7 +116,7 @@ def log_app_error(logger: logging.Logger, exc: AppError, message: str, **context
 
 
 def to_http_exception(exc: AppError) -> HTTPException:
-    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+    return HTTPException(status_code=exc.status_code, detail=exc.safe_detail)
 
 
 def handle_app_error(logger: logging.Logger, exc: AppError, message: str, **context: Any) -> HTTPException:

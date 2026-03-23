@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import backend.auth as auth
 import backend.common.data_loader as dl
+from backend.common.account_models import PersonMetadata
 
 
 def test_allowed_emails_from_s3(monkeypatch):
@@ -98,7 +99,7 @@ def test_allowed_emails_s3_handles_pagination(monkeypatch):
             return {"Body": io.BytesIO(json.dumps({"email": f"{email}@example.com"}).encode("utf-8"))}
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=lambda name: FakeS3()))
-    monkeypatch.setattr(auth, "load_person_meta", lambda owner: {"email": f"{owner}@example.com"})
+    monkeypatch.setattr(auth, "load_person_metadata", lambda owner: PersonMetadata(email=f"{owner}@example.com"))
 
     emails = auth._allowed_emails()
 
@@ -132,10 +133,10 @@ def test_allowed_emails_s3_filters_invalid_entries(monkeypatch):
     def fake_load(owner):
         if owner.lower() == "bob":
             raise RuntimeError("boom")
-        return {"email": f"{owner}@example.com"}
+        return PersonMetadata(email=f"{owner}@example.com")
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=lambda name: FakeS3()))
-    monkeypatch.setattr(auth, "load_person_meta", fake_load)
+    monkeypatch.setattr(auth, "load_person_metadata", fake_load)
 
     emails = auth._allowed_emails()
 

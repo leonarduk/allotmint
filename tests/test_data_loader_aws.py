@@ -345,7 +345,9 @@ def test_load_person_meta_from_s3(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=fake_client))
 
-    assert dl.load_person_meta("Alice") == {"dob": "1980", "viewers": []}
+    # The source JSON only contains 'dob'; _extract returns exactly the keys
+    # present in the source file, so 'viewers' is not synthesised.
+    assert dl.load_person_meta("Alice") == {"dob": "1980"}
     assert dl.load_person_meta("Bob") == {}
 
 

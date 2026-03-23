@@ -1,0 +1,24 @@
+[
+  {
+    "owner": "alice",
+    "account": "ISA",
+    "id": "alice:ISA:0",
+    "date": "2026-03-20",
+    "ticker": "VUSA",
+    "type": "BUY",
+    "kind": "TRADE",
+    "amount_minor": 80120,
+    "currency": "GBP",
+    "security_ref": "VUSA",
+    "price_gbp": 80.12,
+    "price": 80.12,
+    "shares": 10,
+    "units": 10,
+    "fees": 5,
+    "comments": "Monthly top-up",
+    "reason": "Core allocation",
+    "reason_to_buy": "Long-term accumulation",
+    "synthetic": false,
+    "instrument_name": "Vanguard S&P 500 UCITS ETF"
+  }
+]

@@ -1,0 +1,54 @@
+{
+  "owner": "alice",
+  "as_of": "2026-03-21",
+  "trades_this_month": 1,
+  "trades_remaining": 9,
+  "total_value_estimate_gbp": 12345.67,
+  "total_value_estimate_currency": "GBP",
+  "accounts": [
+    {
+      "owner": "alice",
+      "account_type": "ISA",
+      "currency": "GBP",
+      "last_updated": "2026-03-21",
+      "value_estimate_gbp": 12345.67,
+      "value_estimate_currency": "GBP",
+      "holdings": [
+        {
+          "ticker": "VUSA",
+          "name": "Vanguard S&P 500 UCITS ETF",
+          "currency": "GBP",
+          "units": 10,
+          "acquired_date": "2024-01-15",
+          "price": 80.12,
+          "cost_basis_gbp": 700,
+          "cost_basis_currency": "GBP",
+          "effective_cost_basis_gbp": 705,
+          "effective_cost_basis_currency": "GBP",
+          "market_value_gbp": 801.2,
+          "market_value_currency": "GBP",
+          "gain_gbp": 96.2,
+          "gain_currency": "GBP",
+          "gain_pct": 13.65,
+          "current_price_gbp": 80.12,
+          "current_price_currency": "GBP",
+          "last_price_date": "2026-03-21",
+          "last_price_time": "2026-03-21T16:00:00Z",
+          "is_stale": false,
+          "latest_source": "fixture",
+          "day_change_gbp": 3.2,
+          "day_change_currency": "GBP",
+          "instrument_type": "ETF",
+          "sector": "Index",
+          "region": "US",
+          "forward_7d_change_pct": 0.4,
+          "forward_30d_change_pct": 1.2,
+          "days_held": 796,
+          "sell_eligible": true,
+          "days_until_eligible": 0,
+          "next_eligible_sell_date": "2024-02-14"
+        }
+      ]
+    }
+  ]
+}

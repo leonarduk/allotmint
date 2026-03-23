@@ -16,7 +16,9 @@ from backend.common.data_loader import (
     _merge_accounts,
     _safe_json_load,
     list_plots,
+    load_account_record,
     load_person_meta,
+    load_person_metadata,
     load_virtual_portfolio,
     resolve_paths,
     save_virtual_portfolio,
@@ -175,6 +177,72 @@ class TestLoadPersonMeta:
         meta = load_person_meta("alice", data_root=tmp_path)
 
         assert meta["full_name"] == "Alice Example"
+
+    def test_invalid_viewers_falls_back_to_empty_meta(self, tmp_path: Path) -> None:
+        owner_dir = tmp_path / "alice"
+        owner_dir.mkdir()
+        (owner_dir / "person.json").write_text(json.dumps({"full_name": "Alice", "viewers": "bad"}))
+
+        assert load_person_meta("alice", data_root=tmp_path) == {}
+
+    def test_load_person_metadata_returns_typed_model(self, tmp_path: Path) -> None:
+        owner_dir = tmp_path / "alice"
+        owner_dir.mkdir()
+        (owner_dir / "person.json").write_text(
+            json.dumps(
+                {
+                    "full_name": " Alice Example ",
+                    "email": "alice@example.com",
+                    "viewers": [" bob@example.com "],
+                }
+            )
+        )
+
+        meta = load_person_metadata("alice", data_root=tmp_path)
+
+        assert meta.full_name == "Alice Example"
+        assert meta.email == "alice@example.com"
+        assert meta.viewers == ["bob@example.com"]
+
+    def test_load_person_metadata_rejects_malformed_viewers(self, tmp_path: Path) -> None:
+        owner_dir = tmp_path / "alice"
+        owner_dir.mkdir()
+        (owner_dir / "person.json").write_text(
+            json.dumps({"dob": "1980-01-01", "viewers": " bob@example.com "})
+        )
+
+        with pytest.raises(Exception, match="viewers must be a list"):
+            load_person_metadata("alice", data_root=tmp_path)
+
+    def test_person_metadata_accepts_date_like_dob_values(self) -> None:
+        from datetime import date
+
+        meta = data_loader.PersonMetadata.model_validate({"dob": date(1980, 1, 1)})
+
+        assert meta.dob == "1980-01-01"
+
+
+class TestLoadAccountRecord:
+    def test_load_account_record_returns_typed_model(self, tmp_path: Path) -> None:
+        owner_dir = tmp_path / "alice"
+        owner_dir.mkdir()
+        (owner_dir / "ISA.json").write_text(
+            json.dumps({"account_type": " ISA ", "currency": " GBP ", "holdings": [{"ticker": "VWRP"}]})
+        )
+
+        record = load_account_record("alice", "ISA", data_root=tmp_path)
+
+        assert record.account_type == "ISA"
+        assert record.currency == "GBP"
+        assert record.holdings == [{"ticker": "VWRP"}]
+
+    def test_invalid_account_record_raises_validation_error(self, tmp_path: Path) -> None:
+        owner_dir = tmp_path / "alice"
+        owner_dir.mkdir()
+        (owner_dir / "ISA.json").write_text(json.dumps({"holdings": "bad"}))
+
+        with pytest.raises(Exception, match="expected list"):
+            load_account_record("alice", "ISA", data_root=tmp_path)
 
 
 class TestMergeAccounts:

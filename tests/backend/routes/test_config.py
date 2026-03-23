@@ -56,6 +56,42 @@ def _spy_validate(monkeypatch: pytest.MonkeyPatch) -> List[Tuple[bool | None, st
 pytestmark = pytest.mark.asyncio
 
 
+async def test_read_config_exposes_auth_enabled_bootstrap_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    dummy_config = routes_config.config_module.Config(
+        google_auth_enabled=True,
+        google_client_id="client-123",
+        disable_auth=False,
+        allowed_emails=["user@example.com"],
+        local_login_email=None,
+    )
+    monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
+
+    result = await routes_config.read_config()
+
+    assert result["google_auth_enabled"] is True
+    assert result["google_client_id"] == "client-123"
+    assert result["disable_auth"] is False
+    assert result["allowed_emails"] == ["user@example.com"]
+    assert result["local_login_email"] is None
+
+
+async def test_read_config_exposes_auth_disabled_local_login_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    dummy_config = routes_config.config_module.Config(
+        google_auth_enabled=False,
+        google_client_id=None,
+        disable_auth=True,
+        local_login_email="demo@example.com",
+    )
+    monkeypatch.setattr(routes_config.config_module, "config", dummy_config)
+
+    result = await routes_config.read_config()
+
+    assert result["google_auth_enabled"] is False
+    assert result["google_client_id"] is None
+    assert result["disable_auth"] is True
+    assert result["local_login_email"] == "demo@example.com"
+
+
 async def test_update_config_rejects_invalid_google_auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     config_path = tmp_path / "config.yaml"
     _write_config(config_path)

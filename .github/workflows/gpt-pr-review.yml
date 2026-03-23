@@ -1,0 +1,90 @@
+name: GPT PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  gpt-review:
+    name: GPT AI code review
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          DIFF=$(python3 .github/scripts/prepare_review_diff.py --base-ref "${{ github.base_ref }}")
+          DELIM="EOF_$(uuidgen | tr -d '-')"
+          echo "diff<<$DELIM" >> "$GITHUB_OUTPUT"
+          echo "$DIFF" >> "$GITHUB_OUTPUT"
+          echo "$DELIM" >> "$GITHUB_OUTPUT"
+
+      - name: Get linked issue body
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUM=$(gh pr view ${{ github.event.pull_request.number }} --json body,title \
+            | jq -r '[.title, .body] | join(" ")' \
+            | grep -oE '(Closes|Fixes|Refs) #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
+          if [ -n "$ISSUE_NUM" ]; then
+            ISSUE_BODY=$(gh issue view "$ISSUE_NUM" --json body -q .body 2>/dev/null || echo "Issue not found")
+          else
+            ISSUE_BODY="No linked issue found. Review code on its own merits."
+          fi
+          DELIM="EOF_$(uuidgen | tr -d '-')"
+          echo "body<<$DELIM" >> "$GITHUB_OUTPUT"
+          echo "$ISSUE_BODY" >> "$GITHUB_OUTPUT"
+          echo "$DELIM" >> "$GITHUB_OUTPUT"
+
+      - name: Call OpenAI API
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          DIFF: ${{ steps.diff.outputs.diff }}
+          ISSUE_BODY: ${{ steps.issue.outputs.body }}
+        run: |
+          python3 .github/scripts/gpt_review.py > /tmp/gpt_review_body.md
+
+          if [ ! -s /tmp/gpt_review_body.md ]; then
+            echo "ERROR: GPT review output was empty" >&2
+            exit 1
+          fi
+
+      - name: Post GPT review comment
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "## GPT AI Code Review"
+            echo ""
+            cat /tmp/gpt_review_body.md
+            echo ""
+            echo "---"
+            echo "*Reviewed by GPT via [gpt-pr-review.yml](.github/workflows/gpt-pr-review.yml). Advisory only.*"
+          } > /tmp/gpt_comment_body.md
+
+          gh pr comment "$PR_NUMBER" --body-file /tmp/gpt_comment_body.md
+
+      - name: Post GPT failure notice
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body \
+            "## GPT AI Code Review - Skipped
+
+            The GPT review step failed (likely an API key or quota issue). This is advisory only and does not affect CI status.
+
+            Check [Actions](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."

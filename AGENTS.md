@@ -11,6 +11,7 @@ This repository has a Python/FastAPI backend, a React/Vite frontend, AWS CDK inf
 - `scripts/`: local workflow helpers, smoke runners, deployment scripts, and support tooling.
 - `cdk/` and `infra/`: AWS infrastructure definitions and deployment assets.
 - `docs/`: operational docs, smoke test notes, deployment notes, and user-facing setup details.
+- Contributor onboarding runbook: `docs/CONTRIBUTOR_RUNBOOK.md` for the supported local, auth-enabled, test, smoke, and deployment-oriented paths.
 
 ## 2. Entrypoints and runtime expectations
 

@@ -5,11 +5,10 @@ from types import SimpleNamespace
 from typing import Any, List
 
 import pytest
-from fastapi import HTTPException
 from starlette.requests import Request as StarletteRequest
 
 from backend.common.data_loader import ResolvedPaths
-from backend.common.errors import OWNER_NOT_FOUND
+from backend.common.errors import OWNER_NOT_FOUND, OwnerNotFoundError
 from backend.routes import alerts
 
 
@@ -83,7 +82,7 @@ async def test_validate_owner_missing_everywhere(monkeypatch: pytest.MonkeyPatch
         fallback_succeeds=False,
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         alerts._validate_owner("demo", request)
 
     assert excinfo.value.status_code == 404

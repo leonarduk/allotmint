@@ -8,17 +8,21 @@ requested symbols using ``yfinance``.  It intentionally registers the imported
 tests can monkeypatch ``yf.Tickers`` using a dotted import path.
 """
 
+import logging
 import sys
 from typing import Any, Dict, List
 
 import yfinance as yf
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
+
+from backend.common.errors import ProviderFailure
 
 # Expose ``yf`` as a submodule for monkeypatching in tests
 sys.modules[__name__ + ".yf"] = yf
 
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger("routes.quotes")
 
 
 @router.get("/quotes")
@@ -32,7 +36,10 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
     try:
         tickers = yf.Tickers(" ".join(syms)).tickers
     except Exception as exc:  # pragma: no cover - exercised in tests
-        raise HTTPException(status_code=502, detail=f"Failed to fetch quotes: {exc}") from exc
+        raise ProviderFailure(
+            f"Failed to fetch quotes: {exc}",
+            extra={"provider": "yfinance", "symbols": syms},
+        ) from exc
 
     results: List[Dict[str, Any]] = []
     for sym in syms:

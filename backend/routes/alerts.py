@@ -1,6 +1,6 @@
 from typing import Dict
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from backend import alerts as alert_utils
@@ -8,7 +8,7 @@ from pathlib import Path
 
 from backend.common import data_loader
 from backend.common.alerts import get_recent_alerts
-from backend.common.errors import OWNER_NOT_FOUND
+from backend.common.errors import OWNER_NOT_FOUND, OwnerNotFoundError
 from backend.routes._accounts import resolve_accounts_root, resolve_owner_directory
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -38,7 +38,7 @@ def _validate_owner(user: str, request: Request) -> None:
             request.app.state.accounts_root = Path(fallback_root).expanduser().resolve(strict=False)
             return
 
-    raise HTTPException(status_code=404, detail=OWNER_NOT_FOUND)
+    raise OwnerNotFoundError(OWNER_NOT_FOUND, extra={"owner": user})
 
 
 @router.get("/")
@@ -84,12 +84,10 @@ async def delete_push_subscription(user: str, request: Request):
     """Remove the Web Push subscription for ``user`` if present."""
     try:
         _validate_owner(user, request)
-    except HTTPException as exc:
+    except OwnerNotFoundError:
         # Treat missing owners as an already-deleted subscription. Smoke tests
         # run against ephemeral datasets that may not include every owner and
         # the route should remain idempotent regardless.
-        if exc.status_code != 404:
-            raise
         return {"status": "deleted"}
     alert_utils.remove_user_push_subscription(user)
     return {"status": "deleted"}

@@ -846,7 +846,11 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
 
     def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
         validated = PersonMetadata.model_validate(data)
-        return validated.model_dump(exclude_none=True)
+        # exclude_defaults=True drops fields equal to their model default (e.g.
+        # holdings=[], viewers=[]) so the output matches what LocalDataProvider
+        # returns for the same JSON — only keys present in the source file are
+        # included in the result.
+        return validated.model_dump(exclude_none=True, exclude_defaults=True)
 
     local_root: Optional[Path] = data_root
     if local_root is None:

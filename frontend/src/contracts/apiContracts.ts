@@ -103,6 +103,33 @@ export const portfolioContractSchema = z.object({
   accounts: z.array(accountContractSchema),
 });
 
+// GroupPortfolio has a different top-level shape from Portfolio:
+// it identifies itself with `group` + `name` + `members` rather than `owner`,
+// and carries members_summary / subtotals_by_account_type that Portfolio does
+// not have.  Using portfolioContractSchema here would throw at runtime because
+// `owner` is required there but absent in group portfolio responses.
+export const groupPortfolioContractSchema = z.object({
+  group: z.string(),
+  name: z.string(),
+  as_of: z.string(),
+  members: z.array(z.string()),
+  total_value_estimate_gbp: z.number(),
+  total_value_estimate_currency: nullableString.optional(),
+  trades_this_month: z.number().optional(),
+  trades_remaining: z.number().optional(),
+  accounts: z.array(accountContractSchema),
+  members_summary: z.array(
+    z.object({
+      owner: z.string(),
+      total_value_estimate_gbp: z.number(),
+      total_value_estimate_currency: nullableString.optional(),
+      trades_this_month: z.number(),
+      trades_remaining: z.number(),
+    }),
+  ),
+  subtotals_by_account_type: z.record(z.string(), z.number()),
+});
+
 export const transactionContractSchema = z.object({
   owner: z.string(),
   account: z.string(),

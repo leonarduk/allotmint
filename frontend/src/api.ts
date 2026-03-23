@@ -50,6 +50,7 @@ import type {
 } from "./types";
 import {
   configContractSchema,
+  groupPortfolioContractSchema,
   groupsContractSchema,
   ownersContractSchema,
   portfolioContractSchema,
@@ -221,7 +222,7 @@ export const getGroupPortfolio = async (
   const params = new URLSearchParams();
   if (opts.asOf) params.set("as_of", opts.asOf);
   const qs = params.toString();
-  return portfolioContractSchema.parse(
+  return groupPortfolioContractSchema.parse(
     await fetchJson<GroupPortfolio>(
       `${API_BASE}/portfolio-group/${slug}${qs ? `?${qs}` : ""}`,
     ),

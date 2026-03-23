@@ -4,10 +4,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.config import config
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     client = TestClient(app)
     token = client.post("/token", json={"id_token": "good"}).json()["access_token"]

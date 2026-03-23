@@ -849,7 +849,14 @@ def load_person_metadata(owner: str, data_root: Optional[Path] = None) -> Person
 
 
 def _extract_person_meta(data: Dict[str, Any]) -> Dict[str, Any]:
-    meta: Dict[str, Any] = {}
+    """Extract allowed person metadata keys from ``data``.
+
+    Only keys that are actually present in ``data`` are copied into the result;
+    missing keys (including ``viewers``) are NOT synthesised.  When ``viewers``
+    is present it must be a list — if it is not, an empty dict is returned so
+    callers treat the entry as having no usable metadata (consistent with the
+    graceful-degradation contract of ``load_person_meta``).
+    """
     allowed_keys = {
         "owner",
         "full_name",
@@ -860,11 +867,14 @@ def _extract_person_meta(data: Dict[str, Any]) -> Dict[str, Any]:
         "holdings",
         "viewers",
     }
+    meta: Dict[str, Any] = {}
     for key in allowed_keys:
         if key in data:
             meta[key] = data[key]
-    if "viewers" not in meta:
-        meta["viewers"] = data.get("viewers", [])
+    # Validate viewers type: a non-list value is a data error; return {} so
+    # the caller degrades gracefully rather than passing bad data downstream.
+    if "viewers" in meta and not isinstance(meta["viewers"], list):
+        return {}
     return meta
 
 
@@ -1057,32 +1067,6 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     if record is None:
         return {}
     return _extract_person_meta(record.meta)
-
-    # Attempt to read and validate from local file first (catches bad data
-    # before delegating to LocalDataProvider, so ValidationError is handled).
-    try:
-        path = local_root / owner / "person.json"
-        data = _safe_json_load(path)
-        return _extract(data)
-    except ValidationError:
-        logger.warning("Invalid person metadata for owner '%s' in %s", owner, local_root / owner / "person.json")
-        return {}
-    except (FileNotFoundError, ValueError):
-        # File missing or empty — fall through to LocalDataProvider for
-        # any additional loading logic it provides.
-        pass
-    except Exception:
-        return {}
-
-    try:
-        result = LocalDataProvider().load_person_meta(owner, local_root).metadata
-        return result
-    except MissingData:
-        return {}
-    except InvalidPayload:
-        return {}
-    except Exception:
-        return {}
 
 
 # ------------------------------------------------------------------

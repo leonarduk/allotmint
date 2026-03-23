@@ -3,13 +3,13 @@ from collections import defaultdict
 
 import pytest
 
+from backend.common.account_models import AccountRecord
 from backend.common.portfolio import build_owner_portfolio
 from backend.common.user_config import UserConfig
 
 
 @pytest.fixture(name="today")
 def fixture_today(monkeypatch):
-    # Freeze today's date used by build_owner_portfolio to make assertions stable.
     fake_today = dt.date(2024, 1, 23)
 
     class FakeDate(dt.date):
@@ -46,13 +46,13 @@ def fixture_portfolio_stubs(monkeypatch, today):
     def fake_load_approvals(owner_name, accounts_root=None):  # noqa: ARG001
         return {"ABC": today}
 
-    def fake_load_account(owner_name, meta, accounts_root=None):  # noqa: ARG001
-        return {
-            "account_type": "ISA",
-            "currency": "GBP",
-            "last_updated": today.isoformat(),
-            "holdings": list(base_holdings),
-        }
+    def fake_load_account_record(owner_name, meta, accounts_root=None):  # noqa: ARG001
+        return AccountRecord(
+            account_type="ISA",
+            currency="GBP",
+            last_updated=today.isoformat(),
+            holdings=list(base_holdings),
+        )
 
     def fake_enrich_holding(
         holding, as_of, price_cache, approvals, ucfg, *, calc=None
@@ -67,7 +67,7 @@ def fixture_portfolio_stubs(monkeypatch, today):
     monkeypatch.setattr("backend.common.portfolio.load_trades", fake_load_trades)
     monkeypatch.setattr("backend.common.portfolio.load_user_config", fake_load_user_config)
     monkeypatch.setattr("backend.common.portfolio.load_approvals", fake_load_approvals)
-    monkeypatch.setattr("backend.common.portfolio.load_account", fake_load_account)
+    monkeypatch.setattr("backend.common.portfolio.load_account_record", fake_load_account_record)
     monkeypatch.setattr("backend.common.portfolio.enrich_holding", fake_enrich_holding)
 
     return {

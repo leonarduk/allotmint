@@ -5,6 +5,7 @@ import backend.common.data_loader as dl
 from fastapi.testclient import TestClient
 
 from backend.app import create_app
+from backend.common.account_models import PersonMetadata
 from backend.common.pension import state_pension_age_uk
 from backend.config import config
 
@@ -14,7 +15,7 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
 
     def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
         captured_owner.append(owner)
-        return {"dob": "1980-01-01"}
+        return PersonMetadata(dob="1980-01-01")
 
     called = {}
 
@@ -33,7 +34,7 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
             ]
         }
 
-    monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
+    monkeypatch.setattr("backend.routes.pension.load_person_metadata", fake_meta)
     monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
     monkeypatch.setattr(
         "backend.routes.pension.build_owner_portfolio", fake_portfolio
@@ -57,7 +58,7 @@ def test_pension_route_uses_owner_metadata(monkeypatch):
 
 def test_pension_route_missing_dob(monkeypatch):
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta", lambda owner, root=None: {}
+        "backend.routes.pension.load_person_metadata", lambda owner, root=None: PersonMetadata()
     )
     app = create_app()
     with TestClient(app) as client:
@@ -66,8 +67,10 @@ def test_pension_route_missing_dob(monkeypatch):
 
 
 def test_pension_route_invalid_dob(monkeypatch):
+    # load_person_metadata raises on invalid data; simulate FileNotFoundError -> 400
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta", lambda owner, root=None: {"dob": "bad"}
+        "backend.routes.pension.load_person_metadata",
+        lambda owner, root=None: (_ for _ in ()).throw(FileNotFoundError("no metadata")),
     )
     app = create_app()
     with TestClient(app) as client:
@@ -79,13 +82,13 @@ def test_pension_route_prefers_monthly_over_annual(monkeypatch):
     called = {}
 
     def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
-        return {"dob": "1980-01-01"}
+        return PersonMetadata(dob="1980-01-01")
 
     def fake_forecast(**kwargs):
         called.update(kwargs)
         return {"forecast": []}
 
-    monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
+    monkeypatch.setattr("backend.routes.pension.load_person_metadata", fake_meta)
     monkeypatch.setattr("backend.routes.pension.forecast_pension", fake_forecast)
     monkeypatch.setattr(
         "backend.routes.pension.build_owner_portfolio",
@@ -111,8 +114,8 @@ def test_pension_route_rejects_death_age_not_exceeding_retirement(monkeypatch):
         "backend.routes.pension.state_pension_age_uk", lambda dob: 67
     )
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta",
-        lambda owner, root=None: {"dob": "1980-01-01"},
+        "backend.routes.pension.load_person_metadata",
+        lambda owner, root=None: PersonMetadata(dob="1980-01-01"),
     )
     app = create_app()
     with TestClient(app) as client:
@@ -128,8 +131,8 @@ def test_pension_route_propagates_missing_portfolio(monkeypatch):
         "backend.routes.pension.state_pension_age_uk", lambda dob: 67
     )
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta",
-        lambda owner, root=None: {"dob": "1980-01-01"},
+        "backend.routes.pension.load_person_metadata",
+        lambda owner, root=None: PersonMetadata(dob="1980-01-01"),
     )
 
     def fake_portfolio(
@@ -205,7 +208,7 @@ def test_pension_route_passes_accounts_root_keyword(monkeypatch):
 
     def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
         captured_meta.append((owner, root))
-        return {"dob": "1980-01-01"}
+        return PersonMetadata(dob="1980-01-01")
 
     def fake_portfolio(
         owner: str, *, accounts_root=None
@@ -215,7 +218,7 @@ def test_pension_route_passes_accounts_root_keyword(monkeypatch):
         return {"accounts": []}
 
     monkeypatch.setattr("backend.routes.pension.resolve_accounts_root", fake_resolve)
-    monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
+    monkeypatch.setattr("backend.routes.pension.load_person_metadata", fake_meta)
     monkeypatch.setattr(
         "backend.routes.pension.build_owner_portfolio", fake_portfolio
     )
@@ -243,14 +246,14 @@ def test_pension_route_passes_accounts_root_positional(monkeypatch):
 
     def fake_meta(owner: str, root=None):  # pragma: no cover - signature match
         captured_meta.append((owner, root))
-        return {"dob": "1980-01-01"}
+        return PersonMetadata(dob="1980-01-01")
 
     def fake_portfolio(owner: str, accounts_root, *, pricing_date=None):
         captured_args.append(((owner, accounts_root), {"pricing_date": pricing_date}))
         return {"accounts": []}
 
     monkeypatch.setattr("backend.routes.pension.resolve_accounts_root", fake_resolve)
-    monkeypatch.setattr("backend.routes.pension.load_person_meta", fake_meta)
+    monkeypatch.setattr("backend.routes.pension.load_person_metadata", fake_meta)
     monkeypatch.setattr(
         "backend.routes.pension.build_owner_portfolio", fake_portfolio
     )
@@ -266,10 +269,12 @@ def test_pension_route_passes_accounts_root_positional(monkeypatch):
     assert resp.status_code == 200
     assert captured_meta == [("frank", sentinel_root)]
     assert captured_args == [(("frank", sentinel_root), {"pricing_date": None})]
+
+
 def test_pension_route_returns_400_on_forecast_error(monkeypatch):
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta",
-        lambda owner, root=None: {"dob": "1980-01-01"},
+        "backend.routes.pension.load_person_metadata",
+        lambda owner, root=None: PersonMetadata(dob="1980-01-01"),
     )
     monkeypatch.setattr(
         "backend.routes.pension.build_owner_portfolio",
@@ -297,8 +302,8 @@ def test_pension_route_includes_db_inputs(monkeypatch):
     captured: dict[str, object] = {}
 
     monkeypatch.setattr(
-        "backend.routes.pension.load_person_meta",
-        lambda owner, root=None: {"dob": "1975-01-01"},
+        "backend.routes.pension.load_person_metadata",
+        lambda owner, root=None: PersonMetadata(dob="1975-01-01"),
     )
     monkeypatch.setattr(
         "backend.routes.pension.build_owner_portfolio",

@@ -719,7 +719,7 @@ def load_account_record(
     account: str,
     data_root: Optional[Path] = None,
 ) -> AccountRecord:
-    """Load and validate an account document."""
+    """Load and validate an account document, returning a typed AccountRecord."""
 
     data = load_account(owner, account, data_root)
     return AccountRecord.model_validate(data)
@@ -768,6 +768,12 @@ def load_account(
     account: str,
     data_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
+    """Load an account document and return the raw dict unchanged.
+
+    Validation is performed internally to catch schema drift at the boundary,
+    but the return value is the original raw dict so callers continue to
+    receive exactly what the JSON file contains.
+    """
     local_root: Optional[Path] = data_root
     if local_root is None:
         try:
@@ -799,7 +805,9 @@ def load_account(
                 if not txt:
                     raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
                 data = json.loads(txt)
-                return AccountRecord.model_validate(data).model_dump(exclude_none=True)
+                # Validate to catch schema drift, then return the raw dict.
+                AccountRecord.model_validate(data)
+                return data
         try:
             return S3DataProvider().load_account(owner, account).data
         except MissingData:
@@ -833,7 +841,9 @@ def load_account(
     root = local_root
     path = root / owner / f"{account}.json"
     data = _safe_json_load(path)
-    return AccountRecord.model_validate(data).model_dump(exclude_none=True)
+    # Validate to catch schema drift, then return the raw dict.
+    AccountRecord.model_validate(data)
+    return data
 
 
 def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:
@@ -847,15 +857,13 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate ``data`` through PersonMetadata and return a normalised dict.
 
-        The result contains exactly the keys present in the original ``data``
-        dict (no synthetic additions from model defaults), with values
-        normalised by the model (strings stripped, dob coerced to ISO string,
-        etc).  None-valued keys are dropped.
+        Returns exactly the keys present in the original ``data`` dict, with
+        values normalised by the model (strings stripped, dob coerced, etc).
+        None-valued keys are dropped. Raises ValidationError on bad data so
+        callers can catch it and return {}.
         """
         validated = PersonMetadata.model_validate(data)
         all_values = validated.model_dump()
-        # Only include keys that were explicitly present in the source payload,
-        # and drop any that ended up as None after normalisation.
         return {
             k: v
             for k, v in all_values.items()
@@ -908,7 +916,7 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
             except MissingData:
                 return {}
             except InvalidPayload:
-                # person.json is optional metadata — a malformed file degrades gracefully.
+                # person.json is optional metadata - a malformed file degrades gracefully.
                 logger.warning(
                     "data_loader.person_meta_invalid_payload",
                     extra={
@@ -936,23 +944,28 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     if not local_root:
         return {}
 
-    try:
-        result = LocalDataProvider().load_person_meta(owner, local_root).metadata
-        return result
-    except MissingData:
-        return {}
-    except InvalidPayload:
-        return {}
-    except Exception:
-        pass
-
-    # Fallback: read and validate directly from the local file.
+    # Attempt to read and validate from local file first (catches bad data
+    # before delegating to LocalDataProvider, so ValidationError is handled).
     try:
         path = local_root / owner / "person.json"
         data = _safe_json_load(path)
         return _extract(data)
     except ValidationError:
         logger.warning("Invalid person metadata for owner '%s' in %s", owner, local_root / owner / "person.json")
+        return {}
+    except (FileNotFoundError, ValueError):
+        # File missing or empty — fall through to LocalDataProvider for
+        # any additional loading logic it provides.
+        pass
+    except Exception:
+        return {}
+
+    try:
+        result = LocalDataProvider().load_person_meta(owner, local_root).metadata
+        return result
+    except MissingData:
+        return {}
+    except InvalidPayload:
         return {}
     except Exception:
         return {}

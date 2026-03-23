@@ -74,7 +74,8 @@ def test_list_owner_summaries_filters_and_normalises(tmp_path: Path, monkeypatch
     request = _make_request_with_root(tmp_path)
     result = portfolio_routes._list_owner_summaries(request, current_user=None)
 
-    owners = [r["owner"] for r in result]
+    # _list_owner_summaries returns List[OwnerSummary] typed objects
+    owners = [r.owner for r in result]
     assert "alex" in owners
-    alex_entry = next(r for r in result if r["owner"] == "alex")
-    assert alex_entry.get("full_name") == "Alex Example"
+    alex_entry = next(r for r in result if r.owner == "alex")
+    assert alex_entry.full_name == "Alex Example"

@@ -71,9 +71,9 @@ def _coerce_person_metadata(meta: PersonMetadata | Dict[str, Any] | None) -> Per
     return PersonMetadata.model_validate(meta)
 
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # Helpers
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 def _resolve_pricing_date(as_of: str | None) -> dt.date | None:
     """Validate an ``as_of`` query parameter and return a pricing date."""
 
@@ -93,15 +93,7 @@ def _resolve_pricing_date(as_of: str | None) -> dt.date | None:
 
 
 def _build_group_portfolio(slug: str, pricing_date: dt.date | None) -> Dict[str, Any]:
-    """Return a group portfolio, tolerating simplified test doubles.
-
-    Some tests monkeypatch :func:`backend.common.group_portfolio.build_group_portfolio`
-    with light-weight stand-ins that only accept the ``slug`` positional
-    argument.  The production implementation, however, exposes a keyword-only
-    ``pricing_date`` parameter.  Inspect the active callable to determine
-    whether the keyword is supported before attempting to pass it through so
-    that both scenarios continue to operate.
-    """
+    """Return a group portfolio, tolerating simplified test doubles."""
 
     builder = group_portfolio.build_group_portfolio
     kwargs: Dict[str, Any] = {}
@@ -117,9 +109,9 @@ def _build_group_portfolio(slug: str, pricing_date: dt.date | None) -> Dict[str,
     return builder(slug, **kwargs)
 
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # Pydantic models for validation
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 class OwnerSummary(BaseModel):
     owner: str
     full_name: str
@@ -148,9 +140,9 @@ class MoversResponse(BaseModel):
     losers: List[Mover] = Field(default_factory=list)
 
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # Simple lists
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 _CONVENTIONAL_ACCOUNT_EXTRAS = (
     "brokerage",
     "isa",
@@ -159,6 +151,8 @@ _CONVENTIONAL_ACCOUNT_EXTRAS = (
     "settings",
 )
 _TRANSACTIONS_SUFFIX = "_transactions"
+
+
 def _default_demo_owner(identity: str | None = None) -> Dict[str, Any]:
     """Return a template summary for the configured demo identity."""
 
@@ -181,7 +175,6 @@ def _collect_account_stems(owner_dir: Optional[Path]) -> List[str]:
         return []
 
     def _score_variant(value: str) -> tuple[int, str]:
-        # Prefer lowercase, then mixed case, then uppercase
         if value.islower():
             return (3, value)
         if any(ch.isupper() for ch in value):
@@ -497,46 +490,18 @@ else:
         """List available owners including demo defaults when necessary."""
 
         return _list_owner_summaries(request, current_user)
-# =======
-# @public_router.get("/owners", response_model=List[OwnerSummary])
-# async def owners(request: Request, token: str | None = Depends(oauth2_optional)):
-#     """List available owners and their accounts.
-
-#     When the request is unauthenticated only the ``demo`` account is
-#     exposed. If a valid JWT token is provided, the authenticated user's
-#     full account list is returned.
-#     """
-#     username = decode_token(token) if token else None
-#     if username:
-#         current_user.set(username)
-#     return data_loader.list_plots(request.app.state.accounts_root)
 
 
 @router.get("/groups", response_model=List[GroupSummary])
 async def groups():
-    """
-    Returns
-        [
-          {"slug": "children", "name": "Children", "members": ["alex", "joe"]},
-          {"slug": "adults",   "name": "Adults",   "members": ["lucy", "steve"]},
-          ...
-        ]
-    """
     return group_portfolio.list_groups()
 
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # Owner / group portfolios
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 @router.get("/portfolio/{owner}")
 async def portfolio(owner: str, request: Request, as_of: str | None = None):
-    """Return the fully expanded portfolio for ``owner``.
-
-    The helper function :func:`build_owner_portfolio` loads account data from
-    disk, calculates current values and returns a nested structure describing
-    the owner's holdings.
-    """
-
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
@@ -553,8 +518,6 @@ async def portfolio(owner: str, request: Request, as_of: str | None = None):
 
 @router.get("/portfolio/{owner}/sectors")
 async def portfolio_sectors(owner: str, request: Request, as_of: str | None = None):
-    """Return return contribution aggregated by sector for an owner."""
-
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
@@ -579,25 +542,6 @@ async def portfolio_var(
     confidence: float = 0.95,
     exclude_cash: bool = False,
 ):
-    """Return historical-simulation VaR for ``owner``.
-
-    Parameters
-    ----------
-    days:
-        Length of the historical window used for returns. Must be positive.
-        VaR is reported for 1-day and 10-day horizons.
-    confidence:
-        Quantile for losses in (0, 1) or, alternatively, a percentage in the
-        range 0–100. Both ``0.95`` and ``95`` will request the 95 % quantile.
-        Defaults to 0.95 (95 %); 0.99 is also common.
-    exclude_cash:
-        If ``True``, cash holdings are ignored when reconstructing the
-        portfolio returns used for VaR.
-
-    Returns a JSON object ``{"owner": owner, "as_of": <today>, "var": {...}}``.
-    Raises 404 if the owner does not exist and 400 for invalid parameters.
-    """
-
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
@@ -626,8 +570,6 @@ async def portfolio_var_breakdown(
     confidence: float = 0.95,
     exclude_cash: bool = False,
 ):
-    """Return VaR totals with per-ticker contribution breakdown."""
-
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
@@ -655,13 +597,6 @@ async def portfolio_var_recompute(
     days: int = 365,
     confidence: float = 0.95,
 ):
-    """Force recomputation of VaR for ``owner``.
-
-    This endpoint mirrors :func:`portfolio_var` but is intended to be called
-    when cached data is missing. It recalculates the metrics and returns the
-    result without additional metadata.
-    """
-
     accounts_root = resolve_accounts_root(request)
     owner_dir = resolve_owner_directory(accounts_root, owner)
     if owner_dir:
@@ -677,12 +612,6 @@ async def portfolio_var_recompute(
 
 @router.get("/portfolio-group/{slug}")
 async def portfolio_group(slug: str, as_of: str | None = None):
-    """Return the aggregated portfolio for a group.
-
-    Groups are defined in configuration and simply reference a list of owner
-    slugs. The aggregation combines holdings across all members.
-    """
-
     try:
         pricing_date = _resolve_pricing_date(as_of)
         return _build_group_portfolio(slug, pricing_date)
@@ -691,18 +620,14 @@ async def portfolio_group(slug: str, as_of: str | None = None):
         raise HTTPException(status_code=404, detail="Group not found")
 
 
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 # Group-level aggregation
-# ──────────────────────────────────────────────────────────────
+# --------------------------------------------------------------
 def _normalise_filter_values(values: Optional[Sequence[str]]) -> set[str] | None:
-    """Lower-case and strip a query parameter list, dropping empty entries."""
-
     if values is None:
         return None
-
     if isinstance(values, str):
         values = [values]
-
     normalised = {
         str(value).strip().lower()
         for value in values
@@ -712,8 +637,6 @@ def _normalise_filter_values(values: Optional[Sequence[str]]) -> set[str] | None
 
 
 def _account_matches_filters(account: Dict[str, Any], filters: Dict[str, set[str]]) -> bool:
-    """Return ``True`` when the account satisfies all provided filters."""
-
     for key, allowed_values in filters.items():
         value = account.get(key)
         if value is None:
@@ -737,13 +660,6 @@ async def group_instruments(
     ),
     as_of: str | None = None,
 ):
-    """Return holdings for the group aggregated by ticker.
-
-    Optional ``owner`` and ``account_type`` query parameters limit the accounts
-    included in the aggregation. Provide the parameters multiple times to match
-    more than one value.
-    """
-
     try:
         pricing_date = _resolve_pricing_date(as_of)
         builder = group_portfolio.build_group_portfolio
@@ -784,7 +700,6 @@ async def group_instruments(
 
 @router.get("/portfolio-group/{slug}/sectors")
 async def group_sectors(slug: str, as_of: str | None = None):
-    """Return return contribution aggregated by sector."""
     try:
         pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
@@ -795,7 +710,6 @@ async def group_sectors(slug: str, as_of: str | None = None):
 
 @router.get("/portfolio-group/{slug}/regions")
 async def group_regions(slug: str, as_of: str | None = None):
-    """Return return contribution aggregated by region."""
     try:
         pricing_date = _resolve_pricing_date(as_of)
         gp = _build_group_portfolio(slug, pricing_date)
@@ -807,8 +721,6 @@ async def group_regions(slug: str, as_of: str | None = None):
 def _calculate_weights_and_market_values(
     summaries: Sequence[Dict[str, Any]],
 ) -> Tuple[List[str], Dict[str, float], Dict[str, float]]:
-    """Return tickers, equal-weight mapping and market values for summaries."""
-
     tickers: List[str] = []
     market_values: Dict[str, float] = {}
     for s in summaries:
@@ -834,8 +746,6 @@ def _enrich_movers_with_market_values(
     movers: Dict[str, List[Dict[str, Any]]],
     market_values: Dict[str, float],
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Attach market values to mover rows."""
-
     for side in ("gainers", "losers"):
         for row in movers.get(side, []):
             mv = market_values.get(row["ticker"].upper())
@@ -848,14 +758,6 @@ def _enrich_movers_with_market_values(
 @router.get(
     "/portfolio-group/{slug}/movers",
     response_model=MoversResponse,
-    responses={
-        200: {
-            "description": (
-                "Top gainers and losers for a group portfolio. "
-                'Returns {"gainers": [], "losers": []} if the group holds no tickers.'
-            )
-        }
-    },
 )
 async def group_movers(
     slug: str,
@@ -863,11 +765,6 @@ async def group_movers(
     limit: int = Query(10, description="Max results per side", le=100),
     min_weight: float = Query(0.0, description="Exclude positions below this percent"),
 ):
-    """Return top gainers and losers for a group portfolio.
-
-    If the group has no holdings, the endpoint returns ``{"gainers": [], "losers": []}``.
-    """
-
     if days not in _ALLOWED_DAYS:
         raise HTTPException(status_code=400, detail="Invalid days")
     try:
@@ -882,11 +779,8 @@ async def group_movers(
     if not tickers:
         return {KEY_GAINERS: [], KEY_LOSERS: []}
 
-    # Compute weights in percent proportional to each instrument's market value.
-    # If total_mv is zero, use equal weighting instead.
     if total_mv:
         weight_map = {t: (market_values.get(t.upper(), 0.0) / total_mv * 100.0) for t in tickers}
-    # else: weight_map already contains equal weights from helper function
 
     movers = instrument_api.top_movers(
         tickers,
@@ -904,7 +798,6 @@ async def get_account(owner: str, account: str, request: Request):
     root = resolve_accounts_root(request)
 
     try:
-        data = data_loader.load_account_record(owner, account, root).model_dump(exclude_none=True)
         data = data_loader.load_account(owner, account, root)
     except data_loader.ProviderUnavailable as exc:
         log.warning(
@@ -938,7 +831,6 @@ async def get_account(owner: str, account: str, request: Request):
         )
         if not match:
             raise HTTPException(status_code=404, detail="Account not found")
-        data = data_loader.load_account_record(owner, match, search_root).model_dump(exclude_none=True)
         try:
             data = data_loader.load_account(owner, match, search_root)
         except data_loader.ProviderUnavailable as exc:
@@ -982,8 +874,6 @@ async def instrument_detail(slug: str, ticker: str):
 
 @router.api_route("/prices/refresh", methods=["GET", "POST"])
 async def refresh_prices():
-    """Rebuild the in-memory price snapshot used by portfolio lookups."""
-
     log.info("Refreshing prices via /prices/refresh")
     result = prices.refresh_prices()
     return {"status": "ok", **result}

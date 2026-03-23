@@ -1,33 +1,42 @@
-import pytest
 from types import SimpleNamespace
+
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.app import create_app
+from backend.routes import quotes as quotes_module
+from backend.bootstrap.middleware import register_middleware
+from backend.config import config
 
 
-@pytest.fixture
-def client():
-    app = create_app()
-    client = TestClient(app)
-    token = client.post("/token", json={"id_token": "good"}).json()["access_token"]
-    client.headers.update({"Authorization": f"Bearer {token}"})
-    return client
+def _make_client():
+    """Create a minimal app with the quotes router and the AppError middleware."""
+    app = FastAPI()
+    register_middleware(app, config)
+    app.include_router(quotes_module.router)
+    return TestClient(app)
 
 
-@pytest.mark.xfail(reason="To fix")
-def test_quotes_returns_502_on_yfinance_error(monkeypatch, client):
+def test_quotes_returns_502_on_yfinance_error(monkeypatch, caplog):
     def mock_tickers(symbols):
         raise RuntimeError("boom")
 
     monkeypatch.setattr("backend.routes.quotes.yf.Tickers", mock_tickers)
+    client = _make_client()
 
-    resp = client.get("/api/quotes?symbols=PFE")
+    with caplog.at_level("ERROR", logger="backend.errors"):
+        resp = client.get("/api/quotes?symbols=PFE")
+
     assert resp.status_code == 502
     assert resp.json()["detail"].startswith("Failed to fetch quotes")
+    record = caplog.records[-1]
+    assert record.error_code == "provider_failure"
+    assert record.provider == "yfinance"
+    assert record.symbols == ["PFE"]
+    assert record.path == "/api/quotes"
 
 
-@pytest.mark.xfail(reason="To fix")
-def test_quotes_excludes_missing_regular_market_price(monkeypatch, client):
+def test_quotes_excludes_missing_regular_market_price(monkeypatch):
     class FakeTicker:
         def __init__(self, info):
             self.info = info
@@ -41,6 +50,7 @@ def test_quotes_excludes_missing_regular_market_price(monkeypatch, client):
         )
 
     monkeypatch.setattr("backend.routes.quotes.yf.Tickers", fake_tickers)
+    client = _make_client()
 
     resp = client.get("/api/quotes?symbols=PFE,MSFT")
     assert resp.status_code == 200
@@ -48,8 +58,8 @@ def test_quotes_excludes_missing_regular_market_price(monkeypatch, client):
     assert [item["symbol"] for item in data] == ["PFE"]
 
 
-@pytest.mark.xfail(reason="To fix")
-def test_quotes_no_symbols_returns_empty_list(client):
+def test_quotes_no_symbols_returns_empty_list():
+    client = _make_client()
     resp = client.get("/api/quotes?symbols=")
     assert resp.status_code == 200
     assert resp.json() == []

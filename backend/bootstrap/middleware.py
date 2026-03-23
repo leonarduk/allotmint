@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 from urllib.parse import urlparse
@@ -15,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
+from backend.common.errors import AppError, log_app_error
 from backend.config import Config
 
 
@@ -62,6 +64,17 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
         allow_credentials=True,
     )
     app.add_middleware(SlowAPIMiddleware)
+
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError):
+        log_app_error(
+            logging.getLogger("backend.errors"),
+            exc,
+            "Request failed",
+            path=str(request.url.path),
+            method=request.method,
+        )
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(_: Request, exc: RequestValidationError):

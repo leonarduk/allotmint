@@ -1,8 +1,9 @@
 import pandas as pd
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.common.errors import ValidationFailure
 from backend.routes import timeseries_edit
 from backend.timeseries import cache
 
@@ -33,7 +34,7 @@ def test_resolve_ticker_exchange_error(monkeypatch):
     monkeypatch.setattr(timeseries_edit.instrument_api, "_resolve_full_ticker", lambda *_: None)
     monkeypatch.setattr(timeseries_edit.instrument_api, "_LATEST_PRICES", {})
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ValidationFailure) as exc:
         timeseries_edit._resolve_ticker_exchange("abc", None)
     assert exc.value.status_code == 400
     assert "could not be inferred" in exc.value.detail

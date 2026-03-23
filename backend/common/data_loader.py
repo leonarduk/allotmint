@@ -3,7 +3,9 @@ from __future__ import annotations
 """Data loading helpers for AllotMint."""
 
 import inspect
+import json
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Optional
@@ -712,19 +714,6 @@ def list_plots(
     return local_loader(data_root, current_user)
 
 
-# ------------------------------------------------------------------
-# Load JSON w/ safe parser (strip BOM, allow empty)
-# ------------------------------------------------------------------
-def _safe_json_load(path: Path) -> Dict[str, Any]:
-    if not path.exists() or path.stat().st_size == 0:
-        raise FileNotFoundError(str(path))
-    with open(path, "r", encoding="utf-8-sig") as f:  # utf-8-sig strips BOM
-        txt = f.read().strip()
-    if not txt:
-        raise ValueError(f"Empty JSON file: {path}")
-    return json.loads(txt)
-
-
 def load_account_record(
     owner: str,
     account: str,
@@ -787,6 +776,7 @@ def load_account(
             local_root = None
 
     if config.app_env == "aws":
+        bucket = os.getenv(DATA_BUCKET_ENV)
         if bucket:
             key = f"{PLOTS_PREFIX}{owner}/{account}.json"
             try:
@@ -844,7 +834,6 @@ def load_account(
     path = root / owner / f"{account}.json"
     data = _safe_json_load(path)
     return AccountRecord.model_validate(data).model_dump(exclude_none=True)
-    return LocalDataProvider().load_account(owner, account, local_root).data
 
 
 def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:
@@ -896,50 +885,62 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                 if config.app_env == "aws" and not has_local_fallback:
                     return {}
         elif config.app_env == "aws" and not has_local_fallback:
-    if config.app_env == "aws":
-        try:
-            return S3DataProvider().load_person_meta(owner).metadata
-        except MissingData:
+            # No bucket configured and no local fallback: nothing to load.
             return {}
-        except InvalidPayload:
-            # person.json is optional metadata — a malformed file degrades gracefully.
-            logger.warning(
-                "data_loader.person_meta_invalid_payload",
-                extra={
-                    "event": "data_loader.person_meta_invalid_payload",
-                    "owner": owner,
-                    "provider": "s3",
-                },
-                exc_info=True,
-            )
-            return {}
-        except ProviderUnavailable:
-            logger.warning(
-                "data_loader.person_meta_provider_unavailable",
-                extra={
-                    "event": "data_loader.person_meta_provider_unavailable",
-                    "owner": owner,
-                    "fallback_to_local": has_local_fallback,
-                    "provider": "s3",
-                },
-                exc_info=True,
-            )
-            if not has_local_fallback:
+
+        if config.app_env == "aws":
+            try:
+                return S3DataProvider().load_person_meta(owner).metadata
+            except MissingData:
                 return {}
+            except InvalidPayload:
+                # person.json is optional metadata — a malformed file degrades gracefully.
+                logger.warning(
+                    "data_loader.person_meta_invalid_payload",
+                    extra={
+                        "event": "data_loader.person_meta_invalid_payload",
+                        "owner": owner,
+                        "provider": "s3",
+                    },
+                    exc_info=True,
+                )
+                return {}
+            except ProviderUnavailable:
+                logger.warning(
+                    "data_loader.person_meta_provider_unavailable",
+                    extra={
+                        "event": "data_loader.person_meta_provider_unavailable",
+                        "owner": owner,
+                        "fallback_to_local": has_local_fallback,
+                        "provider": "s3",
+                    },
+                    exc_info=True,
+                )
+                if not has_local_fallback:
+                    return {}
 
     if not local_root:
         return {}
 
     try:
-        return LocalDataProvider().load_person_meta(owner, local_root).metadata
+        result = LocalDataProvider().load_person_meta(owner, local_root).metadata
+        return result
     except MissingData:
         return {}
     except InvalidPayload:
         return {}
+    except Exception:
+        pass
+
+    # Fallback: read and validate directly from the local file.
     try:
+        path = local_root / owner / "person.json"
+        data = _safe_json_load(path)
         return _extract(data)
     except ValidationError:
-        logger.warning("Invalid person metadata for owner '%s' in %s", owner, path)
+        logger.warning("Invalid person metadata for owner '%s' in %s", owner, local_root / owner / "person.json")
+        return {}
+    except Exception:
         return {}
 
 

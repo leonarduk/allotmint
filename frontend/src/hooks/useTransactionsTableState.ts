@@ -54,8 +54,12 @@ export function useTransactionsTableState(transactions: Transaction[] | undefine
 
   const selectedCount = selectedIds.length;
   const hasSelection = selectedCount > 0;
+
+  // Use a Set for O(1) lookup instead of Array.includes (O(n)) to avoid an
+  // O(n²) scan when pageSize and selectedIds are both large.
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const isAllPageSelected =
-    allPageIds.length > 0 && allPageIds.every((id) => selectedIds.includes(id));
+    allPageIds.length > 0 && allPageIds.every((id) => selectedSet.has(id));
 
   const pageStart = totalTransactions === 0 ? 0 : clampedPage * pageSize + 1;
   const pageEnd =

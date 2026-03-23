@@ -56,6 +56,10 @@ export function createTransactionFormValues(
         ? Math.round(rawDerivedPrice * 100) / 100
         : null;
 
+  // reason_to_buy is a deprecated backend field replaced by reason. It is not
+  // on the Transaction type (migration artifact) but may still appear on older
+  // records fetched from the API, so we read it via a cast for backward
+  // compatibility when reason is absent.
   const legacyReason = (transaction as { reason_to_buy?: string | null }).reason_to_buy;
 
   return {
@@ -93,7 +97,10 @@ export function buildTransactionPayload(
 ): BuildTransactionPayloadResult {
   const price = Number.parseFloat(values.price);
   const units = Number.parseFloat(values.units);
-  const fees = values.fees ? Number.parseFloat(values.fees) : undefined;
+  // Use Number() rather than parseFloat() so that partially-numeric strings
+  // like "1.5abc" are treated as invalid (Number("1.5abc") === NaN) instead of
+  // silently passing with a truncated value (parseFloat("1.5abc") === 1.5).
+  const fees = values.fees ? Number(values.fees) : undefined;
   const ticker = values.ticker.trim().toUpperCase();
   const reason = values.reason.trim();
   const comments = values.comments.trim();
@@ -113,7 +120,7 @@ export function buildTransactionPayload(
     return { payload: null, error: "Enter a valid number of units." };
   }
 
-  if (values.fees && (fees == null || Number.isNaN(fees))) {
+  if (values.fees && (fees == null || !Number.isFinite(fees))) {
     return { payload: null, error: "Enter a valid fee or leave it blank." };
   }
 

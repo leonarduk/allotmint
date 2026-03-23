@@ -91,6 +91,27 @@ describe("transactionForm helpers", () => {
     });
   });
 
+  it("rejects partially-numeric fee strings like '1.5abc'", () => {
+    // parseFloat("1.5abc") === 1.5 would silently pass; Number("1.5abc") === NaN
+    // correctly rejects it.
+    expect(
+      buildTransactionPayload({
+        owner: "alex",
+        account: "isa",
+        date: "2024-02-01",
+        ticker: "VUSA",
+        price: "12.50",
+        units: "3",
+        fees: "1.5abc",
+        comments: "",
+        reason: "rebalance",
+      }),
+    ).toEqual({
+      payload: null,
+      error: "Enter a valid fee or leave it blank.",
+    });
+  });
+
   it("returns a validation error for negative fees", () => {
     expect(
       buildTransactionPayload({

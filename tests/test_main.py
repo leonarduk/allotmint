@@ -191,6 +191,28 @@ def test_get_account_demo_fallback(client, monkeypatch):
     assert response.json() == expected
 
 
+@patch(
+    "backend.common.data_loader.load_account",
+    side_effect=data_loader.ProviderUnavailable("s3 unavailable"),
+)
+def test_get_account_provider_unavailable(mock_load_account, client):
+    response = client.get("/account/steve/ISA")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Account data provider unavailable"}
+
+
+@patch(
+    "backend.common.data_loader.load_account",
+    side_effect=data_loader.InvalidPayload("invalid payload"),
+)
+def test_get_account_invalid_payload(mock_load_account, client):
+    response = client.get("/account/steve/ISA")
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "Account data payload is invalid"}
+
+
 @patch("backend.common.prices.refresh_prices", return_value={"updated": 5})
 def test_prices_refresh(mock_refresh, client):
     response = client.post("/prices/refresh")

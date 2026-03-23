@@ -3,9 +3,7 @@ from __future__ import annotations
 """Data loading helpers for AllotMint."""
 
 import inspect
-import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Optional
@@ -13,6 +11,16 @@ from typing import Any, Dict, List, Optional
 from pydantic import ValidationError
 
 from backend.common.account_models import AccountRecord, OwnerSummaryRecord, PersonMetadata
+from backend.common.data_providers import (
+    DATA_BUCKET_ENV,
+    PLOTS_PREFIX,
+    InvalidPayload,
+    LocalDataProvider,
+    MissingData,
+    ProviderUnavailable,
+    S3DataProvider,
+    _safe_json_load,
+)
 from backend.common.virtual_portfolio import VirtualPortfolio
 from backend.config import config, demo_identity as get_demo_identity
 
@@ -62,11 +70,6 @@ def resolve_paths(
 
     virtual_root = data_root / "virtual_portfolios"
     return ResolvedPaths(repo_path, accounts_path, virtual_root)
-
-
-# For future AWS use
-DATA_BUCKET_ENV = "DATA_BUCKET"
-PLOTS_PREFIX = "accounts/"
 
 
 # ------------------------------------------------------------------
@@ -600,45 +603,15 @@ def _list_aws_plots(current_user: Optional[str] = None) -> List[Dict[str, Any]]:
     loader.
     """
 
-    bucket = os.getenv(DATA_BUCKET_ENV)
-    if not bucket:
-        return []
     try:
-        import boto3  # type: ignore
-    except Exception:
-        return []
-
-    s3 = boto3.client("s3")
-    owners: Dict[str, List[str]] = {}
-    token: str | None = None
-
-    while True:
-        params = {"Bucket": bucket, "Prefix": PLOTS_PREFIX}
-        if token:
-            params["ContinuationToken"] = token
-        resp = s3.list_objects_v2(**params)
-        for item in resp.get("Contents", []):
-            key = item.get("Key", "")
-            if not key.lower().endswith(".json"):
-                continue
-            if not key.startswith(PLOTS_PREFIX):
-                continue
-            rel = key[len(PLOTS_PREFIX) :]
-            parts = rel.split("/")
-            if len(parts) != 2:
-                continue
-            owner, filename = parts
-            stem = Path(filename).stem
-            if stem.lower() in _METADATA_STEMS:
-                continue
-            accounts = owners.setdefault(owner, [])
-            lower = stem.lower()
-            if all(existing.lower() != lower for existing in accounts):
-                accounts.append(stem)
-        if resp.get("IsTruncated"):
-            token = resp.get("NextContinuationToken")
-        else:
-            break
+        owners = {
+            entry["owner"]: entry["accounts"]
+            for entry in S3DataProvider().list_plots(current_user=current_user)
+        }
+    except ProviderUnavailable as exc:
+        if "boto3 is not available" in str(exc):
+            return []
+        raise
 
     for skip_owner in _skip_owners():
         owners.pop(skip_owner, None)
@@ -695,9 +668,23 @@ def list_plots(
     """
 
     if config.app_env == "aws":
-        aws_results = _list_aws_plots(current_user)
-        if data_root is None or aws_results:
-            return aws_results
+        try:
+            aws_results = _list_aws_plots(current_user)
+            if data_root is None or aws_results:
+                return aws_results
+        except ProviderUnavailable:
+            logger.warning(
+                "data_loader.list_plots_provider_unavailable",
+                extra={
+                    "event": "data_loader.list_plots_provider_unavailable",
+                    "current_user": current_user,
+                    "fallback_to_local": data_root is not None,
+                    "provider": "s3",
+                },
+                exc_info=True,
+            )
+            if data_root is None:
+                raise
         local_loader = _list_local_plots
         try:
             params = inspect.signature(local_loader).parameters
@@ -792,12 +779,6 @@ def load_account(
     account: str,
     data_root: Optional[Path] = None,
 ) -> Dict[str, Any]:
-    bucket = os.getenv(DATA_BUCKET_ENV)
-
-    if config.app_env == "aws":
-        if not bucket:
-            raise FileNotFoundError(f"Missing {DATA_BUCKET_ENV} env var for AWS account loading")
-
     local_root: Optional[Path] = data_root
     if local_root is None:
         try:
@@ -829,20 +810,49 @@ def load_account(
                     raise ValueError(f"Empty JSON file: s3://{bucket}/{key}")
                 data = json.loads(txt)
                 return AccountRecord.model_validate(data).model_dump(exclude_none=True)
+        try:
+            return S3DataProvider().load_account(owner, account).data
+        except MissingData:
+            raise
+        except InvalidPayload:
+            raise
+        except ProviderUnavailable as exc:
+            if str(exc) == f"Missing {DATA_BUCKET_ENV} env var for AWS account loading":
+                raise MissingData(str(exc)) from exc
+            logger.warning(
+                "Failed to load account data from provider for %s/%s: %s; falling back to local file",
+                owner,
+                account,
+                exc,
+                extra={
+                    "event": "data_loader.account_provider_unavailable",
+                    "owner": owner,
+                    "account": account,
+                    "fallback_to_local": bool(local_root),
+                    "provider": "s3",
+                },
+                exc_info=True,
+            )
+            if not local_root:
+                raise
+            return LocalDataProvider().load_account(owner, account, local_root).data
 
     if not local_root:
-        raise FileNotFoundError(f"No account data available for owner '{owner}'")
+        raise MissingData(f"No account data available for owner '{owner}'")
 
     root = local_root
     path = root / owner / f"{account}.json"
     data = _safe_json_load(path)
     return AccountRecord.model_validate(data).model_dump(exclude_none=True)
+    return LocalDataProvider().load_account(owner, account, local_root).data
 
 
 def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, Any]:
     """Load per-owner metadata including optional email.
 
     Returns an empty dict if no metadata exists or parsing fails.
+    Person metadata is always optional; provider and payload failures
+    degrade gracefully to an empty dict rather than propagating.
     """
 
     def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -886,18 +896,45 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
                 if config.app_env == "aws" and not has_local_fallback:
                     return {}
         elif config.app_env == "aws" and not has_local_fallback:
+    if config.app_env == "aws":
+        try:
+            return S3DataProvider().load_person_meta(owner).metadata
+        except MissingData:
             return {}
+        except InvalidPayload:
+            # person.json is optional metadata — a malformed file degrades gracefully.
+            logger.warning(
+                "data_loader.person_meta_invalid_payload",
+                extra={
+                    "event": "data_loader.person_meta_invalid_payload",
+                    "owner": owner,
+                    "provider": "s3",
+                },
+                exc_info=True,
+            )
+            return {}
+        except ProviderUnavailable:
+            logger.warning(
+                "data_loader.person_meta_provider_unavailable",
+                extra={
+                    "event": "data_loader.person_meta_provider_unavailable",
+                    "owner": owner,
+                    "fallback_to_local": has_local_fallback,
+                    "provider": "s3",
+                },
+                exc_info=True,
+            )
+            if not has_local_fallback:
+                return {}
 
     if not local_root:
         return {}
 
-    root = local_root
-    path = root / owner / "person.json"
-    if not path.exists():
-        return {}
     try:
-        data = _safe_json_load(path)
-    except Exception:
+        return LocalDataProvider().load_person_meta(owner, local_root).metadata
+    except MissingData:
+        return {}
+    except InvalidPayload:
         return {}
     try:
         return _extract(data)

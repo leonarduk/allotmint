@@ -1,0 +1,90 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  ai-review:
+    name: Claude AI code review
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          DIFF=$(python3 .github/scripts/prepare_review_diff.py --base-ref "${{ github.base_ref }}")
+          DELIM="EOF_$(uuidgen | tr -d '-')"
+          echo "diff<<$DELIM" >> "$GITHUB_OUTPUT"
+          echo "$DIFF" >> "$GITHUB_OUTPUT"
+          echo "$DELIM" >> "$GITHUB_OUTPUT"
+
+      - name: Get linked issue body
+        id: issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUM=$(gh pr view ${{ github.event.pull_request.number }} --json body,title \
+            | jq -r '[.title, .body] | join(" ")' \
+            | grep -oE '(Closes|Fixes|Refs) #[0-9]+' | head -1 | grep -oE '[0-9]+' || true)
+          if [ -n "$ISSUE_NUM" ]; then
+            ISSUE_BODY=$(gh issue view "$ISSUE_NUM" --json body -q .body 2>/dev/null || echo "Issue not found")
+          else
+            ISSUE_BODY="No linked issue found. Review code on its own merits."
+          fi
+          DELIM="EOF_$(uuidgen | tr -d '-')"
+          echo "body<<$DELIM" >> "$GITHUB_OUTPUT"
+          echo "$ISSUE_BODY" >> "$GITHUB_OUTPUT"
+          echo "$DELIM" >> "$GITHUB_OUTPUT"
+
+      - name: Call Claude API
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          DIFF: ${{ steps.diff.outputs.diff }}
+          ISSUE_BODY: ${{ steps.issue.outputs.body }}
+        run: |
+          python3 .github/scripts/claude_review.py > /tmp/claude_review_body.md
+
+          if [ ! -s /tmp/claude_review_body.md ]; then
+            echo "ERROR: Claude review output was empty" >&2
+            exit 1
+          fi
+
+      - name: Post Claude review comment
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "## Claude AI Code Review"
+            echo ""
+            cat /tmp/claude_review_body.md
+            echo ""
+            echo "---"
+            echo "*Reviewed by Claude via [claude-pr-review.yml](.github/workflows/claude-pr-review.yml). Advisory only.*"
+          } > /tmp/claude_comment_body.md
+
+          gh pr comment "$PR_NUMBER" --body-file /tmp/claude_comment_body.md
+
+      - name: Post Claude failure notice
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body \
+            "## Claude AI Code Review - Skipped
+
+            The Claude review step failed (likely an API key or quota issue). This is advisory only and does not affect CI status.
+
+            Check [Actions](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."

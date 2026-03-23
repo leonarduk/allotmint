@@ -9,7 +9,7 @@ export function useTransactionsTableState(transactions: Transaction[] | undefine
   const totalTransactions = transactions?.length ?? 0;
   const maxPageIndex = Math.max(Math.ceil(totalTransactions / pageSize) - 1, 0);
   const clampedPage = Math.min(currentPage, maxPageIndex);
-  const totalPages = totalTransactions === 0 ? 1 : Math.ceil(totalTransactions / pageSize);
+  const totalPages = Math.max(Math.ceil(totalTransactions / pageSize), 1);
 
   useEffect(() => {
     if (currentPage !== clampedPage) {
@@ -64,12 +64,12 @@ export function useTransactionsTableState(transactions: Transaction[] | undefine
       : Math.min(totalTransactions, (clampedPage + 1) * pageSize);
   const isFirstPage = clampedPage === 0;
   const isLastPage = totalTransactions === 0 || clampedPage >= maxPageIndex;
-  const currentPageDisplay = totalTransactions === 0 ? 0 : clampedPage + 1;
+  const currentPageDisplay = clampedPage + 1;
   const showingRangeLabel =
     totalTransactions === 0
       ? "Showing 0 of 0"
       : `Showing ${pageStart}-${pageEnd} of ${totalTransactions}`;
-  const totalPagesDisplay = totalTransactions === 0 ? 0 : totalPages;
+  const totalPagesDisplay = totalPages;
 
   const handleToggleSelect = useCallback((txId: string, checked: boolean) => {
     setSelectedIds((prev) => {
@@ -102,9 +102,14 @@ export function useTransactionsTableState(transactions: Transaction[] | undefine
     setCurrentPage((page) => Math.max(page - 1, 0));
   }, []);
 
-  const handleNextPage = useCallback(() => {
-    setCurrentPage((page) => page + 1);
-  }, []);
+  // Clamp directly in the callback so paginatedTransactions never produces an
+  // empty slice in the render that precedes the useEffect correction.
+  const handleNextPage = useCallback(
+    () => {
+      setCurrentPage((page) => Math.min(page + 1, maxPageIndex));
+    },
+    [maxPageIndex],
+  );
 
   const resetToFirstPage = useCallback(() => {
     setCurrentPage(0);

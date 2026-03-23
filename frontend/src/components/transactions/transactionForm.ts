@@ -41,12 +41,21 @@ export function createTransactionFormValues(
       : unitsValue != null
         ? Number(unitsValue)
         : null;
+
+  // Prefer explicit price_gbp. When deriving from amount_minor, round to 2dp
+  // to avoid floating-point precision loss (e.g. 1000 minor / 100 / 3 = 3.333...).
+  // An unrounded value would silently mutate price_gbp on every edit round-trip.
+  const rawDerivedPrice =
+    transaction.amount_minor != null && numericUnits
+      ? transaction.amount_minor / 100 / numericUnits
+      : null;
   const priceValue =
     transaction.price_gbp != null
       ? transaction.price_gbp
-      : transaction.amount_minor != null && numericUnits
-        ? transaction.amount_minor / 100 / numericUnits
+      : rawDerivedPrice != null
+        ? Math.round(rawDerivedPrice * 100) / 100
         : null;
+
   const legacyReason = (transaction as { reason_to_buy?: string | null }).reason_to_buy;
 
   return {

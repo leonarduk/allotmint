@@ -126,7 +126,7 @@ export function TransactionsTable({
         <tbody>
           {transactions.length === 0 ? (
             <tr>
-              <td className={tableStyles.cell} colSpan={9} style={{ textAlign: "center" }}>
+              <td className={tableStyles.cell} colSpan={10} style={{ textAlign: "center" }}>
                 No transactions found.
               </td>
             </tr>

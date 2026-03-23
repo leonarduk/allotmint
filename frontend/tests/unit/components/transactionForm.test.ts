@@ -31,6 +31,18 @@ describe("transactionForm helpers", () => {
     });
   });
 
+  it("rounds derived price to 2dp when amount_minor / units is a repeating decimal", () => {
+    // 1000 minor / 100 / 3 = 3.3333... — must not be stored as a long float
+    const result = createTransactionFormValues({
+      owner: "alex",
+      account: "isa",
+      amount_minor: 1000,
+      shares: 3,
+      date: "2024-02-01T00:00:00Z",
+    });
+    expect(result.price).toBe("3.33");
+  });
+
   it("builds a valid transaction payload", () => {
     expect(
       buildTransactionPayload({
@@ -76,6 +88,25 @@ describe("transactionForm helpers", () => {
     ).toEqual({
       payload: null,
       error: "Enter a valid fee or leave it blank.",
+    });
+  });
+
+  it("returns a validation error for negative fees", () => {
+    expect(
+      buildTransactionPayload({
+        owner: "alex",
+        account: "isa",
+        date: "2024-02-01",
+        ticker: "VUSA",
+        price: "12.50",
+        units: "3",
+        fees: "-1",
+        comments: "",
+        reason: "rebalance",
+      }),
+    ).toEqual({
+      payload: null,
+      error: "Fees cannot be negative.",
     });
   });
 });

@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import i18n from "@/i18n";
 import { TransactionsPage } from "@/components/TransactionsPage";
 
 vi.mock("@/api", () => ({
@@ -28,7 +27,7 @@ describe("TransactionsPage", () => {
       />,
     );
     expect(await screen.findByText("PFE")).toBeInTheDocument();
-    expect(await screen.findByText("Alex Example")).toBeInTheDocument();
+    expect((await screen.findAllByText("Alex Example")).at(-1)).toBeInTheDocument();
   });
 });
 

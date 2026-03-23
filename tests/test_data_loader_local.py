@@ -1,3 +1,5 @@
+import json
+
 import backend.common.data_loader as dl
 
 
@@ -40,21 +42,16 @@ def test_list_local_plots_authenticated(tmp_path, monkeypatch):
     alice = tmp_path / "alice"
     alice.mkdir()
     (alice / "isa.json").write_text("{}")
+    # alice grants viewing rights to bob via her person.json
+    (alice / "person.json").write_text(json.dumps({"viewers": ["bob"]}))
 
     bob = tmp_path / "bob"
     bob.mkdir()
     (bob / "gia.json").write_text("{}")
+    # bob has no extra viewers; he can only see his own account
+    (bob / "person.json").write_text(json.dumps({"viewers": []}))
 
     monkeypatch.setattr(dl.config, "disable_auth", False, raising=False)
-
-    # Emulate per-owner metadata so that ``alice`` grants viewing rights to
-    # ``bob`` while ``bob`` has no additional viewers.
-    def fake_meta(owner, root=None):
-        if owner == "alice":
-            return {"viewers": ["bob"]}
-        return {}
-
-    monkeypatch.setattr(dl, "load_person_meta", fake_meta)
 
     owners = dl._list_local_plots(data_root=tmp_path, current_user="bob")
     assert owners == [

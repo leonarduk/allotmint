@@ -6,6 +6,12 @@ const nullableString = z.string().nullable();
 const nullableNumber = z.number().nullable();
 const tabsSchema = z.record(z.string(), z.boolean());
 
+// .passthrough() is intentional: /config is allowed to carry additional
+// backend-only fields (feature flags, env-specific keys, etc.) that the
+// frontend does not need to enumerate.  Tightening to .strict() here would
+// cause runtime failures whenever the backend adds a new config key before
+// the frontend schema is updated.  The required fields below remain
+// enforced; only unexpected extra fields are passed through silently.
 export const configContractSchema = z
   .object({
     app_env: z.string(),
@@ -44,7 +50,10 @@ export const holdingContractSchema = z.object({
   name: z.string(),
   currency: nullableString.optional(),
   units: z.number(),
-  acquired_date: z.string(),
+  // acquired_date is optional/nullable: cash positions and some older holdings
+  // may not carry an acquisition date.  Making this required would throw at
+  // runtime and break the portfolio view for those records.
+  acquired_date: z.string().nullable().optional(),
   price: z.number().optional(),
   cost_basis_gbp: z.number().optional(),
   cost_basis_currency: nullableString.optional(),
@@ -113,7 +122,11 @@ export const transactionContractSchema = z.object({
   comments: nullableString.optional(),
   reason: nullableString.optional(),
   reason_to_buy: nullableString.optional(),
-  synthetic: z.boolean(),
+  // synthetic defaults to false: older records and some backends may omit this
+  // field entirely.  A required boolean would throw at runtime for those rows,
+  // breaking the transactions view.  The .default(false) keeps callers
+  // receiving a boolean without needing to handle undefined.
+  synthetic: z.boolean().default(false),
   instrument_name: nullableString.optional(),
 });
 

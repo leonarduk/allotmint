@@ -214,15 +214,17 @@ export const getGroups = async () =>
   groupsContractSchema.parse(await fetchJson<GroupSummary[]>(`${API_BASE}/groups`));
 
 /** Get the aggregated portfolio for a group of owners. */
-export const getGroupPortfolio = (
+export const getGroupPortfolio = async (
   slug: string,
   opts: { asOf?: string | null } = {},
 ) => {
   const params = new URLSearchParams();
   if (opts.asOf) params.set("as_of", opts.asOf);
   const qs = params.toString();
-  return fetchJson<GroupPortfolio>(
-    `${API_BASE}/portfolio-group/${slug}${qs ? `?${qs}` : ""}`,
+  return portfolioContractSchema.parse(
+    await fetchJson<GroupPortfolio>(
+      `${API_BASE}/portfolio-group/${slug}${qs ? `?${qs}` : ""}`,
+    ),
   );
 };
 

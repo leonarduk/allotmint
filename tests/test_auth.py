@@ -12,6 +12,7 @@ from importlib import machinery, util
 
 import backend.auth as auth
 import backend.common.data_loader as dl
+from backend.common.account_models import PersonMetadata
 from tests.conftest import _real_verify_google_token
 import tests.conftest as tests_conftest
 
@@ -43,8 +44,8 @@ def test_allowed_emails_local_filesystem(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         auth,
-        "load_person_meta",
-        lambda owner, data_root=None: {"email": f"{owner}@example.com"},
+        "load_person_metadata",
+        lambda owner, data_root=None: PersonMetadata(email=f"{owner}@example.com"),
     )
     emails = auth._allowed_emails()
     assert emails == {"alice@example.com", "bob@example.com"}
@@ -69,8 +70,8 @@ def test_allowed_emails_local_relative_root(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         auth,
-        "load_person_meta",
-        lambda owner, data_root=None: {"email": f"{owner}@example.com"},
+        "load_person_metadata",
+        lambda owner, data_root=None: PersonMetadata(email=f"{owner}@example.com"),
     )
 
     emails = auth._allowed_emails()
@@ -97,9 +98,9 @@ def test_allowed_emails_local_fallback_handles_errors(monkeypatch, tmp_path):
     def fake_load(owner, data_root=None):
         if owner == "bob":
             raise RuntimeError("failed")
-        return {"email": f"{owner}@Example.com"}
+        return PersonMetadata(email=f"{owner}@Example.com")
 
-    monkeypatch.setattr(auth, "load_person_meta", fake_load)
+    monkeypatch.setattr(auth, "load_person_metadata", fake_load)
 
     emails = auth._allowed_emails()
 

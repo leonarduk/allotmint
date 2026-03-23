@@ -845,12 +845,22 @@ def load_person_meta(owner: str, data_root: Optional[Path] = None) -> Dict[str, 
     """
 
     def _extract(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate ``data`` through PersonMetadata and return a normalised dict.
+
+        The result contains exactly the keys present in the original ``data``
+        dict (no synthetic additions from model defaults), with values
+        normalised by the model (strings stripped, dob coerced to ISO string,
+        etc).  None-valued keys are dropped.
+        """
         validated = PersonMetadata.model_validate(data)
-        # exclude_defaults=True drops fields equal to their model default (e.g.
-        # holdings=[], viewers=[]) so the output matches what LocalDataProvider
-        # returns for the same JSON — only keys present in the source file are
-        # included in the result.
-        return validated.model_dump(exclude_none=True, exclude_defaults=True)
+        all_values = validated.model_dump()
+        # Only include keys that were explicitly present in the source payload,
+        # and drop any that ended up as None after normalisation.
+        return {
+            k: v
+            for k, v in all_values.items()
+            if k in data and v is not None
+        }
 
     local_root: Optional[Path] = data_root
     if local_root is None:

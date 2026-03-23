@@ -60,7 +60,7 @@ def test_handle_app_error_logs_structured_fields(caplog):
     assert caplog.records
     record = caplog.records[-1]
     assert record.error_code == "provider_failure"
-    assert record.error_category == "provider_failure"
+    assert record.error_category == "provider"  # coarse grouping, not a copy of error_code
     assert record.status_code == 502
     assert record.provider == "yfinance"
     assert record.route == "/api/quotes"

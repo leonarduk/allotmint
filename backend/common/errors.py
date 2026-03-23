@@ -15,6 +15,7 @@ class AppError(Exception):
 
     status_code = 500
     error_code = "internal_error"
+    error_category = "server"  # coarse grouping for alerting/dashboards
     log_level = logging.ERROR
     safe_detail = "Internal server error"
 
@@ -27,6 +28,7 @@ class AppError(Exception):
 class ValidationFailure(AppError):
     status_code = 400
     error_code = "validation_failure"
+    error_category = "client"
     log_level = logging.WARNING
     safe_detail = "Invalid request"
 
@@ -34,6 +36,7 @@ class ValidationFailure(AppError):
 class ResourceNotFoundError(AppError):
     status_code = 404
     error_code = "not_found"
+    error_category = "client"
     log_level = logging.INFO
     safe_detail = "Resource not found"
 
@@ -41,6 +44,7 @@ class ResourceNotFoundError(AppError):
 class PermissionDeniedError(AppError):
     status_code = 403
     error_code = "permission_denied"
+    error_category = "client"
     log_level = logging.WARNING
     safe_detail = "Permission denied"
 
@@ -48,13 +52,15 @@ class PermissionDeniedError(AppError):
 class ProviderFailure(AppError):
     status_code = 502
     error_code = "provider_failure"
+    error_category = "provider"
     log_level = logging.ERROR
     safe_detail = "Upstream provider failure"
 
 
 class InternalServiceError(AppError):
     status_code = 500
-    error_code = "internal_error"
+    error_code = "internal_service_error"
+    error_category = "server"
     log_level = logging.ERROR
     safe_detail = "Internal server error"
 
@@ -82,7 +88,7 @@ def log_app_error(logger: logging.Logger, exc: AppError, message: str, **context
 
     extra = {
         "error_code": exc.error_code,
-        "error_category": exc.error_code,
+        "error_category": exc.error_category,
         "status_code": exc.status_code,
     }
     if exc.extra:

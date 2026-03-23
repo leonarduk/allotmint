@@ -60,6 +60,8 @@ def _known_owners(accounts_root) -> KnownOwnerSet:
     list_plots_failed = False
     try:
         entries = data_loader.list_plots(accounts_root)
+    except data_loader.ProviderUnavailable:
+        raise
     except Exception:
         entries = []
         list_plots_failed = True

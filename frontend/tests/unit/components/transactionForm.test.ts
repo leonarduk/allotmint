@@ -1,0 +1,81 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildTransactionPayload,
+  createTransactionFormValues,
+} from "@/components/transactions/transactionForm";
+
+describe("transactionForm helpers", () => {
+  it("creates editable form values from a transaction", () => {
+    expect(
+      createTransactionFormValues({
+        owner: "alex",
+        account: "isa",
+        ticker: "vusa",
+        amount_minor: 1050,
+        shares: 2,
+        fees: 1.5,
+        comments: "note",
+        reason_to_buy: "long term",
+        date: "2024-02-01T10:00:00Z",
+      }),
+    ).toEqual({
+      owner: "alex",
+      account: "isa",
+      ticker: "VUSA",
+      price: "5.25",
+      units: "2",
+      fees: "1.5",
+      comments: "note",
+      reason: "long term",
+      date: "2024-02-01",
+    });
+  });
+
+  it("builds a valid transaction payload", () => {
+    expect(
+      buildTransactionPayload({
+        owner: "alex",
+        account: "isa",
+        date: "2024-02-01",
+        ticker: " vusa ",
+        price: "12.50",
+        units: "3",
+        fees: "1.25",
+        comments: " add more ",
+        reason: " rebalance ",
+      }),
+    ).toEqual({
+      error: null,
+      payload: {
+        owner: "alex",
+        account: "isa",
+        date: "2024-02-01",
+        ticker: "VUSA",
+        price_gbp: 12.5,
+        units: 3,
+        fees: 1.25,
+        comments: "add more",
+        reason: "rebalance",
+      },
+    });
+  });
+
+  it("returns a validation error for invalid fees", () => {
+    expect(
+      buildTransactionPayload({
+        owner: "alex",
+        account: "isa",
+        date: "2024-02-01",
+        ticker: "VUSA",
+        price: "12.50",
+        units: "3",
+        fees: "abc",
+        comments: "",
+        reason: "rebalance",
+      }),
+    ).toEqual({
+      payload: null,
+      error: "Enter a valid fee or leave it blank.",
+    });
+  });
+});

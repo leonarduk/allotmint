@@ -32,7 +32,7 @@ except ImportError:  # pragma: no cover - botocore is optional in tests
 from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     PLOTS_PREFIX,
-    load_person_meta,
+    load_person_metadata,
     resolve_paths,
 )
 from backend.config import config, local_login_identity
@@ -106,10 +106,10 @@ def _allowed_emails() -> Set[str]:
                 return set()
         for owner in owners:
             try:
-                meta = load_person_meta(owner)
+                meta = load_person_metadata(owner)
             except Exception:
-                meta = {}
-            email = meta.get("email") if isinstance(meta, dict) else None
+                meta = None
+            email = meta.email if meta else None
             if email:
                 emails.add(email.lower())
         return emails
@@ -134,10 +134,10 @@ def _allowed_emails() -> Set[str]:
         if not owner_dir.is_dir():
             continue
         try:
-            meta = load_person_meta(owner_dir.name, data_root=root)
+            meta = load_person_metadata(owner_dir.name, data_root=root)
         except Exception:
-            meta = {}
-        email = meta.get("email")
+            meta = None
+        email = meta.email if meta else None
         if email:
             emails.add(email.lower())
     return emails

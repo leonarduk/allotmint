@@ -12,12 +12,18 @@ Copy `.env.example` to `.env` and supply the following values:
 | `TELEGRAM_CHAT_ID` | Telegram chat for alerts |
 | `API_TOKEN` | Token securing sensitive routes |
 | `OPENAI_API_KEY` | Optional key for OpenAI features |
+| `ANTHROPIC_API_KEY` | Optional key for Anthropic-powered PR review workflows |
 | `DATA_ROOT` | Base directory for local data; overrides `paths.data_root` in `config.yaml` |
 | `DATA_BUCKET` | S3 bucket holding account data when deploying the backend. May also be supplied via the script's `-DataBucket` parameter |
 | `METADATA_BUCKET` | Bucket containing instrument metadata |
 | `METADATA_PREFIX` | Prefix within the metadata bucket |
 | `GOOGLE_AUTH_ENABLED` | Toggle Google sign‑in |
 | `GOOGLE_CLIENT_ID` | OAuth client ID when Google sign‑in is enabled |
+
+The advisory AI review workflows run on pull request `opened`, `reopened`, and `synchronize`
+events. They require `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` to be configured as GitHub
+repository secrets if you want review comments to be posted, but they remain advisory-only and
+use `continue-on-error` so review outages do not block merges.
 
 ## API rate limiting
 

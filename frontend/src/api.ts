@@ -48,6 +48,14 @@ import type {
   AnalyticsFunnelSummary,
   AnalyticsSource,
 } from "./types";
+import {
+  configContractSchema,
+  groupPortfolioContractSchema,
+  groupsContractSchema,
+  ownersContractSchema,
+  portfolioContractSchema,
+  transactionsContractSchema,
+} from "./contracts/apiContracts";
 
 const cleanOptionalString = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -172,19 +180,19 @@ export const fetchJson = defaultClient.fetchJson;
 /* ------------------------------------------------------------------ */
 
 /** List all owners and their available accounts. */
-export const getOwners = () =>
-  fetchJson<OwnerSummary[]>(`${API_BASE}/owners`);
+export const getOwners = async () =>
+  ownersContractSchema.parse(await fetchJson<OwnerSummary[]>(`${API_BASE}/owners`));
 
 /** Fetch the portfolio tree for a single owner. */
-export const getPortfolio = (
+export const getPortfolio = async (
   owner: string,
   opts: { asOf?: string | null } = {},
 ) => {
   const params = new URLSearchParams();
   if (opts.asOf) params.set("as_of", opts.asOf);
   const qs = params.toString();
-  return fetchJson<Portfolio>(
-    `${API_BASE}/portfolio/${owner}${qs ? `?${qs}` : ""}`,
+  return portfolioContractSchema.parse(
+    await fetchJson<Portfolio>(`${API_BASE}/portfolio/${owner}${qs ? `?${qs}` : ""}`),
   );
 };
 
@@ -203,19 +211,21 @@ export const getOwnerSectorContributions = (
 };
 
 /** List the configured groups (e.g. "adults", "children"). */
-export const getGroups = () =>
-  fetchJson<GroupSummary[]>(`${API_BASE}/groups`);
+export const getGroups = async () =>
+  groupsContractSchema.parse(await fetchJson<GroupSummary[]>(`${API_BASE}/groups`));
 
 /** Get the aggregated portfolio for a group of owners. */
-export const getGroupPortfolio = (
+export const getGroupPortfolio = async (
   slug: string,
   opts: { asOf?: string | null } = {},
 ) => {
   const params = new URLSearchParams();
   if (opts.asOf) params.set("as_of", opts.asOf);
   const qs = params.toString();
-  return fetchJson<GroupPortfolio>(
-    `${API_BASE}/portfolio-group/${slug}${qs ? `?${qs}` : ""}`,
+  return groupPortfolioContractSchema.parse(
+    await fetchJson<GroupPortfolio>(
+      `${API_BASE}/portfolio-group/${slug}${qs ? `?${qs}` : ""}`,
+    ),
   );
 };
 
@@ -942,7 +952,7 @@ export const confirmInstrumentMetadata = (
   );
 
 
-export const getTransactions = (params: {
+export const getTransactions = async (params: {
   owner?: string;
   account?: string;
   start?: string;
@@ -956,7 +966,9 @@ export const getTransactions = (params: {
   if (params.end) query.set("end", params.end);
   if (params.type) query.set("type", params.type);
   const qs = query.toString();
-  return fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`);
+  return transactionsContractSchema.parse(
+    await fetchJson<Transaction[]>(`${API_BASE}/transactions${qs ? `?${qs}` : ""}`),
+  );
 };
 
 export interface CreateTransactionPayload {
@@ -1134,8 +1146,8 @@ export const deleteVirtualPortfolio = (id: number | string) =>
   });
 
 /** Retrieve backend configuration. */
-export const getConfig = <T = Record<string, unknown>>(init?: RequestInit) =>
-  fetchJson<T>(`${API_BASE}/config`, init);
+export const getConfig = async <T = Record<string, unknown>>(init?: RequestInit) =>
+  configContractSchema.parse(await fetchJson<T>(`${API_BASE}/config`, init));
 
 /** Persist configuration changes. */
 export const updateConfig = (cfg: Record<string, unknown>) =>

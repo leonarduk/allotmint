@@ -1,0 +1,17 @@
+{
+  "app_env": "local",
+  "theme": "system",
+  "tabs": {
+    "portfolio": true,
+    "instrument": true,
+    "trade-compliance": true,
+    "support": false
+  },
+  "disabled_tabs": ["support"],
+  "relative_view_enabled": true,
+  "google_auth_enabled": true,
+  "google_client_id": "demo-client-id",
+  "disable_auth": false,
+  "allowed_emails": ["alice@example.com"],
+  "local_login_email": "alice@example.com"
+}

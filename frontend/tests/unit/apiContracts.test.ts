@@ -16,17 +16,6 @@ import {
 } from "@/contracts/apiContracts";
 
 describe("API contract fixtures", () => {
-  it("accepts null config values for optional backend fields", () => {
-    const parsed = configContractSchema.parse({
-      app_env: "local",
-      theme: null,
-      tabs: {},
-      relative_view_enabled: null,
-      google_auth_enabled: false,
-      google_client_id: null,
-      disable_auth: true,
-      allowed_emails: null,
-      local_login_email: null,
   it("accepts null for optional backend-managed config fields", () => {
     const parsed = configContractSchema.parse({
       ...configFixture,
@@ -76,6 +65,8 @@ describe("API contract fixtures", () => {
 
   it("validates the group portfolio fixture", () => {
     expect(() => groupPortfolioContractSchema.parse(groupPortfolioFixture)).not.toThrow();
+  });
+
   it("validates a group portfolio response shape", () => {
     const groupFixture = {
       group: "children",

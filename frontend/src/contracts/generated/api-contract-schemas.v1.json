@@ -11,7 +11,14 @@
             "type": "string"
           },
           "theme": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "tabs": {
             "type": "object",
@@ -23,7 +30,14 @@
             }
           },
           "relative_view_enabled": {
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "google_auth_enabled": {
             "anyOf": [
@@ -49,10 +63,17 @@
             "type": "boolean"
           },
           "allowed_emails": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "local_login_email": {
             "anyOf": [

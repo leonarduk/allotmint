@@ -13,6 +13,7 @@ import logging
 from datetime import date
 from typing import Any, Dict, List
 
+from backend.common import portfolio as owner_portfolio
 from backend.common.approvals import load_approvals
 from backend.common.constants import (
     ACCOUNTS,
@@ -25,6 +26,29 @@ from backend.config import demo_identity as get_demo_identity
 from backend.utils.pricing_dates import PricingDateCalculator
 
 logger = logging.getLogger("group_portfolio")
+
+
+def _trade_counts_for_owner(owner: str, today: dt.date) -> tuple[int, int]:
+    """Return (trades_this_month, trades_remaining) for an owner."""
+
+    trades = owner_portfolio.load_trades(owner)
+    trades_this_month = 0
+    for trade in trades:
+        trade_date = owner_portfolio._parse_date(trade.get("date"))
+        if trade_date and trade_date.year == today.year and trade_date.month == today.month:
+            trades_this_month += 1
+
+    try:
+        user_cfg = load_user_config(owner)
+        if isinstance(user_cfg, dict):
+            max_monthly = int(user_cfg.get("max_trades_per_month") or 0)
+        else:
+            max_monthly = int(getattr(user_cfg, "max_trades_per_month", 0) or 0)
+    except (FileNotFoundError, ValueError, TypeError):
+        max_monthly = 0
+
+    trades_remaining = max(0, max_monthly - trades_this_month)
+    return trades_this_month, trades_remaining
 
 
 # ───────────────────────── groups list ──────────────────────────
@@ -178,8 +202,33 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
                 "trades_remaining": int(owner_details.get("trades_remaining") or 0),
             }
         )
+        subtotals_by_account_type[account_type] = (
+            subtotals_by_account_type.get(account_type, 0.0)
+            + float(account.get("value_estimate_gbp") or 0.0)
+        )
+
+    members_summary: List[Dict[str, Any]] = []
+    if slug != "all":
+        member_values: Dict[str, float] = {member: 0.0 for member in grp.get("members", [])}
+        for account in merged_accounts:
+            owner = str(account.get(OWNER) or "").strip()
+            if owner:
+                member_values[owner] = member_values.get(owner, 0.0) + float(account.get("value_estimate_gbp") or 0.0)
+
+        for member in grp.get("members", []):
+            trades_this_month, trades_remaining = _trade_counts_for_owner(member, today)
+            members_summary.append(
+                {
+                    "owner": member,
+                    "total_value_estimate_gbp": member_values.get(member, 0.0),
+                    "total_value_estimate_currency": "GBP",
+                    "trades_this_month": trades_this_month,
+                    "trades_remaining": trades_remaining,
+                }
+            )
 
     return {
+        "group": slug,
         "slug": slug,
         "name": grp["name"],
         "members": grp.get("members", []),

@@ -34,6 +34,43 @@ describe("API contract fixtures", () => {
 
   it("validates the group portfolio fixture", () => {
     expect(() => groupPortfolioContractSchema.parse(groupPortfolioFixture)).not.toThrow();
+  it("validates a group portfolio response shape", () => {
+    const groupFixture = {
+      group: "children",
+      slug: "children",
+      name: "Children",
+      members: ["alex", "joe"],
+      as_of: "2026-03-23",
+      total_value_estimate_gbp: 1234.56,
+      accounts: [
+        {
+          account_type: "ISA",
+          currency: "GBP",
+          value_estimate_gbp: 1234.56,
+          holdings: [],
+        },
+      ],
+      members_summary: [
+        {
+          owner: "alex",
+          total_value_estimate_gbp: 700,
+          total_value_estimate_currency: "GBP",
+          trades_this_month: 1,
+          trades_remaining: 9,
+        },
+        {
+          owner: "joe",
+          total_value_estimate_gbp: 534.56,
+          total_value_estimate_currency: "GBP",
+          trades_this_month: 0,
+          trades_remaining: 10,
+        },
+      ],
+      subtotals_by_account_type: {
+        ISA: 1234.56,
+      },
+    };
+    expect(() => groupPortfolioContractSchema.parse(groupFixture)).not.toThrow();
   });
 
   it("validates the transactions fixture", () => {

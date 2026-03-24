@@ -108,7 +108,7 @@ def handle_app_error(logger: logging.Logger, exc: AppError, message: str, **cont
 
 
 def handle_owner_not_found(func: F) -> F:
-    """Decorator mapping :class:`OwnerNotFoundError` to ``HTTPException(404)``."""
+    """Decorator preserving :class:`OwnerNotFoundError` for app-level handling."""
 
     if inspect.iscoroutinefunction(func):
 
@@ -116,8 +116,8 @@ def handle_owner_not_found(func: F) -> F:
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 return await func(*args, **kwargs)
-            except OwnerNotFoundError as exc:  # pragma: no cover - thin wrapper
-                raise to_http_exception(exc) from exc
+            except OwnerNotFoundError:
+                raise
 
         async_wrapper.__signature__ = inspect.signature(func)
         return async_wrapper  # type: ignore[return-value]
@@ -126,8 +126,8 @@ def handle_owner_not_found(func: F) -> F:
     def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
         try:
             return func(*args, **kwargs)
-        except OwnerNotFoundError as exc:  # pragma: no cover - thin wrapper
-            raise to_http_exception(exc) from exc
+        except OwnerNotFoundError:
+            raise
 
     sync_wrapper.__signature__ = inspect.signature(func)
     return sync_wrapper  # type: ignore[return-value]

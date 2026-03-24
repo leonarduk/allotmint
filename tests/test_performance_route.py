@@ -183,7 +183,7 @@ def test_owner_metrics_success(
         ),
     ],
 )
-def test_owner_metrics_not_found(path, func_name, expected_args, expected_kwargs, monkeypatch):
+def test_owner_metrics_not_found(path, func_name, expected_args, expected_kwargs, monkeypatch, caplog):
     def fake(*args, **kwargs):
         assert args == expected_args
         assert kwargs == expected_kwargs
@@ -191,9 +191,17 @@ def test_owner_metrics_not_found(path, func_name, expected_args, expected_kwargs
 
     monkeypatch.setattr(portfolio_utils, func_name, fake)
     client = _auth_client()
-    resp = client.get(path)
+
+    with caplog.at_level("INFO", logger="backend.errors"):
+        resp = client.get(path)
+
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Owner not found"
+    record = caplog.records[-1]
+    assert record.error_code == "owner_not_found"
+    assert record.error_category == "client"
+    assert record.status_code == 404
+    assert record.path == path.rsplit("?", 1)[0]
 
 
 def test_owner_metrics_with_as_of(monkeypatch):

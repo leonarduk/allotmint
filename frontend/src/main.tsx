@@ -27,6 +27,14 @@ import { loadStoredAuthUser, loadStoredUserProfile } from './authStorage';
 import { RouteProvider } from './RouteContext';
 import { deriveBootstrapMode, deriveModeFromPathname, standalonePageRoutes } from './pageManifest';
 
+interface BootstrapConfig {
+  google_auth_enabled?: boolean | null;
+  google_client_id?: string | null;
+  disable_auth?: boolean;
+  local_login_email?: string | null;
+  allowed_emails?: string[] | null;
+}
+
 const storedToken = getStoredAuthToken();
 if (storedToken) setAuthToken(storedToken);
 
@@ -149,18 +157,27 @@ export function Root() {
       let retryDelay = 0;
       let nextAttempt = attempt;
 
-      getConfig<Record<string, unknown>>({ signal: controller.signal })
+      getConfig<BootstrapConfig>({ signal: controller.signal })
         .then((cfg) => {
           if (!isMounted.current || activeRequest.current !== controller) return;
 
-          const configAuthEnabled = Boolean((cfg as { google_auth_enabled?: unknown }).google_auth_enabled);
-          const disableAuth = Boolean((cfg as { disable_auth?: unknown }).disable_auth);
-          const configuredClientId = String((cfg as { google_client_id?: unknown }).google_client_id || '');
-          const localLoginRaw = (cfg as { local_login_email?: unknown }).local_login_email;
-          const localLoginEmail = typeof localLoginRaw === 'string' ? localLoginRaw.trim() : '';
+          const configAuthEnabled = cfg.google_auth_enabled === true;
+          const disableAuth = cfg.disable_auth === true;
+          const configuredClientId = typeof cfg.google_client_id === 'string' ? cfg.google_client_id : '';
+          const localLoginEmail =
+            typeof cfg.local_login_email === 'string' ? cfg.local_login_email.trim() : '';
+          // Backend auth semantics: null/empty allowed_emails means no allowlist
+          // enforcement (allow all users). Keep this normalization explicit to
+          // avoid accidental "deny all" behavior in future bootstrap guards.
+          const allowedEmails = Array.isArray(cfg.allowed_emails) ? cfg.allowed_emails : [];
+          void allowedEmails;
 
           setGoogleLoginEnabled(configAuthEnabled);
           setClientId(configuredClientId);
+          // Backend semantics:
+          // - disable_auth controls whether login is required.
+          // - allowed_emails may be null (no explicit allowlist) without
+          //   changing whether auth is required.
           setNeedsAuth(!disableAuth);
 
           if (disableAuth && localLoginEmail) {

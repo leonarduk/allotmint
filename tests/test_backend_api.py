@@ -46,9 +46,12 @@ def mock_group_portfolio(monkeypatch):
             raise ValueError("Group not found")
         return {
             "slug": slug,
+            "members_summary": [],
+            "subtotals_by_account_type": {"brokerage": 100.0},
             "accounts": [
                 {
                     "name": "stub",
+                    "account_type": "brokerage",
                     "value_estimate_gbp": 100.0,
                     "holdings": [
                         {
@@ -212,6 +215,7 @@ def test_valid_group_portfolio(client):
     assert resp.status_code == 200
     data = resp.json()
     assert "slug" in data and data["slug"] == group_slug
+    assert "group" not in data
     assert "accounts" in data and isinstance(data["accounts"], list)
     assert data["accounts"], "Accounts list should not be empty"
     assert "total_value_estimate_gbp" in data

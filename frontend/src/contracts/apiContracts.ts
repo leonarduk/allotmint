@@ -15,13 +15,13 @@ const tabsSchema = z.record(z.string(), z.boolean());
 export const configContractSchema = z
   .object({
     app_env: z.string(),
-    theme: z.string(),
+    theme: z.string().nullable(),
     tabs: tabsSchema,
-    relative_view_enabled: z.boolean(),
+    relative_view_enabled: z.boolean().nullable(),
     google_auth_enabled: z.boolean().nullable(),
     google_client_id: nullableString,
     disable_auth: z.boolean(),
-    allowed_emails: z.array(z.string()),
+    allowed_emails: z.array(z.string()).nullable(),
     local_login_email: nullableString,
     disabled_tabs: z.array(z.string()).nullable().optional(),
   })
@@ -104,12 +104,12 @@ export const portfolioContractSchema = z.object({
 });
 
 // GroupPortfolio has a different top-level shape from Portfolio:
-// it identifies itself with `group` + `name` + `members` rather than `owner`,
+// it identifies itself with `slug` + `name` + `members` rather than `owner`,
 // and carries members_summary / subtotals_by_account_type that Portfolio does
 // not have.  Using portfolioContractSchema here would throw at runtime because
 // `owner` is required there but absent in group portfolio responses.
 export const groupPortfolioContractSchema = z.object({
-  group: z.string(),
+  slug: z.string(),
   name: z.string(),
   as_of: z.string(),
   members: z.array(z.string()),

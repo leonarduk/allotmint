@@ -72,7 +72,7 @@ export type GroupSummary = {
 };
 
 export type GroupPortfolio = {
-  group: string;
+  slug: string;
   name: string;
   as_of: string;
   members: string[];

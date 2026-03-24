@@ -74,7 +74,7 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
             path=str(request.url.path),
             method=request.method,
         )
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.safe_detail})
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(_: Request, exc: RequestValidationError):

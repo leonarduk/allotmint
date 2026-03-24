@@ -15,4 +15,4 @@ def test_quotes_returns_502_on_yfinance_error(monkeypatch):
     client.headers.update({"Authorization": f"Bearer {token}"})
     resp = client.get("/api/quotes?symbols=PFE")
     assert resp.status_code == 502
-    assert resp.json()["detail"].startswith("Failed to fetch quotes")
+    assert resp.json()["detail"] == "Upstream provider failure"

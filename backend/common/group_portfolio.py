@@ -40,8 +40,11 @@ def _trade_counts_for_owner(owner: str, today: dt.date) -> tuple[int, int]:
 
     try:
         user_cfg = load_user_config(owner)
-        max_monthly = user_cfg.max_trades_per_month or 0
-    except FileNotFoundError:
+        if isinstance(user_cfg, dict):
+            max_monthly = int(user_cfg.get("max_trades_per_month") or 0)
+        else:
+            max_monthly = int(getattr(user_cfg, "max_trades_per_month", 0) or 0)
+    except (FileNotFoundError, ValueError, TypeError):
         max_monthly = 0
 
     trades_remaining = max(0, max_monthly - trades_this_month)

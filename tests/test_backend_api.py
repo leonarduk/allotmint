@@ -46,9 +46,12 @@ def mock_group_portfolio(monkeypatch):
             raise ValueError("Group not found")
         return {
             "slug": slug,
+            "members_summary": [],
+            "subtotals_by_account_type": {"brokerage": 100.0},
             "accounts": [
                 {
                     "name": "stub",
+                    "account_type": "brokerage",
                     "value_estimate_gbp": 100.0,
                     "holdings": [
                         {

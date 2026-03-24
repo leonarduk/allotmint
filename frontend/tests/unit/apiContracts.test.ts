@@ -74,6 +74,36 @@ describe("API contract fixtures", () => {
     expect(() => transactionsContractSchema.parse(transactionsFixture)).not.toThrow();
   });
 
+  it("accepts a group portfolio payload with slug", () => {
+    const payload = {
+      slug: "all",
+      name: "At a glance",
+      as_of: "2026-03-24",
+      members: ["alice", "bob"],
+      total_value_estimate_gbp: 1000,
+      accounts: [],
+      members_summary: [],
+      subtotals_by_account_type: {},
+    };
+
+    expect(() => groupPortfolioContractSchema.parse(payload)).not.toThrow();
+  });
+
+  it("rejects legacy group portfolio payloads with group instead of slug", () => {
+    const legacyPayload = {
+      group: "all",
+      name: "At a glance",
+      as_of: "2026-03-24",
+      members: ["alice", "bob"],
+      total_value_estimate_gbp: 1000,
+      accounts: [],
+      members_summary: [],
+      subtotals_by_account_type: {},
+    };
+
+    expect(() => groupPortfolioContractSchema.parse(legacyPayload)).toThrow();
+  });
+
   it("exports machine-readable JSON Schema definitions", () => {
     expect(apiContractJsonSchemas.config).toMatchObject({
       type: "object",

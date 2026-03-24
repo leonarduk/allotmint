@@ -7,13 +7,15 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 import pytest
 
 import backend.routes.approvals as approvals
 import backend.routes._accounts as account_utils
 from backend.common.data_loader import ResolvedPaths
+from backend.common.errors import AppError
 from backend.config import config
 
 
@@ -22,6 +24,11 @@ _DEFAULT = object()
 
 def make_client(tmp_path: Path, accounts_root: Any = _DEFAULT) -> TestClient:
     app = FastAPI()
+
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.safe_detail})
+
     app.include_router(approvals.router)
     if accounts_root is _DEFAULT:
         app.state.accounts_root = tmp_path
@@ -274,4 +281,3 @@ def test_delete_approval_missing_owner(tmp_path: Path) -> None:
     resp = client.request("DELETE", "/accounts/missing/approvals", json={"ticker": "ADM.L"})
     assert resp.status_code == 404
     assert resp.json() == {"detail": "Owner not found"}
-

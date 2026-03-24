@@ -1,16 +1,36 @@
 import types
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.testclient import TestClient
 
+from backend.common.errors import AppError, OwnerNotFoundError
 from backend.routes import compliance as compliance_module
+
+
+def _make_app_with_error_handler() -> FastAPI:
+    """Return a FastAPI instance with the AppError handler registered.
+
+    Test FastAPI instances are bare by default (no bootstrap middleware), so
+    OwnerNotFoundError (an AppError subclass) would propagate as an unhandled
+    exception and produce a 500.  Registering the handler here mirrors what
+    register_middleware does in production.
+    """
+    app = FastAPI()
+
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.safe_detail})
+
+    return app
 
 
 class PayloadRequest:
     """Lightweight request object with a configurable JSON payload."""
 
     def __init__(self, payload):
-        self.app = FastAPI()
+        self.app = _make_app_with_error_handler()
         self._payload = payload
 
     async def json(self):
@@ -19,7 +39,7 @@ class PayloadRequest:
 
 @pytest.fixture
 def fastapi_request():
-    app = FastAPI()
+    app = _make_app_with_error_handler()
     request = types.SimpleNamespace(app=app)
     return app, request
 
@@ -174,7 +194,7 @@ async def test_compliance_for_owner_missing_directory(tmp_path, monkeypatch, fas
         lambda root, owner: None,
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
@@ -202,7 +222,7 @@ async def test_compliance_for_owner_rejects_unknown_owner(tmp_path, monkeypatch,
         lambda root: {"bob"},
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
@@ -239,7 +259,7 @@ async def test_compliance_for_owner_translates_missing_files(tmp_path, monkeypat
         raise_missing,
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
@@ -271,7 +291,7 @@ async def test_validate_trade_rejects_blank_owner(tmp_path, monkeypatch):
         lambda req, allow_missing=False: tmp_path,
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.validate_trade(request)
 
     assert excinfo.value.status_code == 404
@@ -300,7 +320,7 @@ async def test_validate_trade_rejects_disallowed_owner(tmp_path, monkeypatch):
         lambda root: {"bob"},
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.validate_trade(request)
 
     assert excinfo.value.status_code == 404
@@ -326,7 +346,7 @@ async def test_validate_trade_requires_known_directory_when_present(tmp_path, mo
         lambda root: {"alice"},
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.validate_trade(request)
 
     assert excinfo.value.status_code == 404

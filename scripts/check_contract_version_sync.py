@@ -29,8 +29,18 @@ VERSION_PATTERN = re.compile(
     r'SPA_RESPONSE_CONTRACT_VERSION\s*=\s*(["\'])([^"\']+)\1'
 )
 
-# Matches a line that is a comment in Python (#) or TypeScript (//)
+# Lines whose first non-whitespace token is a comment delimiter are skipped
+# entirely so that a full-line comment like:
+#   # SPA_RESPONSE_CONTRACT_VERSION = '0.9'  (old)
+# does not interfere with the real definition.
 _COMMENT_LINE = re.compile(r'^\s*(#|//)')
+
+# Strips trailing inline comments from a non-comment line so that:
+#   SPA_RESPONSE_CONTRACT_VERSION = "1.0"  # was SPA_RESPONSE_CONTRACT_VERSION = "0.9"
+# doesn't produce two matches from a single line.
+# Strategy: remove everything after the first # (Python) or // (TypeScript)
+# that is preceded by whitespace, which avoids stripping URLs inside strings.
+_INLINE_COMMENT = re.compile(r'\s+(#|//).*$')
 
 
 def _display_path(path: Path) -> str:
@@ -44,9 +54,10 @@ def _display_path(path: Path) -> str:
 def extract_contract_version(path: Path) -> str:
     """Return the SPA_RESPONSE_CONTRACT_VERSION value from *path*.
 
-    Comment lines (starting with ``#`` or ``//``) are ignored so that
-    a commented-out old version does not trigger the duplicate guard or
-    shadow the real definition.
+    Full-line comments (lines starting with ``#`` or ``//``) are skipped.
+    Inline trailing comments are stripped before matching so that a comment
+    like ``# bumped from SPA_RESPONSE_CONTRACT_VERSION = "0.9"`` on the same
+    line as the real definition does not trigger the duplicate guard.
 
     Raises ValueError if the pattern is not found or appears more than once
     on non-comment lines.
@@ -56,7 +67,7 @@ def extract_contract_version(path: Path) -> str:
         m
         for line in text.splitlines()
         if not _COMMENT_LINE.match(line)
-        for m in VERSION_PATTERN.findall(line)
+        for m in VERSION_PATTERN.findall(_INLINE_COMMENT.sub("", line))
     ]
     if not matches:
         raise ValueError(
@@ -65,11 +76,12 @@ def extract_contract_version(path: Path) -> str:
     if len(matches) > 1:
         raise ValueError(
             f"Found {len(matches)} occurrences of SPA_RESPONSE_CONTRACT_VERSION in "
-            f"{_display_path(path)} — expected exactly one. "
+            f"{_display_path(path)} \u2014 expected exactly one. "
             "Remove or comment out any duplicate definitions."
         )
     # matches[0] is (quote_char, version_string) from the two capture groups
-    return matches[0][1]
+    _, version = matches[0]
+    return version
 
 
 def main() -> int:
@@ -82,7 +94,7 @@ def main() -> int:
 
     if python_version != typescript_version:
         print(
-            "ERROR: SPA contract version mismatch — "
+            "ERROR: SPA contract version mismatch \u2014 "
             f"Python ({_display_path(PYTHON_CONTRACT)}): {python_version!r}, "
             f"TypeScript ({_display_path(TYPESCRIPT_CONTRACT)}): {typescript_version!r}",
             file=sys.stderr,

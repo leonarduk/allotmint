@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 
 # ---------------------------------------------------------------------------
-# Load the script as a module without executing the __main__ block
+# Load the script as a module without executing the __main__ block.
+# spec.loader.exec_module runs at import time; if the script is missing the
+# entire test module will fail to collect with an informative ImportError.
 # ---------------------------------------------------------------------------
 _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "check_contract_version_sync.py"
 spec = importlib.util.spec_from_file_location("check_contract_version_sync", _SCRIPT)
@@ -46,7 +48,7 @@ class TestExtractContractVersion:
             extract_contract_version(f)
 
     def test_duplicate_definition_raises(self, tmp_path: Path) -> None:
-        """Two real (non-comment) definitions must raise."""
+        """Two real (non-comment) definitions on separate lines must raise."""
         f = tmp_path / "dup.py"
         f.write_text(
             "SPA_RESPONSE_CONTRACT_VERSION = '0.9'\n"
@@ -55,8 +57,8 @@ class TestExtractContractVersion:
         with pytest.raises(ValueError, match="2 occurrences"):
             extract_contract_version(f)
 
-    def test_commented_out_version_is_ignored(self, tmp_path: Path) -> None:
-        """A commented-out old version must be ignored; only the live one returned."""
+    def test_full_line_comment_is_ignored(self, tmp_path: Path) -> None:
+        """A full-line Python comment referencing the old version is ignored."""
         f = tmp_path / "contracts.py"
         f.write_text(
             "# SPA_RESPONSE_CONTRACT_VERSION = '0.9'  # previous version\n"
@@ -64,12 +66,32 @@ class TestExtractContractVersion:
         )
         assert extract_contract_version(f) == "1.0"
 
-    def test_typescript_commented_out_version_is_ignored(self, tmp_path: Path) -> None:
-        """TypeScript // comments must also be skipped."""
+    def test_typescript_full_line_comment_is_ignored(self, tmp_path: Path) -> None:
+        """A full-line TypeScript // comment referencing the old version is ignored."""
         f = tmp_path / "spa.ts"
         f.write_text(
             '// SPA_RESPONSE_CONTRACT_VERSION = "0.9";  // old\n'
             'export const SPA_RESPONSE_CONTRACT_VERSION = "1.0";\n'
+        )
+        assert extract_contract_version(f) == "1.0"
+
+    def test_inline_comment_with_old_version_is_stripped(self, tmp_path: Path) -> None:
+        """An inline trailing comment that mentions the old version must not
+        trigger the duplicate guard.
+        """
+        f = tmp_path / "contracts.py"
+        f.write_text(
+            "SPA_RESPONSE_CONTRACT_VERSION = '1.0'  "
+            "# bumped from SPA_RESPONSE_CONTRACT_VERSION = '0.9'\n"
+        )
+        assert extract_contract_version(f) == "1.0"
+
+    def test_typescript_inline_comment_with_old_version_is_stripped(self, tmp_path: Path) -> None:
+        """Same check for TypeScript inline // comment."""
+        f = tmp_path / "spa.ts"
+        f.write_text(
+            'export const SPA_RESPONSE_CONTRACT_VERSION = "1.0";  '
+            '// was SPA_RESPONSE_CONTRACT_VERSION = "0.9"\n'
         )
         assert extract_contract_version(f) == "1.0"
 

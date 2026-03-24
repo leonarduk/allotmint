@@ -161,6 +161,10 @@ export function Root() {
 
           setGoogleLoginEnabled(configAuthEnabled);
           setClientId(configuredClientId);
+          // Backend semantics:
+          // - disable_auth controls whether login is required.
+          // - allowed_emails may be null (no explicit allowlist) without
+          //   changing whether auth is required.
           setNeedsAuth(!disableAuth);
 
           if (disableAuth && localLoginEmail) {

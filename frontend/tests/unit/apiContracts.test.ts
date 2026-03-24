@@ -15,6 +15,17 @@ import {
 } from "@/contracts/apiContracts";
 
 describe("API contract fixtures", () => {
+  it("accepts null config values for optional backend fields", () => {
+    const parsed = configContractSchema.parse({
+      app_env: "local",
+      theme: null,
+      tabs: {},
+      relative_view_enabled: null,
+      google_auth_enabled: false,
+      google_client_id: null,
+      disable_auth: true,
+      allowed_emails: null,
+      local_login_email: null,
   it("accepts null for optional backend-managed config fields", () => {
     const parsed = configContractSchema.parse({
       ...configFixture,
@@ -26,6 +37,24 @@ describe("API contract fixtures", () => {
     expect(parsed.theme).toBeNull();
     expect(parsed.relative_view_enabled).toBeNull();
     expect(parsed.allowed_emails).toBeNull();
+  });
+
+  it("accepts configured non-null config values", () => {
+    const parsed = configContractSchema.parse({
+      app_env: "local",
+      theme: "system",
+      tabs: { group: true },
+      relative_view_enabled: true,
+      google_auth_enabled: true,
+      google_client_id: "client-id-123",
+      disable_auth: false,
+      allowed_emails: ["user@example.com"],
+      local_login_email: "user@example.com",
+    });
+
+    expect(parsed.theme).toBe("system");
+    expect(parsed.relative_view_enabled).toBe(true);
+    expect(parsed.allowed_emails).toEqual(["user@example.com"]);
   });
 
   it("validates the config fixture", () => {

@@ -29,24 +29,43 @@ VERSION_PATTERN = re.compile(
     r'SPA_RESPONSE_CONTRACT_VERSION\s*=\s*(["\'])([^"\']+)\1'
 )
 
+# Matches a line that is a comment in Python (#) or TypeScript (//)
+_COMMENT_LINE = re.compile(r'^\s*(#|//)')
+
+
+def _display_path(path: Path) -> str:
+    """Return a repo-relative path if possible, otherwise the absolute path."""
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
 
 def extract_contract_version(path: Path) -> str:
     """Return the SPA_RESPONSE_CONTRACT_VERSION value from *path*.
 
+    Comment lines (starting with ``#`` or ``//``) are ignored so that
+    a commented-out old version does not trigger the duplicate guard or
+    shadow the real definition.
+
     Raises ValueError if the pattern is not found or appears more than once
-    (e.g. a commented-out old version would otherwise silently shadow the real
-    one if it appeared first in the file).
+    on non-comment lines.
     """
     text = path.read_text(encoding="utf-8")
-    matches = VERSION_PATTERN.findall(text)
+    matches = [
+        m
+        for line in text.splitlines()
+        if not _COMMENT_LINE.match(line)
+        for m in VERSION_PATTERN.findall(line)
+    ]
     if not matches:
         raise ValueError(
-            f"Could not find SPA_RESPONSE_CONTRACT_VERSION in {path.relative_to(ROOT)}"
+            f"Could not find SPA_RESPONSE_CONTRACT_VERSION in {_display_path(path)}"
         )
     if len(matches) > 1:
         raise ValueError(
             f"Found {len(matches)} occurrences of SPA_RESPONSE_CONTRACT_VERSION in "
-            f"{path.relative_to(ROOT)} — expected exactly one. "
+            f"{_display_path(path)} — expected exactly one. "
             "Remove or comment out any duplicate definitions."
         )
     # matches[0] is (quote_char, version_string) from the two capture groups
@@ -64,8 +83,8 @@ def main() -> int:
     if python_version != typescript_version:
         print(
             "ERROR: SPA contract version mismatch — "
-            f"Python ({PYTHON_CONTRACT.relative_to(ROOT)}): {python_version!r}, "
-            f"TypeScript ({TYPESCRIPT_CONTRACT.relative_to(ROOT)}): {typescript_version!r}",
+            f"Python ({_display_path(PYTHON_CONTRACT)}): {python_version!r}, "
+            f"TypeScript ({_display_path(TYPESCRIPT_CONTRACT)}): {typescript_version!r}",
             file=sys.stderr,
         )
         return 1

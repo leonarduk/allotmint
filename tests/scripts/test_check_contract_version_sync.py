@@ -46,16 +46,32 @@ class TestExtractContractVersion:
             extract_contract_version(f)
 
     def test_duplicate_definition_raises(self, tmp_path: Path) -> None:
-        """A commented-out old version appearing before the real one must be caught."""
+        """Two real (non-comment) definitions must raise."""
         f = tmp_path / "dup.py"
         f.write_text(
-            "# SPA_RESPONSE_CONTRACT_VERSION = '0.9'\n"
+            "SPA_RESPONSE_CONTRACT_VERSION = '0.9'\n"
             "SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n"
         )
-        # The comment character is not in the regex, so both lines match.
-        # The duplicate guard should raise rather than silently return '0.9'.
         with pytest.raises(ValueError, match="2 occurrences"):
             extract_contract_version(f)
+
+    def test_commented_out_version_is_ignored(self, tmp_path: Path) -> None:
+        """A commented-out old version must be ignored; only the live one returned."""
+        f = tmp_path / "contracts.py"
+        f.write_text(
+            "# SPA_RESPONSE_CONTRACT_VERSION = '0.9'  # previous version\n"
+            "SPA_RESPONSE_CONTRACT_VERSION = '1.0'\n"
+        )
+        assert extract_contract_version(f) == "1.0"
+
+    def test_typescript_commented_out_version_is_ignored(self, tmp_path: Path) -> None:
+        """TypeScript // comments must also be skipped."""
+        f = tmp_path / "spa.ts"
+        f.write_text(
+            '// SPA_RESPONSE_CONTRACT_VERSION = "0.9";  // old\n'
+            'export const SPA_RESPONSE_CONTRACT_VERSION = "1.0";\n'
+        )
+        assert extract_contract_version(f) == "1.0"
 
     def test_file_not_found_propagates(self, tmp_path: Path) -> None:
         with pytest.raises(OSError):

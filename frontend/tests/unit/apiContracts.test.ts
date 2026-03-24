@@ -64,12 +64,14 @@ describe("API contract fixtures", () => {
   });
 
   it("validates the group portfolio fixture", () => {
-    expect(() => groupPortfolioContractSchema.parse(groupPortfolioFixture)).not.toThrow();
+    const parsed = groupPortfolioContractSchema.parse(groupPortfolioFixture);
+
+    expect(parsed.slug).toBe("all");
+    expect((parsed as Record<string, unknown>).group).toBeUndefined();
   });
 
   it("validates a group portfolio response shape", () => {
     const groupFixture = {
-      group: "children",
       slug: "children",
       name: "Children",
       members: ["alex", "joe"],
@@ -103,7 +105,10 @@ describe("API contract fixtures", () => {
         ISA: 1234.56,
       },
     };
-    expect(() => groupPortfolioContractSchema.parse(groupFixture)).not.toThrow();
+    const parsed = groupPortfolioContractSchema.parse(groupFixture);
+
+    expect(parsed.slug).toBe("children");
+    expect((parsed as Record<string, unknown>).group).toBeUndefined();
   });
 
   it("validates the transactions fixture", () => {
@@ -122,7 +127,10 @@ describe("API contract fixtures", () => {
       subtotals_by_account_type: {},
     };
 
-    expect(() => groupPortfolioContractSchema.parse(payload)).not.toThrow();
+    const parsed = groupPortfolioContractSchema.parse(payload);
+
+    expect(parsed.slug).toBe("all");
+    expect((parsed as Record<string, unknown>).group).toBeUndefined();
   });
 
   it("rejects legacy group portfolio payloads with group instead of slug", () => {

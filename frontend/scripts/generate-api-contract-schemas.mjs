@@ -9,6 +9,7 @@ const payload = {
     config: { path: '/config', schema: apiContractJsonSchemas.config },
     owners: { path: '/owners', schema: apiContractJsonSchemas.owners },
     groups: { path: '/groups', schema: apiContractJsonSchemas.groups },
+    groupPortfolio: { path: '/portfolio-group/all', schema: apiContractJsonSchemas.groupPortfolio },
     portfolio: { path: '/portfolio/alice', schema: apiContractJsonSchemas.portfolio },
     transactions: { path: '/transactions', schema: apiContractJsonSchemas.transactions },
   },

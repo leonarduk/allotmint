@@ -58,7 +58,7 @@ def mock_owner_portfolio():
 
 @pytest.fixture
 def mock_group_portfolio():
-    with patch("backend.common.group_portfolio.build_group_portfolio", return_value={"group": "testslug"}) as p:
+    with patch("backend.common.group_portfolio.build_group_portfolio", return_value={"slug": "testslug"}) as p:
         yield p
 
 
@@ -119,7 +119,7 @@ def test_portfolio(client, mock_owner_portfolio):
 def test_portfolio_group(client, mock_group_portfolio):
     response = client.get("/portfolio-group/children")
     assert response.status_code == 200
-    assert response.json() == {"group": "testslug"}
+    assert response.json() == {"slug": "testslug"}
 
 
 @patch("backend.common.data_loader.load_account", return_value={"account": "ISA"})
@@ -221,7 +221,7 @@ def test_prices_refresh(mock_refresh, client):
 
 
 @patch("backend.common.portfolio_utils.aggregate_by_ticker", return_value=[{"ticker": "ABC"}])
-@patch("backend.common.group_portfolio.build_group_portfolio", return_value={"group": "testslug"})
+@patch("backend.common.group_portfolio.build_group_portfolio", return_value={"slug": "testslug"})
 @patch("backend.common.group_portfolio.list_groups", return_value=mock_groups)
 def test_group_by_instrument(mock_groups, mock_build, mock_aggregate, client):
     response = client.get("/portfolio-group/testslug/instruments")
@@ -235,7 +235,7 @@ def test_group_by_instrument(mock_groups, mock_build, mock_aggregate, client):
 )
 @patch("backend.common.instrument_api.positions_for_ticker", return_value=[{"ticker": "ABC"}])
 @patch("backend.common.group_portfolio.list_groups", return_value=mock_groups)
-@patch("backend.common.group_portfolio.build_group_portfolio", return_value={"group": "testslug"})
+@patch("backend.common.group_portfolio.build_group_portfolio", return_value={"slug": "testslug"})
 def test_instrument_detail(mock_list, mock_build, mock_positions, mock_timeseries, client):
     response = client.get("/portfolio-group/testslug/instrument/ABC")
     assert response.status_code == 200

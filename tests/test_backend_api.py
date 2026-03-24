@@ -216,8 +216,13 @@ def test_valid_group_portfolio(client):
     assert data["accounts"], "Accounts list should not be empty"
     assert "total_value_estimate_gbp" in data
     assert data["total_value_estimate_gbp"] > 0
+    assert "members_summary" in data
+    assert isinstance(data["members_summary"], list)
+    assert "subtotals_by_account_type" in data
+    assert isinstance(data["subtotals_by_account_type"], dict)
     first_acct = data["accounts"][0]
     assert "value_estimate_gbp" in first_acct
+    assert first_acct["account_type"] in data["subtotals_by_account_type"]
     first_holding = first_acct["holdings"][0]
     assert "day_change_gbp" in first_holding
 

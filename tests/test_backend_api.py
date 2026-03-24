@@ -212,6 +212,7 @@ def test_valid_group_portfolio(client):
     assert resp.status_code == 200
     data = resp.json()
     assert "slug" in data and data["slug"] == group_slug
+    assert "group" not in data
     assert "accounts" in data and isinstance(data["accounts"], list)
     assert data["accounts"], "Accounts list should not be empty"
     assert "total_value_estimate_gbp" in data

@@ -1,16 +1,36 @@
 import types
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.testclient import TestClient
 
+from backend.common.errors import AppError
 from backend.routes import compliance as compliance_module
+
+
+def _make_app_with_error_handler() -> FastAPI:
+    """Return a FastAPI instance with the AppError handler registered.
+
+    Test FastAPI instances are bare by default (no bootstrap middleware), so
+    OwnerNotFoundError (an AppError subclass) would propagate as an unhandled
+    exception and produce a 500.  Registering the handler here mirrors what
+    register_middleware does in production.
+    """
+    app = FastAPI()
+
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.safe_detail})
+
+    return app
 
 
 class PayloadRequest:
     """Lightweight request object with a configurable JSON payload."""
 
     def __init__(self, payload):
-        self.app = FastAPI()
+        self.app = _make_app_with_error_handler()
         self._payload = payload
 
     async def json(self):
@@ -19,7 +39,7 @@ class PayloadRequest:
 
 @pytest.fixture
 def fastapi_request():
-    app = FastAPI()
+    app = _make_app_with_error_handler()
     request = types.SimpleNamespace(app=app)
     return app, request
 

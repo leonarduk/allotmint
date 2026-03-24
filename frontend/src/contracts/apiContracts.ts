@@ -126,8 +126,8 @@ export const groupPortfolioContractSchema = z.object({
       trades_this_month: z.number(),
       trades_remaining: z.number(),
     }),
-  ),
-  subtotals_by_account_type: z.record(z.string(), z.number()),
+  ).optional(),
+  subtotals_by_account_type: z.record(z.string(), z.number()).optional(),
 });
 
 export const transactionContractSchema = z.object({

@@ -4,6 +4,8 @@ on:
   pull_request:
     branches: [main]
     types: [opened, reopened, synchronize]
+  push:
+    branches: [main]
 
 jobs:
   integration-tests:
@@ -59,10 +61,12 @@ jobs:
           pytest tests --ignore=tests/live --cov=backend --cov-report=xml --cov-report=term --cov-fail-under=80 -q
           pytest tests/test_backend_api.py::test_health tests/test_accounts_api.py --cov=backend --cov-append --cov-report=xml --cov-report=term --cov-fail-under=80 -q
 
-      - name: Upload coverage reports to Codecov
+      - name: Upload backend coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: leonarduk/allotmint
           files: ./coverage.xml
+          flags: backend
+          name: backend-coverage
           fail_ci_if_error: true

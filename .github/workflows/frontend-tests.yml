@@ -36,6 +36,16 @@ jobs:
         working-directory: frontend
         run: pnpm test -- --run --coverage
 
+      - name: Upload frontend coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: leonarduk/allotmint
+          files: ./frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: true
+
       - name: Sitemap health check
         run: |
           pip install requests

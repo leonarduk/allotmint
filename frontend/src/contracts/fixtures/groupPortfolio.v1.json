@@ -1,8 +1,10 @@
 {
-  "group": "all",
   "name": "At a glance",
   "as_of": "2026-03-23",
-  "members": ["alice", "bob"],
+  "members": [
+    "alice",
+    "bob"
+  ],
   "total_value_estimate_gbp": 12345.67,
   "accounts": [
     {
@@ -32,5 +34,6 @@
   ],
   "subtotals_by_account_type": {
     "ISA": 12345.67
-  }
+  },
+  "slug": "all"
 }

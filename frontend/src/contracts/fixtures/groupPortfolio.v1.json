@@ -1,0 +1,36 @@
+{
+  "group": "all",
+  "name": "At a glance",
+  "as_of": "2026-03-23",
+  "members": ["alice", "bob"],
+  "total_value_estimate_gbp": 12345.67,
+  "accounts": [
+    {
+      "owner": "alice",
+      "account_type": "ISA",
+      "currency": "GBP",
+      "last_updated": "2026-03-22",
+      "value_estimate_gbp": 12345.67,
+      "holdings": []
+    }
+  ],
+  "members_summary": [
+    {
+      "owner": "alice",
+      "total_value_estimate_gbp": 12345.67,
+      "total_value_estimate_currency": null,
+      "trades_this_month": 1,
+      "trades_remaining": 9
+    },
+    {
+      "owner": "bob",
+      "total_value_estimate_gbp": 0,
+      "total_value_estimate_currency": null,
+      "trades_this_month": 0,
+      "trades_remaining": 10
+    }
+  ],
+  "subtotals_by_account_type": {
+    "ISA": 12345.67
+  }
+}

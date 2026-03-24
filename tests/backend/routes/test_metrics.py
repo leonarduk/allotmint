@@ -58,7 +58,7 @@ async def test_get_metrics_raises_http_not_found(monkeypatch):
     monkeypatch.setattr(metrics, "load_metrics", stub_load)
     monkeypatch.setattr(metrics, "raise_owner_not_found", stub_raise_owner_not_found)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(OwnerNotFoundError) as exc:
         await metrics.get_metrics("alex")
 
     assert exc.value.status_code == 404

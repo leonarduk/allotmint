@@ -2,8 +2,6 @@ import asyncio
 import logging
 
 import pytest
-from fastapi import HTTPException
-
 from backend.common.errors import (
     OWNER_NOT_FOUND,
     OwnerNotFoundError,
@@ -30,7 +28,7 @@ def test_handle_owner_not_found_sync():
         raise_owner_not_found()
 
     assert sample(True) == "ok"
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         sample(False)
     assert excinfo.value.status_code == 404
     assert excinfo.value.detail == OWNER_NOT_FOUND
@@ -44,7 +42,7 @@ def test_handle_owner_not_found_async():
         raise_owner_not_found()
 
     assert asyncio.run(sample(True)) == "ok"
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         asyncio.run(sample(False))
     assert excinfo.value.status_code == 404
     assert excinfo.value.detail == OWNER_NOT_FOUND

@@ -37,8 +37,12 @@ async def get_quotes(symbols: str = Query("")) -> List[Dict[str, Any]]:
         tickers = yf.Tickers(" ".join(syms)).tickers
     except Exception as exc:  # pragma: no cover - exercised in tests
         raise ProviderFailure(
-            f"Failed to fetch quotes: {exc}",
-            extra={"provider": "yfinance", "symbols": syms},
+            "Failed to fetch quotes",
+            extra={
+                "provider": "yfinance",
+                "symbols": syms,
+                "provider_error": str(exc),
+            },
         ) from exc
 
     results: List[Dict[str, Any]] = []

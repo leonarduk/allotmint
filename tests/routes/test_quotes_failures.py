@@ -28,11 +28,12 @@ def test_quotes_returns_502_on_yfinance_error(monkeypatch, caplog):
         resp = client.get("/api/quotes?symbols=PFE")
 
     assert resp.status_code == 502
-    assert resp.json()["detail"].startswith("Failed to fetch quotes")
+    assert resp.json()["detail"] == "Upstream provider failure"
     record = caplog.records[-1]
     assert record.error_code == "provider_failure"
     assert record.provider == "yfinance"
     assert record.symbols == ["PFE"]
+    assert record.provider_error == "boom"
     assert record.path == "/api/quotes"
 
 

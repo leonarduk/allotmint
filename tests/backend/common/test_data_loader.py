@@ -9,10 +9,10 @@ from backend.common.data_loader import (
     DATA_BUCKET_ENV,
     ResolvedPaths,
     _build_owner_summary,
+    clear_local_owner_index_cache,
     _list_local_plots,
     _load_demo_owner,
     _extract_account_names,
-    _list_local_plots,
     _merge_accounts,
     _safe_json_load,
     list_plots,
@@ -48,6 +48,13 @@ def _write_owner(
     person_path.write_text(json.dumps(meta))
     for account in accounts:
         (owner_dir / f"{account}.json").write_text("{}")
+
+
+@pytest.fixture(autouse=True)
+def _clear_owner_index_cache() -> None:
+    clear_local_owner_index_cache()
+    yield
+    clear_local_owner_index_cache()
 
 class TestExtractAccountNames:
     def test_dedupes_and_filters_metadata(self, tmp_path: Path) -> None:
@@ -567,20 +574,77 @@ class TestListLocalPlots:
         ]
 
 
+class TestLocalOwnerIndexCache:
+    def test_reuses_cached_owner_index_when_signature_is_unchanged(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        data_root.mkdir()
+        _write_owner(data_root, "alice", ["isa"], viewers=[], full_name="Alice Example")
+
+        build_calls = {"count": 0}
+        original_build = data_loader._build_local_owner_index
+
+        def counting_build(root: Path, signature=None):
+            build_calls["count"] += 1
+            return original_build(root, signature)
+
+        monkeypatch.setattr(data_loader, "_build_local_owner_index", counting_build)
+
+        first = _list_local_plots(data_root=data_root, current_user=None)
+        second = _list_local_plots(data_root=data_root, current_user=None)
+
+        assert first == second == [
+            {"owner": "alice", "accounts": ["isa"], "full_name": "Alice Example"},
+        ]
+        assert build_calls["count"] == 1
+
+    def test_invalidates_cached_owner_index_when_metadata_changes(
+        self, tmp_path: Path
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        data_root.mkdir()
+        _write_owner(data_root, "alice", ["isa"], viewers=[], full_name="Alice One")
+
+        first = _list_local_plots(data_root=data_root, current_user=None)
+        assert first[0]["full_name"] == "Alice One"
+
+        person_path = data_root / "alice" / "person.json"
+        person_path.write_text(json.dumps({"full_name": "Alice Two", "viewers": []}))
+
+        second = _list_local_plots(data_root=data_root, current_user=None)
+        meta = load_person_meta("alice", data_root=data_root)
+
+        assert second[0]["full_name"] == "Alice Two"
+        assert meta["full_name"] == "Alice Two"
+
+    def test_invalidates_cached_owner_index_when_accounts_change(
+        self, tmp_path: Path
+    ) -> None:
+        data_root = tmp_path / "accounts"
+        data_root.mkdir()
+        _write_owner(data_root, "alice", ["isa"], viewers=[])
+
+        first = _list_local_plots(data_root=data_root, current_user=None)
+        assert first == [{"owner": "alice", "accounts": ["isa"]}]
+
+        (data_root / "alice" / "gia.json").write_text("{}")
+
+        second = _list_local_plots(data_root=data_root, current_user=None)
+
+        assert second == [{"owner": "alice", "accounts": ["gia", "isa"]}]
+
+
 class TestLoadDemoOwner:
     def test_returns_demo_summary_when_available(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         demo_root = tmp_path / "data"
         demo_dir = demo_root / "demo"
         demo_dir.mkdir(parents=True)
         (demo_dir / "isa.json").write_text("{}")
 
-        expected_meta = {"full_name": "Demo User", "accounts": ["isa"]}
-        monkeypatch.setattr(
-            "backend.common.data_loader.load_person_meta",
-            lambda owner, root=None: expected_meta,
-        )
+        (demo_dir / "person.json").write_text(json.dumps({"full_name": "Demo User", "viewers": []}))
 
         result = _load_demo_owner(demo_root)
 

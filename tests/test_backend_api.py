@@ -224,6 +224,8 @@ def test_valid_group_portfolio(client):
     assert isinstance(data["members_summary"], list)
     assert "subtotals_by_account_type" in data
     assert isinstance(data["subtotals_by_account_type"], dict)
+    assert "members_summary" in data and isinstance(data["members_summary"], list)
+    assert "subtotals_by_account_type" in data and isinstance(data["subtotals_by_account_type"], dict)
     first_acct = data["accounts"][0]
     assert "value_estimate_gbp" in first_acct
     assert first_acct["account_type"] in data["subtotals_by_account_type"]

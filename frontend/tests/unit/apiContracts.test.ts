@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import configFixture from "@/contracts/fixtures/config.v1.json";
 import groupsFixture from "@/contracts/fixtures/groups.v1.json";
+import groupPortfolioFixture from "@/contracts/fixtures/groupPortfolio.v1.json";
 import ownersFixture from "@/contracts/fixtures/owners.v1.json";
 import portfolioFixture from "@/contracts/fixtures/portfolio.v1.json";
 import transactionsFixture from "@/contracts/fixtures/transactions.v1.json";
@@ -110,6 +111,8 @@ describe("API contract fixtures", () => {
       },
     };
     expect(() => groupPortfolioContractSchema.parse(groupFixture)).not.toThrow();
+  it("validates the group portfolio fixture", () => {
+    expect(() => groupPortfolioContractSchema.parse(groupPortfolioFixture)).not.toThrow();
   });
 
   it("validates the transactions fixture", () => {

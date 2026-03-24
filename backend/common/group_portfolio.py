@@ -109,6 +109,9 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
     from backend.common.portfolio_loader import list_portfolios  # local import avoids cycles
 
     portfolios_to_merge = [pf for pf in list_portfolios() if (pf.get(OWNER, "") or "").lower() in wanted]
+    portfolios_by_owner = {
+        str(pf.get(OWNER, "")): pf for pf in portfolios_to_merge if pf.get(OWNER)
+    }
 
     approvals_map: Dict[str, Dict[str, dt.date]] = {}
     user_cfg_map: Dict[str, Any] = {}
@@ -192,6 +195,37 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
                     "trades_remaining": trades_remaining,
                 }
             )
+        subtotals_by_account_type[account_type] = subtotals_by_account_type.get(account_type, 0.0) + float(
+            account.get("value_estimate_gbp") or 0.0
+        )
+
+    from backend.common import portfolio as portfolio_mod  # local import avoids cycles
+
+    members_summary: List[Dict[str, Any]] = []
+    for owner in grp.get("members", []):
+        owner_portfolio = portfolios_by_owner.get(owner)
+        if owner_portfolio is None:
+            members_summary.append(
+                {
+                    "owner": owner,
+                    "total_value_estimate_gbp": 0.0,
+                    "total_value_estimate_currency": None,
+                    "trades_this_month": 0,
+                    "trades_remaining": 0,
+                }
+            )
+            continue
+
+        owner_details = portfolio_mod.build_owner_portfolio(owner, pricing_date=pricing_date)
+        members_summary.append(
+            {
+                "owner": owner,
+                "total_value_estimate_gbp": float(owner_details.get("total_value_estimate_gbp") or 0.0),
+                "total_value_estimate_currency": owner_details.get("total_value_estimate_currency"),
+                "trades_this_month": int(owner_details.get("trades_this_month") or 0),
+                "trades_remaining": int(owner_details.get("trades_remaining") or 0),
+            }
+        )
 
     return {
         "group": slug,

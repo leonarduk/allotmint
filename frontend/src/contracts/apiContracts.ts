@@ -15,13 +15,13 @@ const tabsSchema = z.record(z.string(), z.boolean());
 export const configContractSchema = z
   .object({
     app_env: z.string(),
-    theme: z.string(),
+    theme: z.string().nullable(),
     tabs: tabsSchema,
-    relative_view_enabled: z.boolean(),
+    relative_view_enabled: z.boolean().nullable(),
     google_auth_enabled: z.boolean().nullable(),
     google_client_id: nullableString,
     disable_auth: z.boolean(),
-    allowed_emails: z.array(z.string()),
+    allowed_emails: z.array(z.string()).nullable(),
     local_login_email: nullableString,
     disabled_tabs: z.array(z.string()).nullable().optional(),
   })

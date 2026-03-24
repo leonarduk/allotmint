@@ -219,7 +219,6 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
         )
 
     return {
-        "group": slug,
         "slug": slug,
         "name": grp["name"],
         "members": grp.get("members", []),

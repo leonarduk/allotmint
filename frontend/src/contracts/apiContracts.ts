@@ -163,6 +163,7 @@ export const apiContractSchemas = {
   config: configContractSchema,
   owners: ownersContractSchema,
   groups: groupsContractSchema,
+  groupPortfolio: groupPortfolioContractSchema,
   portfolio: portfolioContractSchema,
   transactions: transactionsContractSchema,
 } as const;

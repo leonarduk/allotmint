@@ -11,7 +11,7 @@ export interface Holding {
   name: string;
   currency?: string | null;
   units: number;
-  acquired_date: string;
+  acquired_date?: string | null;
   price?: number;
   cost_basis_gbp?: number;
   cost_basis_currency?: string | null;
@@ -48,7 +48,7 @@ export interface Holding {
 export type Account = {
   account_type: string;
   currency: string;
-  last_updated?: string;
+  last_updated?: string | null;
   value_estimate_gbp: number;
   value_estimate_currency?: string | null;
   holdings: Holding[];
@@ -313,9 +313,9 @@ export interface InstrumentDetail {
 export interface Transaction {
   owner: string;
   account: string;
-  id?: string;
-  date?: string;
-  kind?: string;
+  id?: string | null;
+  date?: string | null;
+  kind?: string | null;
   type?: string | null;
   amount_minor?: number | null;
   currency?: string | null;

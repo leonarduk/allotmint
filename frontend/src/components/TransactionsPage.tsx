@@ -90,7 +90,7 @@ export function TransactionsPage({ owners }: Props) {
     handleToggleSelectAllOnPage,
     handlePreviousPage,
     handleNextPage,
-  } = useTransactionsTableState(transactions);
+  } = useTransactionsTableState(transactions ?? undefined);
 
   useEffect(() => {
     resetToFirstPage();

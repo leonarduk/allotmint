@@ -59,6 +59,36 @@ describe('Root bootstrap integration coverage', () => {
       .toHaveAttribute('data-route-state', 'auth')
   })
 
+  it('tolerates null allowed_emails while auth is enabled', async () => {
+    vi.doMock('react-dom/client', () => ({
+      createRoot: () => ({ render: vi.fn() })
+    }))
+
+    vi.doMock('@/api', async importOriginal => {
+      const mod = await importOriginal<typeof import('@/api')>()
+      return {
+        ...mod,
+        getConfig: vi.fn().mockResolvedValue({
+          google_auth_enabled: true,
+          google_client_id: 'client-123',
+          disable_auth: false,
+          allowed_emails: null,
+        }),
+        getStoredAuthToken: vi.fn(() => null)
+      }
+    })
+
+    vi.doMock('@/LoginPage', () => ({
+      default: ({ clientId }: { clientId: string }) => (
+        <div data-testid="login-page">Login ready for {clientId}</div>
+      )
+    }))
+
+    await mountRoot()
+
+    expect(await screen.findByTestId('login-page')).toHaveTextContent('client-123')
+  })
+
   it('restores local-login identity and renders the app when auth is disabled', async () => {
     vi.doMock('react-dom/client', () => ({
       createRoot: () => ({ render: vi.fn() })

@@ -37,6 +37,7 @@ ENDPOINT_FIXTURES = {
     "config": "config.v1.json",
     "owners": "owners.v1.json",
     "groups": "groups.v1.json",
+    "groupPortfolio": "groupPortfolio.v1.json",
     "portfolio": "portfolio.v1.json",
     "transactions": "transactions.v1.json",
 }

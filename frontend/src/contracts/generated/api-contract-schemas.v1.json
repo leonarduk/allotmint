@@ -187,23 +187,26 @@
         }
       }
     },
-    "portfolio": {
-      "path": "/portfolio/alice",
+    "groupPortfolio": {
+      "path": "/portfolio-group/all",
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "owner": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           },
           "as_of": {
             "type": "string"
           },
-          "trades_this_month": {
-            "type": "number"
-          },
-          "trades_remaining": {
-            "type": "number"
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "total_value_estimate_gbp": {
             "type": "number"
@@ -217,6 +220,12 @@
                 "type": "null"
               }
             ]
+          },
+          "trades_this_month": {
+            "type": "number"
+          },
+          "trades_remaining": {
+            "type": "number"
           },
           "accounts": {
             "type": "array",
@@ -280,7 +289,14 @@
                         "type": "number"
                       },
                       "acquired_date": {
-                        "type": "string"
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       },
                       "price": {
                         "type": "number"
@@ -486,8 +502,388 @@
                     "required": [
                       "ticker",
                       "name",
-                      "units",
-                      "acquired_date"
+                      "units"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "account_type",
+                "currency",
+                "value_estimate_gbp",
+                "holdings"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "members_summary": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "owner": {
+                  "type": "string"
+                },
+                "total_value_estimate_gbp": {
+                  "type": "number"
+                },
+                "total_value_estimate_currency": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "trades_this_month": {
+                  "type": "number"
+                },
+                "trades_remaining": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "owner",
+                "total_value_estimate_gbp",
+                "trades_this_month",
+                "trades_remaining"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "subtotals_by_account_type": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "as_of",
+          "members",
+          "total_value_estimate_gbp",
+          "accounts",
+          "members_summary",
+          "subtotals_by_account_type"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "portfolio": {
+      "path": "/portfolio/alice",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string"
+          },
+          "as_of": {
+            "type": "string"
+          },
+          "trades_this_month": {
+            "type": "number"
+          },
+          "trades_remaining": {
+            "type": "number"
+          },
+          "total_value_estimate_gbp": {
+            "type": "number"
+          },
+          "total_value_estimate_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "owner": {
+                  "type": "string"
+                },
+                "account_type": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "last_updated": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "value_estimate_gbp": {
+                  "type": "number"
+                },
+                "value_estimate_currency": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "holdings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "ticker": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "currency": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "units": {
+                        "type": "number"
+                      },
+                      "acquired_date": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "price": {
+                        "type": "number"
+                      },
+                      "cost_basis_gbp": {
+                        "type": "number"
+                      },
+                      "cost_basis_currency": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "effective_cost_basis_gbp": {
+                        "type": "number"
+                      },
+                      "effective_cost_basis_currency": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "market_value_gbp": {
+                        "type": "number"
+                      },
+                      "market_value_currency": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "gain_gbp": {
+                        "type": "number"
+                      },
+                      "gain_currency": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "gain_pct": {
+                        "type": "number"
+                      },
+                      "current_price_gbp": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "current_price_currency": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "last_price_date": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "last_price_time": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "is_stale": {
+                        "type": "boolean"
+                      },
+                      "latest_source": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "day_change_gbp": {
+                        "type": "number"
+                      },
+                      "day_change_currency": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "instrument_type": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "sector": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "region": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "forward_7d_change_pct": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "forward_30d_change_pct": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "days_held": {
+                        "type": "number"
+                      },
+                      "sell_eligible": {
+                        "type": "boolean"
+                      },
+                      "days_until_eligible": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "next_eligible_sell_date": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "ticker",
+                      "name",
+                      "units"
                     ],
                     "additionalProperties": false
                   }
@@ -689,6 +1085,7 @@
               ]
             },
             "synthetic": {
+              "default": false,
               "type": "boolean"
             },
             "instrument_name": {

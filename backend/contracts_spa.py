@@ -34,8 +34,9 @@ class ConfigContract(SpaContractBase):
     google_client_id: str | None = None
     disable_auth: bool
     local_login_email: str | None = None
+    allowed_emails: List[str] | None = None
     theme: str | None = None
-    relative_view_enabled: bool
+    relative_view_enabled: bool | None = None
     base_currency: str | None = None
     tabs: ConfigTabsContract
     disabled_tabs: List[str] = Field(default_factory=list)

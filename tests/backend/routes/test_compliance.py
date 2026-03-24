@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from backend.common.errors import AppError
+from backend.common.errors import AppError, OwnerNotFoundError
 from backend.routes import compliance as compliance_module
 
 
@@ -194,7 +194,7 @@ async def test_compliance_for_owner_missing_directory(tmp_path, monkeypatch, fas
         lambda root, owner: None,
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
@@ -222,7 +222,7 @@ async def test_compliance_for_owner_rejects_unknown_owner(tmp_path, monkeypatch,
         lambda root: {"bob"},
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
@@ -259,7 +259,7 @@ async def test_compliance_for_owner_translates_missing_files(tmp_path, monkeypat
         raise_missing,
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.compliance_for_owner("alice", request)
 
     assert excinfo.value.status_code == 404
@@ -291,7 +291,7 @@ async def test_validate_trade_rejects_blank_owner(tmp_path, monkeypatch):
         lambda req, allow_missing=False: tmp_path,
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.validate_trade(request)
 
     assert excinfo.value.status_code == 404
@@ -320,7 +320,7 @@ async def test_validate_trade_rejects_disallowed_owner(tmp_path, monkeypatch):
         lambda root: {"bob"},
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.validate_trade(request)
 
     assert excinfo.value.status_code == 404
@@ -346,7 +346,7 @@ async def test_validate_trade_requires_known_directory_when_present(tmp_path, mo
         lambda root: {"alice"},
     )
 
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(OwnerNotFoundError) as excinfo:
         await compliance_module.validate_trade(request)
 
     assert excinfo.value.status_code == 404

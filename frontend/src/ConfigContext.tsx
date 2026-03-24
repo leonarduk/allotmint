@@ -54,10 +54,11 @@ export interface AppConfig {
 }
 
 export interface RawConfig {
-  relative_view_enabled?: boolean;
+  relative_view_enabled?: boolean | null;
   tabs?: Partial<TabsConfig>;
   disabled_tabs?: string[];
-  theme?: string;
+  theme?: string | null;
+  allowed_emails?: string[] | null;
 }
 
 const defaultTabs: TabsConfig = {
@@ -237,4 +238,3 @@ function applyTheme(theme: AppConfig["theme"]) {
     root.removeAttribute("data-theme");
   }
 }
-

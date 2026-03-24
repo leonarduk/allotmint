@@ -15,6 +15,19 @@ import {
 } from "@/contracts/apiContracts";
 
 describe("API contract fixtures", () => {
+  it("accepts null for optional backend-managed config fields", () => {
+    const parsed = configContractSchema.parse({
+      ...configFixture,
+      theme: null,
+      relative_view_enabled: null,
+      allowed_emails: null,
+    });
+
+    expect(parsed.theme).toBeNull();
+    expect(parsed.relative_view_enabled).toBeNull();
+    expect(parsed.allowed_emails).toBeNull();
+  });
+
   it("validates the config fixture", () => {
     expect(() => configContractSchema.parse(configFixture)).not.toThrow();
   });
@@ -108,6 +121,14 @@ describe("API contract fixtures", () => {
     expect(apiContractJsonSchemas.config).toMatchObject({
       type: "object",
       required: expect.arrayContaining(["app_env", "tabs", "theme"]),
+      properties: expect.objectContaining({
+        theme: expect.objectContaining({
+          anyOf: expect.arrayContaining([
+            expect.objectContaining({ type: "string" }),
+            expect.objectContaining({ type: "null" }),
+          ]),
+        }),
+      }),
     });
     expect(apiContractJsonSchemas.owners).toMatchObject({ type: "array" });
     expect(apiContractJsonSchemas.portfolio).toMatchObject({ type: "object" });

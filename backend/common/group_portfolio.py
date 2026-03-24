@@ -31,7 +31,10 @@ logger = logging.getLogger("group_portfolio")
 def _trade_counts_for_owner(owner: str, today: dt.date) -> tuple[int, int]:
     """Return (trades_this_month, trades_remaining) for an owner."""
 
-    trades = owner_portfolio.load_trades(owner)
+    try:
+        trades = owner_portfolio.load_trades(owner)
+    except FileNotFoundError:
+        trades = []
     trades_this_month = 0
     for trade in trades:
         trade_date = owner_portfolio._parse_date(trade.get("date"))
@@ -109,9 +112,7 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
     from backend.common.portfolio_loader import list_portfolios  # local import avoids cycles
 
     portfolios_to_merge = [pf for pf in list_portfolios() if (pf.get(OWNER, "") or "").lower() in wanted]
-    portfolios_by_owner = {
-        str(pf.get(OWNER, "")): pf for pf in portfolios_to_merge if pf.get(OWNER)
-    }
+    portfolios_by_owner = {str(pf.get(OWNER, "")).lower(): pf for pf in portfolios_to_merge if pf.get(OWNER)}
 
     approvals_map: Dict[str, Dict[str, dt.date]] = {}
     user_cfg_map: Dict[str, Any] = {}
@@ -175,12 +176,11 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
             account.get("value_estimate_gbp") or 0.0
         )
 
-    from backend.common import portfolio as portfolio_mod  # local import avoids cycles
-
     members_summary: List[Dict[str, Any]] = []
     for owner in grp.get("members", []):
-        owner_portfolio = portfolios_by_owner.get(owner)
-        if owner_portfolio is None:
+        owner_key = str(owner or "").lower()
+        owner_pf = portfolios_by_owner.get(owner_key)
+        if owner_pf is None:
             members_summary.append(
                 {
                     "owner": owner,
@@ -192,7 +192,22 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
             )
             continue
 
-        owner_details = portfolio_mod.build_owner_portfolio(owner, pricing_date=pricing_date)
+        try:
+            owner_details = owner_portfolio.build_owner_portfolio(owner, pricing_date=pricing_date)
+        except FileNotFoundError:
+            trades_this_month, trades_remaining = _trade_counts_for_owner(owner, today)
+            owner_total = sum(
+                float(account.get("value_estimate_gbp") or 0.0)
+                for account in merged_accounts
+                if str(account.get(OWNER) or "").lower() == owner_key
+            )
+            owner_details = {
+                "total_value_estimate_gbp": owner_total,
+                "total_value_estimate_currency": "GBP" if owner_total else None,
+                "trades_this_month": trades_this_month,
+                "trades_remaining": trades_remaining,
+            }
+
         members_summary.append(
             {
                 "owner": owner,
@@ -202,30 +217,6 @@ def build_group_portfolio(slug: str, *, pricing_date: date | None = None) -> Dic
                 "trades_remaining": int(owner_details.get("trades_remaining") or 0),
             }
         )
-        subtotals_by_account_type[account_type] = (
-            subtotals_by_account_type.get(account_type, 0.0)
-            + float(account.get("value_estimate_gbp") or 0.0)
-        )
-
-    members_summary: List[Dict[str, Any]] = []
-    if slug != "all":
-        member_values: Dict[str, float] = {member: 0.0 for member in grp.get("members", [])}
-        for account in merged_accounts:
-            owner = str(account.get(OWNER) or "").strip()
-            if owner:
-                member_values[owner] = member_values.get(owner, 0.0) + float(account.get("value_estimate_gbp") or 0.0)
-
-        for member in grp.get("members", []):
-            trades_this_month, trades_remaining = _trade_counts_for_owner(member, today)
-            members_summary.append(
-                {
-                    "owner": member,
-                    "total_value_estimate_gbp": member_values.get(member, 0.0),
-                    "total_value_estimate_currency": "GBP",
-                    "trades_this_month": trades_this_month,
-                    "trades_remaining": trades_remaining,
-                }
-            )
 
     return {
         "group": slug,

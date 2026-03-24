@@ -8,7 +8,7 @@ vi.mock("@/api");
 const mockGetGroupPortfolio = vi.mocked(api.getGroupPortfolio);
 
 const samplePortfolio: GroupPortfolio = {
-  group: "g",
+  slug: "g",
   name: "Group",
   as_of: "2024-01-01",
   members: [],
@@ -62,4 +62,3 @@ describe("AllocationCharts page", () => {
     expect(screen.queryByText(/Loading/)).not.toBeInTheDocument();
   });
 });
-

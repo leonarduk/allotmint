@@ -20,6 +20,10 @@ RUN apt-get update && \
 RUN curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && \
     chmod +x /usr/local/bin/docker-compose
 
+# Add jenkins user to the root group so it can access /var/run/docker.sock
+# (Docker Desktop on Windows exposes the socket owned by root:root)
+RUN usermod -aG root jenkins
+
 USER jenkins
 
 # Pre-install plugins

@@ -55,9 +55,11 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
 
     Contract:
     - Output values are always GBP-normalised regardless of source columns.
-    - If ``Close_gbp``/``close_gbp`` exists, use it directly.
+    - If ``Close_gbp``/``close_gbp`` exists, use it directly (already in GBP).
     - Otherwise use native close (``Close``/``close``/``Adj Close``) and convert
-      to GBP using instrument currency metadata and FX rates.
+      to GBP using instrument currency metadata and FX rates:
+      - Pence-denominated instruments (GBX, GBXP) are divided by 100.
+      - All other non-GBP currencies are converted via ``_fx_to_base``.
 
     Additional behaviour:
     - Uses end_date = yesterday
@@ -125,12 +127,16 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             if close_gbp_col is None:
                 full_ticker = f"{ticker}.{exchange}"
                 meta = get_instrument_meta(full_ticker) or {}
-                currency = str(meta.get("currency") or "GBP").strip().upper()
-                if currency == "GBP" and str(meta.get("currency") or "").lower().endswith("p"):
-                    currency = "GBX"
-                if currency in {"GBX", "GBXP", "GBPX"}:
-                    currency = "GBP"
-                if currency and currency != "GBP":
+                # Preserve the raw metadata currency string for pence detection
+                # before normalising to uppercase, since GBX/GBp are pence.
+                raw_currency = str(meta.get("currency") or "GBP").strip()
+                currency = raw_currency.upper()
+
+                # Pence-denominated instruments: divide by 100, do not apply FX.
+                # Recognised pence codes: GBX (Bloomberg/Yahoo), GBXP, GBp (raw).
+                if currency in {"GBX", "GBXP"} or raw_currency == "GBp":
+                    val /= 100.0
+                elif currency != "GBP":
                     val *= _fx_to_base(currency, "GBP", fx_cache)
 
             # store using the EXACT key your frontend expects

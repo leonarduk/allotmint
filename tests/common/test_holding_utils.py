@@ -99,6 +99,41 @@ def test_load_latest_prices_does_not_double_convert_close_gbp(monkeypatch):
 
     assert prices == {"VUSA.L": pytest.approx(79.0)}
 
+
+@pytest.mark.parametrize("raw_currency", ["GBX", "GBXP", "GBp"])
+def test_load_latest_prices_gbx_pence_instrument(monkeypatch, raw_currency):
+    """Pence-denominated instruments (GBX / GBp) must be divided by 100.
+
+    A native close of 10_000 pence should yield 100.0 pounds.
+    FX conversion must NOT be called — pence->pounds is arithmetic, not FX.
+    """
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("HFEL", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"Date": [dt.date(2024, 1, 1)], "Close": [10_000.0]}
+        ),
+    )
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
+    monkeypatch.setattr(
+        holding_utils, "get_instrument_meta", lambda *_: {"currency": raw_currency}
+    )
+
+    def _boom_fx(*args, **kwargs):
+        raise AssertionError(
+            f"_fx_to_base must not be called for pence currency {raw_currency!r}"
+        )
+
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", _boom_fx)
+
+    prices = holding_utils.load_latest_prices(["HFEL.L"])
+
+    assert prices == {"HFEL.L": pytest.approx(100.0)}
+
+
 def test_load_latest_prices_handles_malformed(monkeypatch, caplog):
     def boom(*args, **kwargs):
         raise ValueError("bad data")

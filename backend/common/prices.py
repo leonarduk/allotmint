@@ -98,6 +98,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
 
         info = {
             "last_price": price,
+            "price_currency": "GBP",
             "change_7d_pct": None,
             "change_30d_pct": None,
             "last_price_date": last_trading_day.isoformat(),

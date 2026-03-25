@@ -625,7 +625,11 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             price = snap.get("last_price") if isinstance(snap, dict) else None
             if price and price == price:  # guard against None/NaN/0
-                native_currency = _normalize_currency_code(row.get("currency"))
+                raw_snapshot_currency = snap.get("price_currency") if isinstance(snap, dict) else None
+                if raw_snapshot_currency:
+                    native_currency = _normalize_currency_code(raw_snapshot_currency)
+                else:
+                    native_currency = _normalize_currency_code(row.get("currency"))
                 native_price = _safe_num(price)
                 # Prices for GBX instruments are in pence; convert to GBP first.
                 if native_currency == "GBX":
@@ -709,6 +713,10 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 if grouping_value:
                     row["grouping"] = grouping_value
                     row["_grouping_from_fallback"] = True
+
+    for r in rows.values():
+        if r.get("last_price_gbp") is None and _safe_num(r.get("units")):
+            r["last_price_gbp"] = _safe_num(r.get("market_value_gbp")) / _safe_num(r.get("units"))
 
     rate = _fx_to_base("GBP", base_currency, fx_cache)
     for r in rows.values():

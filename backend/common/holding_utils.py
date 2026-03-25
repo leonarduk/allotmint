@@ -53,7 +53,12 @@ def _lower_name_map(df: pd.DataFrame) -> Dict[str, str]:
 def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     """
     Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77}.
-    Prices are GBP-converted when that column is available.
+    Contract: returned prices are always in GBP.
+
+    If a GBP close column is present (e.g. ``Close_gbp``), it is used directly.
+    Otherwise, the native close is converted to GBP using instrument metadata
+    currency + current FX rates.
+
     - Uses end_date = yesterday
     - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
     - Skips empties instead of returning 0.00
@@ -66,6 +71,9 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     start_date, end_date = calc.lookback_range(365)
 
     from backend.common import instrument_api
+    from backend.common.portfolio_utils import _fx_to_base
+
+    fx_cache: Dict[str, float] = {}
 
     for full in full_tickers:
         resolved = instrument_api._resolve_full_ticker(full, result)
@@ -94,11 +102,13 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
 
             # prefer GBP-close column if present
-            close_col = None
-            for col in ("Close_gbp", "Close", "close_gbp", "close"):
-                if col in df.columns:
-                    close_col = col
-                    break
+            name_map = _lower_name_map(df)
+            close_col = (
+                name_map.get("close_gbp")
+                or name_map.get("close")
+                or name_map.get("adj close")
+                or name_map.get("adj_close")
+            )
             if not close_col:
                 continue
 
@@ -108,6 +118,13 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             val = float(last[close_col])
             if not (val == val and val != float("inf") and val != float("-inf")):
                 continue  # skip NaN/inf
+
+            # Enforce GBP output contract.
+            if close_col.lower() != "close_gbp":
+                meta = get_instrument_meta(f"{ticker}.{exchange}") or get_instrument_meta(ticker) or {}
+                currency = str(meta.get("currency") or "GBP").upper()
+                if currency != "GBP":
+                    val *= _fx_to_base(currency, "GBP", fx_cache)
 
             # store using the EXACT key your frontend expects
             key = f"{ticker}.{exchange}"

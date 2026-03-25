@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from backend.common import prices
+from backend.common import portfolio_utils
 
 
 def test_close_on_falls_back_to_close_column(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -47,6 +48,23 @@ def test_close_on_returns_none_when_no_price_columns(monkeypatch: pytest.MonkeyP
     )
 
     assert prices._close_on("ABC", "N", sample_date) is None
+
+
+def test_close_on_converts_native_currency_to_gbp(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``_close_on`` should convert native close prices to GBP when needed."""
+
+    sample_date = date(2024, 5, 8)
+    frame = pd.DataFrame({"Close": [100.0]})
+
+    monkeypatch.setattr(prices, "_nearest_weekday", lambda d, forward=False: sample_date)
+    monkeypatch.setattr(prices, "load_meta_timeseries_range", lambda *args, **kwargs: frame)
+
+    from backend.common import portfolio_utils
+
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda *_: 0.8)
+    monkeypatch.setattr("backend.common.instruments.get_instrument_meta", lambda *_: {"currency": "USD"})
+
+    assert prices._close_on("USDX", "US", sample_date) == pytest.approx(80.0)
 
 
 def test_get_price_snapshot_handles_stale_and_missing_data(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -166,3 +184,35 @@ def test_build_securities_and_get_security_meta(monkeypatch: pytest.MonkeyPatch)
     assert prices.get_security_meta("abc") == {"ticker": "ABC", "name": "Alpha"}
     assert prices.get_security_meta("DEF") == {"ticker": "DEF", "name": "DEF"}
     assert prices.get_security_meta("missing") is None
+
+
+def test_last_close_fallback_snapshot_does_not_double_convert_fx(monkeypatch: pytest.MonkeyPatch) -> None:
+    """USD last-close fallback should remain single-converted when aggregated."""
+
+    ticker = "USDX.US"
+    monkeypatch.setattr(prices, "_load_latest_prices", lambda _: {ticker: 80.0})
+    monkeypatch.setattr(prices, "load_live_prices", lambda _: {})
+    monkeypatch.setattr(prices, "_close_on", lambda *_: 80.0)
+    monkeypatch.setattr(prices.instrument_api, "_resolve_full_ticker", lambda full, latest: ("USDX", "US"))
+
+    snapshot = prices.get_price_snapshot([ticker])
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", snapshot, raising=False)
+    monkeypatch.setattr(portfolio_utils.instrument_api, "_resolve_full_ticker", lambda t, _: ("USDX", "US"))
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _: {"currency": "USD", "name": "USD X"})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _: {})
+    monkeypatch.setattr(portfolio_utils.instrument_api, "price_change_pct", lambda *_: None)
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda c, b, cache: 0.8 if c == "USD" else 1.0)
+
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {"ticker": ticker, "exchange": "US", "units": 2, "cost_basis_gbp": 100.0, "currency": "USD"}
+                ]
+            }
+        ]
+    }
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    assert rows[0]["last_price_gbp"] == pytest.approx(80.0)
+    assert rows[0]["market_value_gbp"] == pytest.approx(160.0)

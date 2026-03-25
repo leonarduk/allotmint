@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConfig } from '../ConfigContext';
@@ -78,7 +78,13 @@ export default function Menu({
   );
 
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const firstLinkRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setOpenCategory(null);
+  }, [location.pathname]);
 
   const registerFirstFocusable =
     (categoryId: string) => (element: HTMLElement | null) => {
@@ -97,7 +103,19 @@ export default function Menu({
 
   return (
     <nav className="mb-4" style={style}>
-      <ul className="flex list-none flex-wrap items-center gap-4 border-b border-gray-200 pb-4">
+      <button
+        type="button"
+        aria-expanded={mobileMenuOpen}
+        aria-controls="app-main-menu"
+        className="mb-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-gray-300 px-4 text-sm font-medium text-gray-700 sm:hidden"
+        onClick={() => setMobileMenuOpen((current) => !current)}
+      >
+        {mobileMenuOpen ? t('app.close') : t('app.menu')}
+      </button>
+      <ul
+        id="app-main-menu"
+        className={`${mobileMenuOpen ? 'flex' : 'hidden'} list-none flex-col gap-3 border-b border-gray-200 pb-4 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:gap-4`}
+      >
         {categoriesToRender.map((category) => {
           const isOpen = category.id === openCategory;
           const containsActiveTab = category.tabs.some((tab) => tab.mode === mode);
@@ -106,13 +124,13 @@ export default function Menu({
           const assignFirstFocusable = registerFirstFocusable(category.id);
 
           return (
-            <li key={category.id} className="relative">
+            <li key={category.id} className="relative w-full sm:w-auto">
               <button
                 id={buttonId}
                 type="button"
                 aria-expanded={isOpen}
                 aria-controls={panelId}
-                className={`flex min-w-[8rem] items-center justify-between gap-2 rounded px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring ${
+                className={`flex min-h-11 w-full items-center justify-between gap-2 rounded px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring sm:min-w-[8rem] sm:w-auto ${
                   isOpen || containsActiveTab
                     ? 'bg-gray-100 text-gray-900'
                     : 'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -146,7 +164,7 @@ export default function Menu({
                 role="menu"
                 aria-labelledby={buttonId}
                 aria-hidden={!isOpen}
-                className={`absolute left-0 right-auto top-full z-20 mt-2 w-max min-w-[12rem] rounded-md border border-[var(--drawer-border-color)] bg-[var(--drawer-bg)] p-3 text-[var(--drawer-text-color)] shadow-lg transition-[opacity,transform] duration-150 opacity-100 ${
+                className={`z-20 mt-2 min-w-[12rem] rounded-md border border-[var(--drawer-border-color)] bg-[var(--drawer-bg)] p-3 text-[var(--drawer-text-color)] shadow-lg transition-[opacity,transform] duration-150 opacity-100 sm:absolute sm:left-0 sm:right-auto sm:top-full sm:w-max ${
                   isOpen ? 'block' : 'hidden'
                 }`}
                 onKeyDown={(event) => {
@@ -166,6 +184,7 @@ export default function Menu({
                           owner: selectedOwner,
                           group: selectedGroup,
                         })}
+                        onClick={() => setMobileMenuOpen(false)}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           mode === tab.mode
                             ? 'font-semibold text-gray-900'
@@ -182,6 +201,7 @@ export default function Menu({
                         ref={assignFirstFocusable}
                         role="menuitem"
                         to={inSupport ? buildPathForMode('group', { group: selectedGroup }) : buildPathForMode('support')}
+                        onClick={() => setMobileMenuOpen(false)}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           inSupport
                             ? 'font-semibold text-gray-900'
@@ -199,7 +219,7 @@ export default function Menu({
                         type="button"
                         role="menuitem"
                         onClick={onLogout}
-                        className="block w-full rounded px-2 py-1 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                        className="block min-h-11 w-full rounded px-2 py-1 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
                       >
                         {t('app.logout')}
                       </button>

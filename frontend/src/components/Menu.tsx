@@ -80,11 +80,40 @@ export default function Menu({
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const firstLinkRefs = useRef<Record<string, HTMLElement | null>>({});
+  const mobileMenuRef = useRef<HTMLElement | null>(null);
 
+  // Close mobile menu and open category on route change
   useEffect(() => {
     setMobileMenuOpen(false);
     setOpenCategory(null);
   }, [location.pathname]);
+
+  // Close mobile menu when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(event.target as Node)
+      ) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
 
   const registerFirstFocusable =
     (categoryId: string) => (element: HTMLElement | null) => {
@@ -102,7 +131,7 @@ export default function Menu({
     };
 
   return (
-    <nav className="mb-4" style={style}>
+    <nav className="mb-4" style={style} ref={mobileMenuRef as React.Ref<HTMLElement>}>
       <button
         type="button"
         aria-expanded={mobileMenuOpen}
@@ -184,7 +213,6 @@ export default function Menu({
                           owner: selectedOwner,
                           group: selectedGroup,
                         })}
-                        onClick={() => setMobileMenuOpen(false)}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           mode === tab.mode
                             ? 'font-semibold text-gray-900'
@@ -201,7 +229,6 @@ export default function Menu({
                         ref={assignFirstFocusable}
                         role="menuitem"
                         to={inSupport ? buildPathForMode('group', { group: selectedGroup }) : buildPathForMode('support')}
-                        onClick={() => setMobileMenuOpen(false)}
                         className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           inSupport
                             ? 'font-semibold text-gray-900'

@@ -2,34 +2,15 @@ import { defineConfig } from 'vitest/config'
 import type { PluginOption } from 'vite'
 import type { UserConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
 import path from 'node:path'
-import { accessSync, constants } from 'node:fs'
-import { createRequire } from 'node:module'
 import fg from 'fast-glob'
 
-const staticDir = path.resolve(__dirname, 'dist')
 const pageRoutes: string[] = []
-
-const require = createRequire(import.meta.url)
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
   const plugins: PluginOption[] = [
-    ...react(),
-    ...VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['vite.svg'],
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'service-worker.ts',
-      manifest: false,
-      // enable service worker in dev but avoid caching dev assets
-      devOptions: { enabled: true, type: 'module', disableRuntimeConfig: true },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}']
-      }
-    })
+    ...react()
   ]
 
   if (command === 'build') {
@@ -40,47 +21,9 @@ export default defineConfig(({ command }) => {
     pageRoutes.push(
       ...files.map((file) => `/${path.basename(file, '.tsx').toLowerCase()}`)
     )
-    const prerenderFlag = process.env.ENABLE_PRERENDER
-    const lifecycleEvent = process.env.npm_lifecycle_event
-    const forcePrerender = prerenderFlag === 'true'
-    const skipPrerender =
-      !forcePrerender &&
-      (prerenderFlag === 'false' || lifecycleEvent === 'build:preview')
-    if (!skipPrerender) {
-      let canPrerender = true
-      if (!forcePrerender) {
-        try {
-          const puppeteer = require('puppeteer') as {
-            executablePath?: () => string
-          }
-          const executable = puppeteer.executablePath?.() ?? ''
-          if (!executable) {
-            canPrerender = false
-          } else {
-            try {
-              accessSync(executable, constants.X_OK)
-            } catch {
-              canPrerender = false
-            }
-          }
-        } catch (error) {
-          canPrerender = false
-        }
-      }
-
-      if (canPrerender) {
-        const vitePrerender = require('vite-plugin-prerender')
-        const prerenderPlugin = vitePrerender({
-          staticDir,
-          routes: ['/', ...pageRoutes]
-        })
-        plugins.push(...(Array.isArray(prerenderPlugin) ? prerenderPlugin : [prerenderPlugin]))
-      } else {
-        console.warn(
-          '[vite] Skipping prerender step because Puppeteer could not be launched. '
-            + 'Set ENABLE_PRERENDER=true to force-enable if dependencies are installed.'
-        )
-      }
+    const prerenderRoutes = ['/', ...pageRoutes]
+    if (prerenderRoutes.length > 0) {
+      console.info(`[vite] Skipping legacy prerender plugin; computed ${prerenderRoutes.length} routes.`)
     }
   }
 
@@ -133,4 +76,3 @@ export default defineConfig(({ command }) => {
   }
   return config
 })
-

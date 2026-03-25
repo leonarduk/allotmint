@@ -36,10 +36,10 @@ pyarrow~=21.0.0
 numexpr~=2.11.0
 python-dateutil~=2.9.0post0
 certifi~=2025.7.14
-starlette~=0.47.2
+starlette~=0.47.3
 
 pydantic~=2.11.7
-requests~=2.32.3
+requests~=2.32.5
 peewee~=3.18.2
 numpy~=2.3.1
 pyarrow~=21.0.0

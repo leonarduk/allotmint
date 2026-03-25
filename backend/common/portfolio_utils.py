@@ -155,6 +155,10 @@ def _normalize_currency_code(currency: str | None) -> str:
 
     raw = (currency or "").strip()
     if not raw:
+        logger.warning(
+            "_normalize_currency_code received empty/missing currency; defaulting to GBP. "
+            "Check instrument metadata."
+        )
         return "GBP"
     if raw == "GBp":
         return "GBX"

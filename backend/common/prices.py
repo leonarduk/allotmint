@@ -23,6 +23,12 @@ Note on price_currency semantics
   the instrument's native currency (e.g. USD, GBp).  We emit the real currency
   code so that ``portfolio_utils.aggregate_by_ticker`` can apply the correct FX
   conversion via its ``_normalize_currency_code`` / ``_fx_to_base`` logic.
+
+  IMPORTANT: currency codes are emitted with their original case from metadata.
+  "GBp" (mixed-case) is the conventional notation for pence and must NOT be
+  uppercased to "GBP" — doing so would lose the pence signal and cause
+  aggregate_by_ticker to skip the /100 correction, producing 100x overvaluation
+  for LSE instruments priced in pence.
 """
 
 from __future__ import annotations
@@ -80,11 +86,17 @@ def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
 def _instrument_currency(full_ticker: str) -> str:
     """Return the native currency for *full_ticker* from instrument metadata.
 
+    The currency code is returned with its original case from the metadata file.
+    Do NOT uppercase it: "GBp" (pence) must be preserved as-is so that
+    ``_normalize_currency_code`` in portfolio_utils can detect it and apply
+    the pence→pounds /100 correction.  Uppercasing "GBp" to "GBP" would
+    silently cause a 100x overvaluation for LSE instruments.
+
     Falls back to "GBP" when metadata is unavailable or the currency field is
     absent, which is the safe default for LSE-listed instruments.
     """
     meta = get_instrument_meta(full_ticker)
-    ccy = (meta.get("currency") or "").strip().upper()
+    ccy = (meta.get("currency") or "").strip()  # strip whitespace only — preserve case
     return ccy if ccy else "GBP"
 
 
@@ -95,7 +107,8 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     cache via ``fetch_meta_timeseries`` beforehand. Missing data results in
     ``None`` values so downstream consumers can skip incomplete entries.
 
-    ``price_currency`` reflects the *actual* currency of ``last_price``:
+    ``price_currency`` reflects the *actual* currency of ``last_price``
+    with original case preserved (e.g. "GBp" not "GBP" for pence):
     - Live-price path: ``load_live_prices`` already converts to GBP → "GBP".
     - Last-close fallback: native instrument currency so that
       ``portfolio_utils.aggregate_by_ticker`` can apply FX via its own logic.
@@ -129,7 +142,8 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         elif last_close is not None:
             price = float(last_close)
             # no timestamp -> treat as stale
-            # Emit the real instrument currency so portfolio_utils can apply FX
+            # Emit the real instrument currency (case-preserved) so
+            # portfolio_utils can apply FX and pence correction correctly.
             price_currency = _instrument_currency(full)
         else:
             price_currency = "GBP"

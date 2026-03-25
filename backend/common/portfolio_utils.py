@@ -139,6 +139,31 @@ def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float
     return cur_rate / base_rate
 
 
+def _normalize_currency_code(currency: str | None) -> str:
+    """Normalise currency variants used across feeds/metadata.
+
+    Returns a canonical uppercase currency code, with one special case:
+    pence-style variants ("GBp", "GBX", "GBXP", "GBPX") are all mapped to
+    "GBX", which callers use as a signal to divide the price by 100 before
+    FX conversion.
+
+    Note: "GBX" is not a standard ISO 4217 code but is a widely-used
+    convention for GBp in financial data.  _fx_to_base does not handle "GBX"
+    directly — callers must convert GBX→GBP (divide by 100, set currency to
+    "GBP") before calling _fx_to_base.
+    """
+
+    raw = (currency or "").strip()
+    if not raw:
+        return "GBP"
+    if raw == "GBp":
+        return "GBX"
+    upper = raw.upper()
+    if upper in {"GBX", "GBXP", "GBPX"}:
+        return "GBX"
+    return upper
+
+
 # ──────────────────────────────────────────────────────────────
 # Snapshot loader (last_price / deltas)
 # ──────────────────────────────────────────────────────────────
@@ -611,11 +636,35 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             price = snap.get("last_price") if isinstance(snap, dict) else None
             if price and price == price:  # guard against None/NaN/0
-                row["last_price_gbp"] = price
+                raw_snapshot_currency = snap.get("price_currency") if isinstance(snap, dict) else None
+                if raw_snapshot_currency:
+                    native_currency = _normalize_currency_code(raw_snapshot_currency)
+                else:
+                    # Fallback: derive currency from holding/instrument metadata.
+                    # Logged at debug level so missing price_currency on legacy
+                    # snapshot entries is visible without being noisy.
+                    logger.debug(
+                        "snap for %s missing price_currency; falling back to row currency %s",
+                        full_tkr,
+                        row.get("currency"),
+                    )
+                    native_currency = _normalize_currency_code(row.get("currency"))
+                native_price = _safe_num(price)
+                # Prices for GBX instruments are in pence; convert to GBP first.
+                # Note: GBX is an internal convention (“pence”); _fx_to_base does
+                # not handle it — we convert to GBP (divide by 100) before the
+                # FX call so the rate lookup always uses a real ISO code.
+                if native_currency == "GBX":
+                    native_price *= 0.01
+                    native_currency = "GBP"
+                fx_to_gbp = _fx_to_base(native_currency, "GBP", fx_cache)
+                gbp_price = native_price * fx_to_gbp
+
+                row["last_price_gbp"] = gbp_price
                 row["last_price_date"] = snap.get("last_price_date")
                 row["last_price_time"] = snap.get("last_price_time")
                 row["is_stale"] = snap.get("is_stale")
-                row["market_value_gbp"] = round(row["units"] * price, 2)
+                row["market_value_gbp"] = round(row["units"] * gbp_price, 2)
                 row["gain_gbp"] = (
                     round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
                 )
@@ -686,6 +735,23 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 if grouping_value:
                     row["grouping"] = grouping_value
                     row["_grouping_from_fallback"] = True
+
+    for r in rows.values():
+        # Derive last_price_gbp from market_value_gbp / units when no snapshot
+        # price was available.
+        # Guards:
+        #   - market_value_gbp must be non-None (avoids _safe_num(None)=0.0 silently
+        #     producing last_price_gbp=0.0 and making the position appear unpriced)
+        #   - market_value_gbp must be non-zero (a written-off / zeroed position
+        #     should stay last_price_gbp=None, not 0.0)
+        #   - units must be non-zero (checked via _safe_num truthiness)
+        if (
+            r.get("last_price_gbp") is None
+            and r.get("market_value_gbp") is not None
+            and _safe_num(r.get("market_value_gbp")) != 0
+            and _safe_num(r.get("units"))
+        ):
+            r["last_price_gbp"] = _safe_num(r.get("market_value_gbp")) / _safe_num(r.get("units"))
 
     rate = _fx_to_base("GBP", base_currency, fx_cache)
     for r in rows.values():

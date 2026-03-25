@@ -3,6 +3,19 @@ import backend.common.portfolio_utils as portfolio_utils
 from backend.common import instrument_api as ia
 
 
+def _fake_fx(rates: dict):
+    """Return a fetch_fx_rate_range mock that returns per-currency rates.
+
+    ``rates`` maps currency code (uppercase) to the GBP rate for that currency,
+    e.g. {"USD": 0.8} means 1 USD = 0.8 GBP.
+    """
+    def _fetch(base: str, quote: str, start, end):
+        import pandas as pd
+        rate = rates.get(base.upper(), 1.0)
+        return pd.DataFrame({"Date": [start], "Rate": [rate]})
+    return _fetch
+
+
 def test_currency_from_instrument_meta(monkeypatch):
     portfolio = {"accounts": [{"holdings": [{"ticker": "ABC", "units": 1}]}]}
 
@@ -26,20 +39,10 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
         ]
     }
 
-    monkeypatch.setattr(
-        portfolio_utils,
-        "get_instrument_meta",
-        lambda t: {"currency": "USD"},
-    )
-
-    def fake_fetch(base: str, quote: str, start, end):
-        import pandas as pd
-
-        rates = {"USD": 0.8, "EUR": 0.9}
-        return pd.DataFrame({"Date": [start], "Rate": [rates[base]]})
-
-    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", fake_fetch)
-    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 100}})
+    # Explicitly empty snapshot so this test is hermetic regardless of run order.
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda t: {"currency": "USD"})
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", _fake_fx({"USD": 0.8, "EUR": 0.9}))
 
     rows_usd = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="USD")
     assert len(rows_usd) == 1
@@ -58,6 +61,78 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
     assert rows_eur[0]["cost_gbp"] == round(90 * rate_eur, 2)
     assert rows_eur[0]["last_price_gbp"] == pytest.approx(100 * rate_eur, rel=1e-4)
     assert rows_eur[0]["market_value_currency"] == "EUR"
+
+
+def test_aggregate_by_ticker_snapshot_price_is_fx_converted(monkeypatch):
+    """Exercises the fallback path: no price_currency in snapshot, falls back to
+    row currency from instrument metadata."""
+    portfolio = {"accounts": [{"holdings": [{"ticker": "ABC", "units": 2.0, "cost_gbp": 0.0}]}]}
+
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {"currency": "USD"})
+    # USD rate: 0.8 means 1 USD = 0.8 GBP.  Mock differentiates by currency so
+    # the test would fail if the rate direction were inverted.
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", _fake_fx({"USD": 0.8}))
+    # No price_currency in snapshot -> falls back to row.get("currency") from metadata
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 100.0}})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    assert len(rows) == 1
+    # 2 units * 100 USD * 0.8 (USD->GBP) = 160 GBP
+    assert rows[0]["market_value_gbp"] == 160.0
+    assert rows[0]["last_price_gbp"] == pytest.approx(80.0)
+
+
+def test_aggregate_by_ticker_snapshot_price_currency_field(monkeypatch):
+    """Exercises the primary path: price_currency is present in the snapshot dict.
+    This tests snap.get("price_currency") directly rather than the metadata fallback."""
+    portfolio = {"accounts": [{"holdings": [{"ticker": "ABC", "units": 5.0, "cost_gbp": 0.0}]}]}
+
+    # USD rate: 0.8.  Mock differentiates so inverted rate would fail.
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", _fake_fx({"USD": 0.8}))
+    # price_currency explicitly set in snapshot -> primary path, metadata not needed
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {"ABC.L": {"last_price": 50.0, "price_currency": "USD"}},
+    )
+    # Instrument metadata has no currency — confirms price_currency from snapshot is used
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    assert len(rows) == 1
+    # 5 units * 50 USD * 0.8 (USD->GBP) = 200 GBP
+    assert rows[0]["market_value_gbp"] == pytest.approx(200.0)
+    assert rows[0]["last_price_gbp"] == pytest.approx(40.0)
+
+
+def test_aggregate_by_ticker_snapshot_price_handles_gbpence(monkeypatch):
+    portfolio = {"accounts": [{"holdings": [{"ticker": "ABC.L", "units": 10.0, "cost_gbp": 0.0}]}]}
+
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {"currency": "GBp"})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 250.0}})
+    # GBX->GBP short-circuits in _fx_to_base (same currency after conversion),
+    # but patch defensively to prevent any live network call.
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", _fake_fx({"GBP": 1.0}))
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    assert len(rows) == 1
+    # 250 pence = £2.50; 10 units * £2.50 = £25.00
+    assert rows[0]["last_price_gbp"] == pytest.approx(2.5)
+    assert rows[0]["market_value_gbp"] == 25.0
+
+
+def test_aggregate_by_ticker_snapshot_price_keeps_gbp(monkeypatch):
+    portfolio = {"accounts": [{"holdings": [{"ticker": "ABC.L", "units": 10.0, "cost_gbp": 0.0}]}]}
+
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {"currency": "GBP"})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 250.0}})
+    # GBP->GBP short-circuits, but patch defensively.
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", _fake_fx({"GBP": 1.0}))
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    assert len(rows) == 1
+    assert rows[0]["last_price_gbp"] == pytest.approx(250.0)
+    assert rows[0]["market_value_gbp"] == 2500.0
 
 
 def test_aggregate_by_ticker_sets_grouping(monkeypatch):

@@ -85,6 +85,18 @@ def test_aggregate_by_ticker_snapshot_price_handles_gbpence(monkeypatch):
     assert rows[0]["market_value_gbp"] == 25.0
 
 
+def test_aggregate_by_ticker_snapshot_price_keeps_gbp(monkeypatch):
+    portfolio = {"accounts": [{"holdings": [{"ticker": "ABC.L", "units": 10.0, "cost_gbp": 0.0}]}]}
+
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {"currency": "GBP"})
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 250.0}})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    assert len(rows) == 1
+    assert rows[0]["last_price_gbp"] == pytest.approx(250.0)
+    assert rows[0]["market_value_gbp"] == 2500.0
+
+
 def test_aggregate_by_ticker_sets_grouping(monkeypatch):
     portfolio = {
         "accounts": [

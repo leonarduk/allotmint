@@ -145,9 +145,9 @@ def _normalize_currency_code(currency: str | None) -> str:
     raw = (currency or "").strip()
     if not raw:
         return "GBP"
-    upper = raw.upper()
-    if upper == "GBP" and raw.lower().endswith("p"):
+    if raw == "GBp":
         return "GBX"
+    upper = raw.upper()
     if upper in {"GBX", "GBXP", "GBPX"}:
         return "GBX"
     return upper

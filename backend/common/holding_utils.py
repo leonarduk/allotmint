@@ -61,22 +61,18 @@ def _is_pence_currency(raw: str) -> bool:
 
 
 def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
-    """
-    Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77}.
-    Contract: returned prices are always in GBP.
+    """Return latest close prices in GBP for each ticker.
 
-    If a GBP close column is present (e.g. ``Close_gbp``), it is used directly.
-    Otherwise, the native close is converted to GBP using instrument metadata
-    currency + current FX rates.
-
-    Pence-denominated instruments (GBX / GBXP / GBp):
-    - If ``get_scaling_override`` returned a non-unity scale, ``apply_scaling``
-      already performed the pence→pounds conversion; no further action.
-    - If scale == 1, divide by 100 (arithmetic, not an FX call).
-
-    - Uses end_date = yesterday
-    - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
-    - Skips empties instead of returning 0.00
+    Contract:
+    - Always returns GBP-normalised prices.
+    - Uses Close_gbp if present.
+    - Otherwise converts native close using:
+        - scaling override (preferred)
+        - pence fallback (/100)
+        - FX conversion if non-GBP
+    - Uses end_date = yesterday via PricingDateCalculator.
+    - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L').
+    - Never returns 0 for missing data; skips instead.
     """
     result: dict[str, float] = {}
     if not full_tickers:
@@ -107,53 +103,50 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 end_date=end_date,
             )
             if df is None or df.empty:
-                # no data -> don't write a zero; just continue
                 continue
 
-            # apply instrument-specific scaling (e.g., GBX -> GBP via 0.01)
+            # Apply instrument-specific scaling first.
             scale = get_scaling_override(ticker, exchange, None)
             df = apply_scaling(df, scale)
-            if scale != 1 and "Close_gbp" in df.columns:
-                df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
 
-            # prefer GBP-close column if present
             name_map = _lower_name_map(df)
-            close_col = (
-                name_map.get("close_gbp")
-                or name_map.get("close")
+            close_gbp_col = name_map.get("close_gbp")
+            close_native_col = (
+                name_map.get("close")
                 or name_map.get("adj close")
                 or name_map.get("adj_close")
             )
-            if not close_col:
+
+            if not close_gbp_col and not close_native_col:
                 continue
 
-            df = df.sort_values(df.columns[0])  # first col is Date in your feeds
+            df = df.sort_values(df.columns[0])  # first column is Date in these feeds
             last = df.iloc[-1]
 
-            val = float(last[close_col])
-            if not (val == val and val != float("inf") and val != float("-inf")):
-                continue  # skip NaN/inf
+            selected_col = close_gbp_col or close_native_col
+            val = float(last[selected_col])
 
-            # Enforce GBP output contract when native close was used.
-            if close_col.lower() != "close_gbp":
-                meta = get_instrument_meta(f"{ticker}.{exchange}") or get_instrument_meta(ticker) or {}
+            if not (val == val and val != float("inf") and val != float("-inf")):
+                continue
+
+            # Enforce GBP output contract when only native close is available.
+            if close_gbp_col is None:
+                full_ticker = f"{ticker}.{exchange}"
+                meta = get_instrument_meta(full_ticker) or {}
+
                 raw_currency = str(meta.get("currency") or "GBP").strip()
                 currency = raw_currency.upper()
 
                 if _is_pence_currency(raw_currency):
-                    # Pence → pounds is arithmetic (/100), not FX.
-                    # Skip when scale != 1: apply_scaling already did the conversion.
+                    # Only divide by 100 when scaling did not already do it.
                     if scale == 1:
                         val /= 100.0
                 elif currency != "GBP":
                     val *= _fx_to_base(currency, "GBP", fx_cache)
 
-            # store using the EXACT key your frontend expects
-            key = f"{ticker}.{exchange}"
-            result[key] = val
+            result[f"{ticker}.{exchange}"] = val
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
-            # keep logging, but don't poison the map with zeros
             logger.warning("latest price fetch failed for %s: %s", full, e)
 
     logger.info("Latest prices fetched: %d/%d", len(result), len(full_tickers))
@@ -168,7 +161,7 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     skipped. Any network or parsing errors result in an empty mapping.
     """
 
-    out: dict[str, Dict[str, dt.datetime]] = {}
+    out: dict[str, Dict[str, object]] = {}
     if not full_tickers:
         return out
 
@@ -176,33 +169,42 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
 
     try:
-        from backend.common.portfolio_utils import _fx_to_base  # type: ignore
+        from backend.common.portfolio_utils import _fx_to_base
 
         fx_cache: Dict[str, float] = {}
         resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
         payload = resp.json().get("quoteResponse", {}).get("result", [])
+
         for row in payload:
             sym = row.get("symbol")
             price = row.get("regularMarketPrice")
             ts = row.get("regularMarketTime")
-            if sym and price is not None and ts:
-                price = float(price)
+            if not sym or price is None or not ts:
+                continue
 
-                # Apply scaling override (e.g., GBX -> GBP)
-                tkr, exch = (sym.split(".", 1) + [""])[:2]
-                scale = get_scaling_override(tkr, exch, None)
-                price *= scale
+            price = float(price)
 
-                # Convert to GBP using latest FX rates if necessary
-                meta = get_instrument_meta(sym)
-                ccy = (meta.get("currency") or "GBP").upper()
-                if ccy != "GBP":
-                    price *= _fx_to_base(ccy, "GBP", fx_cache)
+            # Apply scaling override first.
+            tkr, exch = (sym.split(".", 1) + [""])[:2]
+            scale = get_scaling_override(tkr, exch, None)
+            price *= scale
 
-                out[sym.upper()] = {
-                    "price": price,
-                    "timestamp": dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc),
-                }
+            # Enforce GBP contract without double-converting pence instruments.
+            meta = get_instrument_meta(sym) or {}
+            raw_currency = str(meta.get("currency") or "GBP").strip()
+            currency = raw_currency.upper()
+
+            if _is_pence_currency(raw_currency):
+                if scale == 1:
+                    price /= 100.0
+            elif currency != "GBP":
+                price *= _fx_to_base(currency, "GBP", fx_cache)
+
+            out[sym.upper()] = {
+                "price": price,
+                "timestamp": dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc),
+            }
     except Exception as exc:
         logger.warning("live price fetch failed for %s: %s", symbols, exc)
 
@@ -223,7 +225,12 @@ def _close_column(df: pd.DataFrame) -> Optional[str]:
 
 
 # ─────── cost basis (single source of truth) ───────
-def _derived_cost_basis_close_px(ticker: str, exchange: str, acq: dt.date, cache: dict[str, float]) -> Optional[float]:
+def _derived_cost_basis_close_px(
+    ticker: str,
+    exchange: str,
+    acq: dt.date,
+    cache: dict[str, float],
+) -> Optional[float]:
     """
     Find a scaled close price near acquisition date (±2 weekdays). Cached by key.
     """
@@ -237,7 +244,6 @@ def _derived_cost_basis_close_px(ticker: str, exchange: str, acq: dt.date, cache
     if df is None or df.empty:
         return None
 
-    # apply scaling override
     scale = get_scaling_override(ticker, exchange, None)
     df = apply_scaling(df, scale)
 
@@ -256,15 +262,15 @@ def _get_price_for_date_scaled(
     d: dt.date,
     field: str = "Close_gbp",
 ) -> tuple[Optional[float], Optional[str]]:
-    parts = ticker.upper().split(".")
-    if "CASH" in parts:
-        return 1.0, None
-
     """
     Load a single-day DF, apply scaling override and return the requested
     field together with its source. For close prices we prefer the
     GBP-converted column when available, falling back to the regular close.
     """
+    parts = ticker.upper().split(".")
+    if "CASH" in parts:
+        return 1.0, None
+
     df = load_meta_timeseries_range(ticker=ticker, exchange=exchange, start_date=d, end_date=d)
     if df is None or df.empty:
         return None, None
@@ -316,6 +322,7 @@ def get_effective_cost_basis_gbp(
     else:
         exchange = "L"
         logger.debug("Could not resolve exchange for %s; defaulting to L", full)
+
     scale = get_scaling_override(ticker, exchange, None)
     booked_raw = h.get(COST_BASIS_GBP)
     try:
@@ -347,7 +354,6 @@ def get_effective_cost_basis_gbp(
     if acq:
         close_px = _derived_cost_basis_close_px(ticker, exchange, acq, price_cache)
     if close_px is None:
-        # last resort (already expected to be in *pounds* if you write it that way)
         close_px = price_cache.get(full)
 
     if close_px is None:
@@ -384,11 +390,7 @@ def enrich_holding(
 
     sec_meta = get_security_meta(full) or {}
     instr_meta = meta or {}
-    # Merge metadata giving precedence to instrument files over
-    # security metadata derived from portfolios. Previously the merge
-    # order overwrote detailed instrument information (like the name)
-    # with generic placeholders from security metadata, causing
-    # instrument names to appear as tickers on the group page.
+    # Instrument metadata should win over security metadata derived from portfolios.
     meta = {**sec_meta, **instr_meta}
 
     if _is_cash(full, account_ccy):
@@ -401,11 +403,9 @@ def enrich_holding(
         out["sector"] = out.get("sector") or meta.get("sector")
         out["region"] = out.get("region") or meta.get("region")
 
-        # price is 1.0 in account currency
         out["price"] = 1.0
-        out["current_price_gbp"] = 1.0 if account_ccy == "GBP" else None  # keep simple; add FX later
+        out["current_price_gbp"] = 1.0 if account_ccy == "GBP" else None
 
-        # book cost = value = units; gain = 0
         out["market_value_gbp"] = units if account_ccy == "GBP" else None
         out["gain_gbp"] = 0.0
         out["unrealised_gain_gbp"] = 0.0
@@ -413,11 +413,9 @@ def enrich_holding(
         out["gain_pct"] = 0.0
         out["day_change_gbp"] = 0.0
 
-        # cost basis fields
         out.setdefault(COST_BASIS_GBP, units if account_ccy == "GBP" else None)
         out[EFFECTIVE_COST_BASIS_GBP] = out[COST_BASIS_GBP]
 
-        # eligibility not meaningful for cash
         out["days_held"] = None
         out["sell_eligible"] = True
         out["eligible_on"] = None
@@ -469,7 +467,6 @@ def enrich_holding(
         out["cost_basis_source"] = "none"
         return out
 
-    # default acquired date if missing
     if out.get(ACQUIRED_DATE) is None:
         out[ACQUIRED_DATE] = (today - dt.timedelta(days=365)).isoformat()
 
@@ -496,9 +493,7 @@ def enrich_holding(
         out["next_eligible_sell_date"] = None
 
     instr_type = (meta.get("instrumentType") or meta.get("instrument_type") or "").upper()
-    asset_class = (
-        meta.get("assetClass") or meta.get("asset_class") or ""
-    ).upper()
+    asset_class = (meta.get("assetClass") or meta.get("asset_class") or "").upper()
     sector = (meta.get("sector") or "").upper()
     is_commodity = asset_class == "COMMODITY" or sector == "COMMODITY"
     is_etf = instr_type == "ETF"
@@ -512,6 +507,7 @@ def enrich_holding(
         or full.upper() in exempt_tickers
         or exempt_type
     )
+
     approved = False
     if approvals and needs_approval:
         approved_on = approvals.get(full.upper()) or approvals.get(ticker.upper())
@@ -519,8 +515,6 @@ def enrich_holding(
             approved = is_approval_valid(approved_on, today)
 
     out["sell_eligible"] = bool(eligible and (approved or not needs_approval))
-
-    units = float(out.get(UNITS, 0) or 0)
 
     px = px_source = prev_px = None
     last_price_time = None
@@ -539,7 +533,6 @@ def enrich_holding(
             px_source = "snapshot"
             prev_date = calc.previous_pricing_date
         else:
-            # fallback to previous close
             asof_date = calc.reporting_date
             px, px_source = _get_price_for_date_scaled(
                 ticker, exchange, asof_date, field="Close_gbp"
@@ -573,7 +566,7 @@ def enrich_holding(
                         change = (future_px / px) - 1
                         out["forward_30d_change_pct"] = round(change * 100, 4)
 
-    out["price"] = px  # legacy name used in parts of UI
+    out["price"] = px
     out["current_price_gbp"] = px
     out["latest_source"] = px_source
     out["last_price_time"] = last_price_time
@@ -601,6 +594,7 @@ def enrich_holding(
             ecb = helper(out, price_cache, price_hint=px)
         except TypeError:
             ecb = helper(out, price_cache)
+
     out[EFFECTIVE_COST_BASIS_GBP] = ecb
 
     try:
@@ -614,17 +608,13 @@ def enrich_holding(
         mv = round(units * float(px), 2)
         out["market_value_gbp"] = mv
         out["gain_gbp"] = round(mv - cost_for_gain, 2)
-
-        # aliases for UI compatibility (UK + US)
         out["unrealised_gain_gbp"] = out["gain_gbp"]
         out["unrealized_gain_gbp"] = out["gain_gbp"]
-
-        # percentage gain
         out["gain_pct"] = ((mv - cost_for_gain) / cost_for_gain * 100.0) if cost_for_gain > 0 else None
     else:
         out["market_value_gbp"] = None
         out["gain_gbp"] = None
-        out["unrealised_gain_gbp"] = None  # keep both spellings
+        out["unrealised_gain_gbp"] = None
         out["unrealized_gain_gbp"] = None
         out["gain_pct"] = None
 
@@ -634,16 +624,13 @@ def enrich_holding(
     else:
         out["day_change_gbp"] = None
 
-    # provenance
     out["cost_basis_source"] = "book" if float(out.get(COST_BASIS_GBP) or 0.0) > 0 else "derived"
 
     return out
 
 
-# top-level helper
 def _is_cash(full: str, account_ccy: str = "GBP") -> bool:
     f = (full or "").upper()
-    # allow several spellings
     return f in {f"CASH.{account_ccy}", f"{account_ccy}.CASH", "CASH"}
 
 

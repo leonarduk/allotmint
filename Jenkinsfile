@@ -13,7 +13,7 @@ pipeline {
                         credentialsId: 'GITHUB_TOKEN'
                     ]]
                 ])
-                stash includes: '**', excludes: '.git/**', name: 'source', useDefaultExcludes: false
+                stash includes: '**', excludes: '.git/**,.pytest_cache/**,**/__pycache__/**,frontend/node_modules/**,.venv/**', name: 'source', useDefaultExcludes: false
             }
         }
 
@@ -21,9 +21,12 @@ pipeline {
             parallel {
                 stage('Python Tests') {
                     steps {
-                        unstash 'source'
+                        dir('workspace-python') {
+                            unstash 'source'
+                        }
                         script {
                             docker.image('python:3.11').inside('-u root -v /var/jenkins_home/.cache/pip:/root/.cache/pip') {
+                                dir('workspace-python') {
                                 sh '''
                                     apt-get update && apt-get install -y git
                                     python --version
@@ -37,6 +40,7 @@ pipeline {
                                     
                                     pytest tests --cov=backend --cov-report=html --cov-report=xml --junit-xml=test-results/junit.xml
                                 '''
+                                }
                             }
                         }
                     }
@@ -44,14 +48,14 @@ pipeline {
                         always {
                             script {
                                 // Publish test results
-                                if (fileExists('test-results/junit.xml')) {
-                                    junit 'test-results/junit.xml'
+                                if (fileExists('workspace-python/test-results/junit.xml')) {
+                                    junit 'workspace-python/test-results/junit.xml'
                                 }
                                 
                                 // Publish coverage report
-                                if (fileExists('htmlcov/index.html')) {
+                                if (fileExists('workspace-python/htmlcov/index.html')) {
                                     publishHTML([
-                                        reportDir: 'htmlcov',
+                                        reportDir: 'workspace-python/htmlcov',
                                         reportFiles: 'index.html',
                                         reportName: 'Python Coverage Report',
                                         allowMissing: false,
@@ -68,9 +72,12 @@ pipeline {
 
                 stage('Node.js Build') {
                     steps {
-                        unstash 'source'
+                        dir('workspace-node') {
+                            unstash 'source'
+                        }
                         script {
                             docker.image('node:20').inside('-u root -v /var/jenkins_home/.cache/npm:/root/.npm') {
+                                dir('workspace-node') {
                                 sh '''
                                     apt-get update && apt-get install -y git
                                     node --version
@@ -79,14 +86,15 @@ pipeline {
                                     npm test -- --reporters=default --reporters=jest-junit || true
                                     npm run build
                                 '''
+                                }
                             }
                         }
                     }
                     post {
                         always {
                             script {
-                                if (fileExists('frontend/test-results/junit.xml')) {
-                                    junit 'frontend/test-results/**/*.xml'
+                                if (fileExists('workspace-node/frontend/test-results/junit.xml')) {
+                                    junit 'workspace-node/frontend/test-results/**/*.xml'
                                 } else {
                                     echo "No JUnit XML found for Node.js tests"
                                 }
@@ -100,21 +108,25 @@ pipeline {
                         expression { fileExists('pom.xml') }
                     }
                     steps {
-                        unstash 'source'
+                        dir('workspace-java') {
+                            unstash 'source'
+                        }
                         script {
                             docker.image('maven:3.9.6-eclipse-temurin-17').inside('-u root -v /var/jenkins_home/.m2:/root/.m2') {
+                                dir('workspace-java') {
                                 sh '''
                                     apt-get update && apt-get install -y git
                                     mvn clean install
                                 '''
+                                }
                             }
                         }
                     }
                     post {
                         always {
                             script {
-                                if (fileExists('target/surefire-reports')) {
-                                    junit '**/target/surefire-reports/*.xml'
+                                if (fileExists('workspace-java/target/surefire-reports')) {
+                                    junit 'workspace-java/**/target/surefire-reports/*.xml'
                                 } else {
                                     echo "No JUnit XML found for Java tests"
                                 }

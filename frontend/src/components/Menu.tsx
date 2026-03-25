@@ -203,7 +203,7 @@ export default function Menu({
                   }
                 }}
               >
-                <ul className="flex list-none flex-col gap-1">
+                <ul className="flex list-none flex-col gap-2">
                   {category.tabs.map((tab) => (
                     <li key={tab.mode}>
                       <Link
@@ -213,7 +213,7 @@ export default function Menu({
                           owner: selectedOwner,
                           group: selectedGroup,
                         })}
-                        className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
+                        className={`block min-h-11 w-full rounded px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           mode === tab.mode
                             ? 'font-semibold text-gray-900'
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -229,7 +229,7 @@ export default function Menu({
                         ref={assignFirstFocusable}
                         role="menuitem"
                         to={inSupport ? buildPathForMode('group', { group: selectedGroup }) : buildPathForMode('support')}
-                        className={`block rounded px-2 py-1 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
+                        className={`block min-h-11 w-full rounded px-3 py-2 text-sm transition-colors duration-150 focus:outline-none focus-visible:ring ${
                           inSupport
                             ? 'font-semibold text-gray-900'
                             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -246,7 +246,7 @@ export default function Menu({
                         type="button"
                         role="menuitem"
                         onClick={onLogout}
-                        className="block min-h-11 w-full rounded px-2 py-1 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
+                        className="block min-h-11 w-full rounded px-3 py-2 text-left text-sm text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring"
                       >
                         {t('app.logout')}
                       </button>

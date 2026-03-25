@@ -104,6 +104,7 @@ def _first_nonempty_str_with_source(*pairs: tuple[str, Any]) -> tuple[str | None
                 return candidate, label
     return None, None
 
+
 def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float]) -> float:
     """Return ``base_currency`` per unit of ``currency`` using recent FX rates."""
 
@@ -155,6 +156,10 @@ def _normalize_currency_code(currency: str | None) -> str:
 
     raw = (currency or "").strip()
     if not raw:
+        logger.warning(
+            "_normalize_currency_code received empty/missing currency; defaulting to GBP. "
+            "Check instrument metadata."
+        )
         return "GBP"
     if raw == "GBp":
         return "GBX"
@@ -425,7 +430,8 @@ def list_all_unique_tickers() -> List[str]:
                     )
 
     logger.info(
-        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, " "%d unique tickers, %d null tickers",
+        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, "
+        "%d unique tickers, %d null tickers",
         len(portfolios),
         total_accounts,
         total_holdings,
@@ -438,7 +444,9 @@ def list_all_unique_tickers() -> List[str]:
 # ──────────────────────────────────────────────────────────────
 # Core aggregation
 # ──────────────────────────────────────────────────────────────
-def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
+def aggregate_by_ticker(
+    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
+) -> List[dict]:
     """Collapse a nested portfolio tree into one row per ticker,
     enriched with latest-price snapshot.
 
@@ -496,7 +504,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
 
             sym = (sym or "").upper()
             base_sym = sym.split(".", 1)[0]
-            exchange_value = (h.get("exchange") or inferred or "L")
+            exchange_value = h.get("exchange") or inferred or "L"
             exch = exchange_value.upper() if isinstance(exchange_value, str) else "L"
 
             if "." in sym:
@@ -576,7 +584,11 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             _update_row_field(row, "region", instrument_meta.get("region"), "instrument_meta")
 
             security_meta: Dict[str, Any] | None = None
-            if row.get("currency") is None or row.get("sector") is None or row.get("region") is None:
+            if (
+                row.get("currency") is None
+                or row.get("sector") is None
+                or row.get("region") is None
+            ):
                 security_meta = get_security_meta(full_tkr) or {}
                 _update_row_field(row, "currency", security_meta.get("currency"), "security_meta")
                 _update_row_field(row, "sector", security_meta.get("sector"), "security_meta")
@@ -603,7 +615,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                             ("instrument_meta_currency", instrument_meta.get("currency")),
                         ]
                     )
-                    grouping_value, grouping_label = _first_nonempty_str_with_source(*grouping_pairs)
+                    grouping_value, grouping_label = _first_nonempty_str_with_source(
+                        *grouping_pairs
+                    )
                     if grouping_value:
                         row["grouping"] = grouping_value
                         row["_grouping_from_fallback"] = (
@@ -636,7 +650,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             price = snap.get("last_price") if isinstance(snap, dict) else None
             if price and price == price:  # guard against None/NaN/0
-                raw_snapshot_currency = snap.get("price_currency") if isinstance(snap, dict) else None
+                raw_snapshot_currency = (
+                    snap.get("price_currency") if isinstance(snap, dict) else None
+                )
                 if raw_snapshot_currency:
                     native_currency = _normalize_currency_code(raw_snapshot_currency)
                 else:
@@ -666,8 +682,12 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 row["is_stale"] = snap.get("is_stale")
                 row["market_value_gbp"] = round(row["units"] * gbp_price, 2)
                 row["gain_gbp"] = (
-                    round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
+                    round(row["market_value_gbp"] - row["cost_gbp"], 2)
+                    if row["cost_gbp"]
+                    else row["gain_gbp"]
                 )
+                row["_snapshot_native_price"] = native_price
+                row["_snapshot_native_currency"] = native_currency
 
             # ensure percentage change fields are populated
             if row.get("change_7d_pct") is None:
@@ -755,6 +775,8 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
 
     rate = _fx_to_base("GBP", base_currency, fx_cache)
     for r in rows.values():
+        snapshot_native_price = r.get("_snapshot_native_price")
+        snapshot_native_currency = r.get("_snapshot_native_currency")
         if rate and rate != 1:
             r["cost_gbp"] = round(_safe_num(r["cost_gbp"]) * rate, 2)
             r["market_value_gbp"] = round(_safe_num(r["market_value_gbp"]) * rate, 2)
@@ -763,6 +785,13 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 r["last_price_gbp"] = round(_safe_num(r["last_price_gbp"]) * rate, 4)
             if r.get("day_change_gbp") is not None:
                 r["day_change_gbp"] = round(_safe_num(r["day_change_gbp"]) * rate, 2)
+
+        if snapshot_native_price is not None and snapshot_native_currency:
+            fx_to_base = _fx_to_base(snapshot_native_currency, base_currency, fx_cache)
+            last_price_base = round(_safe_num(snapshot_native_price) * fx_to_base, 4)
+            r["last_price_gbp"] = last_price_base
+            r["market_value_gbp"] = round(_safe_num(r.get("units")) * last_price_base, 2)
+            r["gain_gbp"] = round(_safe_num(r["market_value_gbp"]) - _safe_num(r["cost_gbp"]), 2)
         cost = r["cost_gbp"]
         r["gain_pct"] = (r["gain_gbp"] / cost * 100.0) if cost else None
         r["cost_currency"] = base_currency
@@ -782,11 +811,15 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             r["grouping_id"] = None
             r["_grouping_from_fallback"] = True
         r.pop("_grouping_from_fallback", None)
+        r.pop("_snapshot_native_price", None)
+        r.pop("_snapshot_native_currency", None)
 
     return list(rows.values())
 
 
-def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:
+def _aggregate_by_field(
+    portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP"
+) -> List[dict]:
     """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
     rows = aggregate_by_ticker(portfolio, base_currency)
     groups: Dict[str, dict] = {}
@@ -822,12 +855,16 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_cur
     return list(groups.values())
 
 
-def aggregate_by_sector(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
+def aggregate_by_sector(
+    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
+) -> List[dict]:
     """Return aggregated holdings grouped by sector with return contribution."""
     return _aggregate_by_field(portfolio, "sector", base_currency)
 
 
-def aggregate_by_region(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
+def aggregate_by_region(
+    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
+) -> List[dict]:
     """Return aggregated holdings grouped by region with return contribution."""
     return _aggregate_by_field(portfolio, "region", base_currency)
 
@@ -890,9 +927,7 @@ def compute_owner_performance(
 
     calc = PricingDateCalculator(reporting_date=pricing_date)
     try:
-        pf = portfolio_mod.build_owner_portfolio(
-            owner, pricing_date=calc.reporting_date
-        )
+        pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=calc.reporting_date)
     except FileNotFoundError:
         raise
 
@@ -978,7 +1013,6 @@ def compute_owner_performance(
             "data_quality_issues": data_quality_issues,
         }
 
-
     perf["daily_return"] = perf["value"].pct_change()
     perf["weekly_return"] = perf["value"].pct_change(5)
     start_val = perf["value"].iloc[0]
@@ -1012,17 +1046,19 @@ def compute_owner_performance(
                 "date": raw_date.isoformat(),
                 "value": round(float(row.value), 2),
                 "daily_return": (float(row.daily_return) if pd.notna(row.daily_return) else None),
-                "weekly_return": (float(row.weekly_return) if pd.notna(row.weekly_return) else None),
-                "cumulative_return": (float(row.cumulative_return) if pd.notna(row.cumulative_return) else None),
+                "weekly_return": (
+                    float(row.weekly_return) if pd.notna(row.weekly_return) else None
+                ),
+                "cumulative_return": (
+                    float(row.cumulative_return) if pd.notna(row.cumulative_return) else None
+                ),
                 "running_max": round(float(row.running_max), 2),
                 "drawdown": (float(row.drawdown) if pd.notna(row.drawdown) else None),
             }
         )
 
     reporting_date_iso = out[-1]["date"] if out else calc.reporting_date.isoformat()
-    previous_date_iso = (
-        out[-2]["date"] if len(out) >= 2 else calc.previous_pricing_date.isoformat()
-    )
+    previous_date_iso = out[-2]["date"] if len(out) >= 2 else calc.previous_pricing_date.isoformat()
 
     return {
         "history": out,
@@ -1218,11 +1254,13 @@ def _alpha_vs_benchmark(
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
-    total = _portfolio_value_series(
-        name, days, group=group, pricing_date=pricing_date
-    )
+    total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
     if total.empty:
-        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
+        return None, {
+            "series": [],
+            "portfolio_cumulative_return": None,
+            "benchmark_cumulative_return": None,
+        }
     port_ret = total.pct_change().dropna()
 
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
@@ -1233,7 +1271,11 @@ def _alpha_vs_benchmark(
     )
     df = load_meta_timeseries(bench_tkr, bench_exch, effective_days)
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
-        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
+        return None, {
+            "series": [],
+            "portfolio_cumulative_return": None,
+            "benchmark_cumulative_return": None,
+        }
     df = df[["Date", "Close"]].copy()
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
     df = df[df["Date"] <= calc.reporting_date]
@@ -1241,7 +1283,11 @@ def _alpha_vs_benchmark(
 
     port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
     if port_ret.empty:
-        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
+        return None, {
+            "series": [],
+            "portfolio_cumulative_return": None,
+            "benchmark_cumulative_return": None,
+        }
 
     aligned = pd.DataFrame({"portfolio": port_ret, "benchmark": bench_ret})
     aligned = aligned.replace([np.inf, -np.inf], np.nan).dropna()
@@ -1252,7 +1298,11 @@ def _alpha_vs_benchmark(
     max_reasonable_return = 10.0
     aligned = aligned[(aligned.abs() <= max_reasonable_return).all(axis=1)]
     if aligned.empty:
-        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
+        return None, {
+            "series": [],
+            "portfolio_cumulative_return": None,
+            "benchmark_cumulative_return": None,
+        }
 
     port_cum_series = (1 + aligned["portfolio"]).cumprod() - 1
     bench_cum_series = (1 + aligned["benchmark"]).cumprod() - 1
@@ -1292,9 +1342,7 @@ def _tracking_error(
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
-    total = _portfolio_value_series(
-        name, days, group=group, pricing_date=pricing_date
-    )
+    total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
     if total.empty:
         return None, {"active_returns": [], "daily_active_standard_deviation": None}
     port_ret = total.pct_change().dropna()
@@ -1356,9 +1404,7 @@ def _max_drawdown(
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
-    total = _portfolio_value_series(
-        name, days, group=group, pricing_date=pricing_date
-    )
+    total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
     if total.empty:
         return None, {"series": [], "peak": None, "trough": None}
     running_max = total.cummax()
@@ -1387,7 +1433,11 @@ def _max_drawdown(
         if trough_date is not None:
             trough_val = float(total.loc[trough_date])
             trough_info = {
-                "date": trough_date.isoformat() if hasattr(trough_date, "isoformat") else str(trough_date),
+                "date": (
+                    trough_date.isoformat()
+                    if hasattr(trough_date, "isoformat")
+                    else str(trough_date)
+                ),
                 "value": trough_val,
                 "drawdown": float(drawdown.loc[trough_date]),
             }
@@ -1398,9 +1448,11 @@ def _max_drawdown(
                 if not peak_date_candidates.empty:
                     peak_date = peak_date_candidates.index[0]
                     peak_info = {
-                        "date": peak_date.isoformat()
-                        if hasattr(peak_date, "isoformat")
-                        else str(peak_date),
+                        "date": (
+                            peak_date.isoformat()
+                            if hasattr(peak_date, "isoformat")
+                            else str(peak_date)
+                        ),
                         "value": peak_value,
                     }
 
@@ -1488,9 +1540,7 @@ def compute_max_drawdown(
 def compute_group_max_drawdown(
     slug: str, days: int = 365, *, include_breakdown: bool = False
 ) -> float | None | tuple[float | None, dict[str, Any]]:
-    value, breakdown = _max_drawdown(
-        slug, days, group=True, include_breakdown=include_breakdown
-    )
+    value, breakdown = _max_drawdown(slug, days, group=True, include_breakdown=include_breakdown)
     if include_breakdown:
         return value, breakdown
     return value
@@ -1602,7 +1652,9 @@ def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = Non
         try:
             df = float(
                 sum(
-                    -((d - start).days / 365.0) * amt / (1.0 + rate) ** ((d - start).days / 365.0 + 1)
+                    -((d - start).days / 365.0)
+                    * amt
+                    / (1.0 + rate) ** ((d - start).days / 365.0 + 1)
                     for d, amt in flows
                 )
             )

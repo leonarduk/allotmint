@@ -23,20 +23,20 @@ import pandas as pd
 
 from backend.common import group_portfolio
 from backend.common import portfolio as portfolio_mod
+from backend.common.compliance import load_transactions
 from backend.common.data_loader import DATA_BUCKET_ENV
+from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.common.instruments import get_instrument_meta, instrument_meta_path
 from backend.common.portfolio_loader import list_portfolios  # existing helper
 from backend.common.virtual_portfolio import (
     VirtualPortfolio,
     list_virtual_portfolios,
 )
-from backend.common.compliance import load_transactions
-from backend.common.holding_utils import _get_price_for_date_scaled
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries, load_meta_timeseries_range
+from backend.utils.fx_rates import fetch_fx_rate_range
 from backend.utils.pricing_dates import PricingDateCalculator
 from backend.utils.timeseries_helpers import apply_scaling, get_scaling_override
-from backend.utils.fx_rates import fetch_fx_rate_range
 
 logger = logging.getLogger("portfolio_utils")
 
@@ -90,7 +90,9 @@ def _first_nonempty_str(*values: Any) -> str | None:
     return None
 
 
-def _first_nonempty_str_with_source(*pairs: tuple[str, Any]) -> tuple[str | None, str | None]:
+def _first_nonempty_str_with_source(
+    *pairs: tuple[str, Any],
+) -> tuple[str | None, str | None]:
     """Return the first non-empty string and its source label from ``pairs``.
 
     ``pairs`` should contain ``(label, value)`` tuples. ``None`` is returned when
@@ -103,6 +105,7 @@ def _first_nonempty_str_with_source(*pairs: tuple[str, Any]) -> tuple[str | None
             if candidate:
                 return candidate, label
     return None, None
+
 
 def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float]) -> float:
     """Return ``base_currency`` per unit of ``currency`` using recent FX rates."""
@@ -137,6 +140,31 @@ def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float
     if base_rate == 0:
         return 1.0
     return cur_rate / base_rate
+
+
+def _normalize_currency_code(currency: str | None) -> str:
+    """Normalise currency variants used across feeds/metadata.
+
+    Returns a canonical uppercase currency code, with one special case:
+    pence-style variants ("GBp", "GBX", "GBXP", "GBPX") are all mapped to
+    "GBX", which callers use as a signal to divide the price by 100 before
+    FX conversion.
+
+    Note: "GBX" is not a standard ISO 4217 code but is a widely-used
+    convention for GBp in financial data. _fx_to_base does not handle "GBX"
+    directly — callers must convert GBX→GBP (divide by 100, set currency to
+    "GBP") before calling _fx_to_base.
+    """
+
+    raw = (currency or "").strip()
+    if not raw:
+        return "GBP"
+    if raw == "GBp":
+        return "GBX"
+    upper = raw.upper()
+    if upper in {"GBX", "GBXP", "GBPX"}:
+        return "GBX"
+    return upper
 
 
 # ──────────────────────────────────────────────────────────────
@@ -224,13 +252,12 @@ def refresh_snapshot_in_memory(
 # Securities universe
 # ──────────────────────────────────────────────────────────────
 
-
 # Cache paths for which we've already logged missing metadata warnings to avoid
 # spamming the logs when the same lookup fails repeatedly.
 _MISSING_META: set[str] = set()
 
 # Shortcut metadata for well-known symbols that don't need a filesystem/S3
-# lookup.  ``CASH.GBP`` is the canonical form; legacy ``<ccy>.CASH`` tickers are
+# lookup. ``CASH.GBP`` is the canonical form; legacy ``<ccy>.CASH`` tickers are
 # normalised to this format for backward compatibility.
 _DEFAULT_META: Dict[str, Dict[str, str | None]] = {
     "CASH.GBP": {
@@ -400,7 +427,7 @@ def list_all_unique_tickers() -> List[str]:
                     )
 
     logger.info(
-        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, " "%d unique tickers, %d null tickers",
+        "list_all_unique_tickers: %d portfolios, %d accounts, %d holdings, %d unique tickers, %d null tickers",
         len(portfolios),
         total_accounts,
         total_holdings,
@@ -471,7 +498,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
 
             sym = (sym or "").upper()
             base_sym = sym.split(".", 1)[0]
-            exchange_value = (h.get("exchange") or inferred or "L")
+            exchange_value = h.get("exchange") or inferred or "L"
             exch = exchange_value.upper() if isinstance(exchange_value, str) else "L"
 
             if "." in sym:
@@ -581,9 +608,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     grouping_value, grouping_label = _first_nonempty_str_with_source(*grouping_pairs)
                     if grouping_value:
                         row["grouping"] = grouping_value
-                        row["_grouping_from_fallback"] = (
-                            grouping_label in _GROUPING_FALLBACK_SOURCES
-                        )
+                        row["_grouping_from_fallback"] = grouping_label in _GROUPING_FALLBACK_SOURCES
 
                     grouping_id_value, _ = _first_nonempty_str_with_source(
                         ("holding_grouping_id", h.get("grouping_id")),
@@ -593,7 +618,6 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     if grouping_id_value and not _first_nonempty_str(row.get("grouping_id")):
                         row["grouping_id"] = grouping_id_value
 
-            # attach snapshot if present
             cost_value = h.get("effective_cost_basis_gbp")
             if cost_value is None:
                 cost_value = h.get("cost_basis_gbp")
@@ -610,20 +634,41 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             # attach snapshot if present – overrides derived values above
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             price = snap.get("last_price") if isinstance(snap, dict) else None
-            if price is not None and price == price:  # guard against None/NaN
+            if price is not None and price == price:  # guard against None/NaN, but allow 0
                 price_value = _safe_num(price, default=float("nan"))
-                if price_value != price_value:
-                    price_value = None
-                if price_value is not None:
-                    if price_value == 0:
+                if price_value == price_value:  # still not NaN after coercion
+                    raw_snapshot_currency = snap.get("price_currency") if isinstance(snap, dict) else None
+                    if raw_snapshot_currency:
+                        native_currency = _normalize_currency_code(raw_snapshot_currency)
+                    else:
+                        logger.debug(
+                            "snap for %s missing price_currency; falling back to row currency %s",
+                            full_tkr,
+                            row.get("currency"),
+                        )
+                        native_currency = _normalize_currency_code(row.get("currency"))
+
+                    native_price = price_value
+
+                    # Prices for GBX instruments are in pence; convert to GBP first.
+                    if native_currency == "GBX":
+                        native_price *= 0.01
+                        native_currency = "GBP"
+
+                    gbp_price = native_price * _fx_to_base(native_currency, "GBP", fx_cache)
+
+                    if native_price == 0:
                         logger.debug("Using zero snapshot price for %s", full_tkr)
-                    row["last_price_gbp"] = price_value
+
+                    row["last_price_gbp"] = gbp_price
                     row["last_price_date"] = snap.get("last_price_date")
                     row["last_price_time"] = snap.get("last_price_time")
                     row["is_stale"] = snap.get("is_stale")
-                    row["market_value_gbp"] = round(row["units"] * price_value, 2)
+                    row["market_value_gbp"] = round(row["units"] * gbp_price, 2)
                     row["gain_gbp"] = (
-                        round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
+                        round(row["market_value_gbp"] - row["cost_gbp"], 2)
+                        if row["cost_gbp"]
+                        else row["gain_gbp"]
                     )
 
             # ensure percentage change fields are populated
@@ -692,6 +737,23 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 if grouping_value:
                     row["grouping"] = grouping_value
                     row["_grouping_from_fallback"] = True
+
+    for r in rows.values():
+        # Derive last_price_gbp from market_value_gbp / units when no snapshot
+        # price was available.
+        # Guards:
+        #   - market_value_gbp must be non-None (avoids _safe_num(None)=0.0 silently
+        #     producing last_price_gbp=0.0 and making the position appear unpriced)
+        #   - market_value_gbp must be non-zero (a written-off / zeroed position
+        #     should stay last_price_gbp=None, not 0.0)
+        #   - units must be non-zero (checked via _safe_num truthiness)
+        if (
+            r.get("last_price_gbp") is None
+            and r.get("market_value_gbp") is not None
+            and _safe_num(r.get("market_value_gbp")) != 0
+            and _safe_num(r.get("units"))
+        ):
+            r["last_price_gbp"] = _safe_num(r.get("market_value_gbp")) / _safe_num(r.get("units"))
 
     rate = _fx_to_base("GBP", base_currency, fx_cache)
     for r in rows.values():
@@ -918,7 +980,6 @@ def compute_owner_performance(
             "data_quality_issues": data_quality_issues,
         }
 
-
     perf["daily_return"] = perf["value"].pct_change()
     perf["weekly_return"] = perf["value"].pct_change(5)
     start_val = perf["value"].iloc[0]
@@ -1040,7 +1101,7 @@ def _detect_single_day_flash_crash(
     """Remove isolated single-day collapses and report them.
 
     Some instruments occasionally publish a zero (or near-zero) close price for a
-    single session before rebounding to normal levels the following day.  These
+    single session before rebounding to normal levels the following day. These
     artefacts wreak havoc on drawdown calculations and should be excluded from
     the reconstructed portfolio curve while still surfacing a report for data
     remediation.
@@ -1162,7 +1223,11 @@ def _alpha_vs_benchmark(
         name, days, group=group, pricing_date=pricing_date
     )
     if total.empty:
-        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
+        return None, {
+            "series": [],
+            "portfolio_cumulative_return": None,
+            "benchmark_cumulative_return": None,
+        }
     port_ret = total.pct_change().dropna()
 
     bench_tkr, bench_exch = (benchmark.split(".", 1) + ["L"])[:2]
@@ -1173,7 +1238,11 @@ def _alpha_vs_benchmark(
     )
     df = load_meta_timeseries(bench_tkr, bench_exch, effective_days)
     if df.empty or "Close" not in df.columns or "Date" not in df.columns:
-        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
+        return None, {
+            "series": [],
+            "portfolio_cumulative_return": None,
+            "benchmark_cumulative_return": None,
+        }
     df = df[["Date", "Close"]].copy()
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
     df = df[df["Date"] <= calc.reporting_date]
@@ -1181,18 +1250,26 @@ def _alpha_vs_benchmark(
 
     port_ret, bench_ret = port_ret.align(bench_ret, join="inner")
     if port_ret.empty:
-        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
+        return None, {
+            "series": [],
+            "portfolio_cumulative_return": None,
+            "benchmark_cumulative_return": None,
+        }
 
     aligned = pd.DataFrame({"portfolio": port_ret, "benchmark": bench_ret})
     aligned = aligned.replace([np.inf, -np.inf], np.nan).dropna()
 
     # Daily returns above 1,000% are almost certainly data errors (for example
-    # when a benchmark trades near zero).  Drop those rows before computing
+    # when a benchmark trades near zero). Drop those rows before computing
     # cumulative performance.
     max_reasonable_return = 10.0
     aligned = aligned[(aligned.abs() <= max_reasonable_return).all(axis=1)]
     if aligned.empty:
-        return None, {"series": [], "portfolio_cumulative_return": None, "benchmark_cumulative_return": None}
+        return None, {
+            "series": [],
+            "portfolio_cumulative_return": None,
+            "benchmark_cumulative_return": None,
+        }
 
     port_cum_series = (1 + aligned["portfolio"]).cumprod() - 1
     bench_cum_series = (1 + aligned["benchmark"]).cumprod() - 1
@@ -1369,7 +1446,11 @@ def compute_alpha_vs_benchmark(
 
 
 def compute_group_alpha_vs_benchmark(
-    slug: str, benchmark: str, days: int = 365, *, include_breakdown: bool = False
+    slug: str,
+    benchmark: str,
+    days: int = 365,
+    *,
+    include_breakdown: bool = False,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
     value, breakdown = _alpha_vs_benchmark(
         slug, benchmark, days, group=True, include_breakdown=include_breakdown
@@ -1400,7 +1481,11 @@ def compute_tracking_error(
 
 
 def compute_group_tracking_error(
-    slug: str, benchmark: str, days: int = 365, *, include_breakdown: bool = False
+    slug: str,
+    benchmark: str,
+    days: int = 365,
+    *,
+    include_breakdown: bool = False,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
     value, breakdown = _tracking_error(
         slug, benchmark, days, group=True, include_breakdown=include_breakdown
@@ -1426,7 +1511,10 @@ def compute_max_drawdown(
 
 
 def compute_group_max_drawdown(
-    slug: str, days: int = 365, *, include_breakdown: bool = False
+    slug: str,
+    days: int = 365,
+    *,
+    include_breakdown: bool = False,
 ) -> float | None | tuple[float | None, dict[str, Any]]:
     value, breakdown = _max_drawdown(
         slug, days, group=True, include_breakdown=include_breakdown
@@ -1457,7 +1545,10 @@ _CASH_FLOW_SIGNS = {
 
 
 def compute_time_weighted_return(
-    owner: str, days: int = 365, *, pricing_date: date | None = None
+    owner: str,
+    days: int = 365,
+    *,
+    pricing_date: date | None = None,
 ) -> float | None:
     """Compute time-weighted return for ``owner`` over ``days``."""
 

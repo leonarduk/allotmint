@@ -97,6 +97,19 @@
 }
 
 @media (max-width: 768px) {
+  .table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table thead,
+  .table tbody,
+  .table tr {
+    white-space: nowrap;
+  }
+
   .cell {
     padding: 2px 4px;
   }

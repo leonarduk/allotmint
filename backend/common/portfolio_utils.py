@@ -140,7 +140,18 @@ def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float
 
 
 def _normalize_currency_code(currency: str | None) -> str:
-    """Normalise currency variants used across feeds/metadata."""
+    """Normalise currency variants used across feeds/metadata.
+
+    Returns a canonical uppercase currency code, with one special case:
+    pence-style variants ("GBp", "GBX", "GBXP", "GBPX") are all mapped to
+    "GBX", which callers use as a signal to divide the price by 100 before
+    FX conversion.
+
+    Note: "GBX" is not a standard ISO 4217 code but is a widely-used
+    convention for GBp in financial data.  _fx_to_base does not handle "GBX"
+    directly — callers must convert GBX→GBP (divide by 100, set currency to
+    "GBP") before calling _fx_to_base.
+    """
 
     raw = (currency or "").strip()
     if not raw:
@@ -629,9 +640,20 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 if raw_snapshot_currency:
                     native_currency = _normalize_currency_code(raw_snapshot_currency)
                 else:
+                    # Fallback: derive currency from holding/instrument metadata.
+                    # Logged at debug level so missing price_currency on legacy
+                    # snapshot entries is visible without being noisy.
+                    logger.debug(
+                        "snap for %s missing price_currency; falling back to row currency %s",
+                        full_tkr,
+                        row.get("currency"),
+                    )
                     native_currency = _normalize_currency_code(row.get("currency"))
                 native_price = _safe_num(price)
                 # Prices for GBX instruments are in pence; convert to GBP first.
+                # Note: GBX is an internal convention (“pence”); _fx_to_base does
+                # not handle it — we convert to GBP (divide by 100) before the
+                # FX call so the rate lookup always uses a real ISO code.
                 if native_currency == "GBX":
                     native_price *= 0.01
                     native_currency = "GBP"
@@ -716,12 +738,17 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
 
     for r in rows.values():
         # Derive last_price_gbp from market_value_gbp / units when no snapshot
-        # price was available. Guard against None market_value_gbp — _safe_num
-        # returns 0.0 for None, which would silently set last_price_gbp to 0.0
-        # and make the position appear unpriced in the UI.
+        # price was available.
+        # Guards:
+        #   - market_value_gbp must be non-None (avoids _safe_num(None)=0.0 silently
+        #     producing last_price_gbp=0.0 and making the position appear unpriced)
+        #   - market_value_gbp must be non-zero (a written-off / zeroed position
+        #     should stay last_price_gbp=None, not 0.0)
+        #   - units must be non-zero (checked via _safe_num truthiness)
         if (
             r.get("last_price_gbp") is None
             and r.get("market_value_gbp") is not None
+            and _safe_num(r.get("market_value_gbp")) != 0
             and _safe_num(r.get("units"))
         ):
             r["last_price_gbp"] = _safe_num(r.get("market_value_gbp")) / _safe_num(r.get("units"))

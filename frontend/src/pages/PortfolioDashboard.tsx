@@ -114,7 +114,7 @@ function PortfolioDashboard({
         <LineChart data={data}>
           <XAxis dataKey="date" />
           <YAxis tickFormatter={(v) => percent(v * 100)} />
-          <Tooltip formatter={(v: number) => percent(v * 100)} />
+          <Tooltip formatter={(v: number | undefined) => percent((v ?? 0) * 100)} />
           <Line
             type="monotone"
             dataKey="cumulative_return"

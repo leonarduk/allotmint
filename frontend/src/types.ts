@@ -81,14 +81,14 @@ export type GroupPortfolio = {
   trades_this_month?: number;
   trades_remaining?: number;
   accounts: Account[];
-  members_summary: {
+  members_summary?: {
     owner: string;
     total_value_estimate_gbp: number;
     total_value_estimate_currency?: string | null;
     trades_this_month: number;
     trades_remaining: number;
   }[];
-  subtotals_by_account_type: Record<string, number>;
+  subtotals_by_account_type?: Record<string, number>;
 };
 
 export type InstrumentSummary = {

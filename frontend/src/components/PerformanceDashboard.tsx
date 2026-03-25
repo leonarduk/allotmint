@@ -313,8 +313,8 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
                     tickFormatter={(v) => percent(v * 100, 1, i18n.language)}
                   />
                   <Tooltip
-                    formatter={(value: number) =>
-                      percent(value * 100, 2, i18n.language)
+                    formatter={(value: number | undefined) =>
+                      percent((value ?? 0) * 100, 2, i18n.language)
                     }
                   />
                   {drawdownPeak && drawdownTrough && (
@@ -394,7 +394,7 @@ export function PerformanceDashboard({ owner, asOf }: Props) {
         <LineChart data={data}>
           <XAxis dataKey="date" />
           <YAxis tickFormatter={(v) => percent(v * 100, 2, i18n.language)} />
-          <Tooltip formatter={(v: number) => percent(v * 100, 2, i18n.language)} />
+          <Tooltip formatter={(v: number | undefined) => percent((v ?? 0) * 100, 2, i18n.language)} />
           <Line
             type="monotone"
             dataKey="cumulative_return"

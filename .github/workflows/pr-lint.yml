@@ -18,9 +18,10 @@ jobs:
         run: |
           body="${PR_BODY:-}"
 
-            if printf '%s' "$body" | grep -iPq '(closes|fixes|resolves|refs|relates\s+to)\s+#\d+'; then            echo 'PR body includes a valid issue reference.'
+          if printf '%s' "$body" | grep -iPq '(closes|fixes|resolves|refs|relates\s+to)\s+#\d+'; then
+            echo 'PR body includes a valid issue reference.'
             exit 0
           fi
 
-          echo 'Pull request body must include an issue reference such as Closes #123, Fixes #123, Resolves #123, or Refs #123.' >&2
+          echo 'Pull request body must include an issue reference such as Closes #123, Fixes #123, Resolves #123, Refs #123, or Relates to #123.' >&2
           exit 1

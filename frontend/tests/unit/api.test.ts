@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
+  DEFAULT_API_BASE,
   API_BASE,
   fetchJson,
   setAuthToken,
+  setApiBase,
   login,
   subscribeNudges,
   getEvents,
@@ -16,6 +18,7 @@ describe("auth token handling", () => {
   beforeEach(() => {
     localStorage.clear();
     setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
   });
 
   it("stores token in localStorage and adds header", async () => {
@@ -38,6 +41,7 @@ describe("login", () => {
   beforeEach(() => {
     localStorage.clear();
     setAuthToken(null);
+    setApiBase(DEFAULT_API_BASE);
   });
 
   it("succeeds for allowed tokens", async () => {
@@ -71,6 +75,10 @@ describe("login", () => {
 });
 
 describe("nudge subscriptions", () => {
+  beforeEach(() => {
+    setApiBase(DEFAULT_API_BASE);
+  });
+
   it("clamps frequency within bounds", async () => {
     const mockFetch = vi
       .fn()
@@ -87,6 +95,29 @@ describe("nudge subscriptions", () => {
     await subscribeNudges("bob", 40);
     args = mockFetch.mock.calls[1];
     expect(args[1].body).toBe(JSON.stringify({ user: "bob", frequency: 30 }));
+  });
+});
+
+describe("runtime api base", () => {
+  beforeEach(() => {
+    setApiBase(DEFAULT_API_BASE);
+  });
+
+  it("supports runtime API base overrides", async () => {
+    setApiBase("https://example.com///");
+    expect(API_BASE).toBe("https://example.com");
+
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+    // @ts-ignore
+    global.fetch = mockFetch;
+
+    await fetchJson("/health");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://example.com/health",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
   });
 });
 

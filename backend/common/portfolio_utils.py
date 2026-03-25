@@ -139,6 +139,20 @@ def _fx_to_base(currency: str | None, base_currency: str, cache: Dict[str, float
     return cur_rate / base_rate
 
 
+def _normalize_currency_code(currency: str | None) -> str:
+    """Normalise currency variants used across feeds/metadata."""
+
+    raw = (currency or "").strip()
+    if not raw:
+        return "GBP"
+    upper = raw.upper()
+    if upper == "GBP" and raw.lower().endswith("p"):
+        return "GBX"
+    if upper in {"GBX", "GBXP", "GBPX"}:
+        return "GBX"
+    return upper
+
+
 # ──────────────────────────────────────────────────────────────
 # Snapshot loader (last_price / deltas)
 # ──────────────────────────────────────────────────────────────
@@ -611,11 +625,20 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             price = snap.get("last_price") if isinstance(snap, dict) else None
             if price and price == price:  # guard against None/NaN/0
-                row["last_price_gbp"] = price
+                native_currency = _normalize_currency_code(row.get("currency"))
+                native_price = _safe_num(price)
+                # Prices for GBX instruments are in pence; convert to GBP first.
+                if native_currency == "GBX":
+                    native_price *= 0.01
+                    native_currency = "GBP"
+                fx_to_gbp = _fx_to_base(native_currency, "GBP", fx_cache)
+                gbp_price = native_price * fx_to_gbp
+
+                row["last_price_gbp"] = gbp_price
                 row["last_price_date"] = snap.get("last_price_date")
                 row["last_price_time"] = snap.get("last_price_time")
                 row["is_stale"] = snap.get("is_stale")
-                row["market_value_gbp"] = round(row["units"] * price, 2)
+                row["market_value_gbp"] = round(row["units"] * gbp_price, 2)
                 row["gain_gbp"] = (
                     round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
                 )

@@ -14,7 +14,9 @@ services:
         # Mount config file
         - ../config.yaml:/workspace/backend/config.yaml:rw
       ports:
-        - "8000:8000"
+        # Host port 8001 avoids clashing with a local uvicorn dev server on 8000.
+        # Internal Docker networking still uses 8000, so VITE_API_URL is unaffected.
+        - "8001:8000"
       environment:
         - DISABLE_AUTH=false
         - ACCOUNTS_ROOT=/workspace/backend/data

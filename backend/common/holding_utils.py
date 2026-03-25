@@ -51,9 +51,20 @@ def _lower_name_map(df: pd.DataFrame) -> Dict[str, str]:
 
 
 def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
-    """
-    Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77}.
-    Prices are GBP-converted when that column is available.
+    """Return latest close prices in **GBP** for each requested ticker.
+
+    Contract:
+    - Output values are always GBP-normalised regardless of source columns.
+    - If ``Close_gbp``/``close_gbp`` exists, use it directly (already in GBP).
+    - Otherwise use native close (``Close``/``close``/``Adj Close``) and convert
+      to GBP using instrument currency metadata and scaling:
+      - If ``get_scaling_override`` returned a non-unity scale, ``apply_scaling``
+        has already performed the pence-to-pounds conversion; no further action.
+      - If scale == 1 and the currency is pence-denominated (GBX, GBXP, GBp),
+        divide by 100 (pence → pounds is arithmetic, not FX).
+      - All other non-GBP currencies are converted via ``_fx_to_base``.
+
+    Additional behaviour:
     - Uses end_date = yesterday
     - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
     - Skips empties instead of returning 0.00
@@ -66,6 +77,10 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     start_date, end_date = calc.lookback_range(365)
 
     from backend.common import instrument_api
+
+    from backend.common.portfolio_utils import _fx_to_base  # type: ignore
+
+    fx_cache: Dict[str, float] = {}
 
     for full in full_tickers:
         resolved = instrument_api._resolve_full_ticker(full, result)
@@ -87,27 +102,51 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 # no data -> don't write a zero; just continue
                 continue
 
-            # apply instrument-specific scaling (e.g., GBX -> GBP)
+            # apply instrument-specific scaling (e.g., GBX -> GBP via 0.01 factor)
             scale = get_scaling_override(ticker, exchange, None)
             df = apply_scaling(df, scale)
             if scale != 1 and "Close_gbp" in df.columns:
                 df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
 
-            # prefer GBP-close column if present
-            close_col = None
-            for col in ("Close_gbp", "Close", "close_gbp", "close"):
-                if col in df.columns:
-                    close_col = col
-                    break
-            if not close_col:
+            name_map = _lower_name_map(df)
+            close_gbp_col = name_map.get("close_gbp")
+            close_native_col = (
+                name_map.get("close")
+                or name_map.get("adj close")
+                or name_map.get("adj_close")
+            )
+            if not close_gbp_col and not close_native_col:
                 continue
 
             df = df.sort_values(df.columns[0])  # first col is Date in your feeds
             last = df.iloc[-1]
 
-            val = float(last[close_col])
+            selected_col = close_gbp_col or close_native_col
+            val = float(last[selected_col])
             if not (val == val and val != float("inf") and val != float("-inf")):
                 continue  # skip NaN/inf
+
+            # Enforce GBP contract when only native close is available.
+            if close_gbp_col is None:
+                full_ticker = f"{ticker}.{exchange}"
+                meta = get_instrument_meta(full_ticker) or {}
+                # Preserve the raw metadata string for mixed-case pence detection
+                # (e.g. Yahoo Finance emits "GBp") before uppercasing.
+                raw_currency = str(meta.get("currency") or "GBP").strip()
+                currency = raw_currency.upper()
+
+                is_pence = currency in {"GBX", "GBXP"} or raw_currency == "GBp"
+
+                if is_pence:
+                    # Pence → pounds is arithmetic (/100), not an FX operation.
+                    # Only apply when scale == 1: a non-unity scale means
+                    # apply_scaling already performed this conversion via the
+                    # instrument's scaling override (e.g. 0.01 for GBX).
+                    if scale == 1:
+                        val /= 100.0
+                    # else: apply_scaling already converted pence to pounds
+                elif currency != "GBP":
+                    val *= _fx_to_base(currency, "GBP", fx_cache)
 
             # store using the EXACT key your frontend expects
             key = f"{ticker}.{exchange}"

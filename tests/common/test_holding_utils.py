@@ -46,6 +46,8 @@ def test_load_latest_prices_resolution_scaling_and_missing(monkeypatch):
     def fake_load(ticker, exchange, start_date, end_date):
         if ticker == "ABC":
             return pd.DataFrame({"Date": [end_date], "Close": [10.0], "Close_gbp": [20.0]})
+        if ticker == "USD":
+            return pd.DataFrame({"Date": [end_date], "Close": [100.0]})
         return pd.DataFrame({"Date": [end_date], "Open": [1.0]})
 
     from backend.common import instrument_api
@@ -53,9 +55,15 @@ def test_load_latest_prices_resolution_scaling_and_missing(monkeypatch):
     monkeypatch.setattr(instrument_api, "_resolve_full_ticker", fake_resolve)
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load)
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda t, e, r: 0.5 if t == "ABC" else 1.0)
+    monkeypatch.setattr(
+        holding_utils,
+        "get_instrument_meta",
+        lambda full: {"currency": "USD"} if str(full).upper().startswith("USD") else {"currency": "GBP"},
+    )
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda from_ccy, to_ccy, cache: 0.8)
 
-    prices = holding_utils.load_latest_prices(["ABC", "XYZ"])
-    assert prices == {"ABC.L": 10.0}
+    prices = holding_utils.load_latest_prices(["ABC", "USD", "XYZ"])
+    assert prices == {"ABC.L": 10.0, "USD.L": 80.0}
 
 
 def test_load_latest_prices_handles_malformed(monkeypatch, caplog):

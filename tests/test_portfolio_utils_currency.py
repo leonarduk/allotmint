@@ -166,3 +166,14 @@ def test_aggregate_by_ticker_sets_grouping(monkeypatch):
     assert by_ticker["AAA.L"]["grouping"] == "Explicit"
     assert by_ticker["BBB.L"]["grouping"] == "Sector B"
     assert by_ticker["CCC.L"]["grouping"] == "Region C"
+
+
+def test_normalize_currency_code_logs_when_missing(caplog):
+    with caplog.at_level("WARNING", logger="portfolio_utils"):
+        normalized = portfolio_utils._normalize_currency_code(None)
+
+    assert normalized == "GBP"
+    assert (
+        "_normalize_currency_code received empty/missing currency; defaulting to GBP."
+        in caplog.text
+    )

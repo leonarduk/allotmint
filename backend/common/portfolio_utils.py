@@ -610,15 +610,21 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             # attach snapshot if present – overrides derived values above
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             price = snap.get("last_price") if isinstance(snap, dict) else None
-            if price and price == price:  # guard against None/NaN/0
-                row["last_price_gbp"] = price
-                row["last_price_date"] = snap.get("last_price_date")
-                row["last_price_time"] = snap.get("last_price_time")
-                row["is_stale"] = snap.get("is_stale")
-                row["market_value_gbp"] = round(row["units"] * price, 2)
-                row["gain_gbp"] = (
-                    round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
-                )
+            if price is not None and price == price:  # guard against None/NaN
+                price_value = _safe_num(price, default=float("nan"))
+                if price_value != price_value:
+                    price_value = None
+                if price_value is not None:
+                    if price_value == 0:
+                        logger.debug("Using zero snapshot price for %s", full_tkr)
+                    row["last_price_gbp"] = price_value
+                    row["last_price_date"] = snap.get("last_price_date")
+                    row["last_price_time"] = snap.get("last_price_time")
+                    row["is_stale"] = snap.get("is_stale")
+                    row["market_value_gbp"] = round(row["units"] * price_value, 2)
+                    row["gain_gbp"] = (
+                        round(row["market_value_gbp"] - row["cost_gbp"], 2) if row["cost_gbp"] else row["gain_gbp"]
+                    )
 
             # ensure percentage change fields are populated
             if row.get("change_7d_pct") is None:

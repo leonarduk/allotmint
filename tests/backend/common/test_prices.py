@@ -197,10 +197,10 @@ def test_last_close_fallback_snapshot_does_not_double_convert_fx(monkeypatch: py
 
     snapshot = prices.get_price_snapshot([ticker])
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", snapshot, raising=False)
-    monkeypatch.setattr(portfolio_utils.instrument_api, "_resolve_full_ticker", lambda t, _: ("USDX", "US"))
+    monkeypatch.setattr("backend.common.instrument_api._resolve_full_ticker", lambda t, _: ("USDX", "US"))
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _: {"currency": "USD", "name": "USD X"})
     monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda _: {})
-    monkeypatch.setattr(portfolio_utils.instrument_api, "price_change_pct", lambda *_: None)
+    monkeypatch.setattr("backend.common.instrument_api.price_change_pct", lambda *_: None)
     monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda c, b, cache: 0.8 if c == "USD" else 1.0)
 
     portfolio = {

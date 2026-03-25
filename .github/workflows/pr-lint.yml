@@ -18,8 +18,7 @@ jobs:
         run: |
           body="${PR_BODY:-}"
 
-          if printf '%s' "$body" | grep -iPq '(closes|fixes|resolves|refs)\s+#\d+'; then
-            echo 'PR body includes a valid issue reference.'
+            if printf '%s' "$body" | grep -iPq '(closes|fixes|resolves|refs|relates\s+to)\s+#\d+'; then            echo 'PR body includes a valid issue reference.'
             exit 0
           fi
 

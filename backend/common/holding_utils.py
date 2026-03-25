@@ -57,8 +57,11 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     - Output values are always GBP-normalised regardless of source columns.
     - If ``Close_gbp``/``close_gbp`` exists, use it directly (already in GBP).
     - Otherwise use native close (``Close``/``close``/``Adj Close``) and convert
-      to GBP using instrument currency metadata and FX rates:
-      - Pence-denominated instruments (GBX, GBXP) are divided by 100.
+      to GBP using instrument currency metadata and scaling:
+      - If ``get_scaling_override`` returned a non-unity scale, ``apply_scaling``
+        has already performed the pence-to-pounds conversion; no further action.
+      - If scale == 1 and the currency is pence-denominated (GBX, GBXP, GBp),
+        divide by 100 (pence → pounds is arithmetic, not FX).
       - All other non-GBP currencies are converted via ``_fx_to_base``.
 
     Additional behaviour:
@@ -99,7 +102,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 # no data -> don't write a zero; just continue
                 continue
 
-            # apply instrument-specific scaling (e.g., GBX -> GBP)
+            # apply instrument-specific scaling (e.g., GBX -> GBP via 0.01 factor)
             scale = get_scaling_override(ticker, exchange, None)
             df = apply_scaling(df, scale)
             if scale != 1 and "Close_gbp" in df.columns:
@@ -127,15 +130,21 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             if close_gbp_col is None:
                 full_ticker = f"{ticker}.{exchange}"
                 meta = get_instrument_meta(full_ticker) or {}
-                # Preserve the raw metadata currency string for pence detection
-                # before normalising to uppercase, since GBX/GBp are pence.
+                # Preserve the raw metadata string for mixed-case pence detection
+                # (e.g. Yahoo Finance emits "GBp") before uppercasing.
                 raw_currency = str(meta.get("currency") or "GBP").strip()
                 currency = raw_currency.upper()
 
-                # Pence-denominated instruments: divide by 100, do not apply FX.
-                # Recognised pence codes: GBX (Bloomberg/Yahoo), GBXP, GBp (raw).
-                if currency in {"GBX", "GBXP"} or raw_currency == "GBp":
-                    val /= 100.0
+                is_pence = currency in {"GBX", "GBXP"} or raw_currency == "GBp"
+
+                if is_pence:
+                    # Pence → pounds is arithmetic (/100), not an FX operation.
+                    # Only apply when scale == 1: a non-unity scale means
+                    # apply_scaling already performed this conversion via the
+                    # instrument's scaling override (e.g. 0.01 for GBX).
+                    if scale == 1:
+                        val /= 100.0
+                    # else: apply_scaling already converted pence to pounds
                 elif currency != "GBP":
                     val *= _fx_to_base(currency, "GBP", fx_cache)
 

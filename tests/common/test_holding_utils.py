@@ -101,10 +101,10 @@ def test_load_latest_prices_does_not_double_convert_close_gbp(monkeypatch):
 
 
 @pytest.mark.parametrize("raw_currency", ["GBX", "GBXP", "GBp"])
-def test_load_latest_prices_gbx_pence_instrument(monkeypatch, raw_currency):
-    """Pence-denominated instruments (GBX / GBp) must be divided by 100.
+def test_load_latest_prices_gbx_pence_no_scaling_override(monkeypatch, raw_currency):
+    """When scale==1 (no scaling override), pence instruments must be divided by 100.
 
-    A native close of 10_000 pence should yield 100.0 pounds.
+    A native close of 10_000 pence with scale=1.0 should yield 100.0 pounds.
     FX conversion must NOT be called — pence->pounds is arithmetic, not FX.
     """
     from backend.common import instrument_api
@@ -117,6 +117,7 @@ def test_load_latest_prices_gbx_pence_instrument(monkeypatch, raw_currency):
             {"Date": [dt.date(2024, 1, 1)], "Close": [10_000.0]}
         ),
     )
+    # scale=1.0: no scaling override present, so our code must divide by 100
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
     monkeypatch.setattr(
         holding_utils, "get_instrument_meta", lambda *_: {"currency": raw_currency}
@@ -131,6 +132,40 @@ def test_load_latest_prices_gbx_pence_instrument(monkeypatch, raw_currency):
 
     prices = holding_utils.load_latest_prices(["HFEL.L"])
 
+    assert prices == {"HFEL.L": pytest.approx(100.0)}
+
+
+def test_load_latest_prices_gbx_pence_with_scaling_override(monkeypatch):
+    """When scale==0.01 (the standard GBX override), apply_scaling already converted
+    pence to pounds. Our code must NOT divide by 100 again.
+
+    Native close 10_000p * scale 0.01 = 100.0 GBP via apply_scaling.
+    Dividing by 100 again would give 1.0 — wrong.
+    """
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("HFEL", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"Date": [dt.date(2024, 1, 1)], "Close": [10_000.0]}
+        ),
+    )
+    # scale=0.01: standard GBX override — apply_scaling handles pence->pounds
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.01)
+    monkeypatch.setattr(
+        holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBX"}
+    )
+
+    def _boom_fx(*args, **kwargs):
+        raise AssertionError("_fx_to_base must not be called for GBX")
+
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", _boom_fx)
+
+    prices = holding_utils.load_latest_prices(["HFEL.L"])
+
+    # apply_scaling multiplied 10_000 * 0.01 = 100.0; no further conversion
     assert prices == {"HFEL.L": pytest.approx(100.0)}
 
 

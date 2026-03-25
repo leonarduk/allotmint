@@ -591,8 +591,8 @@ export default function App({ onLogout }: AppProps) {
   );
 
   return (
-    <div className="xl:flex xl:justify-center">
-      <main style={{ maxWidth: 900, margin: "0 auto", padding: "1rem" }}>
+    <div className="mx-auto flex w-full max-w-screen-xl flex-col gap-4 px-4 py-4 xl:flex-row xl:items-start">
+      <main className="min-w-0 flex-1">
         <div
           data-route-marker="active"
           data-testid="active-route-marker"

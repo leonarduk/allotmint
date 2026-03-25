@@ -126,4 +126,42 @@ describe("Menu", () => {
     expect(onLogout).toHaveBeenCalled();
     i18n.changeLanguage("en");
   });
+
+  it("applies 44px touch target sizing to dropdown menu items", async () => {
+    const onLogout = vi.fn();
+    render(
+      <MemoryRouter>
+        <Menu onLogout={onLogout} />
+      </MemoryRouter>,
+    );
+
+    const settingsToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.preferences"),
+    });
+    fireEvent.click(settingsToggle);
+
+    const supportLink = await screen.findByRole("menuitem", { name: "Support" });
+    const logoutButton = await screen.findByRole("menuitem", { name: i18n.t("app.logout") });
+
+    expect(supportLink).toHaveClass("min-h-11", "w-full", "px-3", "py-2");
+    expect(logoutButton).toHaveClass("min-h-11", "w-full", "px-3", "py-2");
+  });
+
+  it("uses at least 8px spacing between adjacent dropdown targets", async () => {
+    render(
+      <MemoryRouter>
+        <Menu />
+      </MemoryRouter>,
+    );
+
+    const dashboardToggle = screen.getByRole("button", {
+      name: i18n.t("app.menuCategories.dashboard"),
+    });
+    fireEvent.click(dashboardToggle);
+
+    const firstMenuItem = await screen.findByRole("menuitem", { name: i18n.t("app.modes.group") });
+    const list = firstMenuItem.closest("ul");
+
+    expect(list).toHaveClass("gap-2");
+  });
 });

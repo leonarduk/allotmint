@@ -64,10 +64,13 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
 
 
 def test_aggregate_by_ticker_snapshot_price_is_fx_converted(monkeypatch):
+    """Exercises the fallback path: no price_currency in snapshot, falls back to
+    row currency from instrument metadata."""
     portfolio = {"accounts": [{"holdings": [{"ticker": "ABC", "units": 2.0, "cost_gbp": 0.0}]}]}
 
     monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {"currency": "USD"})
     monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", lambda *_a, **_k: __import__("pandas").DataFrame({"Rate": [0.8]}))
+    # No price_currency in snapshot -> falls back to row.get("currency") from metadata
     monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {"ABC.L": {"last_price": 100.0}})
 
     rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
@@ -75,6 +78,28 @@ def test_aggregate_by_ticker_snapshot_price_is_fx_converted(monkeypatch):
     # 2 * 100 USD * 0.8 (USD->GBP)
     assert rows[0]["market_value_gbp"] == 160.0
     assert rows[0]["last_price_gbp"] == pytest.approx(80.0)
+
+
+def test_aggregate_by_ticker_snapshot_price_currency_field(monkeypatch):
+    """Exercises the primary path: price_currency is present in the snapshot dict.
+    This tests snap.get("price_currency") directly rather than the metadata fallback."""
+    portfolio = {"accounts": [{"holdings": [{"ticker": "ABC", "units": 5.0, "cost_gbp": 0.0}]}]}
+
+    monkeypatch.setattr(portfolio_utils, "fetch_fx_rate_range", lambda *_a, **_k: __import__("pandas").DataFrame({"Rate": [0.8]}))
+    # price_currency explicitly set in snapshot -> primary path used, metadata not needed
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {"ABC.L": {"last_price": 50.0, "price_currency": "USD"}},
+    )
+    # Instrument metadata has no currency — confirms we're using price_currency from snapshot
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+    assert len(rows) == 1
+    # 5 units * 50 USD * 0.8 (USD->GBP) = 200 GBP
+    assert rows[0]["market_value_gbp"] == pytest.approx(200.0)
+    assert rows[0]["last_price_gbp"] == pytest.approx(40.0)
 
 
 def test_aggregate_by_ticker_snapshot_price_handles_gbpence(monkeypatch):

@@ -5,7 +5,7 @@ Price utilities driven entirely by the live portfolio universe
     {
       "TICKER": {
         "last_price":      ...,
-        "price_currency":  "USD" | "GBP" | "GBp" | ...,
+        "price_currency":  "USD" | "GBP" | "GBp" | None,
         "change_7d_pct":   ...,
         "change_30d_pct":  ...,
         "last_price_date": "YYYY-MM-DD",
@@ -23,6 +23,7 @@ Note on price_currency semantics
   the instrument's native currency (e.g. USD, GBp).  We emit the real currency
   code so that ``portfolio_utils.aggregate_by_ticker`` can apply the correct FX
   conversion via its ``_normalize_currency_code`` / ``_fx_to_base`` logic.
+* When no price data is available at all, ``price_currency`` is ``None``.
 
   IMPORTANT: currency codes are emitted with their original case from metadata.
   "GBp" (mixed-case) is the conventional notation for pence and must NOT be
@@ -112,6 +113,7 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
     - Live-price path: ``load_live_prices`` already converts to GBP → "GBP".
     - Last-close fallback: native instrument currency so that
       ``portfolio_utils.aggregate_by_ticker`` can apply FX via its own logic.
+    - No-data path: ``None`` (last_price is also None; consumers should skip).
     """
 
     calc = PricingDateCalculator(today=date.today(), weekday_func=_nearest_weekday)
@@ -130,7 +132,8 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
         # price_currency tracks the currency denomination of `price`.
         # load_live_prices already normalises to GBP, so the live path is
         # always "GBP".  The last-close fallback may be in native currency.
-        price_currency: str
+        # None means no price data was available at all.
+        price_currency: Optional[str]
 
         if live_info:
             price = float(live_info.get("price")) if live_info.get("price") is not None else None
@@ -146,7 +149,9 @@ def get_price_snapshot(tickers: List[str]) -> Dict[str, Dict]:
             # portfolio_utils can apply FX and pence correction correctly.
             price_currency = _instrument_currency(full)
         else:
-            price_currency = "GBP"
+            # No price data available. Emit None so consumers can distinguish
+            # "priced at GBP" from "no data" without guessing.
+            price_currency = None
 
         info = {
             "last_price": price,

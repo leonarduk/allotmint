@@ -9,10 +9,13 @@ def _fake_fx(rates: dict):
     ``rates`` maps currency code (uppercase) to the GBP rate for that currency,
     e.g. {"USD": 0.8} means 1 USD = 0.8 GBP.
     """
+
     def _fetch(base: str, quote: str, start, end):
         import pandas as pd
+
         rate = rates.get(base.upper(), 1.0)
         return pd.DataFrame({"Date": [start], "Rate": [rate]})
+
     return _fetch
 
 
@@ -33,7 +36,13 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
         "accounts": [
             {
                 "holdings": [
-                    {"ticker": "ABC", "units": 1, "market_value_gbp": 100, "gain_gbp": 10, "cost_gbp": 90}
+                    {
+                        "ticker": "ABC",
+                        "units": 1,
+                        "market_value_gbp": 100,
+                        "gain_gbp": 10,
+                        "cost_gbp": 90,
+                    }
                 ]
             }
         ]
@@ -119,6 +128,39 @@ def test_aggregate_by_ticker_snapshot_price_handles_gbpence(monkeypatch):
     # 250 pence = £2.50; 10 units * £2.50 = £25.00
     assert rows[0]["last_price_gbp"] == pytest.approx(2.5)
     assert rows[0]["market_value_gbp"] == 25.0
+
+
+def test_aggregate_by_ticker_snapshot_price_uses_direct_native_to_base_fx(monkeypatch):
+    portfolio = {"accounts": [{"holdings": [{"ticker": "ABC", "units": 2.0, "cost_gbp": 100.0}]}]}
+
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {"ABC.L": {"last_price": 50.0, "price_currency": "USD"}},
+    )
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda _t: {"currency": "USD"})
+
+    def _fake_fx_to_base(from_ccy, to_ccy, _cache=None):
+        pair = (str(from_ccy).upper(), str(to_ccy).upper())
+        rates = {
+            ("USD", "GBP"): 0.8,
+            ("GBP", "USD"): 1.25,
+            ("USD", "USD"): 1.0,
+        }
+        return rates.get(pair, 1.0)
+
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", _fake_fx_to_base)
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="USD")
+    assert len(rows) == 1
+
+    # Direct USD->USD conversion should keep the snapshot price at 50.0 per unit
+    # and avoid a two-step USD->GBP->USD recalculation.
+    assert rows[0]["last_price_gbp"] == pytest.approx(50.0)
+    assert rows[0]["market_value_gbp"] == pytest.approx(100.0)
+    # Cost basis still comes from GBP-native holdings and should be converted once.
+    assert rows[0]["cost_gbp"] == pytest.approx(125.0)
+    assert rows[0]["gain_gbp"] == pytest.approx(-25.0)
 
 
 def test_aggregate_by_ticker_snapshot_price_keeps_gbp(monkeypatch):

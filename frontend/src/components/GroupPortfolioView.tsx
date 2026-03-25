@@ -766,9 +766,9 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(v: number | undefined, n: string) => [
+                formatter={(v: number | undefined, n?: string) => [
                   money(v, baseCurrency),
-                  n,
+                  n ?? "",
                 ]}
               />
               <Legend />

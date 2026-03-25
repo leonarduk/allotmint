@@ -3,29 +3,15 @@ import type { PluginOption } from 'vite'
 import type { UserConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
-import fg from 'fast-glob'
-
-const pageRoutes: string[] = []
 
 // https://vite.dev/config/
-export default defineConfig(({ command }) => {
+export default defineConfig(() => {
   const plugins: PluginOption[] = [
     ...react()
   ]
 
-  if (command === 'build') {
-    const files = fg.sync('src/pages/**/*.tsx', {
-      cwd: __dirname,
-      ignore: ['**/*.test.tsx']
-    })
-    pageRoutes.push(
-      ...files.map((file) => `/${path.basename(file, '.tsx').toLowerCase()}`)
-    )
-    const prerenderRoutes = ['/', ...pageRoutes]
-    if (prerenderRoutes.length > 0) {
-      console.info(`[vite] Skipping legacy prerender plugin; computed ${prerenderRoutes.length} routes.`)
-    }
-  }
+  // Prerender/PWA plugins were intentionally removed because this app now ships
+  // as a standard SPA and infrastructure does not consume prerendered artifacts.
 
   const config: UserConfig = {
     plugins,

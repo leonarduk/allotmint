@@ -27,6 +27,7 @@ import pandas as pd
 
 from backend.common import instrument_api
 from backend.common.holding_utils import (
+    _is_pence_currency,
     load_latest_prices as _load_latest_prices,
     load_live_prices,
 )
@@ -49,7 +50,13 @@ logger = logging.getLogger("prices")
 
 
 def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
-    """Fetch the close price in GBP for ``sym.exch`` on or nearest before ``d``."""
+    """Fetch the close price in GBP for ``sym.exch`` on or nearest before ``d``.
+
+    Pence-denominated instruments (GBX / GBXP / GBp) are divided by 100.
+    All other non-GBP currencies are converted via ``_fx_to_base``.
+    Note: ``_close_on`` does not call ``apply_scaling``, so the /100 conversion
+    is always applied unconditionally for pence instruments (no scale guard needed).
+    """
 
     snap = _nearest_weekday(d, forward=False)
     df = load_meta_timeseries_range(sym, exch, start_date=snap, end_date=snap)
@@ -76,8 +83,13 @@ def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
         from backend.common.portfolio_utils import _fx_to_base
 
         meta = get_instrument_meta(f"{sym}.{exch}") or get_instrument_meta(sym) or {}
-        currency = str(meta.get("currency") or "GBP").upper()
-        if currency != "GBP":
+        raw_currency = str(meta.get("currency") or "GBP").strip()
+        currency = raw_currency.upper()
+
+        if _is_pence_currency(raw_currency):
+            # _close_on does not apply scaling, so always divide by 100.
+            value /= 100.0
+        elif currency != "GBP":
             value *= _fx_to_base(currency, "GBP", {})
 
     return value

@@ -51,9 +51,15 @@ def _lower_name_map(df: pd.DataFrame) -> Dict[str, str]:
 
 
 def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
-    """
-    Returns mapping like {'HFEL.L': 3.21, 'IEFV.L': 5.77}.
-    Prices are GBP-converted when that column is available.
+    """Return latest close prices in **GBP** for each requested ticker.
+
+    Contract:
+    - Output values are always GBP-normalised regardless of source columns.
+    - If ``Close_gbp``/``close_gbp`` exists, use it directly.
+    - Otherwise use native close (``Close``/``close``/``Adj Close``) and convert
+      to GBP using instrument currency metadata and FX rates.
+
+    Additional behaviour:
     - Uses end_date = yesterday
     - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
     - Skips empties instead of returning 0.00
@@ -66,6 +72,10 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     start_date, end_date = calc.lookback_range(365)
 
     from backend.common import instrument_api
+
+    from backend.common.portfolio_utils import _fx_to_base  # type: ignore
+
+    fx_cache: Dict[str, float] = {}
 
     for full in full_tickers:
         resolved = instrument_api._resolve_full_ticker(full, result)
@@ -93,21 +103,35 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             if scale != 1 and "Close_gbp" in df.columns:
                 df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
 
-            # prefer GBP-close column if present
-            close_col = None
-            for col in ("Close_gbp", "Close", "close_gbp", "close"):
-                if col in df.columns:
-                    close_col = col
-                    break
-            if not close_col:
+            name_map = _lower_name_map(df)
+            close_gbp_col = name_map.get("close_gbp")
+            close_native_col = (
+                name_map.get("close")
+                or name_map.get("adj close")
+                or name_map.get("adj_close")
+            )
+            if not close_gbp_col and not close_native_col:
                 continue
 
             df = df.sort_values(df.columns[0])  # first col is Date in your feeds
             last = df.iloc[-1]
 
-            val = float(last[close_col])
+            selected_col = close_gbp_col or close_native_col
+            val = float(last[selected_col])
             if not (val == val and val != float("inf") and val != float("-inf")):
                 continue  # skip NaN/inf
+
+            # Enforce GBP contract when only native close is available.
+            if close_gbp_col is None:
+                full_ticker = f"{ticker}.{exchange}"
+                meta = get_instrument_meta(full_ticker) or {}
+                currency = str(meta.get("currency") or "GBP").strip().upper()
+                if currency == "GBP" and str(meta.get("currency") or "").lower().endswith("p"):
+                    currency = "GBX"
+                if currency in {"GBX", "GBXP", "GBPX"}:
+                    currency = "GBP"
+                if currency and currency != "GBP":
+                    val *= _fx_to_base(currency, "GBP", fx_cache)
 
             # store using the EXACT key your frontend expects
             key = f"{ticker}.{exchange}"

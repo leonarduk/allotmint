@@ -58,6 +58,47 @@ def test_load_latest_prices_resolution_scaling_and_missing(monkeypatch):
     assert prices == {"ABC.L": 10.0}
 
 
+def test_load_latest_prices_converts_native_close_to_gbp(monkeypatch):
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("VUSA", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame({"Date": [dt.date(2024, 1, 1)], "Close": [100.0]}),
+    )
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda src, dst, cache: 0.8)
+
+    prices = holding_utils.load_latest_prices(["VUSA.L"])
+
+    assert prices == {"VUSA.L": pytest.approx(80.0)}
+
+
+def test_load_latest_prices_does_not_double_convert_close_gbp(monkeypatch):
+    from backend.common import instrument_api
+
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("VUSA", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"Date": [dt.date(2024, 1, 1)], "Close": [100.0], "Close_gbp": [79.0]}
+        ),
+    )
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
+
+    def _boom_fx(*args, **kwargs):
+        raise AssertionError("FX conversion should not run when Close_gbp exists")
+
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", _boom_fx)
+
+    prices = holding_utils.load_latest_prices(["VUSA.L"])
+
+    assert prices == {"VUSA.L": pytest.approx(79.0)}
+
 def test_load_latest_prices_handles_malformed(monkeypatch, caplog):
     def boom(*args, **kwargs):
         raise ValueError("bad data")

@@ -715,7 +715,15 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     row["_grouping_from_fallback"] = True
 
     for r in rows.values():
-        if r.get("last_price_gbp") is None and _safe_num(r.get("units")):
+        # Derive last_price_gbp from market_value_gbp / units when no snapshot
+        # price was available. Guard against None market_value_gbp — _safe_num
+        # returns 0.0 for None, which would silently set last_price_gbp to 0.0
+        # and make the position appear unpriced in the UI.
+        if (
+            r.get("last_price_gbp") is None
+            and r.get("market_value_gbp") is not None
+            and _safe_num(r.get("units"))
+        ):
             r["last_price_gbp"] = _safe_num(r.get("market_value_gbp")) / _safe_num(r.get("units"))
 
     rate = _fx_to_base("GBP", base_currency, fx_cache)

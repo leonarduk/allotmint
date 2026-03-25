@@ -26,6 +26,11 @@ def test_aggregate_by_ticker_fx_conversion(monkeypatch):
         ]
     }
 
+    # Explicitly empty snapshot so this test is hermetic regardless of run order.
+    # Without this, module-level _PRICE_SNAPSHOT state from other tests could
+    # inject a snapshot price and change the market_value_gbp computation path.
+    monkeypatch.setattr(portfolio_utils, "_PRICE_SNAPSHOT", {})
+
     monkeypatch.setattr(
         portfolio_utils,
         "get_instrument_meta",

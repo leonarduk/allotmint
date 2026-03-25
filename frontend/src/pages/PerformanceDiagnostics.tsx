@@ -70,7 +70,7 @@ export default function PerformanceDiagnostics() {
 
     let current: ActiveEvent = null;
 
-    history.forEach((point) => {
+    for (const point of history) {
       const drawdownValue =
         typeof point.drawdown === "number" && Number.isFinite(point.drawdown)
           ? point.drawdown
@@ -107,7 +107,7 @@ export default function PerformanceDiagnostics() {
         });
         current = null;
       }
-    });
+    }
 
     if (current) {
       const lastDate = current.lastDate || history[history.length - 1].date;
@@ -241,7 +241,7 @@ export default function PerformanceDiagnostics() {
                 >
                   <XAxis dataKey="date" />
                   <YAxis tickFormatter={(v) => percent(v * 100)} />
-                  <Tooltip formatter={(v: number) => percent(v * 100)} />
+                  <Tooltip formatter={(v: number | undefined) => percent((v ?? 0) * 100)} />
                   <Line
                     type="monotone"
                     dataKey="drawdown"

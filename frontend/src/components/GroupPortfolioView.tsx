@@ -766,7 +766,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(v: number, n: string) => [
+                formatter={(v: number | undefined, n: string) => [
                   money(v, baseCurrency),
                   n,
                 ]}
@@ -804,7 +804,7 @@ export function GroupPortfolioView({ slug, owners, onTradeInfo }: Props) {
             >
               <XAxis dataKey={contribTab === "sector" ? "sector" : "region"} />
               <YAxis />
-              <Tooltip formatter={(v: number) => money(v, baseCurrency)} />
+              <Tooltip formatter={(v: number | undefined) => money(v, baseCurrency)} />
               <Bar dataKey="gain_gbp">
                 {(contribTab === "sector" ? sectorContrib : regionContrib)?.map(
                   (row, idx) => (

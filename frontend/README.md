@@ -1,7 +1,7 @@
 # AllotMint Frontend
 
 The AllotMint frontend is a React + TypeScript single-page app that visualises family investment data fetched from the backend API.
-The backend API must be running and the `VITE_ALLOTMINT_API_BASE` environment variable configured to its base URL.
+The backend API must be running and reachable from the browser (local, LAN IP, or deployed URL).
 
 ## Interface
 
@@ -55,17 +55,31 @@ future navigation features ahead of the final release.
 
 1. Install dependencies with `npm install`.
 2. Ensure the backend API is running. From the repository root you can start it with `./run-local-api.sh`, which serves `http://localhost:8000` by default.
-3. If the backend runs elsewhere, set `VITE_ALLOTMINT_API_BASE` (or the legacy `VITE_API_URL`) before starting the dev server, e.g.:
+3. Update `public/config.json` with the backend URL you want this frontend build to use:
+
+   ```json
+   {
+     "apiBaseUrl": "http://192.168.1.20:8000"
+   }
+   ```
+
+   At startup, the app fetches `/config.json` and uses that value without requiring a rebuild.
+
+4. If you prefer build-time overrides, set `VITE_ALLOTMINT_API_BASE` (or legacy `VITE_API_URL`) before starting the dev server, e.g.:
 
    ```bash
    export VITE_ALLOTMINT_API_BASE=http://localhost:8000
    ```
-4. Run `npm run dev` and open the app in your browser.
-5. Use the browser's **Install** or **Add to Home Screen** option to install the PWA. The service worker caches static assets for offline use.
+5. Run `npm run dev` and open the app in your browser.
+6. Use the browser's **Install** or **Add to Home Screen** option to install the PWA. The service worker caches static assets for offline use.
 
 ## Configuration
 
-Set one of the following environment variables to tell the UI where the backend lives:
+Preferred runtime setting:
+
+* `public/config.json` with `{ "apiBaseUrl": "https://..." }` – allows one build to switch backends without rebuilding.
+
+Optional build-time environment variables:
 
 * `VITE_ALLOTMINT_API_BASE` – full base URL to the backend.
 * `VITE_API_URL` – legacy fallback used when `VITE_ALLOTMINT_API_BASE` is unset.
@@ -78,7 +92,11 @@ To provide the token, add it to your environment or a `.env` file in `frontend`:
 VITE_API_TOKEN=your-token-here
 ```
 
-If neither is provided the app falls back to `http://localhost:8000`.
+Resolution order is:
+1. `/config.json` → `apiBaseUrl` (runtime, no rebuild).
+2. `VITE_ALLOTMINT_API_BASE`.
+3. `VITE_API_URL` (legacy).
+4. `http://localhost:8000`.
 
 Runtime feature flags and tab visibility come from the backend's `config.yaml`. See the [backend setup instructions](../README.md#local-quick-start) for configuring and running the server.
 

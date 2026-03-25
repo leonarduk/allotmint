@@ -19,7 +19,13 @@ import './i18n';
 import { ConfigProvider } from './ConfigContext';
 import { PriceRefreshProvider } from './PriceRefreshContext';
 import { AuthProvider, useAuth } from './AuthContext';
-import { getConfig, logout as apiLogout, getStoredAuthToken, setAuthToken } from './api';
+import {
+  getConfig,
+  logout as apiLogout,
+  getStoredAuthToken,
+  setApiBase,
+  setAuthToken,
+} from './api';
 import LoginPage from './LoginPage';
 import { UserProvider, useUser } from './UserContext';
 import ErrorBoundary from './ErrorBoundary';
@@ -329,24 +335,40 @@ export function Root() {
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
-createRoot(rootEl).render(
-  <StrictMode>
-    <HelmetProvider>
-      <ConfigProvider>
-        <PriceRefreshProvider>
-          <AuthProvider>
-            <UserProvider>
-              <BrowserRouter>
-                <Root />
-              </BrowserRouter>
-              <ToastContainer autoClose={5000} />
-            </UserProvider>
-          </AuthProvider>
-        </PriceRefreshProvider>
-      </ConfigProvider>
-    </HelmetProvider>
-  </StrictMode>,
-);
+
+const bootstrapRuntimeConfig = async () => {
+  try {
+    const response = await fetch('/config.json', { cache: 'no-store' });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { apiBaseUrl?: unknown };
+    if (typeof payload.apiBaseUrl === 'string') {
+      setApiBase(payload.apiBaseUrl);
+    }
+  } catch (error) {
+    console.warn('Runtime config not loaded, using default API base URL', error);
+  }
+};
+
+void bootstrapRuntimeConfig().finally(() => {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <HelmetProvider>
+        <ConfigProvider>
+          <PriceRefreshProvider>
+            <AuthProvider>
+              <UserProvider>
+                <BrowserRouter>
+                  <Root />
+                </BrowserRouter>
+                <ToastContainer autoClose={5000} />
+              </UserProvider>
+            </AuthProvider>
+          </PriceRefreshProvider>
+        </ConfigProvider>
+      </HelmetProvider>
+    </StrictMode>,
+  );
+});
 
 if ('serviceWorker' in navigator && (import.meta.env.PROD || import.meta.env.VITE_ENABLE_SW)) {
   window.addEventListener('load', () => {

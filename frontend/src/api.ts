@@ -64,12 +64,21 @@ const cleanOptionalString = (value: unknown): string | null => {
 };
 
 /* ------------------------------------------------------------------ */
-/* Base URL – fall back to localhost if no Vite env vars are defined. */
+/* Base URL – can be overridden at runtime via /config.json.          */
 /* ------------------------------------------------------------------ */
-export const API_BASE =
+export const DEFAULT_API_BASE =
   import.meta.env.VITE_ALLOTMINT_API_BASE ??
   import.meta.env.VITE_API_URL ??
   "http://localhost:8000";
+export let API_BASE = DEFAULT_API_BASE;
+
+export const getApiBase = () => API_BASE;
+
+export const setApiBase = (value: string | null | undefined) => {
+  const trimmed = value?.trim();
+  if (!trimmed) return;
+  API_BASE = trimmed.replace(/\/+$/, "");
+};
 
 export type StorageLike = {
   getItem(key: string): string | null;
@@ -86,11 +95,12 @@ const defaultGetCsrfToken = () =>
         ?.split("=")[1] || null;
 
 export function createClient(
-  base: string,
+  base: string | (() => string),
   token: string | null = null,
   fetchImpl: typeof fetch = fetch,
   opts: { getCsrfToken?: () => string | null; storage?: StorageLike } = {},
 ) {
+  const resolveBase = () => (typeof base === "function" ? base() : base);
   let authToken = token;
   const getCsrfToken = opts.getCsrfToken ?? defaultGetCsrfToken;
   const storage = opts.storage;
@@ -109,7 +119,7 @@ export function createClient(
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     const csrf = getCsrfToken();
     if (csrf) headers["X-CSRFToken"] = csrf;
-    const res = await fetchImpl(`${base}/token`, {
+    const res = await fetchImpl(`${resolveBase()}/token`, {
       method: "POST",
       headers,
       credentials: "include",
@@ -136,7 +146,8 @@ export function createClient(
       // eslint-disable-next-line no-new
       new URL(url);
     } catch {
-      fullUrl = url.startsWith("/") ? `${base}${url}` : `${base}/${url}`;
+      const resolvedBase = resolveBase();
+      fullUrl = url.startsWith("/") ? `${resolvedBase}${url}` : `${resolvedBase}/${url}`;
     }
     const headers = new Headers(init.headers);
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
@@ -164,7 +175,7 @@ export function createClient(
 const dynamicFetch: typeof fetch = ((...args: Parameters<typeof fetch>) =>
   (globalThis.fetch as any)(...args)) as typeof fetch;
 
-const defaultClient = createClient(API_BASE, null, dynamicFetch, {
+const defaultClient = createClient(() => API_BASE, null, dynamicFetch, {
   getCsrfToken: defaultGetCsrfToken,
   storage: typeof localStorage === "undefined" ? undefined : localStorage,
 });

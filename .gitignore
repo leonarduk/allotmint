@@ -5,6 +5,7 @@ dist/
 build/
 .env*
 !.env.example
+!.env.local.example
 
 # PWA icons (downloaded separately)
 frontend/public/icons/*.png

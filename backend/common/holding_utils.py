@@ -18,7 +18,6 @@ from backend.common.constants import (
     UNITS,
 )
 from backend.common.instruments import get_instrument_meta
-from backend.common.portfolio_utils import _fx_to_base
 from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries_range
@@ -33,6 +32,13 @@ logger = logging.getLogger(__name__)
 
 
 # ───────────── helpers ─────────────
+def _fx_to_base(from_ccy: str, to_ccy: str, cache: Dict[str, float]) -> float:
+    """Resolve FX via portfolio_utils lazily to avoid import cycles."""
+    from backend.common import portfolio_utils
+
+    return portfolio_utils._fx_to_base(from_ccy, to_ccy, cache)
+
+
 def _parse_date(val) -> Optional[dt.date]:
     if val is None:
         return None

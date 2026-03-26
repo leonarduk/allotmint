@@ -369,11 +369,3 @@ void bootstrapRuntimeConfig().finally(() => {
     </StrictMode>,
   );
 });
-
-if ('serviceWorker' in navigator && (import.meta.env.PROD || import.meta.env.VITE_ENABLE_SW)) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/service-worker.js')
-      .catch((err) => console.error('Service worker registration failed:', err));
-  });
-}

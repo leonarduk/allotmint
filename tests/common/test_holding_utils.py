@@ -226,6 +226,9 @@ def test_load_live_prices_with_fx(monkeypatch):
     ts = int(dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc).timestamp())
 
     class Resp:
+        def raise_for_status(self):
+            return None
+
         def json(self):
             return {
                 "quoteResponse": {

@@ -6,6 +6,9 @@ from backend.common import holding_utils
 
 def test_load_live_prices_applies_scaling_and_fx(monkeypatch):
     class Resp:
+        def raise_for_status(self):
+            return None
+
         def json(self):
             return {
                 "quoteResponse": {

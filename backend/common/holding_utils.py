@@ -1,4 +1,3 @@
-# backend/common/holding_utils.py
 from __future__ import annotations
 
 import datetime as dt
@@ -56,7 +55,7 @@ def _is_pence_currency(raw: str) -> bool:
 
     Handles GBX (Bloomberg/most feeds), GBXP, and the mixed-case
     Yahoo Finance variant 'GBp'. The raw string must be passed
-    before uppercasing so that 'GBp' is distinguished from 'GBP'.
+    *before* uppercasing so that 'GBp' is distinguished from 'GBP'.
     """
     return raw.upper() in {"GBX", "GBXP"} or raw == "GBp"
 
@@ -76,7 +75,7 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
       - All other non-GBP currencies are converted via ``_fx_to_base``.
 
     Additional behaviour:
-    - Uses end_date = yesterday
+    - Uses end_date = yesterday via PricingDateCalculator
     - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
     - Skips empties instead of returning 0.00
     """
@@ -110,7 +109,6 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             if df is None or df.empty:
                 continue
 
-            # Apply instrument-specific scaling first.
             scale = get_scaling_override(ticker, exchange, None)
             df = apply_scaling(df, scale)
 
@@ -121,27 +119,29 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
                 or name_map.get("adj close")
                 or name_map.get("adj_close")
             )
+
             if not close_gbp_col and not close_native_col:
                 continue
-
-            # Keep pence scaling behavior consistent when a GBP close column exists.
-            if scale != 1 and close_gbp_col:
-                df[close_gbp_col] = pd.to_numeric(df[close_gbp_col], errors="coerce") * scale
 
             df = df.sort_values(df.columns[0])  # first column is Date in these feeds
             last = df.iloc[-1]
 
             selected_col = close_gbp_col or close_native_col
             val = float(last[selected_col])
-            if not (val == val and val != float("inf") and val != float("-inf")):
-                continue  # skip NaN/inf
 
-            # Enforce GBP contract when only native close is available.
+            if not (val == val and val != float("inf") and val != float("-inf")):
+                continue
+
             if close_gbp_col is None:
-                meta = get_instrument_meta(full) or get_instrument_meta(ticker) or {}
-                raw_currency = str(meta.get("currency") or "").strip()
-                if not raw_currency:
-                    continue
+                full_ticker = f"{ticker}.{exchange}"
+                meta = (
+                    get_instrument_meta(full_ticker)
+                    or get_instrument_meta(full)
+                    or get_instrument_meta(ticker)
+                    or {}
+                )
+
+                raw_currency = str(meta.get("currency") or "GBP").strip()
                 currency = raw_currency.upper()
 
                 if _is_pence_currency(raw_currency):
@@ -414,6 +414,7 @@ def enrich_holding(
 
     sec_meta = get_security_meta(full) or {}
     instr_meta = meta or {}
+    # Instrument metadata should win over security metadata derived from portfolios.
     meta = {**sec_meta, **instr_meta}
 
     if _is_cash(full, account_ccy):

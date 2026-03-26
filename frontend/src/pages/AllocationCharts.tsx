@@ -242,7 +242,7 @@ export function AllocationCharts({ slug = "all" }: AllocationChartsProps) {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(v: number | undefined, _n: string, item: any) =>
+                formatter={(v: number | undefined, _n?: string, item?: any) =>
                   relativeViewEnabled
                     ? `${
                         total

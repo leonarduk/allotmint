@@ -6,8 +6,6 @@ import {
   getConfig,
   getOwners,
   updateConfig,
-  savePushSubscription,
-  deletePushSubscription,
   checkPortfolioHealth,
   type Finding,
   refreshPrices,
@@ -43,10 +41,8 @@ export default function Support() {
   const [config, setConfig] = useState<ConfigState>({});
   const [tabs, setTabs] = useState<Record<TabPluginId, boolean>>(EMPTY_TABS);
   const [configStatus, setConfigStatus] = useState<string | null>(null);
-  const [pushEnabled, setPushEnabled] = useState(false);
   const [owners, setOwners] = useState<OwnerSummary[]>([]);
   const [owner, setOwner] = useState("");
-  const [pushStatus, setPushStatus] = useState<string | null>(null);
   const [health, setHealth] = useState<Finding[]>([]);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [healthRunning, setHealthRunning] = useState(false);
@@ -200,21 +196,6 @@ export default function Support() {
     };
   }, []);
 
-  useEffect(() => {
-    if (
-      typeof navigator !== "undefined" &&
-      navigator.serviceWorker &&
-      "ready" in navigator.serviceWorker
-    ) {
-      navigator.serviceWorker.ready
-        .then((reg) => reg.pushManager.getSubscription())
-        .then((sub) => setPushEnabled(!!sub))
-        .catch(() => {
-          /* ignore */
-        });
-    }
-  }, []);
-
   function handleConfigChange(key: string, value: string | boolean) {
     setConfig((prev) => ({ ...prev, [key]: value }));
   }
@@ -349,57 +330,6 @@ export default function Support() {
       setConfigStatus("saved");
     } catch {
       setConfigStatus("error");
-    }
-  }
-
-  function urlBase64ToUint8Array(base64String: string) {
-    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const rawData = atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
-  }
-
-  async function enablePush() {
-    if (!owner) return;
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setPushStatus("denied");
-        return;
-      }
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
-          ? urlBase64ToUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY as string)
-          : undefined,
-      });
-      await savePushSubscription(
-        owner,
-        sub.toJSON() as import("../api").PushSubscriptionJSON,
-      );
-      setPushEnabled(true);
-      setPushStatus("enabled");
-    } catch {
-      setPushStatus("error");
-    }
-  }
-
-  async function disablePush() {
-    if (!owner) return;
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) await sub.unsubscribe();
-      await deletePushSubscription(owner);
-      setPushEnabled(false);
-      setPushStatus("disabled");
-    } catch {
-      setPushStatus("error");
     }
   }
 
@@ -609,30 +539,7 @@ export default function Support() {
 
       <SectionCard title={t("support.notifications.title")}>
         <OwnerSelector owners={owners} selected={owner} onSelect={setOwner} />
-        {typeof Notification === "undefined" ||
-        typeof navigator === "undefined" ||
-        !("serviceWorker" in navigator) ? (
-          <p className="mt-2">{t("support.notifications.notSupported")}</p>
-        ) : (
-          <div className="mt-2 space-x-2">
-            <button
-              onClick={pushEnabled ? disablePush : enablePush}
-              type="button"
-              disabled={!owner}
-              className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
-            >
-              {pushEnabled
-                ? t("support.notifications.disable")
-                : t("support.notifications.enable")}
-            </button>
-            {pushStatus === "denied" && (
-              <p>{t("support.notifications.denied")}</p>
-            )}
-            {pushStatus === "error" && (
-              <p>{t("support.notifications.error")}</p>
-            )}
-          </div>
-        )}
+        <p className="mt-2">{t("support.notifications.notSupported")}</p>
       </SectionCard>
 
       <SectionCard title={t("support.config.title")}>
@@ -760,4 +667,3 @@ export default function Support() {
     </div>
   );
 }
-

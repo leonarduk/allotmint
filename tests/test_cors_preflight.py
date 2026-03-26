@@ -29,9 +29,9 @@ def test_cors_preflight(monkeypatch):
     assert "*" not in allow_headers
 
 
-def test_cors_preflight_app_origin_always_allowed(monkeypatch):
+def test_cors_preflight_respects_configured_origin(monkeypatch):
     origin = "https://app.allotmint.io"
-    monkeypatch.setattr(config, "cors_origins", ["http://localhost:3000"])
+    monkeypatch.setattr(config, "cors_origins", ["http://localhost:3000", origin])
     monkeypatch.setattr(config, "skip_snapshot_warm", True)
     app = create_app()
     with TestClient(app) as client:

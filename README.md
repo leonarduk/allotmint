@@ -49,3 +49,45 @@ The backend bind-mounts `./data` into `/app/data` so portfolio/account fixtures 
 ```bash
 make local-down
 ```
+
+## Local network setup (LAN testing)
+
+Use these steps when you want phones/tablets/laptops on your WiFi network to hit a backend running on your development machine.
+
+### Prerequisites
+
+- Python 3.11+ with dependencies installed:
+  - `python -m pip install -r requirements.txt -r requirements-dev.txt`
+- Node.js 20+ for frontend tooling.
+- Local environment defaults:
+  - `cp .env.local.example .env.local`
+
+### Steps
+
+1. Set runtime API base URL for the frontend in `frontend/public/config.json`:
+
+   ```json
+   {
+     "apiBaseUrl": "http://<YOUR-LAN-IP>:8000"
+   }
+   ```
+
+2. Start the backend and bind to all interfaces (`0.0.0.0`):
+
+   ```bash
+   bash scripts/bash/run-local-api.sh
+   ```
+
+3. Start the frontend:
+
+   ```bash
+   npm --prefix frontend run dev -- --host 0.0.0.0
+   ```
+
+4. Allow inbound TCP `8000` in your machine firewall so other LAN devices can reach the FastAPI backend.
+
+### Notes
+
+- `frontend/public/config.json` is fetched with `cache: "no-store"` in the SPA bootstrap and deployed with `Cache-Control: no-cache, no-store, must-revalidate` in CDK, so backend URL changes should take effect immediately.
+- iOS Safari blocks mixed content (`https://...` frontend calling `http://...` API). For LAN testing, serve frontend over HTTP (or use HTTPS end-to-end).
+- This project does not currently register a service worker, so `/config.json` is not intercepted by client-side SW caching.

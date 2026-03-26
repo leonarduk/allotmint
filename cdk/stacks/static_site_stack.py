@@ -143,7 +143,7 @@ class StaticSiteStack(Stack):
             "DeployAssets",
             sources=[s3_deployment.Source.asset(str(frontend_dir))],
             destination_bucket=site_bucket,
-            exclude=["*.html"],  # HTML deployed separately to control caching
+            exclude=["*.html", "config.json"],  # deployed separately to control caching
             cache_control=[
                 s3_deployment.CacheControl.max_age(Duration.days(365)),
                 s3_deployment.CacheControl.immutable(),
@@ -165,6 +165,22 @@ class StaticSiteStack(Stack):
             prune=False,
         )
         html_deploy.node.add_dependency(asset_deploy)
+
+        config_deploy = s3_deployment.BucketDeployment(
+            self,
+            "DeployRuntimeConfig",
+            sources=[s3_deployment.Source.asset(str(frontend_dir))],
+            destination_bucket=site_bucket,
+            exclude=["*"],
+            include=["config.json"],
+            cache_control=[
+                s3_deployment.CacheControl.no_cache(),
+                s3_deployment.CacheControl.no_store(),
+                s3_deployment.CacheControl.must_revalidate(),
+            ],
+            prune=False,
+        )
+        config_deploy.node.add_dependency(asset_deploy)
 
         CfnOutput(self, "SiteBucket", value=site_bucket.bucket_name)
         CfnOutput(self, "DistributionId", value=distribution.distribution_id)

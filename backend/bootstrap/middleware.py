@@ -19,6 +19,15 @@ from slowapi.util import get_remote_address
 from backend.common.errors import AppError, log_app_error
 from backend.config import Config
 
+_CORS_ALLOW_METHODS = ["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
+_CORS_ALLOW_HEADERS = [
+    "Accept",
+    "Authorization",
+    "Content-Type",
+    "Origin",
+    "X-Requested-With",
+]
+
 
 def normalize(obj: Any) -> Any:
     """Recursively convert bytes to strings for JSON serialization."""
@@ -48,19 +57,15 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    default_cors = [
-        "https://app.allotmint.io",
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ]
+    default_cors = ["http://localhost:3000", "http://localhost:5173"]
     cors_origins = _validate_cors_origins(
         list(dict.fromkeys((cfg.cors_origins or []) + default_cors))
     )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=_CORS_ALLOW_METHODS,
+        allow_headers=_CORS_ALLOW_HEADERS,
         allow_credentials=True,
     )
     app.add_middleware(SlowAPIMiddleware)

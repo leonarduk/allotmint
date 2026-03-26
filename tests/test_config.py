@@ -149,6 +149,21 @@ def test_allowed_emails_env_override(monkeypatch):
     reload_config()
 
 
+def test_cors_origins_env_override(monkeypatch):
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "https://app.allotmint.io,http://192.168.1.25:5173,http://localhost:5173",
+    )
+    cfg = reload_config()
+    assert cfg.cors_origins == [
+        "https://app.allotmint.io",
+        "http://192.168.1.25:5173",
+        "http://localhost:5173",
+    ]
+    monkeypatch.delenv("CORS_ORIGINS")
+    reload_config()
+
+
 def test_reload_preserves_monkeypatched_allowed_emails(monkeypatch):
     reload_config()
     monkeypatch.setattr(config, "allowed_emails", ["override@example.com"], raising=False)

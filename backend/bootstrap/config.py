@@ -13,6 +13,7 @@ _OVERRIDE_ATTRS = (
     "snapshot_warm_days",
     "app_env",
     "base_currency",
+    "cors_origins",
 )
 
 

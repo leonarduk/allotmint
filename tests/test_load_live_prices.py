@@ -22,9 +22,7 @@ def test_load_live_prices_applies_scaling_and_fx(monkeypatch):
     monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.5)
 
-    import backend.common.portfolio_utils as pu
-
-    monkeypatch.setattr(pu, "_fx_to_base", lambda c, b, cache: 1.5)
+    monkeypatch.setattr(holding_utils, "_fx_to_base", lambda c, b, cache: 1.5)
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda t: {"currency": "USD"})
 
     prices = holding_utils.load_live_prices(["ABC.L"])

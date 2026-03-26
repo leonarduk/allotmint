@@ -19,6 +19,7 @@ from backend.common.constants import (
     UNITS,
 )
 from backend.common.instruments import get_instrument_meta
+from backend.common.portfolio_utils import _fx_to_base
 from backend.common.user_config import UserConfig
 from backend.config import config
 from backend.timeseries.cache import load_meta_timeseries_range
@@ -87,7 +88,6 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     start_date, end_date = calc.lookback_range(365)
 
     from backend.common import instrument_api
-    from backend.common.portfolio_utils import _fx_to_base  # local import to avoid circular
 
     fx_cache: Dict[str, float] = {}
 
@@ -124,6 +124,10 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             if not close_gbp_col and not close_native_col:
                 continue
 
+            # Keep pence scaling behavior consistent when a GBP close column exists.
+            if scale != 1 and close_gbp_col:
+                df[close_gbp_col] = pd.to_numeric(df[close_gbp_col], errors="coerce") * scale
+
             df = df.sort_values(df.columns[0])  # first column is Date in these feeds
             last = df.iloc[-1]
 
@@ -134,16 +138,26 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
 
             # Enforce GBP contract when only native close is available.
             if close_gbp_col is None:
-                full_ticker = f"{ticker}.{exchange}"
-                meta = get_instrument_meta(full_ticker) or get_instrument_meta(ticker) or {}
-                raw_currency = str(meta.get("currency") or "GBP").strip()
+                meta = get_instrument_meta(full) or get_instrument_meta(ticker) or {}
+                raw_currency = str(meta.get("currency") or "").strip()
+                if not raw_currency:
+                    continue
                 currency = raw_currency.upper()
 
                 if _is_pence_currency(raw_currency):
                     if scale == 1:
                         val /= 100.0
                 elif currency != "GBP":
-                    val *= _fx_to_base(currency, "GBP", fx_cache)
+                    fx_rate = _fx_to_base(currency, "GBP", fx_cache)
+                    if not fx_rate or not pd.notna(fx_rate) or not pd.api.types.is_number(fx_rate):
+                        continue
+                    fx_rate = float(fx_rate)
+                    if not pd.notna(fx_rate) or fx_rate <= 0:
+                        continue
+                    val *= fx_rate
+
+            if not pd.notna(val) or val <= 0:
+                continue
 
             key = f"{ticker}.{exchange}"
             result[key] = val
@@ -171,11 +185,11 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
 
     try:
-        from backend.common.portfolio_utils import _fx_to_base  # local import to avoid circular
-
         fx_cache: Dict[str, float] = {}
         resp = requests.get(url, timeout=5)
-        resp.raise_for_status()
+        raise_for_status = getattr(resp, "raise_for_status", None)
+        if callable(raise_for_status):
+            raise_for_status()
         payload = resp.json().get("quoteResponse", {}).get("result", [])
 
         for row in payload:
@@ -201,7 +215,16 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
                 if scale == 1:
                     price /= 100.0
             elif currency != "GBP":
-                price *= _fx_to_base(currency, "GBP", fx_cache)
+                fx_rate = _fx_to_base(currency, "GBP", fx_cache)
+                if not fx_rate or not pd.notna(fx_rate) or not pd.api.types.is_number(fx_rate):
+                    continue
+                fx_rate = float(fx_rate)
+                if not pd.notna(fx_rate) or fx_rate <= 0:
+                    continue
+                price *= fx_rate
+
+            if not pd.notna(price) or price <= 0:
+                continue
 
             out[sym.upper()] = {
                 "price": price,

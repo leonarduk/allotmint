@@ -158,6 +158,10 @@ def _normalize_currency_code(currency: str | None) -> str:
 
     raw = (currency or "").strip()
     if not raw:
+        logger.warning(
+            "_normalize_currency_code received empty/missing currency; defaulting to GBP. "
+            "Check instrument metadata."
+        )
         return "GBP"
     if raw == "GBp":
         return "GBX"
@@ -440,7 +444,9 @@ def list_all_unique_tickers() -> List[str]:
 # ──────────────────────────────────────────────────────────────
 # Core aggregation
 # ──────────────────────────────────────────────────────────────
-def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
+def aggregate_by_ticker(
+    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
+) -> List[dict]:
     """Collapse a nested portfolio tree into one row per ticker,
     enriched with latest-price snapshot.
 
@@ -510,7 +516,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             base_sym, _, resolved_exch = sym.partition(".")
             if resolved_exch:
                 exch = resolved_exch.upper()
-                full_tkr = sym  # already includes exchange suffix from resolver
+                full_tkr = sym
             else:
                 exch = (h.get("exchange") or inferred or "L").upper()
                 full_tkr = f"{base_sym}.{exch}"
@@ -567,7 +573,6 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             row.setdefault("_sector_source", None)
             row.setdefault("_region_source", None)
 
-            # accumulate units from the holding
             row["units"] += _safe_num(h.get("units"))
 
             _update_row_field(row, "currency", h.get("currency"), "holding")
@@ -578,7 +583,11 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             _update_row_field(row, "region", instrument_meta.get("region"), "instrument_meta")
 
             security_meta: Dict[str, Any] | None = None
-            if row.get("currency") is None or row.get("sector") is None or row.get("region") is None:
+            if (
+                row.get("currency") is None
+                or row.get("sector") is None
+                or row.get("region") is None
+            ):
                 security_meta = get_security_meta(full_tkr) or {}
                 _update_row_field(row, "currency", security_meta.get("currency"), "security_meta")
                 _update_row_field(row, "sector", security_meta.get("sector"), "security_meta")
@@ -605,7 +614,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                             ("instrument_meta_currency", instrument_meta.get("currency")),
                         ]
                     )
-                    grouping_value, grouping_label = _first_nonempty_str_with_source(*grouping_pairs)
+                    grouping_value, grouping_label = _first_nonempty_str_with_source(
+                        *grouping_pairs
+                    )
                     if grouping_value:
                         row["grouping"] = grouping_value
                         row["_grouping_from_fallback"] = grouping_label in _GROUPING_FALLBACK_SOURCES
@@ -626,15 +637,12 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             cost = _safe_num(cost_value)
             row["cost_gbp"] += cost
 
-            # if holdings already carry market value / gain, include them so we
-            # have sensible numbers even when no price snapshot is available
             row["market_value_gbp"] += _safe_num(h.get("market_value_gbp"))
             row["gain_gbp"] += _safe_num(h.get("gain_gbp"))
 
-            # attach snapshot if present – overrides derived values above
             snap = _PRICE_SNAPSHOT.get(full_tkr) or _PRICE_SNAPSHOT.get(base_sym)
             price = snap.get("last_price") if isinstance(snap, dict) else None
-            if price is not None and price == price:  # guard against None/NaN, but allow 0
+            if price is not None and price == price:  # allow zero, reject None/NaN
                 price_value = _safe_num(price, default=float("nan"))
                 if price_value == price_value:  # still not NaN after coercion
                     raw_snapshot_currency = snap.get("price_currency") if isinstance(snap, dict) else None
@@ -649,8 +657,6 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                         native_currency = _normalize_currency_code(row.get("currency"))
 
                     native_price = price_value
-
-                    # Prices for GBX instruments are in pence; convert to GBP first.
                     if native_currency == "GBX":
                         native_price *= 0.01
                         native_currency = "GBP"
@@ -670,8 +676,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                         if row["cost_gbp"]
                         else row["gain_gbp"]
                     )
+                    row["_snapshot_native_price"] = native_price
+                    row["_snapshot_native_currency"] = native_currency
 
-            # ensure percentage change fields are populated
             if row.get("change_7d_pct") is None:
                 change_7d = snap.get("change_7d_pct") if isinstance(snap, dict) else None
                 if change_7d is None:
@@ -680,6 +687,7 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     except Exception:
                         change_7d = None
                 row["change_7d_pct"] = change_7d
+
             if row.get("change_30d_pct") is None:
                 change_30d = snap.get("change_30d_pct") if isinstance(snap, dict) else None
                 if change_30d is None:
@@ -689,7 +697,6 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                         change_30d = None
                 row["change_30d_pct"] = change_30d
 
-            # pass-through misc attributes (first non-null wins)
             for k in ("asset_class", "industry", "region", "owner", "sector"):
                 if k not in row and h.get(k) is not None:
                     row[k] = h[k]
@@ -739,14 +746,6 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                     row["_grouping_from_fallback"] = True
 
     for r in rows.values():
-        # Derive last_price_gbp from market_value_gbp / units when no snapshot
-        # price was available.
-        # Guards:
-        #   - market_value_gbp must be non-None (avoids _safe_num(None)=0.0 silently
-        #     producing last_price_gbp=0.0 and making the position appear unpriced)
-        #   - market_value_gbp must be non-zero (a written-off / zeroed position
-        #     should stay last_price_gbp=None, not 0.0)
-        #   - units must be non-zero (checked via _safe_num truthiness)
         if (
             r.get("last_price_gbp") is None
             and r.get("market_value_gbp") is not None
@@ -757,6 +756,9 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
 
     rate = _fx_to_base("GBP", base_currency, fx_cache)
     for r in rows.values():
+        snapshot_native_price = r.get("_snapshot_native_price")
+        snapshot_native_currency = r.get("_snapshot_native_currency")
+
         if rate and rate != 1:
             r["cost_gbp"] = round(_safe_num(r["cost_gbp"]) * rate, 2)
             r["market_value_gbp"] = round(_safe_num(r["market_value_gbp"]) * rate, 2)
@@ -765,6 +767,14 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
                 r["last_price_gbp"] = round(_safe_num(r["last_price_gbp"]) * rate, 4)
             if r.get("day_change_gbp") is not None:
                 r["day_change_gbp"] = round(_safe_num(r["day_change_gbp"]) * rate, 2)
+
+        if snapshot_native_price is not None and snapshot_native_currency:
+            fx_to_base_rate = _fx_to_base(snapshot_native_currency, base_currency, fx_cache)
+            last_price_base = round(_safe_num(snapshot_native_price) * fx_to_base_rate, 4)
+            r["last_price_gbp"] = last_price_base
+            r["market_value_gbp"] = round(_safe_num(r.get("units")) * last_price_base, 2)
+            r["gain_gbp"] = round(_safe_num(r["market_value_gbp"]) - _safe_num(r["cost_gbp"]), 2)
+
         cost = r["cost_gbp"]
         r["gain_pct"] = (r["gain_gbp"] / cost * 100.0) if cost else None
         r["cost_currency"] = base_currency
@@ -784,11 +794,15 @@ def aggregate_by_ticker(portfolio: dict | VirtualPortfolio, base_currency: str =
             r["grouping_id"] = None
             r["_grouping_from_fallback"] = True
         r.pop("_grouping_from_fallback", None)
+        r.pop("_snapshot_native_price", None)
+        r.pop("_snapshot_native_currency", None)
 
     return list(rows.values())
 
 
-def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP") -> List[dict]:
+def _aggregate_by_field(
+    portfolio: dict | VirtualPortfolio, field: str, base_currency: str = "GBP"
+) -> List[dict]:
     """Helper to aggregate ticker rows by ``field`` (e.g. sector/region)."""
     rows = aggregate_by_ticker(portfolio, base_currency)
     groups: Dict[str, dict] = {}
@@ -824,12 +838,16 @@ def _aggregate_by_field(portfolio: dict | VirtualPortfolio, field: str, base_cur
     return list(groups.values())
 
 
-def aggregate_by_sector(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
+def aggregate_by_sector(
+    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
+) -> List[dict]:
     """Return aggregated holdings grouped by sector with return contribution."""
     return _aggregate_by_field(portfolio, "sector", base_currency)
 
 
-def aggregate_by_region(portfolio: dict | VirtualPortfolio, base_currency: str = "GBP") -> List[dict]:
+def aggregate_by_region(
+    portfolio: dict | VirtualPortfolio, base_currency: str = "GBP"
+) -> List[dict]:
     """Return aggregated holdings grouped by region with return contribution."""
     return _aggregate_by_field(portfolio, "region", base_currency)
 
@@ -869,22 +887,12 @@ def compute_owner_performance(
         {
             "date": "2024-01-01",
             "value": 1234.56,
-            "daily_return": 0.0012,         # 0.12 %
-            "weekly_return": 0.0345,        # 3.45 %
-            "cumulative_return": 0.0567,    # 5.67 % from start
-            "running_max": 1500.0,          # peak value so far
-            "drawdown": -0.18,              # % drop from running max
+            "daily_return": 0.0012,
+            "weekly_return": 0.0345,
+            "cumulative_return": 0.0567,
+            "running_max": 1500.0,
+            "drawdown": -0.18,
         }
-
-    Parameters
-    ----------
-    owner:
-        Portfolio owner slug.
-    days:
-        Number of trailing days of history to include.
-    include_cash:
-        Whether to include cash holdings in the calculation. When ``False``,
-        positions whose ticker starts with ``"CASH"`` are ignored.
 
     Returns ``{"history": [], "max_drawdown": None}`` if the owner or
     timeseries data is missing.
@@ -892,9 +900,7 @@ def compute_owner_performance(
 
     calc = PricingDateCalculator(reporting_date=pricing_date)
     try:
-        pf = portfolio_mod.build_owner_portfolio(
-            owner, pricing_date=calc.reporting_date
-        )
+        pf = portfolio_mod.build_owner_portfolio(owner, pricing_date=calc.reporting_date)
     except FileNotFoundError:
         raise
 
@@ -904,7 +910,7 @@ def compute_owner_performance(
 
     calc = PricingDateCalculator()
 
-    holdings: List[tuple[str, str, float]] = []  # (ticker, exchange, units)
+    holdings: List[tuple[str, str, float]] = []
     for acct in pf.get("accounts", []):
         for h in acct.get("holdings", []):
             tkr = (h.get("ticker") or "").upper()
@@ -1013,17 +1019,19 @@ def compute_owner_performance(
                 "date": raw_date.isoformat(),
                 "value": round(float(row.value), 2),
                 "daily_return": (float(row.daily_return) if pd.notna(row.daily_return) else None),
-                "weekly_return": (float(row.weekly_return) if pd.notna(row.weekly_return) else None),
-                "cumulative_return": (float(row.cumulative_return) if pd.notna(row.cumulative_return) else None),
+                "weekly_return": (
+                    float(row.weekly_return) if pd.notna(row.weekly_return) else None
+                ),
+                "cumulative_return": (
+                    float(row.cumulative_return) if pd.notna(row.cumulative_return) else None
+                ),
                 "running_max": round(float(row.running_max), 2),
                 "drawdown": (float(row.drawdown) if pd.notna(row.drawdown) else None),
             }
         )
 
     reporting_date_iso = out[-1]["date"] if out else calc.reporting_date.isoformat()
-    previous_date_iso = (
-        out[-2]["date"] if len(out) >= 2 else calc.previous_pricing_date.isoformat()
-    )
+    previous_date_iso = out[-2]["date"] if len(out) >= 2 else calc.previous_pricing_date.isoformat()
 
     return {
         "history": out,
@@ -1035,19 +1043,11 @@ def compute_owner_performance(
 
 
 def portfolio_value_breakdown(owner: str, date: str) -> List[Dict[str, Any]]:
-    """Return each holding's units, price and value for ``date``.
-
-    Parameters
-    ----------
-    owner:
-        Portfolio owner slug.
-    date:
-        ISO formatted date (``YYYY-MM-DD``) for which to fetch prices.
-    """
+    """Return each holding's units, price and value for ``date``."""
 
     try:
         target = datetime.fromisoformat(date).date()
-    except ValueError as exc:  # invalid date string
+    except ValueError as exc:
         raise ValueError(f"Invalid date: {date}") from exc
 
     pf = portfolio_mod.build_owner_portfolio(owner)
@@ -1098,14 +1098,7 @@ def _detect_single_day_flash_crash(
     absolute_threshold: float = 1.0,
     relative_threshold: float = 0.01,
 ) -> Tuple[pd.Series, List[Dict[str, Any]]]:
-    """Remove isolated single-day collapses and report them.
-
-    Some instruments occasionally publish a zero (or near-zero) close price for a
-    single session before rebounding to normal levels the following day. These
-    artefacts wreak havoc on drawdown calculations and should be excluded from
-    the reconstructed portfolio curve while still surfacing a report for data
-    remediation.
-    """
+    """Remove isolated single-day collapses and report them."""
 
     if series.empty:
         return series, []
@@ -1219,9 +1212,7 @@ def _alpha_vs_benchmark(
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
-    total = _portfolio_value_series(
-        name, days, group=group, pricing_date=pricing_date
-    )
+    total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
     if total.empty:
         return None, {
             "series": [],
@@ -1259,9 +1250,6 @@ def _alpha_vs_benchmark(
     aligned = pd.DataFrame({"portfolio": port_ret, "benchmark": bench_ret})
     aligned = aligned.replace([np.inf, -np.inf], np.nan).dropna()
 
-    # Daily returns above 1,000% are almost certainly data errors (for example
-    # when a benchmark trades near zero). Drop those rows before computing
-    # cumulative performance.
     max_reasonable_return = 10.0
     aligned = aligned[(aligned.abs() <= max_reasonable_return).all(axis=1)]
     if aligned.empty:
@@ -1309,9 +1297,7 @@ def _tracking_error(
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
-    total = _portfolio_value_series(
-        name, days, group=group, pricing_date=pricing_date
-    )
+    total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
     if total.empty:
         return None, {"active_returns": [], "daily_active_standard_deviation": None}
     port_ret = total.pct_change().dropna()
@@ -1373,9 +1359,7 @@ def _max_drawdown(
     pricing_date: date | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     calc = PricingDateCalculator(reporting_date=pricing_date)
-    total = _portfolio_value_series(
-        name, days, group=group, pricing_date=pricing_date
-    )
+    total = _portfolio_value_series(name, days, group=group, pricing_date=pricing_date)
     if total.empty:
         return None, {"series": [], "peak": None, "trough": None}
     running_max = total.cummax()
@@ -1404,7 +1388,11 @@ def _max_drawdown(
         if trough_date is not None:
             trough_val = float(total.loc[trough_date])
             trough_info = {
-                "date": trough_date.isoformat() if hasattr(trough_date, "isoformat") else str(trough_date),
+                "date": (
+                    trough_date.isoformat()
+                    if hasattr(trough_date, "isoformat")
+                    else str(trough_date)
+                ),
                 "value": trough_val,
                 "drawdown": float(drawdown.loc[trough_date]),
             }
@@ -1415,9 +1403,11 @@ def _max_drawdown(
                 if not peak_date_candidates.empty:
                     peak_date = peak_date_candidates.index[0]
                     peak_info = {
-                        "date": peak_date.isoformat()
-                        if hasattr(peak_date, "isoformat")
-                        else str(peak_date),
+                        "date": (
+                            peak_date.isoformat()
+                            if hasattr(peak_date, "isoformat")
+                            else str(peak_date)
+                        ),
                         "value": peak_value,
                     }
 
@@ -1633,7 +1623,9 @@ def compute_xirr(owner: str, days: int = 365, *, pricing_date: date | None = Non
         try:
             df = float(
                 sum(
-                    -((d - start).days / 365.0) * amt / (1.0 + rate) ** ((d - start).days / 365.0 + 1)
+                    -((d - start).days / 365.0)
+                    * amt
+                    / (1.0 + rate) ** ((d - start).days / 365.0 + 1)
                     for d, amt in flows
                 )
             )
@@ -1754,13 +1746,11 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
             )
 
             if df is not None and not df.empty:
-                # apply scaling overrides (e.g., GBX -> GBP)
                 scale = get_scaling_override(ticker_only, exchange, None)
                 df = apply_scaling(df, scale)
                 if scale != 1 and "Close_gbp" in df.columns:
                     df["Close_gbp"] = pd.to_numeric(df["Close_gbp"], errors="coerce") * scale
 
-                # Map lowercase column names to their actual counterparts
                 name_map = {c.lower(): c for c in df.columns}
 
                 close_col = (
@@ -1778,10 +1768,8 @@ def refresh_snapshot_in_memory_from_timeseries(days: int = 365) -> None:
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("Could not get timeseries for %s: %s", t, e)
 
-    # store in-memory
     refresh_snapshot_in_memory(snapshot, datetime.now(UTC))
 
-    # write to disk
     try:
         if _PRICES_PATH:
             _PRICES_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -201,6 +201,26 @@ def _parse_str_list(val: Any) -> Optional[List[str]]:
     return None
 
 
+def _load_cors_origins(data: Dict[str, Any]) -> Optional[List[str]]:
+    """Load CORS origins from config and environment overrides."""
+    cors_raw = data.get("cors")
+    cors_origins = None
+    if isinstance(cors_raw, dict):
+        env = data.get("app_env")
+        if env:
+            cors_origins = cors_raw.get(env) or cors_raw.get("default")
+        else:
+            cors_origins = cors_raw.get("default")
+
+    env_cors_origins = os.getenv("CORS_ORIGINS")
+    if env_cors_origins is not None:
+        parsed_env_cors = _parse_str_list(env_cors_origins)
+        if parsed_env_cors is not None:
+            cors_origins = parsed_env_cors
+
+    return cors_origins
+
+
 @lru_cache(maxsize=None)
 def load_config() -> Config:
     """Load configuration from config.yaml with optional env overrides.
@@ -286,14 +306,7 @@ def load_config() -> Config:
         ta_data.update(ta_raw)
     trading_agent = TradingAgentConfig(**ta_data)
 
-    cors_raw = data.get("cors")
-    cors_origins = None
-    if isinstance(cors_raw, dict):
-        env = data.get("app_env")
-        if env:
-            cors_origins = cors_raw.get(env) or cors_raw.get("default")
-        else:
-            cors_origins = cors_raw.get("default")
+    cors_origins = _load_cors_origins(data)
 
     approval_exempt_types = _parse_str_list(data.get("approval_exempt_types"))
     approval_exempt_tickers = _parse_str_list(data.get("approval_exempt_tickers"))
@@ -489,4 +502,3 @@ def __getattr__(name: str) -> Any:
         return getattr(load_config(), name)
     except AttributeError as exc:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
-

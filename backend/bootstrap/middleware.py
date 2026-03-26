@@ -48,11 +48,7 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    default_cors = [
-        "https://app.allotmint.io",
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ]
+    default_cors = ["http://localhost:3000", "http://localhost:5173"]
     cors_origins = _validate_cors_origins(
         list(dict.fromkeys((cfg.cors_origins or []) + default_cors))
     )

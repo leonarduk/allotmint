@@ -40,6 +40,21 @@ class BackendLambdaStack(Stack):
         )
 
         env = self.node.try_get_context("app_env") or os.getenv("APP_ENV") or "aws"
+        frontend_origin = self.node.try_get_context("frontend_origin") or os.getenv(
+            "FRONTEND_ORIGIN"
+        )
+        extra_cors_origins = self.node.try_get_context("cors_origins") or os.getenv(
+            "CORS_ORIGINS"
+        )
+
+        cors_origins = ["http://localhost:3000", "http://localhost:5173"]
+        if frontend_origin:
+            cors_origins.insert(0, frontend_origin)
+        if extra_cors_origins:
+            cors_origins.extend(
+                [origin.strip() for origin in extra_cors_origins.split(",") if origin.strip()]
+            )
+        cors_origins = list(dict.fromkeys(cors_origins))
 
         backend_env = {
             "GOOGLE_AUTH_ENABLED": "true",
@@ -47,6 +62,7 @@ class BackendLambdaStack(Stack):
             "DISABLE_AUTH": "false",
             "DATA_BUCKET": bucket_name,
             "DATA_BRANCH": data_branch,
+            "CORS_ORIGINS": ",".join(cors_origins),
         }
         if data_repo:
             backend_env["DATA_REPO"] = data_repo

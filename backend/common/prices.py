@@ -44,6 +44,7 @@ import pandas as pd
 
 from backend.common import instrument_api
 from backend.common.holding_utils import (
+    _is_pence_currency,
     load_latest_prices as _load_latest_prices,
     load_live_prices,
 )
@@ -67,21 +68,49 @@ logger = logging.getLogger("prices")
 
 
 def _close_on(sym: str, exch: str, d: date) -> Optional[float]:
-    """Fetch the close price for ``sym.exch`` on or nearest before ``d``."""
+    """Fetch the close price in GBP for ``sym.exch`` on or nearest before ``d``.
+
+    Pence-denominated instruments (GBX / GBXP / GBp) are divided by 100.
+    All other non-GBP currencies are converted via ``_fx_to_base``.
+    Note: ``_close_on`` does not call ``apply_scaling``, so the /100 conversion
+    is always applied unconditionally for pence instruments (no scale guard needed).
+    """
 
     snap = _nearest_weekday(d, forward=False)
     df = load_meta_timeseries_range(sym, exch, start_date=snap, end_date=snap)
     if df is None or df.empty:
         return None
 
-    # try a few common column names, prioritising GBP-converted prices
-    for col in ("close_gbp", "Close_gbp", "close", "Close"):
-        if col in df.columns:
-            try:
-                return float(df[col].iloc[0])
-            except Exception:
-                return None
-    return None
+    name_map = {c.lower(): c for c in df.columns}
+    close_col = (
+        name_map.get("close_gbp")
+        or name_map.get("close")
+        or name_map.get("adj close")
+        or name_map.get("adj_close")
+    )
+    if not close_col:
+        return None
+
+    try:
+        value = float(df[close_col].iloc[0])
+    except Exception:
+        return None
+
+    if close_col.lower() != "close_gbp":
+        from backend.common.instruments import get_instrument_meta
+        from backend.common.portfolio_utils import _fx_to_base
+
+        meta = get_instrument_meta(f"{sym}.{exch}") or get_instrument_meta(sym) or {}
+        raw_currency = str(meta.get("currency") or "GBP").strip()
+        currency = raw_currency.upper()
+
+        if _is_pence_currency(raw_currency):
+            # _close_on does not apply scaling, so always divide by 100.
+            value /= 100.0
+        elif currency != "GBP":
+            value *= _fx_to_base(currency, "GBP", {})
+
+    return value
 
 
 def _instrument_currency(full_ticker: str) -> str:

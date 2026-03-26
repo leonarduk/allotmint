@@ -19,6 +19,7 @@ def test_load_latest_prices_selects_close_column(monkeypatch, data, expected):
         return pd.DataFrame(data)
 
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load_meta_timeseries_range)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBP"})
 
     prices = holding_utils.load_latest_prices(["ABC.L"])
     assert prices["ABC.L"] == expected
@@ -29,9 +30,23 @@ def test_load_latest_prices_applies_scaling(monkeypatch):
 
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: df)
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 0.5)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "GBP"})
 
     prices = holding_utils.load_latest_prices(["ABC.L"])
     assert prices["ABC.L"] == 10.0
+
+
+def test_load_latest_prices_converts_native_close_to_gbp(monkeypatch):
+    from backend.common import portfolio_utils
+
+    df = pd.DataFrame({"Date": [1], "Close": [100.0]})
+    monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", lambda *a, **k: df)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
+    monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda *_: 0.8)
+
+    prices = holding_utils.load_latest_prices(["USDX.US"])
+
+    assert prices["USDX.US"] == pytest.approx(80.0)
 
 
 def test_load_latest_prices_handles_errors(monkeypatch, caplog):

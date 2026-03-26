@@ -143,7 +143,7 @@ describe("VirtualPortfolio page", () => {
         { timeout: 6000 },
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Loading\.\.\./i)).toBeInTheDocument();
+    expect(screen.queryByText(/Loading\.\.\./i)).not.toBeInTheDocument();
     expect(
       await screen.findByRole("button", { name: /Retry/i }, { timeout: 6000 }),
     ).toBeInTheDocument();

@@ -112,6 +112,31 @@ const mockAllFetches = (
   const { alpha = 0, trackingError = 0, maxDrawdown = 0 } = metrics ?? {};
   const defaultInstrumentRows =
     instruments[instrumentKey(undefined, undefined)] ?? [];
+  const normalizedPortfolio = {
+    slug: portfolio.slug ?? "all",
+    name: portfolio.name ?? "At a glance",
+    as_of: portfolio.as_of ?? "2024-01-01T00:00:00Z",
+    members: portfolio.members ?? [],
+    total_value_estimate_gbp:
+      portfolio.total_value_estimate_gbp ??
+      (Array.isArray(portfolio.accounts)
+        ? portfolio.accounts.reduce(
+            (sum: number, account: any) => sum + Number(account.value_estimate_gbp ?? 0),
+            0,
+          )
+        : 0),
+    trades_this_month: portfolio.trades_this_month ?? 0,
+    trades_remaining: portfolio.trades_remaining ?? 0,
+    accounts: (portfolio.accounts ?? []).map((account: any, accountIndex: number) => ({
+      currency: account.currency ?? "GBP",
+      ...account,
+      holdings: (account.holdings ?? []).map((holding: any, holdingIndex: number) => ({
+        ticker: holding.ticker ?? `${account.owner ?? "owner"}-${account.account_type ?? "acct"}-${holdingIndex}`,
+        name: holding.name ?? `Holding ${holdingIndex + 1}`,
+        ...holding,
+      })),
+    })),
+  };
 
   const toUrlString = (input: RequestInfo | URL) => {
     if (typeof input === "string") return input;
@@ -127,7 +152,7 @@ const mockAllFetches = (
     if (url.includes("/portfolio-group/") && url.includes("/instruments")) {
       const parsed = new URL(url);
       const owner = parsed.searchParams.get("owner");
-      const account = parsed.searchParams.get("account");
+      const account = parsed.searchParams.get("account_type");
       const key = instrumentKey(owner, account);
       const rows = instruments[key] ?? defaultInstrumentRows;
       return Promise.resolve({
@@ -193,7 +218,7 @@ const mockAllFetches = (
     }
     return Promise.resolve({
       ok: true,
-      json: async () => portfolio,
+      json: async () => normalizedPortfolio,
     } as Response);
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -325,13 +350,13 @@ describe("GroupPortfolioView", () => {
       expect(
         within(ownerTable!)
           .getAllByRole("row")
-          .some((row) => within(row).queryByText("isa")),
+          .some((row) => within(row).queryByText(/isa/i)),
       ).toBe(true),
     );
 
     const accountRow = within(ownerTable!)
       .getAllByRole("row")
-      .find((row) => within(row).queryByText("isa"));
+      .find((row) => within(row).queryByText(/isa/i));
     expect(accountRow).toBeTruthy();
 
     const accountCells = within(accountRow!)

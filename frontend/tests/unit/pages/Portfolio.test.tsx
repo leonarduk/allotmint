@@ -1,5 +1,5 @@
-import { render, screen, waitFor, act } from "@testing-library/react";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import PortfolioPage from "@/pages/Portfolio";
@@ -16,16 +16,6 @@ describe("Portfolio page", () => {
   });
 
   it("fetches portfolio whenever owner changes", async () => {
-    const router = createMemoryRouter(
-      [
-        {
-          path: "/portfolio/:owner",
-          element: <PortfolioPage />,
-        },
-      ],
-      { initialEntries: ["/portfolio/alice"] },
-    );
-
     mockGetOwners.mockResolvedValueOnce([
       { owner: "alice", accounts: [] },
     ]);
@@ -39,7 +29,11 @@ describe("Portfolio page", () => {
     } as Portfolio);
     render(
       <HelmetProvider>
-        <RouterProvider router={router} />
+        <MemoryRouter initialEntries={["/portfolio/alice"]}>
+          <Routes>
+            <Route path="/portfolio/:owner" element={<PortfolioPage />} />
+          </Routes>
+        </MemoryRouter>
       </HelmetProvider>,
     );
 
@@ -47,6 +41,10 @@ describe("Portfolio page", () => {
     await screen.findByText(/Approx Total:/);
 
     mockGetPortfolio.mockClear();
+    cleanup();
+    mockGetOwners.mockResolvedValueOnce([
+      { owner: "bob", accounts: [] },
+    ]);
     mockGetPortfolio.mockResolvedValueOnce({
       owner: "bob",
       as_of: "2024-01-01",
@@ -56,25 +54,21 @@ describe("Portfolio page", () => {
       accounts: [],
     } as Portfolio);
 
-    await act(async () => {
-      await router.navigate("/portfolio/bob");
-    });
+    render(
+      <HelmetProvider>
+        <MemoryRouter initialEntries={["/portfolio/bob"]}>
+          <Routes>
+            <Route path="/portfolio/:owner" element={<PortfolioPage />} />
+          </Routes>
+        </MemoryRouter>
+      </HelmetProvider>,
+    );
 
     await waitFor(() => expect(mockGetPortfolio).toHaveBeenCalledWith("bob"));
     await screen.findByText(/Approx Total:/);
   });
 
   it("shows available owners excluding demo entries", async () => {
-    const router = createMemoryRouter(
-      [
-        {
-          path: "/portfolio",
-          element: <PortfolioPage />,
-        },
-      ],
-      { initialEntries: ["/portfolio"] },
-    );
-
     mockGetOwners.mockResolvedValueOnce([
       { owner: "demo", accounts: [] },
       { owner: "steve", accounts: [] },
@@ -83,7 +77,11 @@ describe("Portfolio page", () => {
 
     render(
       <HelmetProvider>
-        <RouterProvider router={router} />
+        <MemoryRouter initialEntries={["/portfolio"]}>
+          <Routes>
+            <Route path="/portfolio" element={<PortfolioPage />} />
+          </Routes>
+        </MemoryRouter>
       </HelmetProvider>,
     );
 

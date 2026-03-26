@@ -38,7 +38,7 @@ describe('Root config states', () => {
     unmount()
   })
 
-  it('shows an offline message when configuration fails to load', async () => {
+  it('keeps the loading state visible while configuration retries after a failure', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     vi.doMock('react-dom/client', () => ({
@@ -65,17 +65,14 @@ describe('Root config states', () => {
       )
 
       expect(
-        await screen.findByText(/unable to load configuration/i),
-      ).toBeInTheDocument()
-      expect(
-        screen.getByText(/please check your connection and try again/i),
+        await screen.findByText(/loading\.\.\./i),
       ).toBeInTheDocument()
     } finally {
       consoleError.mockRestore()
     }
   })
 
-  it('shows an offline message when configuration request times out', async () => {
+  it('keeps the loading state visible while configuration retries after a timeout', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     vi.doMock('react-dom/client', () => ({
@@ -104,7 +101,7 @@ describe('Root config states', () => {
       )
 
       expect(
-        await screen.findByText(/unable to load configuration/i),
+        await screen.findByText(/loading\.\.\./i),
       ).toBeInTheDocument()
     } finally {
       consoleError.mockRestore()

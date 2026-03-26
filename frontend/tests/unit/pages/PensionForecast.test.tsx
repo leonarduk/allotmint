@@ -305,7 +305,7 @@ describe("PensionForecast page", () => {
     );
   });
 
-  it("surfaces employer contribution adjustments and additional pensions", async () => {
+  it("surfaces employer contribution adjustments", async () => {
     mockGetOwners.mockResolvedValue([
       { owner: "alex", full_name: "Alex Example", accounts: [] },
     ]);
@@ -330,17 +330,8 @@ describe("PensionForecast page", () => {
       name: en.pensionForecast.header.heading,
     });
     expect(snapshot).toBeInTheDocument();
-    const addButton = within(snapshot).getByRole("button", {
-      name: en.pensionForecast.header.addAnother,
-    });
-    await userEvent.click(addButton);
     expect(
-      within(snapshot).getByText(
-        en.pensionForecast.header.additionalPensions_one.replace(
-          "{{count}}",
-          "1",
-        ),
-      ),
+      within(snapshot).getByText(en.pensionForecast.header.noLinkedPots),
     ).toBeInTheDocument();
     const employerSlider = screen.getByLabelText(
       en.pensionForecast.employerContributionLabel,

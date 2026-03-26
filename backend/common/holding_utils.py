@@ -1,4 +1,3 @@
-# backend/common/holding_utils.py
 from __future__ import annotations
 
 import datetime as dt
@@ -33,6 +32,13 @@ logger = logging.getLogger(__name__)
 
 
 # ───────────── helpers ─────────────
+def _fx_to_base(from_ccy: str, to_ccy: str, cache: Dict[str, float]) -> float:
+    """Resolve FX via portfolio_utils lazily to avoid import cycles."""
+    from backend.common import portfolio_utils
+
+    return portfolio_utils._fx_to_base(from_ccy, to_ccy, cache)
+
+
 def _parse_date(val) -> Optional[dt.date]:
     if val is None:
         return None
@@ -61,18 +67,23 @@ def _is_pence_currency(raw: str) -> bool:
 
 
 def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
-    """Return latest close prices in GBP for each ticker.
+    """Return latest close prices in GBP for each requested ticker.
 
     Contract:
-    - Always returns GBP-normalised prices.
-    - Uses Close_gbp if present.
-    - Otherwise converts native close using:
-        - scaling override (preferred)
-        - pence fallback (/100)
-        - FX conversion if non-GBP
-    - Uses end_date = yesterday via PricingDateCalculator.
-    - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L').
-    - Never returns 0 for missing data; skips instead.
+    - Output values are always GBP-normalised regardless of source columns.
+    - If ``Close_gbp``/``close_gbp`` exists, use it directly.
+    - Otherwise use native close and convert to GBP using instrument metadata
+      and scaling:
+      - If ``get_scaling_override`` returned a non-unity scale, ``apply_scaling``
+        has already performed the pence-to-pounds conversion; no further action.
+      - If scale == 1 and the currency is pence-denominated (GBX, GBXP, GBp),
+        divide by 100.
+      - All other non-GBP currencies are converted via ``_fx_to_base``.
+
+    Additional behaviour:
+    - Uses end_date = yesterday via PricingDateCalculator
+    - Accepts 'HFEL.L' or 'HFEL' (defaults exchange 'L')
+    - Skips empties instead of returning 0.00
     """
     result: dict[str, float] = {}
     if not full_tickers:
@@ -82,7 +93,6 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
     start_date, end_date = calc.lookback_range(365)
 
     from backend.common import instrument_api
-    from backend.common.portfolio_utils import _fx_to_base
 
     fx_cache: Dict[str, float] = {}
 
@@ -105,7 +115,6 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
             if df is None or df.empty:
                 continue
 
-            # Apply instrument-specific scaling first.
             scale = get_scaling_override(ticker, exchange, None)
             df = apply_scaling(df, scale)
 
@@ -125,26 +134,43 @@ def load_latest_prices(full_tickers: list[str]) -> dict[str, float]:
 
             selected_col = close_gbp_col or close_native_col
             val = float(last[selected_col])
+            if selected_col == close_gbp_col and scale not in (None, 1):
+                val *= scale
 
             if not (val == val and val != float("inf") and val != float("-inf")):
                 continue
 
-            # Enforce GBP output contract when only native close is available.
             if close_gbp_col is None:
                 full_ticker = f"{ticker}.{exchange}"
-                meta = get_instrument_meta(full_ticker) or {}
+                meta = (
+                    get_instrument_meta(full_ticker)
+                    or get_instrument_meta(full)
+                    or get_instrument_meta(ticker)
+                    or {}
+                )
 
-                raw_currency = str(meta.get("currency") or "GBP").strip()
+                raw_currency = str(meta.get("currency") or "").strip()
+                if not raw_currency:
+                    continue
                 currency = raw_currency.upper()
 
                 if _is_pence_currency(raw_currency):
-                    # Only divide by 100 when scaling did not already do it.
                     if scale == 1:
                         val /= 100.0
                 elif currency != "GBP":
-                    val *= _fx_to_base(currency, "GBP", fx_cache)
+                    fx_rate = _fx_to_base(currency, "GBP", fx_cache)
+                    if not fx_rate or not pd.notna(fx_rate) or not pd.api.types.is_number(fx_rate):
+                        continue
+                    fx_rate = float(fx_rate)
+                    if not pd.notna(fx_rate) or fx_rate <= 0:
+                        continue
+                    val *= fx_rate
 
-            result[f"{ticker}.{exchange}"] = val
+            if not pd.notna(val) or val <= 0:
+                continue
+
+            key = f"{ticker}.{exchange}"
+            result[key] = val
 
         except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
             logger.warning("latest price fetch failed for %s: %s", full, e)
@@ -169,18 +195,18 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
     url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
 
     try:
-        from backend.common.portfolio_utils import _fx_to_base
-
         fx_cache: Dict[str, float] = {}
         resp = requests.get(url, timeout=5)
-        resp.raise_for_status()
+        raise_for_status = getattr(resp, "raise_for_status", None)
+        if callable(raise_for_status):
+            raise_for_status()
         payload = resp.json().get("quoteResponse", {}).get("result", [])
 
         for row in payload:
             sym = row.get("symbol")
             price = row.get("regularMarketPrice")
             ts = row.get("regularMarketTime")
-            if not sym or price is None or not ts:
+            if not sym or price is None or ts is None:
                 continue
 
             price = float(price)
@@ -190,8 +216,8 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
             scale = get_scaling_override(tkr, exch, None)
             price *= scale
 
-            # Enforce GBP contract without double-converting pence instruments.
-            meta = get_instrument_meta(sym) or {}
+            # Enforce GBP output contract without double-converting pence instruments.
+            meta = get_instrument_meta(sym) or get_instrument_meta(tkr) or {}
             raw_currency = str(meta.get("currency") or "GBP").strip()
             currency = raw_currency.upper()
 
@@ -199,7 +225,16 @@ def load_live_prices(full_tickers: list[str]) -> dict[str, Dict[str, object]]:
                 if scale == 1:
                     price /= 100.0
             elif currency != "GBP":
-                price *= _fx_to_base(currency, "GBP", fx_cache)
+                fx_rate = _fx_to_base(currency, "GBP", fx_cache)
+                if not fx_rate or not pd.notna(fx_rate) or not pd.api.types.is_number(fx_rate):
+                    continue
+                fx_rate = float(fx_rate)
+                if not pd.notna(fx_rate) or fx_rate <= 0:
+                    continue
+                price *= fx_rate
+
+            if not pd.notna(price) or price <= 0:
+                continue
 
             out[sym.upper()] = {
                 "price": price,
@@ -314,8 +349,7 @@ def get_effective_cost_basis_gbp(
     from backend.common import instrument_api
 
     full = (h.get(TICKER) or "").upper()
-    parts = full.split(".", 1)
-    ticker = parts[0]
+    ticker = full.split(".", 1)[0]
     resolved = instrument_api._resolve_full_ticker(full, price_cache)
     if resolved:
         ticker, exchange = resolved
@@ -427,8 +461,7 @@ def enrich_holding(
 
     from backend.common import instrument_api
 
-    parts = full.split(".", 1)
-    ticker = parts[0]
+    ticker = full.split(".", 1)[0]
     resolved = instrument_api._resolve_full_ticker(full, price_cache)
     if resolved:
         ticker, exchange = resolved
@@ -587,6 +620,7 @@ def enrich_holding(
             pass_price_hint = any(
                 param.kind is inspect.Parameter.VAR_KEYWORD for param in params.values()
             )
+
     if pass_price_hint:
         ecb = helper(out, price_cache, price_hint=px)
     else:

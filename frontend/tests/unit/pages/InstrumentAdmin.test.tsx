@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 
 import i18n from "@/i18n";
 
@@ -29,6 +29,9 @@ import InstrumentAdmin from "@/pages/InstrumentAdmin";
 import { createInstrumentMetadata, updateInstrumentMetadata } from "@/api";
 
 describe("InstrumentAdmin page", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
 
   it("renders rows and saves grouping updates", async () => {
     render(
@@ -133,4 +136,3 @@ describe("InstrumentAdmin page", () => {
     expect(updateInstrumentMetadata).not.toHaveBeenCalled();
   });
 });
-

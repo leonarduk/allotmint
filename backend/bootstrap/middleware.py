@@ -19,6 +19,15 @@ from slowapi.util import get_remote_address
 from backend.common.errors import AppError, log_app_error
 from backend.config import Config
 
+_CORS_ALLOW_METHODS = ["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"]
+_CORS_ALLOW_HEADERS = [
+    "Accept",
+    "Authorization",
+    "Content-Type",
+    "Origin",
+    "X-Requested-With",
+]
+
 
 def normalize(obj: Any) -> Any:
     """Recursively convert bytes to strings for JSON serialization."""
@@ -55,8 +64,8 @@ def register_middleware(app: FastAPI, cfg: Config) -> None:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=_CORS_ALLOW_METHODS,
+        allow_headers=_CORS_ALLOW_HEADERS,
         allow_credentials=True,
     )
     app.add_middleware(SlowAPIMiddleware)

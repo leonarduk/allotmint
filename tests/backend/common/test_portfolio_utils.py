@@ -311,6 +311,43 @@ def test_aggregate_by_ticker_prefers_cost_basis(monkeypatch):
     assert row["gain_pct"] == pytest.approx(10.0)
 
 
+def test_aggregate_by_ticker_uses_zero_snapshot_price(monkeypatch):
+    portfolio = {
+        "accounts": [
+            {
+                "holdings": [
+                    {
+                        "ticker": "ZERO.L",
+                        "units": 2.0,
+                        "market_value_gbp": 999.0,
+                        "gain_gbp": 999.0,
+                        "cost_gbp": 10.0,
+                    }
+                ]
+            }
+        ]
+    }
+
+    monkeypatch.setattr(ia, "_resolve_full_ticker", lambda ticker, latest: (ticker.split(".")[0], "L"))
+    monkeypatch.setattr(ia, "price_change_pct", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        portfolio_utils,
+        "_PRICE_SNAPSHOT",
+        {"ZERO.L": {"last_price": 0.0, "last_price_date": "2026-03-24", "is_stale": False}},
+        raising=False,
+    )
+    monkeypatch.setattr(portfolio_utils, "get_instrument_meta", lambda ticker: {})
+    monkeypatch.setattr(portfolio_utils, "get_security_meta", lambda ticker: {})
+
+    rows = portfolio_utils.aggregate_by_ticker(portfolio, base_currency="GBP")
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["last_price_gbp"] == pytest.approx(0.0)
+    assert row["market_value_gbp"] == pytest.approx(0.0)
+    assert row["gain_gbp"] == pytest.approx(-10.0)
+
+
 def test_aggregate_by_ticker_uses_default_meta_and_handles_price_errors(monkeypatch):
     portfolio = {
         "accounts": [

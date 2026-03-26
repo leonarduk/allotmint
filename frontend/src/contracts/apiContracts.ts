@@ -77,7 +77,7 @@ export const holdingContractSchema = z.object({
   region: nullableString.optional(),
   forward_7d_change_pct: nullableNumber.optional(),
   forward_30d_change_pct: nullableNumber.optional(),
-  days_held: z.number().optional(),
+  days_held: nullableNumber.optional(),
   sell_eligible: z.boolean().optional(),
   days_until_eligible: nullableNumber.optional(),
   next_eligible_sell_date: nullableString.optional(),

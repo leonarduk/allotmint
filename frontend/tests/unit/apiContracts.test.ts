@@ -63,6 +63,15 @@ describe("API contract fixtures", () => {
     expect(() => portfolioContractSchema.parse(portfolioFixture)).not.toThrow();
   });
 
+  it("accepts holdings with null days_held", () => {
+    const payload = structuredClone(portfolioFixture);
+    payload.accounts[0].holdings[0].days_held = null;
+
+    const parsed = portfolioContractSchema.parse(payload);
+
+    expect(parsed.accounts[0].holdings[0].days_held).toBeNull();
+  });
+
   it("validates the group portfolio fixture", () => {
     const parsed = groupPortfolioContractSchema.parse(groupPortfolioFixture);
 

@@ -46,6 +46,8 @@ def test_load_latest_prices_resolution_scaling_and_missing(monkeypatch):
     def fake_load(ticker, exchange, start_date, end_date):
         if ticker == "ABC":
             return pd.DataFrame({"Date": [end_date], "Close": [10.0], "Close_gbp": [20.0]})
+        if ticker == "USD":
+            return pd.DataFrame({"Date": [end_date], "Close": [100.0]})
         return pd.DataFrame({"Date": [end_date], "Open": [1.0]})
 
     from backend.common import instrument_api
@@ -53,10 +55,15 @@ def test_load_latest_prices_resolution_scaling_and_missing(monkeypatch):
     monkeypatch.setattr(instrument_api, "_resolve_full_ticker", fake_resolve)
     monkeypatch.setattr(holding_utils, "load_meta_timeseries_range", fake_load)
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda t, e, r: 0.5 if t == "ABC" else 1.0)
+    monkeypatch.setattr(
+        holding_utils,
+        "get_instrument_meta",
+        lambda full: {"currency": "USD"} if str(full).upper().startswith("USD") else {"currency": "GBP"},
+    )
+    monkeypatch.setattr(holding_utils, "_fx_to_base", lambda from_ccy, to_ccy, cache: 0.8)
 
-    prices = holding_utils.load_latest_prices(["ABC", "XYZ"])
-    # Close_gbp is already GBP-normalized and must be preferred over native Close.
-    assert prices == {"ABC.L": 20.0}
+    prices = holding_utils.load_latest_prices(["ABC", "USD", "XYZ"])
+    assert prices == {"ABC.L": 10.0, "USD.L": 80.0}
 
 
 def test_load_latest_prices_converts_native_close_to_gbp(monkeypatch):
@@ -70,7 +77,7 @@ def test_load_latest_prices_converts_native_close_to_gbp(monkeypatch):
     )
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
-    monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda src, dst, cache: 0.8)
+    monkeypatch.setattr(holding_utils, "_fx_to_base", lambda src, dst, cache: 0.8)
 
     prices = holding_utils.load_latest_prices(["VUSA.L"])
 
@@ -94,7 +101,7 @@ def test_load_latest_prices_does_not_double_convert_close_gbp(monkeypatch):
     def _boom_fx(*args, **kwargs):
         raise AssertionError("FX conversion should not run when Close_gbp exists")
 
-    monkeypatch.setattr(portfolio_utils, "_fx_to_base", _boom_fx)
+    monkeypatch.setattr(holding_utils, "_fx_to_base", _boom_fx)
 
     prices = holding_utils.load_latest_prices(["VUSA.L"])
 
@@ -129,7 +136,7 @@ def test_load_latest_prices_gbx_pence_no_scaling_override(monkeypatch, raw_curre
             f"_fx_to_base must not be called for pence currency {raw_currency!r}"
         )
 
-    monkeypatch.setattr(portfolio_utils, "_fx_to_base", _boom_fx)
+    monkeypatch.setattr(holding_utils, "_fx_to_base", _boom_fx)
 
     prices = holding_utils.load_latest_prices(["HFEL.L"])
 
@@ -162,7 +169,7 @@ def test_load_latest_prices_gbx_pence_with_scaling_override(monkeypatch):
     def _boom_fx(*args, **kwargs):
         raise AssertionError("_fx_to_base must not be called for GBX")
 
-    monkeypatch.setattr(portfolio_utils, "_fx_to_base", _boom_fx)
+    monkeypatch.setattr(holding_utils, "_fx_to_base", _boom_fx)
 
     prices = holding_utils.load_latest_prices(["HFEL.L"])
 
@@ -185,6 +192,36 @@ def test_load_latest_prices_handles_malformed(monkeypatch, caplog):
     assert "latest price fetch failed" in caplog.text
 
 
+@pytest.mark.parametrize("fx_rate", [0.0, None, float("nan")])
+def test_load_latest_prices_skips_invalid_fx_rate(monkeypatch, fx_rate):
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("USD", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame({"Date": [dt.date(2024, 1, 1)], "Close": [100.0]}),
+    )
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {"currency": "USD"})
+    monkeypatch.setattr(holding_utils, "_fx_to_base", lambda *_: fx_rate)
+
+    prices = holding_utils.load_latest_prices(["USD.L"])
+    assert prices == {}
+
+
+def test_load_latest_prices_skips_when_currency_unknown(monkeypatch):
+    monkeypatch.setattr(instrument_api, "_resolve_full_ticker", lambda f, r: ("ABC", "L"))
+    monkeypatch.setattr(
+        holding_utils,
+        "load_meta_timeseries_range",
+        lambda *args, **kwargs: pd.DataFrame({"Date": [dt.date(2024, 1, 1)], "Close": [10.0]}),
+    )
+    monkeypatch.setattr(holding_utils, "get_scaling_override", lambda *a, **k: 1.0)
+    monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda *_: {})
+
+    prices = holding_utils.load_latest_prices(["ABC.L"])
+    assert prices == {}
+
+
 def test_load_live_prices_with_fx(monkeypatch):
     ts = int(dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc).timestamp())
 
@@ -205,7 +242,7 @@ def test_load_live_prices_with_fx(monkeypatch):
     monkeypatch.setattr(holding_utils.requests, "get", lambda url, timeout: Resp())
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda t, e, r: 0.5 if t == "ABC" else 1.0)
     monkeypatch.setattr(holding_utils, "get_instrument_meta", lambda s: {"currency": "GBP"} if s == "ABC.L" else {"currency": "USD"})
-    monkeypatch.setattr(portfolio_utils, "_fx_to_base", lambda f, t, cache: 0.8)
+    monkeypatch.setattr(holding_utils, "_fx_to_base", lambda f, t, cache: 0.8)
 
     prices = holding_utils.load_live_prices(["ABC.L", "XYZ"])
     assert prices["ABC.L"]["price"] == 1.0

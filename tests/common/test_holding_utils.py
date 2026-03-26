@@ -55,7 +55,8 @@ def test_load_latest_prices_resolution_scaling_and_missing(monkeypatch):
     monkeypatch.setattr(holding_utils, "get_scaling_override", lambda t, e, r: 0.5 if t == "ABC" else 1.0)
 
     prices = holding_utils.load_latest_prices(["ABC", "XYZ"])
-    assert prices == {"ABC.L": 10.0}
+    # Close_gbp is already GBP-normalized and must be preferred over native Close.
+    assert prices == {"ABC.L": 20.0}
 
 
 def test_load_latest_prices_converts_native_close_to_gbp(monkeypatch):
@@ -188,6 +189,9 @@ def test_load_live_prices_with_fx(monkeypatch):
     ts = int(dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc).timestamp())
 
     class Resp:
+        def raise_for_status(self):
+            return None
+
         def json(self):
             return {
                 "quoteResponse": {

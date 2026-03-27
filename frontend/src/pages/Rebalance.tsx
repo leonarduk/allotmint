@@ -16,9 +16,12 @@ function rowsFromPortfolio(portfolio: Portfolio): Row[] {
     for (const holding of account.holdings) {
       const ticker = holding.ticker?.trim().toUpperCase();
       if (!ticker) continue;
+      // Use market_value_gbp (GBP-denominated) as the primary source.
+      // Fall back to units * price only when price is expected to be GBP (e.g. LSE).
+      // market_value_currency is intentionally excluded: it is not guaranteed to be GBP
+      // and mixing currencies produces incorrect weights and invalid trade suggestions.
       const value =
         holding.market_value_gbp ??
-        holding.market_value_currency ??
         (holding.price != null ? holding.units * holding.price : null);
       if (value == null || !Number.isFinite(value) || value <= 0) continue;
       totalsByTicker.set(ticker, (totalsByTicker.get(ticker) ?? 0) + value);
@@ -86,9 +89,7 @@ export default function Rebalance() {
   }, [availableOwner]);
 
   useEffect(() => {
-    if (!selectedOwner || !owners.some((owner) => owner.owner === selectedOwner)) {
-      return;
-    }
+    if (!selectedOwner) return;
 
     let cancelled = false;
     setIsPrefilling(true);
@@ -115,7 +116,7 @@ export default function Rebalance() {
     return () => {
       cancelled = true;
     };
-  }, [owners, selectedOwner]);
+  }, [selectedOwner]);
 
   const addRow = () =>
     setRows((prev) => [...prev, { ticker: "", current: "", target: "" }]);

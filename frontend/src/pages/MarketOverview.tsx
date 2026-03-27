@@ -65,9 +65,9 @@ export default function MarketOverview() {
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={indexData}>
             <XAxis dataKey="name" />
-            <YAxis />
+            <YAxis tickFormatter={(value) => Number(value).toLocaleString()} />
             <Tooltip content={<IndexTooltip />} />
-            <Bar dataKey="change">
+            <Bar dataKey="value">
               {indexData.map((entry) => {
                 const changeValue = entry.change ?? 0;
                 return (

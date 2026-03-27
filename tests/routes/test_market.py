@@ -136,6 +136,26 @@ def test_fetch_uk_sectors_with_mocked_requests(monkeypatch):
     ]
 
 
+def test_fetch_sectors_falls_back_to_us_sector_etfs(monkeypatch):
+    class DummyResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"Information": "No sector data available"}
+
+    monkeypatch.setattr(market.requests, "get", lambda *_, **__: DummyResponse())
+    monkeypatch.setattr(
+        market,
+        "_fetch_us_sector_etf_changes",
+        lambda: [{"sector": "Technology", "change": 0.42}],
+    )
+
+    sectors = market._fetch_sectors()
+
+    assert sectors == [{"sector": "Technology", "change": 0.42}]
+
+
 def test_fetch_headlines_with_mocked_news(monkeypatch):
     monkeypatch.setattr(market, "INDEX_SYMBOLS", {"One": "ONE", "Two": "TWO"})
     calls = []

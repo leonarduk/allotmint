@@ -26,6 +26,19 @@ INDEX_SYMBOLS = {
 }
 
 UK_SECTOR_ENDPOINT_DEFAULT = "https://www.londonstockexchange.com/api/sectors/ftse350"
+US_SECTOR_ETFS = {
+    "Materials": "XLB",
+    "Energy": "XLE",
+    "Financials": "XLF",
+    "Industrials": "XLI",
+    "Technology": "XLK",
+    "Consumer Staples": "XLP",
+    "Utilities": "XLU",
+    "Consumer Discretionary": "XLY",
+    "Communication Services": "XLC",
+    "Real Estate": "XLRE",
+    "Health Care": "XLV",
+}
 
 
 def _fetch_indexes() -> Dict[str, Dict[str, Optional[float]]]:
@@ -53,6 +66,25 @@ def _fetch_sectors() -> List[Dict[str, float]]:
         try:
             out.append({"sector": sector, "change": float(change.rstrip("%"))})
         except Exception:
+            continue
+    if out:
+        return out
+    return _fetch_us_sector_etf_changes()
+
+
+def _fetch_us_sector_etf_changes() -> List[Dict[str, float]]:
+    """Fallback US sector performance based on SPDR sector ETF change percentages."""
+
+    tickers = yf.Tickers(" ".join(US_SECTOR_ETFS.values())).tickers
+    out: List[Dict[str, float]] = []
+    for sector, symbol in US_SECTOR_ETFS.items():
+        info = getattr(tickers.get(symbol), "info", {}) or {}
+        change = info.get("regularMarketChangePercent")
+        if change is None:
+            continue
+        try:
+            out.append({"sector": sector, "change": float(change)})
+        except (TypeError, ValueError):
             continue
     return out
 
